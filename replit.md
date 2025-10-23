@@ -1,0 +1,166 @@
+# Storia - AI Video Creator Platform
+
+## Overview
+Storia is a scalable, modular SaaS platform for creating AI-powered videos and stories. The platform guides users through the complete creative process from initial concept to final export and publishing.
+
+## Current State
+**MVP Focus**: Narrative Video Mode - Complete infrastructure setup with frontend prototype
+
+### Implemented Features
+- ✅ Complete database schema with PostgreSQL (users, workspaces, videos, stories, characters, voices, brandkits, uploads, content_calendar)
+- ✅ Object storage integration for media files
+- ✅ Comprehensive frontend with Storia brand identity (dark green gradient theme)
+- ✅ Full navigation with sidebar (Dashboard, Videos, Stories, Calendar, Assets)
+- ✅ Narrative Video workflow UI (Script → Breakdown → World/Cast → Storyboard → Animatic → Export)
+- ✅ Component library (VideoCard, CharacterCard, StoryboardFrame, StatCard, CalendarItem, ModeSelector)
+- ✅ Dark mode support with theme toggle
+- ✅ Modular backend structure ready for AI integrations
+
+## Project Architecture
+
+### Database Tables
+- **users**: User accounts with credits and subscription tier
+- **workspaces**: User workspaces for organizing projects
+- **videos**: Video projects with mode, status, script, scenes, storyboard data
+- **stories**: Short-form content with templates
+- **characters**: AI characters with appearance and voice settings
+- **voices**: Voice profiles for character synthesis
+- **brandkits**: Brand identity kits (colors, fonts, logos, guidelines)
+- **uploads**: User-uploaded media files
+- **content_calendar**: Scheduled content for publishing
+
+### Frontend Structure
+```
+client/src/
+├── components/
+│   ├── app-sidebar.tsx         # Main navigation sidebar
+│   ├── theme-provider.tsx      # Dark/light mode management
+│   ├── theme-toggle.tsx        # Theme switcher button
+│   ├── video-card.tsx          # Video project card
+│   ├── character-card.tsx      # Character asset card
+│   ├── storyboard-frame.tsx    # Storyboard shot frame
+│   ├── stat-card.tsx           # Dashboard statistics
+│   ├── mode-selector.tsx       # Video mode selection
+│   ├── narrative-workflow.tsx  # Step-by-step workflow
+│   ├── calendar-item.tsx       # Scheduled content item
+│   └── examples/               # Component examples for testing
+├── pages/
+│   ├── dashboard.tsx           # Main dashboard
+│   ├── videos.tsx              # Video project list
+│   ├── narrative-mode.tsx      # Narrative workflow page
+│   ├── characters.tsx          # Character management
+│   └── calendar.tsx            # Content calendar
+└── App.tsx                     # Main app with routing
+```
+
+### Backend Structure (Infrastructure Ready)
+```
+server/
+├── routes.ts                   # API endpoint definitions
+├── storage.ts                  # In-memory storage interface
+└── (planned structure)
+    ├── modes/
+    │   ├── narrative/          # Narrative video mode logic
+    │   ├── vlog/               # Character vlog mode
+    │   ├── ambient/            # Ambient visual mode
+    │   └── ...
+    ├── ai-models/
+    │   ├── text/               # OpenAI, Gemini, Claude
+    │   ├── image/              # Imagen 4, GPT-Image
+    │   ├── video/              # Kling, Veo, Runway
+    │   └── voice/              # Eleven Labs, VoiceKiller
+    ├── integrations/
+    │   ├── youtube/            # YouTube OAuth & publishing
+    │   ├── tiktok/             # TikTok integration
+    │   ├── instagram/          # Instagram integration
+    │   └── facebook/           # Facebook integration
+    └── publisher/
+        ├── scheduler/          # Content scheduling
+        └── calendar/           # Calendar management
+```
+
+## Design System
+
+### Brand Identity
+- **Name**: Storia
+- **Logo**: Gradient circle with vibrant purple-orange-pink colors
+- **Primary Color**: Deep green (158 65% 35%) - Used for primary actions, sidebar highlights
+- **Gradient Accent**: Green to purple (158 80% 45% → 280 75% 55%) - Used for CTAs and premium features
+- **Typography**: 
+  - Primary: Inter (UI elements)
+  - Display: Outfit (headlines)
+  - Mono: JetBrains Mono (code/technical)
+
+### UI Patterns
+- Dark mode by default with light mode support
+- Sidebar navigation (280px fixed width)
+- Card-based layouts with subtle elevation on hover
+- Workflow step indicators with progress tracking
+- Modal dialogs for creation flows
+- Toast notifications for feedback
+
+## Planned AI Integrations (Infrastructure Ready)
+
+### Text Generation
+- OpenAI: Script writing, scene breakdown
+- Gemini: Alternative text generation
+- Claude: Advanced narrative analysis
+
+### Image Generation
+- Imagen 4: Storyboard frame generation
+- GPT-Image: Alternative image generation
+- Nano Banana: Quick previews
+
+### Video Generation
+- Kling: Video synthesis
+- Veo: Advanced video creation
+- Runway: Motion graphics
+
+### Voice Synthesis
+- Eleven Labs: Character voices
+- VoiceKiller: Voice cloning
+
+### Publishing Platforms
+- YouTube: OAuth + video upload
+- TikTok: Short-form publishing
+- Instagram: Stories and Reels
+- Facebook: Video posts
+
+## Development Workflow
+
+### Current Phase: Frontend Prototype
+- All UI components built and tested
+- Dark mode fully functional
+- Responsive design implemented
+- Component examples for verification
+
+### Next Phase: Backend Implementation
+1. Set up AI model integrations (OpenAI, Gemini, Claude)
+2. Implement Narrative Mode agents:
+   - Script Writer
+   - Scene Breakdown Analyzer
+   - Image Prompt Generator
+   - Character Creator
+   - Video Animation Prompter
+3. Build publishing integrations (YouTube, TikTok, etc.)
+4. Implement credit system and subscription billing
+5. Add real-time collaboration features
+
+## User Preferences
+- Focus on scalable, modular architecture
+- Avoid future refactoring by organizing code properly upfront
+- Infrastructure-first approach: prepare integration structure before implementation
+- Clean separation between modes, AI models, and integrations
+
+## Technical Stack
+- **Frontend**: React + TypeScript, Wouter (routing), TanStack Query, Tailwind CSS, Shadcn UI
+- **Backend**: Express.js, Node.js
+- **Database**: PostgreSQL with Drizzle ORM
+- **Storage**: Replit Object Storage
+- **Deployment**: Replit (development and production)
+
+## Notes
+- Using in-memory storage (MemStorage) for MVP - ready to swap with database implementation
+- All database schemas defined and ready for migration
+- Component-driven development with examples for testing
+- Modular folder structure prevents future refactoring

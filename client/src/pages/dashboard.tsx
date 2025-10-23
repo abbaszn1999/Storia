@@ -17,9 +17,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { VIDEO_MODE_ROUTES, STORY_TEMPLATE_ROUTES } from "@/lib/routes";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [projectType, setProjectType] = useState<"video" | "story" | null>(null);
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
@@ -46,10 +49,30 @@ export default function Dashboard() {
   const handleCreateProject = () => {
     console.log("Creating project:", { projectName, projectType, mode: selectedMode });
     
-    if (projectType === "video" && selectedMode === "narrative") {
-      setLocation("/videos/narrative/new");
-    } else if (projectType === "story") {
-      setLocation("/stories/new");
+    if (projectType === "video" && selectedMode) {
+      const route = VIDEO_MODE_ROUTES[selectedMode];
+      if (route) {
+        setLocation(route);
+      } else {
+        toast({
+          title: "Error",
+          description: "Invalid video mode selected. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else if (projectType === "story" && selectedMode) {
+      const route = STORY_TEMPLATE_ROUTES[selectedMode];
+      if (route) {
+        setLocation(route);
+      } else {
+        toast({
+          title: "Error",
+          description: "Invalid story template selected. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
     
     setIsCreateDialogOpen(false);

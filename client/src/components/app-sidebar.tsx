@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { HistoryItem } from "@/components/history-item";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const mainNavItems = [
   { title: "Dashboard", url: "/", icon: Home },
@@ -27,6 +29,49 @@ const assetNavItems = [
   { title: "Characters", url: "/assets/characters", icon: User },
   { title: "Brand Kits", url: "/assets/brandkits", icon: LayoutTemplate },
   { title: "Uploads", url: "/assets/uploads", icon: FolderOpen },
+];
+
+const recentHistory = [
+  {
+    id: "1",
+    title: "Summer Product Launch",
+    type: "video" as const,
+    status: "completed",
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2),
+    url: "/videos/narrative/1",
+  },
+  {
+    id: "2",
+    title: "Brand Story 2024",
+    type: "video" as const,
+    status: "processing",
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
+    url: "/videos/narrative/2",
+  },
+  {
+    id: "3",
+    title: "Quick Product Demo",
+    type: "story" as const,
+    status: "completed",
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 48),
+    url: "/stories/3",
+  },
+  {
+    id: "4",
+    title: "Customer Testimonials",
+    type: "video" as const,
+    status: "draft",
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 72),
+    url: "/videos/narrative/4",
+  },
+  {
+    id: "5",
+    title: "Team Introduction",
+    type: "story" as const,
+    status: "published",
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 96),
+    url: "/stories/5",
+  },
 ];
 
 export function AppSidebar() {
@@ -57,6 +102,26 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarSeparator />
+
+        <SidebarGroup>
+          <div className="flex items-center justify-between gap-2 px-2 mb-2">
+            <SidebarGroupLabel>History</SidebarGroupLabel>
+            <Button variant="ghost" size="sm" className="text-xs" asChild data-testid="button-view-all-history">
+              <Link href="/videos">View All</Link>
+            </Button>
+          </div>
+          <SidebarGroupContent>
+            <ScrollArea className="h-64">
+              <div className="space-y-1 px-2">
+                {recentHistory.map((item) => (
+                  <HistoryItem key={item.id} {...item} />
+                ))}
+              </div>
+            </ScrollArea>
           </SidebarGroupContent>
         </SidebarGroup>
 

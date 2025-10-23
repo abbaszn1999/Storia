@@ -95,6 +95,8 @@ export default function Videos() {
       setProjectType(null);
       setSelectedMode(null);
       setProjectName("");
+    } else {
+      setProjectType("video");
     }
   };
 

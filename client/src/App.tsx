@@ -13,6 +13,7 @@ import Videos from "@/pages/videos";
 import NarrativeMode from "@/pages/narrative-mode";
 import Characters from "@/pages/characters";
 import Calendar from "@/pages/calendar";
+import History from "@/pages/history";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -22,6 +23,7 @@ function Router() {
       <Route path="/videos" component={Videos} />
       <Route path="/videos/narrative/:id" component={NarrativeMode} />
       <Route path="/stories" component={NotFound} />
+      <Route path="/history" component={History} />
       <Route path="/calendar" component={Calendar} />
       <Route path="/assets/characters" component={Characters} />
       <Route path="/assets/brandkits" component={NotFound} />

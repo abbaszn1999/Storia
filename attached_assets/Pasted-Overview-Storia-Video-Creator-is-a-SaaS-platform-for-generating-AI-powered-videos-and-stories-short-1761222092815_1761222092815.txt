@@ -1,0 +1,243 @@
+Overview
+Storia Video Creator is a SaaS platform for generating AI-powered videos and stories/shorts across multiple creative modes.
+ At this stage, we’re focusing exclusively on the Narrative Video Mode, guiding users through every step of the creative process — from idea to final export.
+
+Current Focus — Narrative Video Mode
+Users can:
+Write or refine a script
+
+
+Auto-break down the script into scenes and shots
+
+
+Define world and cast (characters, setting, lighting, mood)
+
+
+Build a visual storyboard with generated frames
+
+
+Preview an animatic version (timed storyboard)
+
+
+Export and publish to platforms like YouTube or TikTok
+
+
+Included tools:
+Assets Library: Characters, Voices, Brand Kits, Uploads
+
+
+Content Calendar: Plan and schedule releases
+
+
+Integrations: YouTube and TikTok for publishing
+
+
+
+🌐 Concept Summary
+Concept: Multi-mode AI video & shorts creator.
+
+
+Current scope: Narrative Video Mode only (others coming soon).
+
+
+Upcoming Modes:
+
+
+Character Vlog / Monologue
+
+
+Ambient / Visual / Mood
+
+
+Video Podcast
+
+
+Social Commerce Video
+
+
+Logo Animation Storytelling
+
+
+Shorts/Stories Templates:
+
+
+Problem–Solution
+
+
+Tease & Reveal
+
+
+Before & After
+
+
+Myth Busting
+
+
+ASMR / Sensory
+
+
+
+🧩 Modules
+Video Mode: Storyboard Narrative Mode (current)
+
+
+Stories/Shorts: Multiple creative templates (coming soon)
+
+
+Assets: Characters, Voices, Brand Kits, Uploads
+
+
+Content Calendar: Scheduling and post planning
+
+
+Integrations: YouTube / TikTok
+
+
+Settings & Billing: Credit system, subscription, account
+
+
+
+🤖 Intended Integrations
+Text Models: Gemini / OpenAI / Claude (script & breakdown)
+
+
+Image Models: Imagen 4, Nano Banana, GPT-Image
+
+
+Video Models: Kling, Veo, Runway
+
+
+Voice Models: Eleven Labs, VoiceKiller
+
+
+Publishing: OAuth integrations for YouTube, TikTok, Instagram, Facebook
+
+
+
+🗄️ Database Structure (Initial Plan)
+Core Tables:
+users
+
+
+workspaces
+
+
+videos
+
+
+stories
+
+
+characters
+
+
+voices
+
+
+brandkits
+
+
+uploads
+
+
+Upcoming Tables:
+notifications
+
+
+subscriptions
+
+
+credits
+
+
+payments
+
+
+
+🧱 File & Folder Structure
+src/
+ ├─ frontend/
+ │   ├─ components/
+ │   ├─ templates/
+ │   ├─ pages/
+ │   └─ routes/
+ │
+ ├─ server/
+ │   ├─ models/
+ │   │   ├─ video/
+ │   │   │   ├─ kling/
+ │   │   │   ├─ veo/
+ │   │   │   └─ runway/
+ │   │   ├─ image/
+ │   │   │   ├─ imagen4/
+ │   │   │   ├─ nano-banana/
+ │   │   │   └─ gpt-image/
+ │   │   ├─ text/
+ │   │   │   ├─ openai/
+ │   │   │   ├─ gemini/
+ │   │   │   └─ claude/
+ │   │   └─ voice/
+ │   │       ├─ eleven-labs/
+ │   │       └─ voicekiller/
+ │   │
+ │   ├─ integrations/
+ │   │   ├─ facebook/
+ │   │   ├─ instagram/
+ │   │   └─ tiktok/
+ │   │
+ │   ├─ assets/
+ │   │   ├─ characters/
+ │   │   ├─ voices/
+ │   │   ├─ brandkit/
+ │   │   └─ uploads/
+ │
+ │   ├─ cdn/
+ │   │   └─ bunnycdn/
+ │   ├─ database/
+ │   │   └─ examples/
+ │   ├─ video/
+ │   └─ modes/
+ │       ├─ mode1/
+ │       │   ├─ routes/
+ │       │   ├─ agents/
+ │       │   │   ├─ script-writer/
+ │       │   │   ├─ voiceover-prompter/
+ │       │   │   ├─ image-prompter/
+ │       │   │   ├─ character-creator/
+ │       │   │   └─ video-animation-prompter/
+ │       │   ├─ database/
+ │       │   └─ prompts/
+ │       ├─ mode2/
+ │       ├─ mode3/
+ │       ├─ mode4/
+ │       ├─ mode5/
+ │       └─ mode6/
+ │
+ ├─ shorts/
+ │   ├─ template1/
+ │   └─ template2/
+ │
+ └─ publisher/
+     ├─ scheduler/
+     ├─ calendar/
+     └─ sync/
+
+
+✅ In Short
+Storia Video Creator is a scalable, modular SaaS for AI-powered video and story creation.
+ It supports multiple content modes and integrates advanced AI models for scriptwriting, imagery, video, and voice generation. The MVP focuses on Narrative Video Mode, laying the foundation for the broader multi-mode creator ecosystem coming next.
+
+
+
+This is only an overview for our project
+You should always think smartly in organizing the code base based on our project requirements, workflow and end goal 
+
+
+Deep analyze the zip file which is the frontend and workflow for our tool and stick to the file uploaded for the frontend for the ui/ux user flow, side bar and all details. 
+
+For now build the frontend, database structure, the codebase structure with a detailed awareness that from now till finalizing the project we should always organize our code for not refactoring later on and so on.
+
+
+Note that we are not building a real functionality backend now, we are preparing the infrastructure only so consider that
+
+Also i have uploaded my brand identity and my logo, and our business name is Storia. 

@@ -326,28 +326,42 @@ export function SceneBreakdown({ videoId, script, scenes, shots, onScenesGenerat
   return (
     <div className="space-y-6">
       {!hasBreakdown ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground mb-6">
-            AI will analyze your script and break it down into scenes and shots.
-          </p>
-          <Button
-            size="lg"
-            onClick={() => breakdownMutation.mutate()}
-            disabled={breakdownMutation.isPending}
-            data-testid="button-generate-breakdown"
-          >
-            {breakdownMutation.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Analyzing Script...
-              </>
-            ) : (
-              <>
-                <Sparkles className="mr-2 h-4 w-4" />
-                Generate Scene Breakdown
-              </>
-            )}
-          </Button>
+        <div className="space-y-6">
+          <div className="text-center py-12">
+            <p className="text-muted-foreground mb-6">
+              AI will analyze your script and break it down into scenes and shots.
+            </p>
+            <Button
+              size="lg"
+              onClick={() => breakdownMutation.mutate()}
+              disabled={breakdownMutation.isPending}
+              data-testid="button-generate-breakdown"
+            >
+              {breakdownMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Analyzing Script...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Generate Scene Breakdown
+                </>
+              )}
+            </Button>
+          </div>
+          
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground mb-4">or</p>
+            <Button
+              variant="outline"
+              onClick={openAddSceneDialog}
+              data-testid="button-add-scene"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Scene Manually
+            </Button>
+          </div>
         </div>
       ) : (
         <>

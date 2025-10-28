@@ -125,9 +125,13 @@ export function NarrativeWorkflow() {
               script={script}
               scenes={scenes}
               shots={shots}
-              onScenesGenerated={(newScenes, newShots) => {
+              shotVersions={shotVersions}
+              onScenesGenerated={(newScenes, newShots, newShotVersions) => {
                 setScenes(newScenes);
                 setShots(newShots);
+                if (newShotVersions) {
+                  setShotVersions(newShotVersions);
+                }
               }}
               onNext={handleNext}
             />

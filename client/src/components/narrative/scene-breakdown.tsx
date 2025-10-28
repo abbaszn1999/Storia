@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +6,7 @@ import { Loader2, Sparkles, Edit, Trash2, Plus, Copy, ChevronUp, ChevronDown } f
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import type { Scene, Shot } from "@shared/schema";
+import type { Scene, Shot, ShotVersion } from "@shared/schema";
 import { SceneDialog } from "./scene-dialog";
 import { ShotDialog } from "./shot-dialog";
 import {
@@ -26,11 +26,12 @@ interface SceneBreakdownProps {
   script: string;
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
-  onScenesGenerated: (scenes: Scene[], shots: { [sceneId: string]: Shot[] }) => void;
+  shotVersions?: { [shotId: string]: ShotVersion[] };
+  onScenesGenerated: (scenes: Scene[], shots: { [sceneId: string]: Shot[] }, shotVersions?: { [shotId: string]: ShotVersion[] }) => void;
   onNext: () => void;
 }
 
-export function SceneBreakdown({ videoId, script, scenes, shots, onScenesGenerated, onNext }: SceneBreakdownProps) {
+export function SceneBreakdown({ videoId, script, scenes, shots, shotVersions, onScenesGenerated, onNext }: SceneBreakdownProps) {
   const { toast } = useToast();
   const [sceneDialogOpen, setSceneDialogOpen] = useState(false);
   const [shotDialogOpen, setShotDialogOpen] = useState(false);
@@ -40,6 +41,306 @@ export function SceneBreakdown({ videoId, script, scenes, shots, onScenesGenerat
   const [deleteSceneId, setDeleteSceneId] = useState<string | null>(null);
   const [deleteShotId, setDeleteShotId] = useState<string | null>(null);
   const [synopsis, setSynopsis] = useState<string>(script ? script.substring(0, 200) : "");
+
+  // TEMPORARY: Load dummy data for testing UI
+  useEffect(() => {
+    if (scenes.length === 0 && Object.keys(shots).length === 0) {
+      const dummyScenes: Scene[] = [
+        {
+          id: "scene-1",
+          videoId,
+          sceneNumber: 1,
+          title: "The Discovery",
+          description: "Sarah stumbles upon an ancient map in her grandmother's attic, revealing the location of a hidden temple deep in the Amazon jungle.",
+          location: "Grandmother's Attic",
+          timeOfDay: "Evening",
+          duration: 45,
+          createdAt: new Date(),
+        },
+        {
+          id: "scene-2",
+          videoId,
+          sceneNumber: 2,
+          title: "Journey Begins",
+          description: "Sarah packs her gear and boards a small plane to Brazil. As they fly over the vast rainforest, she studies the map with growing excitement.",
+          location: "Small Aircraft over Amazon",
+          timeOfDay: "Morning",
+          duration: 45,
+          createdAt: new Date(),
+        },
+        {
+          id: "scene-3",
+          videoId,
+          sceneNumber: 3,
+          title: "Into the Jungle",
+          description: "Sarah and her guide hack through dense vegetation. Strange sounds echo through the trees as they navigate treacherous terrain towards their destination.",
+          location: "Amazon Rainforest",
+          timeOfDay: "Afternoon",
+          duration: 45,
+          createdAt: new Date(),
+        },
+        {
+          id: "scene-4",
+          videoId,
+          sceneNumber: 4,
+          title: "The Temple Revealed",
+          description: "Pushing through a wall of vines, Sarah gasps as an magnificent ancient temple emerges from the jungle, covered in mysterious symbols glowing faintly in the twilight.",
+          location: "Ancient Temple Entrance",
+          timeOfDay: "Twilight",
+          duration: 45,
+          createdAt: new Date(),
+        },
+      ];
+
+      const dummyShots: { [sceneId: string]: Shot[] } = {
+        "scene-1": [
+          {
+            id: "shot-1-1",
+            sceneId: "scene-1",
+            shotNumber: 1,
+            shotType: "Close-Up",
+            description: "Close-up of dusty boxes and old photographs in dim attic lighting",
+            duration: 8,
+            cameraMovement: "static",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: "shot-1-2",
+            sceneId: "scene-1",
+            shotNumber: 2,
+            shotType: "Medium Shot",
+            description: "Sarah's hand reaches into an ornate wooden box, pulling out an aged, yellowed map",
+            duration: 12,
+            cameraMovement: "push in",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: "shot-1-3",
+            sceneId: "scene-1",
+            shotNumber: 3,
+            shotType: "Medium Close-Up",
+            description: "Sarah's eyes widen as she unfolds the map, candlelight illuminating ancient markings",
+            duration: 15,
+            cameraMovement: "dolly in",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: "shot-1-4",
+            sceneId: "scene-1",
+            shotNumber: 4,
+            shotType: "Extreme Close-Up",
+            description: "Extreme close-up of the map showing detailed illustrations of a temple hidden in jungle",
+            duration: 10,
+            cameraMovement: "pan right",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+        "scene-2": [
+          {
+            id: "shot-2-1",
+            sceneId: "scene-2",
+            shotNumber: 1,
+            shotType: "Wide Shot",
+            description: "Wide shot of small propeller plane on tarmac at sunrise",
+            duration: 10,
+            cameraMovement: "static",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: "shot-2-2",
+            sceneId: "scene-2",
+            shotNumber: 2,
+            shotType: "Medium Shot",
+            description: "Sarah climbs into the plane with her backpack and equipment",
+            duration: 8,
+            cameraMovement: "tracking",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: "shot-2-3",
+            sceneId: "scene-2",
+            shotNumber: 3,
+            shotType: "Aerial",
+            description: "Aerial view from plane window showing endless green canopy of Amazon rainforest",
+            duration: 12,
+            cameraMovement: "slow zoom",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: "shot-2-4",
+            sceneId: "scene-2",
+            shotNumber: 4,
+            shotType: "Close-Up",
+            description: "Interior shot of Sarah studying the map intensely, finger tracing route",
+            duration: 15,
+            cameraMovement: "push in",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+        "scene-3": [
+          {
+            id: "shot-3-1",
+            sceneId: "scene-3",
+            shotNumber: 1,
+            shotType: "Medium Shot",
+            description: "Low angle shot of machete cutting through thick jungle vines",
+            duration: 8,
+            cameraMovement: "handheld",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: "shot-3-2",
+            sceneId: "scene-3",
+            shotNumber: 2,
+            shotType: "Medium Shot",
+            description: "Sarah and guide navigate through dense undergrowth, sweat on their faces",
+            duration: 14,
+            cameraMovement: "tracking",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: "shot-3-3",
+            sceneId: "scene-3",
+            shotNumber: 3,
+            shotType: "POV",
+            description: "POV shot looking up through canopy as mysterious bird calls echo",
+            duration: 10,
+            cameraMovement: "tilt up",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: "shot-3-4",
+            sceneId: "scene-3",
+            shotNumber: 4,
+            shotType: "Close-Up",
+            description: "Close-up of Sarah checking compass against map, determination in her expression",
+            duration: 13,
+            cameraMovement: "static",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+        "scene-4": [
+          {
+            id: "shot-4-1",
+            sceneId: "scene-4",
+            shotNumber: 1,
+            shotType: "Medium Shot",
+            description: "Sarah's hand pushes aside wall of hanging vines in slow motion",
+            duration: 10,
+            cameraMovement: "push forward",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: "shot-4-2",
+            sceneId: "scene-4",
+            shotNumber: 2,
+            shotType: "Wide Shot",
+            description: "Reveal shot of massive temple structure emerging from jungle vegetation",
+            duration: 18,
+            cameraMovement: "crane up",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: "shot-4-3",
+            sceneId: "scene-4",
+            shotNumber: 3,
+            shotType: "Medium Close-Up",
+            description: "Sarah's face in golden hour lighting, expression of wonder and amazement",
+            duration: 8,
+            cameraMovement: "static",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: "shot-4-4",
+            sceneId: "scene-4",
+            shotNumber: 4,
+            shotType: "Medium Shot",
+            description: "Dolly shot along temple wall showing intricate carvings and glowing symbols",
+            duration: 12,
+            cameraMovement: "dolly right",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: "shot-4-5",
+            sceneId: "scene-4",
+            shotNumber: 5,
+            shotType: "Aerial",
+            description: "Wide establishing shot of temple against jungle backdrop as sun sets",
+            duration: 12,
+            cameraMovement: "static",
+            currentVersionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+      };
+
+      // Create dummy shot versions with placeholder images
+      const dummyShotVersions: { [shotId: string]: ShotVersion[] } = {};
+      Object.values(dummyShots).flat().forEach((shot, index) => {
+        const versionId = `version-${shot.id}-1`;
+        const colors = [
+          'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=450&fit=crop', // Mountain landscape
+          'https://images.unsplash.com/photo-1506709551723-4c3c5c8bbb4b?w=800&h=450&fit=crop', // Forest
+          'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&h=450&fit=crop', // Nature
+          'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=450&fit=crop', // Forest path
+        ];
+        const imageUrl = colors[index % colors.length];
+
+        dummyShotVersions[shot.id] = [
+          {
+            id: versionId,
+            shotId: shot.id,
+            versionNumber: 1,
+            imagePrompt: shot.description || '',
+            imageUrl,
+            videoPrompt: null,
+            videoUrl: null,
+            status: "completed",
+            createdAt: new Date(),
+          },
+        ];
+        
+        // Update shot to reference this version
+        shot.currentVersionId = versionId;
+      });
+
+      setSynopsis("An adventurous explorer discovers a mysterious map leading to an ancient temple deep in the Amazon rainforest. Her journey takes her from a dusty attic to the heart of the jungle, where she faces both natural obstacles and the lure of forgotten civilizations. As she pushes through the dense vegetation, the temple's secrets begin to reveal themselves.");
+      onScenesGenerated(dummyScenes, dummyShots, dummyShotVersions);
+    }
+  }, []);
 
   const moveScene = async (sceneId: string, direction: 'up' | 'down') => {
     const sceneIndex = scenes.findIndex(s => s.id === sceneId);

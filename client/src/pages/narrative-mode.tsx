@@ -1,56 +1,126 @@
 import { useState } from "react";
-import { ArrowLeft, Home } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NarrativeWorkflow } from "@/components/narrative-workflow";
-import { Badge } from "@/components/ui/badge";
+import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
+
+const steps = [
+  { id: "script", label: "Script" },
+  { id: "breakdown", label: "Breakdown" },
+  { id: "world", label: "World & Cast" },
+  { id: "storyboard", label: "Storyboard" },
+  { id: "animatic", label: "Animatic" },
+  { id: "export", label: "Export" },
+];
 
 export default function NarrativeMode() {
   const [videoTitle] = useState("Untitled Project");
+  const [activeStep, setActiveStep] = useState("script");
+  const [completedSteps, setCompletedSteps] = useState<string[]>([]);
+  
+  const [videoId] = useState(`video-${Date.now()}`);
+  const [workspaceId] = useState("workspace-1");
+  const [script, setScript] = useState("");
+  const [scenes, setScenes] = useState<Scene[]>([]);
+  const [shots, setShots] = useState<{ [sceneId: string]: Shot[] }>({});
+  const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
+  const [worldSettings, setWorldSettings] = useState<{ artStyle: string; aspectRatio: string }>({
+    artStyle: "none",
+    aspectRatio: "16:9",
+  });
+
+  const isStepCompleted = (stepId: string) => completedSteps.includes(stepId);
+  const currentStepIndex = steps.findIndex((s) => s.id === activeStep);
+
+  const handleNext = () => {
+    if (!completedSteps.includes(activeStep)) {
+      setCompletedSteps([...completedSteps, activeStep]);
+    }
+    const nextIndex = currentStepIndex + 1;
+    if (nextIndex < steps.length) {
+      setActiveStep(steps[nextIndex].id);
+    }
+  };
+
+  const handlePrevious = () => {
+    const prevIndex = currentStepIndex - 1;
+    if (prevIndex >= 0) {
+      setActiveStep(steps[prevIndex].id);
+    }
+  };
 
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
-        <div className="px-6 py-4">
+        <div className="px-6 py-3">
           <div className="flex items-center justify-between gap-6">
             {/* Left: Navigation & Branding */}
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-3">
-                <img src="/storia-logo.png" alt="Storia" className="h-8 w-8" />
-                <span className="text-xl font-display font-semibold">Storia</span>
-              </div>
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" className="h-8 w-8" asChild data-testid="button-back">
+                <Link href="/videos">
+                  <ArrowLeft className="h-4 w-4" />
+                </Link>
+              </Button>
               
-              <div className="h-8 w-px bg-border" />
+              <div className="h-6 w-px bg-border" />
               
-              <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon" className="h-8 w-8" asChild data-testid="button-back">
-                  <Link href="/videos">
-                    <ArrowLeft className="h-4 w-4" />
-                  </Link>
-                </Button>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-base font-semibold truncate">{videoTitle}</h1>
-                    <Badge variant="secondary" className="text-xs">
-                      Narrative Mode
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Story-driven video creation
-                  </p>
-                </div>
+              <h1 className="text-sm font-semibold truncate max-w-[200px]">{videoTitle}</h1>
+            </div>
+
+            {/* Center: Step Navigation */}
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8"
+                onClick={handlePrevious}
+                disabled={currentStepIndex === 0}
+                data-testid="button-previous-step"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+
+              <div className="flex items-center gap-1">
+                {steps.map((step, index) => (
+                  <button
+                    key={step.id}
+                    onClick={() => setActiveStep(step.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all hover-elevate ${
+                      activeStep === step.id
+                        ? "bg-primary text-primary-foreground"
+                        : isStepCompleted(step.id)
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground"
+                    }`}
+                    data-testid={`button-step-${step.id}`}
+                  >
+                    {isStepCompleted(step.id) && (
+                      <Check className="h-3.5 w-3.5" />
+                    )}
+                    <span className="whitespace-nowrap">{step.label}</span>
+                  </button>
+                ))}
               </div>
+
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8"
+                onClick={handleNext}
+                disabled={currentStepIndex === steps.length - 1}
+                data-testid="button-next-step"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
 
             {/* Right: Actions */}
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                <Link href="/">
-                  <Home className="h-4 w-4" />
-                </Link>
-              </Button>
               <ThemeToggle />
             </div>
           </div>
@@ -60,7 +130,26 @@ export default function NarrativeMode() {
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
         <div className="max-w-[1600px] mx-auto px-6 py-8">
-          <NarrativeWorkflow />
+          <NarrativeWorkflow 
+            activeStep={activeStep}
+            videoId={videoId}
+            workspaceId={workspaceId}
+            script={script}
+            scenes={scenes}
+            shots={shots}
+            shotVersions={shotVersions}
+            characters={characters}
+            referenceImages={referenceImages}
+            worldSettings={worldSettings}
+            onScriptChange={setScript}
+            onScenesChange={setScenes}
+            onShotsChange={setShots}
+            onShotVersionsChange={setShotVersions}
+            onCharactersChange={setCharacters}
+            onReferenceImagesChange={setReferenceImages}
+            onWorldSettingsChange={setWorldSettings}
+            onNext={handleNext}
+          />
         </div>
       </main>
     </div>

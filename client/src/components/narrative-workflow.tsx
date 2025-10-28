@@ -1,6 +1,3 @@
-import { useState } from "react";
-import { Check } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScriptEditor } from "@/components/narrative/script-editor";
 import { SceneBreakdown } from "@/components/narrative/scene-breakdown";
@@ -8,45 +5,47 @@ import { WorldCast } from "@/components/narrative/world-cast";
 import { StoryboardEditor } from "@/components/narrative/storyboard-editor";
 import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
 
-const steps = [
-  { id: "script", label: "Script", description: "Write or refine your story" },
-  { id: "breakdown", label: "Breakdown", description: "Scene and shot analysis" },
-  { id: "world", label: "World & Cast", description: "Define characters and setting" },
-  { id: "storyboard", label: "Storyboard", description: "Visual frame generation" },
-  { id: "animatic", label: "Animatic", description: "Preview timed sequence" },
-  { id: "export", label: "Export", description: "Finalize and publish" },
-];
+interface NarrativeWorkflowProps {
+  activeStep: string;
+  videoId: string;
+  workspaceId: string;
+  script: string;
+  scenes: Scene[];
+  shots: { [sceneId: string]: Shot[] };
+  shotVersions: { [shotId: string]: ShotVersion[] };
+  characters: Character[];
+  referenceImages: ReferenceImage[];
+  worldSettings: { artStyle: string; aspectRatio: string };
+  onScriptChange: (script: string) => void;
+  onScenesChange: (scenes: Scene[]) => void;
+  onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
+  onShotVersionsChange: (shotVersions: { [shotId: string]: ShotVersion[] }) => void;
+  onCharactersChange: (characters: Character[]) => void;
+  onReferenceImagesChange: (referenceImages: ReferenceImage[]) => void;
+  onWorldSettingsChange: (settings: { artStyle: string; aspectRatio: string }) => void;
+  onNext: () => void;
+}
 
-export function NarrativeWorkflow() {
-  const [activeStep, setActiveStep] = useState("script");
-  const [completedSteps, setCompletedSteps] = useState<string[]>([]);
-  
-  const [videoId] = useState(`video-${Date.now()}`);
-  const [workspaceId] = useState("workspace-1"); // TODO: Get from authenticated user context
-  const [script, setScript] = useState("");
-  const [scenes, setScenes] = useState<Scene[]>([]);
-  const [shots, setShots] = useState<{ [sceneId: string]: Shot[] }>({});
-  const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
-  const [characters, setCharacters] = useState<Character[]>([]);
-  const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
-  const [worldSettings, setWorldSettings] = useState<{ artStyle: string; aspectRatio: string }>({
-    artStyle: "none",
-    aspectRatio: "16:9",
-  });
-
-  const isStepCompleted = (stepId: string) => completedSteps.includes(stepId);
-  const currentStepIndex = steps.findIndex((s) => s.id === activeStep);
-
-  const handleNext = () => {
-    if (!completedSteps.includes(activeStep)) {
-      setCompletedSteps([...completedSteps, activeStep]);
-    }
-    const nextIndex = currentStepIndex + 1;
-    if (nextIndex < steps.length) {
-      setActiveStep(steps[nextIndex].id);
-    }
-  };
-
+export function NarrativeWorkflow({
+  activeStep,
+  videoId,
+  workspaceId,
+  script,
+  scenes,
+  shots,
+  shotVersions,
+  characters,
+  referenceImages,
+  worldSettings,
+  onScriptChange,
+  onScenesChange,
+  onShotsChange,
+  onShotVersionsChange,
+  onCharactersChange,
+  onReferenceImagesChange,
+  onWorldSettingsChange,
+  onNext,
+}: NarrativeWorkflowProps) {
   const handleGenerateShot = (shotId: string) => {
     console.log("Generating shot:", shotId);
   };
@@ -56,143 +55,100 @@ export function NarrativeWorkflow() {
   };
 
   const handleUpdateShot = (shotId: string, updates: Partial<Shot>) => {
-    setShots((prev) => {
-      const updated = { ...prev };
-      Object.keys(updated).forEach((sceneId) => {
-        updated[sceneId] = updated[sceneId].map((shot) =>
-          shot.id === shotId ? { ...shot, ...updates } : shot
-        );
-      });
-      return updated;
-    });
+    onShotsChange(
+      Object.fromEntries(
+        Object.entries(shots).map(([sceneId, sceneShots]) => [
+          sceneId,
+          sceneShots.map((shot) =>
+            shot.id === shotId ? { ...shot, ...updates } : shot
+          ),
+        ])
+      )
+    );
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 overflow-x-auto pb-2">
-        {steps.map((step, index) => (
-          <div key={step.id} className="flex items-center gap-2">
-            <div
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-all ${
-                activeStep === step.id
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : isStepCompleted(step.id)
-                  ? "bg-card border-primary"
-                  : "bg-card border-border hover-elevate"
-              }`}
-              onClick={() => setActiveStep(step.id)}
-              data-testid={`button-step-${step.id}`}
-            >
-              {isStepCompleted(step.id) ? (
-                <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
-                  <Check className="h-3 w-3" />
-                </div>
-              ) : (
-                <div
-                  className={`h-5 w-5 rounded-full border-2 flex items-center justify-center text-xs ${
-                    activeStep === step.id ? "border-primary-foreground" : "border-muted-foreground"
-                  }`}
-                >
-                  {index + 1}
-                </div>
-              )}
-              <div className="min-w-0">
-                <div className="text-sm font-medium whitespace-nowrap">{step.label}</div>
-              </div>
-            </div>
-            {index < steps.length - 1 && <div className="h-0.5 w-8 bg-border" />}
+    <div>
+      {activeStep === "script" && (
+        <ScriptEditor
+          initialScript={script}
+          onScriptChange={onScriptChange}
+          onNext={onNext}
+        />
+      )}
+
+      {activeStep === "breakdown" && (
+        <SceneBreakdown
+          videoId={videoId}
+          script={script}
+          scenes={scenes}
+          shots={shots}
+          shotVersions={shotVersions}
+          onScenesGenerated={(newScenes, newShots, newShotVersions) => {
+            onScenesChange(newScenes);
+            onShotsChange(newShots);
+            if (newShotVersions) {
+              onShotVersionsChange(newShotVersions);
+            }
+          }}
+          onNext={onNext}
+        />
+      )}
+
+      {activeStep === "world" && (
+        <WorldCast
+          videoId={videoId}
+          workspaceId={workspaceId}
+          characters={characters}
+          referenceImages={referenceImages}
+          artStyle={worldSettings.artStyle}
+          aspectRatio={worldSettings.aspectRatio}
+          onCharactersChange={onCharactersChange}
+          onReferenceImagesChange={onReferenceImagesChange}
+          onWorldSettingsChange={onWorldSettingsChange}
+          onNext={onNext}
+        />
+      )}
+
+      {activeStep === "storyboard" && (
+        <StoryboardEditor
+          videoId={videoId}
+          scenes={scenes}
+          shots={shots}
+          shotVersions={shotVersions}
+          referenceImages={referenceImages}
+          onGenerateShot={handleGenerateShot}
+          onRegenerateShot={handleRegenerateShot}
+          onUpdateShot={handleUpdateShot}
+          onNext={onNext}
+        />
+      )}
+
+      {activeStep === "animatic" && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Preview your timed storyboard sequence with transitions.
+          </p>
+          <div className="flex justify-end">
+            <Button onClick={onNext} data-testid="button-next">
+              Continue to Export
+            </Button>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{steps.find((s) => s.id === activeStep)?.label}</CardTitle>
-          <CardDescription>{steps.find((s) => s.id === activeStep)?.description}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {activeStep === "script" && (
-            <ScriptEditor
-              initialScript={script}
-              onScriptChange={setScript}
-              onNext={handleNext}
-            />
-          )}
-
-          {activeStep === "breakdown" && (
-            <SceneBreakdown
-              videoId={videoId}
-              script={script}
-              scenes={scenes}
-              shots={shots}
-              shotVersions={shotVersions}
-              onScenesGenerated={(newScenes, newShots, newShotVersions) => {
-                setScenes(newScenes);
-                setShots(newShots);
-                if (newShotVersions) {
-                  setShotVersions(newShotVersions);
-                }
-              }}
-              onNext={handleNext}
-            />
-          )}
-
-          {activeStep === "world" && (
-            <WorldCast
-              videoId={videoId}
-              workspaceId={workspaceId}
-              characters={characters}
-              referenceImages={referenceImages}
-              artStyle={worldSettings.artStyle}
-              aspectRatio={worldSettings.aspectRatio}
-              onCharactersChange={setCharacters}
-              onReferenceImagesChange={setReferenceImages}
-              onWorldSettingsChange={setWorldSettings}
-              onNext={handleNext}
-            />
-          )}
-
-          {activeStep === "storyboard" && (
-            <StoryboardEditor
-              videoId={videoId}
-              scenes={scenes}
-              shots={shots}
-              shotVersions={shotVersions}
-              referenceImages={referenceImages}
-              onGenerateShot={handleGenerateShot}
-              onRegenerateShot={handleRegenerateShot}
-              onUpdateShot={handleUpdateShot}
-              onNext={handleNext}
-            />
-          )}
-
-          {activeStep === "animatic" && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Preview your timed storyboard sequence with transitions.
-              </p>
-              <div className="flex justify-end">
-                <Button onClick={handleNext} data-testid="button-next">
-                  Continue to Export
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {activeStep === "export" && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Export and publish your video to YouTube, TikTok, and more.
-              </p>
-              <div className="flex justify-end">
-                <Button className="bg-gradient-storia" data-testid="button-export">
-                  Export Video
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {activeStep === "export" && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Export and publish your video to YouTube, TikTok, and more.
+          </p>
+          <div className="flex justify-end">
+            <Button className="bg-gradient-storia" data-testid="button-export">
+              Export Video
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

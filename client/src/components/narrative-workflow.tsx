@@ -28,9 +28,9 @@ export function NarrativeWorkflow() {
   const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
   const [characters, setCharacters] = useState<Character[]>([]);
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
-  const [worldSettings, setWorldSettings] = useState<{ artStyle: string; aiModel: string }>({
-    artStyle: "3d-cute",
-    aiModel: "flux",
+  const [worldSettings, setWorldSettings] = useState<{ artStyle: string; aspectRatio: string }>({
+    artStyle: "none",
+    aspectRatio: "16:9",
   });
 
   const isStepCompleted = (stepId: string) => completedSteps.includes(stepId);
@@ -138,7 +138,7 @@ export function NarrativeWorkflow() {
               characters={characters}
               referenceImages={referenceImages}
               artStyle={worldSettings.artStyle}
-              aiModel={worldSettings.aiModel}
+              aspectRatio={worldSettings.aspectRatio}
               onCharactersChange={setCharacters}
               onReferenceImagesChange={setReferenceImages}
               onWorldSettingsChange={setWorldSettings}

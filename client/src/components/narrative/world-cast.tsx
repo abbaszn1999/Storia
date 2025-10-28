@@ -1,13 +1,11 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Upload, X, Image as ImageIcon, Check } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Plus, Upload, Check, Pencil, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Character, ReferenceImage } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
@@ -17,52 +15,46 @@ interface WorldCastProps {
   characters: Character[];
   referenceImages: ReferenceImage[];
   artStyle?: string;
-  aiModel?: string;
+  aspectRatio?: string;
   onCharactersChange: (characters: Character[]) => void;
   onReferenceImagesChange: (images: ReferenceImage[]) => void;
-  onWorldSettingsChange?: (settings: { artStyle: string; aiModel: string }) => void;
+  onWorldSettingsChange?: (settings: { artStyle: string; aspectRatio: string }) => void;
   onNext: () => void;
 }
 
-const ART_STYLES = [
-  { id: "3d-cute", name: "3D Cute", isNew: true },
-  { id: "realistic", name: "Realistic", isNew: false },
-  { id: "3d-cartoon", name: "3D Cartoon", isNew: false },
-  { id: "disney-2", name: "Disney 2.0", isNew: true },
-  { id: "pixar", name: "Pixar", isNew: false },
-  { id: "3d-cartoon-2", name: "3D Cartoon 2.0", isNew: true },
-  { id: "animals-2", name: "Animals 2.0", isNew: true },
-  { id: "meow-3", name: "Meow 3.0", isNew: false },
-  { id: "disney", name: "Disney", isNew: false },
+const VIDEO_STYLES = [
+  { id: "none", name: "None" },
+  { id: "cinematic", name: "Cinematic" },
+  { id: "vintage", name: "Vintage" },
+  { id: "storybook", name: "Storybook" },
 ];
 
-const AI_MODELS = [
-  { id: "flux", name: "Flux" },
-  { id: "midjourney", name: "Midjourney" },
-  { id: "nanobanana", name: "Nano Banana" },
-  { id: "seadream", name: "Seadream" },
-  { id: "gpt-image", name: "GPT Image" },
+const ASPECT_RATIOS = [
+  { id: "16:9", label: "16:9" },
+  { id: "1:1", label: "1:1" },
+  { id: "9:16", label: "9:16" },
 ];
 
 export function WorldCast({ 
   videoId, 
   characters, 
   referenceImages,
-  artStyle = "3d-cute",
-  aiModel = "flux",
+  artStyle = "none",
+  aspectRatio = "16:9",
   onCharactersChange, 
   onReferenceImagesChange,
   onWorldSettingsChange,
   onNext 
 }: WorldCastProps) {
   const [isAddCharacterOpen, setIsAddCharacterOpen] = useState(false);
+  const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [newCharacter, setNewCharacter] = useState({ name: "", description: "", appearance: "" });
-  const [styleDescription, setStyleDescription] = useState("");
+  const [cinematicInspiration, setCinematicInspiration] = useState("");
   const [selectedArtStyle, setSelectedArtStyle] = useState(artStyle);
-  const [selectedAiModel, setSelectedAiModel] = useState(aiModel);
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState(aspectRatio);
   const { toast } = useToast();
 
-  const handleAddCharacter = () => {
+  const handleSaveCharacter = () => {
     if (!newCharacter.name.trim()) {
       toast({
         title: "Name Required",
@@ -72,37 +64,58 @@ export function WorldCast({
       return;
     }
 
-    const character: Character = {
-      id: `char-${Date.now()}`,
-      workspaceId: "temp",
-      name: newCharacter.name,
-      description: newCharacter.description || null,
-      appearance: newCharacter.appearance || null,
-      voiceSettings: null,
-      thumbnailUrl: null,
-      createdAt: new Date(),
-    };
+    if (editingCharacter) {
+      const updatedCharacters = characters.map(c => 
+        c.id === editingCharacter.id 
+          ? { ...c, name: newCharacter.name, description: newCharacter.description, appearance: newCharacter.appearance }
+          : c
+      );
+      onCharactersChange(updatedCharacters);
+      toast({
+        title: "Character Updated",
+        description: `${newCharacter.name} has been updated.`,
+      });
+    } else {
+      const character: Character = {
+        id: `char-${Date.now()}`,
+        workspaceId: "temp",
+        name: newCharacter.name,
+        description: newCharacter.description || null,
+        appearance: newCharacter.appearance || null,
+        voiceSettings: null,
+        thumbnailUrl: null,
+        createdAt: new Date(),
+      };
 
-    onCharactersChange([...characters, character]);
+      onCharactersChange([...characters, character]);
+      toast({
+        title: "Character Added",
+        description: `${character.name} has been added to your cast.`,
+      });
+    }
+
     setNewCharacter({ name: "", description: "", appearance: "" });
+    setEditingCharacter(null);
     setIsAddCharacterOpen(false);
-    toast({
-      title: "Character Added",
-      description: `${character.name} has been added to your cast.`,
+  };
+
+  const handleEditCharacter = (character: Character) => {
+    setEditingCharacter(character);
+    setNewCharacter({
+      name: character.name,
+      description: character.description || "",
+      appearance: (character.appearance as string) || "",
     });
+    setIsAddCharacterOpen(true);
   };
 
-  const handleRemoveCharacter = (id: string) => {
-    onCharactersChange(characters.filter((c) => c.id !== id));
-  };
-
-  const handleUploadReference = (type: "style" | "character", file: File, characterId?: string) => {
+  const handleUploadReference = (file: File) => {
     const refImage: ReferenceImage = {
       id: `ref-${Date.now()}`,
       videoId,
       shotId: null,
-      characterId: characterId || null,
-      type,
+      characterId: null,
+      type: "style",
       imageUrl: URL.createObjectURL(file),
       description: null,
       createdAt: new Date(),
@@ -111,265 +124,241 @@ export function WorldCast({
     onReferenceImagesChange([...referenceImages, refImage]);
     toast({
       title: "Reference Uploaded",
-      description: `${type === "style" ? "Style" : "Character"} reference image added.`,
+      description: "Style reference image added.",
     });
   };
 
   const handleArtStyleChange = (styleId: string) => {
     setSelectedArtStyle(styleId);
     if (onWorldSettingsChange) {
-      onWorldSettingsChange({ artStyle: styleId, aiModel: selectedAiModel });
+      onWorldSettingsChange({ artStyle: styleId, aspectRatio: selectedAspectRatio });
     }
   };
 
-  const handleAiModelChange = (modelId: string) => {
-    setSelectedAiModel(modelId);
+  const handleAspectRatioChange = (ratio: string) => {
+    setSelectedAspectRatio(ratio);
     if (onWorldSettingsChange) {
-      onWorldSettingsChange({ artStyle: selectedArtStyle, aiModel: modelId });
+      onWorldSettingsChange({ artStyle: selectedArtStyle, aspectRatio: ratio });
     }
   };
 
   const styleRefs = referenceImages.filter((r) => r.type === "style");
-  const characterRefs = referenceImages.filter((r) => r.type === "character");
 
   return (
-    <div className="space-y-6">
-      <Tabs defaultValue="world" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="world" data-testid="tab-world">World & Style</TabsTrigger>
-          <TabsTrigger value="characters" data-testid="tab-characters">Characters</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="world" className="space-y-6">
-          <div>
-            <h3 className="text-lg font-semibold mb-1">Art Style</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Choose the visual style for your video
-            </p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            {ART_STYLES.map((style) => (
-              <Card
-                key={style.id}
-                className={`cursor-pointer transition-all hover-elevate relative ${
-                  selectedArtStyle === style.id ? 'ring-2 ring-primary' : ''
-                }`}
-                onClick={() => handleArtStyleChange(style.id)}
-                data-testid={`art-style-${style.id}`}
-              >
-                {style.isNew && (
-                  <Badge className="absolute top-2 right-2 z-10" variant="default">
-                    New
-                  </Badge>
-                )}
-                {selectedArtStyle === style.id && (
-                  <div className="absolute top-2 left-2 z-10 h-6 w-6 rounded-full bg-primary flex items-center justify-center">
-                    <Check className="h-4 w-4 text-primary-foreground" />
-                  </div>
-                )}
-                <CardContent className="p-0">
-                  <div className="aspect-square bg-muted rounded-t-lg flex items-center justify-center">
-                    <ImageIcon className="h-12 w-12 text-muted-foreground" />
-                  </div>
-                  <div className="p-3 text-center">
-                    <p className="text-sm font-medium">{style.name}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <div>
-            <h3 className="text-lg font-semibold mb-1">AI Image Model</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Select the AI model to generate images
-            </p>
-          </div>
-
-          <Select value={selectedAiModel} onValueChange={handleAiModelChange}>
-            <SelectTrigger data-testid="select-ai-model">
-              <SelectValue placeholder="Select AI model" />
-            </SelectTrigger>
-            <SelectContent>
-              {AI_MODELS.map((model) => (
-                <SelectItem key={model.id} value={model.id}>
-                  {model.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Style Description</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Textarea
-                placeholder="Describe the overall visual style, mood, lighting, color palette, and atmosphere..."
-                value={styleDescription}
-                onChange={(e) => setStyleDescription(e.target.value)}
-                className="min-h-32"
-                data-testid="input-style-description"
-              />
-              
-              <div className="space-y-2">
-                <Label className="text-xs">Style Reference Images ({styleRefs.length})</Label>
-                <p className="text-xs text-muted-foreground">
-                  Upload reference images to guide the visual style
-                </p>
-                <div className="flex gap-2 flex-wrap">
-                  {styleRefs.map((ref) => (
-                    <div key={ref.id} className="h-24 w-24 rounded-lg border overflow-hidden bg-muted">
-                      <img src={ref.imageUrl} alt="Style Reference" className="h-full w-full object-cover" />
-                    </div>
-                  ))}
-                  <label className="h-24 w-24 rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer hover-elevate">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleUploadReference("style", file);
-                      }}
-                    />
-                    <div className="text-center">
-                      <ImageIcon className="h-6 w-6 mx-auto text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">Upload</span>
-                    </div>
-                  </label>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="characters" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold">Cast</h3>
-              <p className="text-sm text-muted-foreground">
-                Define characters and upload reference images for consistency
-              </p>
-            </div>
-            <Dialog open={isAddCharacterOpen} onOpenChange={setIsAddCharacterOpen}>
-              <DialogTrigger asChild>
-                <Button data-testid="button-add-character">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Character
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add Character</DialogTitle>
-                  <DialogDescription>
-                    Define a character for your story. Upload reference images for consistency.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="char-name">Name</Label>
-                    <Input
-                      id="char-name"
-                      placeholder="Character name"
-                      value={newCharacter.name}
-                      onChange={(e) => setNewCharacter({ ...newCharacter, name: e.target.value })}
-                      data-testid="input-character-name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="char-appearance">Appearance</Label>
-                    <Textarea
-                      id="char-appearance"
-                      placeholder="Describe physical appearance, clothing, distinctive features..."
-                      value={newCharacter.appearance}
-                      onChange={(e) => setNewCharacter({ ...newCharacter, appearance: e.target.value })}
-                      data-testid="input-character-appearance"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="char-description">Personality & Role</Label>
-                    <Textarea
-                      id="char-description"
-                      placeholder="Personality traits, role in the story..."
-                      value={newCharacter.description}
-                      onChange={(e) => setNewCharacter({ ...newCharacter, description: e.target.value })}
-                      data-testid="input-character-description"
-                    />
-                  </div>
-                  <Button onClick={handleAddCharacter} className="w-full" data-testid="button-save-character">
-                    Add Character
+    <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-8">
+      {/* Settings Section */}
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-lg font-semibold mb-4">Settings</h3>
+          
+          <div className="space-y-6">
+            {/* Aspect Ratio */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">ASPECT RATIO</Label>
+              <div className="flex gap-2">
+                {ASPECT_RATIOS.map((ratio) => (
+                  <Button
+                    key={ratio.id}
+                    variant={selectedAspectRatio === ratio.id ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handleAspectRatioChange(ratio.id)}
+                    className="flex-1"
+                    data-testid={`aspect-ratio-${ratio.id}`}
+                  >
+                    {ratio.label}
                   </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
+                ))}
+              </div>
+            </div>
 
-          {characters.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <p className="text-muted-foreground">No characters added yet. Click "Add Character" to begin.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {characters.map((character) => {
-                const charRefs = characterRefs.filter((r) => r.characterId === character.id);
-                return (
-                  <Card key={character.id}>
-                    <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                      <CardTitle className="text-base">{character.name}</CardTitle>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemoveCharacter(character.id)}
-                        data-testid={`button-remove-character-${character.id}`}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {character.appearance && (
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Appearance</Label>
-                          <p className="text-sm">{character.appearance}</p>
-                        </div>
-                      )}
-                      <div className="space-y-2">
-                        <Label className="text-xs">Reference Images ({charRefs.length})</Label>
-                        <div className="flex gap-2 flex-wrap">
-                          {charRefs.map((ref) => (
-                            <div key={ref.id} className="h-20 w-20 rounded-lg border overflow-hidden bg-muted">
-                              <img src={ref.imageUrl} alt="Reference" className="h-full w-full object-cover" />
-                            </div>
-                          ))}
-                          <label className="h-20 w-20 rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer hover-elevate">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handleUploadReference("character", file, character.id);
-                              }}
-                            />
-                            <Upload className="h-4 w-4 text-muted-foreground" />
-                          </label>
-                        </div>
+            {/* Video Style */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">VIDEO STYLE</Label>
+                <Button variant="ghost" size="sm" className="text-xs">View All</Button>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {VIDEO_STYLES.map((style) => (
+                  <Card
+                    key={style.id}
+                    className={`cursor-pointer transition-all hover-elevate relative ${
+                      selectedArtStyle === style.id ? 'ring-2 ring-primary' : ''
+                    }`}
+                    onClick={() => handleArtStyleChange(style.id)}
+                    data-testid={`video-style-${style.id}`}
+                  >
+                    {selectedArtStyle === style.id && (
+                      <div className="absolute top-1 right-1 z-10 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                        <Check className="h-3 w-3 text-primary-foreground" />
+                      </div>
+                    )}
+                    <CardContent className="p-0">
+                      <div className="aspect-square bg-muted rounded-t-md flex items-center justify-center">
+                        <div className="w-12 h-12 bg-background/50 rounded-full" />
+                      </div>
+                      <div className="p-2 text-center">
+                        <p className="text-xs font-medium">{style.name}</p>
                       </div>
                     </CardContent>
                   </Card>
-                );
-              })}
+                ))}
+              </div>
             </div>
-          )}
-        </TabsContent>
-      </Tabs>
 
-      <div className="flex justify-end">
-        <Button onClick={onNext} data-testid="button-next">
-          Continue to Storyboard
+            {/* Style Reference */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">STYLE REFERENCE</Label>
+              <div className="space-y-2">
+                {styleRefs.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {styleRefs.map((ref) => (
+                      <div key={ref.id} className="aspect-square rounded-lg border overflow-hidden bg-muted">
+                        <img src={ref.imageUrl} alt="Style Reference" className="h-full w-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed rounded-lg cursor-pointer hover-elevate">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUploadReference(file);
+                    }}
+                  />
+                  <Upload className="h-5 w-5 text-muted-foreground mb-1" />
+                  <span className="text-xs text-muted-foreground">Drag image here or upload a file</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Cinematic Inspiration */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">CINEMATIC INSPIRATION</Label>
+              <Input
+                placeholder='E.g. "Retro, gritty, eclectic, stylish, noir..."'
+                value={cinematicInspiration}
+                onChange={(e) => setCinematicInspiration(e.target.value)}
+                data-testid="input-cinematic-inspiration"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Cast Section */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Cast</h3>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {/* Add Character Card */}
+          <Card
+            className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-card/50"
+            onClick={() => {
+              setEditingCharacter(null);
+              setNewCharacter({ name: "", description: "", appearance: "" });
+              setIsAddCharacterOpen(true);
+            }}
+            data-testid="button-add-character"
+          >
+            <CardContent className="flex flex-col items-center justify-center p-6">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-2">
+                <Plus className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium">Add character</p>
+            </CardContent>
+          </Card>
+
+          {/* Character Cards */}
+          {characters.map((character) => (
+            <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group" data-testid={`character-${character.id}`}>
+              <CardContent className="p-0 h-full">
+                <div className="h-full bg-muted flex items-center justify-center relative">
+                  <User className="h-16 w-16 text-muted-foreground" />
+                  
+                  {/* Edit Button */}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => handleEditCharacter(character)}
+                    data-testid={`button-edit-character-${character.id}`}
+                  >
+                    <Pencil className="h-3 w-3 mr-1" />
+                    Edit
+                  </Button>
+                </div>
+                
+                {/* Character Info */}
+                <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                  <p className="text-sm font-semibold text-white">{character.name}</p>
+                  {character.description && (
+                    <p className="text-xs text-white/80 line-clamp-2">{character.description}</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Character Dialog */}
+      <Dialog open={isAddCharacterOpen} onOpenChange={setIsAddCharacterOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingCharacter ? "Edit Character" : "Add Character"}</DialogTitle>
+            <DialogDescription>
+              Define a character for your story. Upload reference images for consistency.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="char-name">Name</Label>
+              <Input
+                id="char-name"
+                placeholder="Character name"
+                value={newCharacter.name}
+                onChange={(e) => setNewCharacter({ ...newCharacter, name: e.target.value })}
+                data-testid="input-character-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="char-description">Description</Label>
+              <Textarea
+                id="char-description"
+                placeholder="Brief description of the character's role..."
+                value={newCharacter.description}
+                onChange={(e) => setNewCharacter({ ...newCharacter, description: e.target.value })}
+                rows={3}
+                data-testid="input-character-description"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="char-appearance">Appearance</Label>
+              <Textarea
+                id="char-appearance"
+                placeholder="Physical appearance, clothing, distinctive features..."
+                value={newCharacter.appearance}
+                onChange={(e) => setNewCharacter({ ...newCharacter, appearance: e.target.value })}
+                rows={3}
+                data-testid="input-character-appearance"
+              />
+            </div>
+            <Button onClick={handleSaveCharacter} className="w-full" data-testid="button-save-character">
+              {editingCharacter ? "Update Character" : "Add Character"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Next Button */}
+      <div className="lg:col-span-2 flex justify-end pt-4">
+        <Button onClick={onNext} size="lg" data-testid="button-next">
+          Next
         </Button>
       </div>
     </div>

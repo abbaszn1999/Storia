@@ -1,0 +1,56 @@
+Start a project
+choose aspect ratio, language, genre, and length.
+Backend creates a project record and saves your settings.
+
+
+Write or import the script
+If you paste text, it’s stored.
+If you ask for help, an AI model writes a short script from your settings.
+The final script text and a short summary are saved as version 1.
+
+
+Break the script into scenes and shots
+The system scans the script to find locations, characters, and actions.
+It proposes scenes (e.g., “Scene 1: Playground”) and a small list of shots for each scene (wide, close-up, POV, etc.) with rough durations.
+These scene/shot items are saved so the UI can show editable cards.
+
+
+Pick the look and voices (World & Cast)
+You choose an art style (e.g., “3D Cartoon”) and a voice model.
+For each character, the system creates a simple “style card” (appearance notes).
+The world style and character info are stored and reused for every shot.
+
+
+Generate visuals for each shot (Storyboard)
+For each shot card, the backend builds a clear prompt for image gen using:
+	world style + scene details + camera type + character style.
+It sends that prompt to an image generator and gets back a keyframe.
+
+Also for each shot, we build a clear prompt for animating the image and turn it to a video using: world style + scene details + camera type + character style + the image keyframe
+
+
+Build an animatic timeline
+As shots come in, the backend keeps a simple timeline: which clip plays when, for how long.
+This becomes the preview you can play.
+
+
+Add audio (Edit)
+Voiceover: The script (or selected lines) go to a TTS service → returns audio with timestamps.
+Music: A matching track is chosen; volume auto-ducks under voice.
+SFX: Common sounds (footsteps, door, wind) are attached to shots that need them.
+The timeline is updated with these audio tracks.
+
+
+Preview and adjust
+You press play: the server streams the timeline using the saved image/video/audio files.
+If you change a shot or duration, only that part regenerates; the timeline updates.
+
+
+Final render (Preview → Generate)
+The backend stitches everything into one MP4:
+puts clips in order, applies the chosen aspect ratio,
+mixes voice + music + SFX to a consistent loudness,
+adds subtitles if requested.
+The finished file is uploaded; you get a download link.
+(Optional) Auto shorts
+The system finds the most engaging moments and exports vertical clips.

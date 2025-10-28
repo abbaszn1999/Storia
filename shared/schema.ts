@@ -107,6 +107,54 @@ export const contentCalendar = pgTable("content_calendar", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const scenes = pgTable("scenes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  videoId: varchar("video_id").notNull().references(() => videos.id),
+  sceneNumber: integer("scene_number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  location: text("location"),
+  timeOfDay: text("time_of_day"),
+  duration: integer("duration"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const shots = pgTable("shots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sceneId: varchar("scene_id").notNull().references(() => scenes.id),
+  shotNumber: integer("shot_number").notNull(),
+  shotType: text("shot_type").notNull(),
+  cameraMovement: text("camera_movement").default("static").notNull(),
+  duration: integer("duration").notNull(),
+  description: text("description"),
+  currentVersionId: varchar("current_version_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const shotVersions = pgTable("shot_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  shotId: varchar("shot_id").notNull().references(() => shots.id),
+  versionNumber: integer("version_number").notNull(),
+  imagePrompt: text("image_prompt"),
+  imageUrl: text("image_url"),
+  videoPrompt: text("video_prompt"),
+  videoUrl: text("video_url"),
+  status: text("status").default("draft").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const referenceImages = pgTable("reference_images", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  videoId: varchar("video_id").references(() => videos.id),
+  shotId: varchar("shot_id").references(() => shots.id),
+  characterId: varchar("character_id").references(() => characters.id),
+  type: text("type").notNull(),
+  imageUrl: text("image_url").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -155,6 +203,27 @@ export const insertContentCalendarSchema = createInsertSchema(contentCalendar).o
   createdAt: true,
 });
 
+export const insertSceneSchema = createInsertSchema(scenes).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertShotSchema = createInsertSchema(shots).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertShotVersionSchema = createInsertSchema(shotVersions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertReferenceImageSchema = createInsertSchema(referenceImages).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;
@@ -173,3 +242,11 @@ export type InsertUpload = z.infer<typeof insertUploadSchema>;
 export type Upload = typeof uploads.$inferSelect;
 export type InsertContentCalendar = z.infer<typeof insertContentCalendarSchema>;
 export type ContentCalendarItem = typeof contentCalendar.$inferSelect;
+export type InsertScene = z.infer<typeof insertSceneSchema>;
+export type Scene = typeof scenes.$inferSelect;
+export type InsertShot = z.infer<typeof insertShotSchema>;
+export type Shot = typeof shots.$inferSelect;
+export type InsertShotVersion = z.infer<typeof insertShotVersionSchema>;
+export type ShotVersion = typeof shotVersions.$inferSelect;
+export type InsertReferenceImage = z.infer<typeof insertReferenceImageSchema>;
+export type ReferenceImage = typeof referenceImages.$inferSelect;

@@ -67,6 +67,16 @@ export function NarrativeWorkflow({
     );
   };
 
+  const handleReorderShots = (sceneId: string, shotIds: string[]) => {
+    const sceneShots = shots[sceneId] || [];
+    const reorderedShots = shotIds.map(id => sceneShots.find(s => s.id === id)).filter(Boolean) as Shot[];
+    
+    onShotsChange({
+      ...shots,
+      [sceneId]: reorderedShots,
+    });
+  };
+
   return (
     <div>
       {activeStep === "script" && (
@@ -120,6 +130,7 @@ export function NarrativeWorkflow({
           onGenerateShot={handleGenerateShot}
           onRegenerateShot={handleRegenerateShot}
           onUpdateShot={handleUpdateShot}
+          onReorderShots={handleReorderShots}
           onNext={onNext}
         />
       )}

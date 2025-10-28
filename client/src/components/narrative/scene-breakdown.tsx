@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Loader2, Sparkles, Edit, Trash2, Plus } from "lucide-react";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Loader2, Sparkles, Edit, Trash2, Plus, Copy, ChevronUp, ChevronDown } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot } from "@shared/schema";
@@ -20,6 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 interface SceneBreakdownProps {
   videoId: string;
@@ -39,6 +39,41 @@ export function SceneBreakdown({ videoId, script, scenes, shots, onScenesGenerat
   const [activeSceneId, setActiveSceneId] = useState<string>("");
   const [deleteSceneId, setDeleteSceneId] = useState<string | null>(null);
   const [deleteShotId, setDeleteShotId] = useState<string | null>(null);
+  const [synopsis, setSynopsis] = useState<string>(script ? script.substring(0, 200) : "");
+
+  const moveScene = async (sceneId: string, direction: 'up' | 'down') => {
+    const sceneIndex = scenes.findIndex(s => s.id === sceneId);
+    if (sceneIndex < 0) return;
+    
+    const targetIndex = direction === 'up' ? sceneIndex - 1 : sceneIndex + 1;
+    if (targetIndex < 0 || targetIndex >= scenes.length) return;
+
+    const currentScene = scenes[sceneIndex];
+    const targetScene = scenes[targetIndex];
+
+    const updatedScenes = [...scenes];
+    updatedScenes[sceneIndex] = { ...currentScene, sceneNumber: targetScene.sceneNumber };
+    updatedScenes[targetIndex] = { ...targetScene, sceneNumber: currentScene.sceneNumber };
+    updatedScenes.sort((a, b) => a.sceneNumber - b.sceneNumber);
+
+    onScenesGenerated(updatedScenes, shots);
+
+    try {
+      await Promise.all([
+        apiRequest('PUT', `/api/narrative/scenes/${currentScene.id}`, { sceneNumber: targetScene.sceneNumber }),
+        apiRequest('PUT', `/api/narrative/scenes/${targetScene.id}`, { sceneNumber: currentScene.sceneNumber }),
+      ]);
+
+      toast({ title: "Scene order updated" });
+    } catch (error) {
+      onScenesGenerated(scenes, shots);
+      toast({
+        title: "Failed to reorder scenes",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const refreshSceneData = (updatedScene: Scene, updatedShot?: Shot) => {
     const updatedScenes = [...scenes];
@@ -98,6 +133,7 @@ export function SceneBreakdown({ videoId, script, scenes, shots, onScenesGenerat
     },
     onSuccess: (data) => {
       onScenesGenerated(data.scenes, data.shots);
+      setSynopsis(script.substring(0, 200));
       toast({
         title: "Breakdown Complete",
         description: `Generated ${data.scenes.length} scenes with shots.`,
@@ -271,6 +307,20 @@ export function SceneBreakdown({ videoId, script, scenes, shots, onScenesGenerat
     setShotDialogOpen(true);
   };
 
+  const duplicateScene = (scene: Scene) => {
+    const newSceneData = {
+      sceneNumber: scenes.length + 1,
+      title: `${scene.title} (Copy)`,
+      description: scene.description,
+      location: scene.location,
+      timeOfDay: scene.timeOfDay,
+      duration: scene.duration,
+    };
+    createSceneMutation.mutate(newSceneData);
+  };
+
+  const totalShots = Object.values(shots).flat().length;
+  const totalDuration = scenes.reduce((sum, scene) => sum + (scene.duration || 0), 0);
   const hasBreakdown = scenes.length > 0;
 
   return (
@@ -301,151 +351,157 @@ export function SceneBreakdown({ videoId, script, scenes, shots, onScenesGenerat
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-semibold">Scene Breakdown</h3>
-              <p className="text-sm text-muted-foreground">
-                {scenes.length} scenes with {Object.values(shots).flat().length} total shots
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={openAddSceneDialog}
-                data-testid="button-add-scene"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Scene
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => breakdownMutation.mutate()}
-                disabled={breakdownMutation.isPending}
-                data-testid="button-regenerate-breakdown"
-              >
-                <Sparkles className="mr-2 h-4 w-4" />
-                Regenerate
-              </Button>
-            </div>
-          </div>
+          {synopsis && (
+            <Card className="bg-card/50">
+              <CardContent className="pt-6">
+                <h3 className="text-sm font-semibold mb-2">Synopsis</h3>
+                <Textarea
+                  value={synopsis}
+                  onChange={(e) => setSynopsis(e.target.value)}
+                  className="text-sm resize-none"
+                  rows={3}
+                  data-testid="input-synopsis"
+                />
+              </CardContent>
+            </Card>
+          )}
 
-          <Accordion type="single" collapsible className="space-y-4">
+          <div className="space-y-4">
             {scenes.map((scene, sceneIndex) => {
               const sceneShots = shots[scene.id] || [];
               return (
-                <AccordionItem key={scene.id} value={scene.id}>
-                  <Card>
-                    <AccordionTrigger className="px-6 hover:no-underline">
-                      <div className="flex items-center gap-4 text-left w-full">
-                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                          <span className="font-semibold text-primary">{sceneIndex + 1}</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold">{scene.title}</h4>
-                          <p className="text-sm text-muted-foreground truncate">
-                            {scene.location} · {scene.timeOfDay}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Badge variant="secondary" data-testid={`badge-scene-${scene.id}-shots`}>
-                            {sceneShots.length} shots
-                          </Badge>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openEditSceneDialog(scene);
-                            }}
-                            data-testid={`button-edit-scene-${scene.id}`}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteSceneId(scene.id);
-                            }}
-                            data-testid={`button-delete-scene-${scene.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                <Card key={scene.id} className="bg-card/50" data-testid={`scene-${scene.id}`}>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold">
+                        Scene{sceneIndex + 1}: {scene.title}
+                      </h3>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => duplicateScene(scene)}
+                          data-testid={`button-copy-scene-${scene.id}`}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => openEditSceneDialog(scene)}
+                          data-testid={`button-edit-scene-${scene.id}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={sceneIndex === 0}
+                          onClick={() => moveScene(scene.id, 'up')}
+                          data-testid={`button-move-up-scene-${scene.id}`}
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={sceneIndex === scenes.length - 1}
+                          onClick={() => moveScene(scene.id, 'down')}
+                          data-testid={`button-move-down-scene-${scene.id}`}
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setDeleteSceneId(scene.id)}
+                          data-testid={`button-delete-scene-${scene.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <CardContent className="space-y-4 pt-4">
-                        <p className="text-sm">{scene.description}</p>
-                        
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <h5 className="text-sm font-semibold">Shots</h5>
+                    </div>
+
+                    <div className="space-y-2">
+                      {sceneShots.map((shot, shotIndex) => (
+                        <div
+                          key={shot.id}
+                          className="flex items-start gap-3 p-3 rounded-lg bg-background/50 hover-elevate"
+                          data-testid={`shot-${shot.id}`}
+                        >
+                          <input
+                            type="radio"
+                            name={`scene-${scene.id}-shots`}
+                            className="mt-1"
+                            data-testid={`radio-shot-${shot.id}`}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium mr-2">Shot{shotIndex + 1}</span>
+                            <span className="text-sm text-muted-foreground mr-2">subtitles:</span>
+                            <span className="text-sm">{shot.description}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant="outline" className="text-xs">
+                              {shot.description?.length || 0}/200
+                            </Badge>
                             <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => openAddShotDialog(scene.id)}
-                              data-testid={`button-add-shot-${scene.id}`}
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => openEditShotDialog(shot, scene.id)}
+                              data-testid={`button-edit-shot-${shot.id}`}
                             >
-                              <Plus className="mr-2 h-3 w-3" />
-                              Add Shot
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setDeleteShotId(shot.id)}
+                              data-testid={`button-delete-shot-${shot.id}`}
+                            >
+                              <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
-                          {sceneShots.map((shot, shotIndex) => (
-                            <Card key={shot.id}>
-                              <CardContent className="p-4">
-                                <div className="flex items-start gap-3">
-                                  <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
-                                    <span className="text-sm font-medium">{shotIndex + 1}</span>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <Badge variant="outline" className="text-xs">
-                                        {shot.shotType}
-                                      </Badge>
-                                      <Badge variant="outline" className="text-xs">
-                                        {shot.cameraMovement}
-                                      </Badge>
-                                    </div>
-                                    <p className="text-sm">{shot.description}</p>
-                                  </div>
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => openEditShotDialog(shot, scene.id)}
-                                      data-testid={`button-edit-shot-${shot.id}`}
-                                    >
-                                      <Edit className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => setDeleteShotId(shot.id)}
-                                      data-testid={`button-delete-shot-${shot.id}`}
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
                         </div>
-                      </CardContent>
-                    </AccordionContent>
-                  </Card>
-                </AccordionItem>
+                      ))}
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openAddShotDialog(scene.id)}
+                        className="w-full mt-2"
+                        data-testid={`button-add-shot-${scene.id}`}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Shot
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               );
             })}
-          </Accordion>
 
-          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              onClick={openAddSceneDialog}
+              className="w-full"
+              data-testid="button-add-scene"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Scene
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-card/50 rounded-lg">
+            <div className="text-sm text-muted-foreground">
+              The video is approximately{' '}
+              <span className="text-foreground font-medium">
+                {Math.floor(totalDuration / 60)}:{String(totalDuration % 60).padStart(2, '0')}
+              </span>{' '}
+              ({totalShots} shots)
+            </div>
             <Button onClick={onNext} data-testid="button-next">
-              Continue to World & Cast
+              Next
+              <span className="ml-2">→</span>
             </Button>
           </div>
 

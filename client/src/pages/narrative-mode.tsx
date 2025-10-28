@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -46,13 +46,6 @@ export default function NarrativeMode() {
     }
   };
 
-  const handlePrevious = () => {
-    const prevIndex = currentStepIndex - 1;
-    if (prevIndex >= 0) {
-      setActiveStep(steps[prevIndex].id);
-    }
-  };
-
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
@@ -73,50 +66,26 @@ export default function NarrativeMode() {
             </div>
 
             {/* Center: Step Navigation */}
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8"
-                onClick={handlePrevious}
-                disabled={currentStepIndex === 0}
-                data-testid="button-previous-step"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-
-              <div className="flex items-center gap-1">
-                {steps.map((step, index) => (
-                  <button
-                    key={step.id}
-                    onClick={() => setActiveStep(step.id)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all hover-elevate ${
-                      activeStep === step.id
-                        ? "bg-primary text-primary-foreground"
-                        : isStepCompleted(step.id)
-                        ? "bg-muted text-foreground"
-                        : "text-muted-foreground"
-                    }`}
-                    data-testid={`button-step-${step.id}`}
-                  >
-                    {isStepCompleted(step.id) && (
-                      <Check className="h-3.5 w-3.5" />
-                    )}
-                    <span className="whitespace-nowrap">{step.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8"
-                onClick={handleNext}
-                disabled={currentStepIndex === steps.length - 1}
-                data-testid="button-next-step"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+            <div className="flex items-center gap-3">
+              {steps.map((step, index) => (
+                <button
+                  key={step.id}
+                  onClick={() => setActiveStep(step.id)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all hover-elevate ${
+                    activeStep === step.id
+                      ? "bg-primary text-primary-foreground"
+                      : isStepCompleted(step.id)
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground"
+                  }`}
+                  data-testid={`button-step-${step.id}`}
+                >
+                  {isStepCompleted(step.id) && (
+                    <Check className="h-3.5 w-3.5" />
+                  )}
+                  <span className="whitespace-nowrap">{step.label}</span>
+                </button>
+              ))}
             </div>
 
             {/* Right: Actions */}

@@ -744,14 +744,9 @@ export function SceneBreakdown({ videoId, script, scenes, shots, shotVersions, o
                           className="flex items-start gap-3 p-3 rounded-lg bg-background/50 hover-elevate"
                           data-testid={`shot-${shot.id}`}
                         >
-                          <input
-                            type="radio"
-                            name={`scene-${scene.id}-shots`}
-                            className="mt-1"
-                            data-testid={`radio-shot-${shot.id}`}
-                          />
+                          <div className="h-2 w-2 rounded-full bg-primary mt-2 shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <span className="text-sm font-medium mr-2">Shot{shotIndex + 1}</span>
+                            <span className="text-sm font-medium mr-2">Shot {shotIndex + 1}</span>
                             <span className="text-sm text-muted-foreground mr-2">subtitles:</span>
                             <span className="text-sm">{shot.description}</span>
                           </div>

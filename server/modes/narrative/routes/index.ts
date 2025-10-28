@@ -3,6 +3,8 @@ import type { Request, Response } from 'express';
 import { NarrativeAgents } from '../agents';
 import { getCameraMovementPrompt } from '../utils/camera-presets';
 import { StorageCleanup } from '../utils/storage-cleanup';
+import { storage } from '../../../storage';
+import { insertSceneSchema, insertShotSchema } from '@shared/schema';
 
 const router = Router();
 
@@ -143,6 +145,72 @@ router.post('/video/finalize', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Video finalization error:', error);
     res.status(500).json({ error: 'Failed to finalize video' });
+  }
+});
+
+router.post('/scenes', async (req: Request, res: Response) => {
+  try {
+    const parsed = insertSceneSchema.parse(req.body);
+    const scene = await storage.createScene(parsed);
+    res.json(scene);
+  } catch (error) {
+    console.error('Scene creation error:', error);
+    res.status(500).json({ error: 'Failed to create scene' });
+  }
+});
+
+router.put('/scenes/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const scene = await storage.updateScene(id, req.body);
+    res.json(scene);
+  } catch (error) {
+    console.error('Scene update error:', error);
+    res.status(500).json({ error: 'Failed to update scene' });
+  }
+});
+
+router.delete('/scenes/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await storage.deleteScene(id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Scene deletion error:', error);
+    res.status(500).json({ error: 'Failed to delete scene' });
+  }
+});
+
+router.post('/shots', async (req: Request, res: Response) => {
+  try {
+    const parsed = insertShotSchema.parse(req.body);
+    const shot = await storage.createShot(parsed);
+    res.json(shot);
+  } catch (error) {
+    console.error('Shot creation error:', error);
+    res.status(500).json({ error: 'Failed to create shot' });
+  }
+});
+
+router.put('/shots/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const shot = await storage.updateShot(id, req.body);
+    res.json(shot);
+  } catch (error) {
+    console.error('Shot update error:', error);
+    res.status(500).json({ error: 'Failed to update shot' });
+  }
+});
+
+router.delete('/shots/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await storage.deleteShot(id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Shot deletion error:', error);
+    res.status(500).json({ error: 'Failed to delete shot' });
   }
 });
 

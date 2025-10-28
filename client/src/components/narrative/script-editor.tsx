@@ -2,8 +2,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Loader2, Sparkles, Info } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -14,38 +16,66 @@ interface ScriptEditorProps {
   onNext: () => void;
 }
 
+const GENRES = [
+  "Adventure", "Fantasy", "Sci-Fi", "Comedy", "Drama", 
+  "Horror", "Mystery", "Romance", "Thriller", "Educational",
+  "Documentary", "Action"
+];
+
+const TONES = [
+  "Dramatic", "Lighthearted", "Mysterious", "Inspirational",
+  "Dark", "Whimsical", "Serious", "Playful", "Epic",
+  "Nostalgic", "Uplifting", "Suspenseful"
+];
+
+const DURATIONS = [
+  { value: "30", label: "30s" },
+  { value: "60", label: "1min" },
+  { value: "180", label: "3min" },
+  { value: "300", label: "5min" },
+  { value: "600", label: "10min" },
+  { value: "1200", label: "20min+" },
+];
+
+const LANGUAGES = [
+  "English", "Spanish", "French", "German", "Italian",
+  "Portuguese", "Japanese", "Korean", "Chinese", "Arabic"
+];
+
 export function ScriptEditor({ initialScript = "", onScriptChange, onNext }: ScriptEditorProps) {
+  const [scriptMode, setScriptMode] = useState<"smart" | "basic">("smart");
   const [script, setScript] = useState(initialScript);
   const [duration, setDuration] = useState("60");
-  const [genre, setGenre] = useState("adventure");
-  const [language, setLanguage] = useState("english");
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(["Adventure"]);
+  const [selectedTones, setSelectedTones] = useState<string[]>(["Dramatic"]);
+  const [language, setLanguage] = useState("English");
   const { toast } = useToast();
 
-  const generateScriptMutation = useMutation({
-    mutationFn: async (userPrompt: string) => {
-      return await apiRequest('/api/narrative/script/generate', {
-        method: 'POST',
-        body: JSON.stringify({
-          duration: parseInt(duration),
-          genre,
-          language,
-          aspectRatio: '16:9',
-          userPrompt,
-        }),
+  const expandScriptMutation = useMutation({
+    mutationFn: async (userScript: string) => {
+      const res = await apiRequest('POST', '/api/narrative/script/generate', {
+        duration: parseInt(duration),
+        genres: selectedGenres,
+        tones: selectedTones,
+        language,
+        aspectRatio: '16:9',
+        userPrompt: userScript,
+        mode: 'expand',
       });
+      return await res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { script: string }) => {
       setScript(data.script);
       onScriptChange(data.script);
       toast({
-        title: "Script Generated",
-        description: "Your AI-generated script is ready for review.",
+        title: "Script Expanded",
+        description: "Your script has been enhanced by AI.",
       });
     },
     onError: () => {
       toast({
-        title: "Generation Failed",
-        description: "Failed to generate script. Please try again.",
+        title: "Expansion Failed",
+        description: "Failed to expand script. Please try again.",
         variant: "destructive",
       });
     },
@@ -56,98 +86,213 @@ export function ScriptEditor({ initialScript = "", onScriptChange, onNext }: Scr
     onScriptChange(value);
   };
 
-  const handleGenerate = () => {
-    const prompt = `Generate a ${genre} story in ${language} language`;
-    generateScriptMutation.mutate(prompt);
+  const toggleGenre = (genre: string) => {
+    setSelectedGenres(prev =>
+      prev.includes(genre)
+        ? prev.filter(g => g !== genre)
+        : [...prev, genre]
+    );
   };
 
+  const toggleTone = (tone: string) => {
+    setSelectedTones(prev =>
+      prev.includes(tone)
+        ? prev.filter(t => t !== tone)
+        : [...prev, tone]
+    );
+  };
+
+  const handleExpand = () => {
+    if (!script.trim()) {
+      toast({
+        title: "Script Required",
+        description: "Please write a basic script first before expanding.",
+        variant: "destructive",
+      });
+      return;
+    }
+    expandScriptMutation.mutate(script);
+  };
+
+  const handleContinue = () => {
+    if (!script.trim()) {
+      toast({
+        title: "Script Required",
+        description: "Please write your script before continuing.",
+        variant: "destructive",
+      });
+      return;
+    }
+    onNext();
+  };
+
+  const charCount = script.length;
+
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="duration">Duration (seconds)</Label>
-          <Select value={duration} onValueChange={setDuration}>
-            <SelectTrigger id="duration" data-testid="select-duration">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="30">30 seconds</SelectItem>
-              <SelectItem value="60">60 seconds</SelectItem>
-              <SelectItem value="90">90 seconds</SelectItem>
-              <SelectItem value="120">2 minutes</SelectItem>
-              <SelectItem value="180">3 minutes</SelectItem>
-            </SelectContent>
-          </Select>
+    <div className="flex gap-6 h-[calc(100vh-220px)]">
+      {/* Left Sidebar: Settings */}
+      <div className="w-80 space-y-6 overflow-y-auto pr-4">
+        {/* Script Mode */}
+        <div className="space-y-3">
+          <Tabs value={scriptMode} onValueChange={(v) => setScriptMode(v as "smart" | "basic")}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="smart" data-testid="tab-smart-script">
+                Smart Script
+              </TabsTrigger>
+              <TabsTrigger value="basic" data-testid="tab-basic-script">
+                Basic Script
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          
+          <Card className="p-3">
+            <div className="flex gap-2 text-xs text-muted-foreground">
+              <Info className="h-4 w-4 shrink-0 mt-0.5" />
+              <p>
+                {scriptMode === "smart" 
+                  ? "AI will expand and enhance your script with rich details and storytelling." 
+                  : "Your script will be used as-is without AI modifications."}
+              </p>
+            </div>
+          </Card>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="genre">Genre</Label>
-          <Select value={genre} onValueChange={setGenre}>
-            <SelectTrigger id="genre" data-testid="select-genre">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="adventure">Adventure</SelectItem>
-              <SelectItem value="fantasy">Fantasy</SelectItem>
-              <SelectItem value="scifi">Sci-Fi</SelectItem>
-              <SelectItem value="comedy">Comedy</SelectItem>
-              <SelectItem value="drama">Drama</SelectItem>
-              <SelectItem value="educational">Educational</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Duration */}
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold">Duration</Label>
+          <div className="grid grid-cols-3 gap-2">
+            {DURATIONS.map((dur) => (
+              <button
+                key={dur.value}
+                onClick={() => setDuration(dur.value)}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-all hover-elevate ${
+                  duration === dur.value
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-foreground"
+                }`}
+                data-testid={`button-duration-${dur.value}`}
+              >
+                {dur.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="language">Language</Label>
-          <Select value={language} onValueChange={setLanguage}>
-            <SelectTrigger id="language" data-testid="select-language">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="english">English</SelectItem>
-              <SelectItem value="spanish">Spanish</SelectItem>
-              <SelectItem value="french">French</SelectItem>
-              <SelectItem value="german">German</SelectItem>
-              <SelectItem value="japanese">Japanese</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Language */}
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold">Video Language</Label>
+          <div className="flex flex-wrap gap-2">
+            {LANGUAGES.map((lang) => (
+              <button
+                key={lang}
+                onClick={() => setLanguage(lang)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all hover-elevate ${
+                  language === lang
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-foreground"
+                }`}
+                data-testid={`button-language-${lang.toLowerCase()}`}
+              >
+                {lang}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Genres */}
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold">Genres (Multiple)</Label>
+          <div className="flex flex-wrap gap-2">
+            {GENRES.map((genre) => (
+              <Badge
+                key={genre}
+                variant={selectedGenres.includes(genre) ? "default" : "outline"}
+                className="cursor-pointer hover-elevate"
+                onClick={() => toggleGenre(genre)}
+                data-testid={`badge-genre-${genre.toLowerCase()}`}
+              >
+                {genre}
+              </Badge>
+            ))}
+          </div>
+        </div>
+
+        {/* Tones */}
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold">Tones (Multiple)</Label>
+          <div className="flex flex-wrap gap-2">
+            {TONES.map((tone) => (
+              <Badge
+                key={tone}
+                variant={selectedTones.includes(tone) ? "default" : "outline"}
+                className="cursor-pointer hover-elevate"
+                onClick={() => toggleTone(tone)}
+                data-testid={`badge-tone-${tone.toLowerCase()}`}
+              >
+                {tone}
+              </Badge>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="script">Your Script</Label>
-        <Textarea
-          id="script"
-          placeholder="Write your script here... or use AI to generate one based on your settings."
-          className="min-h-96 font-mono"
-          value={script}
-          onChange={(e) => handleScriptChange(e.target.value)}
-          data-testid="input-script"
-        />
-      </div>
+      {/* Right: Script Editor */}
+      <div className="flex-1 flex flex-col gap-4">
+        <div className="flex-1 flex flex-col">
+          <div className="flex items-center justify-between mb-2">
+            <Label htmlFor="script" className="text-sm font-semibold">
+              {scriptMode === "smart" ? "Your Story Idea" : "Your Script"}
+            </Label>
+            <span className="text-xs text-muted-foreground">
+              {charCount} characters
+            </span>
+          </div>
+          <Textarea
+            id="script"
+            placeholder={
+              scriptMode === "smart"
+                ? "Write a brief story idea or outline... AI will expand it into a full script."
+                : "Write your complete script here. It will be used as-is for scene breakdown."
+            }
+            className="flex-1 resize-none font-mono text-sm"
+            value={script}
+            onChange={(e) => handleScriptChange(e.target.value)}
+            data-testid="input-script"
+          />
+        </div>
 
-      <div className="flex justify-between items-center">
-        <Button
-          variant="outline"
-          onClick={handleGenerate}
-          disabled={generateScriptMutation.isPending}
-          data-testid="button-ai-assist"
-        >
-          {generateScriptMutation.isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating...
-            </>
+        <div className="flex justify-between items-center pt-2">
+          {scriptMode === "smart" ? (
+            <Button
+              onClick={handleExpand}
+              disabled={expandScriptMutation.isPending || !script.trim()}
+              data-testid="button-expand-script"
+              className="bg-gradient-storia"
+            >
+              {expandScriptMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Expanding...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Expand Script
+                </>
+              )}
+            </Button>
           ) : (
-            <>
-              <Sparkles className="mr-2 h-4 w-4" />
-              AI Generate Script
-            </>
+            <div />
           )}
-        </Button>
-        <Button onClick={onNext} disabled={!script.trim()} data-testid="button-next">
-          Continue to Breakdown
-        </Button>
+          
+          <Button 
+            onClick={handleContinue} 
+            disabled={!script.trim()} 
+            data-testid="button-next"
+          >
+            Continue to Breakdown
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,12 +12,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Upload, Check, Pencil, User, Library, ChevronDown } from "lucide-react";
+import { Plus, Upload, Check, Pencil, User, Library, ChevronDown, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Character, ReferenceImage } from "@shared/schema";
 
 interface WorldCastProps {
   videoId: string;
+  workspaceId: string;
   characters: Character[];
   referenceImages: ReferenceImage[];
   artStyle?: string;
@@ -40,42 +42,9 @@ const ASPECT_RATIOS = [
   { id: "9:16", label: "9:16" },
 ];
 
-// Mock library characters - in production, this would come from the database
-const LIBRARY_CHARACTERS: Character[] = [
-  {
-    id: "lib-char-1",
-    workspaceId: "workspace-1",
-    name: "Sarah Johnson",
-    description: "A brave explorer with a curious mind",
-    appearance: "Tall woman with short brown hair, wearing explorer gear",
-    voiceSettings: null,
-    thumbnailUrl: null,
-    createdAt: new Date(),
-  },
-  {
-    id: "lib-char-2",
-    workspaceId: "workspace-1",
-    name: "Professor Oak",
-    description: "Wise scientist and mentor",
-    appearance: "Elderly man with white hair and lab coat",
-    voiceSettings: null,
-    thumbnailUrl: null,
-    createdAt: new Date(),
-  },
-  {
-    id: "lib-char-3",
-    workspaceId: "workspace-1",
-    name: "Luna",
-    description: "Magical cat companion",
-    appearance: "White cat with glowing blue eyes",
-    voiceSettings: null,
-    thumbnailUrl: null,
-    createdAt: new Date(),
-  },
-];
-
 export function WorldCast({ 
-  videoId, 
+  videoId,
+  workspaceId, 
   characters, 
   referenceImages,
   artStyle = "none",
@@ -93,6 +62,12 @@ export function WorldCast({
   const [selectedArtStyle, setSelectedArtStyle] = useState(artStyle);
   const [selectedAspectRatio, setSelectedAspectRatio] = useState(aspectRatio);
   const { toast } = useToast();
+
+  // Fetch character library from database
+  const { data: libraryCharacters, isLoading: isLoadingLibrary } = useQuery<Character[]>({
+    queryKey: [`/api/characters?workspaceId=${workspaceId}`],
+    enabled: isLibraryOpen && !!workspaceId,
+  });
 
   const handleSaveCharacter = () => {
     if (!newCharacter.name.trim()) {
@@ -118,7 +93,7 @@ export function WorldCast({
     } else {
       const character: Character = {
         id: `char-${Date.now()}`,
-        workspaceId: "temp",
+        workspaceId: workspaceId,
         name: newCharacter.name,
         description: newCharacter.description || null,
         appearance: newCharacter.appearance || null,
@@ -444,8 +419,18 @@ export function WorldCast({
               Choose from your previously created characters
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-3 gap-4 mt-4">
-            {LIBRARY_CHARACTERS.map((libraryChar) => {
+          {isLoadingLibrary ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : !libraryCharacters || libraryCharacters.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">No characters in your library yet.</p>
+              <p className="text-sm text-muted-foreground mt-2">Create characters to use them across your videos.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-4 mt-4">
+              {libraryCharacters.map((libraryChar) => {
               const isAdded = characters.some(c => c.id === libraryChar.id);
               return (
                 <Card
@@ -474,8 +459,9 @@ export function WorldCast({
                   </CardContent>
                 </Card>
               );
-            })}
-          </div>
+              })}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

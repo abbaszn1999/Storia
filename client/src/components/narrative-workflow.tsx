@@ -22,6 +22,7 @@ export function NarrativeWorkflow() {
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   
   const [videoId] = useState(`video-${Date.now()}`);
+  const [workspaceId] = useState("workspace-1"); // TODO: Get from authenticated user context
   const [script, setScript] = useState("");
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [shots, setShots] = useState<{ [sceneId: string]: Shot[] }>({});
@@ -135,6 +136,7 @@ export function NarrativeWorkflow() {
           {activeStep === "world" && (
             <WorldCast
               videoId={videoId}
+              workspaceId={workspaceId}
               characters={characters}
               referenceImages={referenceImages}
               artStyle={worldSettings.artStyle}

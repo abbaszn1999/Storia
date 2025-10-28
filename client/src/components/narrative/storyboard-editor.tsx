@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -40,27 +40,27 @@ interface StoryboardEditorProps {
   onNext: () => void;
 }
 
-const CAMERA_MOVEMENTS = [
-  { value: "static", label: "Static", desc: "No camera movement" },
-  { value: "push_in", label: "Push In", desc: "Move closer to subject" },
-  { value: "pull_out", label: "Pull Out", desc: "Move away from subject" },
-  { value: "pan_left", label: "Pan Left", desc: "Horizontal left movement" },
-  { value: "pan_right", label: "Pan Right", desc: "Horizontal right movement" },
-  { value: "tilt_up", label: "Tilt Up", desc: "Vertical upward movement" },
-  { value: "tilt_down", label: "Tilt Down", desc: "Vertical downward movement" },
-  { value: "zoom_in", label: "Zoom In", desc: "Optical zoom in" },
-  { value: "zoom_out", label: "Zoom Out", desc: "Optical zoom out" },
-];
-
 interface SortableShotCardProps {
   shot: Shot;
   shotIndex: number;
   version: ShotVersion | null;
   isGenerating: boolean;
   onSelectShot: (shot: Shot) => void;
+  onRegenerateShot: (shotId: string) => void;
+  onUpdatePrompt: (shotId: string, prompt: string) => void;
+  onUploadReference: (shotId: string) => void;
 }
 
-function SortableShotCard({ shot, shotIndex, version, isGenerating, onSelectShot }: SortableShotCardProps) {
+function SortableShotCard({ 
+  shot, 
+  shotIndex, 
+  version, 
+  isGenerating, 
+  onSelectShot,
+  onRegenerateShot,
+  onUpdatePrompt,
+  onUploadReference,
+}: SortableShotCardProps) {
   const {
     attributes,
     listeners,
@@ -76,11 +76,19 @@ function SortableShotCard({ shot, shotIndex, version, isGenerating, onSelectShot
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const [localPrompt, setLocalPrompt] = useState(shot.description || "");
+
+  const handlePromptBlur = () => {
+    if (localPrompt !== shot.description) {
+      onUpdatePrompt(shot.id, localPrompt);
+    }
+  };
+
   return (
     <Card
       ref={setNodeRef}
       style={style}
-      className="shrink-0 w-80 overflow-hidden cursor-move"
+      className="shrink-0 w-80 overflow-visible"
       data-testid={`card-shot-${shot.id}`}
     >
       <div className="aspect-video bg-muted relative group">
@@ -116,6 +124,32 @@ function SortableShotCard({ shot, shotIndex, version, isGenerating, onSelectShot
       </div>
 
       <CardContent className="p-4 space-y-3">
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Prompt</Label>
+          <Textarea
+            value={localPrompt}
+            onChange={(e) => setLocalPrompt(e.target.value)}
+            onBlur={handlePromptBlur}
+            placeholder="Describe the shot..."
+            className="min-h-20 text-xs resize-none"
+            data-testid={`input-prompt-${shot.id}`}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Reference Image</Label>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full"
+            onClick={() => onUploadReference(shot.id)}
+            data-testid={`button-upload-reference-${shot.id}`}
+          >
+            <Upload className="mr-2 h-3 w-3" />
+            Upload Reference
+          </Button>
+        </div>
+
         <div className="flex gap-2">
           <Button
             size="sm"
@@ -131,24 +165,29 @@ function SortableShotCard({ shot, shotIndex, version, isGenerating, onSelectShot
             size="sm"
             variant="outline"
             className="flex-1"
-            disabled
-            data-testid={`button-generate-video-${shot.id}`}
+            onClick={() => onRegenerateShot(shot.id)}
+            disabled={!version}
+            data-testid={`button-regenerate-${shot.id}`}
           >
-            <Video className="mr-2 h-3 w-3" />
-            Generate Video
+            <RefreshCw className="mr-2 h-3 w-3" />
+            Re-generate
           </Button>
         </div>
 
-        <div className="text-xs text-muted-foreground line-clamp-3 min-h-[3rem]">
-          {shot.description}
-        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full"
+          disabled
+          data-testid={`button-generate-video-${shot.id}`}
+        >
+          <Video className="mr-2 h-3 w-3" />
+          Generate Video
+        </Button>
 
         <div className="flex gap-1.5">
           <Badge variant="outline" className="text-xs">
             {shot.shotType}
-          </Badge>
-          <Badge variant="outline" className="text-xs">
-            {shot.cameraMovement}
           </Badge>
         </div>
       </CardContent>
@@ -169,6 +208,7 @@ export function StoryboardEditor({
   onNext,
 }: StoryboardEditorProps) {
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null);
+  const [editPrompt, setEditPrompt] = useState("");
   const [localShots, setLocalShots] = useState(shots);
   const { toast } = useToast();
 
@@ -228,6 +268,45 @@ export function StoryboardEditor({
         title: "Shot Reordered",
         description: "Shot order has been updated",
       });
+    }
+  };
+
+  const handleUpdatePrompt = (shotId: string, prompt: string) => {
+    onUpdateShot(shotId, { description: prompt });
+  };
+
+  const handleUploadReference = (shotId: string) => {
+    toast({
+      title: "Upload Reference",
+      description: "Reference image upload will be available soon",
+    });
+  };
+
+  const handleSelectShot = (shot: Shot) => {
+    setSelectedShot(shot);
+    setEditPrompt(shot.description || "");
+  };
+
+  const handleSavePrompt = () => {
+    if (selectedShot) {
+      onUpdateShot(selectedShot.id, { description: editPrompt });
+      toast({
+        title: "Prompt Updated",
+        description: "Image prompt has been updated",
+      });
+      setSelectedShot(null);
+    }
+  };
+
+  const handleGenerateFromDialog = () => {
+    if (selectedShot) {
+      onUpdateShot(selectedShot.id, { description: editPrompt });
+      onGenerateShot(selectedShot.id);
+      toast({
+        title: "Generating Image",
+        description: "Creating image from your prompt...",
+      });
+      setSelectedShot(null);
     }
   };
 
@@ -295,7 +374,10 @@ export function StoryboardEditor({
                               shotIndex={shotIndex}
                               version={version}
                               isGenerating={isGenerating}
-                              onSelectShot={setSelectedShot}
+                              onSelectShot={handleSelectShot}
+                              onRegenerateShot={onRegenerateShot}
+                              onUpdatePrompt={handleUpdatePrompt}
+                              onUploadReference={handleUploadReference}
                             />
                           );
                         })}
@@ -313,9 +395,9 @@ export function StoryboardEditor({
         <Dialog open={!!selectedShot} onOpenChange={() => setSelectedShot(null)}>
           <DialogContent className="max-w-4xl">
             <DialogHeader>
-              <DialogTitle>Shot Details</DialogTitle>
+              <DialogTitle>Edit Image Prompt</DialogTitle>
               <DialogDescription>
-                Customize camera movement and regenerate the shot if needed
+                Modify the prompt to generate a new image for this shot
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -333,86 +415,50 @@ export function StoryboardEditor({
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Shot Type</Label>
-                  <Badge variant="secondary">{selectedShot.shotType}</Badge>
-                </div>
-                <div className="space-y-2">
-                  <Label>Camera Movement</Label>
-                  <Select
-                    value={selectedShot.cameraMovement}
-                    onValueChange={(value) => {
-                      onUpdateShot(selectedShot.id, { cameraMovement: value });
-                      setSelectedShot({ ...selectedShot, cameraMovement: value });
-                    }}
-                  >
-                    <SelectTrigger data-testid="select-camera-movement">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CAMERA_MOVEMENTS.map((movement) => (
-                        <SelectItem key={movement.value} value={movement.value}>
-                          <div className="flex flex-col">
-                            <span>{movement.label}</span>
-                            <span className="text-xs text-muted-foreground">{movement.desc}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label>Image Generation Prompt</Label>
+                <Textarea
+                  value={editPrompt}
+                  onChange={(e) => setEditPrompt(e.target.value)}
+                  placeholder="Describe the image you want to generate..."
+                  className="min-h-32"
+                  data-testid="input-edit-prompt"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Describe the visual details, composition, lighting, and style for this shot
+                </p>
               </div>
 
               <div className="space-y-2">
-                <Label>Description</Label>
-                <Textarea
-                  value={selectedShot.description || ""}
-                  onChange={(e) => {
-                    onUpdateShot(selectedShot.id, { description: e.target.value });
-                    setSelectedShot({ ...selectedShot, description: e.target.value });
-                  }}
-                  className="min-h-24"
-                  data-testid="input-shot-description"
-                />
+                <Label>Reference Image (Optional)</Label>
+                <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Upload a reference image for style consistency
+                  </p>
+                  <Button size="sm" variant="outline" data-testid="button-upload-reference-dialog">
+                    Choose File
+                  </Button>
+                </div>
               </div>
 
               <div className="flex gap-2">
-                {!getShotVersion(selectedShot) ? (
-                  <Button
-                    onClick={() => {
-                      onGenerateShot(selectedShot.id);
-                      setSelectedShot(null);
-                    }}
-                    className="flex-1"
-                    data-testid="button-generate-shot"
-                  >
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Generate Shot
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        onRegenerateShot(selectedShot.id);
-                      }}
-                      className="flex-1"
-                      data-testid="button-regenerate-shot"
-                    >
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Regenerate
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="flex-1"
-                      data-testid="button-upload-reference"
-                    >
-                      <Upload className="mr-2 h-4 w-4" />
-                      Upload Reference
-                    </Button>
-                  </>
-                )}
+                <Button
+                  variant="outline"
+                  onClick={handleSavePrompt}
+                  className="flex-1"
+                  data-testid="button-save-prompt"
+                >
+                  Save Prompt
+                </Button>
+                <Button
+                  onClick={handleGenerateFromDialog}
+                  className="flex-1"
+                  data-testid="button-generate-from-dialog"
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Generate Image
+                </Button>
               </div>
             </div>
           </DialogContent>

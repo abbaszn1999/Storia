@@ -5,10 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Upload, Check, Pencil, User } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, Upload, Check, Pencil, User, Library, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Character, ReferenceImage } from "@shared/schema";
-import { Badge } from "@/components/ui/badge";
 
 interface WorldCastProps {
   videoId: string;
@@ -35,6 +40,40 @@ const ASPECT_RATIOS = [
   { id: "9:16", label: "9:16" },
 ];
 
+// Mock library characters - in production, this would come from the database
+const LIBRARY_CHARACTERS: Character[] = [
+  {
+    id: "lib-char-1",
+    workspaceId: "workspace-1",
+    name: "Sarah Johnson",
+    description: "A brave explorer with a curious mind",
+    appearance: "Tall woman with short brown hair, wearing explorer gear",
+    voiceSettings: null,
+    thumbnailUrl: null,
+    createdAt: new Date(),
+  },
+  {
+    id: "lib-char-2",
+    workspaceId: "workspace-1",
+    name: "Professor Oak",
+    description: "Wise scientist and mentor",
+    appearance: "Elderly man with white hair and lab coat",
+    voiceSettings: null,
+    thumbnailUrl: null,
+    createdAt: new Date(),
+  },
+  {
+    id: "lib-char-3",
+    workspaceId: "workspace-1",
+    name: "Luna",
+    description: "Magical cat companion",
+    appearance: "White cat with glowing blue eyes",
+    voiceSettings: null,
+    thumbnailUrl: null,
+    createdAt: new Date(),
+  },
+];
+
 export function WorldCast({ 
   videoId, 
   characters, 
@@ -47,6 +86,7 @@ export function WorldCast({
   onNext 
 }: WorldCastProps) {
   const [isAddCharacterOpen, setIsAddCharacterOpen] = useState(false);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [newCharacter, setNewCharacter] = useState({ name: "", description: "", appearance: "" });
   const [cinematicInspiration, setCinematicInspiration] = useState("");
@@ -107,6 +147,26 @@ export function WorldCast({
       appearance: (character.appearance as string) || "",
     });
     setIsAddCharacterOpen(true);
+  };
+
+  const handleSelectFromLibrary = (libraryCharacter: Character) => {
+    // Check if character is already in cast
+    const alreadyAdded = characters.some(c => c.id === libraryCharacter.id);
+    if (alreadyAdded) {
+      toast({
+        title: "Already Added",
+        description: `${libraryCharacter.name} is already in your cast.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    onCharactersChange([...characters, libraryCharacter]);
+    toast({
+      title: "Character Added",
+      description: `${libraryCharacter.name} has been added to your cast from library.`,
+    });
+    setIsLibraryOpen(false);
   };
 
   const handleUploadReference = (file: File) => {
@@ -255,23 +315,43 @@ export function WorldCast({
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {/* Add Character Card */}
-          <Card
-            className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-card/50"
-            onClick={() => {
-              setEditingCharacter(null);
-              setNewCharacter({ name: "", description: "", appearance: "" });
-              setIsAddCharacterOpen(true);
-            }}
-            data-testid="button-add-character"
-          >
-            <CardContent className="flex flex-col items-center justify-center p-6">
-              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-2">
-                <Plus className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <p className="text-sm font-medium">Add character</p>
-            </CardContent>
-          </Card>
+          {/* Add Character Card with Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Card
+                className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-card/50"
+                data-testid="button-add-character"
+              >
+                <CardContent className="flex flex-col items-center justify-center p-6">
+                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-2">
+                    <Plus className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm font-medium">Add character</p>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground mt-1" />
+                </CardContent>
+              </Card>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem
+                onClick={() => {
+                  setEditingCharacter(null);
+                  setNewCharacter({ name: "", description: "", appearance: "" });
+                  setIsAddCharacterOpen(true);
+                }}
+                data-testid="menu-create-new-character"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create New Character
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setIsLibraryOpen(true)}
+                data-testid="menu-browse-library"
+              >
+                <Library className="h-4 w-4 mr-2" />
+                Browse Library
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Character Cards */}
           {characters.map((character) => (
@@ -310,7 +390,7 @@ export function WorldCast({
       <Dialog open={isAddCharacterOpen} onOpenChange={setIsAddCharacterOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingCharacter ? "Edit Character" : "Add Character"}</DialogTitle>
+            <DialogTitle>{editingCharacter ? "Edit Character" : "Create New Character"}</DialogTitle>
             <DialogDescription>
               Define a character for your story. Upload reference images for consistency.
             </DialogDescription>
@@ -351,6 +431,50 @@ export function WorldCast({
             <Button onClick={handleSaveCharacter} className="w-full" data-testid="button-save-character">
               {editingCharacter ? "Update Character" : "Add Character"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Character Library Dialog */}
+      <Dialog open={isLibraryOpen} onOpenChange={setIsLibraryOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Character Library</DialogTitle>
+            <DialogDescription>
+              Choose from your previously created characters
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-3 gap-4 mt-4">
+            {LIBRARY_CHARACTERS.map((libraryChar) => {
+              const isAdded = characters.some(c => c.id === libraryChar.id);
+              return (
+                <Card
+                  key={libraryChar.id}
+                  className={`relative aspect-[3/4] overflow-hidden cursor-pointer hover-elevate ${
+                    isAdded ? 'opacity-50' : ''
+                  }`}
+                  onClick={() => !isAdded && handleSelectFromLibrary(libraryChar)}
+                  data-testid={`library-character-${libraryChar.id}`}
+                >
+                  <CardContent className="p-0 h-full">
+                    <div className="h-full bg-muted flex items-center justify-center relative">
+                      <User className="h-16 w-16 text-muted-foreground" />
+                      {isAdded && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <Check className="h-8 w-8 text-white" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                      <p className="text-sm font-semibold text-white">{libraryChar.name}</p>
+                      {libraryChar.description && (
+                        <p className="text-xs text-white/80 line-clamp-2">{libraryChar.description}</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </DialogContent>
       </Dialog>

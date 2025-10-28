@@ -162,7 +162,9 @@ router.post('/scenes', async (req: Request, res: Response) => {
 router.put('/scenes/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const scene = await storage.updateScene(id, req.body);
+    const partialSchema = insertSceneSchema.partial();
+    const parsed = partialSchema.parse(req.body);
+    const scene = await storage.updateScene(id, parsed);
     res.json(scene);
   } catch (error) {
     console.error('Scene update error:', error);
@@ -195,7 +197,9 @@ router.post('/shots', async (req: Request, res: Response) => {
 router.put('/shots/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const shot = await storage.updateShot(id, req.body);
+    const partialSchema = insertShotSchema.partial();
+    const parsed = partialSchema.parse(req.body);
+    const shot = await storage.updateShot(id, parsed);
     res.json(shot);
   } catch (error) {
     console.error('Shot update error:', error);

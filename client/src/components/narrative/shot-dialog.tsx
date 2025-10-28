@@ -1,6 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -95,6 +96,26 @@ export function ShotDialog({
       description: shot?.description ?? "",
     },
   });
+
+  useEffect(() => {
+    if (shot) {
+      form.reset({
+        shotNumber: shot.shotNumber,
+        shotType: shot.shotType,
+        cameraMovement: shot.cameraMovement,
+        duration: shot.duration,
+        description: shot.description ?? "",
+      });
+    } else {
+      form.reset({
+        shotNumber: shotCount + 1,
+        shotType: "",
+        cameraMovement: "static",
+        duration: 3,
+        description: "",
+      });
+    }
+  }, [shot, shotCount, form]);
 
   const handleSubmit = async (data: ShotFormValues) => {
     await onSubmit(data);

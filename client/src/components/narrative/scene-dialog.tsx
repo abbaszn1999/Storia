@@ -1,6 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -66,6 +67,28 @@ export function SceneDialog({
       duration: scene?.duration ?? undefined,
     },
   });
+
+  useEffect(() => {
+    if (scene) {
+      form.reset({
+        sceneNumber: scene.sceneNumber,
+        title: scene.title,
+        description: scene.description ?? "",
+        location: scene.location ?? "",
+        timeOfDay: scene.timeOfDay ?? "",
+        duration: scene.duration ?? undefined,
+      });
+    } else {
+      form.reset({
+        sceneNumber: sceneCount + 1,
+        title: "",
+        description: "",
+        location: "",
+        timeOfDay: "",
+        duration: undefined,
+      });
+    }
+  }, [scene, sceneCount, form]);
 
   const handleSubmit = async (data: SceneFormValues) => {
     await onSubmit(data);

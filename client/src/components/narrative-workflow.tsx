@@ -28,6 +28,10 @@ export function NarrativeWorkflow() {
   const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
   const [characters, setCharacters] = useState<Character[]>([]);
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
+  const [worldSettings, setWorldSettings] = useState<{ artStyle: string; aiModel: string }>({
+    artStyle: "3d-cute",
+    aiModel: "flux",
+  });
 
   const isStepCompleted = (stepId: string) => completedSteps.includes(stepId);
   const currentStepIndex = steps.findIndex((s) => s.id === activeStep);
@@ -133,8 +137,11 @@ export function NarrativeWorkflow() {
               videoId={videoId}
               characters={characters}
               referenceImages={referenceImages}
+              artStyle={worldSettings.artStyle}
+              aiModel={worldSettings.aiModel}
               onCharactersChange={setCharacters}
               onReferenceImagesChange={setReferenceImages}
+              onWorldSettingsChange={setWorldSettings}
               onNext={handleNext}
             />
           )}

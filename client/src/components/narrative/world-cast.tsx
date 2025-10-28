@@ -6,30 +6,60 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Upload, X, Image as ImageIcon } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Upload, X, Image as ImageIcon, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Character, ReferenceImage } from "@shared/schema";
+import { Badge } from "@/components/ui/badge";
 
 interface WorldCastProps {
   videoId: string;
   characters: Character[];
   referenceImages: ReferenceImage[];
+  artStyle?: string;
+  aiModel?: string;
   onCharactersChange: (characters: Character[]) => void;
   onReferenceImagesChange: (images: ReferenceImage[]) => void;
+  onWorldSettingsChange?: (settings: { artStyle: string; aiModel: string }) => void;
   onNext: () => void;
 }
+
+const ART_STYLES = [
+  { id: "3d-cute", name: "3D Cute", isNew: true },
+  { id: "realistic", name: "Realistic", isNew: false },
+  { id: "3d-cartoon", name: "3D Cartoon", isNew: false },
+  { id: "disney-2", name: "Disney 2.0", isNew: true },
+  { id: "pixar", name: "Pixar", isNew: false },
+  { id: "3d-cartoon-2", name: "3D Cartoon 2.0", isNew: true },
+  { id: "animals-2", name: "Animals 2.0", isNew: true },
+  { id: "meow-3", name: "Meow 3.0", isNew: false },
+  { id: "disney", name: "Disney", isNew: false },
+];
+
+const AI_MODELS = [
+  { id: "flux", name: "Flux" },
+  { id: "midjourney", name: "Midjourney" },
+  { id: "nanobanana", name: "Nano Banana" },
+  { id: "seadream", name: "Seadream" },
+  { id: "gpt-image", name: "GPT Image" },
+];
 
 export function WorldCast({ 
   videoId, 
   characters, 
   referenceImages,
+  artStyle = "3d-cute",
+  aiModel = "flux",
   onCharactersChange, 
   onReferenceImagesChange,
+  onWorldSettingsChange,
   onNext 
 }: WorldCastProps) {
   const [isAddCharacterOpen, setIsAddCharacterOpen] = useState(false);
   const [newCharacter, setNewCharacter] = useState({ name: "", description: "", appearance: "" });
   const [styleDescription, setStyleDescription] = useState("");
+  const [selectedArtStyle, setSelectedArtStyle] = useState(artStyle);
+  const [selectedAiModel, setSelectedAiModel] = useState(aiModel);
   const { toast } = useToast();
 
   const handleAddCharacter = () => {
@@ -85,16 +115,135 @@ export function WorldCast({
     });
   };
 
+  const handleArtStyleChange = (styleId: string) => {
+    setSelectedArtStyle(styleId);
+    if (onWorldSettingsChange) {
+      onWorldSettingsChange({ artStyle: styleId, aiModel: selectedAiModel });
+    }
+  };
+
+  const handleAiModelChange = (modelId: string) => {
+    setSelectedAiModel(modelId);
+    if (onWorldSettingsChange) {
+      onWorldSettingsChange({ artStyle: selectedArtStyle, aiModel: modelId });
+    }
+  };
+
   const styleRefs = referenceImages.filter((r) => r.type === "style");
   const characterRefs = referenceImages.filter((r) => r.type === "character");
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="characters" className="space-y-4">
+      <Tabs defaultValue="world" className="space-y-4">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="characters" data-testid="tab-characters">Characters</TabsTrigger>
           <TabsTrigger value="world" data-testid="tab-world">World & Style</TabsTrigger>
+          <TabsTrigger value="characters" data-testid="tab-characters">Characters</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="world" className="space-y-6">
+          <div>
+            <h3 className="text-lg font-semibold mb-1">Art Style</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Choose the visual style for your video
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            {ART_STYLES.map((style) => (
+              <Card
+                key={style.id}
+                className={`cursor-pointer transition-all hover-elevate relative ${
+                  selectedArtStyle === style.id ? 'ring-2 ring-primary' : ''
+                }`}
+                onClick={() => handleArtStyleChange(style.id)}
+                data-testid={`art-style-${style.id}`}
+              >
+                {style.isNew && (
+                  <Badge className="absolute top-2 right-2 z-10" variant="default">
+                    New
+                  </Badge>
+                )}
+                {selectedArtStyle === style.id && (
+                  <div className="absolute top-2 left-2 z-10 h-6 w-6 rounded-full bg-primary flex items-center justify-center">
+                    <Check className="h-4 w-4 text-primary-foreground" />
+                  </div>
+                )}
+                <CardContent className="p-0">
+                  <div className="aspect-square bg-muted rounded-t-lg flex items-center justify-center">
+                    <ImageIcon className="h-12 w-12 text-muted-foreground" />
+                  </div>
+                  <div className="p-3 text-center">
+                    <p className="text-sm font-medium">{style.name}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold mb-1">AI Image Model</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Select the AI model to generate images
+            </p>
+          </div>
+
+          <Select value={selectedAiModel} onValueChange={handleAiModelChange}>
+            <SelectTrigger data-testid="select-ai-model">
+              <SelectValue placeholder="Select AI model" />
+            </SelectTrigger>
+            <SelectContent>
+              {AI_MODELS.map((model) => (
+                <SelectItem key={model.id} value={model.id}>
+                  {model.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Style Description</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Textarea
+                placeholder="Describe the overall visual style, mood, lighting, color palette, and atmosphere..."
+                value={styleDescription}
+                onChange={(e) => setStyleDescription(e.target.value)}
+                className="min-h-32"
+                data-testid="input-style-description"
+              />
+              
+              <div className="space-y-2">
+                <Label className="text-xs">Style Reference Images ({styleRefs.length})</Label>
+                <p className="text-xs text-muted-foreground">
+                  Upload reference images to guide the visual style
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  {styleRefs.map((ref) => (
+                    <div key={ref.id} className="h-24 w-24 rounded-lg border overflow-hidden bg-muted">
+                      <img src={ref.imageUrl} alt="Style Reference" className="h-full w-full object-cover" />
+                    </div>
+                  ))}
+                  <label className="h-24 w-24 rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer hover-elevate">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUploadReference("style", file);
+                      }}
+                    />
+                    <div className="text-center">
+                      <ImageIcon className="h-6 w-6 mx-auto text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Upload</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="characters" className="space-y-4">
           <div className="flex items-center justify-between">
@@ -215,59 +364,6 @@ export function WorldCast({
               })}
             </div>
           )}
-        </TabsContent>
-
-        <TabsContent value="world" className="space-y-4">
-          <div>
-            <h3 className="text-lg font-semibold mb-1">World & Style</h3>
-            <p className="text-sm text-muted-foreground">
-              Define the visual style, mood, and atmosphere of your video
-            </p>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Style Description</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Textarea
-                placeholder="Describe the overall visual style, mood, lighting, color palette, and atmosphere..."
-                value={styleDescription}
-                onChange={(e) => setStyleDescription(e.target.value)}
-                className="min-h-32"
-                data-testid="input-style-description"
-              />
-              
-              <div className="space-y-2">
-                <Label className="text-xs">Style Reference Images ({styleRefs.length})</Label>
-                <p className="text-xs text-muted-foreground">
-                  Upload reference images to guide the visual style
-                </p>
-                <div className="flex gap-2 flex-wrap">
-                  {styleRefs.map((ref) => (
-                    <div key={ref.id} className="h-24 w-24 rounded-lg border overflow-hidden bg-muted">
-                      <img src={ref.imageUrl} alt="Style Reference" className="h-full w-full object-cover" />
-                    </div>
-                  ))}
-                  <label className="h-24 w-24 rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer hover-elevate">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleUploadReference("style", file);
-                      }}
-                    />
-                    <div className="text-center">
-                      <ImageIcon className="h-6 w-6 mx-auto text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">Upload</span>
-                    </div>
-                  </label>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
 

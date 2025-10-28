@@ -4,14 +4,24 @@
 Storia is a scalable, modular SaaS platform for creating AI-powered videos and stories. The platform guides users through the complete creative process from initial concept to final export and publishing.
 
 ## Current State
-**MVP Focus**: Narrative Video Mode - Complete infrastructure setup with frontend prototype
+**MVP Focus**: Narrative Video Mode - Full-stack implementation with production-ready storage layer
 
 ### Implemented Features
-- ✅ Complete database schema with PostgreSQL (users, workspaces, videos, stories, characters, voices, brandkits, uploads, content_calendar)
+- ✅ Complete database schema with PostgreSQL (users, workspaces, videos, stories, characters, voices, brandkits, uploads, content_calendar, **scenes, shots, shot_versions, reference_images**)
 - ✅ Object storage integration for media files
+- ✅ **Production-ready storage interface with full CRUD operations for narrative workflow**
+  - Cascading deletes for scenes/shots/versions
+  - Mutual exclusivity enforcement for approved shot versions
+  - Automatic currentVersionId pointer management
 - ✅ Comprehensive frontend with Storia brand identity (dark green gradient theme)
 - ✅ Full navigation with sidebar (Dashboard, Videos, Stories, Calendar, Assets)
-- ✅ Narrative Video workflow UI (Script → Breakdown → World/Cast → Storyboard → Animatic → Export)
+- ✅ **Complete Narrative Video workflow with functional components:**
+  - **Script Editor**: AI generation, duration/genre/language selection
+  - **Scene Breakdown**: Automatic script analysis, scene/shot visualization
+  - **World & Cast**: Character creation, reference image upload for style/character consistency
+  - **Storyboard Editor**: Shot-by-shot image generation, camera movement presets, regeneration
+  - Animatic preview (placeholder)
+  - Export & publish (placeholder)
 - ✅ Component library (VideoCard, CharacterCard, StoryboardFrame, StatCard, CalendarItem, ModeSelector)
 - ✅ Dark mode support with theme toggle
 - ✅ Modular backend structure ready for AI integrations

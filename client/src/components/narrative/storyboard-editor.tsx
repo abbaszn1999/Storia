@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon } from "lucide-react";
+import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@shared/schema";
 
@@ -46,7 +46,6 @@ export function StoryboardEditor({
   onNext,
 }: StoryboardEditorProps) {
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null);
-  const [editingCamera, setEditingCamera] = useState(false);
   const { toast } = useToast();
 
   const allShots = Object.values(shots).flat();
@@ -90,34 +89,42 @@ export function StoryboardEditor({
         </Button>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-8">
         {scenes.map((scene, sceneIndex) => {
           const sceneShots = shots[scene.id] || [];
+          
           return (
-            <Card key={scene.id}>
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                    <span className="font-semibold text-primary">{sceneIndex + 1}</span>
+            <div key={scene.id} className="space-y-4">
+              <div className="flex items-start gap-4">
+                <div className="w-64 shrink-0 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-xs">
+                      # {sceneIndex + 1}
+                    </Badge>
+                    <h4 className="font-semibold text-sm">{scene.title}</h4>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold">{scene.title}</h4>
-                    <p className="text-sm text-muted-foreground">{scene.location}</p>
+                  <p className="text-sm text-muted-foreground line-clamp-3">
+                    {scene.description}
+                  </p>
+                  <div className="text-xs text-muted-foreground">
+                    <div>Location: {scene.location}</div>
+                    <div>{sceneShots.length} shots</div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {sceneShots.map((shot, shotIndex) => {
-                    const version = getShotVersion(shot);
-                    const isGenerating = false;
+                <div className="flex-1 overflow-x-auto">
+                  <div className="flex gap-4 pb-2">
+                    {sceneShots.map((shot, shotIndex) => {
+                      const version = getShotVersion(shot);
+                      const isGenerating = false;
 
-                    return (
-                      <Card key={shot.id} className="overflow-hidden hover-elevate cursor-pointer">
-                        <div
-                          onClick={() => setSelectedShot(shot)}
+                      return (
+                        <Card
+                          key={shot.id}
+                          className="shrink-0 w-80 overflow-hidden"
                           data-testid={`card-shot-${shot.id}`}
                         >
-                          <div className="aspect-video bg-muted relative">
+                          <div className="aspect-video bg-muted relative group">
                             {version?.imageUrl ? (
                               <img
                                 src={version.imageUrl}
@@ -129,16 +136,47 @@ export function StoryboardEditor({
                                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                               </div>
                             ) : (
-                              <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="absolute inset-0 flex items-center justify-center bg-card/50">
                                 <ImageIcon className="h-12 w-12 text-muted-foreground" />
                               </div>
                             )}
+                            
                             <div className="absolute top-2 left-2">
-                              <Badge variant="secondary">Shot {shotIndex + 1}</Badge>
+                              <Badge className="bg-background/80 text-foreground border-0">
+                                # {shotIndex + 1}
+                              </Badge>
                             </div>
                           </div>
-                          <CardContent className="p-3 space-y-2">
-                            <div className="flex items-center gap-2">
+
+                          <CardContent className="p-4 space-y-3">
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex-1"
+                                onClick={() => setSelectedShot(shot)}
+                                data-testid={`button-edit-image-${shot.id}`}
+                              >
+                                <Edit className="mr-2 h-3 w-3" />
+                                Edit Image
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex-1"
+                                disabled
+                                data-testid={`button-generate-video-${shot.id}`}
+                              >
+                                <Video className="mr-2 h-3 w-3" />
+                                Generate Video
+                              </Button>
+                            </div>
+
+                            <div className="text-xs text-muted-foreground line-clamp-3 min-h-[3rem]">
+                              {shot.description}
+                            </div>
+
+                            <div className="flex gap-1.5">
                               <Badge variant="outline" className="text-xs">
                                 {shot.shotType}
                               </Badge>
@@ -146,17 +184,14 @@ export function StoryboardEditor({
                                 {shot.cameraMovement}
                               </Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground line-clamp-2">
-                              {shot.description}
-                            </p>
                           </CardContent>
-                        </div>
-                      </Card>
-                    );
-                  })}
+                        </Card>
+                      );
+                    })}
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           );
         })}
       </div>

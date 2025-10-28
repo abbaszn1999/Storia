@@ -393,56 +393,58 @@ export function StoryboardEditor({
 
       {selectedShot && (
         <Dialog open={!!selectedShot} onOpenChange={() => setSelectedShot(null)}>
-          <DialogContent className="max-w-4xl">
+          <DialogContent className="max-w-3xl">
             <DialogHeader>
               <DialogTitle>Edit Image Prompt</DialogTitle>
               <DialogDescription>
                 Modify the prompt to generate a new image for this shot
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="aspect-video bg-muted rounded-lg overflow-hidden">
-                {getShotVersion(selectedShot)?.imageUrl ? (
-                  <img
-                    src={getShotVersion(selectedShot)!.imageUrl!}
-                    alt="Shot"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <ImageIcon className="h-16 w-16 text-muted-foreground" />
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm mb-2 block">Current Image</Label>
+                  <div className="aspect-video bg-muted rounded-lg overflow-hidden">
+                    {getShotVersion(selectedShot)?.imageUrl ? (
+                      <img
+                        src={getShotVersion(selectedShot)!.imageUrl!}
+                        alt="Shot"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <ImageIcon className="h-12 w-12 text-muted-foreground" />
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Image Generation Prompt</Label>
-                <Textarea
-                  value={editPrompt}
-                  onChange={(e) => setEditPrompt(e.target.value)}
-                  placeholder="Describe the image you want to generate..."
-                  className="min-h-32"
-                  data-testid="input-edit-prompt"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Describe the visual details, composition, lighting, and style for this shot
-                </p>
-              </div>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label className="text-sm">Image Generation Prompt</Label>
+                    <Textarea
+                      value={editPrompt}
+                      onChange={(e) => setEditPrompt(e.target.value)}
+                      placeholder="Describe the image you want to generate..."
+                      className="min-h-20 text-sm resize-none"
+                      data-testid="input-edit-prompt"
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Reference Image (Optional)</Label>
-                <div className="border-2 border-dashed rounded-lg p-8 text-center">
-                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Upload a reference image for style consistency
-                  </p>
-                  <Button size="sm" variant="outline" data-testid="button-upload-reference-dialog">
-                    Choose File
-                  </Button>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Reference Image (Optional)</Label>
+                    <div className="border-2 border-dashed rounded-lg p-4 text-center">
+                      <Upload className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
+                      <Button size="sm" variant="outline" data-testid="button-upload-reference-dialog">
+                        <Upload className="mr-2 h-3 w-3" />
+                        Choose File
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 pt-2">
                 <Button
                   variant="outline"
                   onClick={handleSavePrompt}

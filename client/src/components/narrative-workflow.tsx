@@ -75,6 +75,48 @@ export function NarrativeWorkflow({
     );
   };
 
+  const handleUploadShotReference = (shotId: string, file: File) => {
+    // Create a temporary URL for the uploaded image
+    const tempUrl = URL.createObjectURL(file);
+    
+    // Find existing reference image for this shot
+    const existingRef = referenceImages.find(
+      (ref) => ref.shotId === shotId && ref.type === "shot_reference"
+    );
+
+    if (existingRef) {
+      // Update existing reference
+      onReferenceImagesChange(
+        referenceImages.map((ref) =>
+          ref.shotId === shotId && ref.type === "shot_reference"
+            ? { ...ref, imageUrl: tempUrl }
+            : ref
+        )
+      );
+    } else {
+      // Add new reference
+      const newRef: ReferenceImage = {
+        id: `ref-${Date.now()}`,
+        videoId: videoId,
+        shotId: shotId,
+        characterId: null,
+        type: "shot_reference",
+        imageUrl: tempUrl,
+        description: null,
+        createdAt: new Date(),
+      };
+      onReferenceImagesChange([...referenceImages, newRef]);
+    }
+  };
+
+  const handleDeleteShotReference = (shotId: string) => {
+    onReferenceImagesChange(
+      referenceImages.filter(
+        (ref) => !(ref.shotId === shotId && ref.type === "shot_reference")
+      )
+    );
+  };
+
   const handleReorderShots = (sceneId: string, shotIds: string[]) => {
     const sceneShots = shots[sceneId] || [];
     const reorderedShots = shotIds.map(id => sceneShots.find(s => s.id === id)).filter(Boolean) as Shot[];
@@ -140,6 +182,8 @@ export function NarrativeWorkflow({
           onUpdateShot={handleUpdateShot}
           onUpdateScene={handleUpdateScene}
           onReorderShots={handleReorderShots}
+          onUploadShotReference={handleUploadShotReference}
+          onDeleteShotReference={handleDeleteShotReference}
           onNext={onNext}
         />
       )}

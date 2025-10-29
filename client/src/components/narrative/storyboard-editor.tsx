@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical } from "lucide-react";
+import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@shared/schema";
 import {
@@ -87,6 +87,8 @@ interface StoryboardEditorProps {
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
   onUpdateScene?: (sceneId: string, updates: Partial<Scene>) => void;
   onReorderShots?: (sceneId: string, shotIds: string[]) => void;
+  onUploadShotReference: (shotId: string, file: File) => void;
+  onDeleteShotReference: (shotId: string) => void;
   onNext: () => void;
 }
 
@@ -95,25 +97,29 @@ interface SortableShotCardProps {
   shotIndex: number;
   sceneModel: string | null;
   version: ShotVersion | null;
+  referenceImage: ReferenceImage | null;
   isGenerating: boolean;
   onSelectShot: (shot: Shot) => void;
   onRegenerateShot: (shotId: string) => void;
   onUpdatePrompt: (shotId: string, prompt: string) => void;
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
-  onUploadReference: (shotId: string) => void;
+  onUploadReference: (shotId: string, file: File) => void;
+  onDeleteReference: (shotId: string) => void;
 }
 
 function SortableShotCard({ 
   shot, 
   shotIndex,
   sceneModel,
-  version, 
+  version,
+  referenceImage,
   isGenerating, 
   onSelectShot,
   onRegenerateShot,
   onUpdatePrompt,
   onUpdateShot,
   onUploadReference,
+  onDeleteReference,
 }: SortableShotCardProps) {
   const {
     attributes,
@@ -135,6 +141,16 @@ function SortableShotCard({
   const handlePromptBlur = () => {
     if (localPrompt !== shot.description) {
       onUpdatePrompt(shot.id, localPrompt);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith("image/")) {
+        return;
+      }
+      onUploadReference(shot.id, file);
     }
   };
 
@@ -192,16 +208,45 @@ function SortableShotCard({
 
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">Reference Image</Label>
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full"
-            onClick={() => onUploadReference(shot.id)}
-            data-testid={`button-upload-reference-${shot.id}`}
-          >
-            <Upload className="mr-2 h-3 w-3" />
-            Upload Reference
-          </Button>
+          {referenceImage ? (
+            <div className="relative aspect-video rounded-md overflow-hidden border">
+              <img
+                src={referenceImage.imageUrl}
+                alt="Reference"
+                className="w-full h-full object-cover"
+              />
+              <Button
+                size="icon"
+                variant="destructive"
+                className="absolute top-2 left-2 h-6 w-6"
+                onClick={() => onDeleteReference(shot.id)}
+                data-testid={`button-delete-reference-${shot.id}`}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ) : (
+            <div>
+              <Input
+                id={`reference-upload-${shot.id}`}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileSelect}
+                data-testid={`input-reference-${shot.id}`}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full"
+                onClick={() => document.getElementById(`reference-upload-${shot.id}`)?.click()}
+                data-testid={`button-upload-reference-${shot.id}`}
+              >
+                <Upload className="mr-2 h-3 w-3" />
+                Upload Reference
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2">
@@ -297,6 +342,8 @@ export function StoryboardEditor({
   onUpdateShot,
   onUpdateScene,
   onReorderShots,
+  onUploadShotReference,
+  onDeleteShotReference,
   onNext,
 }: StoryboardEditorProps) {
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null);
@@ -342,6 +389,28 @@ export function StoryboardEditor({
     return versions.find((v) => v.id === shot.currentVersionId) || null;
   };
 
+  const getShotReferenceImage = (shotId: string): ReferenceImage | null => {
+    return referenceImages.find(
+      (ref) => ref.shotId === shotId && ref.type === "shot_reference"
+    ) || null;
+  };
+
+  const handleUploadReference = (shotId: string, file: File) => {
+    onUploadShotReference(shotId, file);
+    toast({
+      title: "Reference Uploaded",
+      description: "Reference image has been uploaded successfully",
+    });
+  };
+
+  const handleDeleteReference = (shotId: string) => {
+    onDeleteShotReference(shotId);
+    toast({
+      title: "Reference Deleted",
+      description: "Reference image has been removed",
+    });
+  };
+
   const handleDragEnd = (event: DragEndEvent, sceneId: string) => {
     const { active, over } = event;
 
@@ -365,13 +434,6 @@ export function StoryboardEditor({
 
   const handleUpdatePrompt = (shotId: string, prompt: string) => {
     onUpdateShot(shotId, { description: prompt });
-  };
-
-  const handleUploadReference = (shotId: string) => {
-    toast({
-      title: "Upload Reference",
-      description: "Reference image upload will be available soon",
-    });
   };
 
   const handleSelectShot = (shot: Shot) => {
@@ -517,6 +579,7 @@ export function StoryboardEditor({
                       <div className="flex gap-4 pb-2">
                         {sceneShots.map((shot, shotIndex) => {
                           const version = getShotVersion(shot);
+                          const referenceImage = getShotReferenceImage(shot.id);
                           const isGenerating = false;
 
                           return (
@@ -526,12 +589,14 @@ export function StoryboardEditor({
                               shotIndex={shotIndex}
                               sceneModel={scene.videoModel || VIDEO_MODELS[0]}
                               version={version}
+                              referenceImage={referenceImage}
                               isGenerating={isGenerating}
                               onSelectShot={handleSelectShot}
                               onRegenerateShot={onRegenerateShot}
                               onUpdatePrompt={handleUpdatePrompt}
                               onUpdateShot={onUpdateShot}
                               onUploadReference={handleUploadReference}
+                              onDeleteReference={handleDeleteReference}
                             />
                           );
                         })}

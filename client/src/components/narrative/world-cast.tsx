@@ -34,7 +34,16 @@ const VIDEO_STYLES = [
   { id: "cinematic", name: "Cinematic" },
   { id: "vintage", name: "Vintage" },
   { id: "storybook", name: "Storybook" },
+  { id: "3d-cartoon", name: "3D Cartoon" },
+  { id: "pixar", name: "Pixar" },
+  { id: "disney", name: "Disney" },
+  { id: "ghibli", name: "Ghibli" },
+  { id: "clay", name: "Clay" },
+  { id: "comic", name: "Comic" },
+  { id: "anime", name: "Anime" },
 ];
+
+const MAX_CHARACTER_REFERENCES = 5;
 
 const ASPECT_RATIOS = [
   { id: "16:9", label: "16:9" },
@@ -59,6 +68,7 @@ export function WorldCast({
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [newCharacter, setNewCharacter] = useState({ name: "", description: "", appearance: "" });
   const [characterReferenceImages, setCharacterReferenceImages] = useState<string[]>([]);
+  const [generatedCharacterImage, setGeneratedCharacterImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [cinematicInspiration, setCinematicInspiration] = useState("");
   const [selectedArtStyle, setSelectedArtStyle] = useState(artStyle);
@@ -84,7 +94,13 @@ export function WorldCast({
     if (editingCharacter) {
       const updatedCharacters = characters.map(c => 
         c.id === editingCharacter.id 
-          ? { ...c, name: newCharacter.name, description: newCharacter.description, appearance: newCharacter.appearance }
+          ? { 
+              ...c, 
+              name: newCharacter.name, 
+              description: newCharacter.description, 
+              appearance: newCharacter.appearance,
+              thumbnailUrl: generatedCharacterImage || c.thumbnailUrl
+            }
           : c
       );
       onCharactersChange(updatedCharacters);
@@ -118,7 +134,7 @@ export function WorldCast({
         description: newCharacter.description || null,
         appearance: newCharacter.appearance || null,
         voiceSettings: null,
-        thumbnailUrl: null,
+        thumbnailUrl: generatedCharacterImage,
         createdAt: new Date(),
       };
 
@@ -146,6 +162,7 @@ export function WorldCast({
 
     setNewCharacter({ name: "", description: "", appearance: "" });
     setCharacterReferenceImages([]);
+    setGeneratedCharacterImage(null);
     setEditingCharacter(null);
     setIsAddCharacterOpen(false);
   };
@@ -164,10 +181,22 @@ export function WorldCast({
       .map(r => r.imageUrl);
     setCharacterReferenceImages(charRefs);
     
+    // Load existing generated image
+    setGeneratedCharacterImage(character.thumbnailUrl);
+    
     setIsAddCharacterOpen(true);
   };
 
   const handleUploadCharacterReference = (file: File) => {
+    if (characterReferenceImages.length >= MAX_CHARACTER_REFERENCES) {
+      toast({
+        title: "Maximum Reached",
+        description: `You can only upload up to ${MAX_CHARACTER_REFERENCES} reference images per character.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const url = URL.createObjectURL(file);
     setCharacterReferenceImages([...characterReferenceImages, url]);
     toast({
@@ -194,27 +223,25 @@ export function WorldCast({
     
     // Simulate AI generation
     setTimeout(() => {
-      const characterId = editingCharacter?.id || `char-${Date.now()}`;
-      const generatedImageUrl = "https://placehold.co/400x600/1a472a/ffffff?text=Generated";
+      const generatedImageUrl = "https://placehold.co/400x600/1a472a/ffffff?text=AI+Generated";
       
-      if (editingCharacter) {
-        const updatedCharacters = characters.map(c => 
-          c.id === editingCharacter.id 
-            ? { ...c, thumbnailUrl: generatedImageUrl }
-            : c
-        );
-        onCharactersChange(updatedCharacters);
-      } else {
-        // Will be saved when user clicks "Add Character"
-        // Just show the preview
-      }
-      
+      setGeneratedCharacterImage(generatedImageUrl);
       setIsGenerating(false);
+      
       toast({
         title: "Character Generated",
         description: "Character image has been created.",
       });
     }, 2000);
+  };
+
+  const handleRemoveStyleReference = (refId: string) => {
+    const updatedRefs = referenceImages.filter(r => r.id !== refId);
+    onReferenceImagesChange(updatedRefs);
+    toast({
+      title: "Reference Removed",
+      description: "Style reference image deleted.",
+    });
   };
 
   const handleSelectFromLibrary = (libraryCharacter: Character) => {
@@ -307,9 +334,8 @@ export function WorldCast({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">VIDEO STYLE</Label>
-                <Button variant="ghost" size="sm" className="text-xs">View All</Button>
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 gap-2 max-h-80 overflow-y-auto">
                 {VIDEO_STYLES.map((style) => (
                   <Card
                     key={style.id}
@@ -344,8 +370,17 @@ export function WorldCast({
                 {styleRefs.length > 0 && (
                   <div className="grid grid-cols-2 gap-2">
                     {styleRefs.map((ref) => (
-                      <div key={ref.id} className="aspect-square rounded-lg border overflow-hidden bg-muted">
+                      <div key={ref.id} className="relative aspect-square rounded-lg border overflow-hidden bg-muted group">
                         <img src={ref.imageUrl} alt="Style Reference" className="h-full w-full object-cover" />
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => handleRemoveStyleReference(ref.id)}
+                          data-testid={`button-remove-style-ref-${ref.id}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -409,6 +444,7 @@ export function WorldCast({
                   setEditingCharacter(null);
                   setNewCharacter({ name: "", description: "", appearance: "" });
                   setCharacterReferenceImages([]);
+                  setGeneratedCharacterImage(null);
                   setIsAddCharacterOpen(true);
                 }}
                 data-testid="menu-create-new-character"
@@ -537,18 +573,18 @@ export function WorldCast({
                 </Button>
               </div>
 
-              <div className="space-y-2">
-                <Label>Reference Images</Label>
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  {characterReferenceImages.length > 0 && (
+                  <Label>Reference Images ({characterReferenceImages.length}/{MAX_CHARACTER_REFERENCES})</Label>
+                  {characterReferenceImages.length > 0 ? (
                     <div className="grid grid-cols-2 gap-2">
                       {characterReferenceImages.map((url, index) => (
-                        <div key={index} className="relative aspect-square rounded-lg border overflow-hidden bg-muted">
+                        <div key={index} className="relative aspect-square rounded-lg border overflow-hidden bg-muted group">
                           <img src={url} alt={`Reference ${index + 1}`} className="h-full w-full object-cover" />
                           <Button
                             size="icon"
                             variant="destructive"
-                            className="absolute top-1 right-1 h-6 w-6"
+                            className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={() => handleRemoveCharacterReference(index)}
                             data-testid={`button-remove-ref-${index}`}
                           >
@@ -557,38 +593,44 @@ export function WorldCast({
                         </div>
                       ))}
                     </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">No reference images uploaded yet</p>
                   )}
-                  <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-lg cursor-pointer hover-elevate">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleUploadCharacterReference(file);
-                      }}
-                      data-testid="input-upload-character-ref"
-                    />
-                    <Upload className="h-6 w-6 text-muted-foreground mb-2" />
-                    <span className="text-sm text-muted-foreground">Upload Reference Image</span>
-                  </label>
-                  <p className="text-xs text-muted-foreground">
-                    Upload photos for character consistency across scenes
-                  </p>
+                  {characterReferenceImages.length < MAX_CHARACTER_REFERENCES && (
+                    <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed rounded-lg cursor-pointer hover-elevate">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadCharacterReference(file);
+                        }}
+                        data-testid="input-upload-character-ref"
+                      />
+                      <Upload className="h-5 w-5 text-muted-foreground mb-1" />
+                      <span className="text-sm text-muted-foreground">Upload Reference</span>
+                    </label>
+                  )}
                 </div>
 
-                {editingCharacter?.thumbnailUrl && (
-                  <div className="space-y-2 pt-4">
-                    <Label>Generated Image</Label>
-                    <div className="aspect-[3/4] rounded-lg border overflow-hidden bg-muted">
+                <div className="space-y-2">
+                  <Label>Generated Character Image</Label>
+                  <div className="aspect-[3/4] rounded-lg border overflow-hidden bg-muted flex items-center justify-center">
+                    {generatedCharacterImage ? (
                       <img 
-                        src={editingCharacter.thumbnailUrl} 
+                        src={generatedCharacterImage} 
                         alt="Generated character" 
                         className="h-full w-full object-cover" 
                       />
-                    </div>
+                    ) : (
+                      <div className="text-center p-4">
+                        <User className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">Generated image will appear here</p>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
             </div>
 

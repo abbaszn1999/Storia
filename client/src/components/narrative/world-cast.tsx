@@ -265,6 +265,15 @@ export function WorldCast({
   };
 
   const handleUploadReference = (file: File) => {
+    if (styleRefs.length >= 1) {
+      toast({
+        title: "Maximum Reached",
+        description: "You can only upload 1 style reference image.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const refImage: ReferenceImage = {
       id: `ref-${Date.now()}`,
       videoId,
@@ -367,37 +376,37 @@ export function WorldCast({
             <div className="space-y-3">
               <Label className="text-sm font-medium">STYLE REFERENCE</Label>
               <div className="space-y-2">
-                {styleRefs.length > 0 && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {styleRefs.map((ref) => (
-                      <div key={ref.id} className="relative aspect-square rounded-lg border overflow-hidden bg-muted group">
-                        <img src={ref.imageUrl} alt="Style Reference" className="h-full w-full object-cover" />
-                        <Button
-                          size="icon"
-                          variant="destructive"
-                          className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => handleRemoveStyleReference(ref.id)}
-                          data-testid={`button-remove-style-ref-${ref.id}`}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
+                {styleRefs.length > 0 ? (
+                  <div className="relative aspect-video rounded-lg border bg-muted">
+                    <div className="absolute inset-0 rounded-lg overflow-hidden">
+                      <img src={styleRefs[0].imageUrl} alt="Style Reference" className="h-full w-full object-cover" />
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="destructive"
+                      className="absolute top-2 right-2 h-6 w-6 z-10"
+                      onClick={() => handleRemoveStyleReference(styleRefs[0].id)}
+                      data-testid={`button-remove-style-ref-${styleRefs[0].id}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
                   </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed rounded-lg cursor-pointer hover-elevate">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUploadReference(file);
+                      }}
+                      data-testid="input-upload-style-ref"
+                    />
+                    <Upload className="h-5 w-5 text-muted-foreground mb-1" />
+                    <span className="text-xs text-muted-foreground">Drag image here or upload a file</span>
+                  </label>
                 )}
-                <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed rounded-lg cursor-pointer hover-elevate">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleUploadReference(file);
-                    }}
-                  />
-                  <Upload className="h-5 w-5 text-muted-foreground mb-1" />
-                  <span className="text-xs text-muted-foreground">Drag image here or upload a file</span>
-                </label>
               </div>
             </div>
 

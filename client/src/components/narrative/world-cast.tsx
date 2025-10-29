@@ -588,14 +588,14 @@ export function WorldCast({
                   {characterReferenceImages.length > 0 ? (
                     <div className="grid grid-cols-2 gap-2">
                       {characterReferenceImages.map((url, index) => (
-                        <div key={index} className="relative aspect-square rounded-lg border bg-muted group">
-                          <div className="absolute inset-0 overflow-hidden rounded-lg">
+                        <div key={index} className="relative aspect-square rounded-lg border bg-muted">
+                          <div className="absolute inset-0 rounded-lg overflow-hidden">
                             <img src={url} alt={`Reference ${index + 1}`} className="h-full w-full object-cover" />
                           </div>
                           <Button
                             size="icon"
                             variant="destructive"
-                            className="absolute top-1 right-1 h-6 w-6 z-10"
+                            className="absolute top-2 right-2 h-6 w-6 z-10"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();

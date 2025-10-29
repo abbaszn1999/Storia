@@ -87,19 +87,37 @@ export function ScriptEditor({ initialScript = "", onScriptChange, onNext }: Scr
   };
 
   const toggleGenre = (genre: string) => {
-    setSelectedGenres(prev =>
-      prev.includes(genre)
-        ? prev.filter(g => g !== genre)
-        : [...prev, genre]
-    );
+    setSelectedGenres(prev => {
+      if (prev.includes(genre)) {
+        return prev.filter(g => g !== genre);
+      } else if (prev.length >= 3) {
+        toast({
+          title: "Maximum Reached",
+          description: "You can select up to 3 genres maximum.",
+          variant: "destructive",
+        });
+        return prev;
+      } else {
+        return [...prev, genre];
+      }
+    });
   };
 
   const toggleTone = (tone: string) => {
-    setSelectedTones(prev =>
-      prev.includes(tone)
-        ? prev.filter(t => t !== tone)
-        : [...prev, tone]
-    );
+    setSelectedTones(prev => {
+      if (prev.includes(tone)) {
+        return prev.filter(t => t !== tone);
+      } else if (prev.length >= 3) {
+        toast({
+          title: "Maximum Reached",
+          description: "You can select up to 3 tones maximum.",
+          variant: "destructive",
+        });
+        return prev;
+      } else {
+        return [...prev, tone];
+      }
+    });
   };
 
   const handleExpand = () => {
@@ -201,7 +219,7 @@ export function ScriptEditor({ initialScript = "", onScriptChange, onNext }: Scr
 
         {/* Genres */}
         <div className="space-y-3">
-          <Label className="text-sm font-semibold">Genres (Multiple)</Label>
+          <Label className="text-sm font-semibold">Genres ({selectedGenres.length}/3 Max)</Label>
           <div className="flex flex-wrap gap-2">
             {GENRES.map((genre) => (
               <Badge
@@ -219,7 +237,7 @@ export function ScriptEditor({ initialScript = "", onScriptChange, onNext }: Scr
 
         {/* Tones */}
         <div className="space-y-3">
-          <Label className="text-sm font-semibold">Tones (Multiple)</Label>
+          <Label className="text-sm font-semibold">Tones ({selectedTones.length}/3 Max)</Label>
           <div className="flex flex-wrap gap-2">
             {TONES.map((tone) => (
               <Badge

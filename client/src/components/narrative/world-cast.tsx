@@ -579,13 +579,19 @@ export function WorldCast({
                   {characterReferenceImages.length > 0 ? (
                     <div className="grid grid-cols-2 gap-2">
                       {characterReferenceImages.map((url, index) => (
-                        <div key={index} className="relative aspect-square rounded-lg border overflow-hidden bg-muted group">
-                          <img src={url} alt={`Reference ${index + 1}`} className="h-full w-full object-cover" />
+                        <div key={index} className="relative aspect-square rounded-lg border bg-muted group">
+                          <div className="absolute inset-0 overflow-hidden rounded-lg">
+                            <img src={url} alt={`Reference ${index + 1}`} className="h-full w-full object-cover" />
+                          </div>
                           <Button
                             size="icon"
                             variant="destructive"
-                            className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => handleRemoveCharacterReference(index)}
+                            className="absolute top-1 right-1 h-6 w-6 z-10"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleRemoveCharacterReference(index);
+                            }}
                             data-testid={`button-remove-ref-${index}`}
                           >
                             <X className="h-3 w-3" />

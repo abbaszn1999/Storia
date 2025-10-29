@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +28,54 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+const VIDEO_MODELS = [
+  "Kling AI",
+  "Runway Gen-4",
+  "Luma Dream Machine",
+  "Pika 2.0",
+  "Veo 2",
+  "Minimax",
+];
+
+const LIGHTING_OPTIONS = [
+  "Natural Daylight",
+  "Golden Hour",
+  "Blue Hour",
+  "Overcast",
+  "Night",
+  "Studio Lighting",
+  "Soft Light",
+  "Hard Light",
+  "Backlit",
+  "Dramatic",
+];
+
+const WEATHER_OPTIONS = [
+  "Clear",
+  "Partly Cloudy",
+  "Cloudy",
+  "Overcast",
+  "Light Rain",
+  "Heavy Rain",
+  "Foggy",
+  "Misty",
+  "Snowy",
+  "Stormy",
+];
+
+const SHOT_TYPES = [
+  "Extreme Close-up",
+  "Close-up",
+  "Medium Close-up",
+  "Medium Shot",
+  "Medium Wide Shot",
+  "Wide Shot",
+  "Extreme Wide Shot",
+  "Over-the-Shoulder",
+  "Point of View",
+  "Establishing Shot",
+];
+
 interface StoryboardEditorProps {
   videoId: string;
   scenes: Scene[];
@@ -36,6 +85,7 @@ interface StoryboardEditorProps {
   onGenerateShot: (shotId: string) => void;
   onRegenerateShot: (shotId: string) => void;
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
+  onUpdateScene?: (sceneId: string, updates: Partial<Scene>) => void;
   onReorderShots?: (sceneId: string, shotIds: string[]) => void;
   onNext: () => void;
 }
@@ -43,22 +93,26 @@ interface StoryboardEditorProps {
 interface SortableShotCardProps {
   shot: Shot;
   shotIndex: number;
+  sceneModel: string | null;
   version: ShotVersion | null;
   isGenerating: boolean;
   onSelectShot: (shot: Shot) => void;
   onRegenerateShot: (shotId: string) => void;
   onUpdatePrompt: (shotId: string, prompt: string) => void;
+  onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
   onUploadReference: (shotId: string) => void;
 }
 
 function SortableShotCard({ 
   shot, 
-  shotIndex, 
+  shotIndex,
+  sceneModel,
   version, 
   isGenerating, 
   onSelectShot,
   onRegenerateShot,
   onUpdatePrompt,
+  onUpdateShot,
   onUploadReference,
 }: SortableShotCardProps) {
   const {
@@ -185,10 +239,47 @@ function SortableShotCard({
           Generate Video
         </Button>
 
-        <div className="flex gap-1.5">
-          <Badge variant="outline" className="text-xs">
-            {shot.shotType}
-          </Badge>
+        <div className="space-y-2">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Video Model</Label>
+            <Select
+              value={shot.videoModel || "scene-default"}
+              onValueChange={(value) => onUpdateShot(shot.id, { videoModel: value === "scene-default" ? null : value })}
+            >
+              <SelectTrigger className="h-8 text-xs" data-testid={`select-video-model-${shot.id}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="scene-default">
+                  Scene Default {sceneModel ? `(${sceneModel})` : ""}
+                </SelectItem>
+                {VIDEO_MODELS.map((model) => (
+                  <SelectItem key={model} value={model}>
+                    {model}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Shot Type</Label>
+            <Select
+              value={shot.shotType}
+              onValueChange={(value) => onUpdateShot(shot.id, { shotType: value })}
+            >
+              <SelectTrigger className="h-8 text-xs" data-testid={`select-shot-type-${shot.id}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SHOT_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -204,6 +295,7 @@ export function StoryboardEditor({
   onGenerateShot,
   onRegenerateShot,
   onUpdateShot,
+  onUpdateScene,
   onReorderShots,
   onNext,
 }: StoryboardEditorProps) {
@@ -211,6 +303,11 @@ export function StoryboardEditor({
   const [editPrompt, setEditPrompt] = useState("");
   const [localShots, setLocalShots] = useState(shots);
   const { toast } = useToast();
+
+  // Sync localShots with incoming shots prop to reflect updates
+  useEffect(() => {
+    setLocalShots(shots);
+  }, [shots]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -254,11 +351,6 @@ export function StoryboardEditor({
       const newIndex = sceneShots.findIndex((s) => s.id === over.id);
 
       const newSceneShots = arrayMove(sceneShots, oldIndex, newIndex);
-      
-      setLocalShots({
-        ...localShots,
-        [sceneId]: newSceneShots,
-      });
 
       if (onReorderShots) {
         onReorderShots(sceneId, newSceneShots.map(s => s.id));
@@ -336,19 +428,79 @@ export function StoryboardEditor({
           return (
             <div key={scene.id} className="space-y-4">
               <div className="flex items-start gap-4">
-                <div className="w-64 shrink-0 space-y-3">
+                <div className="w-80 shrink-0 space-y-3">
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary" className="text-xs">
                       # {sceneIndex + 1}
                     </Badge>
                     <h4 className="font-semibold text-sm">{scene.title}</h4>
                   </div>
-                  <p className="text-sm text-muted-foreground line-clamp-3">
+                  <p className="text-sm text-muted-foreground line-clamp-2">
                     {scene.description}
                   </p>
-                  <div className="text-xs text-muted-foreground">
-                    <div>Location: {scene.location}</div>
-                    <div>{sceneShots.length} shots</div>
+                  
+                  <div className="space-y-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Video Model</Label>
+                      <Select
+                        value={scene.videoModel || VIDEO_MODELS[0]}
+                        onValueChange={(value) => onUpdateScene?.(scene.id, { videoModel: value })}
+                      >
+                        <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-video-model-${scene.id}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {VIDEO_MODELS.map((model) => (
+                            <SelectItem key={model} value={model}>
+                              {model}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Lighting</Label>
+                      <Select
+                        value={scene.lighting || LIGHTING_OPTIONS[0]}
+                        onValueChange={(value) => onUpdateScene?.(scene.id, { lighting: value })}
+                      >
+                        <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-lighting-${scene.id}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LIGHTING_OPTIONS.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Weather</Label>
+                      <Select
+                        value={scene.weather || WEATHER_OPTIONS[0]}
+                        onValueChange={(value) => onUpdateScene?.(scene.id, { weather: value })}
+                      >
+                        <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-weather-${scene.id}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {WEATHER_OPTIONS.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="text-xs text-muted-foreground pt-1">
+                      <div>Location: {scene.location}</div>
+                      <div>{sceneShots.length} shots</div>
+                    </div>
                   </div>
                 </div>
 
@@ -372,11 +524,13 @@ export function StoryboardEditor({
                               key={shot.id}
                               shot={shot}
                               shotIndex={shotIndex}
+                              sceneModel={scene.videoModel || VIDEO_MODELS[0]}
                               version={version}
                               isGenerating={isGenerating}
                               onSelectShot={handleSelectShot}
                               onRegenerateShot={onRegenerateShot}
                               onUpdatePrompt={handleUpdatePrompt}
+                              onUpdateShot={onUpdateShot}
                               onUploadReference={handleUploadReference}
                             />
                           );

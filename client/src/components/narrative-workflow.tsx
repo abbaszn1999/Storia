@@ -67,6 +67,14 @@ export function NarrativeWorkflow({
     );
   };
 
+  const handleUpdateScene = (sceneId: string, updates: Partial<Scene>) => {
+    onScenesChange(
+      scenes.map((scene) =>
+        scene.id === sceneId ? { ...scene, ...updates } : scene
+      )
+    );
+  };
+
   const handleReorderShots = (sceneId: string, shotIds: string[]) => {
     const sceneShots = shots[sceneId] || [];
     const reorderedShots = shotIds.map(id => sceneShots.find(s => s.id === id)).filter(Boolean) as Shot[];
@@ -130,6 +138,7 @@ export function NarrativeWorkflow({
           onGenerateShot={handleGenerateShot}
           onRegenerateShot={handleRegenerateShot}
           onUpdateShot={handleUpdateShot}
+          onUpdateScene={handleUpdateScene}
           onReorderShots={handleReorderShots}
           onNext={onNext}
         />

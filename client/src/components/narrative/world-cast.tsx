@@ -384,7 +384,7 @@ export function WorldCast({
                     <Button
                       size="icon"
                       variant="destructive"
-                      className="absolute top-2 right-2 h-6 w-6 z-10"
+                      className="absolute top-2 right-3 h-6 w-6 z-10"
                       onClick={() => handleRemoveStyleReference(styleRefs[0].id)}
                       data-testid={`button-remove-style-ref-${styleRefs[0].id}`}
                     >

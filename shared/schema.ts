@@ -116,6 +116,9 @@ export const scenes = pgTable("scenes", {
   location: text("location"),
   timeOfDay: text("time_of_day"),
   duration: integer("duration"),
+  videoModel: text("video_model"),
+  lighting: text("lighting"),
+  weather: text("weather"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -127,6 +130,7 @@ export const shots = pgTable("shots", {
   cameraMovement: text("camera_movement").default("static").notNull(),
   duration: integer("duration").notNull(),
   description: text("description"),
+  videoModel: text("video_model"),
   currentVersionId: varchar("current_version_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

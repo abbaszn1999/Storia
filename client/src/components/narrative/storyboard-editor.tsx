@@ -237,16 +237,18 @@ function SortableShotCard({
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Reference Image</Label>
               {referenceImage ? (
-                <div className="relative aspect-video rounded-md overflow-hidden border">
-                  <img
-                    src={referenceImage.imageUrl}
-                    alt="Reference"
-                    className="w-full h-full object-cover"
-                  />
+                <div className="relative">
+                  <div className="aspect-video rounded-md overflow-hidden border">
+                    <img
+                      src={referenceImage.imageUrl}
+                      alt="Reference"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
                   <Button
                     size="icon"
                     variant="destructive"
-                    className="absolute top-2 left-2 h-6 w-6 z-10"
+                    className="absolute top-2 left-2 h-6 w-6"
                     onClick={() => onDeleteReference(shot.id)}
                     data-testid={`button-delete-reference-${shot.id}`}
                   >

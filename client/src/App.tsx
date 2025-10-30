@@ -10,9 +10,9 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 import Dashboard from "@/pages/dashboard";
 import Videos from "@/pages/videos";
-import NarrativeMode from "@/pages/narrative-mode";
+import NarrativeMode from "@/pages/videos/narrative-mode";
 import Stories from "@/pages/stories";
-import StoryMode from "@/pages/story-mode";
+import StoryMode from "@/pages/stories/story-mode";
 import Characters from "@/pages/characters";
 import Calendar from "@/pages/calendar";
 import History from "@/pages/history";

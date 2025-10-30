@@ -67,6 +67,21 @@ export function NarrativeWorkflow({
     );
   };
 
+  const handleUpdateShotVersion = (shotId: string, versionId: string, updates: Partial<ShotVersion>) => {
+    onShotVersionsChange(
+      Object.fromEntries(
+        Object.entries(shotVersions).map(([sid, versions]) => [
+          sid,
+          versions.map((version) =>
+            version.id === versionId && sid === shotId
+              ? { ...version, ...updates }
+              : version
+          ),
+        ])
+      )
+    );
+  };
+
   const handleUpdateScene = (sceneId: string, updates: Partial<Scene>) => {
     onScenesChange(
       scenes.map((scene) =>
@@ -180,6 +195,7 @@ export function NarrativeWorkflow({
           onGenerateShot={handleGenerateShot}
           onRegenerateShot={handleRegenerateShot}
           onUpdateShot={handleUpdateShot}
+          onUpdateShotVersion={handleUpdateShotVersion}
           onUpdateScene={handleUpdateScene}
           onReorderShots={handleReorderShots}
           onUploadShotReference={handleUploadShotReference}

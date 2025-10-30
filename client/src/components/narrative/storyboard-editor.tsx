@@ -95,6 +95,7 @@ interface StoryboardEditorProps {
   onGenerateShot: (shotId: string) => void;
   onRegenerateShot: (shotId: string) => void;
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
+  onUpdateShotVersion?: (shotId: string, versionId: string, updates: Partial<ShotVersion>) => void;
   onUpdateScene?: (sceneId: string, updates: Partial<Scene>) => void;
   onReorderShots?: (sceneId: string, shotIds: string[]) => void;
   onUploadShotReference: (shotId: string, file: File) => void;
@@ -403,6 +404,7 @@ export function StoryboardEditor({
   onGenerateShot,
   onRegenerateShot,
   onUpdateShot,
+  onUpdateShotVersion,
   onUpdateScene,
   onReorderShots,
   onUploadShotReference,
@@ -497,6 +499,20 @@ export function StoryboardEditor({
 
   const handleUpdatePrompt = (shotId: string, prompt: string) => {
     onUpdateShot(shotId, { description: prompt });
+  };
+
+  const handleUpdateVideoPrompt = (shotId: string, prompt: string) => {
+    const shot = allShots.find(s => s.id === shotId);
+    if (shot?.currentVersionId && onUpdateShotVersion) {
+      onUpdateShotVersion(shotId, shot.currentVersionId, { videoPrompt: prompt });
+    }
+  };
+
+  const handleUpdateVideoDuration = (shotId: string, duration: number) => {
+    const shot = allShots.find(s => s.id === shotId);
+    if (shot?.currentVersionId && onUpdateShotVersion) {
+      onUpdateShotVersion(shotId, shot.currentVersionId, { videoDuration: duration });
+    }
   };
 
   const handleSelectShot = (shot: Shot) => {
@@ -660,6 +676,8 @@ export function StoryboardEditor({
                               onUpdateShot={onUpdateShot}
                               onUploadReference={handleUploadReference}
                               onDeleteReference={handleDeleteReference}
+                              onUpdateVideoPrompt={handleUpdateVideoPrompt}
+                              onUpdateVideoDuration={handleUpdateVideoDuration}
                             />
                           );
                         })}

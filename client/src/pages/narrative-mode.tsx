@@ -23,6 +23,7 @@ export default function NarrativeMode() {
   const [videoId] = useState(`video-${Date.now()}`);
   const [workspaceId] = useState("workspace-1");
   const [script, setScript] = useState("");
+  const [aspectRatio, setAspectRatio] = useState("16:9");
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [shots, setShots] = useState<{ [sceneId: string]: Shot[] }>({});
   const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
@@ -30,13 +31,11 @@ export default function NarrativeMode() {
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
   const [worldSettings, setWorldSettings] = useState<{ 
     artStyle: string; 
-    aspectRatio: string;
     imageModel?: string;
     worldDescription?: string;
     locations?: Array<{ id: string; name: string; description: string }>;
   }>({
     artStyle: "none",
-    aspectRatio: "16:9",
     imageModel: "Flux",
     worldDescription: "",
     locations: [],
@@ -113,6 +112,7 @@ export default function NarrativeMode() {
             videoId={videoId}
             workspaceId={workspaceId}
             script={script}
+            aspectRatio={aspectRatio}
             scenes={scenes}
             shots={shots}
             shotVersions={shotVersions}
@@ -120,6 +120,7 @@ export default function NarrativeMode() {
             referenceImages={referenceImages}
             worldSettings={worldSettings}
             onScriptChange={setScript}
+            onAspectRatioChange={setAspectRatio}
             onScenesChange={setScenes}
             onShotsChange={setShots}
             onShotVersionsChange={setShotVersions}

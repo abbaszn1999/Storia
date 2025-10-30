@@ -29,7 +29,6 @@ interface WorldCastProps {
   characters: Character[];
   referenceImages: ReferenceImage[];
   artStyle?: string;
-  aspectRatio?: string;
   imageModel?: string;
   worldDescription?: string;
   locations?: Location[];
@@ -37,7 +36,6 @@ interface WorldCastProps {
   onReferenceImagesChange: (images: ReferenceImage[]) => void;
   onWorldSettingsChange?: (settings: { 
     artStyle: string; 
-    aspectRatio: string; 
     imageModel: string;
     worldDescription: string;
     locations: Location[];
@@ -61,12 +59,6 @@ const VIDEO_STYLES = [
 
 const MAX_CHARACTER_REFERENCES = 5;
 
-const ASPECT_RATIOS = [
-  { id: "16:9", label: "16:9" },
-  { id: "1:1", label: "1:1" },
-  { id: "9:16", label: "9:16" },
-];
-
 const IMAGE_MODELS = [
   "Flux",
   "Midjourney",
@@ -86,7 +78,6 @@ export function WorldCast({
   characters, 
   referenceImages,
   artStyle = "none",
-  aspectRatio = "16:9",
   imageModel = "Flux",
   worldDescription = "",
   locations = [],
@@ -104,7 +95,6 @@ export function WorldCast({
   const [isGenerating, setIsGenerating] = useState(false);
   const [cinematicInspiration, setCinematicInspiration] = useState("");
   const [selectedArtStyle, setSelectedArtStyle] = useState(artStyle);
-  const [selectedAspectRatio, setSelectedAspectRatio] = useState(aspectRatio);
   const [selectedImageModel, setSelectedImageModel] = useState(imageModel);
   const [selectedWorldDescription, setSelectedWorldDescription] = useState(worldDescription);
   const [locationsList, setLocationsList] = useState<Location[]>(locations);
@@ -335,20 +325,6 @@ export function WorldCast({
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: styleId, 
-        aspectRatio: selectedAspectRatio,
-        imageModel: selectedImageModel,
-        worldDescription: selectedWorldDescription,
-        locations: locationsList
-      });
-    }
-  };
-
-  const handleAspectRatioChange = (ratio: string) => {
-    setSelectedAspectRatio(ratio);
-    if (onWorldSettingsChange) {
-      onWorldSettingsChange({ 
-        artStyle: selectedArtStyle, 
-        aspectRatio: ratio,
         imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
         locations: locationsList
@@ -361,7 +337,6 @@ export function WorldCast({
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: selectedArtStyle, 
-        aspectRatio: selectedAspectRatio,
         imageModel: model,
         worldDescription: selectedWorldDescription,
         locations: locationsList
@@ -374,7 +349,6 @@ export function WorldCast({
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: selectedArtStyle, 
-        aspectRatio: selectedAspectRatio,
         imageModel: selectedImageModel,
         worldDescription: description,
         locations: locationsList
@@ -421,7 +395,6 @@ export function WorldCast({
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: selectedArtStyle, 
-        aspectRatio: selectedAspectRatio,
         imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
         locations: updatedLocations
@@ -445,7 +418,6 @@ export function WorldCast({
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: selectedArtStyle, 
-        aspectRatio: selectedAspectRatio,
         imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
         locations: updatedLocations
@@ -471,25 +443,6 @@ export function WorldCast({
           <h3 className="text-lg font-semibold mb-4">Settings</h3>
           
           <div className="space-y-6">
-            {/* Aspect Ratio */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">ASPECT RATIO</Label>
-              <div className="flex gap-2">
-                {ASPECT_RATIOS.map((ratio) => (
-                  <Button
-                    key={ratio.id}
-                    variant={selectedAspectRatio === ratio.id ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleAspectRatioChange(ratio.id)}
-                    className="flex-1"
-                    data-testid={`aspect-ratio-${ratio.id}`}
-                  >
-                    {ratio.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
             {/* Image AI Model */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">IMAGE AI MODEL</Label>

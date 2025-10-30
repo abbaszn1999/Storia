@@ -10,6 +10,7 @@ interface NarrativeWorkflowProps {
   videoId: string;
   workspaceId: string;
   script: string;
+  aspectRatio: string;
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
@@ -17,12 +18,12 @@ interface NarrativeWorkflowProps {
   referenceImages: ReferenceImage[];
   worldSettings: { 
     artStyle: string; 
-    aspectRatio: string; 
     imageModel?: string;
     worldDescription?: string;
     locations?: Array<{ id: string; name: string; description: string }>;
   };
   onScriptChange: (script: string) => void;
+  onAspectRatioChange: (aspectRatio: string) => void;
   onScenesChange: (scenes: Scene[]) => void;
   onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
   onShotVersionsChange: (shotVersions: { [shotId: string]: ShotVersion[] }) => void;
@@ -30,7 +31,6 @@ interface NarrativeWorkflowProps {
   onReferenceImagesChange: (referenceImages: ReferenceImage[]) => void;
   onWorldSettingsChange: (settings: { 
     artStyle: string; 
-    aspectRatio: string;
     imageModel: string;
     worldDescription: string;
     locations: Array<{ id: string; name: string; description: string }>;
@@ -43,6 +43,7 @@ export function NarrativeWorkflow({
   videoId,
   workspaceId,
   script,
+  aspectRatio,
   scenes,
   shots,
   shotVersions,
@@ -50,6 +51,7 @@ export function NarrativeWorkflow({
   referenceImages,
   worldSettings,
   onScriptChange,
+  onAspectRatioChange,
   onScenesChange,
   onShotsChange,
   onShotVersionsChange,
@@ -175,7 +177,9 @@ export function NarrativeWorkflow({
       {activeStep === "script" && (
         <ScriptEditor
           initialScript={script}
+          aspectRatio={aspectRatio}
           onScriptChange={onScriptChange}
+          onAspectRatioChange={onAspectRatioChange}
           onNext={onNext}
         />
       )}
@@ -205,7 +209,6 @@ export function NarrativeWorkflow({
           characters={characters}
           referenceImages={referenceImages}
           artStyle={worldSettings.artStyle}
-          aspectRatio={worldSettings.aspectRatio}
           imageModel={worldSettings.imageModel}
           worldDescription={worldSettings.worldDescription}
           locations={worldSettings.locations}

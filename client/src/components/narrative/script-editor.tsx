@@ -12,7 +12,9 @@ import { useToast } from "@/hooks/use-toast";
 
 interface ScriptEditorProps {
   initialScript?: string;
+  aspectRatio?: string;
   onScriptChange: (script: string) => void;
+  onAspectRatioChange?: (aspectRatio: string) => void;
   onNext: () => void;
 }
 
@@ -42,10 +44,17 @@ const LANGUAGES = [
   "Portuguese", "Japanese", "Korean", "Chinese", "Arabic"
 ];
 
-export function ScriptEditor({ initialScript = "", onScriptChange, onNext }: ScriptEditorProps) {
+const ASPECT_RATIOS = [
+  { id: "16:9", label: "16:9" },
+  { id: "9:16", label: "9:16" },
+  { id: "1:1", label: "1:1" },
+];
+
+export function ScriptEditor({ initialScript = "", aspectRatio = "16:9", onScriptChange, onAspectRatioChange, onNext }: ScriptEditorProps) {
   const [scriptMode, setScriptMode] = useState<"smart" | "basic">("smart");
   const [script, setScript] = useState(initialScript);
   const [duration, setDuration] = useState("60");
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState(aspectRatio);
   const [selectedGenres, setSelectedGenres] = useState<string[]>(["Adventure"]);
   const [selectedTones, setSelectedTones] = useState<string[]>(["Dramatic"]);
   const [language, setLanguage] = useState("English");
@@ -58,7 +67,7 @@ export function ScriptEditor({ initialScript = "", onScriptChange, onNext }: Scr
         genres: selectedGenres,
         tones: selectedTones,
         language,
-        aspectRatio: '16:9',
+        aspectRatio: selectedAspectRatio,
         userPrompt: userScript,
         mode: 'expand',
       });
@@ -173,6 +182,30 @@ export function ScriptEditor({ initialScript = "", onScriptChange, onNext }: Scr
               </p>
             </div>
           </Card>
+        </div>
+
+        {/* Aspect Ratio */}
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold">Aspect Ratio</Label>
+          <div className="grid grid-cols-3 gap-2">
+            {ASPECT_RATIOS.map((ratio) => (
+              <button
+                key={ratio.id}
+                onClick={() => {
+                  setSelectedAspectRatio(ratio.id);
+                  onAspectRatioChange?.(ratio.id);
+                }}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-all hover-elevate ${
+                  selectedAspectRatio === ratio.id
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-foreground"
+                }`}
+                data-testid={`button-aspect-ratio-${ratio.id}`}
+              >
+                {ratio.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Duration */}

@@ -425,6 +425,17 @@ export function StoryboardEditor({
     setLocalShots(shots);
   }, [shots]);
 
+  // Sync selectedShot when shots change (e.g., version selection updates currentVersionId)
+  useEffect(() => {
+    if (selectedShot) {
+      const allShotsFlat = Object.values(shots).flat();
+      const updatedShot = allShotsFlat.find(s => s.id === selectedShot.id);
+      if (updatedShot && updatedShot.currentVersionId !== selectedShot.currentVersionId) {
+        setSelectedShot(updatedShot);
+      }
+    }
+  }, [shots]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {

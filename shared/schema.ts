@@ -44,9 +44,29 @@ export const stories = pgTable("stories", {
   workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
   title: text("title").notNull(),
   template: text("template").notNull(),
-  content: jsonb("content"),
+  templateType: text("template_type").notNull(),
+  script: text("script"),
+  aspectRatio: text("aspect_ratio").default("9:16").notNull(),
+  duration: integer("duration"),
+  imageModel: text("image_model"),
+  voiceProfileId: varchar("voice_profile_id").references(() => voices.id),
+  voiceoverUrl: text("voiceover_url"),
   status: text("status").default("draft").notNull(),
   exportUrl: text("export_url"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const storyScenes = pgTable("story_scenes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  storyId: varchar("story_id").notNull().references(() => stories.id),
+  sceneNumber: integer("scene_number").notNull(),
+  imagePrompt: text("image_prompt"),
+  imageUrl: text("image_url"),
+  effect: text("effect").default("fade").notNull(),
+  voiceoverText: text("voiceover_text"),
+  duration: integer("duration").default(3).notNull(),
+  status: text("status").default("draft").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -185,6 +205,12 @@ export const insertStorySchema = createInsertSchema(stories).omit({
   updatedAt: true,
 });
 
+export const insertStorySceneSchema = createInsertSchema(storyScenes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertCharacterSchema = createInsertSchema(characters).omit({
   id: true,
   createdAt: true,
@@ -239,6 +265,8 @@ export type InsertVideo = z.infer<typeof insertVideoSchema>;
 export type Video = typeof videos.$inferSelect;
 export type InsertStory = z.infer<typeof insertStorySchema>;
 export type Story = typeof stories.$inferSelect;
+export type InsertStoryScene = z.infer<typeof insertStorySceneSchema>;
+export type StoryScene = typeof storyScenes.$inferSelect;
 export type InsertCharacter = z.infer<typeof insertCharacterSchema>;
 export type Character = typeof characters.$inferSelect;
 export type InsertVoice = z.infer<typeof insertVoiceSchema>;

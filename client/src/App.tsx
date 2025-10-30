@@ -12,6 +12,7 @@ import Dashboard from "@/pages/dashboard";
 import Videos from "@/pages/videos";
 import NarrativeMode from "@/pages/narrative-mode";
 import Stories from "@/pages/stories";
+import StoryMode from "@/pages/story-mode";
 import Characters from "@/pages/characters";
 import Calendar from "@/pages/calendar";
 import History from "@/pages/history";
@@ -19,12 +20,13 @@ import NotFound from "@/pages/not-found";
 
 function MainLayout() {
   const [location] = useLocation();
-  const isFullPageRoute = /^\/videos\/narrative\/[^/]+$/.test(location);
+  const isFullPageRoute = /^\/videos\/narrative\/[^/]+$/.test(location) || /^\/stories\/create\/[^/]+$/.test(location);
 
   if (isFullPageRoute) {
     return (
       <Switch>
         <Route path="/videos/narrative/:id" component={NarrativeMode} />
+        <Route path="/stories/create/:template" component={StoryMode} />
       </Switch>
     );
   }

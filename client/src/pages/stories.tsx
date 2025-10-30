@@ -7,13 +7,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { STORY_TEMPLATES, type StoryTemplate } from "@/constants/story-templates";
 
 export default function Stories() {
-  const [selectedTemplate, setSelectedTemplate] = useState<StoryTemplate | null>(null);
-
-  const handleTemplateSelect = (template: StoryTemplate) => {
-    setSelectedTemplate(template);
-    // TODO: Navigate to the appropriate workflow based on template.type
-    console.log("Selected template:", template);
-  };
 
   const getTemplateIcon = (templateId: string) => {
     switch (templateId) {
@@ -72,52 +65,49 @@ export default function Stories() {
               const Icon = getTemplateIcon(template.id);
               
               return (
-                <Card
-                  key={template.id}
-                  className="hover-elevate overflow-hidden cursor-pointer group"
-                  onClick={() => handleTemplateSelect(template)}
-                  data-testid={`card-template-${template.id}`}
-                >
-                  {/* Gradient Header */}
-                  <div className={`h-32 bg-gradient-to-br ${template.iconColor} relative flex items-center justify-center`}>
-                    <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors" />
-                    <Icon className="h-16 w-16 text-white relative z-10" />
-                  </div>
+                <Link href={`/stories/create/${template.id}`} key={template.id}>
+                  <Card className="hover-elevate overflow-hidden cursor-pointer group" data-testid={`card-template-${template.id}`}>
+                    {/* Gradient Header */}
+                    <div className={`h-32 bg-gradient-to-br ${template.iconColor} relative flex items-center justify-center`}>
+                      <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors" />
+                      <Icon className="h-16 w-16 text-white relative z-10" />
+                    </div>
 
-                  {/* Content */}
-                  <div className="p-6">
-                    <h3 className="text-xl font-bold mb-2">{template.name}</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      {template.description}
-                    </p>
+                    {/* Content */}
+                    <div className="p-6">
+                      <h3 className="text-xl font-bold mb-2">{template.name}</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        {template.description}
+                      </p>
 
-                    {template.structure && (
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                          Structure
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {template.structure.map((step, index) => (
-                            <span
-                              key={index}
-                              className="text-xs px-2 py-1 rounded-md bg-muted text-muted-foreground"
-                            >
-                              {index + 1}. {step}
-                            </span>
-                          ))}
+                      {template.structure && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                            Structure
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {template.structure.map((step, index) => (
+                              <span
+                                key={index}
+                                className="text-xs px-2 py-1 rounded-md bg-muted text-muted-foreground"
+                              >
+                                {index + 1}. {step}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    <Button 
-                      className="w-full mt-4" 
-                      variant="outline"
-                      data-testid={`button-select-${template.id}`}
-                    >
-                      Select Template
-                    </Button>
-                  </div>
-                </Card>
+                      <Button 
+                        className="w-full mt-4" 
+                        variant="outline"
+                        data-testid={`button-select-${template.id}`}
+                      >
+                        Select Template
+                      </Button>
+                    </div>
+                  </Card>
+                </Link>
               );
             })}
           </div>

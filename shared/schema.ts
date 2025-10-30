@@ -39,6 +39,17 @@ export const videos = pgTable("videos", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const voices = pgTable("voices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
+  name: text("name").notNull(),
+  provider: text("provider").notNull(),
+  voiceId: text("voice_id").notNull(),
+  settings: jsonb("settings"),
+  sampleUrl: text("sample_url"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const stories = pgTable("stories", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
@@ -79,17 +90,6 @@ export const characters = pgTable("characters", {
   appearance: jsonb("appearance"),
   voiceSettings: jsonb("voice_settings"),
   thumbnailUrl: text("thumbnail_url"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const voices = pgTable("voices", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
-  name: text("name").notNull(),
-  provider: text("provider").notNull(),
-  voiceId: text("voice_id").notNull(),
-  settings: jsonb("settings"),
-  sampleUrl: text("sample_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

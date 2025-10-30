@@ -38,6 +38,15 @@ const VIDEO_MODELS = [
   "Minimax",
 ];
 
+const VIDEO_MODEL_DURATIONS: { [key: string]: number[] } = {
+  "Kling AI": [5, 10],
+  "Runway Gen-4": [5, 10],
+  "Luma Dream Machine": [5],
+  "Pika 2.0": [3],
+  "Veo 2": [8],
+  "Minimax": [6],
+};
+
 const LIGHTING_OPTIONS = [
   "Natural Daylight",
   "Golden Hour",
@@ -106,6 +115,8 @@ interface SortableShotCardProps {
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
   onUploadReference: (shotId: string, file: File) => void;
   onDeleteReference: (shotId: string) => void;
+  onUpdateVideoPrompt: (shotId: string, prompt: string) => void;
+  onUpdateVideoDuration: (shotId: string, duration: number) => void;
 }
 
 function SortableShotCard({ 
@@ -121,6 +132,8 @@ function SortableShotCard({
   onUpdateShot,
   onUploadReference,
   onDeleteReference,
+  onUpdateVideoPrompt,
+  onUpdateVideoDuration,
 }: SortableShotCardProps) {
   const {
     attributes,
@@ -306,6 +319,17 @@ function SortableShotCard({
           </TabsContent>
 
           <TabsContent value="video" className="space-y-3 mt-0">
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Video Prompt</Label>
+              <Textarea
+                placeholder="Describe the motion and action for this shot..."
+                value={version?.videoPrompt || ""}
+                onChange={(e) => onUpdateVideoPrompt(shot.id, e.target.value)}
+                className="min-h-[60px] text-xs resize-none"
+                data-testid={`textarea-video-prompt-${shot.id}`}
+              />
+            </div>
+
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Video Model</Label>
               <Select
@@ -322,6 +346,31 @@ function SortableShotCard({
                   {VIDEO_MODELS.map((model) => (
                     <SelectItem key={model} value={model}>
                       {model}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Duration</Label>
+              <Select
+                value={version?.videoDuration?.toString() || ""}
+                onValueChange={(value) => onUpdateVideoDuration(shot.id, parseInt(value))}
+                disabled={!shot.videoModel && !sceneModel}
+              >
+                <SelectTrigger className="h-8 text-xs" data-testid={`select-video-duration-${shot.id}`}>
+                  <SelectValue placeholder="Select duration" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(shot.videoModel && VIDEO_MODEL_DURATIONS[shot.videoModel] 
+                    ? VIDEO_MODEL_DURATIONS[shot.videoModel]
+                    : sceneModel && VIDEO_MODEL_DURATIONS[sceneModel]
+                    ? VIDEO_MODEL_DURATIONS[sceneModel]
+                    : []
+                  ).map((duration) => (
+                    <SelectItem key={duration} value={duration.toString()}>
+                      {duration}s
                     </SelectItem>
                   ))}
                 </SelectContent>

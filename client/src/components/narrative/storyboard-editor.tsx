@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@shared/schema";
@@ -193,139 +194,152 @@ function SortableShotCard({
         </div>
       </div>
 
-      <CardContent className="p-4 space-y-3">
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Prompt</Label>
-          <Textarea
-            value={localPrompt}
-            onChange={(e) => setLocalPrompt(e.target.value)}
-            onBlur={handlePromptBlur}
-            placeholder="Describe the shot..."
-            className="min-h-20 text-xs resize-none"
-            data-testid={`input-prompt-${shot.id}`}
-          />
-        </div>
+      <CardContent className="p-4">
+        <Tabs defaultValue="image" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-3">
+            <TabsTrigger value="image" className="text-xs" data-testid={`tab-image-${shot.id}`}>
+              Image
+            </TabsTrigger>
+            <TabsTrigger value="video" className="text-xs" data-testid={`tab-video-${shot.id}`}>
+              Video
+            </TabsTrigger>
+          </TabsList>
 
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Reference Image</Label>
-          {referenceImage ? (
-            <div className="relative aspect-video rounded-md overflow-hidden border">
-              <img
-                src={referenceImage.imageUrl}
-                alt="Reference"
-                className="w-full h-full object-cover"
+          <TabsContent value="image" className="space-y-3 mt-0">
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Prompt</Label>
+              <Textarea
+                value={localPrompt}
+                onChange={(e) => setLocalPrompt(e.target.value)}
+                onBlur={handlePromptBlur}
+                placeholder="Describe the shot..."
+                className="min-h-20 text-xs resize-none"
+                data-testid={`input-prompt-${shot.id}`}
               />
-              <Button
-                size="icon"
-                variant="destructive"
-                className="absolute top-2 left-2 h-6 w-6"
-                onClick={() => onDeleteReference(shot.id)}
-                data-testid={`button-delete-reference-${shot.id}`}
-              >
-                <X className="h-3 w-3" />
-              </Button>
             </div>
-          ) : (
-            <div>
-              <Input
-                id={`reference-upload-${shot.id}`}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileSelect}
-                data-testid={`input-reference-${shot.id}`}
-              />
+
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Reference Image</Label>
+              {referenceImage ? (
+                <div className="relative aspect-video rounded-md overflow-hidden border">
+                  <img
+                    src={referenceImage.imageUrl}
+                    alt="Reference"
+                    className="w-full h-full object-cover"
+                  />
+                  <Button
+                    size="icon"
+                    variant="destructive"
+                    className="absolute top-2 left-2 h-6 w-6"
+                    onClick={() => onDeleteReference(shot.id)}
+                    data-testid={`button-delete-reference-${shot.id}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <div>
+                  <Input
+                    id={`reference-upload-${shot.id}`}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                    data-testid={`input-reference-${shot.id}`}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => document.getElementById(`reference-upload-${shot.id}`)?.click()}
+                    data-testid={`button-upload-reference-${shot.id}`}
+                  >
+                    <Upload className="mr-2 h-3 w-3" />
+                    Upload Reference
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Shot Type</Label>
+              <Select
+                value={shot.shotType}
+                onValueChange={(value) => onUpdateShot(shot.id, { shotType: value })}
+              >
+                <SelectTrigger className="h-8 text-xs" data-testid={`select-shot-type-${shot.id}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SHOT_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex gap-2">
               <Button
                 size="sm"
                 variant="outline"
-                className="w-full"
-                onClick={() => document.getElementById(`reference-upload-${shot.id}`)?.click()}
-                data-testid={`button-upload-reference-${shot.id}`}
+                className="flex-1"
+                onClick={() => onSelectShot(shot)}
+                data-testid={`button-edit-image-${shot.id}`}
               >
-                <Upload className="mr-2 h-3 w-3" />
-                Upload Reference
+                <Edit className="mr-2 h-3 w-3" />
+                Edit Image
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1"
+                onClick={() => onRegenerateShot(shot.id)}
+                disabled={!version}
+                data-testid={`button-regenerate-${shot.id}`}
+              >
+                <RefreshCw className="mr-2 h-3 w-3" />
+                Re-generate
               </Button>
             </div>
-          )}
-        </div>
+          </TabsContent>
 
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1"
-            onClick={() => onSelectShot(shot)}
-            data-testid={`button-edit-image-${shot.id}`}
-          >
-            <Edit className="mr-2 h-3 w-3" />
-            Edit Image
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1"
-            onClick={() => onRegenerateShot(shot.id)}
-            disabled={!version}
-            data-testid={`button-regenerate-${shot.id}`}
-          >
-            <RefreshCw className="mr-2 h-3 w-3" />
-            Re-generate
-          </Button>
-        </div>
-
-        <Button
-          size="sm"
-          variant="outline"
-          className="w-full"
-          disabled
-          data-testid={`button-generate-video-${shot.id}`}
-        >
-          <Video className="mr-2 h-3 w-3" />
-          Generate Video
-        </Button>
-
-        <div className="space-y-2">
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Video Model</Label>
-            <Select
-              value={shot.videoModel || "scene-default"}
-              onValueChange={(value) => onUpdateShot(shot.id, { videoModel: value === "scene-default" ? null : value })}
-            >
-              <SelectTrigger className="h-8 text-xs" data-testid={`select-video-model-${shot.id}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="scene-default">
-                  Scene Default {sceneModel ? `(${sceneModel})` : ""}
-                </SelectItem>
-                {VIDEO_MODELS.map((model) => (
-                  <SelectItem key={model} value={model}>
-                    {model}
+          <TabsContent value="video" className="space-y-3 mt-0">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Video Model</Label>
+              <Select
+                value={shot.videoModel || "scene-default"}
+                onValueChange={(value) => onUpdateShot(shot.id, { videoModel: value === "scene-default" ? null : value })}
+              >
+                <SelectTrigger className="h-8 text-xs" data-testid={`select-video-model-${shot.id}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="scene-default">
+                    Scene Default {sceneModel ? `(${sceneModel})` : ""}
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                  {VIDEO_MODELS.map((model) => (
+                    <SelectItem key={model} value={model}>
+                      {model}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Shot Type</Label>
-            <Select
-              value={shot.shotType}
-              onValueChange={(value) => onUpdateShot(shot.id, { shotType: value })}
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full"
+              disabled
+              data-testid={`button-generate-video-${shot.id}`}
             >
-              <SelectTrigger className="h-8 text-xs" data-testid={`select-shot-type-${shot.id}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SHOT_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+              <Video className="mr-2 h-3 w-3" />
+              Generate Video
+            </Button>
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );

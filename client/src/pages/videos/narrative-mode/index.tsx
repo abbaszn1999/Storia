@@ -25,6 +25,8 @@ export default function NarrativeMode() {
   const [script, setScript] = useState("");
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [scriptModel, setScriptModel] = useState("gpt-4o");
+  const [voiceActorId, setVoiceActorId] = useState<string | null>(null);
+  const [soundEffectsEnabled, setSoundEffectsEnabled] = useState(true);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [shots, setShots] = useState<{ [sceneId: string]: Shot[] }>({});
   const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
@@ -115,6 +117,8 @@ export default function NarrativeMode() {
             script={script}
             aspectRatio={aspectRatio}
             scriptModel={scriptModel}
+            voiceActorId={voiceActorId}
+            soundEffectsEnabled={soundEffectsEnabled}
             scenes={scenes}
             shots={shots}
             shotVersions={shotVersions}
@@ -124,6 +128,8 @@ export default function NarrativeMode() {
             onScriptChange={setScript}
             onAspectRatioChange={setAspectRatio}
             onScriptModelChange={setScriptModel}
+            onVoiceActorChange={setVoiceActorId}
+            onSoundEffectsToggle={setSoundEffectsEnabled}
             onScenesChange={setScenes}
             onShotsChange={setShots}
             onShotVersionsChange={setShotVersions}

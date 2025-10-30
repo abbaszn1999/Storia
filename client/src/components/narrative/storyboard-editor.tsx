@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@shared/schema";
+import { VOICE_LIBRARY } from "@/constants/voice-library";
 import {
   DndContext,
   closestCenter,
@@ -99,6 +101,10 @@ interface StoryboardEditorProps {
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
   referenceImages: ReferenceImage[];
+  voiceActorId: string | null;
+  soundEffectsEnabled: boolean;
+  onVoiceActorChange: (voiceActorId: string) => void;
+  onSoundEffectsToggle: (enabled: boolean) => void;
   onGenerateShot: (shotId: string) => void;
   onRegenerateShot: (shotId: string) => void;
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
@@ -436,6 +442,10 @@ export function StoryboardEditor({
   shots,
   shotVersions,
   referenceImages,
+  voiceActorId,
+  soundEffectsEnabled,
+  onVoiceActorChange,
+  onSoundEffectsToggle,
   onGenerateShot,
   onRegenerateShot,
   onUpdateShot,
@@ -593,21 +603,72 @@ export function StoryboardEditor({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-semibold">Storyboard</h3>
           <p className="text-sm text-muted-foreground">
             {generatedCount} of {totalCount} shots generated • Drag to reorder
           </p>
         </div>
-        <Button
-          onClick={handleGenerateAll}
-          disabled={generatedCount === totalCount}
-          data-testid="button-generate-all"
-        >
-          <Sparkles className="mr-2 h-4 w-4" />
-          Generate All Shots
-        </Button>
+        
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Label className="text-sm text-muted-foreground">Voice Actor</Label>
+            <Select
+              value={voiceActorId || ""}
+              onValueChange={onVoiceActorChange}
+            >
+              <SelectTrigger className="w-48 h-9" data-testid="select-voice-actor">
+                <SelectValue placeholder="Select voice actor" />
+              </SelectTrigger>
+              <SelectContent>
+                {VOICE_LIBRARY.map((voice) => (
+                  <SelectItem key={voice.id} value={voice.id}>
+                    <div className="flex items-center gap-2">
+                      <span>{voice.name}</span>
+                      <audio 
+                        id={`preview-${voice.id}`} 
+                        src={voice.previewUrl}
+                        className="hidden"
+                      />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const audio = document.getElementById(`preview-${voice.id}`) as HTMLAudioElement;
+                          if (audio) {
+                            audio.play();
+                          }
+                        }}
+                        className="p-1 rounded hover:bg-accent"
+                        data-testid={`button-preview-voice-${voice.id}`}
+                      >
+                        <Volume2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Label className="text-sm text-muted-foreground">Sound Effects</Label>
+            <Switch
+              checked={soundEffectsEnabled}
+              onCheckedChange={onSoundEffectsToggle}
+              data-testid="toggle-sound-effects"
+            />
+          </div>
+
+          <Button
+            onClick={handleGenerateAll}
+            disabled={generatedCount === totalCount}
+            data-testid="button-generate-all"
+          >
+            <Sparkles className="mr-2 h-4 w-4" />
+            Generate All Shots
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-8">

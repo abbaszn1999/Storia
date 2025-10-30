@@ -12,6 +12,8 @@ interface NarrativeWorkflowProps {
   script: string;
   aspectRatio: string;
   scriptModel: string;
+  voiceActorId: string | null;
+  soundEffectsEnabled: boolean;
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
@@ -26,6 +28,8 @@ interface NarrativeWorkflowProps {
   onScriptChange: (script: string) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
   onScriptModelChange: (model: string) => void;
+  onVoiceActorChange: (voiceActorId: string) => void;
+  onSoundEffectsToggle: (enabled: boolean) => void;
   onScenesChange: (scenes: Scene[]) => void;
   onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
   onShotVersionsChange: (shotVersions: { [shotId: string]: ShotVersion[] }) => void;
@@ -47,6 +51,8 @@ export function NarrativeWorkflow({
   script,
   aspectRatio,
   scriptModel,
+  voiceActorId,
+  soundEffectsEnabled,
   scenes,
   shots,
   shotVersions,
@@ -56,6 +62,8 @@ export function NarrativeWorkflow({
   onScriptChange,
   onAspectRatioChange,
   onScriptModelChange,
+  onVoiceActorChange,
+  onSoundEffectsToggle,
   onScenesChange,
   onShotsChange,
   onShotVersionsChange,
@@ -233,6 +241,10 @@ export function NarrativeWorkflow({
           shots={shots}
           shotVersions={shotVersions}
           referenceImages={referenceImages}
+          voiceActorId={voiceActorId}
+          soundEffectsEnabled={soundEffectsEnabled}
+          onVoiceActorChange={onVoiceActorChange}
+          onSoundEffectsToggle={onSoundEffectsToggle}
           onGenerateShot={handleGenerateShot}
           onRegenerateShot={handleRegenerateShot}
           onUpdateShot={handleUpdateShot}

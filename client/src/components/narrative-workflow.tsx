@@ -142,6 +142,22 @@ export function NarrativeWorkflow({
     });
   };
 
+  const handleSelectVersion = (shotId: string, versionId: string) => {
+    // Update the shot's currentVersionId
+    handleUpdateShot(shotId, { currentVersionId: versionId });
+  };
+
+  const handleDeleteVersion = (shotId: string, versionId: string) => {
+    // Remove the version from shotVersions
+    const versions = shotVersions[shotId] || [];
+    const filteredVersions = versions.filter(v => v.id !== versionId);
+    
+    onShotVersionsChange({
+      ...shotVersions,
+      [shotId]: filteredVersions,
+    });
+  };
+
   return (
     <div>
       {activeStep === "script" && (
@@ -200,6 +216,8 @@ export function NarrativeWorkflow({
           onReorderShots={handleReorderShots}
           onUploadShotReference={handleUploadShotReference}
           onDeleteShotReference={handleDeleteShotReference}
+          onSelectVersion={handleSelectVersion}
+          onDeleteVersion={handleDeleteVersion}
           onNext={onNext}
         />
       )}

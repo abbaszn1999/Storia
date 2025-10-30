@@ -812,7 +812,7 @@ export function StoryboardEditor({
 
                 <div className="space-y-3">
                   <div className="space-y-2">
-                    <Label className="text-sm">Image Generation Prompt</Label>
+                    <Label className="text-sm">Image Edit Prompt</Label>
                     <Textarea
                       value={editPrompt}
                       onChange={(e) => setEditPrompt(e.target.value)}
@@ -824,13 +824,52 @@ export function StoryboardEditor({
 
                   <div className="space-y-2">
                     <Label className="text-sm">Reference Image (Optional)</Label>
-                    <div className="border-2 border-dashed rounded-lg p-4 text-center">
-                      <Upload className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
-                      <Button size="sm" variant="outline" data-testid="button-upload-reference-dialog">
-                        <Upload className="mr-2 h-3 w-3" />
-                        Choose File
-                      </Button>
-                    </div>
+                    {selectedShot && getShotReferenceImage(selectedShot.id) ? (
+                      <div className="relative">
+                        <div className="aspect-video rounded-md overflow-hidden border">
+                          <img
+                            src={getShotReferenceImage(selectedShot.id)!.imageUrl}
+                            alt="Reference"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          className="absolute top-2 left-2 h-6 w-6"
+                          onClick={() => handleDeleteReference(selectedShot.id)}
+                          data-testid="button-delete-reference-dialog"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="border-2 border-dashed rounded-lg p-4 text-center">
+                        <Input
+                          id="reference-upload-dialog"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file && selectedShot) {
+                              handleUploadReference(selectedShot.id, file);
+                            }
+                          }}
+                          data-testid="input-reference-dialog"
+                        />
+                        <Upload className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => document.getElementById('reference-upload-dialog')?.click()}
+                          data-testid="button-upload-reference-dialog"
+                        >
+                          <Upload className="mr-2 h-3 w-3" />
+                          Choose File
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

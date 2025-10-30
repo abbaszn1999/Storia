@@ -12,7 +12,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Upload, Check, Pencil, User, Library, ChevronDown, Loader2, Sparkles, X } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus, Upload, Check, Pencil, User, Library, ChevronDown, Loader2, Sparkles, X, MapPin, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Character, ReferenceImage } from "@shared/schema";
 
@@ -23,9 +30,16 @@ interface WorldCastProps {
   referenceImages: ReferenceImage[];
   artStyle?: string;
   aspectRatio?: string;
+  imageModel?: string;
+  locations?: Location[];
   onCharactersChange: (characters: Character[]) => void;
   onReferenceImagesChange: (images: ReferenceImage[]) => void;
-  onWorldSettingsChange?: (settings: { artStyle: string; aspectRatio: string }) => void;
+  onWorldSettingsChange?: (settings: { 
+    artStyle: string; 
+    aspectRatio: string; 
+    imageModel: string;
+    locations: Location[];
+  }) => void;
   onNext: () => void;
 }
 
@@ -51,6 +65,19 @@ const ASPECT_RATIOS = [
   { id: "9:16", label: "9:16" },
 ];
 
+const IMAGE_MODELS = [
+  "Flux",
+  "Midjourney",
+  "Nano Banana",
+  "GPT Image",
+];
+
+interface Location {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export function WorldCast({ 
   videoId,
   workspaceId, 
@@ -58,6 +85,8 @@ export function WorldCast({
   referenceImages,
   artStyle = "none",
   aspectRatio = "16:9",
+  imageModel = "Flux",
+  locations = [],
   onCharactersChange, 
   onReferenceImagesChange,
   onWorldSettingsChange,
@@ -73,6 +102,11 @@ export function WorldCast({
   const [cinematicInspiration, setCinematicInspiration] = useState("");
   const [selectedArtStyle, setSelectedArtStyle] = useState(artStyle);
   const [selectedAspectRatio, setSelectedAspectRatio] = useState(aspectRatio);
+  const [selectedImageModel, setSelectedImageModel] = useState(imageModel);
+  const [locationsList, setLocationsList] = useState<Location[]>(locations);
+  const [isAddLocationOpen, setIsAddLocationOpen] = useState(false);
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+  const [newLocation, setNewLocation] = useState({ name: "", description: "" });
   const { toast } = useToast();
 
   // Fetch character library from database
@@ -295,15 +329,110 @@ export function WorldCast({
   const handleArtStyleChange = (styleId: string) => {
     setSelectedArtStyle(styleId);
     if (onWorldSettingsChange) {
-      onWorldSettingsChange({ artStyle: styleId, aspectRatio: selectedAspectRatio });
+      onWorldSettingsChange({ 
+        artStyle: styleId, 
+        aspectRatio: selectedAspectRatio,
+        imageModel: selectedImageModel,
+        locations: locationsList
+      });
     }
   };
 
   const handleAspectRatioChange = (ratio: string) => {
     setSelectedAspectRatio(ratio);
     if (onWorldSettingsChange) {
-      onWorldSettingsChange({ artStyle: selectedArtStyle, aspectRatio: ratio });
+      onWorldSettingsChange({ 
+        artStyle: selectedArtStyle, 
+        aspectRatio: ratio,
+        imageModel: selectedImageModel,
+        locations: locationsList
+      });
     }
+  };
+
+  const handleImageModelChange = (model: string) => {
+    setSelectedImageModel(model);
+    if (onWorldSettingsChange) {
+      onWorldSettingsChange({ 
+        artStyle: selectedArtStyle, 
+        aspectRatio: selectedAspectRatio,
+        imageModel: model,
+        locations: locationsList
+      });
+    }
+  };
+
+  const handleSaveLocation = () => {
+    if (!newLocation.name.trim()) {
+      toast({
+        title: "Name Required",
+        description: "Please enter a location name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    let updatedLocations: Location[];
+    
+    if (editingLocation) {
+      updatedLocations = locationsList.map(l => 
+        l.id === editingLocation.id 
+          ? { ...l, name: newLocation.name, description: newLocation.description }
+          : l
+      );
+      toast({
+        title: "Location Updated",
+        description: `${newLocation.name} has been updated.`,
+      });
+    } else {
+      const location: Location = {
+        id: `loc-${Date.now()}`,
+        name: newLocation.name,
+        description: newLocation.description,
+      };
+      updatedLocations = [...locationsList, location];
+      toast({
+        title: "Location Added",
+        description: `${newLocation.name} has been added.`,
+      });
+    }
+
+    setLocationsList(updatedLocations);
+    if (onWorldSettingsChange) {
+      onWorldSettingsChange({ 
+        artStyle: selectedArtStyle, 
+        aspectRatio: selectedAspectRatio,
+        imageModel: selectedImageModel,
+        locations: updatedLocations
+      });
+    }
+
+    setNewLocation({ name: "", description: "" });
+    setEditingLocation(null);
+    setIsAddLocationOpen(false);
+  };
+
+  const handleEditLocation = (location: Location) => {
+    setEditingLocation(location);
+    setNewLocation({ name: location.name, description: location.description });
+    setIsAddLocationOpen(true);
+  };
+
+  const handleDeleteLocation = (locationId: string) => {
+    const updatedLocations = locationsList.filter(l => l.id !== locationId);
+    setLocationsList(updatedLocations);
+    if (onWorldSettingsChange) {
+      onWorldSettingsChange({ 
+        artStyle: selectedArtStyle, 
+        aspectRatio: selectedAspectRatio,
+        imageModel: selectedImageModel,
+        locations: updatedLocations
+      });
+    }
+    toast({
+      title: "Location Deleted",
+      description: "Location has been removed.",
+    });
   };
 
   const getCharacterReferenceImages = (characterId: string) => {
@@ -337,6 +466,26 @@ export function WorldCast({
                   </Button>
                 ))}
               </div>
+            </div>
+
+            {/* Image AI Model */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">IMAGE AI MODEL</Label>
+              <Select
+                value={selectedImageModel}
+                onValueChange={handleImageModelChange}
+              >
+                <SelectTrigger className="h-9" data-testid="select-image-model">
+                  <SelectValue placeholder="Select image model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {IMAGE_MODELS.map((model) => (
+                    <SelectItem key={model} value={model}>
+                      {model}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Video Style */}
@@ -516,7 +665,126 @@ export function WorldCast({
             );
           })}
         </div>
+
+        {/* Locations Section */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Locations</h3>
+          </div>
+
+          <div className="space-y-3">
+            {/* Add Location Button */}
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingLocation(null);
+                setNewLocation({ name: "", description: "" });
+                setIsAddLocationOpen(true);
+              }}
+              className="w-full"
+              data-testid="button-add-location"
+            >
+              <MapPin className="mr-2 h-4 w-4" />
+              Add Location
+            </Button>
+
+            {/* Location Cards */}
+            {locationsList.map((location) => (
+              <Card key={location.id} className="group hover-elevate" data-testid={`location-${location.id}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-primary shrink-0" />
+                        <h4 className="font-semibold text-sm truncate">{location.name}</h4>
+                      </div>
+                      {location.description && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{location.description}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => handleEditLocation(location)}
+                        data-testid={`button-edit-location-${location.id}`}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => handleDeleteLocation(location.id)}
+                        data-testid={`button-delete-location-${location.id}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
       </div>
+
+      {/* Location Dialog */}
+      <Dialog open={isAddLocationOpen} onOpenChange={setIsAddLocationOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingLocation ? "Edit Location" : "Add Location"}</DialogTitle>
+            <DialogDescription>
+              Define a location or world setting for your story.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="location-name">Name</Label>
+              <Input
+                id="location-name"
+                placeholder="Location name (e.g., Ancient Forest, City Square)"
+                value={newLocation.name}
+                onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value })}
+                data-testid="input-location-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="location-description">Description</Label>
+              <Textarea
+                id="location-description"
+                placeholder="Brief description of the location..."
+                value={newLocation.description}
+                onChange={(e) => setNewLocation({ ...newLocation, description: e.target.value })}
+                rows={3}
+                data-testid="input-location-description"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsAddLocationOpen(false);
+                  setNewLocation({ name: "", description: "" });
+                  setEditingLocation(null);
+                }}
+                className="flex-1"
+                data-testid="button-cancel-location"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveLocation}
+                className="flex-1"
+                data-testid="button-save-location"
+              >
+                {editingLocation ? "Update" : "Add"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Character Dialog */}
       <Dialog open={isAddCharacterOpen} onOpenChange={setIsAddCharacterOpen}>

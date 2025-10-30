@@ -28,9 +28,16 @@ export default function NarrativeMode() {
   const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
   const [characters, setCharacters] = useState<Character[]>([]);
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
-  const [worldSettings, setWorldSettings] = useState<{ artStyle: string; aspectRatio: string }>({
+  const [worldSettings, setWorldSettings] = useState<{ 
+    artStyle: string; 
+    aspectRatio: string;
+    imageModel?: string;
+    locations?: Array<{ id: string; name: string; description: string }>;
+  }>({
     artStyle: "none",
     aspectRatio: "16:9",
+    imageModel: "Flux",
+    locations: [],
   });
 
   const isStepCompleted = (stepId: string) => completedSteps.includes(stepId);

@@ -15,14 +15,24 @@ interface NarrativeWorkflowProps {
   shotVersions: { [shotId: string]: ShotVersion[] };
   characters: Character[];
   referenceImages: ReferenceImage[];
-  worldSettings: { artStyle: string; aspectRatio: string };
+  worldSettings: { 
+    artStyle: string; 
+    aspectRatio: string; 
+    imageModel?: string; 
+    locations?: Array<{ id: string; name: string; description: string }>;
+  };
   onScriptChange: (script: string) => void;
   onScenesChange: (scenes: Scene[]) => void;
   onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
   onShotVersionsChange: (shotVersions: { [shotId: string]: ShotVersion[] }) => void;
   onCharactersChange: (characters: Character[]) => void;
   onReferenceImagesChange: (referenceImages: ReferenceImage[]) => void;
-  onWorldSettingsChange: (settings: { artStyle: string; aspectRatio: string }) => void;
+  onWorldSettingsChange: (settings: { 
+    artStyle: string; 
+    aspectRatio: string;
+    imageModel: string;
+    locations: Array<{ id: string; name: string; description: string }>;
+  }) => void;
   onNext: () => void;
 }
 
@@ -194,6 +204,8 @@ export function NarrativeWorkflow({
           referenceImages={referenceImages}
           artStyle={worldSettings.artStyle}
           aspectRatio={worldSettings.aspectRatio}
+          imageModel={worldSettings.imageModel}
+          locations={worldSettings.locations}
           onCharactersChange={onCharactersChange}
           onReferenceImagesChange={onReferenceImagesChange}
           onWorldSettingsChange={onWorldSettingsChange}

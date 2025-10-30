@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 interface SceneBreakdownProps {
   videoId: string;
   script: string;
+  scriptModel: string;
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions?: { [shotId: string]: ShotVersion[] };
@@ -31,7 +32,7 @@ interface SceneBreakdownProps {
   onNext: () => void;
 }
 
-export function SceneBreakdown({ videoId, script, scenes, shots, shotVersions, onScenesGenerated, onNext }: SceneBreakdownProps) {
+export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, shotVersions, onScenesGenerated, onNext }: SceneBreakdownProps) {
   const { toast } = useToast();
   const [sceneDialogOpen, setSceneDialogOpen] = useState(false);
   const [shotDialogOpen, setShotDialogOpen] = useState(false);
@@ -427,6 +428,7 @@ export function SceneBreakdown({ videoId, script, scenes, shots, shotVersions, o
         body: JSON.stringify({
           videoId,
           script,
+          model: scriptModel,
         }),
       });
       if (!response.ok) throw new Error('Failed to generate breakdown');

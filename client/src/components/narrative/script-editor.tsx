@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Sparkles, Info } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
@@ -13,10 +14,22 @@ import { useToast } from "@/hooks/use-toast";
 interface ScriptEditorProps {
   initialScript?: string;
   aspectRatio?: string;
+  scriptModel?: string;
   onScriptChange: (script: string) => void;
   onAspectRatioChange?: (aspectRatio: string) => void;
+  onScriptModelChange?: (model: string) => void;
   onNext: () => void;
 }
+
+const AI_MODELS = [
+  { value: "gpt-4o", label: "GPT-4o (Recommended)", description: "Latest OpenAI model, fast and capable" },
+  { value: "gpt-4-turbo", label: "GPT-4 Turbo", description: "Previous generation OpenAI flagship" },
+  { value: "gpt-4", label: "GPT-4", description: "Reliable and creative" },
+  { value: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet", description: "Anthropic's most capable model" },
+  { value: "claude-3-opus", label: "Claude 3 Opus", description: "Deep reasoning and analysis" },
+  { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro", description: "Google's advanced model" },
+  { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash", description: "Fast and efficient" },
+];
 
 const GENRES = [
   "Adventure", "Fantasy", "Sci-Fi", "Comedy", "Drama", 
@@ -50,11 +63,12 @@ const ASPECT_RATIOS = [
   { id: "1:1", label: "1:1" },
 ];
 
-export function ScriptEditor({ initialScript = "", aspectRatio = "16:9", onScriptChange, onAspectRatioChange, onNext }: ScriptEditorProps) {
+export function ScriptEditor({ initialScript = "", aspectRatio = "16:9", scriptModel = "gpt-4o", onScriptChange, onAspectRatioChange, onScriptModelChange, onNext }: ScriptEditorProps) {
   const [scriptMode, setScriptMode] = useState<"smart" | "basic">("smart");
   const [script, setScript] = useState(initialScript);
   const [duration, setDuration] = useState("60");
   const [selectedAspectRatio, setSelectedAspectRatio] = useState(aspectRatio);
+  const [selectedModel, setSelectedModel] = useState(scriptModel);
   const [selectedGenres, setSelectedGenres] = useState<string[]>(["Adventure"]);
   const [selectedTones, setSelectedTones] = useState<string[]>(["Dramatic"]);
   const [language, setLanguage] = useState("English");
@@ -68,6 +82,7 @@ export function ScriptEditor({ initialScript = "", aspectRatio = "16:9", onScrip
         tones: selectedTones,
         language,
         aspectRatio: selectedAspectRatio,
+        model: selectedModel,
         userPrompt: userScript,
         mode: 'expand',
       });
@@ -182,6 +197,35 @@ export function ScriptEditor({ initialScript = "", aspectRatio = "16:9", onScrip
               </p>
             </div>
           </Card>
+        </div>
+
+        {/* AI Model Selection */}
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold">AI Model</Label>
+          <Select 
+            value={selectedModel} 
+            onValueChange={(value) => {
+              setSelectedModel(value);
+              onScriptModelChange?.(value);
+            }}
+          >
+            <SelectTrigger data-testid="select-ai-model">
+              <SelectValue placeholder="Select AI model" />
+            </SelectTrigger>
+            <SelectContent>
+              {AI_MODELS.map((model) => (
+                <SelectItem key={model.value} value={model.value} data-testid={`option-model-${model.value}`}>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">{model.label}</span>
+                    <span className="text-xs text-muted-foreground">{model.description}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Selects the AI model for script generation and scene breakdown
+          </p>
         </div>
 
         {/* Aspect Ratio */}

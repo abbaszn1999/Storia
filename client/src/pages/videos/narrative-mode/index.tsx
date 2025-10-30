@@ -24,6 +24,7 @@ export default function NarrativeMode() {
   const [workspaceId] = useState("workspace-1");
   const [script, setScript] = useState("");
   const [aspectRatio, setAspectRatio] = useState("16:9");
+  const [scriptModel, setScriptModel] = useState("gpt-4o");
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [shots, setShots] = useState<{ [sceneId: string]: Shot[] }>({});
   const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
@@ -113,6 +114,7 @@ export default function NarrativeMode() {
             workspaceId={workspaceId}
             script={script}
             aspectRatio={aspectRatio}
+            scriptModel={scriptModel}
             scenes={scenes}
             shots={shots}
             shotVersions={shotVersions}
@@ -121,6 +123,7 @@ export default function NarrativeMode() {
             worldSettings={worldSettings}
             onScriptChange={setScript}
             onAspectRatioChange={setAspectRatio}
+            onScriptModelChange={setScriptModel}
             onScenesChange={setScenes}
             onShotsChange={setShots}
             onShotVersionsChange={setShotVersions}

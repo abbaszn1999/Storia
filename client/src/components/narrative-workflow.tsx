@@ -11,6 +11,7 @@ interface NarrativeWorkflowProps {
   workspaceId: string;
   script: string;
   aspectRatio: string;
+  scriptModel: string;
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
@@ -24,6 +25,7 @@ interface NarrativeWorkflowProps {
   };
   onScriptChange: (script: string) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
+  onScriptModelChange: (model: string) => void;
   onScenesChange: (scenes: Scene[]) => void;
   onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
   onShotVersionsChange: (shotVersions: { [shotId: string]: ShotVersion[] }) => void;
@@ -44,6 +46,7 @@ export function NarrativeWorkflow({
   workspaceId,
   script,
   aspectRatio,
+  scriptModel,
   scenes,
   shots,
   shotVersions,
@@ -52,6 +55,7 @@ export function NarrativeWorkflow({
   worldSettings,
   onScriptChange,
   onAspectRatioChange,
+  onScriptModelChange,
   onScenesChange,
   onShotsChange,
   onShotVersionsChange,
@@ -178,8 +182,10 @@ export function NarrativeWorkflow({
         <ScriptEditor
           initialScript={script}
           aspectRatio={aspectRatio}
+          scriptModel={scriptModel}
           onScriptChange={onScriptChange}
           onAspectRatioChange={onAspectRatioChange}
+          onScriptModelChange={onScriptModelChange}
           onNext={onNext}
         />
       )}
@@ -188,6 +194,7 @@ export function NarrativeWorkflow({
         <SceneBreakdown
           videoId={videoId}
           script={script}
+          scriptModel={scriptModel}
           scenes={scenes}
           shots={shots}
           shotVersions={shotVersions}

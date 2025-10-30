@@ -144,6 +144,7 @@ export const shotVersions = pgTable("shot_versions", {
   imageUrl: text("image_url"),
   videoPrompt: text("video_prompt"),
   videoUrl: text("video_url"),
+  videoDuration: integer("video_duration"),
   status: text("status").default("draft").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

@@ -100,6 +100,8 @@ interface StoryboardEditorProps {
   onReorderShots?: (sceneId: string, shotIds: string[]) => void;
   onUploadShotReference: (shotId: string, file: File) => void;
   onDeleteShotReference: (shotId: string) => void;
+  onSelectVersion?: (shotId: string, versionId: string) => void;
+  onDeleteVersion?: (shotId: string, versionId: string) => void;
   onNext: () => void;
 }
 
@@ -409,6 +411,8 @@ export function StoryboardEditor({
   onReorderShots,
   onUploadShotReference,
   onDeleteShotReference,
+  onSelectVersion,
+  onDeleteVersion,
   onNext,
 }: StoryboardEditorProps) {
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null);
@@ -693,14 +697,88 @@ export function StoryboardEditor({
 
       {selectedShot && (
         <Dialog open={!!selectedShot} onOpenChange={() => setSelectedShot(null)}>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Image Prompt</DialogTitle>
               <DialogDescription>
                 Modify the prompt to generate a new image for this shot
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-3">
+            <div className="space-y-4">
+              {/* Version Gallery */}
+              {shotVersions[selectedShot.id] && shotVersions[selectedShot.id].length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Versions ({shotVersions[selectedShot.id].length})</Label>
+                  <div className="flex gap-3 overflow-x-auto pb-2">
+                    {shotVersions[selectedShot.id]
+                      .sort((a, b) => a.versionNumber - b.versionNumber)
+                      .map((version) => {
+                        const isActive = version.id === selectedShot.currentVersionId;
+                        return (
+                          <div
+                            key={version.id}
+                            className={`relative flex-shrink-0 group ${
+                              isActive ? "ring-2 ring-primary" : "hover-elevate"
+                            }`}
+                          >
+                            <div
+                              onClick={() => {
+                                if (onSelectVersion && !isActive) {
+                                  onSelectVersion(selectedShot.id, version.id);
+                                }
+                              }}
+                              className={`w-32 aspect-video bg-muted rounded-lg overflow-hidden ${
+                                !isActive ? "cursor-pointer" : ""
+                              }`}
+                              data-testid={`version-thumbnail-${version.id}`}
+                            >
+                              {version.imageUrl ? (
+                                <img
+                                  src={version.imageUrl}
+                                  alt={`Version ${version.versionNumber}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex items-center justify-center h-full">
+                                  <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="absolute top-1 left-1">
+                              {isActive ? (
+                                <Badge className="bg-primary text-primary-foreground text-xs">
+                                  Active
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-xs">
+                                  v{version.versionNumber}
+                                </Badge>
+                              )}
+                            </div>
+                            {!isActive && onDeleteVersion && (
+                              <Button
+                                size="icon"
+                                variant="destructive"
+                                className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteVersion(selectedShot.id, version.id);
+                                }}
+                                data-testid={`button-delete-version-${version.id}`}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            )}
+                            <div className="text-xs text-muted-foreground text-center mt-1">
+                              {new Date(version.createdAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm mb-2 block">Current Image</Label>

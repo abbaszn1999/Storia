@@ -38,6 +38,13 @@ const VIDEO_MODELS = [
   "Minimax",
 ];
 
+const IMAGE_MODELS = [
+  "Flux",
+  "Midjourney",
+  "Nano Banana",
+  "GPT Image",
+];
+
 const VIDEO_MODEL_DURATIONS: { [key: string]: number[] } = {
   "Kling AI": [5, 10],
   "Runway Gen-4": [5, 10],
@@ -109,6 +116,7 @@ interface SortableShotCardProps {
   shot: Shot;
   shotIndex: number;
   sceneModel: string | null;
+  sceneImageModel: string | null;
   version: ShotVersion | null;
   referenceImage: ReferenceImage | null;
   isGenerating: boolean;
@@ -126,6 +134,7 @@ function SortableShotCard({
   shot, 
   shotIndex,
   sceneModel,
+  sceneImageModel,
   version,
   referenceImage,
   isGenerating, 
@@ -232,6 +241,28 @@ function SortableShotCard({
                 className="min-h-20 text-xs resize-none"
                 data-testid={`input-prompt-${shot.id}`}
               />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Image Model</Label>
+              <Select
+                value={shot.imageModel || "scene-default"}
+                onValueChange={(value) => onUpdateShot(shot.id, { imageModel: value === "scene-default" ? null : value })}
+              >
+                <SelectTrigger className="h-8 text-xs" data-testid={`select-image-model-${shot.id}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="scene-default">
+                    Scene Default {sceneImageModel ? `(${sceneImageModel})` : ""}
+                  </SelectItem>
+                  {IMAGE_MODELS.map((model) => (
+                    <SelectItem key={model} value={model}>
+                      {model}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -599,6 +630,25 @@ export function StoryboardEditor({
                   
                   <div className="space-y-2">
                     <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Image Model</Label>
+                      <Select
+                        value={scene.imageModel || IMAGE_MODELS[0]}
+                        onValueChange={(value) => onUpdateScene?.(scene.id, { imageModel: value })}
+                      >
+                        <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-image-model-${scene.id}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {IMAGE_MODELS.map((model) => (
+                            <SelectItem key={model} value={model}>
+                              {model}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Video Model</Label>
                       <Select
                         value={scene.videoModel || VIDEO_MODELS[0]}
@@ -684,6 +734,7 @@ export function StoryboardEditor({
                               shot={shot}
                               shotIndex={shotIndex}
                               sceneModel={scene.videoModel || VIDEO_MODELS[0]}
+                              sceneImageModel={scene.imageModel || IMAGE_MODELS[0]}
                               version={version}
                               referenceImage={referenceImage}
                               isGenerating={isGenerating}

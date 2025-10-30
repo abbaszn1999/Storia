@@ -246,7 +246,7 @@ function SortableShotCard({
                   <Button
                     size="icon"
                     variant="destructive"
-                    className="absolute top-2 left-2 h-6 w-6"
+                    className="absolute top-2 left-2 h-6 w-6 z-10"
                     onClick={() => onDeleteReference(shot.id)}
                     data-testid={`button-delete-reference-${shot.id}`}
                   >

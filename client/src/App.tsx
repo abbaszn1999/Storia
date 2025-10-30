@@ -11,6 +11,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import Dashboard from "@/pages/dashboard";
 import Videos from "@/pages/videos";
 import NarrativeMode from "@/pages/narrative-mode";
+import Stories from "@/pages/stories";
 import Characters from "@/pages/characters";
 import Calendar from "@/pages/calendar";
 import History from "@/pages/history";
@@ -46,7 +47,7 @@ function MainLayout() {
             <Switch>
               <Route path="/" component={Dashboard} />
               <Route path="/videos" component={Videos} />
-              <Route path="/stories" component={NotFound} />
+              <Route path="/stories" component={Stories} />
               <Route path="/history" component={History} />
               <Route path="/calendar" component={Calendar} />
               <Route path="/assets/characters" component={Characters} />

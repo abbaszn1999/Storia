@@ -31,6 +31,7 @@ interface WorldCastProps {
   artStyle?: string;
   aspectRatio?: string;
   imageModel?: string;
+  worldDescription?: string;
   locations?: Location[];
   onCharactersChange: (characters: Character[]) => void;
   onReferenceImagesChange: (images: ReferenceImage[]) => void;
@@ -38,6 +39,7 @@ interface WorldCastProps {
     artStyle: string; 
     aspectRatio: string; 
     imageModel: string;
+    worldDescription: string;
     locations: Location[];
   }) => void;
   onNext: () => void;
@@ -86,6 +88,7 @@ export function WorldCast({
   artStyle = "none",
   aspectRatio = "16:9",
   imageModel = "Flux",
+  worldDescription = "",
   locations = [],
   onCharactersChange, 
   onReferenceImagesChange,
@@ -103,6 +106,7 @@ export function WorldCast({
   const [selectedArtStyle, setSelectedArtStyle] = useState(artStyle);
   const [selectedAspectRatio, setSelectedAspectRatio] = useState(aspectRatio);
   const [selectedImageModel, setSelectedImageModel] = useState(imageModel);
+  const [selectedWorldDescription, setSelectedWorldDescription] = useState(worldDescription);
   const [locationsList, setLocationsList] = useState<Location[]>(locations);
   const [isAddLocationOpen, setIsAddLocationOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
@@ -333,6 +337,7 @@ export function WorldCast({
         artStyle: styleId, 
         aspectRatio: selectedAspectRatio,
         imageModel: selectedImageModel,
+        worldDescription: selectedWorldDescription,
         locations: locationsList
       });
     }
@@ -345,6 +350,7 @@ export function WorldCast({
         artStyle: selectedArtStyle, 
         aspectRatio: ratio,
         imageModel: selectedImageModel,
+        worldDescription: selectedWorldDescription,
         locations: locationsList
       });
     }
@@ -357,6 +363,20 @@ export function WorldCast({
         artStyle: selectedArtStyle, 
         aspectRatio: selectedAspectRatio,
         imageModel: model,
+        worldDescription: selectedWorldDescription,
+        locations: locationsList
+      });
+    }
+  };
+
+  const handleWorldDescriptionChange = (description: string) => {
+    setSelectedWorldDescription(description);
+    if (onWorldSettingsChange) {
+      onWorldSettingsChange({ 
+        artStyle: selectedArtStyle, 
+        aspectRatio: selectedAspectRatio,
+        imageModel: selectedImageModel,
+        worldDescription: description,
         locations: locationsList
       });
     }
@@ -403,6 +423,7 @@ export function WorldCast({
         artStyle: selectedArtStyle, 
         aspectRatio: selectedAspectRatio,
         imageModel: selectedImageModel,
+        worldDescription: selectedWorldDescription,
         locations: updatedLocations
       });
     }
@@ -426,6 +447,7 @@ export function WorldCast({
         artStyle: selectedArtStyle, 
         aspectRatio: selectedAspectRatio,
         imageModel: selectedImageModel,
+        worldDescription: selectedWorldDescription,
         locations: updatedLocations
       });
     }
@@ -486,6 +508,18 @@ export function WorldCast({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* World Description */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">WORLD DESCRIPTION</Label>
+              <Textarea
+                placeholder="Describe the era, season, or general world setting... (e.g., Victorian England, eternal winter, post-apocalyptic wasteland)"
+                value={selectedWorldDescription}
+                onChange={(e) => handleWorldDescriptionChange(e.target.value)}
+                rows={3}
+                data-testid="input-world-description"
+              />
             </div>
 
             {/* Video Style */}

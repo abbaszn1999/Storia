@@ -32,11 +32,13 @@ export default function NarrativeMode() {
     artStyle: string; 
     aspectRatio: string;
     imageModel?: string;
+    worldDescription?: string;
     locations?: Array<{ id: string; name: string; description: string }>;
   }>({
     artStyle: "none",
     aspectRatio: "16:9",
     imageModel: "Flux",
+    worldDescription: "",
     locations: [],
   });
 

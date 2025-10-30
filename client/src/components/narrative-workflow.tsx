@@ -18,7 +18,8 @@ interface NarrativeWorkflowProps {
   worldSettings: { 
     artStyle: string; 
     aspectRatio: string; 
-    imageModel?: string; 
+    imageModel?: string;
+    worldDescription?: string;
     locations?: Array<{ id: string; name: string; description: string }>;
   };
   onScriptChange: (script: string) => void;
@@ -31,6 +32,7 @@ interface NarrativeWorkflowProps {
     artStyle: string; 
     aspectRatio: string;
     imageModel: string;
+    worldDescription: string;
     locations: Array<{ id: string; name: string; description: string }>;
   }) => void;
   onNext: () => void;
@@ -205,6 +207,7 @@ export function NarrativeWorkflow({
           artStyle={worldSettings.artStyle}
           aspectRatio={worldSettings.aspectRatio}
           imageModel={worldSettings.imageModel}
+          worldDescription={worldSettings.worldDescription}
           locations={worldSettings.locations}
           onCharactersChange={onCharactersChange}
           onReferenceImagesChange={onReferenceImagesChange}

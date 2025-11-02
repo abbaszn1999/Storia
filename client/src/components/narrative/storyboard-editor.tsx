@@ -126,6 +126,7 @@ interface SortableShotCardProps {
   version: ShotVersion | null;
   referenceImage: ReferenceImage | null;
   isGenerating: boolean;
+  soundEffectsEnabled: boolean;
   onSelectShot: (shot: Shot) => void;
   onRegenerateShot: (shotId: string) => void;
   onUpdatePrompt: (shotId: string, prompt: string) => void;
@@ -143,7 +144,8 @@ function SortableShotCard({
   sceneImageModel,
   version,
   referenceImage,
-  isGenerating, 
+  isGenerating,
+  soundEffectsEnabled,
   onSelectShot,
   onRegenerateShot,
   onUpdatePrompt,
@@ -417,6 +419,27 @@ function SortableShotCard({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Voiceover Script</Label>
+              <Textarea
+                placeholder="Narration for this shot..."
+                value={shot.voiceoverScript || ""}
+                onChange={(e) => onUpdateShot(shot.id, { voiceoverScript: e.target.value })}
+                className="min-h-[60px] text-xs resize-none"
+                data-testid={`textarea-voiceover-script-${shot.id}`}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">Sound Effects</Label>
+              <Switch
+                checked={shot.soundEffectsEnabled ?? true}
+                onCheckedChange={(checked) => onUpdateShot(shot.id, { soundEffectsEnabled: checked })}
+                disabled={!soundEffectsEnabled}
+                data-testid={`toggle-sound-effects-${shot.id}`}
+              />
             </div>
 
             <Button
@@ -799,6 +822,7 @@ export function StoryboardEditor({
                               version={version}
                               referenceImage={referenceImage}
                               isGenerating={isGenerating}
+                              soundEffectsEnabled={soundEffectsEnabled}
                               onSelectShot={handleSelectShot}
                               onRegenerateShot={onRegenerateShot}
                               onUpdatePrompt={handleUpdatePrompt}

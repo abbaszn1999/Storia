@@ -8,8 +8,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card } from "@/components/ui/card";
-import { Play, Pause, Check } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Play, Pause, Check, ChevronDown } from "lucide-react";
 
 const VOICE_OPTIONS = [
   { value: "narrator-deep", label: "Narrator (Deep)" },
@@ -45,8 +50,10 @@ export function AddAudio({
   setBackgroundMusic,
 }: AddAudioProps) {
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
+  const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
 
-  const handlePlayVoice = (voiceValue: string) => {
+  const handlePlayVoice = (voiceValue: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (playingVoice === voiceValue) {
       setPlayingVoice(null);
     } else {
@@ -57,6 +64,13 @@ export function AddAudio({
       }, 2000);
     }
   };
+
+  const handleSelectVoice = (voiceValue: string) => {
+    setVoiceover(voiceValue);
+    setVoiceDropdownOpen(false);
+  };
+
+  const selectedVoiceLabel = VOICE_OPTIONS.find(v => v.value === voiceover)?.label || "Select a voice";
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
@@ -70,45 +84,58 @@ export function AddAudio({
       <div className="space-y-6">
         <div className="space-y-3">
           <Label className="text-base">Voiceover</Label>
-          <div className="space-y-2">
-            {VOICE_OPTIONS.map((option) => (
-              <Card
-                key={option.value}
-                className={`p-4 cursor-pointer hover-elevate transition-all ${
-                  voiceover === option.value ? "border-primary" : ""
-                }`}
-                onClick={() => setVoiceover(option.value)}
-                data-testid={`card-voice-${option.value}`}
+          <Popover open={voiceDropdownOpen} onOpenChange={setVoiceDropdownOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={voiceDropdownOpen}
+                className="w-full h-12 justify-between"
+                data-testid="button-voice-selector"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 flex-1">
-                    {voiceover === option.value && (
-                      <Check className="h-5 w-5 text-primary" data-testid={`icon-selected-${option.value}`} />
-                    )}
-                    <span className={voiceover === option.value ? "font-medium" : ""}>
-                      {option.label}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePlayVoice(option.value);
-                    }}
-                    data-testid={`button-play-${option.value}`}
-                  >
-                    {playingVoice === option.value ? (
-                      <Pause className="h-4 w-4" />
-                    ) : (
-                      <Play className="h-4 w-4" />
-                    )}
-                  </Button>
+                <span className={voiceover ? "font-medium" : "text-muted-foreground"}>
+                  {selectedVoiceLabel}
+                </span>
+                <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+              <ScrollArea className="max-h-[300px]">
+                <div className="p-1">
+                  {VOICE_OPTIONS.map((option) => (
+                    <div
+                      key={option.value}
+                      className="flex items-center gap-2 px-2 py-2 hover-elevate rounded-md cursor-pointer"
+                      onClick={() => handleSelectVoice(option.value)}
+                      data-testid={`option-voice-${option.value}`}
+                    >
+                      <div className="flex items-center gap-2 flex-1">
+                        {voiceover === option.value && (
+                          <Check className="h-4 w-4 text-primary" data-testid={`icon-selected-${option.value}`} />
+                        )}
+                        <span className={`flex-1 ${voiceover === option.value ? "font-medium" : ""}`}>
+                          {option.label}
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={(e) => handlePlayVoice(option.value, e)}
+                        data-testid={`button-play-${option.value}`}
+                      >
+                        {playingVoice === option.value ? (
+                          <Pause className="h-4 w-4" />
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  ))}
                 </div>
-              </Card>
-            ))}
-          </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div className="space-y-3">

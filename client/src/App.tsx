@@ -12,7 +12,7 @@ import Dashboard from "@/pages/dashboard";
 import Videos from "@/pages/videos";
 import NarrativeMode from "@/pages/videos/narrative-mode";
 import Stories from "@/pages/stories";
-import StoryCreate from "@/pages/stories/create/[template]";
+import StoryRouter from "@/pages/stories/story-router";
 import Characters from "@/pages/characters";
 import Calendar from "@/pages/calendar";
 import History from "@/pages/history";
@@ -26,7 +26,7 @@ function MainLayout() {
     return (
       <Switch>
         <Route path="/videos/narrative/:id" component={NarrativeMode} />
-        <Route path="/stories/create/:template" component={StoryCreate} />
+        <Route path="/stories/create/:template" component={StoryRouter} />
       </Switch>
     );
   }

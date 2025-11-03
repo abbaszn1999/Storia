@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -8,18 +9,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Smartphone } from "lucide-react";
 
 const RESOLUTION_OPTIONS = [
   { value: "720p", label: "720p (HD)" },
   { value: "1080p", label: "1080p (Full HD)" },
   { value: "1440p", label: "1440p (2K)" },
   { value: "2160p", label: "2160p (4K)" },
-];
-
-const ASPECT_RATIOS = [
-  { value: "9:16", label: "9:16 (Vertical)" },
-  { value: "16:9", label: "16:9 (Horizontal)" },
-  { value: "1:1", label: "1:1 (Square)" },
 ];
 
 interface ExportVideoProps {
@@ -29,7 +25,6 @@ interface ExportVideoProps {
 
 export function ExportVideo({ onBack, onExport }: ExportVideoProps) {
   const [resolution, setResolution] = useState("1080p");
-  const [aspectRatio, setAspectRatio] = useState("9:16");
   const [isExporting, setIsExporting] = useState(false);
 
   const handleRenderVideo = async () => {
@@ -67,19 +62,20 @@ export function ExportVideo({ onBack, onExport }: ExportVideoProps) {
         </div>
 
         <div className="space-y-3">
-          <Label className="text-base">Aspect Ratio</Label>
-          <div className="grid grid-cols-3 gap-3">
-            {ASPECT_RATIOS.map((ratio) => (
-              <Button
-                key={ratio.value}
-                variant={aspectRatio === ratio.value ? "default" : "outline"}
-                onClick={() => setAspectRatio(ratio.value)}
-                className="h-14"
-                data-testid={`button-aspect-${ratio.value}`}
-              >
-                {ratio.label}
-              </Button>
-            ))}
+          <Label className="text-base">Format</Label>
+          <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg border">
+            <Smartphone className="h-5 w-5 text-muted-foreground" />
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <span className="font-medium">9:16 Vertical</span>
+                <Badge variant="secondary" data-testid="badge-vertical">
+                  Locked
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                Optimized for TikTok, Instagram Reels, and YouTube Shorts
+              </p>
+            </div>
           </div>
         </div>
       </div>

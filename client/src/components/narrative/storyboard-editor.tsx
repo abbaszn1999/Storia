@@ -846,123 +846,129 @@ export function StoryboardEditor({
 
       {selectedShot && (
         <Dialog open={!!selectedShot} onOpenChange={() => setSelectedShot(null)}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Edit Image Prompt</DialogTitle>
-              <DialogDescription>
-                Modify the prompt to generate a new image for this shot
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              {/* Version Gallery */}
-              {shotVersions[selectedShot.id] && shotVersions[selectedShot.id].length > 0 && (
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Versions ({shotVersions[selectedShot.id].length})</Label>
-                  <div className="flex gap-3 overflow-x-auto pb-2">
-                    {shotVersions[selectedShot.id]
-                      .sort((a, b) => a.versionNumber - b.versionNumber)
-                      .map((version) => {
-                        const isActive = version.id === selectedShot.currentVersionId;
-                        return (
-                          <div
-                            key={version.id}
-                            className={`relative flex-shrink-0 group ${
-                              isActive ? "ring-2 ring-primary" : "hover-elevate"
-                            }`}
-                          >
-                            <div
-                              onClick={() => {
-                                if (onSelectVersion && !isActive) {
-                                  onSelectVersion(selectedShot.id, version.id);
-                                }
-                              }}
-                              className={`w-32 aspect-video bg-muted rounded-lg overflow-hidden ${
-                                !isActive ? "cursor-pointer" : ""
-                              }`}
-                              data-testid={`version-thumbnail-${version.id}`}
-                            >
-                              {version.imageUrl ? (
-                                <img
-                                  src={version.imageUrl}
-                                  alt={`Version ${version.versionNumber}`}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <div className="flex items-center justify-center h-full">
-                                  <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                                </div>
-                              )}
-                            </div>
-                            <div className="absolute top-1 left-1">
-                              {isActive ? (
-                                <Badge className="bg-primary text-primary-foreground text-xs">
-                                  Active
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary" className="text-xs">
-                                  v{version.versionNumber}
-                                </Badge>
-                              )}
-                            </div>
-                            {!isActive && onDeleteVersion && (
-                              <Button
-                                size="icon"
-                                variant="destructive"
-                                className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDeleteVersion(selectedShot.id, version.id);
-                                }}
-                                data-testid={`button-delete-version-${version.id}`}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            )}
-                            <div className="text-xs text-muted-foreground text-center mt-1">
-                              {new Date(version.createdAt).toLocaleDateString()}
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm mb-2 block">Current Image</Label>
-                  <div className="aspect-video bg-muted rounded-lg overflow-hidden">
+          <DialogContent className="max-w-7xl h-[90vh] p-0 gap-0">
+            <div className="flex h-full">
+              {/* Main Image Display - Left Side */}
+              <div className="flex-1 flex flex-col bg-muted/30 p-6">
+                <DialogHeader className="pb-4">
+                  <DialogTitle>Edit Image</DialogTitle>
+                  <DialogDescription>
+                    Shot {selectedShot.shotNumber} - Modify and regenerate
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="flex-1 flex items-center justify-center p-4">
+                  <div className="relative w-full h-full flex items-center justify-center">
                     {getShotVersion(selectedShot)?.imageUrl ? (
                       <img
                         src={getShotVersion(selectedShot)!.imageUrl!}
                         alt="Shot"
-                        className="w-full h-full object-cover"
+                        className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
                       />
                     ) : (
-                      <div className="flex items-center justify-center h-full">
-                        <ImageIcon className="h-12 w-12 text-muted-foreground" />
+                      <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                        <ImageIcon className="h-24 w-24" />
+                        <p className="text-lg">No image generated yet</p>
                       </div>
                     )}
                   </div>
                 </div>
+              </div>
 
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <Label className="text-sm">Image Edit Prompt</Label>
+              {/* Controls Sidebar - Right Side */}
+              <div className="w-96 border-l bg-card flex flex-col">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  {/* Version Gallery */}
+                  {shotVersions[selectedShot.id] && shotVersions[selectedShot.id].length > 0 && (
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold">
+                        Versions ({shotVersions[selectedShot.id].length})
+                      </Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {shotVersions[selectedShot.id]
+                          .sort((a, b) => a.versionNumber - b.versionNumber)
+                          .map((version) => {
+                            const isActive = version.id === selectedShot.currentVersionId;
+                            return (
+                              <div
+                                key={version.id}
+                                className={`relative group ${
+                                  isActive ? "ring-2 ring-primary rounded-lg" : "hover-elevate"
+                                }`}
+                              >
+                                <div
+                                  onClick={() => {
+                                    if (onSelectVersion && !isActive) {
+                                      onSelectVersion(selectedShot.id, version.id);
+                                    }
+                                  }}
+                                  className={`aspect-video bg-muted rounded-lg overflow-hidden ${
+                                    !isActive ? "cursor-pointer" : ""
+                                  }`}
+                                  data-testid={`version-thumbnail-${version.id}`}
+                                >
+                                  {version.imageUrl ? (
+                                    <img
+                                      src={version.imageUrl}
+                                      alt={`Version ${version.versionNumber}`}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="flex items-center justify-center h-full">
+                                      <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="absolute top-1.5 left-1.5">
+                                  {isActive ? (
+                                    <Badge className="bg-primary text-primary-foreground text-xs">
+                                      Active
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="secondary" className="text-xs">
+                                      v{version.versionNumber}
+                                    </Badge>
+                                  )}
+                                </div>
+                                {!isActive && onDeleteVersion && (
+                                  <Button
+                                    size="icon"
+                                    variant="destructive"
+                                    className="absolute top-1.5 right-1.5 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onDeleteVersion(selectedShot.id, version.id);
+                                    }}
+                                    data-testid={`button-delete-version-${version.id}`}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Image Prompt */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-semibold">Image Prompt</Label>
                     <Textarea
                       value={editPrompt}
                       onChange={(e) => setEditPrompt(e.target.value)}
                       placeholder="Describe the image you want to generate..."
-                      className="min-h-20 text-sm resize-none"
+                      className="min-h-32 resize-none"
                       data-testid="input-edit-prompt"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-sm">Reference Image (Optional)</Label>
+                  {/* Reference Image */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-semibold">Reference Image</Label>
                     {selectedShot && getShotReferenceImage(selectedShot.id) ? (
                       <div className="relative">
-                        <div className="aspect-video rounded-md overflow-hidden border">
+                        <div className="aspect-video rounded-lg overflow-hidden border">
                           <img
                             src={getShotReferenceImage(selectedShot.id)!.imageUrl}
                             alt="Reference"
@@ -972,7 +978,7 @@ export function StoryboardEditor({
                         <Button
                           size="icon"
                           variant="destructive"
-                          className="absolute top-2 left-2 h-6 w-6"
+                          className="absolute top-2 right-2 h-7 w-7"
                           onClick={() => handleDeleteReference(selectedShot.id)}
                           data-testid="button-delete-reference-dialog"
                         >
@@ -980,7 +986,7 @@ export function StoryboardEditor({
                         </Button>
                       </div>
                     ) : (
-                      <div className="border-2 border-dashed rounded-lg p-4 text-center">
+                      <div className="border-2 border-dashed rounded-lg p-6 text-center">
                         <Input
                           id="reference-upload-dialog"
                           type="file"
@@ -994,7 +1000,10 @@ export function StoryboardEditor({
                           }}
                           data-testid="input-reference-dialog"
                         />
-                        <Upload className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
+                        <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground mb-3">
+                          Upload a reference image for better results
+                        </p>
                         <Button 
                           size="sm" 
                           variant="outline" 
@@ -1008,25 +1017,27 @@ export function StoryboardEditor({
                     )}
                   </div>
                 </div>
-              </div>
 
-              <div className="flex gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={handleSavePrompt}
-                  className="flex-1"
-                  data-testid="button-save-prompt"
-                >
-                  Save Prompt
-                </Button>
-                <Button
-                  onClick={handleGenerateFromDialog}
-                  className="flex-1"
-                  data-testid="button-generate-from-dialog"
-                >
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Generate Image
-                </Button>
+                {/* Action Buttons */}
+                <div className="border-t p-6 space-y-2">
+                  <Button
+                    onClick={handleGenerateFromDialog}
+                    className="w-full"
+                    size="lg"
+                    data-testid="button-generate-from-dialog"
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Generate Image
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleSavePrompt}
+                    className="w-full"
+                    data-testid="button-save-prompt"
+                  >
+                    Save Prompt
+                  </Button>
+                </div>
               </div>
             </div>
           </DialogContent>

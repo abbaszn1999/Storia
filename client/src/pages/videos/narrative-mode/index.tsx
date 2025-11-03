@@ -11,7 +11,8 @@ const steps = [
   { id: "breakdown", label: "Breakdown" },
   { id: "world", label: "World & Cast" },
   { id: "storyboard", label: "Storyboard" },
-  { id: "preview", label: "Preview & Export" },
+  { id: "animatic", label: "Animatic" },
+  { id: "export", label: "Export" },
 ];
 
 export default function NarrativeMode() {
@@ -31,15 +32,6 @@ export default function NarrativeMode() {
   const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
   const [characters, setCharacters] = useState<Character[]>([]);
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
-  
-  const [backgroundMusicEnabled, setBackgroundMusicEnabled] = useState(true);
-  const [musicStyle, setMusicStyle] = useState("Cinematic Epic");
-  const [musicVolume, setMusicVolume] = useState(70);
-  const [resolution, setResolution] = useState("1080p");
-  const [subtitlesEnabled, setSubtitlesEnabled] = useState(false);
-  const [exportTitle, setExportTitle] = useState("");
-  const [exportSummary, setExportSummary] = useState("");
-  const [hashtags, setHashtags] = useState<string[]>([]);
   const [worldSettings, setWorldSettings] = useState<{ 
     artStyle: string; 
     imageModel?: string;
@@ -62,13 +54,6 @@ export default function NarrativeMode() {
     const nextIndex = currentStepIndex + 1;
     if (nextIndex < steps.length) {
       setActiveStep(steps[nextIndex].id);
-    }
-  };
-
-  const handleBack = () => {
-    const prevIndex = currentStepIndex - 1;
-    if (prevIndex >= 0) {
-      setActiveStep(steps[prevIndex].id);
     }
   };
 
@@ -134,14 +119,6 @@ export default function NarrativeMode() {
             scriptModel={scriptModel}
             voiceActorId={voiceActorId}
             soundEffectsEnabled={soundEffectsEnabled}
-            backgroundMusicEnabled={backgroundMusicEnabled}
-            musicStyle={musicStyle}
-            musicVolume={musicVolume}
-            resolution={resolution}
-            subtitlesEnabled={subtitlesEnabled}
-            exportTitle={exportTitle}
-            exportSummary={exportSummary}
-            hashtags={hashtags}
             scenes={scenes}
             shots={shots}
             shotVersions={shotVersions}
@@ -153,14 +130,6 @@ export default function NarrativeMode() {
             onScriptModelChange={setScriptModel}
             onVoiceActorChange={setVoiceActorId}
             onSoundEffectsToggle={setSoundEffectsEnabled}
-            onBackgroundMusicToggle={setBackgroundMusicEnabled}
-            onMusicStyleChange={setMusicStyle}
-            onMusicVolumeChange={setMusicVolume}
-            onResolutionChange={setResolution}
-            onSubtitlesToggle={setSubtitlesEnabled}
-            onExportTitleChange={setExportTitle}
-            onExportSummaryChange={setExportSummary}
-            onHashtagsChange={setHashtags}
             onScenesChange={setScenes}
             onShotsChange={setShots}
             onShotVersionsChange={setShotVersions}
@@ -168,7 +137,6 @@ export default function NarrativeMode() {
             onReferenceImagesChange={setReferenceImages}
             onWorldSettingsChange={setWorldSettings}
             onNext={handleNext}
-            onBack={handleBack}
           />
         </div>
       </main>

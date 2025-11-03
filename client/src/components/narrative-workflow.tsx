@@ -3,7 +3,6 @@ import { ScriptEditor } from "@/components/narrative/script-editor";
 import { SceneBreakdown } from "@/components/narrative/scene-breakdown";
 import { WorldCast } from "@/components/narrative/world-cast";
 import { StoryboardEditor } from "@/components/narrative/storyboard-editor";
-import { PreviewExport } from "@/components/narrative/preview-export";
 import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
 
 interface NarrativeWorkflowProps {
@@ -15,14 +14,6 @@ interface NarrativeWorkflowProps {
   scriptModel: string;
   voiceActorId: string | null;
   soundEffectsEnabled: boolean;
-  backgroundMusicEnabled: boolean;
-  musicStyle: string;
-  musicVolume: number;
-  resolution: string;
-  subtitlesEnabled: boolean;
-  exportTitle: string;
-  exportSummary: string;
-  hashtags: string[];
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
@@ -39,14 +30,6 @@ interface NarrativeWorkflowProps {
   onScriptModelChange: (model: string) => void;
   onVoiceActorChange: (voiceActorId: string) => void;
   onSoundEffectsToggle: (enabled: boolean) => void;
-  onBackgroundMusicToggle: (enabled: boolean) => void;
-  onMusicStyleChange: (style: string) => void;
-  onMusicVolumeChange: (volume: number) => void;
-  onResolutionChange: (resolution: string) => void;
-  onSubtitlesToggle: (enabled: boolean) => void;
-  onExportTitleChange: (title: string) => void;
-  onExportSummaryChange: (summary: string) => void;
-  onHashtagsChange: (hashtags: string[]) => void;
   onScenesChange: (scenes: Scene[]) => void;
   onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
   onShotVersionsChange: (shotVersions: { [shotId: string]: ShotVersion[] }) => void;
@@ -59,7 +42,6 @@ interface NarrativeWorkflowProps {
     locations: Array<{ id: string; name: string; description: string }>;
   }) => void;
   onNext: () => void;
-  onBack?: () => void;
 }
 
 export function NarrativeWorkflow({
@@ -71,14 +53,6 @@ export function NarrativeWorkflow({
   scriptModel,
   voiceActorId,
   soundEffectsEnabled,
-  backgroundMusicEnabled,
-  musicStyle,
-  musicVolume,
-  resolution,
-  subtitlesEnabled,
-  exportTitle,
-  exportSummary,
-  hashtags,
   scenes,
   shots,
   shotVersions,
@@ -90,14 +64,6 @@ export function NarrativeWorkflow({
   onScriptModelChange,
   onVoiceActorChange,
   onSoundEffectsToggle,
-  onBackgroundMusicToggle,
-  onMusicStyleChange,
-  onMusicVolumeChange,
-  onResolutionChange,
-  onSubtitlesToggle,
-  onExportTitleChange,
-  onExportSummaryChange,
-  onHashtagsChange,
   onScenesChange,
   onShotsChange,
   onShotVersionsChange,
@@ -105,7 +71,6 @@ export function NarrativeWorkflow({
   onReferenceImagesChange,
   onWorldSettingsChange,
   onNext,
-  onBack,
 }: NarrativeWorkflowProps) {
   const handleGenerateShot = (shotId: string) => {
     console.log("Generating shot:", shotId);
@@ -294,37 +259,30 @@ export function NarrativeWorkflow({
         />
       )}
 
-      {activeStep === "preview" && (
-        <PreviewExport
-          videoId={videoId}
-          backgroundMusicEnabled={backgroundMusicEnabled}
-          musicStyle={musicStyle}
-          musicVolume={musicVolume}
-          resolution={resolution}
-          subtitlesEnabled={subtitlesEnabled}
-          title={exportTitle}
-          summary={exportSummary}
-          hashtags={hashtags}
-          onBackgroundMusicToggle={onBackgroundMusicToggle}
-          onMusicStyleChange={onMusicStyleChange}
-          onMusicVolumeChange={onMusicVolumeChange}
-          onResolutionChange={onResolutionChange}
-          onSubtitlesToggle={onSubtitlesToggle}
-          onTitleChange={onExportTitleChange}
-          onSummaryChange={onExportSummaryChange}
-          onHashtagsChange={onHashtagsChange}
-          onBack={() => onBack?.()}
-          onExport={() => {
-            console.log("Exporting video with settings:", {
-              backgroundMusic: backgroundMusicEnabled ? { style: musicStyle, volume: musicVolume } : null,
-              resolution,
-              subtitles: subtitlesEnabled,
-              title: exportTitle,
-              summary: exportSummary,
-              hashtags,
-            });
-          }}
-        />
+      {activeStep === "animatic" && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Preview your timed storyboard sequence with transitions.
+          </p>
+          <div className="flex justify-end">
+            <Button onClick={onNext} data-testid="button-next">
+              Continue to Export
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {activeStep === "export" && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Export and publish your video to YouTube, TikTok, and more.
+          </p>
+          <div className="flex justify-end">
+            <Button className="bg-gradient-storia" data-testid="button-export">
+              Export Video
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );

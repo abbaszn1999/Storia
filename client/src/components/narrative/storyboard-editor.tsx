@@ -442,16 +442,28 @@ function SortableShotCard({
               />
             </div>
 
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full"
-              disabled
-              data-testid={`button-generate-video-${shot.id}`}
-            >
-              <Video className="mr-2 h-3 w-3" />
-              Generate Video
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1"
+                disabled
+                data-testid={`button-generate-video-${shot.id}`}
+              >
+                <Video className="mr-2 h-3 w-3" />
+                Generate Video
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1"
+                disabled
+                data-testid={`button-regenerate-video-${shot.id}`}
+              >
+                <RefreshCw className="mr-2 h-3 w-3" />
+                Re-generate
+              </Button>
+            </div>
           </TabsContent>
         </Tabs>
       </CardContent>

@@ -3,6 +3,8 @@ import { ScriptEditor } from "@/components/narrative/script-editor";
 import { SceneBreakdown } from "@/components/narrative/scene-breakdown";
 import { WorldCast } from "@/components/narrative/world-cast";
 import { StoryboardEditor } from "@/components/narrative/storyboard-editor";
+import { AnimaticPreview } from "@/components/narrative/animatic-preview";
+import { ExportSettings } from "@/components/narrative/export-settings";
 import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
 
 interface NarrativeWorkflowProps {
@@ -260,29 +262,11 @@ export function NarrativeWorkflow({
       )}
 
       {activeStep === "animatic" && (
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Preview your timed storyboard sequence with transitions.
-          </p>
-          <div className="flex justify-end">
-            <Button onClick={onNext} data-testid="button-next">
-              Continue to Export
-            </Button>
-          </div>
-        </div>
+        <AnimaticPreview onNext={onNext} />
       )}
 
       {activeStep === "export" && (
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Export and publish your video to YouTube, TikTok, and more.
-          </p>
-          <div className="flex justify-end">
-            <Button className="bg-gradient-storia" data-testid="button-export">
-              Export Video
-            </Button>
-          </div>
-        </div>
+        <ExportSettings onExport={() => console.log("Exporting video...")} />
       )}
     </div>
   );

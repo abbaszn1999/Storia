@@ -877,14 +877,14 @@ export function StoryboardEditor({
 
               {/* Controls Sidebar - Right Side */}
               <div className="w-96 border-l bg-card flex flex-col">
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="flex-1 overflow-y-auto p-5 space-y-5">
                   {/* Version Gallery */}
                   {shotVersions[selectedShot.id] && shotVersions[selectedShot.id].length > 0 && (
-                    <div className="space-y-3">
-                      <Label className="text-sm font-semibold">
+                    <div className="space-y-2.5">
+                      <Label className="text-sm">
                         Versions ({shotVersions[selectedShot.id].length})
                       </Label>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-2.5">
                         {shotVersions[selectedShot.id]
                           .sort((a, b) => a.versionNumber - b.versionNumber)
                           .map((version) => {
@@ -893,7 +893,7 @@ export function StoryboardEditor({
                               <div
                                 key={version.id}
                                 className={`relative group ${
-                                  isActive ? "ring-2 ring-primary rounded-lg" : "hover-elevate"
+                                  isActive ? "ring-2 ring-primary rounded-md" : "hover-elevate"
                                 }`}
                               >
                                 <div
@@ -902,7 +902,7 @@ export function StoryboardEditor({
                                       onSelectVersion(selectedShot.id, version.id);
                                     }
                                   }}
-                                  className={`aspect-video bg-muted rounded-lg overflow-hidden ${
+                                  className={`aspect-video bg-muted rounded-md overflow-hidden ${
                                     !isActive ? "cursor-pointer" : ""
                                   }`}
                                   data-testid={`version-thumbnail-${version.id}`}
@@ -921,11 +921,11 @@ export function StoryboardEditor({
                                 </div>
                                 <div className="absolute top-1.5 left-1.5">
                                   {isActive ? (
-                                    <Badge className="bg-primary text-primary-foreground text-xs">
+                                    <Badge variant="default">
                                       Active
                                     </Badge>
                                   ) : (
-                                    <Badge variant="secondary" className="text-xs">
+                                    <Badge variant="secondary">
                                       v{version.versionNumber}
                                     </Badge>
                                   )}
@@ -952,23 +952,23 @@ export function StoryboardEditor({
                   )}
 
                   {/* Image Prompt */}
-                  <div className="space-y-3">
-                    <Label className="text-sm font-semibold">Image Prompt</Label>
+                  <div className="space-y-2.5">
+                    <Label className="text-sm">Prompt</Label>
                     <Textarea
                       value={editPrompt}
                       onChange={(e) => setEditPrompt(e.target.value)}
-                      placeholder="Describe the image you want to generate..."
-                      className="min-h-32 resize-none"
+                      placeholder="Describe the image..."
+                      className="min-h-28 resize-none"
                       data-testid="input-edit-prompt"
                     />
                   </div>
 
                   {/* Reference Image */}
-                  <div className="space-y-3">
-                    <Label className="text-sm font-semibold">Reference Image</Label>
+                  <div className="space-y-2.5">
+                    <Label className="text-sm">Reference</Label>
                     {selectedShot && getShotReferenceImage(selectedShot.id) ? (
                       <div className="relative">
-                        <div className="aspect-video rounded-lg overflow-hidden border">
+                        <div className="aspect-video rounded-md overflow-hidden border">
                           <img
                             src={getShotReferenceImage(selectedShot.id)!.imageUrl}
                             alt="Reference"
@@ -978,7 +978,7 @@ export function StoryboardEditor({
                         <Button
                           size="icon"
                           variant="destructive"
-                          className="absolute top-2 right-2 h-7 w-7"
+                          className="absolute top-2 right-2 h-6 w-6"
                           onClick={() => handleDeleteReference(selectedShot.id)}
                           data-testid="button-delete-reference-dialog"
                         >
@@ -986,7 +986,7 @@ export function StoryboardEditor({
                         </Button>
                       </div>
                     ) : (
-                      <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                      <div className="border-2 border-dashed rounded-md p-5 text-center">
                         <Input
                           id="reference-upload-dialog"
                           type="file"
@@ -1000,18 +1000,15 @@ export function StoryboardEditor({
                           }}
                           data-testid="input-reference-dialog"
                         />
-                        <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                        <p className="text-xs text-muted-foreground mb-3">
-                          Upload a reference image for better results
-                        </p>
+                        <Upload className="h-7 w-7 mx-auto mb-2.5 text-muted-foreground" />
                         <Button 
                           size="sm" 
                           variant="outline" 
                           onClick={() => document.getElementById('reference-upload-dialog')?.click()}
                           data-testid="button-upload-reference-dialog"
                         >
-                          <Upload className="mr-2 h-3 w-3" />
-                          Choose File
+                          <Upload className="mr-2 h-3.5 w-3.5" />
+                          Upload
                         </Button>
                       </div>
                     )}
@@ -1019,23 +1016,23 @@ export function StoryboardEditor({
                 </div>
 
                 {/* Action Buttons */}
-                <div className="border-t p-6 space-y-2">
+                <div className="border-t p-5 space-y-2">
                   <Button
                     onClick={handleGenerateFromDialog}
                     className="w-full"
-                    size="lg"
                     data-testid="button-generate-from-dialog"
                   >
                     <Sparkles className="mr-2 h-4 w-4" />
-                    Generate Image
+                    Generate
                   </Button>
                   <Button
                     variant="outline"
                     onClick={handleSavePrompt}
                     className="w-full"
+                    size="sm"
                     data-testid="button-save-prompt"
                   >
-                    Save Prompt
+                    Save
                   </Button>
                 </div>
               </div>

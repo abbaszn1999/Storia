@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, Shirt, Eraser } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { Scene, Shot, ShotVersion, ReferenceImage } from "@shared/schema";
+import type { Scene, Shot, ShotVersion, ReferenceImage, Character } from "@shared/schema";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
 import {
   DndContext,
@@ -118,6 +118,7 @@ interface StoryboardEditorProps {
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
   referenceImages: ReferenceImage[];
+  characters: Character[];
   voiceActorId: string | null;
   soundEffectsEnabled: boolean;
   onVoiceActorChange: (voiceActorId: string) => void;
@@ -496,6 +497,7 @@ export function StoryboardEditor({
   shots,
   shotVersions,
   referenceImages,
+  characters,
   voiceActorId,
   soundEffectsEnabled,
   onVoiceActorChange,
@@ -517,7 +519,8 @@ export function StoryboardEditor({
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null);
   const [editPrompt, setEditPrompt] = useState("");
   const [editChange, setEditChange] = useState("");
-  const [activeCategory, setActiveCategory] = useState<"prompt" | "clothes" | "remove" | "expression" | "figure" | "camera" | "effects" | "variations" | "advanced">("prompt");
+  const [activeCategory, setActiveCategory] = useState<"prompt" | "clothes" | "remove" | "expression" | "figure" | "camera" | "effects" | "variations" | "advanced" | null>(null);
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string>("");
   const [localShots, setLocalShots] = useState(shots);
   const { toast } = useToast();
 
@@ -910,118 +913,204 @@ export function StoryboardEditor({
       {selectedShot && (
         <Dialog open={!!selectedShot} onOpenChange={() => setSelectedShot(null)}>
           <DialogContent className="max-w-7xl h-[90vh] p-0 gap-0">
-            {/* Image backdrop */}
-            <div className="relative w-full h-full bg-gradient-to-br from-background via-muted/50 to-background flex items-center justify-center">
-              {/* Main Image */}
-              <div className="absolute inset-0 flex items-center justify-center p-16 pb-32">
-                {getShotVersion(selectedShot)?.imageUrl ? (
-                  <img
-                    src={getShotVersion(selectedShot)!.imageUrl!}
-                    alt="Shot"
-                    className="max-w-full max-h-full object-contain rounded-lg"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
-                    <ImageIcon className="h-32 w-32" />
-                    <p className="text-xl">No image generated yet</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Top Bar - Shot info and close */}
-              <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
-                <div className="text-sm text-muted-foreground">
-                  Shot {selectedShot.shotNumber}
+            <div className="relative w-full h-full flex bg-background">
+              {/* Left Sidebar - Version History */}
+              <div className="w-56 border-r bg-muted/30 flex flex-col p-4">
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold mb-1">Shot {selectedShot.shotNumber}</h3>
+                  <p className="text-xs text-muted-foreground">Version History</p>
                 </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setSelectedShot(null)}
-                  data-testid="button-close-edit-dialog"
-                >
-                  <X className="h-5 w-5" />
-                </Button>
+                <div className="flex-1 overflow-y-auto space-y-3">
+                  {shotVersions[selectedShot.id] && shotVersions[selectedShot.id]
+                    .sort((a, b) => a.versionNumber - b.versionNumber)
+                    .map((version) => {
+                      const isActive = version.id === selectedShot.currentVersionId;
+                      return (
+                        <div
+                          key={version.id}
+                          className={`relative group ${
+                            isActive ? "ring-2 ring-primary rounded-md" : "hover-elevate cursor-pointer"
+                          }`}
+                          onClick={() => {
+                            if (onSelectVersion && !isActive) {
+                              onSelectVersion(selectedShot.id, version.id);
+                            }
+                          }}
+                          data-testid={`version-thumbnail-${version.id}`}
+                        >
+                          <div className="aspect-video bg-muted rounded-md overflow-hidden">
+                            {version.imageUrl ? (
+                              <img
+                                src={version.imageUrl}
+                                alt={`v${version.versionNumber}`}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex items-center justify-center h-full">
+                                <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="absolute top-1.5 left-1.5">
+                            <Badge variant={isActive ? "default" : "secondary"} className="text-xs h-5">
+                              {isActive ? "Active" : `v${version.versionNumber}`}
+                            </Badge>
+                          </div>
+                          {!isActive && onDeleteVersion && (
+                            <Button
+                              size="icon"
+                              variant="destructive"
+                              className="absolute top-1.5 right-1.5 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteVersion(selectedShot.id, version.id);
+                              }}
+                              data-testid={`button-delete-version-${version.id}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
 
-              {/* Context Panel - Appears above toolbar based on active category */}
-              {activeCategory && (
-                <div className="absolute bottom-32 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-10">
-                  <div className="bg-background/95 backdrop-blur-md rounded-lg border shadow-2xl p-4">
-                    {activeCategory === "prompt" && (
-                      <div className="space-y-3">
-                        <Label className="text-sm text-muted-foreground">What would you like to change in the scene?</Label>
-                        <Input
-                          value={editChange}
-                          onChange={(e) => setEditChange(e.target.value)}
-                          placeholder="e.g., Add lightning effect"
-                          className="bg-background/50"
-                          data-testid="input-edit-change"
-                        />
-                      </div>
-                    )}
+              {/* Main Content Area */}
+              <div className="relative flex-1 bg-gradient-to-br from-background via-muted/20 to-background flex items-center justify-center">
+                {/* Close Button - Top Right */}
+                <div className="absolute top-4 right-4 z-20">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setSelectedShot(null)}
+                    data-testid="button-close-edit-dialog"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
 
-                    {activeCategory === "clothes" && (
-                      <div className="space-y-3">
-                        <Label className="text-sm text-muted-foreground">Change clothes to:</Label>
-                        <Input
-                          placeholder="Enter clothing name"
-                          className="bg-background/50"
-                          data-testid="input-clothes-change"
-                        />
-                      </div>
-                    )}
+                {/* Main Image */}
+                <div className="absolute inset-0 flex items-center justify-center p-12 pb-32">
+                  {getShotVersion(selectedShot)?.imageUrl ? (
+                    <img
+                      src={getShotVersion(selectedShot)!.imageUrl!}
+                      alt="Shot"
+                      className="max-w-full max-h-full object-contain rounded-lg"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                      <ImageIcon className="h-32 w-32" />
+                      <p className="text-xl">No image generated yet</p>
+                    </div>
+                  )}
+                </div>
 
-                    {activeCategory === "remove" && (
-                      <div className="space-y-3">
-                        <Label className="text-sm text-muted-foreground">Remove from image:</Label>
-                        <Input
-                          placeholder="Enter item to remove"
-                          className="bg-background/50"
-                          data-testid="input-remove-item"
-                        />
-                      </div>
-                    )}
+                {/* Context Panel - Appears above toolbar based on active category */}
+                {activeCategory && (
+                  <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-10">
+                    <div className="bg-background/95 backdrop-blur-md rounded-lg border shadow-2xl p-4">
+                      {activeCategory === "prompt" && (
+                        <div className="space-y-3">
+                          <Label className="text-sm text-muted-foreground">What would you like to change?</Label>
+                          <Input
+                            value={editChange}
+                            onChange={(e) => setEditChange(e.target.value)}
+                            placeholder="e.g., Add lightning effect"
+                            className="bg-background/50"
+                            data-testid="input-edit-change"
+                          />
+                        </div>
+                      )}
 
-                    {activeCategory === "expression" && (
-                      <div className="space-y-3">
-                        <Label className="text-sm text-muted-foreground">Change expression to:</Label>
-                        <Select>
-                          <SelectTrigger className="bg-background/50">
-                            <SelectValue placeholder="Select expression" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="happy">Happy</SelectItem>
-                            <SelectItem value="sad">Sad</SelectItem>
-                            <SelectItem value="angry">Angry</SelectItem>
-                            <SelectItem value="surprised">Surprised</SelectItem>
-                            <SelectItem value="neutral">Neutral</SelectItem>
-                            <SelectItem value="laughing">Laughing</SelectItem>
-                            <SelectItem value="crying">Crying</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                      {(activeCategory === "clothes" || activeCategory === "expression" || activeCategory === "figure") && (
+                        <div className="space-y-3">
+                          <Label className="text-sm text-muted-foreground">Select Character</Label>
+                          <Select
+                            value={selectedCharacterId}
+                            onValueChange={setSelectedCharacterId}
+                            disabled={characters.length === 0}
+                          >
+                            <SelectTrigger className="bg-background/50">
+                              <SelectValue placeholder={characters.length === 0 ? "No characters available" : "Select a character"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {characters.map((char) => (
+                                <SelectItem key={char.id} value={char.id}>
+                                  {char.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          
+                          {selectedCharacterId && (
+                            <>
+                              {activeCategory === "clothes" && (
+                                <div className="space-y-2">
+                                  <Label className="text-sm text-muted-foreground">Change clothes to:</Label>
+                                  <Input
+                                    placeholder="Enter clothing description"
+                                    className="bg-background/50"
+                                    data-testid="input-clothes-change"
+                                  />
+                                </div>
+                              )}
+                              
+                              {activeCategory === "expression" && (
+                                <div className="space-y-2">
+                                  <Label className="text-sm text-muted-foreground">Change expression to:</Label>
+                                  <Select>
+                                    <SelectTrigger className="bg-background/50">
+                                      <SelectValue placeholder="Select expression" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="happy">Happy</SelectItem>
+                                      <SelectItem value="sad">Sad</SelectItem>
+                                      <SelectItem value="angry">Angry</SelectItem>
+                                      <SelectItem value="surprised">Surprised</SelectItem>
+                                      <SelectItem value="neutral">Neutral</SelectItem>
+                                      <SelectItem value="laughing">Laughing</SelectItem>
+                                      <SelectItem value="crying">Crying</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
+                              
+                              {activeCategory === "figure" && (
+                                <div className="space-y-2">
+                                  <Label className="text-sm text-muted-foreground">Change view to:</Label>
+                                  <Select>
+                                    <SelectTrigger className="bg-background/50">
+                                      <SelectValue placeholder="Select view" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="front">Front view</SelectItem>
+                                      <SelectItem value="back">Back view</SelectItem>
+                                      <SelectItem value="side">Side view</SelectItem>
+                                      <SelectItem value="top">Top view</SelectItem>
+                                      <SelectItem value="low">Low angle view</SelectItem>
+                                      <SelectItem value="closeup">Close-up</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
 
-                    {activeCategory === "figure" && (
-                      <div className="space-y-3">
-                        <Label className="text-sm text-muted-foreground">Change scene to:</Label>
-                        <Select>
-                          <SelectTrigger className="bg-background/50">
-                            <SelectValue placeholder="Select view" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="front">Front view</SelectItem>
-                            <SelectItem value="back">Back view</SelectItem>
-                            <SelectItem value="side">Side view</SelectItem>
-                            <SelectItem value="top">Top view</SelectItem>
-                            <SelectItem value="low">Low angle view</SelectItem>
-                            <SelectItem value="closeup">Close-up</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                      {activeCategory === "remove" && (
+                        <div className="space-y-3">
+                          <Label className="text-sm text-muted-foreground">Remove from image:</Label>
+                          <Input
+                            placeholder="Enter item to remove"
+                            className="bg-background/50"
+                            data-testid="input-remove-item"
+                          />
+                        </div>
+                      )}
 
-                    {activeCategory === "camera" && (
+                      {activeCategory === "camera" && (
                       <div className="space-y-3">
                         <Label className="text-sm text-muted-foreground">Camera Movement</Label>
                         <Select defaultValue={selectedShot.cameraMovement || undefined}>
@@ -1039,92 +1128,26 @@ export function StoryboardEditor({
                       </div>
                     )}
 
-                    {activeCategory === "effects" && (
-                      <div className="space-y-3">
-                        <Label className="text-sm text-muted-foreground">Add effects:</Label>
-                        <Select>
-                          <SelectTrigger className="bg-background/50">
-                            <SelectValue placeholder="Select effect" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="lightning">Lightning</SelectItem>
-                            <SelectItem value="fire">Fire</SelectItem>
-                            <SelectItem value="smoke">Smoke</SelectItem>
-                            <SelectItem value="fog">Fog</SelectItem>
-                            <SelectItem value="spotlight">Spotlight</SelectItem>
-                            <SelectItem value="rays">Light rays</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    {activeCategory === "variations" && shotVersions[selectedShot.id] && (
-                      <div className="space-y-3">
-                        <Label className="text-sm text-muted-foreground">
-                          Version History ({shotVersions[selectedShot.id].length})
-                        </Label>
-                        <div className="grid grid-cols-4 gap-2">
-                          {shotVersions[selectedShot.id]
-                            .sort((a, b) => a.versionNumber - b.versionNumber)
-                            .map((version) => {
-                              const isActive = version.id === selectedShot.currentVersionId;
-                              return (
-                                <div
-                                  key={version.id}
-                                  className={`relative group ${
-                                    isActive ? "ring-2 ring-primary rounded-md" : "hover-elevate"
-                                  }`}
-                                >
-                                  <div
-                                    onClick={() => {
-                                      if (onSelectVersion && !isActive) {
-                                        onSelectVersion(selectedShot.id, version.id);
-                                      }
-                                    }}
-                                    className={`aspect-video bg-muted rounded-md overflow-hidden ${
-                                      !isActive ? "cursor-pointer" : ""
-                                    }`}
-                                    data-testid={`version-thumbnail-${version.id}`}
-                                  >
-                                    {version.imageUrl ? (
-                                      <img
-                                        src={version.imageUrl}
-                                        alt={`v${version.versionNumber}`}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    ) : (
-                                      <div className="flex items-center justify-center h-full">
-                                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="absolute top-1 left-1">
-                                    <Badge variant={isActive ? "default" : "secondary"} className="text-xs h-5">
-                                      {isActive ? "Active" : `v${version.versionNumber}`}
-                                    </Badge>
-                                  </div>
-                                  {!isActive && onDeleteVersion && (
-                                    <Button
-                                      size="icon"
-                                      variant="destructive"
-                                      className="absolute top-1 right-1 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        onDeleteVersion(selectedShot.id, version.id);
-                                      }}
-                                      data-testid={`button-delete-version-${version.id}`}
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </Button>
-                                  )}
-                                </div>
-                              );
-                            })}
+                      {activeCategory === "effects" && (
+                        <div className="space-y-3">
+                          <Label className="text-sm text-muted-foreground">Add effects:</Label>
+                          <Select>
+                            <SelectTrigger className="bg-background/50">
+                              <SelectValue placeholder="Select effect" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="lightning">Lightning</SelectItem>
+                              <SelectItem value="fire">Fire</SelectItem>
+                              <SelectItem value="smoke">Smoke</SelectItem>
+                              <SelectItem value="fog">Fog</SelectItem>
+                              <SelectItem value="spotlight">Spotlight</SelectItem>
+                              <SelectItem value="rays">Light rays</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {activeCategory === "advanced" && (
+                      {activeCategory === "advanced" && (
                       <div className="space-y-3">
                         <Label className="text-sm text-muted-foreground">Full Image Prompt</Label>
                         <Textarea
@@ -1229,18 +1252,6 @@ export function StoryboardEditor({
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => setActiveCategory("variations")}
-                      className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "variations" ? "bg-primary/20" : "hover-elevate"
-                      }`}
-                      data-testid="button-category-variations"
-                    >
-                      <History className="h-5 w-5 mb-0.5" />
-                      <span className="text-xs">Variations</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
                       onClick={() => setActiveCategory("advanced")}
                       className={`flex-col h-14 px-3 rounded-lg ${
                         activeCategory === "advanced" ? "bg-primary/20" : "hover-elevate"
@@ -1251,20 +1262,10 @@ export function StoryboardEditor({
                       <span className="text-xs">Advanced</span>
                     </Button>
                   </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="rounded-full h-12 w-12 hover-elevate"
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </Button>
                 </div>
 
-                {/* Re-gen Button with Credit Counter - Absolute positioned */}
-                <div className="absolute right-6 flex items-center gap-3">
-                  <Badge variant="secondary" className="backdrop-blur-md">
-                    Uses 1/2
-                  </Badge>
+                {/* Re-gen Button - Absolute positioned */}
+                <div className="absolute right-6">
                   <Button
                     onClick={handleGenerateFromDialog}
                     className="bg-gradient-to-r from-[hsl(158,80%,45%)] to-[hsl(280,75%,55%)] hover:from-[hsl(158,80%,40%)] hover:to-[hsl(280,75%,50%)] text-white font-semibold px-6 rounded-full shadow-lg"
@@ -1274,6 +1275,7 @@ export function StoryboardEditor({
                     Re-gen
                   </Button>
                 </div>
+              </div>
               </div>
             </div>
           </DialogContent>

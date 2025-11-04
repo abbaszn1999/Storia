@@ -316,6 +316,7 @@ export function NarrativeWorkflow({
           shots={shots}
           shotVersions={shotVersions}
           referenceImages={referenceImages}
+          characters={characters}
           voiceActorId={voiceActorId}
           soundEffectsEnabled={soundEffectsEnabled}
           onVoiceActorChange={onVoiceActorChange}

@@ -186,6 +186,79 @@ export function NarrativeWorkflow({
     });
   };
 
+  const handleAddScene = (afterSceneIndex: number) => {
+    const newScene: Scene = {
+      id: `scene-${Date.now()}`,
+      videoId: videoId,
+      sceneNumber: afterSceneIndex + 2,
+      title: `New Scene ${afterSceneIndex + 2}`,
+      description: "Describe what happens in this scene",
+      location: "Location",
+      timeOfDay: "Day",
+      lighting: null,
+      weather: null,
+      imageModel: null,
+      videoModel: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // Insert the new scene after the specified index
+    const newScenes = [...scenes];
+    newScenes.splice(afterSceneIndex + 1, 0, newScene);
+    
+    // Update scene numbers
+    const updatedScenes = newScenes.map((scene, idx) => ({
+      ...scene,
+      sceneNumber: idx + 1,
+    }));
+
+    onScenesChange(updatedScenes);
+
+    // Initialize empty shots array for the new scene
+    onShotsChange({
+      ...shots,
+      [newScene.id]: [],
+    });
+  };
+
+  const handleAddShot = (sceneId: string, afterShotIndex: number) => {
+    const sceneShots = shots[sceneId] || [];
+    const newShot: Shot = {
+      id: `shot-${Date.now()}`,
+      sceneId: sceneId,
+      shotNumber: afterShotIndex + 2,
+      description: "New shot description",
+      cameraMovement: null,
+      shotType: null,
+      prompt: "",
+      voiceoverScript: null,
+      soundEffectsEnabled: true,
+      videoPrompt: null,
+      duration: 3,
+      imageModel: null,
+      videoModel: null,
+      currentVersionId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // Insert the new shot after the specified index
+    const newShots = [...sceneShots];
+    newShots.splice(afterShotIndex + 1, 0, newShot);
+
+    // Update shot numbers
+    const updatedShots = newShots.map((shot, idx) => ({
+      ...shot,
+      shotNumber: idx + 1,
+    }));
+
+    onShotsChange({
+      ...shots,
+      [sceneId]: updatedShots,
+    });
+  };
+
   return (
     <div>
       {activeStep === "script" && (
@@ -257,6 +330,8 @@ export function NarrativeWorkflow({
           onDeleteShotReference={handleDeleteShotReference}
           onSelectVersion={handleSelectVersion}
           onDeleteVersion={handleDeleteVersion}
+          onAddScene={handleAddScene}
+          onAddShot={handleAddShot}
           onNext={onNext}
         />
       )}

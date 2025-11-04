@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2 } from "lucide-react";
+import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@shared/schema";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
@@ -115,6 +115,8 @@ interface StoryboardEditorProps {
   onDeleteShotReference: (shotId: string) => void;
   onSelectVersion?: (shotId: string, versionId: string) => void;
   onDeleteVersion?: (shotId: string, versionId: string) => void;
+  onAddScene?: (afterSceneIndex: number) => void;
+  onAddShot?: (sceneId: string, afterShotIndex: number) => void;
   onNext: () => void;
 }
 
@@ -491,6 +493,8 @@ export function StoryboardEditor({
   onDeleteShotReference,
   onSelectVersion,
   onDeleteVersion,
+  onAddScene,
+  onAddShot,
   onNext,
 }: StoryboardEditorProps) {
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null);
@@ -711,7 +715,8 @@ export function StoryboardEditor({
           const sceneShots = localShots[scene.id] || [];
           
           return (
-            <div key={scene.id} className="space-y-4">
+            <>
+              <div key={scene.id} className="space-y-4">
               <div className="flex items-start gap-4">
                 <div className="w-80 shrink-0 space-y-3">
                   <div className="flex items-center gap-2">
@@ -825,25 +830,36 @@ export function StoryboardEditor({
                           const isGenerating = false;
 
                           return (
-                            <SortableShotCard
-                              key={shot.id}
-                              shot={shot}
-                              shotIndex={shotIndex}
-                              sceneModel={scene.videoModel || VIDEO_MODELS[0]}
-                              sceneImageModel={scene.imageModel || IMAGE_MODELS[0]}
-                              version={version}
-                              referenceImage={referenceImage}
-                              isGenerating={isGenerating}
-                              soundEffectsEnabled={soundEffectsEnabled}
-                              onSelectShot={handleSelectShot}
-                              onRegenerateShot={onRegenerateShot}
-                              onUpdatePrompt={handleUpdatePrompt}
-                              onUpdateShot={onUpdateShot}
-                              onUploadReference={handleUploadReference}
-                              onDeleteReference={handleDeleteReference}
-                              onUpdateVideoPrompt={handleUpdateVideoPrompt}
-                              onUpdateVideoDuration={handleUpdateVideoDuration}
-                            />
+                            <>
+                              <SortableShotCard
+                                key={shot.id}
+                                shot={shot}
+                                shotIndex={shotIndex}
+                                sceneModel={scene.videoModel || VIDEO_MODELS[0]}
+                                sceneImageModel={scene.imageModel || IMAGE_MODELS[0]}
+                                version={version}
+                                referenceImage={referenceImage}
+                                isGenerating={isGenerating}
+                                soundEffectsEnabled={soundEffectsEnabled}
+                                onSelectShot={handleSelectShot}
+                                onRegenerateShot={onRegenerateShot}
+                                onUpdatePrompt={handleUpdatePrompt}
+                                onUpdateShot={onUpdateShot}
+                                onUploadReference={handleUploadReference}
+                                onDeleteReference={handleDeleteReference}
+                                onUpdateVideoPrompt={handleUpdateVideoPrompt}
+                                onUpdateVideoDuration={handleUpdateVideoDuration}
+                              />
+                              {onAddShot && (
+                                <button
+                                  onClick={() => onAddShot(scene.id, shotIndex)}
+                                  className="flex items-center justify-center w-12 shrink-0 hover-elevate active-elevate-2 rounded-lg border-2 border-dashed border-muted-foreground/25 hover:border-primary/50 transition-colors"
+                                  data-testid={`button-add-shot-after-${shotIndex}`}
+                                >
+                                  <Plus className="h-5 w-5 text-muted-foreground" />
+                                </button>
+                              )}
+                            </>
                           );
                         })}
                       </div>
@@ -852,6 +868,22 @@ export function StoryboardEditor({
                 </div>
               </div>
             </div>
+            
+            {onAddScene && (
+              <div className="relative flex items-center justify-center py-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-dashed border-muted-foreground/25"></div>
+                </div>
+                <button
+                  onClick={() => onAddScene(sceneIndex)}
+                  className="relative flex items-center justify-center w-10 h-10 rounded-full bg-background border-2 border-dashed border-muted-foreground/25 hover:border-primary/50 hover-elevate active-elevate-2 transition-colors"
+                  data-testid={`button-add-scene-after-${sceneIndex}`}
+                >
+                  <Plus className="h-5 w-5 text-muted-foreground" />
+                </button>
+              </div>
+            )}
+          </>
           );
         })}
       </div>

@@ -1,4 +1,4 @@
-import { Home, Video, Zap, FolderOpen, Calendar, Settings, User, Plus, LayoutTemplate, History } from "lucide-react";
+import { Home, Video, Zap, FolderOpen, Calendar, Settings, User, Plus, LayoutTemplate, History, Mic } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -26,6 +26,7 @@ const mainNavItems = [
 
 const assetNavItems = [
   { title: "Characters", url: "/assets/characters", icon: User },
+  { title: "Voices", url: "/assets/voices", icon: Mic },
   { title: "Brand Kits", url: "/assets/brandkits", icon: LayoutTemplate },
   { title: "Uploads", url: "/assets/uploads", icon: FolderOpen },
 ];

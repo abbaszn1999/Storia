@@ -14,6 +14,9 @@ import NarrativeMode from "@/pages/videos/narrative-mode";
 import Stories from "@/pages/stories";
 import StoryRouter from "@/pages/stories/story-router";
 import Characters from "@/pages/characters";
+import Voices from "@/pages/voices";
+import BrandKits from "@/pages/brandkits";
+import Uploads from "@/pages/uploads";
 import Calendar from "@/pages/calendar";
 import History from "@/pages/history";
 import NotFound from "@/pages/not-found";
@@ -53,8 +56,9 @@ function MainLayout() {
               <Route path="/history" component={History} />
               <Route path="/calendar" component={Calendar} />
               <Route path="/assets/characters" component={Characters} />
-              <Route path="/assets/brandkits" component={NotFound} />
-              <Route path="/assets/uploads" component={NotFound} />
+              <Route path="/assets/voices" component={Voices} />
+              <Route path="/assets/brandkits" component={BrandKits} />
+              <Route path="/assets/uploads" component={Uploads} />
               <Route component={NotFound} />
             </Switch>
           </main>

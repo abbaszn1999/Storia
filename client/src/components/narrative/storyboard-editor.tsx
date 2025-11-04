@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight } from "lucide-react";
+import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, Shirt, Eraser } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@shared/schema";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
@@ -517,7 +517,7 @@ export function StoryboardEditor({
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null);
   const [editPrompt, setEditPrompt] = useState("");
   const [editChange, setEditChange] = useState("");
-  const [activeCategory, setActiveCategory] = useState<"prompt" | "expression" | "figure" | "camera" | "effects" | "variations" | "advanced">("prompt");
+  const [activeCategory, setActiveCategory] = useState<"prompt" | "clothes" | "remove" | "expression" | "figure" | "camera" | "effects" | "variations" | "advanced">("prompt");
   const [localShots, setLocalShots] = useState(shots);
   const { toast } = useToast();
 
@@ -909,9 +909,9 @@ export function StoryboardEditor({
 
       {selectedShot && (
         <Dialog open={!!selectedShot} onOpenChange={() => setSelectedShot(null)}>
-          <DialogContent className="max-w-[100vw] max-h-[100vh] w-screen h-screen p-0 gap-0 rounded-none border-0">
-            {/* Full-screen image backdrop */}
-            <div className="relative w-full h-full bg-black/95 flex items-center justify-center">
+          <DialogContent className="max-w-7xl h-[90vh] p-0 gap-0">
+            {/* Image backdrop */}
+            <div className="relative w-full h-full bg-gradient-to-br from-background via-muted/50 to-background flex items-center justify-center">
               {/* Main Image */}
               <div className="absolute inset-0 flex items-center justify-center p-16 pb-32">
                 {getShotVersion(selectedShot)?.imageUrl ? (
@@ -929,15 +929,14 @@ export function StoryboardEditor({
               </div>
 
               {/* Top Bar - Shot info and close */}
-              <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-b from-black/50 to-transparent">
-                <div className="text-white/80 text-sm">
+              <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
                   Shot {selectedShot.shotNumber}
                 </div>
                 <Button
                   size="icon"
                   variant="ghost"
                   onClick={() => setSelectedShot(null)}
-                  className="text-white hover:bg-white/20"
                   data-testid="button-close-edit-dialog"
                 >
                   <X className="h-5 w-5" />
@@ -957,6 +956,28 @@ export function StoryboardEditor({
                           placeholder="e.g., Add lightning effect"
                           className="bg-background/50"
                           data-testid="input-edit-change"
+                        />
+                      </div>
+                    )}
+
+                    {activeCategory === "clothes" && (
+                      <div className="space-y-3">
+                        <Label className="text-sm text-muted-foreground">Change clothes to:</Label>
+                        <Input
+                          placeholder="Enter clothing name"
+                          className="bg-background/50"
+                          data-testid="input-clothes-change"
+                        />
+                      </div>
+                    )}
+
+                    {activeCategory === "remove" && (
+                      <div className="space-y-3">
+                        <Label className="text-sm text-muted-foreground">Remove from image:</Label>
+                        <Input
+                          placeholder="Enter item to remove"
+                          className="bg-background/50"
+                          data-testid="input-remove-item"
                         />
                       </div>
                     )}
@@ -1119,17 +1140,15 @@ export function StoryboardEditor({
                 </div>
               )}
 
-              {/* Bottom Control Bar with Storia gradient */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-t from-black/80 to-transparent">
+              {/* Bottom Control Bar */}
+              <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between bg-card/80 backdrop-blur-md border-t">
                 {/* Category Toolbar */}
-                <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md rounded-full px-2 py-1.5 border border-white/10">
+                <div className="flex items-center gap-1 bg-muted/60 backdrop-blur-md rounded-full px-2 py-1.5 border">
                   <Button
                     size="icon"
                     variant={activeCategory === "prompt" ? "default" : "ghost"}
                     onClick={() => setActiveCategory("prompt")}
-                    className={`rounded-full h-12 w-12 ${
-                      activeCategory === "prompt" ? "bg-white text-black hover:bg-white/90" : "text-white hover:bg-white/20"
-                    }`}
+                    className={`rounded-full h-12 w-12`}
                     data-testid="button-category-prompt"
                   >
                     <Edit className="h-5 w-5" />
@@ -1138,9 +1157,33 @@ export function StoryboardEditor({
                     <Button
                       size="sm"
                       variant="ghost"
+                      onClick={() => setActiveCategory("clothes")}
+                      className={`flex-col h-14 px-3 rounded-lg ${
+                        activeCategory === "clothes" ? "bg-primary/20" : "hover-elevate"
+                      }`}
+                      data-testid="button-category-clothes"
+                    >
+                      <Shirt className="h-5 w-5 mb-0.5" />
+                      <span className="text-xs">Clothes</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setActiveCategory("remove")}
+                      className={`flex-col h-14 px-3 rounded-lg ${
+                        activeCategory === "remove" ? "bg-primary/20" : "hover-elevate"
+                      }`}
+                      data-testid="button-category-remove"
+                    >
+                      <Eraser className="h-5 w-5 mb-0.5" />
+                      <span className="text-xs">Remove</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       onClick={() => setActiveCategory("expression")}
                       className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "expression" ? "bg-white/20 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+                        activeCategory === "expression" ? "bg-primary/20" : "hover-elevate"
                       }`}
                       data-testid="button-category-expression"
                     >
@@ -1152,7 +1195,7 @@ export function StoryboardEditor({
                       variant="ghost"
                       onClick={() => setActiveCategory("figure")}
                       className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "figure" ? "bg-white/20 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+                        activeCategory === "figure" ? "bg-primary/20" : "hover-elevate"
                       }`}
                       data-testid="button-category-figure"
                     >
@@ -1164,7 +1207,7 @@ export function StoryboardEditor({
                       variant="ghost"
                       onClick={() => setActiveCategory("camera")}
                       className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "camera" ? "bg-white/20 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+                        activeCategory === "camera" ? "bg-primary/20" : "hover-elevate"
                       }`}
                       data-testid="button-category-camera"
                     >
@@ -1176,7 +1219,7 @@ export function StoryboardEditor({
                       variant="ghost"
                       onClick={() => setActiveCategory("effects")}
                       className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "effects" ? "bg-white/20 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+                        activeCategory === "effects" ? "bg-primary/20" : "hover-elevate"
                       }`}
                       data-testid="button-category-effects"
                     >
@@ -1188,7 +1231,7 @@ export function StoryboardEditor({
                       variant="ghost"
                       onClick={() => setActiveCategory("variations")}
                       className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "variations" ? "bg-white/20 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+                        activeCategory === "variations" ? "bg-primary/20" : "hover-elevate"
                       }`}
                       data-testid="button-category-variations"
                     >
@@ -1200,7 +1243,7 @@ export function StoryboardEditor({
                       variant="ghost"
                       onClick={() => setActiveCategory("advanced")}
                       className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "advanced" ? "bg-white/20 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+                        activeCategory === "advanced" ? "bg-primary/20" : "hover-elevate"
                       }`}
                       data-testid="button-category-advanced"
                     >
@@ -1211,7 +1254,7 @@ export function StoryboardEditor({
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="rounded-full h-12 w-12 text-white hover:bg-white/20"
+                    className="rounded-full h-12 w-12 hover-elevate"
                   >
                     <ChevronRight className="h-5 w-5" />
                   </Button>
@@ -1219,7 +1262,7 @@ export function StoryboardEditor({
 
                 {/* Re-gen Button with Credit Counter */}
                 <div className="flex items-center gap-3">
-                  <Badge variant="secondary" className="bg-white/20 text-white border-white/20 backdrop-blur-md">
+                  <Badge variant="secondary" className="backdrop-blur-md">
                     Uses 1/2
                   </Badge>
                   <Button

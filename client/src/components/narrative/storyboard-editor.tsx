@@ -1141,14 +1141,14 @@ export function StoryboardEditor({
               )}
 
               {/* Bottom Control Bar */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between bg-card/80 backdrop-blur-md border-t">
-                {/* Category Toolbar */}
-                <div className="flex items-center gap-1 bg-muted/60 backdrop-blur-md rounded-full px-2 py-1.5 border">
+              <div className="absolute bottom-0 left-0 right-0 p-6 flex items-center justify-center bg-card/80 backdrop-blur-md border-t">
+                {/* Category Toolbar - Centered */}
+                <div className="flex items-center gap-1 bg-muted/60 backdrop-blur-md rounded-full px-2 py-1.5 border shadow-lg">
                   <Button
                     size="icon"
                     variant={activeCategory === "prompt" ? "default" : "ghost"}
                     onClick={() => setActiveCategory("prompt")}
-                    className={`rounded-full h-12 w-12`}
+                    className="rounded-full h-12 w-12"
                     data-testid="button-category-prompt"
                   >
                     <Edit className="h-5 w-5" />
@@ -1260,14 +1260,14 @@ export function StoryboardEditor({
                   </Button>
                 </div>
 
-                {/* Re-gen Button with Credit Counter */}
-                <div className="flex items-center gap-3">
+                {/* Re-gen Button with Credit Counter - Absolute positioned */}
+                <div className="absolute right-6 flex items-center gap-3">
                   <Badge variant="secondary" className="backdrop-blur-md">
                     Uses 1/2
                   </Badge>
                   <Button
                     onClick={handleGenerateFromDialog}
-                    className="bg-gradient-to-r from-[hsl(158,80%,45%)] to-[hsl(280,75%,55%)] hover:from-[hsl(158,80%,40%)] hover:to-[hsl(280,75%,50%)] text-white font-semibold px-6 rounded-full"
+                    className="bg-gradient-to-r from-[hsl(158,80%,45%)] to-[hsl(280,75%,55%)] hover:from-[hsl(158,80%,40%)] hover:to-[hsl(280,75%,50%)] text-white font-semibold px-6 rounded-full shadow-lg"
                     data-testid="button-generate-from-dialog"
                   >
                     <Sparkles className="mr-2 h-4 w-4" />

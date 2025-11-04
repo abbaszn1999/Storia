@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +22,146 @@ import {
 import { Plus, Upload, Check, Pencil, User, Library, ChevronDown, Loader2, Sparkles, X, MapPin, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Character, ReferenceImage } from "@shared/schema";
+
+interface CharacterRecommendationModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  isAnalyzing: boolean;
+  onAddCharacter: (character: Character) => void;
+  existingCharacters: Character[];
+  videoId: string;
+  workspaceId: string;
+}
+
+const MOCK_RECOMMENDED_CHARACTERS = [
+  {
+    name: "Detective Sarah Chen",
+    description: "A sharp-witted private investigator haunted by an unsolved case from her past",
+    appearance: "Asian woman in her mid-30s, dark bobbed hair, always wears a trench coat, carries a vintage camera",
+  },
+  {
+    name: "Marcus 'The Shadow' Rodriguez",
+    description: "An enigmatic informant who operates from the city's underground network",
+    appearance: "Latino man, early 40s, lean build, slicked-back hair, distinctive scar across left eyebrow, wears all black",
+  },
+  {
+    name: "Dr. Emily Winters",
+    description: "A brilliant forensic pathologist with a photographic memory and obsessive attention to detail",
+    appearance: "Caucasian woman in her late 20s, red curly hair often in a messy bun, round glasses, lab coat over casual clothes",
+  },
+];
+
+function CharacterRecommendationModal({
+  open,
+  onOpenChange,
+  isAnalyzing: initialAnalyzing,
+  onAddCharacter,
+  existingCharacters,
+  videoId,
+  workspaceId,
+}: CharacterRecommendationModalProps) {
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [recommendations, setRecommendations] = useState<typeof MOCK_RECOMMENDED_CHARACTERS>([]);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (open && recommendations.length === 0) {
+      setIsAnalyzing(true);
+      setTimeout(() => {
+        setRecommendations(MOCK_RECOMMENDED_CHARACTERS);
+        setIsAnalyzing(false);
+      }, 2000);
+    }
+  }, [open, recommendations.length]);
+
+  const handleAddCharacter = (recChar: typeof MOCK_RECOMMENDED_CHARACTERS[0]) => {
+    const alreadyExists = existingCharacters.some(c => c.name === recChar.name);
+    if (alreadyExists) {
+      toast({
+        title: "Already Added",
+        description: `${recChar.name} is already in your cast.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const character: Character = {
+      id: `char-${Date.now()}-${Math.random()}`,
+      workspaceId: workspaceId,
+      name: recChar.name,
+      description: recChar.description,
+      appearance: recChar.appearance,
+      voiceSettings: null,
+      thumbnailUrl: null,
+      createdAt: new Date(),
+    };
+
+    onAddCharacter(character);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            AI Character Recommendations
+          </DialogTitle>
+          <DialogDescription>
+            Based on your story script, here are suggested characters
+          </DialogDescription>
+        </DialogHeader>
+
+        {isAnalyzing ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+            <p className="text-sm text-muted-foreground">Analyzing your story...</p>
+          </div>
+        ) : (
+          <div className="space-y-4 mt-4">
+            {recommendations.map((recChar, index) => {
+              const isAdded = existingCharacters.some(c => c.name === recChar.name);
+              return (
+                <Card key={index} className="overflow-hidden">
+                  <CardContent className="p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 space-y-2">
+                        <h4 className="font-semibold text-base">{recChar.name}</h4>
+                        <p className="text-sm text-muted-foreground">{recChar.description}</p>
+                        <div className="pt-2">
+                          <Label className="text-xs font-medium text-muted-foreground">APPEARANCE</Label>
+                          <p className="text-sm mt-1">{recChar.appearance}</p>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleAddCharacter(recChar)}
+                        disabled={isAdded}
+                        data-testid={`button-add-recommended-${index}`}
+                      >
+                        {isAdded ? (
+                          <>
+                            <Check className="mr-2 h-3 w-3" />
+                            Added
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="mr-2 h-3 w-3" />
+                            Add to Cast
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 interface WorldCastProps {
   videoId: string;
@@ -88,11 +228,13 @@ export function WorldCast({
 }: WorldCastProps) {
   const [isAddCharacterOpen, setIsAddCharacterOpen] = useState(false);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [isRecommendationModalOpen, setIsRecommendationModalOpen] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [newCharacter, setNewCharacter] = useState({ name: "", description: "", appearance: "" });
   const [characterReferenceImages, setCharacterReferenceImages] = useState<string[]>([]);
   const [generatedCharacterImage, setGeneratedCharacterImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [cinematicInspiration, setCinematicInspiration] = useState("");
   const [selectedArtStyle, setSelectedArtStyle] = useState(artStyle);
   const [selectedImageModel, setSelectedImageModel] = useState(imageModel);
@@ -564,6 +706,15 @@ export function WorldCast({
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">Cast</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsRecommendationModalOpen(true)}
+            data-testid="button-recommend-characters"
+          >
+            <Sparkles className="mr-2 h-4 w-4" />
+            Recommend AI Characters
+          </Button>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -969,6 +1120,23 @@ export function WorldCast({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* AI Character Recommendation Dialog */}
+      <CharacterRecommendationModal
+        open={isRecommendationModalOpen}
+        onOpenChange={setIsRecommendationModalOpen}
+        isAnalyzing={isAnalyzing}
+        onAddCharacter={(character) => {
+          onCharactersChange([...characters, character]);
+          toast({
+            title: "Character Added",
+            description: `${character.name} has been added to your cast.`,
+          });
+        }}
+        existingCharacters={characters}
+        videoId={videoId}
+        workspaceId={workspaceId}
+      />
 
       {/* Next Button */}
       <div className="lg:col-span-2 flex justify-end pt-4">

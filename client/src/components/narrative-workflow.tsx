@@ -199,8 +199,8 @@ export function NarrativeWorkflow({
       weather: null,
       imageModel: null,
       videoModel: null,
+      duration: null,
       createdAt: new Date(),
-      updatedAt: new Date(),
     };
 
     // Insert the new scene after the specified index
@@ -229,8 +229,8 @@ export function NarrativeWorkflow({
       sceneId: sceneId,
       shotNumber: afterShotIndex + 2,
       description: "New shot description",
-      cameraMovement: null,
-      shotType: null,
+      cameraMovement: "Static",
+      shotType: "Medium",
       prompt: "",
       voiceoverScript: null,
       soundEffectsEnabled: true,

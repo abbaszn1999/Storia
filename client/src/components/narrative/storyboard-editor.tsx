@@ -95,6 +95,23 @@ const SHOT_TYPES = [
   "Establishing Shot",
 ];
 
+const CAMERA_MOVEMENTS = [
+  "Static",
+  "Pan Left",
+  "Pan Right",
+  "Tilt Up",
+  "Tilt Down",
+  "Zoom In",
+  "Zoom Out",
+  "Dolly In",
+  "Dolly Out",
+  "Tracking Shot",
+  "Crane Up",
+  "Crane Down",
+  "Handheld",
+  "Steadicam",
+];
+
 interface StoryboardEditorProps {
   videoId: string;
   scenes: Scene[];

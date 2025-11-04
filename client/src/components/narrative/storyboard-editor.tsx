@@ -873,13 +873,15 @@ export function StoryboardEditor({
                                 onUpdateVideoDuration={handleUpdateVideoDuration}
                               />
                               {onAddShot && (
-                                <button
-                                  onClick={() => onAddShot(scene.id, shotIndex)}
-                                  className="flex items-center justify-center w-12 shrink-0 hover-elevate active-elevate-2 rounded-lg border-2 border-dashed border-muted-foreground/25 hover:border-primary/50 transition-colors"
-                                  data-testid={`button-add-shot-after-${shotIndex}`}
-                                >
-                                  <Plus className="h-5 w-5 text-muted-foreground" />
-                                </button>
+                                <div className="relative group shrink-0 w-3 flex items-center justify-center">
+                                  <button
+                                    onClick={() => onAddShot(scene.id, shotIndex)}
+                                    className="absolute opacity-0 group-hover:opacity-100 flex items-center justify-center w-7 h-7 rounded-full bg-background border-2 border-dashed border-primary/50 hover-elevate active-elevate-2 transition-all"
+                                    data-testid={`button-add-shot-after-${shotIndex}`}
+                                  >
+                                    <Plus className="h-4 w-4 text-primary" />
+                                  </button>
+                                </div>
                               )}
                             </>
                           );

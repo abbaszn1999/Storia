@@ -187,8 +187,9 @@ export function NarrativeWorkflow({
   };
 
   const handleAddScene = (afterSceneIndex: number) => {
+    const newSceneId = `scene-${Date.now()}`;
     const newScene: Scene = {
-      id: `scene-${Date.now()}`,
+      id: newSceneId,
       videoId: videoId,
       sceneNumber: afterSceneIndex + 2,
       title: `New Scene ${afterSceneIndex + 2}`,
@@ -215,10 +216,28 @@ export function NarrativeWorkflow({
 
     onScenesChange(updatedScenes);
 
-    // Initialize empty shots array for the new scene
+    // Create an initial shot for the new scene
+    const initialShot: Shot = {
+      id: `shot-${Date.now()}`,
+      sceneId: newSceneId,
+      shotNumber: 1,
+      description: "Shot description",
+      cameraMovement: "Static",
+      shotType: "Medium",
+      voiceoverScript: null,
+      soundEffectsEnabled: true,
+      duration: 3,
+      imageModel: null,
+      videoModel: null,
+      currentVersionId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // Initialize shots array with one initial shot
     onShotsChange({
       ...shots,
-      [newScene.id]: [],
+      [newSceneId]: [initialShot],
     });
   };
 
@@ -231,10 +250,8 @@ export function NarrativeWorkflow({
       description: "New shot description",
       cameraMovement: "Static",
       shotType: "Medium",
-      prompt: "",
       voiceoverScript: null,
       soundEffectsEnabled: true,
-      videoPrompt: null,
       duration: 3,
       imageModel: null,
       videoModel: null,

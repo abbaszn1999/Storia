@@ -978,18 +978,6 @@ export function StoryboardEditor({
 
               {/* Main Content Area */}
               <div className="relative flex-1 bg-gradient-to-br from-background via-muted/20 to-background flex items-center justify-center">
-                {/* Close Button - Top Right */}
-                <div className="absolute top-4 right-4 z-20">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setSelectedShot(null)}
-                    data-testid="button-close-edit-dialog"
-                  >
-                    <X className="h-5 w-5" />
-                  </Button>
-                </div>
-
                 {/* Main Image */}
                 <div className="absolute inset-0 flex items-center justify-center p-12 pb-32">
                   {getShotVersion(selectedShot)?.imageUrl ? (

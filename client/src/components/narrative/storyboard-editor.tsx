@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus } from "lucide-react";
+import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@shared/schema";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
@@ -499,6 +499,8 @@ export function StoryboardEditor({
 }: StoryboardEditorProps) {
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null);
   const [editPrompt, setEditPrompt] = useState("");
+  const [editChange, setEditChange] = useState("");
+  const [activeCategory, setActiveCategory] = useState<"prompt" | "expression" | "figure" | "camera" | "effects" | "variations" | "advanced">("prompt");
   const [localShots, setLocalShots] = useState(shots);
   const { toast } = useToast();
 
@@ -890,193 +892,326 @@ export function StoryboardEditor({
 
       {selectedShot && (
         <Dialog open={!!selectedShot} onOpenChange={() => setSelectedShot(null)}>
-          <DialogContent className="max-w-7xl h-[90vh] p-0 gap-0">
-            <div className="flex h-full">
-              {/* Main Image Display - Left Side */}
-              <div className="flex-1 flex flex-col bg-muted/30 p-6">
-                <DialogHeader className="pb-4">
-                  <DialogTitle>Edit Image</DialogTitle>
-                  <DialogDescription>
-                    Shot {selectedShot.shotNumber} - Modify and regenerate
-                  </DialogDescription>
-                </DialogHeader>
-                
-                <div className="flex-1 flex items-center justify-center p-4">
-                  <div className="relative w-full h-full flex items-center justify-center">
-                    {getShotVersion(selectedShot)?.imageUrl ? (
-                      <img
-                        src={getShotVersion(selectedShot)!.imageUrl!}
-                        alt="Shot"
-                        className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
-                        <ImageIcon className="h-24 w-24" />
-                        <p className="text-lg">No image generated yet</p>
-                      </div>
-                    )}
+          <DialogContent className="max-w-[100vw] max-h-[100vh] w-screen h-screen p-0 gap-0 rounded-none border-0">
+            {/* Full-screen image backdrop */}
+            <div className="relative w-full h-full bg-black/95 flex items-center justify-center">
+              {/* Main Image */}
+              <div className="absolute inset-0 flex items-center justify-center p-16 pb-32">
+                {getShotVersion(selectedShot)?.imageUrl ? (
+                  <img
+                    src={getShotVersion(selectedShot)!.imageUrl!}
+                    alt="Shot"
+                    className="max-w-full max-h-full object-contain rounded-lg"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                    <ImageIcon className="h-32 w-32" />
+                    <p className="text-xl">No image generated yet</p>
                   </div>
-                </div>
+                )}
               </div>
 
-              {/* Controls Sidebar - Right Side */}
-              <div className="w-96 border-l bg-card flex flex-col">
-                <div className="flex-1 overflow-y-auto p-5 space-y-5">
-                  {/* Version Gallery */}
-                  {shotVersions[selectedShot.id] && shotVersions[selectedShot.id].length > 0 && (
-                    <div className="space-y-2.5">
-                      <Label className="text-sm">
-                        Versions ({shotVersions[selectedShot.id].length})
-                      </Label>
-                      <div className="grid grid-cols-2 gap-2.5">
-                        {shotVersions[selectedShot.id]
-                          .sort((a, b) => a.versionNumber - b.versionNumber)
-                          .map((version) => {
-                            const isActive = version.id === selectedShot.currentVersionId;
-                            return (
-                              <div
-                                key={version.id}
-                                className={`relative group ${
-                                  isActive ? "ring-2 ring-primary rounded-md" : "hover-elevate"
-                                }`}
-                              >
-                                <div
-                                  onClick={() => {
-                                    if (onSelectVersion && !isActive) {
-                                      onSelectVersion(selectedShot.id, version.id);
-                                    }
-                                  }}
-                                  className={`aspect-video bg-muted rounded-md overflow-hidden ${
-                                    !isActive ? "cursor-pointer" : ""
-                                  }`}
-                                  data-testid={`version-thumbnail-${version.id}`}
-                                >
-                                  {version.imageUrl ? (
-                                    <img
-                                      src={version.imageUrl}
-                                      alt={`Version ${version.versionNumber}`}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  ) : (
-                                    <div className="flex items-center justify-center h-full">
-                                      <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="absolute top-1.5 left-1.5">
-                                  {isActive ? (
-                                    <Badge variant="default">
-                                      Active
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="secondary">
-                                      v{version.versionNumber}
-                                    </Badge>
-                                  )}
-                                </div>
-                                {!isActive && onDeleteVersion && (
-                                  <Button
-                                    size="icon"
-                                    variant="destructive"
-                                    className="absolute top-1.5 right-1.5 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onDeleteVersion(selectedShot.id, version.id);
-                                    }}
-                                    data-testid={`button-delete-version-${version.id}`}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                )}
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
+              {/* Top Bar - Shot info and close */}
+              <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-b from-black/50 to-transparent">
+                <div className="text-white/80 text-sm">
+                  Shot {selectedShot.shotNumber}
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setSelectedShot(null)}
+                  className="text-white hover:bg-white/20"
+                  data-testid="button-close-edit-dialog"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
 
-                  {/* Image Prompt */}
-                  <div className="space-y-2.5">
-                    <Label className="text-sm">Prompt</Label>
-                    <Textarea
-                      value={editPrompt}
-                      onChange={(e) => setEditPrompt(e.target.value)}
-                      placeholder="Describe the image..."
-                      className="min-h-28 resize-none"
-                      data-testid="input-edit-prompt"
-                    />
-                  </div>
-
-                  {/* Reference Image */}
-                  <div className="space-y-2.5">
-                    <Label className="text-sm">Reference</Label>
-                    {selectedShot && getShotReferenceImage(selectedShot.id) ? (
-                      <div className="relative">
-                        <div className="aspect-video rounded-md overflow-hidden border">
-                          <img
-                            src={getShotReferenceImage(selectedShot.id)!.imageUrl}
-                            alt="Reference"
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <Button
-                          size="icon"
-                          variant="destructive"
-                          className="absolute top-2 right-2 h-6 w-6"
-                          onClick={() => handleDeleteReference(selectedShot.id)}
-                          data-testid="button-delete-reference-dialog"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="border-2 border-dashed rounded-md p-5 text-center">
+              {/* Context Panel - Appears above toolbar based on active category */}
+              {activeCategory && (
+                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4">
+                  <div className="bg-background/95 backdrop-blur-md rounded-lg border shadow-2xl p-4">
+                    {activeCategory === "prompt" && (
+                      <div className="space-y-3">
+                        <Label className="text-sm text-muted-foreground">What would you like to change in the scene?</Label>
                         <Input
-                          id="reference-upload-dialog"
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file && selectedShot) {
-                              handleUploadReference(selectedShot.id, file);
-                            }
-                          }}
-                          data-testid="input-reference-dialog"
+                          value={editChange}
+                          onChange={(e) => setEditChange(e.target.value)}
+                          placeholder="e.g., Add lightning effect"
+                          className="bg-background/50"
+                          data-testid="input-edit-change"
                         />
-                        <Upload className="h-7 w-7 mx-auto mb-2.5 text-muted-foreground" />
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          onClick={() => document.getElementById('reference-upload-dialog')?.click()}
-                          data-testid="button-upload-reference-dialog"
-                        >
-                          <Upload className="mr-2 h-3.5 w-3.5" />
-                          Upload
-                        </Button>
+                      </div>
+                    )}
+
+                    {activeCategory === "expression" && (
+                      <div className="space-y-3">
+                        <Label className="text-sm text-muted-foreground">Change expression to:</Label>
+                        <Select>
+                          <SelectTrigger className="bg-background/50">
+                            <SelectValue placeholder="Select expression" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="happy">Happy</SelectItem>
+                            <SelectItem value="sad">Sad</SelectItem>
+                            <SelectItem value="angry">Angry</SelectItem>
+                            <SelectItem value="surprised">Surprised</SelectItem>
+                            <SelectItem value="neutral">Neutral</SelectItem>
+                            <SelectItem value="laughing">Laughing</SelectItem>
+                            <SelectItem value="crying">Crying</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {activeCategory === "figure" && (
+                      <div className="space-y-3">
+                        <Label className="text-sm text-muted-foreground">Change scene to:</Label>
+                        <Select>
+                          <SelectTrigger className="bg-background/50">
+                            <SelectValue placeholder="Select view" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="front">Front view</SelectItem>
+                            <SelectItem value="back">Back view</SelectItem>
+                            <SelectItem value="side">Side view</SelectItem>
+                            <SelectItem value="top">Top view</SelectItem>
+                            <SelectItem value="low">Low angle view</SelectItem>
+                            <SelectItem value="closeup">Close-up</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {activeCategory === "camera" && (
+                      <div className="space-y-3">
+                        <Label className="text-sm text-muted-foreground">Camera Movement</Label>
+                        <Select defaultValue={selectedShot.cameraMovement || undefined}>
+                          <SelectTrigger className="bg-background/50">
+                            <SelectValue placeholder="Select movement" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CAMERA_MOVEMENTS.map((movement) => (
+                              <SelectItem key={movement} value={movement}>
+                                {movement}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {activeCategory === "effects" && (
+                      <div className="space-y-3">
+                        <Label className="text-sm text-muted-foreground">Add effects:</Label>
+                        <Select>
+                          <SelectTrigger className="bg-background/50">
+                            <SelectValue placeholder="Select effect" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="lightning">Lightning</SelectItem>
+                            <SelectItem value="fire">Fire</SelectItem>
+                            <SelectItem value="smoke">Smoke</SelectItem>
+                            <SelectItem value="fog">Fog</SelectItem>
+                            <SelectItem value="spotlight">Spotlight</SelectItem>
+                            <SelectItem value="rays">Light rays</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {activeCategory === "variations" && shotVersions[selectedShot.id] && (
+                      <div className="space-y-3">
+                        <Label className="text-sm text-muted-foreground">
+                          Version History ({shotVersions[selectedShot.id].length})
+                        </Label>
+                        <div className="grid grid-cols-4 gap-2">
+                          {shotVersions[selectedShot.id]
+                            .sort((a, b) => a.versionNumber - b.versionNumber)
+                            .map((version) => {
+                              const isActive = version.id === selectedShot.currentVersionId;
+                              return (
+                                <div
+                                  key={version.id}
+                                  className={`relative group ${
+                                    isActive ? "ring-2 ring-primary rounded-md" : "hover-elevate"
+                                  }`}
+                                >
+                                  <div
+                                    onClick={() => {
+                                      if (onSelectVersion && !isActive) {
+                                        onSelectVersion(selectedShot.id, version.id);
+                                      }
+                                    }}
+                                    className={`aspect-video bg-muted rounded-md overflow-hidden ${
+                                      !isActive ? "cursor-pointer" : ""
+                                    }`}
+                                    data-testid={`version-thumbnail-${version.id}`}
+                                  >
+                                    {version.imageUrl ? (
+                                      <img
+                                        src={version.imageUrl}
+                                        alt={`v${version.versionNumber}`}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="flex items-center justify-center h-full">
+                                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="absolute top-1 left-1">
+                                    <Badge variant={isActive ? "default" : "secondary"} className="text-xs h-5">
+                                      {isActive ? "Active" : `v${version.versionNumber}`}
+                                    </Badge>
+                                  </div>
+                                  {!isActive && onDeleteVersion && (
+                                    <Button
+                                      size="icon"
+                                      variant="destructive"
+                                      className="absolute top-1 right-1 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDeleteVersion(selectedShot.id, version.id);
+                                      }}
+                                      data-testid={`button-delete-version-${version.id}`}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+
+                    {activeCategory === "advanced" && (
+                      <div className="space-y-3">
+                        <Label className="text-sm text-muted-foreground">Full Image Prompt</Label>
+                        <Textarea
+                          value={editPrompt}
+                          onChange={(e) => setEditPrompt(e.target.value)}
+                          placeholder="Describe the entire image..."
+                          className="min-h-24 resize-none bg-background/50"
+                          data-testid="input-edit-prompt"
+                        />
                       </div>
                     )}
                   </div>
                 </div>
+              )}
 
-                {/* Action Buttons */}
-                <div className="border-t p-5 space-y-2">
+              {/* Bottom Control Bar with Storia gradient */}
+              <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-t from-black/80 to-transparent">
+                {/* Category Toolbar */}
+                <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md rounded-full px-2 py-1.5 border border-white/10">
+                  <Button
+                    size="icon"
+                    variant={activeCategory === "prompt" ? "default" : "ghost"}
+                    onClick={() => setActiveCategory("prompt")}
+                    className={`rounded-full h-12 w-12 ${
+                      activeCategory === "prompt" ? "bg-white text-black hover:bg-white/90" : "text-white hover:bg-white/20"
+                    }`}
+                    data-testid="button-category-prompt"
+                  >
+                    <Edit className="h-5 w-5" />
+                  </Button>
+                  <div className="flex items-center gap-0.5 px-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setActiveCategory("expression")}
+                      className={`flex-col h-14 px-3 rounded-lg ${
+                        activeCategory === "expression" ? "bg-white/20 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+                      }`}
+                      data-testid="button-category-expression"
+                    >
+                      <Smile className="h-5 w-5 mb-0.5" />
+                      <span className="text-xs">Expression</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setActiveCategory("figure")}
+                      className={`flex-col h-14 px-3 rounded-lg ${
+                        activeCategory === "figure" ? "bg-white/20 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+                      }`}
+                      data-testid="button-category-figure"
+                    >
+                      <User className="h-5 w-5 mb-0.5" />
+                      <span className="text-xs">Figure</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setActiveCategory("camera")}
+                      className={`flex-col h-14 px-3 rounded-lg ${
+                        activeCategory === "camera" ? "bg-white/20 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+                      }`}
+                      data-testid="button-category-camera"
+                    >
+                      <Camera className="h-5 w-5 mb-0.5" />
+                      <span className="text-xs">Camera</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setActiveCategory("effects")}
+                      className={`flex-col h-14 px-3 rounded-lg ${
+                        activeCategory === "effects" ? "bg-white/20 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+                      }`}
+                      data-testid="button-category-effects"
+                    >
+                      <Zap className="h-5 w-5 mb-0.5" />
+                      <span className="text-xs">Effects</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setActiveCategory("variations")}
+                      className={`flex-col h-14 px-3 rounded-lg ${
+                        activeCategory === "variations" ? "bg-white/20 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+                      }`}
+                      data-testid="button-category-variations"
+                    >
+                      <History className="h-5 w-5 mb-0.5" />
+                      <span className="text-xs">Variations</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setActiveCategory("advanced")}
+                      className={`flex-col h-14 px-3 rounded-lg ${
+                        activeCategory === "advanced" ? "bg-white/20 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+                      }`}
+                      data-testid="button-category-advanced"
+                    >
+                      <Settings2 className="h-5 w-5 mb-0.5" />
+                      <span className="text-xs">Advanced</span>
+                    </Button>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="rounded-full h-12 w-12 text-white hover:bg-white/20"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
+                </div>
+
+                {/* Re-gen Button with Credit Counter */}
+                <div className="flex items-center gap-3">
+                  <Badge variant="secondary" className="bg-white/20 text-white border-white/20 backdrop-blur-md">
+                    Uses 1/2
+                  </Badge>
                   <Button
                     onClick={handleGenerateFromDialog}
-                    className="w-full"
+                    className="bg-gradient-to-r from-[hsl(158,80%,45%)] to-[hsl(280,75%,55%)] hover:from-[hsl(158,80%,40%)] hover:to-[hsl(280,75%,50%)] text-white font-semibold px-6 rounded-full"
                     data-testid="button-generate-from-dialog"
                   >
                     <Sparkles className="mr-2 h-4 w-4" />
-                    Generate
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleSavePrompt}
-                    className="w-full"
-                    size="sm"
-                    data-testid="button-save-prompt"
-                  >
-                    Save
+                    Re-gen
                   </Button>
                 </div>
               </div>

@@ -945,7 +945,7 @@ export function StoryboardEditor({
 
               {/* Context Panel - Appears above toolbar based on active category */}
               {activeCategory && (
-                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4">
+                <div className="absolute bottom-32 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-10">
                   <div className="bg-background/95 backdrop-blur-md rounded-lg border shadow-2xl p-4">
                     {activeCategory === "prompt" && (
                       <div className="space-y-3">

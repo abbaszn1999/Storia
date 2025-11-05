@@ -91,15 +91,36 @@ server/
 
 ## Design System
 
-### Brand Identity
-- **Name**: Storia
-- **Logo**: Gradient circle with vibrant purple-orange-pink colors
-- **Primary Color**: Deep green (158 65% 35%) - Used for primary actions, sidebar highlights
-- **Gradient Accent**: Green to purple (158 80% 45% → 280 75% 55%) - Used for CTAs and premium features
-- **Typography**: 
-  - Primary: Inter (UI elements)
-  - Display: Outfit (headlines)
-  - Mono: JetBrains Mono (code/technical)
+### Brand Identity (Version 1.0 - Official)
+- **Name**: Storia (ستوريا)
+- **Brand Essence**: From spark to screen - cinematic, intelligent, accessible
+- **Logo**: Gradient orb with Storia Pink → Violet → Orange colors
+
+### Color System
+**Core Brand Colors:**
+- **Storia Pink**: #FF0074 (RGB 255,0,116) - Emotion, energy, human warmth
+- **Storia Violet**: #A63DFF (RGB 166,61,255) - Imagination, creativity, AI intelligence
+- **Storia Orange**: #FF6500 (RGB 255,101,0) - Momentum, transformation, call-to-action
+- **Storia Magenta**: #FF00A8 (RGB 255,0,168) - Wonder, magic, highlight
+- **Midnight Green**: #1A3A35 - Cinematic canvas (dark mode background)
+- **Charcoal**: #0B0F12 - Type & contrast
+- **White**: #FFFFFF - Type & contrast
+- **Slate Mist**: #94A3B8, #E6EAF0 - UI borders, dividers
+
+**Gradient Usage:**
+- Primary gradient: Pink → Violet → Orange at 30-45° angle
+- Used for: Hero sections, CTAs, buttons, orb logo
+- Implementation: `bg-gradient-storia` utility class
+
+### Typography System
+- **Primary/Headlines**: Plus Jakarta Sans - Modern, friendly, cinematic curves
+- **Body Text**: Inter - Highly legible at small sizes
+- **Accent/Numerals**: Space Grotesk - Tech elegance for stats and code-like labels
+- **Fallbacks**: system-ui, Arial
+
+### Accessibility
+- WCAG AA contrast ratio 4.5:1 for body text
+- White/Charcoal on Midnight Green backgrounds for optimal readability
 
 ### UI Patterns
 - Dark mode by default with light mode support

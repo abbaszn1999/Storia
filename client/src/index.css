@@ -48,9 +48,9 @@
 
   --popover-border: 220 12% 85%;
 
-  --primary: 158 65% 35%;
+  --primary: 338 100% 46%;
 
-  --primary-foreground: 158 65% 98%;
+  --primary-foreground: 0 0% 100%;
 
   --secondary: 220 8% 86%;
 
@@ -60,29 +60,30 @@
 
   --muted-foreground: 220 9% 50%;
 
-  --accent: 220 12% 88%;
+  --accent: 280 100% 69%;
 
-  --accent-foreground: 220 15% 20%;
+  --accent-foreground: 0 0% 100%;
 
   --destructive: 0 72% 51%;
 
   --destructive-foreground: 0 72% 98%;
 
   --input: 220 15% 75%;
-  --ring: 158 65% 42%;
-  --chart-1: 158 80% 45%;
-  --chart-2: 280 75% 55%;
-  --chart-3: 217 91% 60%;
+  --ring: 338 100% 46%;
+  --chart-1: 338 100% 46%;
+  --chart-2: 280 100% 69%;
+  --chart-3: 24 100% 50%;
   --chart-4: 142 71% 45%;
   --chart-5: 38 92% 50%;
 
-  --gradient-from: 158 80% 45%;
-  --gradient-to: 280 75% 55%;
+  --gradient-from: 338 100% 46%;
+  --gradient-via: 280 100% 69%;
+  --gradient-to: 24 100% 50%;
 
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-serif: Georgia, serif;
-  --font-mono: 'JetBrains Mono', Menlo, monospace;
-  --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Space Grotesk', 'JetBrains Mono', Menlo, monospace;
+  --font-display: 'Plus Jakarta Sans', 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --radius: .5rem; /* 8px */
   --shadow-2xs: 0px 1px 2px 0px hsl(220 15% 15% / 0.05);
   --shadow-xs: 0px 1px 3px 0px hsl(220 15% 15% / 0.08);
@@ -136,70 +137,71 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  --background: 220 8% 12%;
+  --background: 158 48% 11%;
 
-  --foreground: 0 0% 98%;
+  --foreground: 0 0% 100%;
 
-  --border: 220 15% 25%;
+  --border: 158 25% 20%;
 
-  --card: 220 10% 16%;
+  --card: 158 35% 14%;
 
-  --card-foreground: 0 0% 98%;
+  --card-foreground: 0 0% 100%;
 
-  --card-border: 220 12% 20%;
+  --card-border: 158 30% 18%;
 
-  --sidebar: 220 10% 14%;
+  --sidebar: 158 40% 12%;
 
-  --sidebar-foreground: 0 0% 98%;
+  --sidebar-foreground: 0 0% 100%;
 
-  --sidebar-border: 220 12% 18%;
+  --sidebar-border: 158 30% 16%;
 
-  --sidebar-primary: 158 65% 35%;
+  --sidebar-primary: 338 100% 46%;
 
-  --sidebar-primary-foreground: 158 65% 98%;
+  --sidebar-primary-foreground: 0 0% 100%;
 
-  --sidebar-accent: 220 12% 18%;
+  --sidebar-accent: 158 30% 16%;
 
-  --sidebar-accent-foreground: 220 9% 85%;
+  --sidebar-accent-foreground: 0 0% 90%;
 
-  --sidebar-ring: 158 65% 42%;
+  --sidebar-ring: 338 100% 46%;
 
-  --popover: 220 12% 20%;
+  --popover: 158 35% 16%;
 
-  --popover-foreground: 0 0% 98%;
+  --popover-foreground: 0 0% 100%;
 
-  --popover-border: 220 15% 25%;
+  --popover-border: 158 25% 20%;
 
-  --primary: 158 65% 35%;
+  --primary: 338 100% 46%;
 
-  --primary-foreground: 158 65% 98%;
+  --primary-foreground: 0 0% 100%;
 
-  --secondary: 220 12% 24%;
+  --secondary: 158 20% 22%;
 
-  --secondary-foreground: 220 9% 90%;
+  --secondary-foreground: 0 0% 90%;
 
-  --muted: 220 12% 22%;
+  --muted: 158 20% 18%;
 
-  --muted-foreground: 220 9% 65%;
+  --muted-foreground: 158 10% 65%;
 
-  --accent: 220 12% 20%;
+  --accent: 280 100% 69%;
 
-  --accent-foreground: 220 9% 85%;
+  --accent-foreground: 0 0% 100%;
 
   --destructive: 0 72% 51%;
 
   --destructive-foreground: 0 72% 98%;
 
-  --input: 220 15% 35%;
-  --ring: 158 65% 42%;
-  --chart-1: 158 80% 65%;
-  --chart-2: 280 75% 70%;
-  --chart-3: 217 91% 75%;
+  --input: 158 25% 25%;
+  --ring: 338 100% 46%;
+  --chart-1: 338 100% 60%;
+  --chart-2: 280 100% 75%;
+  --chart-3: 24 100% 60%;
   --chart-4: 142 71% 60%;
   --chart-5: 38 92% 65%;
 
-  --gradient-from: 158 80% 45%;
-  --gradient-to: 280 75% 55%;
+  --gradient-from: 338 100% 46%;
+  --gradient-via: 280 100% 69%;
+  --gradient-to: 24 100% 50%;
 
   --shadow-2xs: 0px 1px 2px 0px hsl(220 15% 5% / 0.20);
   --shadow-xs: 0px 1px 3px 0px hsl(220 15% 5% / 0.25);
@@ -357,16 +359,27 @@
     inset: -1px;
   }
 
-  /* Gradient utilities for Storia brand */
+  /* Gradient utilities for Storia brand - Pink → Violet → Orange at 30-45° */
   .bg-gradient-storia {
-    background: linear-gradient(135deg, hsl(var(--gradient-from)) 0%, hsl(var(--gradient-to)) 100%);
+    background: linear-gradient(35deg, hsl(var(--gradient-from)) 0%, hsl(var(--gradient-via)) 50%, hsl(var(--gradient-to)) 100%);
   }
 
   .text-gradient-storia {
-    background: linear-gradient(135deg, hsl(var(--gradient-from)) 0%, hsl(var(--gradient-to)) 100%);
+    background: linear-gradient(35deg, hsl(var(--gradient-from)) 0%, hsl(var(--gradient-via)) 50%, hsl(var(--gradient-to)) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
+  }
+  
+  /* Button gradient for CTAs */
+  .btn-gradient-storia {
+    background: linear-gradient(35deg, hsl(var(--gradient-from)) 0%, hsl(var(--gradient-via)) 50%, hsl(var(--gradient-to)) 100%);
+    border: none;
+    color: white;
+  }
+  
+  .btn-gradient-storia:hover {
+    opacity: 0.9;
   }
 
   /* Professional Scrollbar Styling */

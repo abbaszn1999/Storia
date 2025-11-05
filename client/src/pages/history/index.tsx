@@ -1,7 +1,9 @@
-import { Video, Zap } from "lucide-react";
+import { useState } from "react";
+import { Video, Zap, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { formatDistanceToNow } from "date-fns";
 import { Link } from "wouter";
 
@@ -88,8 +90,13 @@ const statusColors: Record<string, string> = {
 };
 
 export default function History() {
-  const videos = historyItems.filter(item => item.type === "video");
-  const stories = historyItems.filter(item => item.type === "story");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredItems = historyItems.filter(item => 
+    item.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const videos = filteredItems.filter(item => item.type === "video");
+  const stories = filteredItems.filter(item => item.type === "story");
 
   const HistoryItemCard = ({ item }: { item: typeof historyItems[0] }) => {
     const Icon = item.type === "video" ? Video : Zap;
@@ -137,34 +144,77 @@ export default function History() {
       </div>
 
       <Tabs defaultValue="all">
-        <TabsList>
-          <TabsTrigger value="all" data-testid="tab-all">All ({historyItems.length})</TabsTrigger>
-          <TabsTrigger value="videos" data-testid="tab-videos">Videos ({videos.length})</TabsTrigger>
-          <TabsTrigger value="stories" data-testid="tab-stories">Stories ({stories.length})</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <TabsList>
+            <TabsTrigger value="all" data-testid="tab-all">All ({filteredItems.length})</TabsTrigger>
+            <TabsTrigger value="videos" data-testid="tab-videos">Videos ({videos.length})</TabsTrigger>
+            <TabsTrigger value="stories" data-testid="tab-stories">Stories ({stories.length})</TabsTrigger>
+          </TabsList>
+
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search history..."
+              className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              data-testid="input-search-history"
+            />
+          </div>
+        </div>
 
         <TabsContent value="all" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {historyItems.map((item) => (
-              <HistoryItemCard key={item.id} item={item} />
-            ))}
-          </div>
+          {filteredItems.length === 0 ? (
+            <div className="text-center py-12">
+              <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No results found</h3>
+              <p className="text-muted-foreground">
+                Try adjusting your search query
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredItems.map((item) => (
+                <HistoryItemCard key={item.id} item={item} />
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="videos" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {videos.map((item) => (
-              <HistoryItemCard key={item.id} item={item} />
-            ))}
-          </div>
+          {videos.length === 0 ? (
+            <div className="text-center py-12">
+              <Video className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No videos found</h3>
+              <p className="text-muted-foreground">
+                {searchQuery ? "Try adjusting your search query" : "No videos in your history yet"}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {videos.map((item) => (
+                <HistoryItemCard key={item.id} item={item} />
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="stories" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {stories.map((item) => (
-              <HistoryItemCard key={item.id} item={item} />
-            ))}
-          </div>
+          {stories.length === 0 ? (
+            <div className="text-center py-12">
+              <Zap className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No stories found</h3>
+              <p className="text-muted-foreground">
+                {searchQuery ? "Try adjusting your search query" : "No stories in your history yet"}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {stories.map((item) => (
+                <HistoryItemCard key={item.id} item={item} />
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

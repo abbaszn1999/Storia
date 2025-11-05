@@ -655,7 +655,7 @@ export function WorldCast({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          <div className="mt-6 space-y-3">
             {/* World Description */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">WORLD DESCRIPTION</Label>
@@ -663,7 +663,7 @@ export function WorldCast({
                 placeholder="Describe the era, season, or general world setting... (e.g., Victorian England, eternal winter, post-apocalyptic wasteland)"
                 value={selectedWorldDescription}
                 onChange={(e) => handleWorldDescriptionChange(e.target.value)}
-                rows={4}
+                rows={3}
                 data-testid="input-world-description"
               />
             </div>
@@ -671,27 +671,30 @@ export function WorldCast({
             {/* Video Style */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">VIDEO STYLE</Label>
-              <div className="grid grid-cols-4 gap-2 max-h-[180px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
                 {VIDEO_STYLES.map((style) => (
                   <Card
                     key={style.id}
-                    className={`cursor-pointer transition-all hover-elevate relative ${
+                    className={`cursor-pointer transition-all hover-elevate relative group ${
                       selectedArtStyle === style.id ? 'ring-2 ring-primary' : ''
                     }`}
                     onClick={() => handleArtStyleChange(style.id)}
                     data-testid={`video-style-${style.id}`}
                   >
-                    {selectedArtStyle === style.id && (
-                      <div className="absolute top-1 right-1 z-10 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                        <Check className="h-3 w-3 text-primary-foreground" />
-                      </div>
-                    )}
-                    <CardContent className="p-0">
-                      <div className="aspect-square bg-muted rounded-t-md flex items-center justify-center">
-                        <div className="w-8 h-8 bg-background/50 rounded-full" />
-                      </div>
-                      <div className="p-1.5 text-center">
-                        <p className="text-[10px] font-medium leading-tight">{style.name}</p>
+                    <CardContent className="p-3">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          selectedArtStyle === style.id 
+                            ? 'bg-primary/20' 
+                            : 'bg-muted group-hover:bg-muted/80'
+                        }`}>
+                          {selectedArtStyle === style.id ? (
+                            <Check className="h-5 w-5 text-primary" />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-background/50" />
+                          )}
+                        </div>
+                        <p className="text-xs font-medium text-center leading-tight">{style.name}</p>
                       </div>
                     </CardContent>
                   </Card>

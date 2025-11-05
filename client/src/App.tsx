@@ -20,6 +20,9 @@ import BrandKits from "@/pages/brandkits";
 import Uploads from "@/pages/uploads";
 import Calendar from "@/pages/calendar";
 import History from "@/pages/history";
+import Profile from "@/pages/profile";
+import Settings from "@/pages/settings";
+import Subscription from "@/pages/subscription";
 import NotFound from "@/pages/not-found";
 
 function MainLayout() {
@@ -63,6 +66,9 @@ function MainLayout() {
               <Route path="/assets/voices" component={Voices} />
               <Route path="/assets/brandkits" component={BrandKits} />
               <Route path="/assets/uploads" component={Uploads} />
+              <Route path="/profile" component={Profile} />
+              <Route path="/settings" component={Settings} />
+              <Route path="/subscription" component={Subscription} />
               <Route component={NotFound} />
             </Switch>
           </main>

@@ -23,6 +23,17 @@ import { Plus, Upload, Check, Pencil, User, Library, ChevronDown, Loader2, Spark
 import { useToast } from "@/hooks/use-toast";
 import type { Character, ReferenceImage } from "@shared/schema";
 
+import cinematicImg from "@assets/stock_images/cinematic_dramatic_m_11f2a438.jpg";
+import vintageImg from "@assets/stock_images/vintage_retro_film_a_271325f2.jpg";
+import storybookImg from "@assets/stock_images/children_storybook_i_356b584c.jpg";
+import cartoonImg from "@assets/stock_images/3d_cartoon_character_6aa7ac2f.jpg";
+import pixarImg from "@assets/stock_images/pixar_style_3d_anima_42d5c374.jpg";
+import disneyImg from "@assets/stock_images/disney_animation_sty_ee54ba97.jpg";
+import ghibliImg from "@assets/stock_images/studio_ghibli_anime__896fd7f6.jpg";
+import clayImg from "@assets/stock_images/claymation_clay_anim_99f7e6b5.jpg";
+import comicImg from "@assets/stock_images/comic_book_illustrat_6b536ca2.jpg";
+import animeImg from "@assets/stock_images/japanese_anime_manga_1161035c.jpg";
+
 interface CharacterRecommendationModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -184,17 +195,17 @@ interface WorldCastProps {
 }
 
 const VIDEO_STYLES = [
-  { id: "none", name: "None" },
-  { id: "cinematic", name: "Cinematic" },
-  { id: "vintage", name: "Vintage" },
-  { id: "storybook", name: "Storybook" },
-  { id: "3d-cartoon", name: "3D Cartoon" },
-  { id: "pixar", name: "Pixar" },
-  { id: "disney", name: "Disney" },
-  { id: "ghibli", name: "Ghibli" },
-  { id: "clay", name: "Clay" },
-  { id: "comic", name: "Comic" },
-  { id: "anime", name: "Anime" },
+  { id: "none", name: "None", imageUrl: null },
+  { id: "cinematic", name: "Cinematic", imageUrl: cinematicImg },
+  { id: "vintage", name: "Vintage", imageUrl: vintageImg },
+  { id: "storybook", name: "Storybook", imageUrl: storybookImg },
+  { id: "3d-cartoon", name: "3D Cartoon", imageUrl: cartoonImg },
+  { id: "pixar", name: "Pixar", imageUrl: pixarImg },
+  { id: "disney", name: "Disney", imageUrl: disneyImg },
+  { id: "ghibli", name: "Ghibli", imageUrl: ghibliImg },
+  { id: "clay", name: "Clay", imageUrl: clayImg },
+  { id: "comic", name: "Comic", imageUrl: comicImg },
+  { id: "anime", name: "Anime", imageUrl: animeImg },
 ];
 
 const MAX_CHARACTER_REFERENCES = 5;
@@ -675,26 +686,35 @@ export function WorldCast({
                 {VIDEO_STYLES.map((style) => (
                   <Card
                     key={style.id}
-                    className={`cursor-pointer transition-all hover-elevate relative group ${
+                    className={`cursor-pointer transition-all hover-elevate relative group overflow-hidden ${
                       selectedArtStyle === style.id ? 'ring-2 ring-primary' : ''
                     }`}
                     onClick={() => handleArtStyleChange(style.id)}
                     data-testid={`video-style-${style.id}`}
                   >
-                    <CardContent className="p-3">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          selectedArtStyle === style.id 
-                            ? 'bg-primary/20' 
-                            : 'bg-muted group-hover:bg-muted/80'
-                        }`}>
-                          {selectedArtStyle === style.id ? (
-                            <Check className="h-5 w-5 text-primary" />
+                    <CardContent className="p-0">
+                      <div className="relative">
+                        <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
+                          {style.imageUrl ? (
+                            <img 
+                              src={style.imageUrl} 
+                              alt={style.name} 
+                              className="w-full h-full object-cover"
+                            />
                           ) : (
-                            <div className="w-6 h-6 rounded-full bg-background/50" />
+                            <div className="w-12 h-12 rounded-full bg-background/50" />
                           )}
                         </div>
-                        <p className="text-xs font-medium text-center leading-tight">{style.name}</p>
+                        {selectedArtStyle === style.id && (
+                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+                              <Check className="h-5 w-5 text-primary-foreground" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-2 text-center bg-card">
+                        <p className="text-xs font-medium leading-tight">{style.name}</p>
                       </div>
                     </CardContent>
                   </Card>

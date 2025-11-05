@@ -19,12 +19,26 @@ const DURATION_OPTIONS = [
   { value: "90", label: "90 seconds" },
 ];
 
+const VIDEO_MODELS = [
+  { value: "veo3", label: "Veo 3 (Google)", generatesAudio: true },
+  { value: "runway-gen3", label: "Runway Gen-3", generatesAudio: true },
+  { value: "kling", label: "Kling AI", generatesAudio: false },
+  { value: "luma", label: "Luma Dream Machine", generatesAudio: false },
+  { value: "pika", label: "Pika Labs", generatesAudio: false },
+  { value: "stable-video", label: "Stable Video Diffusion", generatesAudio: false },
+];
+
 export default function ASMRGenerator() {
   const [, params] = useRoute("/stories/create/:template");
   const [prompt, setPrompt] = useState("");
+  const [soundPrompt, setSoundPrompt] = useState("");
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [duration, setDuration] = useState("15");
+  const [videoModel, setVideoModel] = useState("veo3");
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const selectedModel = VIDEO_MODELS.find(m => m.value === videoModel);
+  const showSoundPrompt = !selectedModel?.generatesAudio;
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -70,26 +84,72 @@ export default function ASMRGenerator() {
       <main className="flex-1 overflow-auto">
         <div className="max-w-7xl mx-auto px-6 py-8">
           <p className="text-center text-muted-foreground mb-8">
-            Describe the scene and sounds you want to create.
+            {showSoundPrompt 
+              ? "Describe the scene and sounds you want to create."
+              : "Describe the visual scene you want to create. Audio will be generated automatically."}
           </p>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Left Column - Controls */}
             <div className="space-y-6">
-              {/* Prompt */}
+              {/* Video Model Selection */}
+              <div className="space-y-3">
+                <Label htmlFor="video-model" className="text-base">
+                  Video Model
+                </Label>
+                <Select value={videoModel} onValueChange={setVideoModel}>
+                  <SelectTrigger className="h-12" data-testid="select-video-model">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VIDEO_MODELS.map((model) => (
+                      <SelectItem key={model.value} value={model.value}>
+                        {model.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedModel?.generatesAudio && (
+                  <p className="text-xs text-muted-foreground">
+                    This model generates audio with the video automatically
+                  </p>
+                )}
+              </div>
+
+              {/* Visual Prompt */}
               <div className="space-y-3">
                 <Label htmlFor="prompt" className="text-base">
-                  Prompt
+                  Visual Prompt
                 </Label>
                 <Textarea
                   id="prompt"
-                  placeholder="e.g., A sharp knife cleanly slicing a crisp green apple, with high-fidelity cutting sounds and a clean white background."
+                  placeholder="e.g., A sharp knife cleanly slicing a crisp green apple on a clean white background."
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  className="min-h-[200px] resize-none"
+                  className="min-h-[120px] resize-none"
                   data-testid="textarea-prompt"
                 />
               </div>
+
+              {/* Sound Effect Prompt - Only shown for models that don't generate audio */}
+              {showSoundPrompt && (
+                <div className="space-y-3">
+                  <Label htmlFor="sound-prompt" className="text-base">
+                    Sound Effect Prompt
+                  </Label>
+                  <Textarea
+                    id="sound-prompt"
+                    placeholder="e.g., High-fidelity cutting sounds, crisp slicing, satisfying ASMR audio"
+                    value={soundPrompt}
+                    onChange={(e) => setSoundPrompt(e.target.value)}
+                    className="min-h-[100px] resize-none"
+                    data-testid="textarea-sound-prompt"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Describe the sounds you want to accompany the video
+                  </p>
+                </div>
+              )}
 
               {/* Reference Image Upload */}
               <div className="space-y-3">

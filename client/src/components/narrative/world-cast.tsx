@@ -578,13 +578,13 @@ export function WorldCast({
   const styleRefs = referenceImages.filter((r) => r.type === "style");
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-8">
-      {/* Settings Section */}
-      <div className="space-y-6">
-        <div>
-          <h3 className="text-lg font-semibold mb-4">Settings</h3>
+    <div className="space-y-8">
+      {/* World Settings Section */}
+      <Card>
+        <CardContent className="p-6">
+          <h3 className="text-lg font-semibold mb-6">World Settings</h3>
           
-          <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Image AI Model */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">IMAGE AI MODEL</Label>
@@ -605,49 +605,15 @@ export function WorldCast({
               </Select>
             </div>
 
-            {/* World Description */}
+            {/* Cinematic Inspiration */}
             <div className="space-y-3">
-              <Label className="text-sm font-medium">WORLD DESCRIPTION</Label>
-              <Textarea
-                placeholder="Describe the era, season, or general world setting... (e.g., Victorian England, eternal winter, post-apocalyptic wasteland)"
-                value={selectedWorldDescription}
-                onChange={(e) => handleWorldDescriptionChange(e.target.value)}
-                rows={3}
-                data-testid="input-world-description"
+              <Label className="text-sm font-medium">CINEMATIC INSPIRATION</Label>
+              <Input
+                placeholder='E.g. "Retro, gritty, eclectic, stylish, noir..."'
+                value={cinematicInspiration}
+                onChange={(e) => setCinematicInspiration(e.target.value)}
+                data-testid="input-cinematic-inspiration"
               />
-            </div>
-
-            {/* Video Style */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">VIDEO STYLE</Label>
-              </div>
-              <div className="grid grid-cols-3 gap-2 max-h-80 overflow-y-auto">
-                {VIDEO_STYLES.map((style) => (
-                  <Card
-                    key={style.id}
-                    className={`cursor-pointer transition-all hover-elevate relative ${
-                      selectedArtStyle === style.id ? 'ring-2 ring-primary' : ''
-                    }`}
-                    onClick={() => handleArtStyleChange(style.id)}
-                    data-testid={`video-style-${style.id}`}
-                  >
-                    {selectedArtStyle === style.id && (
-                      <div className="absolute top-1 right-1 z-10 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                        <Check className="h-3 w-3 text-primary-foreground" />
-                      </div>
-                    )}
-                    <CardContent className="p-0">
-                      <div className="aspect-square bg-muted rounded-t-md flex items-center justify-center">
-                        <div className="w-12 h-12 bg-background/50 rounded-full" />
-                      </div>
-                      <div className="p-2 text-center">
-                        <p className="text-xs font-medium">{style.name}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
             </div>
 
             {/* Style Reference */}
@@ -670,7 +636,7 @@ export function WorldCast({
                     </Button>
                   </div>
                 ) : (
-                  <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed rounded-lg cursor-pointer hover-elevate">
+                  <label className="flex flex-col items-center justify-center h-20 border-2 border-dashed rounded-lg cursor-pointer hover-elevate">
                     <input
                       type="file"
                       accept="image/*"
@@ -681,31 +647,65 @@ export function WorldCast({
                       }}
                       data-testid="input-upload-style-ref"
                     />
-                    <Upload className="h-5 w-5 text-muted-foreground mb-1" />
-                    <span className="text-xs text-muted-foreground">Drag image here or upload a file</span>
+                    <Upload className="h-4 w-4 text-muted-foreground mb-1" />
+                    <span className="text-xs text-muted-foreground">Upload Image</span>
                   </label>
                 )}
               </div>
             </div>
+          </div>
 
-            {/* Cinematic Inspiration */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+            {/* World Description */}
             <div className="space-y-3">
-              <Label className="text-sm font-medium">CINEMATIC INSPIRATION</Label>
-              <Input
-                placeholder='E.g. "Retro, gritty, eclectic, stylish, noir..."'
-                value={cinematicInspiration}
-                onChange={(e) => setCinematicInspiration(e.target.value)}
-                data-testid="input-cinematic-inspiration"
+              <Label className="text-sm font-medium">WORLD DESCRIPTION</Label>
+              <Textarea
+                placeholder="Describe the era, season, or general world setting... (e.g., Victorian England, eternal winter, post-apocalyptic wasteland)"
+                value={selectedWorldDescription}
+                onChange={(e) => handleWorldDescriptionChange(e.target.value)}
+                rows={4}
+                data-testid="input-world-description"
               />
             </div>
+
+            {/* Video Style */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">VIDEO STYLE</Label>
+              <div className="grid grid-cols-4 gap-2 max-h-[180px] overflow-y-auto pr-1">
+                {VIDEO_STYLES.map((style) => (
+                  <Card
+                    key={style.id}
+                    className={`cursor-pointer transition-all hover-elevate relative ${
+                      selectedArtStyle === style.id ? 'ring-2 ring-primary' : ''
+                    }`}
+                    onClick={() => handleArtStyleChange(style.id)}
+                    data-testid={`video-style-${style.id}`}
+                  >
+                    {selectedArtStyle === style.id && (
+                      <div className="absolute top-1 right-1 z-10 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                        <Check className="h-3 w-3 text-primary-foreground" />
+                      </div>
+                    )}
+                    <CardContent className="p-0">
+                      <div className="aspect-square bg-muted rounded-t-md flex items-center justify-center">
+                        <div className="w-8 h-8 bg-background/50 rounded-full" />
+                      </div>
+                      <div className="p-1.5 text-center">
+                        <p className="text-[10px] font-medium leading-tight">{style.name}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Cast Section */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Cast</h3>
+          <h3 className="text-xl font-semibold">Cast</h3>
           <Button
             variant="outline"
             size="sm"
@@ -717,7 +717,7 @@ export function WorldCast({
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {/* Add Character Card with Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -803,41 +803,62 @@ export function WorldCast({
             );
           })}
         </div>
+      </div>
 
-        {/* Locations Section */}
-        <div className="mt-8">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Locations</h3>
-          </div>
+      {/* Locations Section */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-semibold">Locations</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setEditingLocation(null);
+              setNewLocation({ name: "", description: "" });
+              setIsAddLocationOpen(true);
+            }}
+            data-testid="button-add-location"
+          >
+            <MapPin className="mr-2 h-4 w-4" />
+            Add Location
+          </Button>
+        </div>
 
-          <div className="space-y-3">
-            {/* Add Location Button */}
-            <Button
-              variant="outline"
-              onClick={() => {
-                setEditingLocation(null);
-                setNewLocation({ name: "", description: "" });
-                setIsAddLocationOpen(true);
-              }}
-              className="w-full"
-              data-testid="button-add-location"
-            >
-              <MapPin className="mr-2 h-4 w-4" />
-              Add Location
-            </Button>
-
-            {/* Location Cards */}
+        {locationsList.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <MapPin className="h-12 w-12 text-muted-foreground mb-3" />
+              <p className="text-sm text-muted-foreground text-center mb-4">
+                No locations added yet. Define key locations for your story.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditingLocation(null);
+                  setNewLocation({ name: "", description: "" });
+                  setIsAddLocationOpen(true);
+                }}
+                data-testid="button-add-first-location"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add First Location
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {locationsList.map((location) => (
               <Card key={location.id} className="group hover-elevate" data-testid={`location-${location.id}`}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 mb-2">
                         <MapPin className="h-4 w-4 text-primary shrink-0" />
                         <h4 className="font-semibold text-sm truncate">{location.name}</h4>
                       </div>
                       {location.description && (
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{location.description}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{location.description}</p>
                       )}
                     </div>
                     <div className="flex gap-1 shrink-0">
@@ -865,7 +886,7 @@ export function WorldCast({
               </Card>
             ))}
           </div>
-        </div>
+        )}
       </div>
 
       {/* Location Dialog */}
@@ -1139,9 +1160,9 @@ export function WorldCast({
       />
 
       {/* Next Button */}
-      <div className="lg:col-span-2 flex justify-end pt-4">
+      <div className="flex justify-end pt-4">
         <Button onClick={onNext} size="lg" data-testid="button-next">
-          Next
+          Next: Storyboard
         </Button>
       </div>
     </div>

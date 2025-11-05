@@ -3,7 +3,6 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft, Sparkles, Lightbulb, RefreshCw, AlertCircle, Music } from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { STORY_TEMPLATES, type StoryTemplate } from "@/constants/story-templates";
 
 export default function Stories() {
@@ -30,20 +29,16 @@ export default function Stories() {
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
         <div className="px-6 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" className="h-8 w-8" asChild data-testid="button-back">
-                <Link href="/dashboard">
-                  <ArrowLeft className="h-4 w-4" />
-                </Link>
-              </Button>
-              
-              <div className="h-6 w-px bg-border" />
-              
-              <h1 className="text-sm font-semibold">Stories</h1>
-            </div>
-
-            <ThemeToggle />
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" className="h-8 w-8" asChild data-testid="button-back">
+              <Link href="/dashboard">
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+            </Button>
+            
+            <div className="h-6 w-px bg-border" />
+            
+            <h1 className="text-sm font-semibold">Stories</h1>
           </div>
         </div>
       </header>

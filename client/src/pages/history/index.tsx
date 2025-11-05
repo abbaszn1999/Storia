@@ -1,11 +1,18 @@
-import { useState } from "react";
-import { Video, Zap, Search } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Video, Zap, Search, Calendar } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { Link } from "wouter";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const historyItems = [
   {
@@ -91,10 +98,35 @@ const statusColors: Record<string, string> = {
 
 export default function History() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("all");
 
-  const filteredItems = historyItems.filter(item => 
-    item.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Generate available months from history data
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    historyItems.forEach(item => {
+      const monthKey = format(item.updatedAt, "yyyy-MM");
+      months.add(monthKey);
+    });
+    return Array.from(months).sort().reverse();
+  }, []);
+
+  const filteredItems = useMemo(() => {
+    return historyItems.filter(item => {
+      // Search filter
+      const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      // Month filter
+      let matchesMonth = true;
+      if (selectedMonth !== "all") {
+        const monthStart = startOfMonth(new Date(selectedMonth + "-01"));
+        const monthEnd = endOfMonth(monthStart);
+        matchesMonth = isWithinInterval(item.updatedAt, { start: monthStart, end: monthEnd });
+      }
+      
+      return matchesSearch && matchesMonth;
+    });
+  }, [searchQuery, selectedMonth]);
+
   const videos = filteredItems.filter(item => item.type === "video");
   const stories = filteredItems.filter(item => item.type === "story");
 
@@ -151,15 +183,32 @@ export default function History() {
             <TabsTrigger value="stories" data-testid="tab-stories">Stories ({stories.length})</TabsTrigger>
           </TabsList>
 
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search history..."
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              data-testid="input-search-history"
-            />
+          <div className="flex items-center gap-3">
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger className="w-48" data-testid="select-month">
+                <Calendar className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="All months" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All months</SelectItem>
+                {availableMonths.map(month => (
+                  <SelectItem key={month} value={month}>
+                    {format(new Date(month + "-01"), "MMMM yyyy")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search history..."
+                className="pl-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                data-testid="input-search-history"
+              />
+            </div>
           </div>
         </div>
 

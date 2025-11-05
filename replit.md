@@ -102,10 +102,18 @@ server/
 - **Storia Violet**: #A63DFF (RGB 166,61,255) - Imagination, creativity, AI intelligence
 - **Storia Orange**: #FF6500 (RGB 255,101,0) - Momentum, transformation, call-to-action
 - **Storia Magenta**: #FF00A8 (RGB 255,0,168) - Wonder, magic, highlight
-- **Midnight Green**: #1A3A35 - Cinematic canvas (dark mode background)
-- **Charcoal**: #0B0F12 - Type & contrast
-- **White**: #FFFFFF - Type & contrast
-- **Slate Mist**: #94A3B8, #E6EAF0 - UI borders, dividers
+
+**Dark Mode Palette (Layered Navy Theme):**
+- **Deep Navy**: HSL(225° 30% 11%) - Main background, cinematic canvas
+- **Navy Card**: HSL(225° 28% 14%) - Elevated surfaces (cards, panels)
+- **Navy Sidebar**: HSL(228° 32% 12%) - Sidebar background, slightly different hue
+- **Navy Borders**: HSL(225° 20% 20%) - Subtle borders and dividers
+- **Charcoal**: #0B0F12 - Deep accents
+- **White**: #FFFFFF - Text & high contrast elements
+- **Slate Mist**: #94A3B8, #E6EAF0 - Light mode borders, dividers
+
+**Design Philosophy:**
+The layered navy approach creates visual depth instead of a flat single color. Different surfaces (background, cards, sidebar, popovers) use complementary navy shades with varying saturation and lightness to establish hierarchy and dimension.
 
 **Gradient Usage:**
 - Primary gradient: Pink → Violet → Orange at 30-45° angle

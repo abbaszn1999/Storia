@@ -48,7 +48,7 @@
 
   --popover-border: 220 12% 85%;
 
-  --primary: 338 100% 46%;
+  --primary: 338 100% 50%;
 
   --primary-foreground: 0 0% 100%;
 
@@ -60,7 +60,7 @@
 
   --muted-foreground: 220 9% 50%;
 
-  --accent: 280 100% 69%;
+  --accent: 280 100% 62%;
 
   --accent-foreground: 0 0% 100%;
 
@@ -68,16 +68,21 @@
 
   --destructive-foreground: 0 72% 98%;
 
+  --storia-pink: 338 100% 50%;
+  --storia-violet: 280 100% 62%;
+  --storia-orange: 24 100% 50%;
+  --storia-magenta: 320 100% 50%;
+
   --input: 220 15% 75%;
-  --ring: 338 100% 46%;
-  --chart-1: 338 100% 46%;
-  --chart-2: 280 100% 69%;
+  --ring: 338 100% 50%;
+  --chart-1: 338 100% 50%;
+  --chart-2: 280 100% 62%;
   --chart-3: 24 100% 50%;
   --chart-4: 142 71% 45%;
   --chart-5: 38 92% 50%;
 
-  --gradient-from: 338 100% 46%;
-  --gradient-via: 280 100% 69%;
+  --gradient-from: 338 100% 50%;
+  --gradient-via: 280 100% 62%;
   --gradient-to: 24 100% 50%;
 
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -137,53 +142,53 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  --background: 158 48% 11%;
+  --background: 158 48% 16%;
 
   --foreground: 0 0% 100%;
 
-  --border: 158 25% 20%;
+  --border: 158 25% 24%;
 
-  --card: 158 35% 14%;
+  --card: 158 35% 18%;
 
   --card-foreground: 0 0% 100%;
 
-  --card-border: 158 30% 18%;
+  --card-border: 158 30% 22%;
 
-  --sidebar: 158 40% 12%;
+  --sidebar: 158 40% 16%;
 
   --sidebar-foreground: 0 0% 100%;
 
-  --sidebar-border: 158 30% 16%;
+  --sidebar-border: 158 30% 20%;
 
-  --sidebar-primary: 338 100% 46%;
+  --sidebar-primary: 338 100% 50%;
 
   --sidebar-primary-foreground: 0 0% 100%;
 
-  --sidebar-accent: 158 30% 16%;
+  --sidebar-accent: 158 30% 20%;
 
   --sidebar-accent-foreground: 0 0% 90%;
 
-  --sidebar-ring: 338 100% 46%;
+  --sidebar-ring: 338 100% 50%;
 
-  --popover: 158 35% 16%;
+  --popover: 158 35% 20%;
 
   --popover-foreground: 0 0% 100%;
 
-  --popover-border: 158 25% 20%;
+  --popover-border: 158 25% 24%;
 
-  --primary: 338 100% 46%;
+  --primary: 338 100% 50%;
 
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 158 20% 22%;
+  --secondary: 158 20% 26%;
 
   --secondary-foreground: 0 0% 90%;
 
-  --muted: 158 20% 18%;
+  --muted: 158 20% 22%;
 
-  --muted-foreground: 158 10% 65%;
+  --muted-foreground: 158 10% 70%;
 
-  --accent: 280 100% 69%;
+  --accent: 280 100% 62%;
 
   --accent-foreground: 0 0% 100%;
 
@@ -191,16 +196,23 @@
 
   --destructive-foreground: 0 72% 98%;
 
-  --input: 158 25% 25%;
-  --ring: 338 100% 46%;
+  --storia-pink: 338 100% 50%;
+  --storia-violet: 280 100% 62%;
+  --storia-orange: 24 100% 50%;
+  --storia-magenta: 320 100% 50%;
+  --midnight-green: 158 48% 16%;
+  --charcoal: 220 20% 5%;
+
+  --input: 158 25% 28%;
+  --ring: 338 100% 50%;
   --chart-1: 338 100% 60%;
-  --chart-2: 280 100% 75%;
+  --chart-2: 280 100% 70%;
   --chart-3: 24 100% 60%;
   --chart-4: 142 71% 60%;
   --chart-5: 38 92% 65%;
 
-  --gradient-from: 338 100% 46%;
-  --gradient-via: 280 100% 69%;
+  --gradient-from: 338 100% 50%;
+  --gradient-via: 280 100% 62%;
   --gradient-to: 24 100% 50%;
 
   --shadow-2xs: 0px 1px 2px 0px hsl(220 15% 5% / 0.20);

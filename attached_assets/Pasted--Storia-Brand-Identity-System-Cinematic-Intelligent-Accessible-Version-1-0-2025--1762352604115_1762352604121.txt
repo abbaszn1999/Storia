@@ -1,0 +1,176 @@
+# Storia )ستوريا( – Brand Identity System
+
+Cinematic. Intelligent. Accessible. Version 1.0 - 2025-10-23
+
+Brand Essence & Manifesto ESSENCE From spark to screen, Storia turns ideas into cinematic narratives.
+
+# MANIFESTO
+
+Stories move the world. But crafting them shouldn't be reserved for a few. Storia blends human imagination with Al precision so anyone can write, visualize, and feel their story come alive. We champion clarity over complexity, emotion over noise, and accessibility over gatekeeping-transforming rough ideas into scenes that move people. In Storia, creativity is not a workflow; it's a flow state.
+
+# Personality, Archetype, and Voice
+
+PERSONALITY Imaginative Cinematic Intelligent Expressive Accessible
+
+# VOICE GUIDELINES
+
+# Tone
+
+Confident, empathetic, inspiring; plain language with cinematic flair.
+
+# Style
+
+Short active sentences, purposeful verbs, vivid but precise metaphors.
+
+# Communication Guidelines
+
+# ARCHETYPE
+
+# Magician-Creator hybrid
+
+Storia transforms thoughts into moving pictures (Magician) while equipping creators with elegant tools to build and refine (Creator). DO
+
+# DON'T
+
+Be helpful, guide with steps Invite play and exploration Show outcomes and possibilities Write inclusively for all creators Overpromise or use jargon Be robotic or overly mystical Stack exclamation points\!\!\! Diminish users' creative skills
+
+# Primary Color System
+
+CORE BRAND COLORS Storia Pink \#FF0074 RGB 255,0,116 Emotion, energy, human warmth Storia Violet \#A63DFF.RGB 166,61,255 Imagination, creativity, Al intelligence Storia Orange \#FF6500.RGB 255,101,0 Momentum, transformation, call- to-action Storia Magenta \#FF00A8 RGB 255,0,168 Wonder, magic, highlight Midnight Green \#1A3A35 Cinematic canvas Charcoal \#OBOF12 Type & contrast White \#FFFFFF Slate Mist \#94A3B8 \#E6EAFO Type & contrast Ul borders, dividers Ul borders, dividers
+
+# Gradient Usage
+
+Mix Pink → Violet → Orange with soft noise; angle 30-45°, avoid banding; reserve for hero, buttons, and the 'o' orb.
+
+# Accessibility
+
+Aim for WCAG AA contrast 4.5:1 for body text; prefer White/Charcoal on Midnight Green. AA AA
+
+# Alternative Palettes
+
+FOR CAMPAIGNS AND MODES A Futuristic Gradient mood: visionary, high-tech • Teal \#00D1C5 (0,209,197) • Violet \#7A5CFF (122,92,255) Magenta \#FF2EBE (255,46,190) • Night \#0E1020 (14,16,32) • Mist \#D6F7F3 (214,247,243) B Cinematic Warm mood: emotional, human, dramatic • Amber \#FFB300 (255,179,0) • Coral \#FF705B (255,112,91) Deep Plum \#4B1C5E (75,28,94) • Warm Charcoal \#1E1A1D (30,26,29) • Sand \#F4E3C3 (244,227,195) C Minimal Tech mood: credible, calm, focused Emerald \#10B981 (16,185,129) Silver \#C9CED6 (201,206,214) Midnight Blue \#OD1B2A (13,27,42) Slate \#94A3B8 (148,163,184) Off-White \#F5F7FA (245,247,250) Fit: showcases Al aura and innovation; great for product launches. Fit: storytelling campaigns, brand films, testimonials. Fit: docs, dashboards, enterprise decks.
+
+# Typography System
+
+USAGE EXAMPLES
+
+# PRIMARY
+
+HEADLINES/UI Plus Jakarta Sans Modern, friendly, cinematic curves Fallbacks: Inter, system-ui, Arial SECONDARY BODY/UI Inter Highly legible at small sizes ACCENT NUMERALS/LABELS
+
+# Space Grotesk
+
+Tech elegance for stats and code-like labels
+
+|                                                                   |            |
+| :---------------------------------------------------------------: | :--------: |
+| H1 Headline                                                       | 80/88, 700 |
+| H2 Subheading                                                     | 48/56, 700 |
+| Body text with proper line spacing and comfortable reading width. | 18/28, 400 |
+| Caption text and metadata                                         | 14/20, 500 |
+
+123,456
+
+# ARABIC PAIRING
+
+HEADLINES/UI القاهرة Cairo Space Grotesk 600 BODY Noto Sans نوتو سانس
+
+# GUIDELINES
+
+Arabic sizes mirror Latin with optical balance; track +1 to +3 for display Use generous letter-spacing on big type Avoid mixing more than these families
+
+# Visual System & Art Direction
+
+IMAGERY
+
+# MARKETING USAGE
+
+• Hero banners - dark canvas, bold headline, animated gradient orb, primary CTA. • Posters/social • Product shots scene stills with gradient edge glow and caption strip. Ul on angled devices with light trails leading through steps. Cinematic frames, soft depth of field, moody dark grounds, luminous gradients, subtle film grain. cinematic light flow minimal tech elegance frame grids Al aura story beats
+
+# MOTION DIRECTION
+
+Fluid morphs, parallax on frames, dot of the "i" sparks into a path. • Durations: 300-600ms for UI, 1.5-3s for hero loops • Easing: cubic-bezier (0.4,0,0.2,1) Motion embodies the transformation of ideas into cinematic expression, flowing like thought into vision.
+
+# COMPOSITION
+
+One hero focal element (the orb or a frame stack), asymmetry, ample negative space.
+
+# Logo System & Usage Guidelines
+
+# CLEAR SPACE
+
+Jse x= radius of the orb; keep x clear space around all sides of the logo to ensure visibility and impact. X
+
+# MINIMUM SIZE
+
+Digital: 120px width (wordmark), 24px (orb icon) Print: 20mm width
+
+# LOGO VERSIONS
+
+• Full-color gradient • Solid white (for dark backgrounds) • Solid black (for light backgrounds)
+
+# BACKGROUND VARIATIONS
+
+• On dark (\#1A3A35/\#0B0F12): use white wordmark with gradient orb • On light: use charcoal wordmark with gradient orb; ensure contrast
+
+# FAVICON/APP ICON
+
+Standalone gradient orb centered within square format, 8% safe margin, subtle inner glow effect. Maintain recognizable form at small sizes.
+
+# MISUSE
+
+• Do not stretch or distort the logo • Do not add drop shadows or effects • Do not rotate at angles • Do not use non-approved gradient colors
+
+# ARABIC & BILINGUAL TREATMENT
+
+ستوري set in Cairo Bold. Bilingual lockup options: ستوريا | Storia Match cap-height/Arabic mean line; spacing =0.75x between scripts. Also available in stacked format with orb centered.
+
+# Brand Strategy Layer
+
+BRAND PROMISE Transform ideas into cinematic stories-clear, fast, and beautiful.
+
+# ELEVATOR PITCH
+
+Storia is an Al-powered storyboard and video platform that turns ideas into cinematic narratives in minutes. Generate scenes, visuals, and edits with guided prompts and collaborative tools-so creators and teams move from spark to screen, faster.
+
+# TAGLINES
+
+• From spark to screen. • Ideas to cinema, instantly. • Write it. Watch it. • Create the story. Storia does the rest. • Storyboard to blockbuster in a click.
+
+# PARTNERSHIPS & CO-BRANDING
+
+|                 |         |              |
+| :-------------: | :-----: | :----------: |
+| Adobe           | Figma   | Frame.io     |
+| DaVinci Resolve | YouTube | Vimeo        |
+| Tik Tok         | Notion  | Film Schools |
+
+Educational programs and creative institutions for expanded creator access.
+
+# Applications – Mockup Concepts
+
+BRAND IN ACTION From spark to screen.
+
+# App Icon
+
+Gradient orb on midnight green with subtle glow effect, rounded square 1:1 ratio, maintains brand recognition at small sizes.
+
+# Website Hero
+
+Dark canvas with headline "From spark to screen.", animated orb morphing into storyboard frames, prominent CTA buttons.
+
+# YouTube Assets
+
+Banner with gradient ribbon and frame grid; thumbnail style with close-up still, orb glow accent and bold title strip.
+
+# Social Post
+
+Before/after storyboard-to-shot carousel showcasing transformation; magenta accent for CTA and engagement features.
+
+# Business Card
+
+Front dark with orb, back white with contact info in Inter; minimal design language that maintains brand identity.
+
+# Merchandise
+
+Black hoodie with orb on chest, sleeve text "Write it. Watch it."; notebook with embossed orb and debossed wordmark.

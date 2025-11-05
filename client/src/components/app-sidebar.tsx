@@ -84,20 +84,16 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-4">
-        <div className="flex items-center justify-between gap-2 rounded-lg border border-sidebar-border bg-sidebar-accent p-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <Avatar className="h-8 w-8">
-              <AvatarFallback>JD</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium truncate">John Doe</p>
-              <p className="text-xs text-muted-foreground">1,250 credits</p>
-            </div>
-          </div>
-          <Button size="icon" variant="ghost" data-testid="button-settings">
-            <Settings className="h-4 w-4" />
-          </Button>
-        </div>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={location === "/settings"} data-testid="link-settings">
+              <Link href="/settings">
+                <Settings className="h-4 w-4" />
+                <span>Settings</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   );

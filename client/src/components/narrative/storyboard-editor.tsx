@@ -9,7 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, Shirt, Eraser, Trash2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, ChevronDown, Shirt, Eraser, Trash2, Play, Pause, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, ReferenceImage, Character } from "@shared/schema";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
@@ -547,6 +549,8 @@ export function StoryboardEditor({
   const [activeCategory, setActiveCategory] = useState<"prompt" | "clothes" | "remove" | "expression" | "figure" | "camera" | "effects" | "variations" | "advanced" | null>(null);
   const [selectedCharacterId, setSelectedCharacterId] = useState<string>("");
   const [localShots, setLocalShots] = useState(shots);
+  const [playingVoice, setPlayingVoice] = useState<string | null>(null);
+  const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
   const { toast } = useToast();
 
   // Sync localShots with incoming shots prop to reflect updates
@@ -687,6 +691,29 @@ export function StoryboardEditor({
     }
   };
 
+  const handlePlayVoice = (voiceId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (playingVoice === voiceId) {
+      setPlayingVoice(null);
+    } else {
+      setPlayingVoice(voiceId);
+      const voice = VOICE_LIBRARY.find(v => v.id === voiceId);
+      if (voice?.previewUrl) {
+        const audio = new Audio(voice.previewUrl);
+        audio.play();
+        audio.onended = () => setPlayingVoice(null);
+      }
+    }
+  };
+
+  const handleSelectVoice = (voiceId: string) => {
+    onVoiceActorChange(voiceId);
+    setVoiceDropdownOpen(false);
+  };
+
+  const selectedVoice = VOICE_LIBRARY.find(v => v.id === voiceActorId);
+  const selectedVoiceLabel = selectedVoice?.name || "Select voice actor";
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
@@ -700,41 +727,58 @@ export function StoryboardEditor({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Label className="text-sm text-muted-foreground">Voice Actor</Label>
-            <Select
-              value={voiceActorId || ""}
-              onValueChange={onVoiceActorChange}
-            >
-              <SelectTrigger className="w-48 h-9" data-testid="select-voice-actor">
-                <SelectValue placeholder="Select voice actor" />
-              </SelectTrigger>
-              <SelectContent>
-                {VOICE_LIBRARY.map((voice) => (
-                  <SelectItem key={voice.id} value={voice.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{voice.name}</span>
-                      <audio 
-                        id={`preview-${voice.id}`} 
-                        src={voice.previewUrl}
-                        className="hidden"
-                      />
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const audio = document.getElementById(`preview-${voice.id}`) as HTMLAudioElement;
-                          if (audio) {
-                            audio.play();
-                          }
-                        }}
-                        className="p-1 rounded hover:bg-accent"
-                        data-testid={`button-preview-voice-${voice.id}`}
+            <Popover open={voiceDropdownOpen} onOpenChange={setVoiceDropdownOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={voiceDropdownOpen}
+                  className="w-48 h-9 justify-between"
+                  data-testid="button-voice-selector"
+                >
+                  <span className={voiceActorId ? "font-medium text-sm" : "text-muted-foreground text-sm"}>
+                    {selectedVoiceLabel}
+                  </span>
+                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                <ScrollArea className="max-h-[300px]">
+                  <div className="p-1">
+                    {VOICE_LIBRARY.map((voice) => (
+                      <div
+                        key={voice.id}
+                        className="flex items-center gap-2 px-2 py-2 hover-elevate rounded-md cursor-pointer"
+                        onClick={() => handleSelectVoice(voice.id)}
+                        data-testid={`option-voice-${voice.id}`}
                       >
-                        <Volume2 className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                        <div className="flex items-center gap-2 flex-1">
+                          {voiceActorId === voice.id && (
+                            <Check className="h-4 w-4 text-primary" data-testid={`icon-selected-${voice.id}`} />
+                          )}
+                          <span className={`flex-1 text-sm ${voiceActorId === voice.id ? "font-medium" : ""}`}>
+                            {voice.name}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          onClick={(e) => handlePlayVoice(voice.id, e)}
+                          data-testid={`button-play-${voice.id}`}
+                        >
+                          {playingVoice === voice.id ? (
+                            <Pause className="h-4 w-4" />
+                          ) : (
+                            <Play className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div className="flex items-center gap-2">

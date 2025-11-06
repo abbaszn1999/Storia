@@ -276,6 +276,71 @@ export function NarrativeWorkflow({
     });
   };
 
+  const handleDeleteScene = (sceneId: string) => {
+    // Remove the scene
+    const updatedScenes = scenes
+      .filter(scene => scene.id !== sceneId)
+      .map((scene, idx) => ({
+        ...scene,
+        sceneNumber: idx + 1,
+      }));
+    
+    onScenesChange(updatedScenes);
+    
+    // Remove all shots for this scene
+    const updatedShots = { ...shots };
+    delete updatedShots[sceneId];
+    onShotsChange(updatedShots);
+    
+    // Remove all shot versions for shots in this scene
+    const sceneShots = shots[sceneId] || [];
+    const updatedShotVersions = { ...shotVersions };
+    sceneShots.forEach(shot => {
+      delete updatedShotVersions[shot.id];
+    });
+    onShotVersionsChange(updatedShotVersions);
+    
+    // Remove reference images for shots in this scene
+    const shotIds = sceneShots.map(s => s.id);
+    onReferenceImagesChange(
+      referenceImages.filter(ref => !shotIds.includes(ref.shotId || ''))
+    );
+  };
+
+  const handleDeleteShot = (shotId: string) => {
+    // Find which scene this shot belongs to
+    const sceneId = Object.keys(shots).find(sId => 
+      shots[sId]?.some(shot => shot.id === shotId)
+    );
+    
+    if (!sceneId) return;
+    
+    const sceneShots = shots[sceneId] || [];
+    
+    // Remove the shot and renumber remaining shots
+    const updatedShots = sceneShots
+      .filter(shot => shot.id !== shotId)
+      .map((shot, idx) => ({
+        ...shot,
+        shotNumber: idx + 1,
+      }));
+    
+    onShotsChange({
+      ...shots,
+      [sceneId]: updatedShots,
+    });
+    
+    // Remove shot versions for this shot
+    const updatedShotVersions = { ...shotVersions };
+    delete updatedShotVersions[shotId];
+    onShotVersionsChange(updatedShotVersions);
+    
+    // Remove reference images for this shot
+    onReferenceImagesChange(
+      referenceImages.filter(ref => ref.shotId !== shotId)
+    );
+  };
+
   return (
     <div>
       {activeStep === "script" && (
@@ -350,6 +415,8 @@ export function NarrativeWorkflow({
           onDeleteVersion={handleDeleteVersion}
           onAddScene={handleAddScene}
           onAddShot={handleAddShot}
+          onDeleteScene={handleDeleteScene}
+          onDeleteShot={handleDeleteShot}
           onNext={onNext}
         />
       )}

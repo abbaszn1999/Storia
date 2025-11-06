@@ -1302,7 +1302,7 @@ export function StoryboardEditor({
                 <div className="absolute right-6">
                   <Button
                     onClick={handleGenerateFromDialog}
-                    className="bg-gradient-to-r from-[hsl(158,80%,45%)] to-[hsl(280,75%,55%)] hover:from-[hsl(158,80%,40%)] hover:to-[hsl(280,75%,50%)] text-white font-semibold px-6 rounded-full shadow-lg"
+                    className="bg-gradient-to-r from-[hsl(269,100%,62%)] to-[hsl(286,77%,58%)] hover:from-[hsl(269,100%,57%)] hover:to-[hsl(286,77%,53%)] text-white font-semibold px-6 rounded-full shadow-lg"
                     data-testid="button-generate-from-dialog"
                   >
                     <Sparkles className="mr-2 h-4 w-4" />

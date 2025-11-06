@@ -83,9 +83,10 @@
   --chart-4: 187 85% 53%;
   --chart-5: 333 100% 62%;
 
-  --gradient-from: 269 100% 62%;
-  --gradient-via: 286 77% 58%;
-  --gradient-to: 333 100% 62%;
+  --gradient-primary-from: 269 100% 62%;
+  --gradient-primary-to: 286 77% 58%;
+  --gradient-energy-from: 333 100% 62%;
+  --gradient-energy-to: 269 71% 40%;
 
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-serif: Georgia, serif;
@@ -214,9 +215,10 @@
   --chart-4: 187 85% 63%;
   --chart-5: 333 100% 70%;
 
-  --gradient-from: 269 100% 62%;
-  --gradient-via: 286 77% 58%;
-  --gradient-to: 333 100% 62%;
+  --gradient-primary-from: 269 100% 62%;
+  --gradient-primary-to: 286 77% 58%;
+  --gradient-energy-from: 333 100% 62%;
+  --gradient-energy-to: 269 71% 40%;
 
   --shadow-2xs: 0px 1px 2px 0px hsl(220 15% 5% / 0.20);
   --shadow-xs: 0px 1px 3px 0px hsl(220 15% 5% / 0.25);
@@ -374,26 +376,50 @@
     inset: -1px;
   }
 
-  /* Gradient utilities for Storia brand - Pink → Violet → Orange at 30-45° */
+  /* Gradient utilities for Storia brand */
+  
+  /* Primary Gradient: Purple → Magenta */
   .bg-gradient-storia {
-    background: linear-gradient(35deg, hsl(var(--gradient-from)) 0%, hsl(var(--gradient-via)) 50%, hsl(var(--gradient-to)) 100%);
+    background: linear-gradient(35deg, hsl(var(--gradient-primary-from)) 0%, hsl(var(--gradient-primary-to)) 100%);
   }
 
   .text-gradient-storia {
-    background: linear-gradient(35deg, hsl(var(--gradient-from)) 0%, hsl(var(--gradient-via)) 50%, hsl(var(--gradient-to)) 100%);
+    background: linear-gradient(35deg, hsl(var(--gradient-primary-from)) 0%, hsl(var(--gradient-primary-to)) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
   }
   
-  /* Button gradient for CTAs */
+  /* Button gradient for CTAs - Primary */
   .btn-gradient-storia {
-    background: linear-gradient(35deg, hsl(var(--gradient-from)) 0%, hsl(var(--gradient-via)) 50%, hsl(var(--gradient-to)) 100%);
+    background: linear-gradient(35deg, hsl(var(--gradient-primary-from)) 0%, hsl(var(--gradient-primary-to)) 100%);
     border: none;
     color: white;
   }
   
   .btn-gradient-storia:hover {
+    opacity: 0.9;
+  }
+
+  /* Energy Gradient: Pink → Deep Purple */
+  .bg-gradient-energy {
+    background: linear-gradient(35deg, hsl(var(--gradient-energy-from)) 0%, hsl(var(--gradient-energy-to)) 100%);
+  }
+
+  .text-gradient-energy {
+    background: linear-gradient(35deg, hsl(var(--gradient-energy-from)) 0%, hsl(var(--gradient-energy-to)) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .btn-gradient-energy {
+    background: linear-gradient(35deg, hsl(var(--gradient-energy-from)) 0%, hsl(var(--gradient-energy-to)) 100%);
+    border: none;
+    color: white;
+  }
+
+  .btn-gradient-energy:hover {
     opacity: 0.9;
   }
 

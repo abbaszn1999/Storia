@@ -59,12 +59,24 @@ export default function BrandKits() {
     kit.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const generateRandomColor = () => {
+    const colors = [
+      "#8B3FFF", "#C944E6", "#22D3EE", "#FF3F8E", 
+      "#6D5BFF", "#3B82F6", "#10B981", "#F59E0B",
+      "#EC4899", "#8B5CF6", "#14B8A6", "#F97316"
+    ];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    return randomColor;
+  };
+
   const handleAddColor = () => {
-    if (currentColor && !newBrandKit.colors.includes(currentColor)) {
+    if (currentColor && !newBrandKit.colors.includes(currentColor.toUpperCase())) {
       setNewBrandKit(prev => ({
         ...prev,
-        colors: [...prev.colors, currentColor]
+        colors: [...prev.colors, currentColor.toUpperCase()]
       }));
+      // Generate a new color suggestion for the next one
+      setCurrentColor(generateRandomColor());
     }
   };
 
@@ -247,7 +259,7 @@ export default function BrandKits() {
                   <Input
                     type="text"
                     value={currentColor}
-                    onChange={(e) => setCurrentColor(e.target.value)}
+                    onChange={(e) => setCurrentColor(e.target.value.toUpperCase())}
                     placeholder="#000000"
                     className="flex-1"
                     data-testid="input-color-hex"
@@ -263,30 +275,50 @@ export default function BrandKits() {
                 </Button>
               </div>
 
-              {newBrandKit.colors.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {newBrandKit.colors.map((color, idx) => (
-                    <div
+              {/* Quick Color Presets */}
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground">Quick add:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {["#8B3FFF", "#C944E6", "#22D3EE", "#FF3F8E", "#6D5BFF", "#3B82F6", "#10B981", "#F59E0B", "#EC4899", "#8B5CF6", "#14B8A6", "#F97316"].map((presetColor, idx) => (
+                    <button
                       key={idx}
-                      className="group relative"
-                      data-testid={`color-swatch-${idx}`}
-                    >
-                      <div
-                        className="h-12 w-12 rounded-lg border-2 border-border"
-                        style={{ backgroundColor: color }}
-                      />
-                      <Button
-                        size="icon"
-                        variant="destructive"
-                        className="absolute -top-2 -right-2 h-5 w-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => handleRemoveColor(color)}
-                        data-testid={`button-remove-color-${idx}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                      <p className="text-xs text-center mt-1 text-muted-foreground">{color}</p>
-                    </div>
+                      onClick={() => setCurrentColor(presetColor)}
+                      className="h-8 w-8 rounded-md border-2 border-border hover-elevate cursor-pointer transition-all"
+                      style={{ backgroundColor: presetColor }}
+                      title={presetColor}
+                      data-testid={`preset-color-${idx}`}
+                    />
                   ))}
+                </div>
+              </div>
+
+              {newBrandKit.colors.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground">Your colors ({newBrandKit.colors.length}):</p>
+                  <div className="flex flex-wrap gap-2">
+                    {newBrandKit.colors.map((color, idx) => (
+                      <div
+                        key={idx}
+                        className="group relative"
+                        data-testid={`color-swatch-${idx}`}
+                      >
+                        <div
+                          className="h-14 w-14 rounded-lg border-2 border-border hover-elevate cursor-pointer"
+                          style={{ backgroundColor: color }}
+                        />
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          className="absolute -top-2 -right-2 h-5 w-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => handleRemoveColor(color)}
+                          data-testid={`button-remove-color-${idx}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                        <p className="text-xs text-center mt-1 text-muted-foreground font-mono">{color}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

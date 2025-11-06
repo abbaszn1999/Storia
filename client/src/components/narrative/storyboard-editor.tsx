@@ -549,9 +549,11 @@ export function StoryboardEditor({
   const [localShots, setLocalShots] = useState(shots);
   const { toast } = useToast();
   const scrollContainerRefs = useRef<{ [sceneId: string]: HTMLDivElement | null }>({});
+  const [hoveredSceneId, setHoveredSceneId] = useState<string | null>(null);
 
-  const scrollShots = (sceneId: string, direction: 'left' | 'right') => {
-    const container = scrollContainerRefs.current[sceneId];
+  const scrollShots = (direction: 'left' | 'right') => {
+    if (!hoveredSceneId) return;
+    const container = scrollContainerRefs.current[hoveredSceneId];
     if (container) {
       const scrollAmount = 400;
       container.scrollBy({
@@ -700,7 +702,27 @@ export function StoryboardEditor({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Fixed Slider Navigation Buttons */}
+      {hoveredSceneId && localShots[hoveredSceneId]?.length > 2 && (
+        <>
+          <button
+            onClick={() => scrollShots('left')}
+            className="fixed left-4 top-1/2 -translate-y-1/2 z-50 h-12 w-12 rounded-full bg-background/95 backdrop-blur-sm shadow-xl border border-border hover-elevate active-elevate-2 flex items-center justify-center transition-all"
+            data-testid="button-scroll-left-global"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+          <button
+            onClick={() => scrollShots('right')}
+            className="fixed right-4 top-1/2 -translate-y-1/2 z-50 h-12 w-12 rounded-full bg-background/95 backdrop-blur-sm shadow-xl border border-border hover-elevate active-elevate-2 flex items-center justify-center transition-all"
+            data-testid="button-scroll-right-global"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
+        </>
+      )}
+
       <div className="flex items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-semibold">Storyboard</h3>
@@ -889,29 +911,11 @@ export function StoryboardEditor({
                   </div>
                 </div>
 
-                <div className="flex-1 relative group/slider">
-                  {sceneShots.length > 2 && (
-                    <>
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="absolute left-2 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/slider:opacity-100 transition-opacity shadow-lg"
-                        onClick={() => scrollShots(scene.id, 'left')}
-                        data-testid={`button-scroll-left-${scene.id}`}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/slider:opacity-100 transition-opacity shadow-lg"
-                        onClick={() => scrollShots(scene.id, 'right')}
-                        data-testid={`button-scroll-right-${scene.id}`}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
+                <div 
+                  className="flex-1 relative"
+                  onMouseEnter={() => setHoveredSceneId(scene.id)}
+                  onMouseLeave={() => setHoveredSceneId(null)}
+                >
                   <div 
                     ref={(el) => scrollContainerRefs.current[scene.id] = el}
                     className="overflow-x-auto"

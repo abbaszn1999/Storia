@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, Shirt, Eraser } from "lucide-react";
+import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, Shirt, Eraser, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, ReferenceImage, Character } from "@shared/schema";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
@@ -135,6 +135,8 @@ interface StoryboardEditorProps {
   onDeleteVersion?: (shotId: string, versionId: string) => void;
   onAddScene?: (afterSceneIndex: number) => void;
   onAddShot?: (sceneId: string, afterShotIndex: number) => void;
+  onDeleteScene?: (sceneId: string) => void;
+  onDeleteShot?: (shotId: string) => void;
   onNext: () => void;
 }
 
@@ -155,6 +157,8 @@ interface SortableShotCardProps {
   onDeleteReference: (shotId: string) => void;
   onUpdateVideoPrompt: (shotId: string, prompt: string) => void;
   onUpdateVideoDuration: (shotId: string, duration: number) => void;
+  onDeleteShot?: (shotId: string) => void;
+  shotsCount: number;
 }
 
 function SortableShotCard({ 
@@ -174,6 +178,8 @@ function SortableShotCard({
   onDeleteReference,
   onUpdateVideoPrompt,
   onUpdateVideoDuration,
+  onDeleteShot,
+  shotsCount,
 }: SortableShotCardProps) {
   const {
     attributes,
@@ -245,6 +251,23 @@ function SortableShotCard({
             # {shotIndex + 1}
           </Badge>
         </div>
+        {onDeleteShot && shotsCount > 1 && (
+          <div className="absolute top-2 right-2">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-6 w-6 bg-background/80 text-muted-foreground hover:text-destructive"
+              onClick={() => {
+                if (window.confirm(`Delete shot #${shotIndex + 1}?`)) {
+                  onDeleteShot(shot.id);
+                }
+              }}
+              data-testid={`button-delete-shot-${shot.id}`}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
       </div>
 
       <CardContent className="p-4">
@@ -514,6 +537,8 @@ export function StoryboardEditor({
   onDeleteVersion,
   onAddScene,
   onAddShot,
+  onDeleteScene,
+  onDeleteShot,
   onNext,
 }: StoryboardEditorProps) {
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null);
@@ -741,11 +766,28 @@ export function StoryboardEditor({
               <div key={scene.id} className="space-y-4">
               <div className="flex items-start gap-4">
                 <div className="w-80 shrink-0 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="text-xs">
-                      # {sceneIndex + 1}
-                    </Badge>
-                    <h4 className="font-semibold text-sm">{scene.title}</h4>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">
+                        # {sceneIndex + 1}
+                      </Badge>
+                      <h4 className="font-semibold text-sm">{scene.title}</h4>
+                    </div>
+                    {onDeleteScene && scenes.length > 1 && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => {
+                          if (window.confirm(`Delete scene "${scene.title}"? This will also delete all ${sceneShots.length} shot(s) in this scene.`)) {
+                            onDeleteScene(scene.id);
+                          }
+                        }}
+                        data-testid={`button-delete-scene-${scene.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                   <p className="text-sm text-muted-foreground line-clamp-2">
                     {scene.description}
@@ -871,6 +913,8 @@ export function StoryboardEditor({
                                 onDeleteReference={handleDeleteReference}
                                 onUpdateVideoPrompt={handleUpdateVideoPrompt}
                                 onUpdateVideoDuration={handleUpdateVideoDuration}
+                                onDeleteShot={onDeleteShot}
+                                shotsCount={sceneShots.length}
                               />
                               {onAddShot && (
                                 <div className="relative group shrink-0 w-3 flex items-center justify-center">

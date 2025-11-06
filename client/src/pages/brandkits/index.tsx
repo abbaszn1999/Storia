@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { Plus, Search, Palette } from "lucide-react";
+import { Plus, Search, Palette, X, Type } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 interface BrandKit {
   id: string;
@@ -16,14 +19,24 @@ interface BrandKit {
 
 export default function BrandKits() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newBrandKit, setNewBrandKit] = useState({
+    name: "",
+    description: "",
+    colors: [] as string[],
+    fonts: [] as string[],
+    guidelines: "",
+  });
+  const [currentColor, setCurrentColor] = useState("#8B3FFF");
+  const [currentFont, setCurrentFont] = useState("");
 
   const mockBrandKits: BrandKit[] = [
     {
       id: "1",
       name: "Storia Official",
       description: "Official Storia brand colors and typography",
-      colors: ["#158F65", "#8B5CF6", "#10B981"],
-      fonts: ["Inter", "Outfit"],
+      colors: ["#8B3FFF", "#C944E6", "#22D3EE"],
+      fonts: ["Plus Jakarta Sans", "Inter"],
     },
     {
       id: "2",
@@ -46,6 +59,56 @@ export default function BrandKits() {
     kit.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleAddColor = () => {
+    if (currentColor && !newBrandKit.colors.includes(currentColor)) {
+      setNewBrandKit(prev => ({
+        ...prev,
+        colors: [...prev.colors, currentColor]
+      }));
+    }
+  };
+
+  const handleRemoveColor = (color: string) => {
+    setNewBrandKit(prev => ({
+      ...prev,
+      colors: prev.colors.filter(c => c !== color)
+    }));
+  };
+
+  const handleAddFont = () => {
+    if (currentFont.trim() && !newBrandKit.fonts.includes(currentFont.trim())) {
+      setNewBrandKit(prev => ({
+        ...prev,
+        fonts: [...prev.fonts, currentFont.trim()]
+      }));
+      setCurrentFont("");
+    }
+  };
+
+  const handleRemoveFont = (font: string) => {
+    setNewBrandKit(prev => ({
+      ...prev,
+      fonts: prev.fonts.filter(f => f !== font)
+    }));
+  };
+
+  const handleCreateBrandKit = () => {
+    console.log("Creating brand kit:", newBrandKit);
+    // TODO: Implement API call to create brand kit
+    setIsCreateDialogOpen(false);
+    setNewBrandKit({
+      name: "",
+      description: "",
+      colors: [],
+      fonts: [],
+      guidelines: "",
+    });
+    setCurrentColor("#8B3FFF");
+    setCurrentFont("");
+  };
+
+  const isFormValid = newBrandKit.name.trim().length > 0;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -55,7 +118,12 @@ export default function BrandKits() {
             Define and manage your brand colors, fonts, and logos
           </p>
         </div>
-        <Button size="lg" className="gap-2" data-testid="button-create-brandkit">
+        <Button 
+          size="lg" 
+          className="gap-2" 
+          onClick={() => setIsCreateDialogOpen(true)}
+          data-testid="button-create-brandkit"
+        >
           <Plus className="h-4 w-4" />
           New Brand Kit
         </Button>
@@ -128,6 +196,182 @@ export default function BrandKits() {
           </p>
         </div>
       )}
+
+      {/* Create Brand Kit Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Brand Kit</DialogTitle>
+            <DialogDescription>
+              Define your brand colors, typography, and guidelines to maintain consistency across your videos.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Name */}
+            <div className="space-y-2">
+              <Label htmlFor="brandkit-name">Brand Kit Name *</Label>
+              <Input
+                id="brandkit-name"
+                placeholder="e.g., My Company Brand"
+                value={newBrandKit.name}
+                onChange={(e) => setNewBrandKit(prev => ({ ...prev, name: e.target.value }))}
+                data-testid="input-brandkit-name"
+              />
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label htmlFor="brandkit-description">Description</Label>
+              <Input
+                id="brandkit-description"
+                placeholder="Brief description of this brand kit"
+                value={newBrandKit.description}
+                onChange={(e) => setNewBrandKit(prev => ({ ...prev, description: e.target.value }))}
+                data-testid="input-brandkit-description"
+              />
+            </div>
+
+            {/* Colors */}
+            <div className="space-y-3">
+              <Label>Brand Colors</Label>
+              <div className="flex gap-2">
+                <div className="flex-1 flex gap-2">
+                  <Input
+                    type="color"
+                    value={currentColor}
+                    onChange={(e) => setCurrentColor(e.target.value)}
+                    className="w-16 h-10 p-1 cursor-pointer"
+                    data-testid="input-color-picker"
+                  />
+                  <Input
+                    type="text"
+                    value={currentColor}
+                    onChange={(e) => setCurrentColor(e.target.value)}
+                    placeholder="#000000"
+                    className="flex-1"
+                    data-testid="input-color-hex"
+                  />
+                </div>
+                <Button 
+                  onClick={handleAddColor}
+                  variant="secondary"
+                  data-testid="button-add-color"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add
+                </Button>
+              </div>
+
+              {newBrandKit.colors.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {newBrandKit.colors.map((color, idx) => (
+                    <div
+                      key={idx}
+                      className="group relative"
+                      data-testid={`color-swatch-${idx}`}
+                    >
+                      <div
+                        className="h-12 w-12 rounded-lg border-2 border-border"
+                        style={{ backgroundColor: color }}
+                      />
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        className="absolute -top-2 -right-2 h-5 w-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleRemoveColor(color)}
+                        data-testid={`button-remove-color-${idx}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                      <p className="text-xs text-center mt-1 text-muted-foreground">{color}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Fonts */}
+            <div className="space-y-3">
+              <Label>Brand Fonts</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  value={currentFont}
+                  onChange={(e) => setCurrentFont(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddFont()}
+                  placeholder="e.g., Inter, Roboto, Playfair Display"
+                  className="flex-1"
+                  data-testid="input-font-name"
+                />
+                <Button 
+                  onClick={handleAddFont}
+                  variant="secondary"
+                  data-testid="button-add-font"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add
+                </Button>
+              </div>
+
+              {newBrandKit.fonts.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {newBrandKit.fonts.map((font, idx) => (
+                    <Badge
+                      key={idx}
+                      variant="secondary"
+                      className="gap-1 pr-1"
+                      data-testid={`font-badge-${idx}`}
+                    >
+                      <Type className="h-3 w-3" />
+                      {font}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-4 w-4 ml-1 hover:bg-destructive/20"
+                        onClick={() => handleRemoveFont(font)}
+                        data-testid={`button-remove-font-${idx}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Guidelines */}
+            <div className="space-y-2">
+              <Label htmlFor="brandkit-guidelines">Brand Guidelines</Label>
+              <Textarea
+                id="brandkit-guidelines"
+                placeholder="Add brand voice, tone, messaging guidelines, or other notes..."
+                value={newBrandKit.guidelines}
+                onChange={(e) => setNewBrandKit(prev => ({ ...prev, guidelines: e.target.value }))}
+                rows={4}
+                data-testid="textarea-guidelines"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setIsCreateDialogOpen(false)}
+              data-testid="button-cancel"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateBrandKit}
+              disabled={!isFormValid}
+              data-testid="button-create"
+            >
+              Create Brand Kit
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

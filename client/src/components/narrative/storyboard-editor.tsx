@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, Shirt, Eraser, Trash2 } from "lucide-react";
+import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, ChevronLeft, Shirt, Eraser, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, ReferenceImage, Character } from "@shared/schema";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
@@ -548,6 +548,18 @@ export function StoryboardEditor({
   const [selectedCharacterId, setSelectedCharacterId] = useState<string>("");
   const [localShots, setLocalShots] = useState(shots);
   const { toast } = useToast();
+  const scrollContainerRefs = useRef<{ [sceneId: string]: HTMLDivElement | null }>({});
+
+  const scrollShots = (sceneId: string, direction: 'left' | 'right') => {
+    const container = scrollContainerRefs.current[sceneId];
+    if (container) {
+      const scrollAmount = 400;
+      container.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   // Sync localShots with incoming shots prop to reflect updates
   useEffect(() => {
@@ -763,7 +775,7 @@ export function StoryboardEditor({
           
           return (
             <>
-              <div key={scene.id} className="space-y-4">
+            <div key={scene.id} className="space-y-4">
               <div className="flex items-start gap-4">
                 <div className="w-80 shrink-0 space-y-3">
                   <div className="flex items-center justify-between gap-2">
@@ -877,18 +889,44 @@ export function StoryboardEditor({
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-x-auto">
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={(event) => handleDragEnd(event, scene.id)}
+                <div className="flex-1 relative group/slider">
+                  {sceneShots.length > 2 && (
+                    <>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="absolute left-2 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/slider:opacity-100 transition-opacity shadow-lg"
+                        onClick={() => scrollShots(scene.id, 'left')}
+                        data-testid={`button-scroll-left-${scene.id}`}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/slider:opacity-100 transition-opacity shadow-lg"
+                        onClick={() => scrollShots(scene.id, 'right')}
+                        data-testid={`button-scroll-right-${scene.id}`}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                  <div 
+                    ref={(el) => scrollContainerRefs.current[scene.id] = el}
+                    className="overflow-x-auto"
                   >
-                    <SortableContext
-                      items={sceneShots.map(s => s.id)}
-                      strategy={horizontalListSortingStrategy}
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={(event) => handleDragEnd(event, scene.id)}
                     >
-                      <div className="flex gap-4 pb-2">
-                        {sceneShots.map((shot, shotIndex) => {
+                      <SortableContext
+                        items={sceneShots.map(s => s.id)}
+                        strategy={horizontalListSortingStrategy}
+                      >
+                        <div className="flex gap-4 pb-2">
+                          {sceneShots.map((shot, shotIndex) => {
                           const version = getShotVersion(shot);
                           const referenceImage = getShotReferenceImage(shot.id);
                           const isGenerating = false;
@@ -933,10 +971,11 @@ export function StoryboardEditor({
                       </div>
                     </SortableContext>
                   </DndContext>
+                  </div>
                 </div>
               </div>
             </div>
-            
+
             {onAddScene && (
               <div className="relative flex items-center justify-center py-6">
                 <div className="absolute inset-0 flex items-center">
@@ -951,7 +990,7 @@ export function StoryboardEditor({
                 </button>
               </div>
             )}
-          </>
+            </>
           );
         })}
       </div>

@@ -1,5 +1,17 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ImageIcon, RefreshCw } from "lucide-react";
+
+const IMAGE_MODELS = [
+  "Flux",
+  "Midjourney",
+  "Nano Banana",
+  "GPT Image",
+  "DALL-E 3",
+  "Stable Diffusion",
+];
 
 interface Scene {
   id: string;
@@ -22,6 +34,8 @@ export function EditShots({
   scenes,
   setScenes,
 }: EditShotsProps) {
+  const [imageModel, setImageModel] = useState("Flux");
+
   const handleRegenerateImage = async (index: number) => {
     // Simulate image generation
     const mockImages = [
@@ -46,6 +60,25 @@ export function EditShots({
         <p className="text-lg text-muted-foreground">
           Refine the AI-generated visuals for each scene or generate new ones.
         </p>
+      </div>
+
+      {/* Image Model Selection */}
+      <div className="flex items-center justify-center gap-3">
+        <Label htmlFor="image-model" className="text-sm font-medium">
+          Image Model:
+        </Label>
+        <Select value={imageModel} onValueChange={setImageModel}>
+          <SelectTrigger id="image-model" className="w-48" data-testid="select-image-model">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {IMAGE_MODELS.map((model) => (
+              <SelectItem key={model} value={model}>
+                {model}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

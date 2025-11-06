@@ -159,12 +159,10 @@ export function AnimaticPreview({ onNext }: AnimaticPreviewProps) {
       </div>
 
       {/* Fixed Continue Button */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-sm border-t border-border z-50">
-        <div className="max-w-screen-2xl mx-auto">
-          <Button onClick={onNext} size="lg" className="w-full" data-testid="button-continue">
-            Continue to Export
-          </Button>
-        </div>
+      <div className="fixed bottom-6 right-6 z-50">
+        <Button onClick={onNext} data-testid="button-continue">
+          Continue to Export
+        </Button>
       </div>
     </div>
   );

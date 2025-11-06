@@ -32,15 +32,15 @@
 
   --sidebar-border: 220 12% 87%;
 
-  --sidebar-primary: 158 65% 35%;
+  --sidebar-primary: 269 100% 62%;
 
-  --sidebar-primary-foreground: 158 65% 98%;
+  --sidebar-primary-foreground: 0 0% 100%;
 
   --sidebar-accent: 220 8% 88%;
 
   --sidebar-accent-foreground: 220 15% 20%;
 
-  --sidebar-ring: 158 65% 42%;
+  --sidebar-ring: 269 100% 62%;
 
   --popover: 220 8% 92%;
 
@@ -48,7 +48,7 @@
 
   --popover-border: 220 12% 85%;
 
-  --primary: 338 100% 50%;
+  --primary: 269 100% 62%;
 
   --primary-foreground: 0 0% 100%;
 
@@ -60,7 +60,7 @@
 
   --muted-foreground: 220 9% 50%;
 
-  --accent: 280 100% 62%;
+  --accent: 286 77% 58%;
 
   --accent-foreground: 0 0% 100%;
 
@@ -68,22 +68,24 @@
 
   --destructive-foreground: 0 72% 98%;
 
-  --storia-pink: 338 100% 50%;
-  --storia-violet: 280 100% 62%;
-  --storia-orange: 24 100% 50%;
-  --storia-magenta: 320 100% 50%;
+  --storia-brand-purple: 269 100% 62%;
+  --storia-magenta: 286 77% 58%;
+  --storia-deep-purple: 269 71% 40%;
+  --storia-tech-blue: 250 100% 67%;
+  --storia-cyan: 187 85% 53%;
+  --storia-pink: 333 100% 62%;
 
   --input: 220 15% 75%;
-  --ring: 338 100% 50%;
-  --chart-1: 338 100% 50%;
-  --chart-2: 280 100% 62%;
-  --chart-3: 24 100% 50%;
-  --chart-4: 142 71% 45%;
-  --chart-5: 38 92% 50%;
+  --ring: 269 100% 62%;
+  --chart-1: 269 100% 62%;
+  --chart-2: 286 77% 58%;
+  --chart-3: 250 100% 67%;
+  --chart-4: 187 85% 53%;
+  --chart-5: 333 100% 62%;
 
-  --gradient-from: 338 100% 50%;
-  --gradient-via: 280 100% 62%;
-  --gradient-to: 24 100% 50%;
+  --gradient-from: 269 100% 62%;
+  --gradient-via: 286 77% 58%;
+  --gradient-to: 333 100% 62%;
 
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-serif: Georgia, serif;
@@ -142,53 +144,53 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  --background: 225 30% 11%;
+  --background: 240 35% 4%;
 
   --foreground: 0 0% 100%;
 
-  --border: 225 20% 20%;
+  --border: 240 20% 20%;
 
-  --card: 225 28% 14%;
+  --card: 240 28% 14%;
 
   --card-foreground: 0 0% 100%;
 
-  --card-border: 225 24% 18%;
+  --card-border: 240 24% 18%;
 
-  --sidebar: 228 32% 12%;
+  --sidebar: 240 32% 12%;
 
   --sidebar-foreground: 0 0% 100%;
 
-  --sidebar-border: 228 22% 16%;
+  --sidebar-border: 240 22% 16%;
 
-  --sidebar-primary: 338 100% 50%;
+  --sidebar-primary: 269 100% 62%;
 
   --sidebar-primary-foreground: 0 0% 100%;
 
-  --sidebar-accent: 228 26% 16%;
+  --sidebar-accent: 240 26% 16%;
 
   --sidebar-accent-foreground: 0 0% 90%;
 
-  --sidebar-ring: 338 100% 50%;
+  --sidebar-ring: 269 100% 62%;
 
-  --popover: 225 26% 15%;
+  --popover: 240 26% 15%;
 
   --popover-foreground: 0 0% 100%;
 
-  --popover-border: 225 20% 20%;
+  --popover-border: 240 20% 20%;
 
-  --primary: 338 100% 50%;
+  --primary: 269 100% 62%;
 
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 225 18% 22%;
+  --secondary: 240 18% 22%;
 
   --secondary-foreground: 0 0% 90%;
 
-  --muted: 225 16% 18%;
+  --muted: 240 16% 18%;
 
-  --muted-foreground: 225 8% 70%;
+  --muted-foreground: 240 8% 70%;
 
-  --accent: 280 100% 62%;
+  --accent: 286 77% 58%;
 
   --accent-foreground: 0 0% 100%;
 
@@ -196,24 +198,25 @@
 
   --destructive-foreground: 0 72% 98%;
 
-  --storia-pink: 338 100% 50%;
-  --storia-violet: 280 100% 62%;
-  --storia-orange: 24 100% 50%;
-  --storia-magenta: 320 100% 50%;
-  --deep-navy: 225 30% 11%;
-  --charcoal: 220 20% 5%;
+  --storia-brand-purple: 269 100% 62%;
+  --storia-magenta: 286 77% 58%;
+  --storia-deep-purple: 269 71% 40%;
+  --storia-tech-blue: 250 100% 67%;
+  --storia-cyan: 187 85% 53%;
+  --storia-pink: 333 100% 62%;
+  --dark-background: 240 35% 4%;
 
-  --input: 225 20% 24%;
-  --ring: 338 100% 50%;
-  --chart-1: 338 100% 60%;
-  --chart-2: 280 100% 70%;
-  --chart-3: 24 100% 60%;
-  --chart-4: 142 71% 60%;
-  --chart-5: 38 92% 65%;
+  --input: 240 20% 24%;
+  --ring: 269 100% 62%;
+  --chart-1: 269 100% 70%;
+  --chart-2: 286 77% 68%;
+  --chart-3: 250 100% 75%;
+  --chart-4: 187 85% 63%;
+  --chart-5: 333 100% 70%;
 
-  --gradient-from: 338 100% 50%;
-  --gradient-via: 280 100% 62%;
-  --gradient-to: 24 100% 50%;
+  --gradient-from: 269 100% 62%;
+  --gradient-via: 286 77% 58%;
+  --gradient-to: 333 100% 62%;
 
   --shadow-2xs: 0px 1px 2px 0px hsl(220 15% 5% / 0.20);
   --shadow-xs: 0px 1px 3px 0px hsl(220 15% 5% / 0.25);

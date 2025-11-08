@@ -101,6 +101,7 @@ function CharacterRecommendationModal({
       workspaceId: workspaceId,
       name: recChar.name,
       description: recChar.description,
+      personality: null,
       appearance: recChar.appearance,
       voiceSettings: null,
       thumbnailUrl: null,
@@ -241,7 +242,7 @@ export function WorldCast({
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isRecommendationModalOpen, setIsRecommendationModalOpen] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
-  const [newCharacter, setNewCharacter] = useState({ name: "", description: "", appearance: "" });
+  const [newCharacter, setNewCharacter] = useState({ name: "", description: "", personality: "", appearance: "" });
   const [characterReferenceImages, setCharacterReferenceImages] = useState<string[]>([]);
   const [generatedCharacterImage, setGeneratedCharacterImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -278,7 +279,8 @@ export function WorldCast({
           ? { 
               ...c, 
               name: newCharacter.name, 
-              description: newCharacter.description, 
+              description: newCharacter.description,
+              personality: newCharacter.personality || null,
               appearance: newCharacter.appearance,
               thumbnailUrl: generatedCharacterImage || c.thumbnailUrl
             }
@@ -313,6 +315,7 @@ export function WorldCast({
         workspaceId: workspaceId,
         name: newCharacter.name,
         description: newCharacter.description || null,
+        personality: newCharacter.personality || null,
         appearance: newCharacter.appearance || null,
         voiceSettings: null,
         thumbnailUrl: generatedCharacterImage,
@@ -341,7 +344,7 @@ export function WorldCast({
       });
     }
 
-    setNewCharacter({ name: "", description: "", appearance: "" });
+    setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
     setCharacterReferenceImages([]);
     setGeneratedCharacterImage(null);
     setEditingCharacter(null);
@@ -353,6 +356,7 @@ export function WorldCast({
     setNewCharacter({
       name: character.name,
       description: character.description || "",
+      personality: character.personality || "",
       appearance: (character.appearance as string) || "",
     });
     
@@ -761,7 +765,7 @@ export function WorldCast({
               <DropdownMenuItem
                 onClick={() => {
                   setEditingCharacter(null);
-                  setNewCharacter({ name: "", description: "", appearance: "" });
+                  setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
                   setCharacterReferenceImages([]);
                   setGeneratedCharacterImage(null);
                   setIsAddCharacterOpen(true);
@@ -999,6 +1003,17 @@ export function WorldCast({
                     onChange={(e) => setNewCharacter({ ...newCharacter, description: e.target.value })}
                     rows={3}
                     data-testid="input-character-description"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="char-personality">Personality</Label>
+                  <Textarea
+                    id="char-personality"
+                    placeholder="Personality traits, mannerisms, speech patterns..."
+                    value={newCharacter.personality}
+                    onChange={(e) => setNewCharacter({ ...newCharacter, personality: e.target.value })}
+                    rows={3}
+                    data-testid="input-character-personality"
                   />
                 </div>
                 <div className="space-y-2">

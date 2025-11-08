@@ -36,7 +36,7 @@ export const videos = pgTable("videos", {
   exportUrl: text("export_url"),
   duration: integer("duration"),
   voiceActorId: text("voice_actor_id"),
-  soundEffectsEnabled: boolean("sound_effects_enabled").default(true).notNull(),
+  voiceOverEnabled: boolean("voice_over_enabled").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -156,8 +156,7 @@ export const shots = pgTable("shots", {
   description: text("description"),
   videoModel: text("video_model"),
   imageModel: text("image_model"),
-  voiceoverScript: text("voiceover_script"),
-  soundEffectsEnabled: boolean("sound_effects_enabled").default(true).notNull(),
+  soundEffects: text("sound_effects"),
   currentVersionId: varchar("current_version_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

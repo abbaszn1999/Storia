@@ -8,8 +8,8 @@ import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@share
 
 const steps = [
   { id: "script", label: "Script" },
-  { id: "breakdown", label: "Breakdown" },
   { id: "world", label: "World & Cast" },
+  { id: "breakdown", label: "Breakdown" },
   { id: "storyboard", label: "Storyboard" },
   { id: "animatic", label: "Animatic" },
   { id: "export", label: "Export" },

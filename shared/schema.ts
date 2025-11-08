@@ -89,6 +89,7 @@ export const characters = pgTable("characters", {
   workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
   name: text("name").notNull(),
   description: text("description"),
+  personality: text("personality"),
   appearance: jsonb("appearance"),
   voiceSettings: jsonb("voice_settings"),
   thumbnailUrl: text("thumbnail_url"),

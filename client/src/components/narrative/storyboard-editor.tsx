@@ -546,7 +546,7 @@ export function StoryboardEditor({
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null);
   const [editPrompt, setEditPrompt] = useState("");
   const [editChange, setEditChange] = useState("");
-  const [activeCategory, setActiveCategory] = useState<"prompt" | "clothes" | "remove" | "expression" | "figure" | "camera" | "effects" | "variations" | "advanced" | null>(null);
+  const [activeCategory, setActiveCategory] = useState<"prompt" | "clothes" | "remove" | "expression" | "figure" | "camera" | "effects" | "variations" | null>(null);
   const [selectedCharacterId, setSelectedCharacterId] = useState<string>("");
   const [localShots, setLocalShots] = useState(shots);
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
@@ -1224,19 +1224,6 @@ export function StoryboardEditor({
                           </Select>
                         </div>
                       )}
-
-                      {activeCategory === "advanced" && (
-                      <div className="space-y-3">
-                        <Label className="text-sm text-muted-foreground">Full Image Prompt</Label>
-                        <Textarea
-                          value={editPrompt}
-                          onChange={(e) => setEditPrompt(e.target.value)}
-                          placeholder="Describe the entire image..."
-                          className="min-h-24 resize-none bg-background/50"
-                          data-testid="input-edit-prompt"
-                        />
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
@@ -1326,18 +1313,6 @@ export function StoryboardEditor({
                     >
                       <Zap className="h-5 w-5 mb-0.5" />
                       <span className="text-xs">Effects</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setActiveCategory("advanced")}
-                      className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "advanced" ? "bg-primary/20" : "hover-elevate"
-                      }`}
-                      data-testid="button-category-advanced"
-                    >
-                      <Settings2 className="h-5 w-5 mb-0.5" />
-                      <span className="text-xs">Advanced</span>
                     </Button>
                   </div>
                 </div>

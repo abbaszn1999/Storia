@@ -791,12 +791,11 @@ export function StoryboardEditor({
           </div>
 
           <Button
-            onClick={handleGenerateAll}
-            disabled={generatedCount === totalCount}
-            data-testid="button-generate-all"
+            onClick={onNext}
+            disabled={generatedCount < totalCount}
+            data-testid="button-continue-to-animatic"
           >
-            <Sparkles className="mr-2 h-4 w-4" />
-            Generate All Shots
+            Continue to Animatic
           </Button>
         </div>
       </div>
@@ -1334,16 +1333,6 @@ export function StoryboardEditor({
           </DialogContent>
         </Dialog>
       )}
-
-      <div className="flex justify-end">
-        <Button
-          onClick={onNext}
-          disabled={generatedCount < totalCount}
-          data-testid="button-next"
-        >
-          Continue to Animatic
-        </Button>
-      </div>
     </div>
   );
 }

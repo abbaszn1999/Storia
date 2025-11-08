@@ -222,6 +222,7 @@ interface Location {
   id: string;
   name: string;
   description: string;
+  imageUrl?: string | null;
 }
 
 export function WorldCast({ 
@@ -255,6 +256,8 @@ export function WorldCast({
   const [isAddLocationOpen, setIsAddLocationOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [newLocation, setNewLocation] = useState({ name: "", description: "" });
+  const [generatedLocationImage, setGeneratedLocationImage] = useState<string | null>(null);
+  const [isGeneratingLocation, setIsGeneratingLocation] = useState(false);
   const { toast } = useToast();
 
   // Fetch character library from database

@@ -910,22 +910,20 @@ export function WorldCast({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {locationsList.map((location) => (
-              <Card key={location.id} className="group hover-elevate" data-testid={`location-${location.id}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <MapPin className="h-4 w-4 text-primary shrink-0" />
-                        <h4 className="font-semibold text-sm truncate">{location.name}</h4>
-                      </div>
-                      {location.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-2">{location.description}</p>
-                      )}
-                    </div>
-                    <div className="flex gap-1 shrink-0">
+              <Card key={location.id} className="relative aspect-video overflow-hidden group hover-elevate" data-testid={`location-${location.id}`}>
+                <CardContent className="p-0 h-full">
+                  <div className="h-full bg-muted flex items-center justify-center relative">
+                    {location.imageUrl ? (
+                      <img src={location.imageUrl} alt={location.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <MapPin className="h-12 w-12 text-muted-foreground" />
+                    )}
+                    
+                    {/* Edit and Delete Buttons */}
+                    <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button
                         size="icon"
-                        variant="ghost"
+                        variant="secondary"
                         className="h-7 w-7"
                         onClick={() => handleEditLocation(location)}
                         data-testid={`button-edit-location-${location.id}`}
@@ -934,7 +932,7 @@ export function WorldCast({
                       </Button>
                       <Button
                         size="icon"
-                        variant="ghost"
+                        variant="destructive"
                         className="h-7 w-7"
                         onClick={() => handleDeleteLocation(location.id)}
                         data-testid={`button-delete-location-${location.id}`}
@@ -942,6 +940,17 @@ export function WorldCast({
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
+                  </div>
+                  
+                  {/* Location Info */}
+                  <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                    <div className="flex items-center gap-2 mb-1">
+                      <MapPin className="h-4 w-4 text-white shrink-0" />
+                      <p className="text-sm font-semibold text-white">{location.name}</p>
+                    </div>
+                    {location.description && (
+                      <p className="text-xs text-white/80 line-clamp-2">{location.description}</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>

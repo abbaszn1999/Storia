@@ -1094,7 +1094,7 @@ export function StoryboardEditor({
                           <Input
                             value={editChange}
                             onChange={(e) => setEditChange(e.target.value)}
-                            placeholder="e.g., Add lightning effect"
+                            placeholder="e.g., Make the sky darker and add dramatic lighting"
                             className="bg-background/50"
                             data-testid="input-edit-change"
                           />

@@ -551,6 +551,8 @@ export function StoryboardEditor({
   const [localShots, setLocalShots] = useState(shots);
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
+  const [showEnhancementDialog, setShowEnhancementDialog] = useState(false);
+  const [dontRemindAgain, setDontRemindAgain] = useState(false);
   const { toast } = useToast();
 
   // Sync localShots with incoming shots prop to reflect updates
@@ -584,6 +586,43 @@ export function StoryboardEditor({
   const generatedCount = allShots.filter((s) => s.currentVersionId).length;
   const totalCount = allShots.length;
 
+  // Helper to get current version of a shot
+  const getShotVersion = (shot: Shot): ShotVersion | null => {
+    if (!shot.currentVersionId) return null;
+    const versions = shotVersions[shot.id] || [];
+    return versions.find((v) => v.id === shot.currentVersionId) || null;
+  };
+
+  // Count shots that have been animated to video
+  const animatedCount = allShots.filter((shot) => {
+    const version = getShotVersion(shot);
+    return version?.videoUrl;
+  }).length;
+
+  // Check local storage for "don't remind again" preference
+  useEffect(() => {
+    const dontRemind = localStorage.getItem('storia-dont-remind-animate') === 'true';
+    setDontRemindAgain(dontRemind);
+  }, []);
+
+  const handleContinueToAnimatic = () => {
+    // Check if all shots have been animated to video
+    if (animatedCount < totalCount && !dontRemindAgain) {
+      setShowEnhancementDialog(true);
+    } else {
+      onNext();
+    }
+  };
+
+  const handleAnimateAll = () => {
+    // TODO: Implement animate all logic
+    setShowEnhancementDialog(false);
+    toast({
+      title: "Animating All Shots",
+      description: `Starting video generation for ${totalCount - animatedCount} shots...`,
+    });
+  };
+
   const handleGenerateAll = () => {
     allShots.forEach((shot) => {
       if (!shot.currentVersionId) {
@@ -594,12 +633,6 @@ export function StoryboardEditor({
       title: "Generating Storyboard",
       description: `Generating images for ${totalCount - generatedCount} shots...`,
     });
-  };
-
-  const getShotVersion = (shot: Shot): ShotVersion | null => {
-    if (!shot.currentVersionId) return null;
-    const versions = shotVersions[shot.id] || [];
-    return versions.find((v) => v.id === shot.currentVersionId) || null;
   };
 
   const getShotReferenceImage = (shotId: string): ReferenceImage | null => {
@@ -791,7 +824,7 @@ export function StoryboardEditor({
           </div>
 
           <Button
-            onClick={onNext}
+            onClick={handleContinueToAnimatic}
             disabled={generatedCount < totalCount}
             data-testid="button-continue-to-animatic"
           >

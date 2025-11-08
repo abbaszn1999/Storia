@@ -1366,6 +1366,84 @@ export function StoryboardEditor({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Enhancement Dialog */}
+      <Dialog open={showEnhancementDialog} onOpenChange={setShowEnhancementDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl text-center">Want to enhance your video?</DialogTitle>
+            <DialogDescription className="text-center space-y-2 pt-2">
+              <p className="text-sm">85% of creators choose "Animate All" to enhance their video</p>
+              <p className="text-xs text-muted-foreground">({totalCount - animatedCount} storyboard{totalCount - animatedCount !== 1 ? 's' : ''} haven't been animated yet.)</p>
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Before/After Comparison */}
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="space-y-2">
+              <div className="relative rounded-lg overflow-hidden border-2 border-muted">
+                <div className="absolute top-2 left-2 bg-background/90 backdrop-blur-sm px-2 py-1 rounded text-xs font-medium">
+                  Before animate
+                </div>
+                <div className="aspect-video bg-muted flex items-center justify-center">
+                  <ImageIcon className="h-16 w-16 text-muted-foreground" />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="relative rounded-lg overflow-hidden border-2 border-primary">
+                <div className="absolute top-2 left-2 bg-primary/90 backdrop-blur-sm px-2 py-1 rounded text-xs font-medium text-primary-foreground">
+                  After animate
+                </div>
+                <div className="aspect-video bg-muted flex items-center justify-center">
+                  <Video className="h-16 w-16 text-primary" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Don't remind again checkbox */}
+          <div className="flex items-center space-x-2 py-2">
+            <input
+              type="checkbox"
+              id="dont-remind"
+              checked={dontRemindAgain}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setDontRemindAgain(checked);
+                localStorage.setItem('storia-dont-remind-animate', checked.toString());
+              }}
+              className="h-4 w-4 rounded border-gray-300"
+              data-testid="checkbox-dont-remind"
+            />
+            <Label htmlFor="dont-remind" className="text-sm text-muted-foreground cursor-pointer">
+              Don't remind again
+            </Label>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowEnhancementDialog(false);
+                onNext();
+              }}
+              className="flex-1"
+              data-testid="button-enhancement-next"
+            >
+              Next
+            </Button>
+            <Button
+              onClick={handleAnimateAll}
+              className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
+              data-testid="button-enhancement-animate-all"
+            >
+              Animate all
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

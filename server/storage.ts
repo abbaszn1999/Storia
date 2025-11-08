@@ -167,7 +167,7 @@ export class MemStorage implements IStorage {
       exportUrl: insertVideo.exportUrl ?? null,
       duration: insertVideo.duration ?? null,
       voiceActorId: insertVideo.voiceActorId ?? null,
-      soundEffectsEnabled: insertVideo.soundEffectsEnabled ?? true,
+      voiceOverEnabled: insertVideo.voiceOverEnabled ?? true,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -329,8 +329,7 @@ export class MemStorage implements IStorage {
       id,
       cameraMovement: insertShot.cameraMovement ?? "static",
       description: insertShot.description ?? null,
-      voiceoverScript: insertShot.voiceoverScript ?? null,
-      soundEffectsEnabled: insertShot.soundEffectsEnabled ?? true,
+      soundEffects: insertShot.soundEffects ?? null,
       currentVersionId: insertShot.currentVersionId ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),

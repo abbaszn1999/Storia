@@ -15,7 +15,7 @@ interface NarrativeWorkflowProps {
   aspectRatio: string;
   scriptModel: string;
   voiceActorId: string | null;
-  soundEffectsEnabled: boolean;
+  voiceOverEnabled: boolean;
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
@@ -31,7 +31,7 @@ interface NarrativeWorkflowProps {
   onAspectRatioChange: (aspectRatio: string) => void;
   onScriptModelChange: (model: string) => void;
   onVoiceActorChange: (voiceActorId: string) => void;
-  onSoundEffectsToggle: (enabled: boolean) => void;
+  onVoiceOverToggle: (enabled: boolean) => void;
   onScenesChange: (scenes: Scene[]) => void;
   onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
   onShotVersionsChange: (shotVersions: { [shotId: string]: ShotVersion[] }) => void;
@@ -54,7 +54,7 @@ export function NarrativeWorkflow({
   aspectRatio,
   scriptModel,
   voiceActorId,
-  soundEffectsEnabled,
+  voiceOverEnabled,
   scenes,
   shots,
   shotVersions,
@@ -65,7 +65,7 @@ export function NarrativeWorkflow({
   onAspectRatioChange,
   onScriptModelChange,
   onVoiceActorChange,
-  onSoundEffectsToggle,
+  onVoiceOverToggle,
   onScenesChange,
   onShotsChange,
   onShotVersionsChange,
@@ -224,8 +224,7 @@ export function NarrativeWorkflow({
       description: "Shot description",
       cameraMovement: "Static",
       shotType: "Medium",
-      voiceoverScript: null,
-      soundEffectsEnabled: true,
+      soundEffects: null,
       duration: 3,
       imageModel: null,
       videoModel: null,
@@ -250,8 +249,7 @@ export function NarrativeWorkflow({
       description: "New shot description",
       cameraMovement: "Static",
       shotType: "Medium",
-      voiceoverScript: null,
-      soundEffectsEnabled: true,
+      soundEffects: null,
       duration: 3,
       imageModel: null,
       videoModel: null,
@@ -400,9 +398,9 @@ export function NarrativeWorkflow({
           referenceImages={referenceImages}
           characters={characters}
           voiceActorId={voiceActorId}
-          soundEffectsEnabled={soundEffectsEnabled}
+          voiceOverEnabled={voiceOverEnabled}
           onVoiceActorChange={onVoiceActorChange}
-          onSoundEffectsToggle={onSoundEffectsToggle}
+          onVoiceOverToggle={onVoiceOverToggle}
           onGenerateShot={handleGenerateShot}
           onRegenerateShot={handleRegenerateShot}
           onUpdateShot={handleUpdateShot}

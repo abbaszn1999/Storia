@@ -122,9 +122,9 @@ interface StoryboardEditorProps {
   referenceImages: ReferenceImage[];
   characters: Character[];
   voiceActorId: string | null;
-  soundEffectsEnabled: boolean;
+  voiceOverEnabled: boolean;
   onVoiceActorChange: (voiceActorId: string) => void;
-  onSoundEffectsToggle: (enabled: boolean) => void;
+  onVoiceOverToggle: (enabled: boolean) => void;
   onGenerateShot: (shotId: string) => void;
   onRegenerateShot: (shotId: string) => void;
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
@@ -150,7 +150,7 @@ interface SortableShotCardProps {
   version: ShotVersion | null;
   referenceImage: ReferenceImage | null;
   isGenerating: boolean;
-  soundEffectsEnabled: boolean;
+  voiceOverEnabled: boolean;
   onSelectShot: (shot: Shot) => void;
   onRegenerateShot: (shotId: string) => void;
   onUpdatePrompt: (shotId: string, prompt: string) => void;
@@ -171,7 +171,7 @@ function SortableShotCard({
   version,
   referenceImage,
   isGenerating,
-  soundEffectsEnabled,
+  voiceOverEnabled,
   onSelectShot,
   onRegenerateShot,
   onUpdatePrompt,
@@ -198,6 +198,7 @@ function SortableShotCard({
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const { toast } = useToast();
   const [localPrompt, setLocalPrompt] = useState(shot.description || "");
 
   const handlePromptBlur = () => {
@@ -467,23 +468,34 @@ function SortableShotCard({
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Voiceover Script</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">Sound Effects</Label>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-xs px-2"
+                  onClick={() => {
+                    const autoPrompt = `Ambient sounds for ${shot.shotType.toLowerCase()} shot${shot.description ? ': ' + shot.description : ''}`;
+                    onUpdateShot(shot.id, { soundEffects: autoPrompt });
+                    toast({
+                      title: "Sound effects generated",
+                      description: "Auto-generated sound effects prompt",
+                    });
+                  }}
+                  disabled={!voiceOverEnabled}
+                  data-testid={`button-auto-generate-sound-${shot.id}`}
+                >
+                  <Wand2 className="mr-1 h-3 w-3" />
+                  Automatically
+                </Button>
+              </div>
               <Textarea
-                placeholder="Narration for this shot..."
-                value={shot.voiceoverScript || ""}
-                onChange={(e) => onUpdateShot(shot.id, { voiceoverScript: e.target.value })}
+                placeholder={voiceOverEnabled ? "Describe sound effects for this shot..." : "Enable Voice Over in header to add sound effects"}
+                value={shot.soundEffects || ""}
+                onChange={(e) => onUpdateShot(shot.id, { soundEffects: e.target.value })}
                 className="min-h-[60px] text-xs resize-none"
-                data-testid={`textarea-voiceover-script-${shot.id}`}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <Label className="text-xs text-muted-foreground">Sound Effects</Label>
-              <Switch
-                checked={shot.soundEffectsEnabled ?? true}
-                onCheckedChange={(checked) => onUpdateShot(shot.id, { soundEffectsEnabled: checked })}
-                disabled={!soundEffectsEnabled}
-                data-testid={`toggle-sound-effects-${shot.id}`}
+                disabled={!voiceOverEnabled}
+                data-testid={`textarea-sound-effects-${shot.id}`}
               />
             </div>
 
@@ -524,9 +536,9 @@ export function StoryboardEditor({
   referenceImages,
   characters,
   voiceActorId,
-  soundEffectsEnabled,
+  voiceOverEnabled,
   onVoiceActorChange,
-  onSoundEffectsToggle,
+  onVoiceOverToggle,
   onGenerateShot,
   onRegenerateShot,
   onUpdateShot,
@@ -749,17 +761,18 @@ export function StoryboardEditor({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h3 className="text-lg font-semibold">Storyboard</h3>
-          <p className="text-sm text-muted-foreground">
-            {generatedCount} of {totalCount} shots generated • Drag to reorder
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Label className="text-sm text-muted-foreground">Voice Actor</Label>
+      <div className="sticky top-0 z-50 bg-background py-4 border-b">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-semibold">Storyboard</h3>
+            <p className="text-sm text-muted-foreground">
+              {generatedCount} of {totalCount} shots generated • Drag to reorder
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Label className="text-sm text-muted-foreground">Voice Actor</Label>
             <Popover open={voiceDropdownOpen} onOpenChange={setVoiceDropdownOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -815,11 +828,11 @@ export function StoryboardEditor({
           </div>
 
           <div className="flex items-center gap-2">
-            <Label className="text-sm text-muted-foreground">Sound Effects</Label>
+            <Label className="text-sm text-muted-foreground">Voice Over</Label>
             <Switch
-              checked={soundEffectsEnabled}
-              onCheckedChange={onSoundEffectsToggle}
-              data-testid="toggle-sound-effects"
+              checked={voiceOverEnabled}
+              onCheckedChange={onVoiceOverToggle}
+              data-testid="toggle-voice-over"
             />
           </div>
 
@@ -830,6 +843,7 @@ export function StoryboardEditor({
           >
             Continue to Animatic
           </Button>
+          </div>
         </div>
       </div>
 
@@ -980,7 +994,7 @@ export function StoryboardEditor({
                                 version={version}
                                 referenceImage={referenceImage}
                                 isGenerating={isGenerating}
-                                soundEffectsEnabled={soundEffectsEnabled}
+                                voiceOverEnabled={voiceOverEnabled}
                                 onSelectShot={handleSelectShot}
                                 onRegenerateShot={onRegenerateShot}
                                 onUpdatePrompt={handleUpdatePrompt}

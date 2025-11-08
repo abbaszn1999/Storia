@@ -516,6 +516,32 @@ export function WorldCast({
     }
   };
 
+  const handleGenerateLocation = () => {
+    if (!newLocation.description.trim()) {
+      toast({
+        title: "Description Required",
+        description: "Please describe the location before generating an image.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingLocation(true);
+    
+    // Simulate AI generation
+    setTimeout(() => {
+      const generatedImageUrl = "https://placehold.co/800x600/1a472a/ffffff?text=Location+Generated";
+      
+      setGeneratedLocationImage(generatedImageUrl);
+      setIsGeneratingLocation(false);
+      
+      toast({
+        title: "Location Image Generated",
+        description: "Location image has been created.",
+      });
+    }, 2000);
+  };
+
   const handleSaveLocation = () => {
     if (!newLocation.name.trim()) {
       toast({
@@ -531,7 +557,7 @@ export function WorldCast({
     if (editingLocation) {
       updatedLocations = locationsList.map(l => 
         l.id === editingLocation.id 
-          ? { ...l, name: newLocation.name, description: newLocation.description }
+          ? { ...l, name: newLocation.name, description: newLocation.description, imageUrl: generatedLocationImage || l.imageUrl }
           : l
       );
       toast({
@@ -543,6 +569,7 @@ export function WorldCast({
         id: `loc-${Date.now()}`,
         name: newLocation.name,
         description: newLocation.description,
+        imageUrl: generatedLocationImage,
       };
       updatedLocations = [...locationsList, location];
       toast({
@@ -562,6 +589,7 @@ export function WorldCast({
     }
 
     setNewLocation({ name: "", description: "" });
+    setGeneratedLocationImage(null);
     setEditingLocation(null);
     setIsAddLocationOpen(false);
   };
@@ -569,6 +597,7 @@ export function WorldCast({
   const handleEditLocation = (location: Location) => {
     setEditingLocation(location);
     setNewLocation({ name: location.name, description: location.description });
+    setGeneratedLocationImage(location.imageUrl || null);
     setIsAddLocationOpen(true);
   };
 
@@ -845,6 +874,7 @@ export function WorldCast({
             onClick={() => {
               setEditingLocation(null);
               setNewLocation({ name: "", description: "" });
+              setGeneratedLocationImage(null);
               setIsAddLocationOpen(true);
             }}
             data-testid="button-add-location"
@@ -867,6 +897,7 @@ export function WorldCast({
                 onClick={() => {
                   setEditingLocation(null);
                   setNewLocation({ name: "", description: "" });
+                  setGeneratedLocationImage(null);
                   setIsAddLocationOpen(true);
                 }}
                 data-testid="button-add-first-location"
@@ -929,26 +960,63 @@ export function WorldCast({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="location-name">Name</Label>
-              <Input
-                id="location-name"
-                placeholder="Location name (e.g., Ancient Forest, City Square)"
-                value={newLocation.name}
-                onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value })}
-                data-testid="input-location-name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="location-description">Description</Label>
-              <Textarea
-                id="location-description"
-                placeholder="Brief description of the location..."
-                value={newLocation.description}
-                onChange={(e) => setNewLocation({ ...newLocation, description: e.target.value })}
-                rows={3}
-                data-testid="input-location-description"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="location-name">Name</Label>
+                  <Input
+                    id="location-name"
+                    placeholder="Location name (e.g., Ancient Forest, City Square)"
+                    value={newLocation.name}
+                    onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value })}
+                    data-testid="input-location-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="location-description">Description</Label>
+                  <Textarea
+                    id="location-description"
+                    placeholder="Brief description of the location..."
+                    value={newLocation.description}
+                    onChange={(e) => setNewLocation({ ...newLocation, description: e.target.value })}
+                    rows={4}
+                    data-testid="input-location-description"
+                  />
+                </div>
+                <Button 
+                  onClick={handleGenerateLocation} 
+                  className="w-full"
+                  disabled={isGeneratingLocation || !newLocation.description.trim()}
+                  data-testid="button-generate-location"
+                >
+                  {isGeneratingLocation ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate Location Image
+                    </>
+                  )}
+                </Button>
+              </div>
+              <div className="space-y-2">
+                <Label>Generated Image</Label>
+                {generatedLocationImage ? (
+                  <div className="relative aspect-video rounded-lg border bg-muted overflow-hidden">
+                    <img src={generatedLocationImage} alt="Generated Location" className="h-full w-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="aspect-video rounded-lg border border-dashed bg-muted flex items-center justify-center">
+                    <div className="text-center">
+                      <MapPin className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-xs text-muted-foreground">No image generated yet</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex gap-2">
               <Button
@@ -956,6 +1024,7 @@ export function WorldCast({
                 onClick={() => {
                   setIsAddLocationOpen(false);
                   setNewLocation({ name: "", description: "" });
+                  setGeneratedLocationImage(null);
                   setEditingLocation(null);
                 }}
                 className="flex-1"

@@ -78,6 +78,44 @@ export function NarrativeWorkflow({
   const { toast } = useToast();
 
   const handleExport = (data: ExportData) => {
+    // Validation: Check platform metadata for publishing platforms
+    if (data.selectedPlatforms.length > 0) {
+      const missingMetadata: string[] = [];
+      
+      for (const platformId of data.selectedPlatforms) {
+        if (platformId === "youtube") {
+          const ytMeta = data.platformMetadata.youtube;
+          if (!ytMeta || !ytMeta.title || !ytMeta.description || !ytMeta.tags) {
+            missingMetadata.push("YouTube (title, description, and tags required)");
+          }
+        } else if (platformId === "tiktok") {
+          const ttMeta = data.platformMetadata.tiktok;
+          if (!ttMeta || !ttMeta.caption) {
+            missingMetadata.push("TikTok (caption required)");
+          }
+        } else if (platformId === "instagram") {
+          const igMeta = data.platformMetadata.instagram;
+          if (!igMeta || !igMeta.caption) {
+            missingMetadata.push("Instagram (caption required)");
+          }
+        } else if (platformId === "facebook") {
+          const fbMeta = data.platformMetadata.facebook;
+          if (!fbMeta || !fbMeta.caption) {
+            missingMetadata.push("Facebook (caption required)");
+          }
+        }
+      }
+      
+      if (missingMetadata.length > 0) {
+        toast({
+          title: "Missing platform metadata",
+          description: `Please fill in the metadata for: ${missingMetadata.join(", ")}`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     // Validation: If platforms are selected AND scheduling, require date/time
     if (data.selectedPlatforms.length > 0 && data.publishType === "schedule") {
       if (!data.scheduleDate || !data.scheduleTime) {

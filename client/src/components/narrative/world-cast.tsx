@@ -961,60 +961,44 @@ export function WorldCast({
 
       {/* Location Dialog */}
       <Dialog open={isAddLocationOpen} onOpenChange={setIsAddLocationOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingLocation ? "Edit Location" : "Add Location"}</DialogTitle>
             <DialogDescription>
-              Define a key location or setting for your story. Locations help establish the world and atmosphere.
+              Define a key location or setting for your story.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Name Input */}
             <div className="space-y-2">
-              <Label htmlFor="location-name" className="text-base font-medium">Location Name</Label>
+              <Label htmlFor="location-name">Location Name</Label>
               <Input
                 id="location-name"
-                placeholder="e.g., Ancient Forest, City Square, Abandoned Lighthouse"
+                placeholder="e.g., Ancient Forest, City Square"
                 value={newLocation.name}
                 onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value })}
-                className="text-base"
                 data-testid="input-location-name"
               />
             </div>
 
             {/* Description Input */}
             <div className="space-y-2">
-              <div className="flex items-start justify-between">
-                <div>
-                  <Label htmlFor="location-description" className="text-base font-medium">Description</Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Describe the visual details, atmosphere, and mood of this location
-                  </p>
-                </div>
-              </div>
+              <Label htmlFor="location-description">Description</Label>
               <Textarea
                 id="location-description"
-                placeholder="A dense forest with towering ancient trees, dappled sunlight filtering through the canopy, moss-covered stones, and a mysterious fog rolling across the forest floor..."
+                placeholder="Describe the visual details, atmosphere, and mood..."
                 value={newLocation.description}
                 onChange={(e) => setNewLocation({ ...newLocation, description: e.target.value })}
-                rows={5}
-                className="text-base resize-none"
+                rows={3}
+                className="resize-none"
                 data-testid="input-location-description"
               />
-              {newLocation.description.trim().length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {newLocation.description.trim().length} characters
-                </p>
-              )}
             </div>
 
             {/* Generate Section */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <Label className="text-base font-medium">Location Visual</Label>
-              </div>
+            <div className="space-y-2">
+              <Label>Location Visual</Label>
               
               {generatedLocationImage ? (
                 <div className="relative aspect-video rounded-lg border bg-muted overflow-hidden group">
@@ -1033,20 +1017,16 @@ export function WorldCast({
                   </div>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  <div className="aspect-video rounded-lg border-2 border-dashed bg-muted/30 flex items-center justify-center">
-                    <div className="text-center p-8">
-                      <MapPin className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                      <p className="text-sm font-medium text-muted-foreground mb-1">No image generated yet</p>
-                      <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                        Add a detailed description above, then click generate to create a visual for this location
-                      </p>
+                <div className="space-y-2">
+                  <div className="h-32 rounded-lg border-2 border-dashed bg-muted/30 flex items-center justify-center">
+                    <div className="text-center">
+                      <MapPin className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-xs text-muted-foreground">No image generated yet</p>
                     </div>
                   </div>
                   <Button 
                     onClick={handleGenerateLocation} 
                     className="w-full"
-                    size="lg"
                     disabled={isGeneratingLocation || !newLocation.description.trim()}
                     data-testid="button-generate-location"
                   >
@@ -1067,7 +1047,7 @@ export function WorldCast({
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 pt-2">
+            <div className="flex gap-2 pt-2">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -1084,12 +1064,11 @@ export function WorldCast({
               <Button
                 onClick={handleSaveLocation}
                 className="flex-1"
-                size="lg"
                 disabled={!newLocation.name.trim() || !newLocation.description.trim()}
                 data-testid="button-save-location"
               >
                 <Check className="mr-2 h-4 w-4" />
-                {editingLocation ? "Update Location" : "Add Location"}
+                {editingLocation ? "Update" : "Add Location"}
               </Button>
             </div>
           </div>

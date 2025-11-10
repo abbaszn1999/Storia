@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Scissors, Download, Share2, Calendar, Youtube, Instagram } from "lucide-react";
+import { Scissors, Download, Share2, Calendar, Youtube, Instagram, Sparkles } from "lucide-react";
 import { SiTiktok, SiFacebook } from "react-icons/si";
 
 const RESOLUTION_OPTIONS = [
@@ -33,9 +33,7 @@ export interface SocialMetadata {
 
 export interface PlatformMetadata {
   youtube?: YouTubeMetadata;
-  tiktok?: SocialMetadata;
-  instagram?: SocialMetadata;
-  facebook?: SocialMetadata;
+  social?: SocialMetadata;  // Shared caption for TikTok, Instagram, Facebook
 }
 
 export interface ExportData {
@@ -72,36 +70,115 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
+  
+  // AI recommendation state
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   const handleMetadataPlatformToggle = (platform: Platform) => {
     setMetadataPlatforms((prev) => {
       if (prev.includes(platform)) {
-        // Remove platform and its metadata
+        // Remove platform from metadata
         const newPlatforms = prev.filter((p) => p !== platform);
-        const newMetadata = { ...platformMetadata };
-        delete newMetadata[platform];
-        setPlatformMetadata(newMetadata);
+        
+        // Also remove from publishing platforms
+        setSelectedPlatforms((publishPrev) => publishPrev.filter((id) => id !== platform));
+        
+        // Clean up metadata if no social platforms remain
+        if (platform !== "youtube") {
+          const hasSocialPlatforms = newPlatforms.some((p) => p !== "youtube");
+          if (!hasSocialPlatforms) {
+            const newMetadata = { ...platformMetadata };
+            delete newMetadata.social;
+            setPlatformMetadata(newMetadata);
+          }
+        } else {
+          const newMetadata = { ...platformMetadata };
+          delete newMetadata.youtube;
+          setPlatformMetadata(newMetadata);
+        }
+        
         return newPlatforms;
       } else {
-        // Add platform with empty metadata
+        // Add platform to metadata
+        const newPlatforms = [...prev, platform];
+        
+        // Also add to publishing platforms
+        setSelectedPlatforms((publishPrev) => 
+          publishPrev.includes(platform) ? publishPrev : [...publishPrev, platform]
+        );
+        
+        // Initialize metadata
         const newMetadata = { ...platformMetadata };
         if (platform === "youtube") {
           newMetadata.youtube = { title: "", description: "", tags: "" };
         } else {
-          newMetadata[platform] = { caption: "" };
+          // Initialize shared social caption if not exists
+          if (!newMetadata.social) {
+            newMetadata.social = { caption: "" };
+          }
         }
         setPlatformMetadata(newMetadata);
-        return [...prev, platform];
+        
+        return newPlatforms;
       }
     });
   };
 
   const handlePlatformToggle = (platformId: string) => {
-    setSelectedPlatforms((prev) =>
-      prev.includes(platformId)
-        ? prev.filter((id) => id !== platformId)
-        : [...prev, platformId]
-    );
+    setSelectedPlatforms((prev) => {
+      if (prev.includes(platformId)) {
+        // Remove from publishing
+        const newPlatforms = prev.filter((id) => id !== platformId);
+        
+        // Also remove from metadata
+        setMetadataPlatforms((metaPrev) => metaPrev.filter((p) => p !== platformId));
+        
+        // Clean up metadata
+        if (platformId !== "youtube") {
+          const hasSocialPlatforms = newPlatforms.some((p) => p !== "youtube");
+          if (!hasSocialPlatforms) {
+            setPlatformMetadata((metaData) => {
+              const newMetadata = { ...metaData };
+              delete newMetadata.social;
+              return newMetadata;
+            });
+          }
+        } else {
+          setPlatformMetadata((metaData) => {
+            const newMetadata = { ...metaData };
+            delete newMetadata.youtube;
+            return newMetadata;
+          });
+        }
+        
+        return newPlatforms;
+      } else {
+        // Add to publishing
+        const newPlatforms = [...prev, platformId];
+        
+        // Also add to metadata
+        setMetadataPlatforms((metaPrev) => 
+          metaPrev.includes(platformId as Platform) ? metaPrev : [...metaPrev, platformId as Platform]
+        );
+        
+        // Initialize metadata
+        setPlatformMetadata((metaData) => {
+          const newMetadata = { ...metaData };
+          if (platformId === "youtube") {
+            if (!newMetadata.youtube) {
+              newMetadata.youtube = { title: "", description: "", tags: "" };
+            }
+          } else {
+            if (!newMetadata.social) {
+              newMetadata.social = { caption: "" };
+            }
+          }
+          return newMetadata;
+        });
+        
+        return newPlatforms;
+      }
+    });
   };
 
   const updateYouTubeMetadata = (field: keyof YouTubeMetadata, value: string) => {
@@ -111,11 +188,43 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
     }));
   };
 
-  const updateSocialMetadata = (platform: "tiktok" | "instagram" | "facebook", value: string) => {
+  const updateSocialMetadata = (value: string) => {
     setPlatformMetadata((prev) => ({
       ...prev,
-      [platform]: { caption: value },
+      social: { caption: value },
     }));
+  };
+
+  const handleAIRecommendation = async () => {
+    if (metadataPlatforms.length === 0) {
+      return;
+    }
+
+    setIsGeneratingAI(true);
+    
+    // Simulate AI generation for now (will be replaced with actual OpenAI API call)
+    setTimeout(() => {
+      // Generate mock metadata based on selected platforms
+      const newMetadata = { ...platformMetadata };
+      
+      if (metadataPlatforms.includes("youtube") && newMetadata.youtube) {
+        newMetadata.youtube = {
+          title: "Amazing AI-Generated Video Story",
+          description: "This captivating narrative video brings your story to life with stunning visuals and compelling storytelling. Created using advanced AI technology.",
+          tags: "AI video, storytelling, creative content, video production, narrative"
+        };
+      }
+      
+      const hasSocialPlatforms = metadataPlatforms.some(p => p !== "youtube");
+      if (hasSocialPlatforms && newMetadata.social) {
+        newMetadata.social = {
+          caption: "✨ Just created this amazing video story! Watch how AI brings creativity to life 🎬 #AIVideo #Storytelling #CreativeContent #VideoCreation"
+        };
+      }
+      
+      setPlatformMetadata(newMetadata);
+      setIsGeneratingAI(false);
+    }, 1500);
   };
 
   const handleExport = () => {
@@ -158,8 +267,18 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
 
       {/* Video Metadata */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle>Video Metadata</CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAIRecommendation}
+            disabled={metadataPlatforms.length === 0 || isGeneratingAI}
+            data-testid="button-ai-recommendation"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            {isGeneratingAI ? "Generating..." : "AI Recommendation"}
+          </Button>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Platform Selection for Metadata */}
@@ -236,65 +355,30 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
             </div>
           )}
 
-          {/* TikTok Metadata Fields */}
-          {metadataPlatforms.includes("tiktok") && platformMetadata.tiktok && (
+          {/* Social Media Shared Caption */}
+          {platformMetadata.social && (metadataPlatforms.includes("tiktok") || metadataPlatforms.includes("instagram") || metadataPlatforms.includes("facebook")) && (
             <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
               <div className="flex items-center gap-2 mb-2">
-                <SiTiktok className="w-4 h-4" />
-                <h4 className="font-semibold text-sm">TikTok Details</h4>
+                <div className="flex items-center gap-1.5">
+                  {metadataPlatforms.includes("tiktok") && <SiTiktok className="w-4 h-4" />}
+                  {metadataPlatforms.includes("instagram") && <Instagram className="w-4 h-4 text-primary" />}
+                  {metadataPlatforms.includes("facebook") && <SiFacebook className="w-4 h-4" />}
+                </div>
+                <h4 className="font-semibold text-sm">Social Media Caption</h4>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="tiktok-caption">Caption</Label>
+                <Label htmlFor="social-caption">Caption</Label>
                 <Textarea
-                  id="tiktok-caption"
-                  placeholder="Write a caption for TikTok..."
-                  value={platformMetadata.tiktok.caption}
-                  onChange={(e) => updateSocialMetadata("tiktok", e.target.value)}
+                  id="social-caption"
+                  placeholder="Write a caption for your social media posts..."
+                  value={platformMetadata.social.caption}
+                  onChange={(e) => updateSocialMetadata(e.target.value)}
                   rows={3}
-                  data-testid="textarea-tiktok-caption"
+                  data-testid="textarea-social-caption"
                 />
-              </div>
-            </div>
-          )}
-
-          {/* Instagram Metadata Fields */}
-          {metadataPlatforms.includes("instagram") && platformMetadata.instagram && (
-            <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <Instagram className="w-4 h-4 text-primary" />
-                <h4 className="font-semibold text-sm">Instagram Details</h4>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="instagram-caption">Caption</Label>
-                <Textarea
-                  id="instagram-caption"
-                  placeholder="Write a caption for Instagram..."
-                  value={platformMetadata.instagram.caption}
-                  onChange={(e) => updateSocialMetadata("instagram", e.target.value)}
-                  rows={3}
-                  data-testid="textarea-instagram-caption"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Facebook Metadata Fields */}
-          {metadataPlatforms.includes("facebook") && platformMetadata.facebook && (
-            <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <SiFacebook className="w-4 h-4" />
-                <h4 className="font-semibold text-sm">Facebook Details</h4>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="facebook-caption">Caption</Label>
-                <Textarea
-                  id="facebook-caption"
-                  placeholder="Write a caption for Facebook..."
-                  value={platformMetadata.facebook.caption}
-                  onChange={(e) => updateSocialMetadata("facebook", e.target.value)}
-                  rows={3}
-                  data-testid="textarea-facebook-caption"
-                />
+                <p className="text-xs text-muted-foreground">
+                  This caption will be used for all selected social platforms
+                </p>
               </div>
             </div>
           )}

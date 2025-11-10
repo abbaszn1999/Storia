@@ -189,9 +189,6 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
                   >
                     <Checkbox
                       checked={selectedPlatforms.includes(platform.id)}
-                      onCheckedChange={(e) => {
-                        e.stopPropagation?.();
-                      }}
                       onClick={(e) => e.stopPropagation()}
                     />
                     <Icon className="w-5 h-5" />

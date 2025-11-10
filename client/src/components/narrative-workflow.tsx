@@ -420,7 +420,12 @@ export function NarrativeWorkflow({
       )}
 
       {activeStep === "animatic" && (
-        <AnimaticPreview onNext={onNext} />
+        <AnimaticPreview 
+          script={script}
+          scenes={scenes}
+          shots={shots}
+          onNext={onNext} 
+        />
       )}
 
       {activeStep === "export" && (

@@ -25,7 +25,6 @@ import Profile from "@/pages/profile";
 import Settings from "@/pages/settings";
 import Subscription from "@/pages/subscription";
 import NotFound from "@/pages/not-found";
-import { AssetsLayout } from "@/pages/assets/layout";
 
 function MainLayout() {
   const [location] = useLocation();
@@ -65,45 +64,15 @@ function MainLayout() {
               <Route path="/history" component={History} />
               <Route path="/calendar" component={Calendar} />
               
-              {/* Assets routes with shared layout */}
+              {/* Assets Library */}
               <Route path="/assets">
                 <Redirect to="/assets/characters" />
               </Route>
-              <Route path="/assets/characters">
-                {() => (
-                  <AssetsLayout>
-                    <Characters />
-                  </AssetsLayout>
-                )}
-              </Route>
-              <Route path="/assets/locations">
-                {() => (
-                  <AssetsLayout>
-                    <Locations />
-                  </AssetsLayout>
-                )}
-              </Route>
-              <Route path="/assets/voices">
-                {() => (
-                  <AssetsLayout>
-                    <Voices />
-                  </AssetsLayout>
-                )}
-              </Route>
-              <Route path="/assets/brandkits">
-                {() => (
-                  <AssetsLayout>
-                    <BrandKits />
-                  </AssetsLayout>
-                )}
-              </Route>
-              <Route path="/assets/uploads">
-                {() => (
-                  <AssetsLayout>
-                    <Uploads />
-                  </AssetsLayout>
-                )}
-              </Route>
+              <Route path="/assets/characters" component={Characters} />
+              <Route path="/assets/locations" component={Locations} />
+              <Route path="/assets/voices" component={Voices} />
+              <Route path="/assets/brandkits" component={BrandKits} />
+              <Route path="/assets/uploads" component={Uploads} />
               
               <Route path="/profile" component={Profile} />
               <Route path="/settings" component={Settings} />

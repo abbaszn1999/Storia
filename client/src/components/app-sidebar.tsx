@@ -1,4 +1,4 @@
-import { Home, Video, Zap, Calendar, Settings, History } from "lucide-react";
+import { Home, Video, Zap, Calendar, Settings, History, User, MapPin, Mic, LayoutTemplate, FolderOpen, ChevronDown } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -13,8 +13,8 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const mainNavItems = [
   { title: "Dashboard", url: "/", icon: Home },
@@ -22,6 +22,14 @@ const mainNavItems = [
   { title: "Stories", url: "/stories", icon: Zap },
   { title: "History", url: "/history", icon: History },
   { title: "Content Calendar", url: "/calendar", icon: Calendar },
+];
+
+const assetNavItems = [
+  { title: "Characters", url: "/assets/characters", icon: User },
+  { title: "Locations", url: "/assets/locations", icon: MapPin },
+  { title: "Voices", url: "/assets/voices", icon: Mic },
+  { title: "Brand Kits", url: "/assets/brandkits", icon: LayoutTemplate },
+  { title: "Uploads", url: "/assets/uploads", icon: FolderOpen },
 ];
 
 
@@ -55,6 +63,35 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <SidebarSeparator />
+
+        <Collapsible defaultOpen className="group/collapsible">
+          <SidebarGroup>
+            <SidebarGroupLabel asChild>
+              <CollapsibleTrigger className="flex w-full items-center justify-between hover-elevate active-elevate-2 rounded-md px-2 py-1.5" data-testid="button-toggle-assets">
+                Assets Library
+                <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=closed]/collapsible:-rotate-90" />
+              </CollapsibleTrigger>
+            </SidebarGroupLabel>
+            <CollapsibleContent>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {assetNavItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={location === item.url} data-testid={`link-${item.title.toLowerCase().replace(' ', '-')}`}>
+                        <Link href={item.url}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </CollapsibleContent>
+          </SidebarGroup>
+        </Collapsible>
 
       </SidebarContent>
 

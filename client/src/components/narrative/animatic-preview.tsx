@@ -39,8 +39,9 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
   const totalDuration = scenes.reduce((total, scene) => total + (scene.duration || 0), 0);
 
   return (
-    <div className="relative">
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr,400px,320px] gap-6 h-[calc(100vh-12rem)]">
+    <div className="relative flex flex-col gap-6 h-[calc(100vh-12rem)]">
+      {/* Top Section: Preview and Script */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.5fr,1fr] gap-6 flex-1 min-h-0">
         {/* Video Preview */}
         <div className="flex flex-col min-w-0">
           <div className="flex-1 bg-card rounded-lg border border-border flex items-center justify-center">
@@ -165,119 +166,119 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
             </CardContent>
           </Card>
         </div>
+      </div>
 
-        {/* Settings Panel */}
-        <aside className="space-y-6 overflow-y-auto pb-6 min-w-0">
-          {/* Background Music */}
-          <Card>
-            <CardContent className="pt-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="background-music" className="text-base font-semibold">
-                  Background Music
-                </Label>
-                <Switch
-                  id="background-music"
-                  checked={backgroundMusicEnabled}
-                  onCheckedChange={setBackgroundMusicEnabled}
-                  data-testid="switch-background-music"
-                />
-              </div>
+      {/* Bottom Section: Audio & Subtitle Settings */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Background Music */}
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="background-music" className="text-base font-semibold">
+                Background Music
+              </Label>
+              <Switch
+                id="background-music"
+                checked={backgroundMusicEnabled}
+                onCheckedChange={setBackgroundMusicEnabled}
+                data-testid="switch-background-music"
+              />
+            </div>
 
-              {backgroundMusicEnabled && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="music-style" className="text-sm text-muted-foreground">
-                      Music Style
-                    </Label>
-                    <Select value={musicStyle} onValueChange={setMusicStyle}>
-                      <SelectTrigger id="music-style" data-testid="select-music-style">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {MUSIC_STYLES.map((style) => (
-                          <SelectItem key={style} value={style}>
-                            {style}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+            {backgroundMusicEnabled && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="music-style" className="text-sm text-muted-foreground">
+                    Music Style
+                  </Label>
+                  <Select value={musicStyle} onValueChange={setMusicStyle}>
+                    <SelectTrigger id="music-style" data-testid="select-music-style">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MUSIC_STYLES.map((style) => (
+                        <SelectItem key={style} value={style}>
+                          {style}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="volume" className="text-sm text-muted-foreground">
+                    Volume
+                  </Label>
+                  <Slider
+                    id="volume"
+                    value={volume}
+                    onValueChange={setVolume}
+                    max={100}
+                    step={1}
+                    className="w-full"
+                    data-testid="slider-volume"
+                  />
+                  <div className="text-xs text-muted-foreground text-right">
+                    {volume[0]}%
                   </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="volume" className="text-sm text-muted-foreground">
-                      Volume
-                    </Label>
-                    <Slider
-                      id="volume"
-                      value={volume}
-                      onValueChange={setVolume}
-                      max={100}
-                      step={1}
-                      className="w-full"
-                      data-testid="slider-volume"
-                    />
-                    <div className="text-xs text-muted-foreground text-right">
-                      {volume[0]}%
-                    </div>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
+        {/* Subtitles */}
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="subtitles" className="text-base font-semibold">
+                Subtitles
+              </Label>
+              <Switch
+                id="subtitles"
+                checked={subtitlesEnabled}
+                onCheckedChange={setSubtitlesEnabled}
+                data-testid="switch-subtitles"
+              />
+            </div>
 
-          {/* Subtitles */}
-          <Card>
-            <CardContent className="pt-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="subtitles" className="text-base font-semibold">
-                  Subtitles
-                </Label>
-                <Switch
-                  id="subtitles"
-                  checked={subtitlesEnabled}
-                  onCheckedChange={setSubtitlesEnabled}
-                  data-testid="switch-subtitles"
-                />
-              </div>
+            {subtitlesEnabled && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="subtitle-position" className="text-sm text-muted-foreground">
+                    Position
+                  </Label>
+                  <Select value={subtitlePosition} onValueChange={setSubtitlePosition}>
+                    <SelectTrigger id="subtitle-position" data-testid="select-subtitle-position">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="top">Top</SelectItem>
+                      <SelectItem value="center">Center</SelectItem>
+                      <SelectItem value="bottom">Bottom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              {subtitlesEnabled && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="subtitle-position" className="text-sm text-muted-foreground">
-                      Position
-                    </Label>
-                    <Select value={subtitlePosition} onValueChange={setSubtitlePosition}>
-                      <SelectTrigger id="subtitle-position" data-testid="select-subtitle-position">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="top">Top</SelectItem>
-                        <SelectItem value="center">Center</SelectItem>
-                        <SelectItem value="bottom">Bottom</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="subtitle-size" className="text-sm text-muted-foreground">
-                      Size
-                    </Label>
-                    <Select value={subtitleSize} onValueChange={setSubtitleSize}>
-                      <SelectTrigger id="subtitle-size" data-testid="select-subtitle-size">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="small">Small</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="large">Large</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </aside>
+                <div className="space-y-2">
+                  <Label htmlFor="subtitle-size" className="text-sm text-muted-foreground">
+                    Size
+                  </Label>
+                  <Select value={subtitleSize} onValueChange={setSubtitleSize}>
+                    <SelectTrigger id="subtitle-size" data-testid="select-subtitle-size">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="small">Small</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="large">Large</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Fixed Continue Button */}

@@ -39,9 +39,9 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
   const totalDuration = scenes.reduce((total, scene) => total + (scene.duration || 0), 0);
 
   return (
-    <div className="relative flex flex-col gap-6 h-[calc(100vh-12rem)]">
+    <div className="relative flex flex-col gap-6 pb-20">
       {/* Top Section: Preview and Script */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.5fr,1fr] gap-6 flex-1 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[1.5fr,1fr] gap-6 h-[500px]">
         {/* Video Preview */}
         <div className="flex flex-col min-w-0">
           <div className="flex-1 bg-card rounded-lg border border-border flex items-center justify-center">

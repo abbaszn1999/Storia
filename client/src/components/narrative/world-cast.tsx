@@ -1303,7 +1303,7 @@ export function WorldCast({
       {/* Next Button */}
       <div className="flex justify-end pt-4">
         <Button onClick={onNext} size="lg" data-testid="button-next">
-          Next: Storyboard
+          Next: Breakdown
         </Button>
       </div>
     </div>

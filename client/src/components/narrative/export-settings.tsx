@@ -18,8 +18,20 @@ const RESOLUTION_OPTIONS = [
   { value: "2160p", label: "2160p (4K)" },
 ];
 
+export interface ExportData {
+  resolution: string;
+  title: string;
+  summary: string;
+  hashtags: string;
+  autoGenerateShorts: boolean;
+  publishType: "instant" | "schedule";
+  selectedPlatforms: string[];
+  scheduleDate?: string;
+  scheduleTime?: string;
+}
+
 interface ExportSettingsProps {
-  onExport: () => void;
+  onExport: (data: ExportData) => void;
 }
 
 const PLATFORMS = [
@@ -48,6 +60,20 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
         ? prev.filter((id) => id !== platformId)
         : [...prev, platformId]
     );
+  };
+
+  const handleExport = () => {
+    onExport({
+      resolution,
+      title,
+      summary,
+      hashtags,
+      autoGenerateShorts,
+      publishType,
+      selectedPlatforms,
+      scheduleDate: publishType === "schedule" ? scheduleDate : undefined,
+      scheduleTime: publishType === "schedule" ? scheduleTime : undefined,
+    });
   };
 
   return (
@@ -228,7 +254,7 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
       </Card>
 
       {/* Export Button */}
-      <Button onClick={onExport} className="w-full" size="lg" data-testid="button-export">
+      <Button onClick={handleExport} className="w-full" size="lg" data-testid="button-export">
         <Download className="w-4 h-4 mr-2" />
         {publishType === "instant" && selectedPlatforms.length > 0
           ? "Export & Publish"

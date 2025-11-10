@@ -4,7 +4,8 @@ import { SceneBreakdown } from "@/components/narrative/scene-breakdown";
 import { WorldCast } from "@/components/narrative/world-cast";
 import { StoryboardEditor } from "@/components/narrative/storyboard-editor";
 import { AnimaticPreview } from "@/components/narrative/animatic-preview";
-import { ExportSettings } from "@/components/narrative/export-settings";
+import { ExportSettings, type ExportData } from "@/components/narrative/export-settings";
+import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
 
 interface NarrativeWorkflowProps {
@@ -74,6 +75,48 @@ export function NarrativeWorkflow({
   onWorldSettingsChange,
   onNext,
 }: NarrativeWorkflowProps) {
+  const { toast } = useToast();
+
+  const handleExport = (data: ExportData) => {
+    // Validation: If platforms are selected AND scheduling, require date/time
+    if (data.selectedPlatforms.length > 0 && data.publishType === "schedule") {
+      if (!data.scheduleDate || !data.scheduleTime) {
+        toast({
+          title: "Missing schedule information",
+          description: "Please select both date and time for scheduled publishing.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    // All validation passed - show success message based on action
+    if (data.selectedPlatforms.length === 0) {
+      // Just export (no publishing)
+      toast({
+        title: "Export started!",
+        description: `Your video is being exported in ${data.resolution}. You'll be notified when it's ready.`,
+      });
+    } else if (data.publishType === "instant") {
+      // Export and publish instantly
+      const platformNames = data.selectedPlatforms.join(", ");
+      toast({
+        title: "Export & Publishing!",
+        description: `Your video is being exported and will be published to ${platformNames}.`,
+      });
+    } else {
+      // Export and schedule
+      const platformNames = data.selectedPlatforms.join(", ");
+      const scheduleDateTime = `${data.scheduleDate} at ${data.scheduleTime}`;
+      toast({
+        title: "Export & Scheduled!",
+        description: `Your video will be exported and published to ${platformNames} on ${scheduleDateTime}.`,
+      });
+    }
+
+    console.log("Export data:", data);
+  };
+
   const handleGenerateShot = (shotId: string) => {
     console.log("Generating shot:", shotId);
   };
@@ -429,7 +472,7 @@ export function NarrativeWorkflow({
       )}
 
       {activeStep === "export" && (
-        <ExportSettings onExport={() => console.log("Exporting video...")} />
+        <ExportSettings onExport={handleExport} />
       )}
     </div>
   );

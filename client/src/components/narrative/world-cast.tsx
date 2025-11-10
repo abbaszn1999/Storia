@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Upload, Check, Pencil, User, Library, ChevronDown, Loader2, Sparkles, X, MapPin, Trash2 } from "lucide-react";
+import { Plus, Upload, Check, Pencil, User, Library, ChevronDown, Loader2, Sparkles, X, MapPin, Trash2, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Character, ReferenceImage } from "@shared/schema";
 
@@ -961,73 +961,113 @@ export function WorldCast({
 
       {/* Location Dialog */}
       <Dialog open={isAddLocationOpen} onOpenChange={setIsAddLocationOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingLocation ? "Edit Location" : "Add Location"}</DialogTitle>
             <DialogDescription>
-              Define a location or world setting for your story.
+              Define a key location or setting for your story. Locations help establish the world and atmosphere.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="location-name">Name</Label>
-                  <Input
-                    id="location-name"
-                    placeholder="Location name (e.g., Ancient Forest, City Square)"
-                    value={newLocation.name}
-                    onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value })}
-                    data-testid="input-location-name"
-                  />
+          
+          <div className="space-y-6">
+            {/* Name Input */}
+            <div className="space-y-2">
+              <Label htmlFor="location-name" className="text-base font-medium">Location Name</Label>
+              <Input
+                id="location-name"
+                placeholder="e.g., Ancient Forest, City Square, Abandoned Lighthouse"
+                value={newLocation.name}
+                onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value })}
+                className="text-base"
+                data-testid="input-location-name"
+              />
+            </div>
+
+            {/* Description Input */}
+            <div className="space-y-2">
+              <div className="flex items-start justify-between">
+                <div>
+                  <Label htmlFor="location-description" className="text-base font-medium">Description</Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Describe the visual details, atmosphere, and mood of this location
+                  </p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="location-description">Description</Label>
-                  <Textarea
-                    id="location-description"
-                    placeholder="Brief description of the location..."
-                    value={newLocation.description}
-                    onChange={(e) => setNewLocation({ ...newLocation, description: e.target.value })}
-                    rows={4}
-                    data-testid="input-location-description"
-                  />
-                </div>
-                <Button 
-                  onClick={handleGenerateLocation} 
-                  className="w-full"
-                  disabled={isGeneratingLocation || !newLocation.description.trim()}
-                  data-testid="button-generate-location"
-                >
-                  {isGeneratingLocation ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Generate Location Image
-                    </>
-                  )}
-                </Button>
               </div>
-              <div className="space-y-2">
-                <Label>Generated Image</Label>
-                {generatedLocationImage ? (
-                  <div className="relative aspect-video rounded-lg border bg-muted overflow-hidden">
-                    <img src={generatedLocationImage} alt="Generated Location" className="h-full w-full object-cover" />
+              <Textarea
+                id="location-description"
+                placeholder="A dense forest with towering ancient trees, dappled sunlight filtering through the canopy, moss-covered stones, and a mysterious fog rolling across the forest floor..."
+                value={newLocation.description}
+                onChange={(e) => setNewLocation({ ...newLocation, description: e.target.value })}
+                rows={5}
+                className="text-base resize-none"
+                data-testid="input-location-description"
+              />
+              {newLocation.description.trim().length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {newLocation.description.trim().length} characters
+                </p>
+              )}
+            </div>
+
+            {/* Generate Section */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <Label className="text-base font-medium">Location Visual</Label>
+              </div>
+              
+              {generatedLocationImage ? (
+                <div className="relative aspect-video rounded-lg border bg-muted overflow-hidden group">
+                  <img src={generatedLocationImage} alt="Generated Location" className="h-full w-full object-cover" />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={handleGenerateLocation}
+                      disabled={isGeneratingLocation || !newLocation.description.trim()}
+                      data-testid="button-regenerate-location"
+                    >
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Regenerate
+                    </Button>
                   </div>
-                ) : (
-                  <div className="aspect-video rounded-lg border border-dashed bg-muted flex items-center justify-center">
-                    <div className="text-center">
-                      <MapPin className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">No image generated yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="aspect-video rounded-lg border-2 border-dashed bg-muted/30 flex items-center justify-center">
+                    <div className="text-center p-8">
+                      <MapPin className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-sm font-medium text-muted-foreground mb-1">No image generated yet</p>
+                      <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                        Add a detailed description above, then click generate to create a visual for this location
+                      </p>
                     </div>
                   </div>
-                )}
-              </div>
+                  <Button 
+                    onClick={handleGenerateLocation} 
+                    className="w-full"
+                    size="lg"
+                    disabled={isGeneratingLocation || !newLocation.description.trim()}
+                    data-testid="button-generate-location"
+                  >
+                    {isGeneratingLocation ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating Image...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Generate Location Image
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
-            <div className="flex gap-2">
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-2">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -1044,9 +1084,12 @@ export function WorldCast({
               <Button
                 onClick={handleSaveLocation}
                 className="flex-1"
+                size="lg"
+                disabled={!newLocation.name.trim() || !newLocation.description.trim()}
                 data-testid="button-save-location"
               >
-                {editingLocation ? "Update" : "Add"}
+                <Check className="mr-2 h-4 w-4" />
+                {editingLocation ? "Update Location" : "Add Location"}
               </Button>
             </div>
           </div>

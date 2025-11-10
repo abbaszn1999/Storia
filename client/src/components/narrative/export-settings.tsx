@@ -6,7 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Scissors, Download } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Scissors, Download, Share2, Calendar, Youtube, Instagram } from "lucide-react";
+import { SiTiktok, SiFacebook } from "react-icons/si";
 
 const RESOLUTION_OPTIONS = [
   { value: "720p", label: "720p (HD)" },
@@ -19,12 +22,33 @@ interface ExportSettingsProps {
   onExport: () => void;
 }
 
+const PLATFORMS = [
+  { id: "youtube", name: "YouTube", icon: Youtube },
+  { id: "tiktok", name: "TikTok", icon: SiTiktok },
+  { id: "instagram", name: "Instagram", icon: Instagram },
+  { id: "facebook", name: "Facebook", icon: SiFacebook },
+];
+
 export function ExportSettings({ onExport }: ExportSettingsProps) {
   const [resolution, setResolution] = useState("1080p");
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
   const [hashtags, setHashtags] = useState("");
   const [autoGenerateShorts, setAutoGenerateShorts] = useState(false);
+  
+  // Publishing options
+  const [publishType, setPublishType] = useState<"instant" | "schedule">("instant");
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("");
+
+  const handlePlatformToggle = (platformId: string) => {
+    setSelectedPlatforms((prev) =>
+      prev.includes(platformId)
+        ? prev.filter((id) => id !== platformId)
+        : [...prev, platformId]
+    );
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -122,10 +146,98 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
         </CardContent>
       </Card>
 
+      {/* Publishing Options */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Publishing & Distribution</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Publish Type */}
+          <RadioGroup value={publishType} onValueChange={(value: "instant" | "schedule") => setPublishType(value)}>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="instant" id="instant" data-testid="radio-instant" />
+              <Label htmlFor="instant" className="font-normal cursor-pointer flex items-center gap-2">
+                <Share2 className="w-4 h-4 text-primary" />
+                Share Instantly
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="schedule" id="schedule" data-testid="radio-schedule" />
+              <Label htmlFor="schedule" className="font-normal cursor-pointer flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-primary" />
+                Schedule for Later
+              </Label>
+            </div>
+          </RadioGroup>
+
+          {/* Platform Selection */}
+          <div className="space-y-3">
+            <Label className="text-sm font-semibold">Select Platforms</Label>
+            <div className="grid grid-cols-2 gap-3">
+              {PLATFORMS.map((platform) => {
+                const Icon = platform.icon;
+                return (
+                  <div
+                    key={platform.id}
+                    className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-colors cursor-pointer ${
+                      selectedPlatforms.includes(platform.id)
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover-elevate"
+                    }`}
+                    onClick={() => handlePlatformToggle(platform.id)}
+                    data-testid={`platform-${platform.id}`}
+                  >
+                    <Checkbox
+                      checked={selectedPlatforms.includes(platform.id)}
+                      onCheckedChange={(e) => {
+                        e.stopPropagation?.();
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <Icon className="w-5 h-5" />
+                    <span className="font-medium text-sm">{platform.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Schedule Date & Time */}
+          {publishType === "schedule" && (
+            <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg border">
+              <div className="space-y-2">
+                <Label htmlFor="schedule-date" className="text-sm">Date</Label>
+                <Input
+                  id="schedule-date"
+                  type="date"
+                  value={scheduleDate}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  data-testid="input-schedule-date"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="schedule-time" className="text-sm">Time</Label>
+                <Input
+                  id="schedule-time"
+                  type="time"
+                  value={scheduleTime}
+                  onChange={(e) => setScheduleTime(e.target.value)}
+                  data-testid="input-schedule-time"
+                />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Export Button */}
       <Button onClick={onExport} className="w-full" size="lg" data-testid="button-export">
         <Download className="w-4 h-4 mr-2" />
-        Export Video
+        {publishType === "instant" && selectedPlatforms.length > 0
+          ? "Export & Publish"
+          : publishType === "schedule" && selectedPlatforms.length > 0
+          ? "Export & Schedule"
+          : "Export Video"}
       </Button>
     </div>
   );

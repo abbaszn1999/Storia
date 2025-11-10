@@ -715,9 +715,9 @@ export function WorldCast({
               />
             </div>
 
-            {/* Video Style */}
+            {/* Style */}
             <div className="space-y-3">
-              <Label className="text-sm font-medium">VIDEO STYLE</Label>
+              <Label className="text-sm font-medium">STYLE</Label>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
                 {VIDEO_STYLES.map((style) => (
                   <Card

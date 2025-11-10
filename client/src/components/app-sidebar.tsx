@@ -1,4 +1,4 @@
-import { Home, Video, Zap, FolderOpen, Calendar, Settings, User, Plus, LayoutTemplate, History, Mic } from "lucide-react";
+import { Home, Video, Zap, Calendar, Settings, History } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -24,12 +24,6 @@ const mainNavItems = [
   { title: "Content Calendar", url: "/calendar", icon: Calendar },
 ];
 
-const assetNavItems = [
-  { title: "Characters", url: "/assets/characters", icon: User },
-  { title: "Voices", url: "/assets/voices", icon: Mic },
-  { title: "Brand Kits", url: "/assets/brandkits", icon: LayoutTemplate },
-  { title: "Uploads", url: "/assets/uploads", icon: FolderOpen },
-];
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -62,25 +56,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator />
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Assets Library</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {assetNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={location === item.url} data-testid={`link-${item.title.toLowerCase().replace(' ', '-')}`}>
-                    <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter className="p-4">

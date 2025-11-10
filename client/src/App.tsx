@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -15,6 +15,7 @@ import NarrativeMode from "@/pages/videos/narrative-mode";
 import Stories from "@/pages/stories";
 import StoryRouter from "@/pages/stories/story-router";
 import Characters from "@/pages/characters";
+import Locations from "@/pages/assets/locations";
 import Voices from "@/pages/voices";
 import BrandKits from "@/pages/brandkits";
 import Uploads from "@/pages/uploads";
@@ -24,6 +25,7 @@ import Profile from "@/pages/profile";
 import Settings from "@/pages/settings";
 import Subscription from "@/pages/subscription";
 import NotFound from "@/pages/not-found";
+import { AssetsLayout } from "@/pages/assets/layout";
 
 function MainLayout() {
   const [location] = useLocation();
@@ -62,10 +64,47 @@ function MainLayout() {
               <Route path="/stories" component={Stories} />
               <Route path="/history" component={History} />
               <Route path="/calendar" component={Calendar} />
-              <Route path="/assets/characters" component={Characters} />
-              <Route path="/assets/voices" component={Voices} />
-              <Route path="/assets/brandkits" component={BrandKits} />
-              <Route path="/assets/uploads" component={Uploads} />
+              
+              {/* Assets routes with shared layout */}
+              <Route path="/assets">
+                <Redirect to="/assets/characters" />
+              </Route>
+              <Route path="/assets/characters">
+                {() => (
+                  <AssetsLayout>
+                    <Characters />
+                  </AssetsLayout>
+                )}
+              </Route>
+              <Route path="/assets/locations">
+                {() => (
+                  <AssetsLayout>
+                    <Locations />
+                  </AssetsLayout>
+                )}
+              </Route>
+              <Route path="/assets/voices">
+                {() => (
+                  <AssetsLayout>
+                    <Voices />
+                  </AssetsLayout>
+                )}
+              </Route>
+              <Route path="/assets/brandkits">
+                {() => (
+                  <AssetsLayout>
+                    <BrandKits />
+                  </AssetsLayout>
+                )}
+              </Route>
+              <Route path="/assets/uploads">
+                {() => (
+                  <AssetsLayout>
+                    <Uploads />
+                  </AssetsLayout>
+                )}
+              </Route>
+              
               <Route path="/profile" component={Profile} />
               <Route path="/settings" component={Settings} />
               <Route path="/subscription" component={Subscription} />

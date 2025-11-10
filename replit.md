@@ -14,7 +14,8 @@ Storia is a scalable, modular SaaS platform for creating AI-powered videos and s
   - Mutual exclusivity enforcement for approved shot versions
   - Automatic currentVersionId pointer management
 - ✅ Comprehensive frontend with Storia brand identity (purple/magenta/cyan gradient theme)
-- ✅ Full navigation with sidebar (Dashboard, Videos, Stories, Calendar, Assets)
+- ✅ Full navigation with sidebar (Dashboard, Videos, Stories, Calendar)
+- ✅ **Assets Library System**: Collapsible in-page navigation with dedicated sections for Characters, Locations, Voices, Brand Kits, and Uploads
 - ✅ **Complete Narrative Video workflow with functional components:**
   - **Script Editor**: AI generation, duration/genre/language selection
   - **World & Cast**: Character creation, reference image upload for style/character consistency
@@ -43,7 +44,7 @@ Storia is a scalable, modular SaaS platform for creating AI-powered videos and s
 ```
 client/src/
 ├── components/
-│   ├── app-sidebar.tsx         # Main navigation sidebar
+│   ├── app-sidebar.tsx         # Main navigation sidebar (Dashboard, Videos, Stories, Calendar)
 │   ├── theme-provider.tsx      # Dark/light mode management
 │   ├── theme-toggle.tsx        # Theme switcher button
 │   ├── video-card.tsx          # Video project card
@@ -57,9 +58,17 @@ client/src/
 ├── pages/
 │   ├── dashboard.tsx           # Main dashboard
 │   ├── videos.tsx              # Video project list
-│   ├── narrative-mode.tsx      # Narrative workflow page
-│   ├── characters.tsx          # Character management
-│   └── calendar.tsx            # Content calendar
+│   ├── calendar.tsx            # Content calendar
+│   ├── assets/
+│   │   ├── layout.tsx          # Shared layout with collapsible aside navigation
+│   │   └── locations/          # Locations library (new)
+│   │       └── index.tsx
+│   ├── characters/             # Character library management
+│   ├── voices/                 # Voice library management
+│   ├── brandkits/              # Brand kits management
+│   ├── uploads/                # Upload management
+│   └── videos/
+│       └── narrative-mode/     # Narrative workflow page
 └── App.tsx                     # Main app with routing
 ```
 

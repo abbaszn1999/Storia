@@ -22,6 +22,9 @@ import {
 import { Plus, Upload, Check, Pencil, User, Library, ChevronDown, Loader2, Sparkles, X, MapPin, Trash2, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Character, ReferenceImage } from "@shared/schema";
+import { LocationDialog } from "@/components/narrative/location-dialog";
+import { LocationRecommendationModal } from "@/components/narrative/location-recommendation-modal";
+import { LocationLibraryModal } from "@/components/narrative/location-library-modal";
 
 import cinematicImg from "@assets/stock_images/cinematic_dramatic_m_11f2a438.jpg";
 import vintageImg from "@assets/stock_images/vintage_retro_film_a_271325f2.jpg";
@@ -255,9 +258,8 @@ export function WorldCast({
   const [locationsList, setLocationsList] = useState<Location[]>(locations);
   const [isAddLocationOpen, setIsAddLocationOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
-  const [newLocation, setNewLocation] = useState({ name: "", description: "" });
-  const [generatedLocationImage, setGeneratedLocationImage] = useState<string | null>(null);
-  const [isGeneratingLocation, setIsGeneratingLocation] = useState(false);
+  const [isLocationRecommendationOpen, setIsLocationRecommendationOpen] = useState(false);
+  const [isLocationLibraryOpen, setIsLocationLibraryOpen] = useState(false);
   const { toast } = useToast();
 
   // Fetch character library from database
@@ -516,65 +518,36 @@ export function WorldCast({
     }
   };
 
-  const handleGenerateLocation = () => {
-    if (!newLocation.description.trim()) {
-      toast({
-        title: "Description Required",
-        description: "Please describe the location before generating an image.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsGeneratingLocation(true);
-    
-    // Simulate AI generation
-    setTimeout(() => {
-      const generatedImageUrl = "https://placehold.co/800x600/1a472a/ffffff?text=Location+Generated";
-      
-      setGeneratedLocationImage(generatedImageUrl);
-      setIsGeneratingLocation(false);
-      
-      toast({
-        title: "Location Image Generated",
-        description: "Location image has been created.",
-      });
-    }, 2000);
-  };
-
-  const handleSaveLocation = () => {
-    if (!newLocation.name.trim()) {
-      toast({
-        title: "Name Required",
-        description: "Please enter a location name.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const handleSaveLocationFromDialog = (locationData: {
+    name: string;
+    description: string;
+    details: string;
+    thumbnailUrl: string | null;
+    referenceImages: string[];
+  }) => {
     let updatedLocations: Location[];
     
     if (editingLocation) {
       updatedLocations = locationsList.map(l => 
         l.id === editingLocation.id 
-          ? { ...l, name: newLocation.name, description: newLocation.description, imageUrl: generatedLocationImage || l.imageUrl }
+          ? { ...l, name: locationData.name, description: locationData.description, imageUrl: locationData.thumbnailUrl || l.imageUrl }
           : l
       );
       toast({
         title: "Location Updated",
-        description: `${newLocation.name} has been updated.`,
+        description: `${locationData.name} has been updated.`,
       });
     } else {
       const location: Location = {
         id: `loc-${Date.now()}`,
-        name: newLocation.name,
-        description: newLocation.description,
-        imageUrl: generatedLocationImage,
+        name: locationData.name,
+        description: locationData.description,
+        imageUrl: locationData.thumbnailUrl,
       };
       updatedLocations = [...locationsList, location];
       toast({
         title: "Location Added",
-        description: `${newLocation.name} has been added.`,
+        description: `${locationData.name} has been added.`,
       });
     }
 
@@ -588,17 +561,58 @@ export function WorldCast({
       });
     }
 
-    setNewLocation({ name: "", description: "" });
-    setGeneratedLocationImage(null);
     setEditingLocation(null);
-    setIsAddLocationOpen(false);
   };
 
   const handleEditLocation = (location: Location) => {
     setEditingLocation(location);
-    setNewLocation({ name: location.name, description: location.description });
-    setGeneratedLocationImage(location.imageUrl || null);
     setIsAddLocationOpen(true);
+  };
+
+  const handleAddLocationFromRecommendation = (location: Location) => {
+    const alreadyExists = locationsList.some(l => l.name === location.name);
+    if (alreadyExists) {
+      toast({
+        title: "Already Added",
+        description: `${location.name} is already in your locations.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const updatedLocations = [...locationsList, location];
+    setLocationsList(updatedLocations);
+    if (onWorldSettingsChange) {
+      onWorldSettingsChange({ 
+        artStyle: selectedArtStyle, 
+        imageModel: selectedImageModel,
+        worldDescription: selectedWorldDescription,
+        locations: updatedLocations
+      });
+    }
+  };
+
+  const handleSelectLocationFromLibrary = (location: Location) => {
+    const alreadyExists = locationsList.some(l => l.id === location.id);
+    if (alreadyExists) {
+      toast({
+        title: "Already Added",
+        description: `${location.name} is already in your locations.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const updatedLocations = [...locationsList, location];
+    setLocationsList(updatedLocations);
+    if (onWorldSettingsChange) {
+      onWorldSettingsChange({ 
+        artStyle: selectedArtStyle, 
+        imageModel: selectedImageModel,
+        worldDescription: selectedWorldDescription,
+        locations: updatedLocations
+      });
+    }
   };
 
   const handleDeleteLocation = (locationId: string) => {
@@ -868,20 +882,47 @@ export function WorldCast({
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h3 className="text-xl font-semibold">Locations</h3>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setEditingLocation(null);
-              setNewLocation({ name: "", description: "" });
-              setGeneratedLocationImage(null);
-              setIsAddLocationOpen(true);
-            }}
-            data-testid="button-add-location"
-          >
-            <MapPin className="mr-2 h-4 w-4" />
-            Add Location
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsLocationRecommendationOpen(true)}
+              data-testid="button-recommend-locations"
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              Recommend AI Locations
+            </Button>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  data-testid="button-add-location-dropdown"
+                >
+                  <MapPin className="mr-2 h-4 w-4" />
+                  Add Location
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setIsLocationLibraryOpen(true)} data-testid="menu-item-browse-library">
+                  <Library className="mr-2 h-4 w-4" />
+                  Browse Library
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => {
+                    setEditingLocation(null);
+                    setIsAddLocationOpen(true);
+                  }}
+                  data-testid="menu-item-create-new"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create New Location
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         {locationsList.length === 0 ? (
@@ -896,8 +937,6 @@ export function WorldCast({
                 size="sm"
                 onClick={() => {
                   setEditingLocation(null);
-                  setNewLocation({ name: "", description: "" });
-                  setGeneratedLocationImage(null);
                   setIsAddLocationOpen(true);
                 }}
                 data-testid="button-add-first-location"
@@ -960,120 +999,18 @@ export function WorldCast({
       </div>
 
       {/* Location Dialog */}
-      <Dialog open={isAddLocationOpen} onOpenChange={setIsAddLocationOpen}>
-        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingLocation ? "Edit Location" : "Add Location"}</DialogTitle>
-            <DialogDescription>
-              Define a key location or setting for your story.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            {/* Name Input */}
-            <div className="space-y-2">
-              <Label htmlFor="location-name">Location Name</Label>
-              <Input
-                id="location-name"
-                placeholder="e.g., Ancient Forest, City Square"
-                value={newLocation.name}
-                onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value })}
-                data-testid="input-location-name"
-              />
-            </div>
-
-            {/* Description Input */}
-            <div className="space-y-2">
-              <Label htmlFor="location-description">Description</Label>
-              <Textarea
-                id="location-description"
-                placeholder="Describe the visual details, atmosphere, and mood..."
-                value={newLocation.description}
-                onChange={(e) => setNewLocation({ ...newLocation, description: e.target.value })}
-                rows={3}
-                className="resize-none"
-                data-testid="input-location-description"
-              />
-            </div>
-
-            {/* Generate Section */}
-            <div className="space-y-2">
-              <Label>Location Visual</Label>
-              
-              {generatedLocationImage ? (
-                <div className="relative aspect-video rounded-lg border bg-muted overflow-hidden group">
-                  <img src={generatedLocationImage} alt="Generated Location" className="h-full w-full object-cover" />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={handleGenerateLocation}
-                      disabled={isGeneratingLocation || !newLocation.description.trim()}
-                      data-testid="button-regenerate-location"
-                    >
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Regenerate
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="h-32 rounded-lg border-2 border-dashed bg-muted/30 flex items-center justify-center">
-                    <div className="text-center">
-                      <MapPin className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">No image generated yet</p>
-                    </div>
-                  </div>
-                  <Button 
-                    onClick={handleGenerateLocation} 
-                    className="w-full"
-                    disabled={isGeneratingLocation || !newLocation.description.trim()}
-                    data-testid="button-generate-location"
-                  >
-                    {isGeneratingLocation ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generating Image...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Generate Location Image
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-2 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsAddLocationOpen(false);
-                  setNewLocation({ name: "", description: "" });
-                  setGeneratedLocationImage(null);
-                  setEditingLocation(null);
-                }}
-                className="flex-1"
-                data-testid="button-cancel-location"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSaveLocation}
-                className="flex-1"
-                disabled={!newLocation.name.trim() || !newLocation.description.trim()}
-                data-testid="button-save-location"
-              >
-                <Check className="mr-2 h-4 w-4" />
-                {editingLocation ? "Update" : "Add Location"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <LocationDialog
+        open={isAddLocationOpen}
+        onOpenChange={setIsAddLocationOpen}
+        onSave={handleSaveLocationFromDialog}
+        editingLocation={editingLocation ? {
+          name: editingLocation.name,
+          description: editingLocation.description,
+          details: "",
+          thumbnailUrl: editingLocation.imageUrl || null,
+          referenceImages: [],
+        } : null}
+      />
 
       {/* Character Dialog */}
       <Dialog open={isAddCharacterOpen} onOpenChange={setIsAddCharacterOpen}>
@@ -1297,6 +1234,26 @@ export function WorldCast({
         }}
         existingCharacters={characters}
         videoId={videoId}
+        workspaceId={workspaceId}
+      />
+
+      {/* AI Location Recommendation Dialog */}
+      <LocationRecommendationModal
+        open={isLocationRecommendationOpen}
+        onOpenChange={setIsLocationRecommendationOpen}
+        onAddLocation={handleAddLocationFromRecommendation}
+        existingLocations={locationsList}
+        videoId={videoId}
+        workspaceId={workspaceId}
+        imageModel={selectedImageModel}
+      />
+
+      {/* Location Library Dialog */}
+      <LocationLibraryModal
+        open={isLocationLibraryOpen}
+        onOpenChange={setIsLocationLibraryOpen}
+        onSelectLocation={handleSelectLocationFromLibrary}
+        existingLocations={locationsList}
         workspaceId={workspaceId}
       />
 

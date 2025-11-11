@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Play, FileText, Clock } from "lucide-react";
+import { Play, FileText, Info, Music, Subtitles } from "lucide-react";
 import type { Scene, Shot } from "@shared/schema";
+import { FullScriptDialog } from "./full-script-dialog";
+import { ShotDetailsDialog } from "./shot-details-dialog";
 
 const MUSIC_STYLES = [
   "Cinematic Epic",
@@ -34,153 +35,65 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
   const [subtitlePosition, setSubtitlePosition] = useState("bottom");
   const [subtitleSize, setSubtitleSize] = useState("medium");
-
-  // Calculate total duration
-  const totalDuration = scenes.reduce((total, scene) => total + (scene.duration || 0), 0);
+  
+  const [isFullScriptOpen, setIsFullScriptOpen] = useState(false);
+  const [isShotDetailsOpen, setIsShotDetailsOpen] = useState(false);
 
   return (
-    <div className="relative flex flex-col gap-6 pb-20">
-      {/* Top Section: Preview and Script */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.5fr,1fr] gap-6 h-[500px]">
-        {/* Video Preview */}
-        <div className="flex flex-col min-w-0">
-          <div className="flex-1 bg-card rounded-lg border border-border flex items-center justify-center">
-            <div className="text-center text-muted-foreground">
-              <Play className="w-20 h-20 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-foreground">Animatic Preview</h3>
-              <p className="mt-2">Your timed storyboard sequence will play here</p>
-            </div>
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-200px)] gap-6">
+      {/* Main Video Preview */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 bg-card rounded-lg border flex items-center justify-center">
+          <div className="text-center text-muted-foreground">
+            <Play className="w-24 h-24 mx-auto mb-4" />
+            <h3 className="text-2xl font-semibold text-foreground">Animatic Preview</h3>
+            <p className="mt-2 text-muted-foreground">Your timed storyboard sequence will play here</p>
           </div>
-        </div>
-
-        {/* Script Timeline */}
-        <div className="flex flex-col min-w-0">
-          <Card className="flex-1 flex flex-col">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-base">Voiceover Script</CardTitle>
-                </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  <span>{totalDuration}s</span>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1 overflow-y-auto space-y-4 pt-0">
-              {/* Full Script Display */}
-              {script && script.trim().length > 0 && (
-                <div className="p-3 bg-muted/30 rounded-lg space-y-2 border border-border/50">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase">Full Script</Label>
-                  </div>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                    {script}
-                  </p>
-                </div>
-              )}
-
-              {/* Scene & Shot Breakdown */}
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase">Shot-by-Shot Breakdown</Label>
-              </div>
-
-              {scenes.length === 0 ? (
-                <div className="text-center py-12">
-                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">No scenes available</p>
-                </div>
-              ) : (
-                scenes.map((scene, sceneIndex) => {
-                  const sceneShots = shots[scene.id] || [];
-                  
-                  return (
-                    <div key={scene.id} className="space-y-3" data-testid={`scene-${scene.id}`}>
-                      {/* Scene Header */}
-                      <div className="flex items-start gap-3 pb-2 border-b">
-                        <Badge variant="secondary" className="shrink-0 mt-0.5">
-                          Scene {scene.sceneNumber}
-                        </Badge>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-sm mb-1">{scene.title}</h4>
-                          <p className="text-xs text-muted-foreground line-clamp-2">
-                            {scene.description}
-                          </p>
-                          {scene.duration && (
-                            <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                              <Clock className="h-3 w-3" />
-                              <span>{scene.duration}s</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Shots */}
-                      {sceneShots.length > 0 && (
-                        <div className="space-y-2 pl-4 border-l-2 border-primary/20">
-                          {sceneShots.map((shot, shotIndex) => (
-                            <div 
-                              key={shot.id} 
-                              className="space-y-1.5 pb-2"
-                              data-testid={`shot-${shot.id}`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <Badge 
-                                  variant="outline" 
-                                  className="text-xs shrink-0"
-                                >
-                                  Shot {shot.shotNumber}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground">
-                                  {shot.shotType}
-                                </span>
-                                {shot.duration && (
-                                  <span className="text-xs text-muted-foreground ml-auto">
-                                    {shot.duration}s
-                                  </span>
-                                )}
-                              </div>
-                              {shot.description && (
-                                <div className="space-y-1">
-                                  <p className="text-xs text-muted-foreground font-medium">Narration:</p>
-                                  <p className="text-sm leading-relaxed bg-background/50 p-2 rounded border-l-2 border-primary/30">
-                                    {shot.description}
-                                  </p>
-                                </div>
-                              )}
-                              {shot.soundEffects && (
-                                <p className="text-xs text-muted-foreground italic">
-                                  SFX: {shot.soundEffects}
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
         </div>
       </div>
 
-      {/* Bottom Section: Audio & Subtitle Settings */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Right Sidebar - Controls */}
+      <div className="w-full lg:w-80 flex flex-col gap-4 overflow-y-auto">
+        {/* Full Script Button */}
+        <Button
+          variant="outline"
+          size="lg"
+          className="w-full justify-start gap-2"
+          onClick={() => setIsFullScriptOpen(true)}
+          data-testid="button-full-script"
+        >
+          <FileText className="h-4 w-4 shrink-0" />
+          <div className="flex-1 text-left">
+            <div className="font-medium">Full Script</div>
+            <div className="text-xs text-muted-foreground">View complete narration</div>
+          </div>
+        </Button>
+
+        {/* Shot Details Button */}
+        <Button
+          variant="outline"
+          size="lg"
+          className="w-full justify-start gap-2"
+          onClick={() => setIsShotDetailsOpen(true)}
+          data-testid="button-shot-details"
+        >
+          <Info className="h-4 w-4 shrink-0" />
+          <div className="flex-1 text-left">
+            <div className="font-medium">View in Details</div>
+            <div className="text-xs text-muted-foreground">Scene & shot breakdown</div>
+          </div>
+        </Button>
+
         {/* Background Music */}
         <Card>
-          <CardContent className="pt-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="background-music" className="text-base font-semibold">
-                Background Music
-              </Label>
+          <CardContent className="pt-4 space-y-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Music className="h-4 w-4 text-primary" />
+              <Label className="text-base font-semibold">Background Music</Label>
               <Switch
-                id="background-music"
                 checked={backgroundMusicEnabled}
                 onCheckedChange={setBackgroundMusicEnabled}
+                className="ml-auto"
                 data-testid="switch-background-music"
               />
             </div>
@@ -188,11 +101,11 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
             {backgroundMusicEnabled && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="music-style" className="text-sm text-muted-foreground">
+                  <Label htmlFor="music-style" className="text-xs text-muted-foreground uppercase">
                     Music Style
                   </Label>
                   <Select value={musicStyle} onValueChange={setMusicStyle}>
-                    <SelectTrigger id="music-style" data-testid="select-music-style">
+                    <SelectTrigger id="music-style" className="h-9" data-testid="select-music-style">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -206,7 +119,7 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="volume" className="text-sm text-muted-foreground">
+                  <Label htmlFor="volume" className="text-xs text-muted-foreground uppercase">
                     Volume
                   </Label>
                   <Slider
@@ -229,15 +142,14 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
 
         {/* Subtitles */}
         <Card>
-          <CardContent className="pt-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="subtitles" className="text-base font-semibold">
-                Subtitles
-              </Label>
+          <CardContent className="pt-4 space-y-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Subtitles className="h-4 w-4 text-primary" />
+              <Label className="text-base font-semibold">Subtitles</Label>
               <Switch
-                id="subtitles"
                 checked={subtitlesEnabled}
                 onCheckedChange={setSubtitlesEnabled}
+                className="ml-auto"
                 data-testid="switch-subtitles"
               />
             </div>
@@ -245,11 +157,11 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
             {subtitlesEnabled && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="subtitle-position" className="text-sm text-muted-foreground">
+                  <Label htmlFor="subtitle-position" className="text-xs text-muted-foreground uppercase">
                     Position
                   </Label>
                   <Select value={subtitlePosition} onValueChange={setSubtitlePosition}>
-                    <SelectTrigger id="subtitle-position" data-testid="select-subtitle-position">
+                    <SelectTrigger id="subtitle-position" className="h-9" data-testid="select-subtitle-position">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -261,11 +173,11 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="subtitle-size" className="text-sm text-muted-foreground">
+                  <Label htmlFor="subtitle-size" className="text-xs text-muted-foreground uppercase">
                     Size
                   </Label>
                   <Select value={subtitleSize} onValueChange={setSubtitleSize}>
-                    <SelectTrigger id="subtitle-size" data-testid="select-subtitle-size">
+                    <SelectTrigger id="subtitle-size" className="h-9" data-testid="select-subtitle-size">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -279,14 +191,26 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
             )}
           </CardContent>
         </Card>
-      </div>
 
-      {/* Fixed Continue Button */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <Button onClick={onNext} data-testid="button-continue">
+        {/* Continue Button */}
+        <Button onClick={onNext} size="lg" className="w-full mt-4" data-testid="button-continue">
           Continue to Export
         </Button>
       </div>
+
+      {/* Dialogs */}
+      <FullScriptDialog
+        open={isFullScriptOpen}
+        onOpenChange={setIsFullScriptOpen}
+        script={script}
+      />
+      
+      <ShotDetailsDialog
+        open={isShotDetailsOpen}
+        onOpenChange={setIsShotDetailsOpen}
+        scenes={scenes}
+        shots={shots}
+      />
     </div>
   );
 }

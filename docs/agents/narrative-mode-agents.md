@@ -79,11 +79,9 @@ This enables:
 |-------|------|-------------|
 | Script text | String | Complete narration script |
 | Estimated duration | Integer | Calculated script duration (seconds) |
-| Suggested pacing notes | String | Recommendations for pacing (slow/medium/fast sections) |
 
 **Implementation Notes**:
 - Use structured prompting to enforce duration constraints
-- Include pacing notes for later timing calculations
 - Support iterative refinement (user edits → regenerate)
 - **No separate feedback agent needed** - user can edit script manually and re-run Agent 1.1
 
@@ -98,7 +96,6 @@ Requirements:
 - Natural narration flow
 - Clear narrative arc
 - Time-appropriate content length
-- Include pacing suggestions (mark slower/faster sections)
 ```
 
 ---
@@ -233,25 +230,22 @@ Generate a detailed image prompt optimized for character consistency.
 **Outputs**:
 | Field | Type | Description |
 |-------|------|-------------|
-| Style description | String | Detailed text description of art style |
-| Key visual elements | Array[String] | Important style characteristics |
-| Color palette notes | String | Dominant colors and schemes |
-| Artistic technique | String | Rendering style (watercolor, 3D, anime, etc.) |
+| Style description | String | Comprehensive text description including key visual elements, color palette, and artistic technique |
 
 **Implementation Notes**:
 - This text description becomes **@style** for all subsequent image generation
-- Extract: artistic medium, color schemes, lighting style, mood, rendering technique
-- Use in Agents 2.2, 2.6, 4.2 to maintain consistent visual style
+- Single consolidated description includes: artistic medium, key visual elements, color schemes, lighting style, mood, rendering technique
+- Use in Agents 2.2, 2.6, 4.1 to maintain consistent visual style
 
 **Prompt Template**:
 ```
-Analyze this style reference image and provide:
-1. Overall artistic style description
-2. Key visual characteristics
-3. Color palette and mood
-4. Rendering technique
+Analyze this style reference image and provide a comprehensive style description that includes:
+1. Overall artistic style (medium, technique, rendering approach)
+2. Key visual characteristics and elements
+3. Color palette, mood, and lighting
+4. Any distinctive stylistic features
 
-This description will be used to generate images in the same style.
+Format as a single cohesive description that can be injected into image generation prompts.
 ```
 
 ---
@@ -269,7 +263,7 @@ This description will be used to generate images in the same style.
 | └─ Name | String | Location identifier | ✓ |
 | └─ Description | String | Physical environment | ✓ |
 | └─ Atmosphere/Mood | String | Emotional tone | ✗ |
-| Art style description | String | Agent 2.5 output (@style) | ✗ |
+| Art style description | String | Agent 2.5 output (@style) | ✓ |
 | Additional reference images | Array[Image URL] | User uploads | ✗ |
 
 **Outputs**:
@@ -327,7 +321,6 @@ This description will be used to generate images in the same style.
 | Field | Type | Source | Required |
 |-------|------|--------|----------|
 | Script text | String | Agent 1.1 output (or edited) | ✓ |
-| Pacing notes | String | Agent 1.1 output | ✗ |
 | Target duration | Integer | User input (Step 1) | ✓ |
 | Characters available | Array[Object] | Agent 2.1/user-created | ✓ |
 | Locations available | Array[Object] | User-created locations | ✓ |
@@ -346,7 +339,6 @@ This description will be used to generate images in the same style.
 **Implementation Notes**:
 - Use available characters and locations to tag entities
 - Distribute total duration across scenes proportionally
-- Consider pacing notes when allocating time
 - Scene breaks should align with narrative shifts
 
 ---
@@ -529,9 +521,48 @@ Technical: {aspect_ratio from Step 1}
 
 ---
 
-### Agent 4.4: Camera Movement Applicator (AI - Video Generation)
+### Agent 4.4: Video Prompt Engineer (AI)
 
-**Role**: Apply camera movements to static storyboard images (generate short video clips)
+**Role**: Convert shot description and camera movement into detailed video generation prompt
+
+**AI Model**: GPT-4 / Claude (Prompt Engineering)
+
+**Inputs**:
+| Field | Type | Source | Required |
+|-------|------|--------|----------|
+| Storyboard image | Image URL | Agent 4.2 or 4.3 output | ✓ |
+| Shot description | String | Agent 3.2 output | ✓ |
+| Camera movement | Enum | Agent 3.2 output | ✓ |
+| Shot duration | Integer | Agent 3.3 output | ✓ |
+| Characters in shot | Array[String] | Agent 3.2 output (@tags) | ✗ |
+
+**Outputs**:
+| Field | Type | Description |
+|-------|------|-------------|
+| Video generation prompt | String | Detailed motion/action description |
+| Motion parameters | Object | Technical video generation settings |
+| └─ Motion strength | Float | How much movement (0.0-1.0) |
+| └─ Camera movement type | String | Primary camera motion |
+
+**Implementation Notes**:
+- Convert camera movement enum into natural language motion description
+- Include action from shot description for more dynamic videos
+- Consider shot duration when specifying motion speed
+- This runs in Step 4 (Storyboard page) when user clicks "Animate Shot"
+
+**Motion Prompt Templates**:
+- Static: "Camera holds steady on the scene with minimal natural movement"
+- Zoom In: "Slow cinematic zoom towards the subject, smooth and gradual"
+- Pan Right: "Smooth horizontal pan from left to right across the scene"
+- Pan Left: "Smooth horizontal pan from right to left across the scene"
+- Dolly Forward: "Camera slowly tracks forward into the scene, revealing depth"
+- Dolly Back: "Camera slowly pulls back from the scene"
+
+---
+
+### Agent 4.5: Video Generator (AI - Video Model)
+
+**Role**: Generate animated video clips from static storyboard images
 
 **AI Model**: Kling / Veo / Runway (Image-to-Video)
 
@@ -539,34 +570,26 @@ Technical: {aspect_ratio from Step 1}
 | Field | Type | Source | Required |
 |-------|------|--------|----------|
 | Storyboard image | Image URL | Agent 4.2 or 4.3 output | ✓ |
-| Camera movement | Enum | Agent 3.2 output | ✓ |
+| Video generation prompt | String | Agent 4.4 output | ✓ |
+| Motion parameters | Object | Agent 4.4 output | ✓ |
 | Shot duration | Integer | Agent 3.3 output | ✓ |
-| Motion prompt | String | Auto-generated from movement type | ✓ |
 
 **Outputs**:
 | Field | Type | Description |
 |-------|------|-------------|
-| Animated video clip URL | String | Short video with camera movement |
-| Clip duration | Integer | Actual video length |
+| Animated video clip URL | String | Generated video with motion |
+| Actual clip duration | Integer | Final video length (seconds) |
 
 **Implementation Notes**:
-- Convert camera movement enum to motion prompt:
-  - "Static" → minimal motion, hold frame
-  - "Pan Left/Right" → horizontal camera movement
-  - "Zoom In/Out" → camera zoom effect
-  - "Dolly Forward/Back" → camera track movement
+- Use storyboard image as the starting frame (reference image)
+- Apply motion prompt to guide video generation
 - Target duration = shot duration from Agent 3.3
-- This runs in Step 4 (Storyboard page) when user clicks "Animate Shot"
-
-**Motion Prompt Templates**:
-- Static: "Camera holds steady on the scene"
-- Zoom In: "Slow zoom in towards the subject"
-- Pan Right: "Smooth pan from left to right"
-- Dolly Forward: "Camera slowly moves forward into the scene"
+- Modern image-to-video models (Kling, Veo) support reference images
+- Generates video clips that maintain character/location consistency
 
 ---
 
-### Agent 4.5: Regeneration Manager (Non-AI)
+### Agent 4.6: Regeneration Manager (Non-AI)
 
 **Role**: Track and manage multiple versions of storyboard frames
 
@@ -781,7 +804,6 @@ Technical: {aspect_ratio from Step 1}
 │                         STEP 1: SCRIPT EDITOR                   │
 ├─────────────────────────────────────────────────────────────────┤
 │  User Input → Agent 1.1 (Script Generator) → Script Text        │
-│                                              → Pacing Notes      │
 └────────────────┬────────────────────────────────────────────────┘
                  │
                  ↓
@@ -830,9 +852,12 @@ Technical: {aspect_ratio from Step 1}
 │                                                                  │
 │  Image + Edit Request → Agent 4.3 (Editor) → Edited Image       │
 │                                                                  │
-│  Image + Movement → Agent 4.4 (Camera Movement) → Video Clips   │
+│  Image + Shot Data → Agent 4.4 (Video Prompt Eng) → Video       │
+│                                                      Prompt      │
 │                                                                  │
-│  User Actions → Agent 4.5 (Regen Manager) → Version Control     │
+│  Image + Video Prompt → Agent 4.5 (Video Gen) → Video Clips     │
+│                                                                  │
+│  User Actions → Agent 4.6 (Regen Manager) → Version Control     │
 └────────────────┬────────────────────────────────────────────────┘
                  │
                  ↓
@@ -881,22 +906,23 @@ Technical: {aspect_ratio from Step 1}
 
 11. **Agent 4.1** - Shot Prompt Engineer ✓ Critical
 12. **Agent 4.2** - Storyboard Image Generator ✓ Critical
-13. **Agent 4.5** - Regeneration Manager ✓ Version control
+13. **Agent 4.6** - Regeneration Manager ✓ Version control
 
 ### Phase 3: Animation & Preview
 **Goal**: Animated shots and complete preview
 
-14. **Agent 4.4** - Camera Movement Applicator ✓ Animation
-15. **Agent 5.1** - Voiceover Synthesizer ✓ Audio
-16. **Agent 5.2** - Background Music Composer ✓ Music
-17. **Agent 5.3** - Video Compositor ✓ Final assembly
+14. **Agent 4.4** - Video Prompt Engineer ✓ Critical
+15. **Agent 4.5** - Video Generator ✓ Animation
+16. **Agent 5.1** - Voiceover Synthesizer ✓ Audio
+17. **Agent 5.2** - Background Music Composer ✓ Music
+18. **Agent 5.3** - Video Compositor ✓ Final assembly
 
 ### Phase 4: Polish & Publishing
 **Goal**: Export and distribution
 
-18. **Agent 4.3** - Image Editor ⚠️ Enhancement (nice-to-have)
-19. **Agent 6.1** - Final Video Renderer ✓ Export
-20. **Agent 6.2** - Platform Publisher ✓ Distribution
+19. **Agent 4.3** - Image Editor ⚠️ Enhancement (nice-to-have)
+20. **Agent 6.1** - Final Video Renderer ✓ Export
+21. **Agent 6.2** - Platform Publisher ✓ Distribution
 
 ### Deferred (Future Enhancement)
 - **Agent 2.4** - Voice Generator (character voices)
@@ -910,10 +936,11 @@ Technical: {aspect_ratio from Step 1}
 | Category | Count |
 |----------|-------|
 | **Total Agents** | 22 |
-| **AI Agents** | 16 |
-| **Non-AI Agents** | 4 |
-| **Deferred Agents** | 1 |
-| **Critical Path Agents** | 17 |
+| **AI Agents** | 17 (16 active + 1 deferred) |
+| **Non-AI Agents** | 5 |
+| **Deferred Agents** | 1 (Agent 2.4) |
+| **Active Agents** | 21 |
+| **Critical Path Agents** | 18 |
 
 ### AI Model Requirements
 

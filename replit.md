@@ -159,7 +159,7 @@ The purple/magenta/cyan palette creates a modern, professional aesthetic optimiz
 **Complete Specification**: See [docs/agents/narrative-mode-agents.md](docs/agents/narrative-mode-agents.md)
 
 ### Agent System Overview
-- **22 specialized agents** (16 AI, 4 non-AI, 1 deferred)
+- **22 specialized agents** (17 AI, 5 non-AI, 1 deferred)
 - **Reference tagging system**: @character{id}, @location{id}, @style for entity consistency
 - **6 workflow steps**: Script Editor → World & Cast → Scene Breakdown → Storyboard Editor → Animatic Preview → Export & Publish
 
@@ -178,8 +178,9 @@ The purple/magenta/cyan palette creates a modern, professional aesthetic optimiz
 - Agent 4.3: Image Editor (iterative refinement)
 
 **Video Generation**
-- Agent 4.4: Camera Movement Applicator (Kling/Veo/Runway)
-- Agent 5.3: Video Compositor (FFmpeg/Cloud)
+- Agent 4.4: Video Prompt Engineer (motion prompt creation)
+- Agent 4.5: Video Generator (Kling/Veo/Runway - image-to-video)
+- Agent 5.3: Video Compositor (FFmpeg/Cloud - shot assembly)
 - Agent 6.1: Final Video Renderer (export quality)
 
 **Audio Generation**
@@ -205,8 +206,8 @@ The purple/magenta/cyan palette creates a modern, professional aesthetic optimiz
 ### Next Phase: Backend Implementation
 1. **Agent System Implementation** (see docs/agents/narrative-mode-agents.md)
    - Phase 1: Core narrative pipeline (Agents 1.1, 2.1-2.7, 3.1-3.3)
-   - Phase 2: Visual generation (Agents 4.1-4.2, 4.5)
-   - Phase 3: Animation & preview (Agents 4.4, 5.1-5.3)
+   - Phase 2: Visual generation (Agents 4.1-4.2, 4.6)
+   - Phase 3: Animation & preview (Agents 4.4-4.5, 5.1-5.3)
    - Phase 4: Export & publishing (Agents 4.3, 6.1-6.2)
 2. Set up AI model integrations (OpenAI, Imagen, Kling, Eleven Labs)
 3. Build publishing integrations (YouTube, TikTok, Instagram, Facebook)

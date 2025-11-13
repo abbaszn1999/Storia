@@ -154,32 +154,45 @@ The purple/magenta/cyan palette creates a modern, professional aesthetic optimiz
 - Modal dialogs for creation flows
 - Toast notifications for feedback
 
-## Planned AI Integrations (Infrastructure Ready)
+## AI Agent Architecture
 
-### Text Generation
-- OpenAI: Script writing, scene breakdown
-- Gemini: Alternative text generation
-- Claude: Advanced narrative analysis
+**Complete Specification**: See [docs/agents/narrative-mode-agents.md](docs/agents/narrative-mode-agents.md)
 
-### Image Generation
-- Imagen 4: Storyboard frame generation
-- GPT-Image: Alternative image generation
-- Nano Banana: Quick previews
+### Agent System Overview
+- **22 specialized agents** (16 AI, 4 non-AI, 1 deferred)
+- **Reference tagging system**: @character{id}, @location{id}, @style for entity consistency
+- **6 workflow steps**: Script Editor → World & Cast → Scene Breakdown → Storyboard Editor → Animatic Preview → Export & Publish
 
-### Video Generation
-- Kling: Video synthesis
-- Veo: Advanced video creation
-- Runway: Motion graphics
+### Key Agents by Category
 
-### Voice Synthesis
-- Eleven Labs: Character voices
-- VoiceKiller: Voice cloning
+**Text Generation**
+- Agent 1.1: Script Generator (GPT-4/Claude/Gemini)
+- Agent 2.1: Character Analyzer (script analysis)
+- Agent 3.1: Scene Analyzer (narrative structure)
+- Agent 3.2: Shot Composer (cinematic breakdown)
 
-### Publishing Platforms
-- YouTube: OAuth + video upload
-- TikTok: Short-form publishing
-- Instagram: Stories and Reels
-- Facebook: Video posts
+**Image Generation**
+- Agent 2.3: Character Image Generator (Imagen 4/DALL-E 3)
+- Agent 2.7: Location Image Generator (environment consistency)
+- Agent 4.2: Storyboard Image Generator (shot frames)
+- Agent 4.3: Image Editor (iterative refinement)
+
+**Video Generation**
+- Agent 4.4: Camera Movement Applicator (Kling/Veo/Runway)
+- Agent 5.3: Video Compositor (FFmpeg/Cloud)
+- Agent 6.1: Final Video Renderer (export quality)
+
+**Audio Generation**
+- Agent 5.1: Voiceover Synthesizer (Eleven Labs/Google TTS)
+- Agent 5.2: Background Music Composer (Suno/MusicGen)
+
+**Vision & Analysis**
+- Agent 2.5: Style Reference Descriptor (GPT-4 Vision - image to text)
+- Agent 2.2: Character Prompt Engineer (optimized prompts)
+- Agent 4.1: Shot Prompt Engineer (reference image injection)
+
+**Publishing Platforms**
+- Agent 6.2: Platform Publisher (YouTube, TikTok, Instagram, Facebook)
 
 ## Development Workflow
 
@@ -190,14 +203,13 @@ The purple/magenta/cyan palette creates a modern, professional aesthetic optimiz
 - Component examples for verification
 
 ### Next Phase: Backend Implementation
-1. Set up AI model integrations (OpenAI, Gemini, Claude)
-2. Implement Narrative Mode agents:
-   - Script Writer
-   - Scene Breakdown Analyzer
-   - Image Prompt Generator
-   - Character Creator
-   - Video Animation Prompter
-3. Build publishing integrations (YouTube, TikTok, etc.)
+1. **Agent System Implementation** (see docs/agents/narrative-mode-agents.md)
+   - Phase 1: Core narrative pipeline (Agents 1.1, 2.1-2.7, 3.1-3.3)
+   - Phase 2: Visual generation (Agents 4.1-4.2, 4.5)
+   - Phase 3: Animation & preview (Agents 4.4, 5.1-5.3)
+   - Phase 4: Export & publishing (Agents 4.3, 6.1-6.2)
+2. Set up AI model integrations (OpenAI, Imagen, Kling, Eleven Labs)
+3. Build publishing integrations (YouTube, TikTok, Instagram, Facebook)
 4. Implement credit system and subscription billing
 5. Add real-time collaboration features
 

@@ -71,7 +71,7 @@ This enables:
 | Duration | Integer (seconds) | User selection | ✓ |
 | Genre | Enum | User selection | ✓ |
 | Language | ISO code | User selection | ✓ |
-| Tone/Style | String | User input | ✗ |
+| Tone/Style | String | User selection | ✗ |
 | Target audience | String | User input | ✗ |
 
 **Outputs**:

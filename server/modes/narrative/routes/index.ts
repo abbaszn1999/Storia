@@ -4,7 +4,7 @@ import { NarrativeAgents } from '../agents';
 import { getCameraMovementPrompt } from '../utils/camera-presets';
 import { StorageCleanup } from '../utils/storage-cleanup';
 import { storage } from '../../../storage';
-import { insertSceneSchema, insertShotSchema, insertContinuityGroupSchema } from '@shared/schema';
+import { insertSceneSchema, insertShotSchema, insertContinuityGroupSchema, type Shot, type ShotVersion } from '@shared/schema';
 
 const router = Router();
 
@@ -299,6 +299,150 @@ router.post('/videos/:videoId/lock-continuity', async (req: Request, res: Respon
   } catch (error) {
     console.error('Error locking continuity:', error);
     res.status(500).json({ error: 'Failed to lock continuity' });
+  }
+});
+
+router.post('/videos/:videoId/seed-demo', async (req: Request, res: Response) => {
+  try {
+    const { videoId } = req.params;
+    
+    const existingScenes = await storage.getScenesByVideoId(videoId);
+    if (existingScenes.length > 0) {
+      // Fetch all related data for existing scenes
+      const allShots: Shot[] = [];
+      const allShotVersions: ShotVersion[] = [];
+      const allContinuityGroups: any[] = [];
+      
+      for (const scene of existingScenes) {
+        const sceneShots = await storage.getShotsBySceneId(scene.id);
+        allShots.push(...sceneShots);
+        
+        const sceneContinuityGroups = await storage.getContinuityGroupsBySceneId(scene.id);
+        allContinuityGroups.push(...sceneContinuityGroups);
+        
+        for (const shot of sceneShots) {
+          const shotVersionsList = await storage.getShotVersionsByShotId(shot.id);
+          allShotVersions.push(...shotVersionsList);
+        }
+      }
+      
+      return res.json({ 
+        message: 'Demo data already exists',
+        scenes: existingScenes,
+        shots: allShots,
+        shotVersions: allShotVersions,
+        continuityGroups: allContinuityGroups,
+      });
+    }
+
+    const demoScenes = [
+      {
+        videoId,
+        sceneNumber: 1,
+        title: "Discovery in the Attic",
+        location: "Sarah's grandmother's attic",
+        duration: 45,
+        lighting: "dusty afternoon light",
+        weather: null,
+        notes: "Sarah discovers the mysterious map among old belongings",
+      },
+      {
+        videoId,
+        sceneNumber: 2,
+        title: "Preparing for Adventure",
+        location: "Sarah's apartment",
+        duration: 30,
+        lighting: "warm evening",
+        weather: null,
+        notes: "Sarah packs her gear and studies the map",
+      },
+      {
+        videoId,
+        sceneNumber: 3,
+        title: "Arrival in the Jungle",
+        location: "Amazon rainforest edge",
+        duration: 40,
+        lighting: "humid tropical sunlight",
+        weather: "humid, occasional mist",
+        notes: "Sarah arrives at the jungle's edge, ready to begin her trek",
+      },
+      {
+        videoId,
+        sceneNumber: 4,
+        title: "The Temple Emerges",
+        location: "Deep jungle clearing",
+        duration: 50,
+        lighting: "filtered green light through canopy",
+        weather: "misty",
+        notes: "After pushing through vegetation, the ancient temple appears",
+      },
+    ];
+
+    const scenes = [];
+    const shots = [];
+    const shotVersions = [];
+
+    for (const sceneData of demoScenes) {
+      const scene = await storage.createScene(sceneData);
+      scenes.push(scene);
+
+      const demoShots = [
+        {
+          sceneId: scene.id,
+          shotNumber: 1,
+          shotType: "wide",
+          description: "Establishing shot of the location",
+          duration: Math.floor(sceneData.duration / 3),
+          cameraMovement: "static",
+        },
+        {
+          sceneId: scene.id,
+          shotNumber: 2,
+          shotType: "medium",
+          description: "Sarah interacting with the environment",
+          duration: Math.floor(sceneData.duration / 3),
+          cameraMovement: "slow-pan",
+        },
+        {
+          sceneId: scene.id,
+          shotNumber: 3,
+          shotType: "close-up",
+          description: "Detail shot showing Sarah's expression or key object",
+          duration: sceneData.duration - 2 * Math.floor(sceneData.duration / 3),
+          cameraMovement: "static",
+        },
+      ];
+
+      for (const shotData of demoShots) {
+        const shot = await storage.createShot(shotData);
+        shots.push(shot);
+
+        const version = await storage.createShotVersion({
+          shotId: shot.id,
+          versionNumber: 1,
+          imageUrl: null,
+          imagePrompt: null,
+          startFrameUrl: null,
+          endFrameUrl: null,
+          videoUrl: null,
+          status: 'draft',
+        });
+        shotVersions.push(version);
+
+        await storage.updateShot(shot.id, { currentVersionId: version.id });
+      }
+    }
+
+    res.json({ 
+      scenes,
+      shots,
+      shotVersions,
+      continuityGroups: [], // No continuity groups for fresh seed
+      message: 'Demo data seeded successfully'
+    });
+  } catch (error) {
+    console.error('Demo seeding error:', error);
+    res.status(500).json({ error: 'Failed to seed demo data' });
   }
 });
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft, Check } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { NarrativeWorkflow } from "@/components/narrative-workflow";
 import { NarrativeModeSelector } from "@/components/narrative/narrative-mode-selector";
 import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
 
 const steps = [
   { id: "script", label: "Script" },
@@ -22,7 +23,7 @@ export default function NarrativeMode() {
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [narrativeMode, setNarrativeMode] = useState<"image-reference" | "start-end" | null>(null);
   
-  const [videoId] = useState(`video-${Date.now()}`);
+  const [videoId, setVideoId] = useState<string | null>(null);
   const [workspaceId] = useState("workspace-1");
   const [script, setScript] = useState("");
   const [aspectRatio, setAspectRatio] = useState("16:9");
@@ -50,6 +51,26 @@ export default function NarrativeMode() {
 
   const isStepCompleted = (stepId: string) => completedSteps.includes(stepId);
   const currentStepIndex = steps.findIndex((s) => s.id === activeStep);
+
+  // Create video in backend when narrative mode is selected
+  useEffect(() => {
+    if (narrativeMode && !videoId) {
+      const createVideo = async () => {
+        try {
+          const response = await apiRequest('POST', '/api/narrative/videos', {
+            workspaceId,
+            title: videoTitle,
+            mode: 'narrative',
+            narrativeMode,
+          }) as { id: string };
+          setVideoId(response.id);
+        } catch (error) {
+          console.error('Failed to create video:', error);
+        }
+      };
+      createVideo();
+    }
+  }, [narrativeMode, videoId, workspaceId, videoTitle]);
 
   const handleNext = () => {
     if (!completedSteps.includes(activeStep)) {
@@ -118,7 +139,7 @@ export default function NarrativeMode() {
             <div className="flex items-center justify-center min-h-[600px]">
               <NarrativeModeSelector onSelectMode={(mode) => setNarrativeMode(mode)} />
             </div>
-          ) : (
+          ) : videoId ? (
             <NarrativeWorkflow 
               activeStep={activeStep}
               videoId={videoId}
@@ -152,6 +173,10 @@ export default function NarrativeMode() {
               onWorldSettingsChange={setWorldSettings}
               onNext={handleNext}
             />
+          ) : (
+            <div className="flex items-center justify-center min-h-[600px]">
+              <p className="text-muted-foreground">Creating video...</p>
+            </div>
           )}
         </div>
       </main>

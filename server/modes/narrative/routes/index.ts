@@ -8,6 +8,26 @@ import { insertSceneSchema, insertShotSchema, insertContinuityGroupSchema } from
 
 const router = Router();
 
+router.post('/videos', async (req: Request, res: Response) => {
+  try {
+    const { workspaceId, title, mode, narrativeMode } = req.body;
+    
+    const video = await storage.createVideo({
+      workspaceId,
+      title: title || 'Untitled Project',
+      mode: mode || 'narrative',
+      narrativeMode: narrativeMode || null,
+      status: 'draft',
+      continuityLocked: false,
+    });
+
+    res.json(video);
+  } catch (error) {
+    console.error('Video creation error:', error);
+    res.status(500).json({ error: 'Failed to create video' });
+  }
+});
+
 router.post('/script/generate', async (req: Request, res: Response) => {
   try {
     const { duration, genre, language, aspectRatio, userPrompt } = req.body;

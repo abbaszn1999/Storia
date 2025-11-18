@@ -32,13 +32,18 @@ Storia is a scalable, modular SaaS platform for creating AI-powered videos and s
 ### Database Tables
 - **users**: User accounts with credits and subscription tier
 - **workspaces**: User workspaces for organizing projects
-- **videos**: Video projects with mode, status, script, scenes, storyboard data
+- **videos**: Video projects with mode, narrativeMode ("image-reference" | "start-end"), status, script, continuityLocked flag
 - **stories**: Short-form content with templates
 - **characters**: AI characters with appearance and voice settings
 - **voices**: Voice profiles for character synthesis
 - **brandkits**: Brand identity kits (colors, fonts, logos, guidelines)
 - **uploads**: User-uploaded media files
 - **content_calendar**: Scheduled content for publishing
+- **scenes**: Scene breakdown with title, location, duration, lighting, weather
+- **shots**: Individual shots with camera angles, movements, duration
+- **shot_versions**: Version control with start/end frame URLs, video URLs, needsRerender flag
+- **reference_images**: Character/location/style reference images
+- **continuity_groups**: Connected shot sequences for start-end frame mode
 
 ### Frontend Structure
 ```
@@ -159,9 +164,15 @@ The purple/magenta/cyan palette creates a modern, professional aesthetic optimiz
 **Complete Specification**: See [docs/agents/narrative-mode-agents.md](docs/agents/narrative-mode-agents.md)
 
 ### Agent System Overview
-- **22 specialized agents** (17 AI, 5 non-AI, 1 deferred)
+- **24 specialized agents** (18 AI, 6 non-AI, 1 deferred)
+- **Dual narrative modes**: Image-Reference (single frame) & Start-End Frame (seamless continuity)
 - **Reference tagging system**: @character{id}, @location{id}, @style for entity consistency
 - **6 workflow steps**: Script Editor → World & Cast → Scene Breakdown → Storyboard Editor → Animatic Preview → Export & Publish
+
+**New Start-End Frame Mode:**
+- Agent 3.4: Continuity Producer - analyzes shots and proposes connected groups
+- Agent 4.7: Continuity Manager - tracks dependencies and re-render warnings
+- Agents 4.1, 4.2, 4.5: Enhanced with dual-mode support for paired keyframe generation
 
 ### Key Agents by Category
 

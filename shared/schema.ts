@@ -27,6 +27,7 @@ export const videos = pgTable("videos", {
   workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
   title: text("title").notNull(),
   mode: text("mode").notNull(),
+  narrativeMode: text("narrative_mode"),
   status: text("status").default("draft").notNull(),
   script: text("script"),
   scenes: jsonb("scenes"),
@@ -37,6 +38,7 @@ export const videos = pgTable("videos", {
   duration: integer("duration"),
   voiceActorId: text("voice_actor_id"),
   voiceOverEnabled: boolean("voice_over_enabled").default(true).notNull(),
+  continuityLocked: boolean("continuity_locked").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -168,10 +170,15 @@ export const shotVersions = pgTable("shot_versions", {
   versionNumber: integer("version_number").notNull(),
   imagePrompt: text("image_prompt"),
   imageUrl: text("image_url"),
+  startFramePrompt: text("start_frame_prompt"),
+  startFrameUrl: text("start_frame_url"),
+  endFramePrompt: text("end_frame_prompt"),
+  endFrameUrl: text("end_frame_url"),
   videoPrompt: text("video_prompt"),
   videoUrl: text("video_url"),
   videoDuration: integer("video_duration"),
   status: text("status").default("draft").notNull(),
+  needsRerender: boolean("needs_rerender").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -183,6 +190,16 @@ export const referenceImages = pgTable("reference_images", {
   type: text("type").notNull(),
   imageUrl: text("image_url").notNull(),
   description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const continuityGroups = pgTable("continuity_groups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sceneId: varchar("scene_id").notNull().references(() => scenes.id),
+  groupNumber: integer("group_number").notNull(),
+  shotIds: jsonb("shot_ids").notNull(),
+  description: text("description"),
+  transitionType: text("transition_type"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -261,6 +278,11 @@ export const insertReferenceImageSchema = createInsertSchema(referenceImages).om
   createdAt: true,
 });
 
+export const insertContinuityGroupSchema = createInsertSchema(continuityGroups).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;
@@ -289,3 +311,5 @@ export type InsertShotVersion = z.infer<typeof insertShotVersionSchema>;
 export type ShotVersion = typeof shotVersions.$inferSelect;
 export type InsertReferenceImage = z.infer<typeof insertReferenceImageSchema>;
 export type ReferenceImage = typeof referenceImages.$inferSelect;
+export type InsertContinuityGroup = z.infer<typeof insertContinuityGroupSchema>;
+export type ContinuityGroup = typeof continuityGroups.$inferSelect;

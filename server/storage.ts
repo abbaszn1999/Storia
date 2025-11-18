@@ -25,6 +25,8 @@ import {
   type InsertShotVersion,
   type ReferenceImage,
   type InsertReferenceImage,
+  type ContinuityGroup,
+  type InsertContinuityGroup,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -78,6 +80,12 @@ export interface IStorage {
   getReferenceImagesByShotId(shotId: string): Promise<ReferenceImage[]>;
   createReferenceImage(refImage: InsertReferenceImage): Promise<ReferenceImage>;
   deleteReferenceImage(id: string): Promise<void>;
+  
+  getContinuityGroupsBySceneId(sceneId: string): Promise<ContinuityGroup[]>;
+  createContinuityGroup(group: InsertContinuityGroup): Promise<ContinuityGroup>;
+  updateContinuityGroup(id: string, group: Partial<ContinuityGroup>): Promise<ContinuityGroup>;
+  deleteContinuityGroup(id: string): Promise<void>;
+  deleteContinuityGroupsBySceneId(sceneId: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -94,6 +102,7 @@ export class MemStorage implements IStorage {
   private shots: Map<string, Shot>;
   private shotVersions: Map<string, ShotVersion>;
   private referenceImages: Map<string, ReferenceImage>;
+  private continuityGroups: Map<string, ContinuityGroup>;
 
   constructor() {
     this.users = new Map();
@@ -109,6 +118,7 @@ export class MemStorage implements IStorage {
     this.shots = new Map();
     this.shotVersions = new Map();
     this.referenceImages = new Map();
+    this.continuityGroups = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -159,6 +169,7 @@ export class MemStorage implements IStorage {
       ...insertVideo,
       id,
       status: insertVideo.status ?? "draft",
+      narrativeMode: insertVideo.narrativeMode ?? null,
       script: insertVideo.script ?? null,
       scenes: insertVideo.scenes ?? null,
       worldSettings: insertVideo.worldSettings ?? null,
@@ -168,6 +179,7 @@ export class MemStorage implements IStorage {
       duration: insertVideo.duration ?? null,
       voiceActorId: insertVideo.voiceActorId ?? null,
       voiceOverEnabled: insertVideo.voiceOverEnabled ?? true,
+      continuityLocked: insertVideo.continuityLocked ?? false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -184,7 +196,12 @@ export class MemStorage implements IStorage {
     const story: Story = {
       ...insertStory,
       id,
-      content: insertStory.content ?? null,
+      script: insertStory.script ?? null,
+      aspectRatio: insertStory.aspectRatio ?? "9:16",
+      duration: insertStory.duration ?? null,
+      imageModel: insertStory.imageModel ?? null,
+      voiceProfileId: insertStory.voiceProfileId ?? null,
+      voiceoverUrl: insertStory.voiceoverUrl ?? null,
       status: insertStory.status ?? "draft",
       exportUrl: insertStory.exportUrl ?? null,
       createdAt: new Date(),
@@ -204,6 +221,7 @@ export class MemStorage implements IStorage {
       ...insertCharacter,
       id,
       description: insertCharacter.description ?? null,
+      personality: insertCharacter.personality ?? null,
       appearance: insertCharacter.appearance ?? null,
       voiceSettings: insertCharacter.voiceSettings ?? null,
       thumbnailUrl: insertCharacter.thumbnailUrl ?? null,
@@ -296,6 +314,10 @@ export class MemStorage implements IStorage {
       location: insertScene.location ?? null,
       timeOfDay: insertScene.timeOfDay ?? null,
       duration: insertScene.duration ?? null,
+      videoModel: insertScene.videoModel ?? null,
+      imageModel: insertScene.imageModel ?? null,
+      lighting: insertScene.lighting ?? null,
+      weather: insertScene.weather ?? null,
       createdAt: new Date(),
     };
     this.scenes.set(id, scene);
@@ -329,6 +351,8 @@ export class MemStorage implements IStorage {
       id,
       cameraMovement: insertShot.cameraMovement ?? "static",
       description: insertShot.description ?? null,
+      videoModel: insertShot.videoModel ?? null,
+      imageModel: insertShot.imageModel ?? null,
       soundEffects: insertShot.soundEffects ?? null,
       currentVersionId: insertShot.currentVersionId ?? null,
       createdAt: new Date(),
@@ -371,9 +395,15 @@ export class MemStorage implements IStorage {
       id,
       imagePrompt: insertVersion.imagePrompt ?? null,
       imageUrl: insertVersion.imageUrl ?? null,
+      startFramePrompt: insertVersion.startFramePrompt ?? null,
+      startFrameUrl: insertVersion.startFrameUrl ?? null,
+      endFramePrompt: insertVersion.endFramePrompt ?? null,
+      endFrameUrl: insertVersion.endFrameUrl ?? null,
       videoPrompt: insertVersion.videoPrompt ?? null,
       videoUrl: insertVersion.videoUrl ?? null,
+      videoDuration: insertVersion.videoDuration ?? null,
       status: insertVersion.status ?? "draft",
+      needsRerender: insertVersion.needsRerender ?? false,
       createdAt: new Date(),
     };
     this.shotVersions.set(id, version);
@@ -479,6 +509,42 @@ export class MemStorage implements IStorage {
 
   async deleteReferenceImage(id: string): Promise<void> {
     this.referenceImages.delete(id);
+  }
+
+  async getContinuityGroupsBySceneId(sceneId: string): Promise<ContinuityGroup[]> {
+    return Array.from(this.continuityGroups.values()).filter((cg) => cg.sceneId === sceneId);
+  }
+
+  async createContinuityGroup(insertGroup: InsertContinuityGroup): Promise<ContinuityGroup> {
+    const id = randomUUID();
+    const group: ContinuityGroup = {
+      ...insertGroup,
+      id,
+      description: insertGroup.description ?? null,
+      transitionType: insertGroup.transitionType ?? null,
+      createdAt: new Date(),
+    };
+    this.continuityGroups.set(id, group);
+    return group;
+  }
+
+  async updateContinuityGroup(id: string, updates: Partial<ContinuityGroup>): Promise<ContinuityGroup> {
+    const group = this.continuityGroups.get(id);
+    if (!group) throw new Error('Continuity group not found');
+    const updated = { ...group, ...updates };
+    this.continuityGroups.set(id, updated);
+    return updated;
+  }
+
+  async deleteContinuityGroup(id: string): Promise<void> {
+    this.continuityGroups.delete(id);
+  }
+
+  async deleteContinuityGroupsBySceneId(sceneId: string): Promise<void> {
+    const groups = await this.getContinuityGroupsBySceneId(sceneId);
+    for (const group of groups) {
+      this.continuityGroups.delete(group.id);
+    }
   }
 }
 

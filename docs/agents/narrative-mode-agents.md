@@ -420,6 +420,81 @@ Format as a single cohesive description that can be injected into image generati
 
 ---
 
+### Agent 3.4: Continuity Producer (AI)
+**Status**: ⚠️ **START-END FRAME MODE ONLY**
+
+**Role**: Analyze shots and propose continuity groups for seamless shot-to-shot transitions
+
+**AI Model**: GPT-4 / Claude (Narrative Analysis)
+
+**Inputs**:
+| Field | Type | Source | Required |
+|-------|------|--------|----------|
+| Narrative mode | Enum | Video settings ("image-reference" \| "start-end") | ✓ |
+| All scenes | Array[Object] | Agent 3.2 output | ✓ |
+| └─ Scene number | Integer | Scene identifier | ✓ |
+| └─ Shots | Array[Object] | List of shots in scene | ✓ |
+|   └─ Shot number | Integer | Sequential shot ID | ✓ |
+|   └─ Camera angle | String | Framing info | ✓ |
+|   └─ Camera movement | String | Static, Pan, Zoom, etc. | ✓ |
+|   └─ Action description | String | Visual action with @tags | ✓ |
+|   └─ Location | String | @location{id} | ✓ |
+|   └─ Characters | Array[String] | @character{id} list | ✓ |
+
+**Outputs**:
+| Field | Type | Description |
+|-------|------|-------------|
+| Continuity groups | Array[Object] | Proposed shot connections by scene |
+| └─ Scene ID | String | Parent scene identifier |
+| └─ Group number | Integer | Sequential group ID within scene |
+| └─ Connected shot IDs | Array[String] | Ordered list of shots to connect |
+| └─ Connection type | String | "flow", "pan", "character-movement", etc. |
+| └─ Description | String | Reason for connection |
+| User guidance | String | Explanation of continuity proposal |
+
+**Implementation Notes**:
+- **Only runs in "start-end" narrative mode** - skipped entirely in "image-reference" mode
+- Analyzes narrative flow, camera movements, and spatial relationships
+- Proposes groups of shots that should connect seamlessly (start→end frame matching)
+- User can edit/approve before proceeding to storyboard step
+- Once approved, continuity is **locked** - cannot be changed in storyboard
+
+**Selection Criteria for Connected Shots**:
+- Same location/environment with continuous action
+- Camera movements that naturally flow (pan across room, follow character)
+- Character movement from one position to another
+- Spatial continuity (character walks from A to B)
+- Avoid connections across time/location jumps
+
+**Example Output**:
+```
+Scene 1: Kitchen Morning
+- Group 1: Shots 1→2→3 (continuous pan across kitchen)
+  Type: "pan"
+  Description: "Camera pans from window to door, following morning light"
+  
+- Shot 4: Separate (cut to close-up)
+  
+- Group 2: Shots 5→6 (character walks to door)
+  Type: "character-movement"
+  Description: "Character walks from table to exit"
+```
+
+**Prompt Template**:
+```
+Analyze these shots and identify which should be connected for seamless continuity:
+[Shot data with camera angles, movements, actions, locations]
+
+Propose continuity groups where:
+- Shots share the same location and time
+- Camera movement or subject movement creates natural flow
+- Visual continuity is maintained across shots
+
+For each group, explain WHY these shots should connect.
+```
+
+---
+
 ## Step 4: Storyboard Editor
 
 **Purpose**: Generate and refine images for each shot
@@ -433,7 +508,10 @@ Format as a single cohesive description that can be injected into image generati
 **Inputs**:
 | Field | Type | Source | Required |
 |-------|------|--------|----------|
+| Narrative mode | Enum | Video settings ("image-reference" \| "start-end") | ✓ |
+| Continuity groups | Array[Object] | Agent 3.4 output (start-end mode only) | Conditional |
 | Shot data | Object | Agent 3.2 output | ✓ |
+| └─ Shot ID | String | Unique identifier | ✓ |
 | └─ Camera angle | String | Framing info | ✓ |
 | └─ Action description | String | With @tags | ✓ |
 | └─ Characters | Array[String] | @character{id} list | ✓ |
@@ -445,16 +523,47 @@ Format as a single cohesive description that can be injected into image generati
 **Outputs**:
 | Field | Type | Description |
 |-------|------|-------------|
-| Image generation prompt | String | Detailed prompt with all references |
-| Negative prompt | String | Elements to avoid |
-| Reference image URLs | Array[String] | Character/location images to use |
+| **Image-Reference Mode:** | | Single frame per shot |
+| └─ Image generation prompt | String | Detailed prompt with all references |
+| └─ Negative prompt | String | Elements to avoid |
+| └─ Reference image URLs | Array[String] | Character/location images to use |
+| **Start-End Mode:** | | Smart frame generation |
+| └─ Frame type | Enum | "start-only" \| "start-and-end" |
+| └─ Start frame prompt | String | Beginning state of shot |
+| └─ End frame prompt | String | Ending state (if not connected) |
+| └─ Negative prompt | String | Elements to avoid |
+| └─ Reference image URLs | Array[String] | Character/location images to use |
 
 **Implementation Notes**:
-- **No "Technical parameters" needed** - aspect ratio already set in Step 1
+- **Image-Reference Mode**: Generate 1 prompt per shot (current behavior)
+- **Start-End Mode**: Smart frame generation based on continuity
+  - **Connected shots** (middle of group): Generate start frame only
+  - **Last shot in group**: Generate start + end frames
+  - **Non-connected shots**: Generate start + end frames
 - Parse @tags from action description
 - Inject corresponding reference images automatically
 - Combine: camera angle + action + character refs + location ref + art style
-- **Art style already in prompt** - came from previous agents
+
+**Dual-Mode Logic**:
+```javascript
+if (narrativeMode === "image-reference") {
+  // Generate single prompt
+  return { imagePrompt, negativePrompt, references };
+}
+
+if (narrativeMode === "start-end") {
+  const isConnected = findContinuityGroup(shot.id, continuityGroups);
+  const isLastInGroup = isLastShotInGroup(shot.id, continuityGroups);
+  
+  if (isConnected && !isLastInGroup) {
+    // Middle of connected group: start frame only
+    return { frameType: "start-only", startPrompt, negativePrompt, references };
+  } else {
+    // Last in group OR non-connected: start + end
+    return { frameType: "start-and-end", startPrompt, endPrompt, negativePrompt, references };
+  }
+}
+```
 
 **Prompt Construction**:
 ```
@@ -463,20 +572,29 @@ Characters: [reference images for @character1, @character2...]
 Location: [reference image for @location1]
 Style: {art_style_description}
 Technical: {aspect_ratio from Step 1}
+
+For Start-End Mode:
+- Start frame: Initial state/composition
+- End frame: Final state/position (progression of action)
 ```
 
 ---
 
 ### Agent 4.2: Storyboard Image Generator (AI)
 
-**Role**: Generate storyboard frame images
+**Role**: Generate storyboard frame images (single or paired keyframes)
 
 **AI Model**: Imagen 4 / DALL-E 3 (Image Generation with Reference)
 
 **Inputs**:
 | Field | Type | Source | Required |
 |-------|------|--------|----------|
-| Image prompt | String | Agent 4.1 output | ✓ |
+| Narrative mode | Enum | Video settings | ✓ |
+| Frame type | Enum | Agent 4.1 output ("start-only" \| "start-and-end") | Conditional |
+| Image prompt(s) | String OR Object | Agent 4.1 output | ✓ |
+| └─ Image prompt (image-reference) | String | Single prompt | - |
+| └─ Start frame prompt (start-end) | String | Beginning state | - |
+| └─ End frame prompt (start-end) | String | Ending state (if applicable) | - |
 | Negative prompt | String | Agent 4.1 output | ✗ |
 | Reference images | Array[Image URL] | Agent 4.1 output | ✓ |
 | Aspect ratio | Enum | From Step 1 | ✓ |
@@ -484,14 +602,44 @@ Technical: {aspect_ratio from Step 1}
 **Outputs**:
 | Field | Type | Description |
 |-------|------|-------------|
-| Generated image URL | String | Storyboard frame |
-| Shot version ID | String | Unique version identifier |
+| **Image-Reference Mode:** | | Single image per shot |
+| └─ Generated image URL | String | Storyboard frame |
+| └─ Shot version ID | String | Unique version identifier |
+| **Start-End Mode:** | | Smart keyframe generation |
+| └─ Start frame URL | String | Beginning keyframe |
+| └─ End frame URL | String | Ending keyframe (null if start-only) |
+| └─ Shot version ID | String | Unique version identifier |
 
 **Implementation Notes**:
+- **Image-Reference Mode**: Generate 1 image per shot (backward compatible)
+- **Start-End Mode**: Generate frames based on continuity
+  - **start-only**: Generate 1 frame (middle of connected group)
+  - **start-and-end**: Generate 2 frames (last in group or non-connected)
 - Modern image models (Imagen 4) handle character consistency with reference images
 - **No separate consistency checker needed** - model guarantees this
 - **No quality validator needed** - user can regenerate if unsatisfied
 - Use all reference images (characters + location + style) as model input
+
+**Dual-Mode Logic**:
+```javascript
+if (narrativeMode === "image-reference") {
+  const imageUrl = await generateImage(imagePrompt, negativePrompt, references, aspectRatio);
+  return { imageUrl, shotVersionId };
+}
+
+if (narrativeMode === "start-end") {
+  const startFrameUrl = await generateImage(startFramePrompt, negativePrompt, references, aspectRatio);
+  
+  if (frameType === "start-only") {
+    // Connected shot (middle of group): start frame only
+    return { startFrameUrl, endFrameUrl: null, shotVersionId };
+  } else {
+    // Last in group OR non-connected: both frames
+    const endFrameUrl = await generateImage(endFramePrompt, negativePrompt, references, aspectRatio);
+    return { startFrameUrl, endFrameUrl, shotVersionId };
+  }
+}
+```
 
 ---
 
@@ -562,14 +710,19 @@ Technical: {aspect_ratio from Step 1}
 
 ### Agent 4.5: Video Generator (AI - Video Model)
 
-**Role**: Generate animated video clips from static storyboard images
+**Role**: Generate animated video clips from static storyboard images (single or paired keyframes)
 
 **AI Model**: Kling / Veo / Runway (Image-to-Video)
 
 **Inputs**:
 | Field | Type | Source | Required |
 |-------|------|--------|----------|
-| Storyboard image | Image URL | Agent 4.2 or 4.3 output | ✓ |
+| Narrative mode | Enum | Video settings | ✓ |
+| **Image-Reference Mode:** | | Single keyframe input |
+| └─ Storyboard image | Image URL | Agent 4.2 or 4.3 output | - |
+| **Start-End Mode:** | | Paired keyframe input |
+| └─ Start frame | Image URL | Agent 4.2 output | - |
+| └─ End frame | Image URL | Agent 4.2 output OR next shot's start | - |
 | Video generation prompt | String | Agent 4.4 output | ✓ |
 | Motion parameters | Object | Agent 4.4 output | ✓ |
 | Shot duration | Integer | Agent 3.3 output | ✓ |
@@ -581,11 +734,48 @@ Technical: {aspect_ratio from Step 1}
 | Actual clip duration | Integer | Final video length (seconds) |
 
 **Implementation Notes**:
-- Use storyboard image as the starting frame (reference image)
-- Apply motion prompt to guide video generation
+- **Image-Reference Mode**: 
+  - Use single storyboard image as reference
+  - Apply camera movement prompt for motion
+  - Generate video with Ken Burns effect or camera movement
+  
+- **Start-End Mode**:
+  - Use **paired keyframes** (start frame → end frame)
+  - Video model interpolates motion between frames
+  - For connected shots: end frame = next shot's start frame (seamless continuity)
+  - For non-connected shots: use shot's own start/end frames
+  - **No camera movement prompt needed** - motion is defined by keyframe pair
+  
+- Modern image-to-video models (Kling, Veo) support:
+  - Single image-to-video (image-reference mode)
+  - Paired keyframe interpolation (start-end mode)
 - Target duration = shot duration from Agent 3.3
-- Modern image-to-video models (Kling, Veo) support reference images
-- Generates video clips that maintain character/location consistency
+- Maintains character/location consistency through reference frames
+
+**Dual-Mode Logic**:
+```javascript
+if (narrativeMode === "image-reference") {
+  // Traditional single-image video generation
+  const videoUrl = await generateVideo({
+    referenceImage: storyboardImage,
+    prompt: videoPrompt,
+    motionParams,
+    duration: shotDuration
+  });
+  return { videoUrl, duration: actualDuration };
+}
+
+if (narrativeMode === "start-end") {
+  // Paired keyframe video generation
+  const videoUrl = await generateVideo({
+    startFrame,
+    endFrame,  // Either shot's own end OR next shot's start
+    duration: shotDuration
+  });
+  // No camera movement needed - interpolation handles motion
+  return { videoUrl, duration: actualDuration };
+}
+```
 
 ---
 
@@ -615,6 +805,82 @@ Technical: {aspect_ratio from Step 1}
 - Maintains version history for user browsing
 - Enforces mutual exclusivity (only one approved version per shot)
 - Automatically updates currentVersionId pointer
+
+---
+
+### Agent 4.7: Continuity Manager (Non-AI)
+**Status**: ⚠️ **START-END FRAME MODE ONLY**
+
+**Role**: Track dependencies and manage re-rendering warnings for connected shots
+
+**Type**: Algorithmic (Non-AI)
+
+**Inputs**:
+| Field | Type | Source | Required |
+|-------|------|--------|----------|
+| Shot ID | String | Modified shot identifier | ✓ |
+| Regeneration action | Enum | "regenerate-frame" \| "edit-frame" | ✓ |
+| Frame type | Enum | "start" \| "end" | ✓ |
+| Continuity groups | Array[Object] | Agent 3.4 output | ✓ |
+
+**Outputs**:
+| Field | Type | Description |
+|-------|------|-------------|
+| Affected shots | Array[String] | Shot IDs that need re-rendering |
+| Warning message | String | User-facing dependency warning |
+| Cascade update required | Boolean | Whether dependent videos need regeneration |
+
+**Implementation Notes**:
+- **Only runs in "start-end" narrative mode** - not needed in image-reference mode
+- Tracks frame dependencies in connected shot groups
+- When a shot's start frame is regenerated:
+  - Find if previous shot in group uses this as end frame
+  - Mark previous shot's video as "needs re-render"
+  - Warn user about cascade effect
+- Validates chronological ordering within continuity groups
+- Prevents continuity breaks by surfacing dependency conflicts
+
+**Dependency Tracking Logic**:
+```javascript
+function handleFrameRegeneration(shotId, frameType, continuityGroups) {
+  if (frameType === "start") {
+    // Find if any previous shot uses this as end frame
+    const prevShot = findPreviousConnectedShot(shotId, continuityGroups);
+    if (prevShot) {
+      // Mark previous shot's video for re-render
+      markNeedsRerender(prevShot.id);
+      return {
+        affectedShots: [prevShot.id],
+        warning: `Regenerating this frame will affect Shot ${prevShot.number}'s video. Proceed?`,
+        cascadeRequired: true
+      };
+    }
+  }
+  
+  if (frameType === "end") {
+    // Find if this is last shot in group
+    const isLastInGroup = findIfLastInGroup(shotId, continuityGroups);
+    if (!isLastInGroup) {
+      // This shot's end is next shot's start - cannot regenerate
+      return {
+        affectedShots: [],
+        warning: "This frame is shared with the next shot. Cannot regenerate independently.",
+        cascadeRequired: false
+      };
+    }
+  }
+  
+  return { affectedShots: [], warning: null, cascadeRequired: false };
+}
+```
+
+**User Experience**:
+- When regenerating start frame of Shot N:
+  - If Shot N-1 connects to Shot N: Show warning dialog
+  - After confirming: Mark Shot N-1 video with "⚠️ Re-render needed" badge
+  - User must manually re-generate Shot N-1's video
+- Prevents silent continuity breaks
+- Maintains visual consistency across connected shots
 
 ---
 
@@ -900,22 +1166,24 @@ Technical: {aspect_ratio from Step 1}
 8. **Agent 3.1** - Scene Analyzer ✓ Critical
 9. **Agent 3.2** - Shot Composer ✓ Critical
 10. **Agent 3.3** - Timing Calculator ✓ Validation
+11. **Agent 3.4** - Continuity Producer ⚠️ Start-End Mode only
 
 ### Phase 2: Visual Generation
 **Goal**: Storyboard image generation with consistency
 
-11. **Agent 4.1** - Shot Prompt Engineer ✓ Critical
-12. **Agent 4.2** - Storyboard Image Generator ✓ Critical
-13. **Agent 4.6** - Regeneration Manager ✓ Version control
+12. **Agent 4.1** - Shot Prompt Engineer ✓ Critical (dual-mode support)
+13. **Agent 4.2** - Storyboard Image Generator ✓ Critical (dual-mode support)
+14. **Agent 4.6** - Regeneration Manager ✓ Version control
+15. **Agent 4.7** - Continuity Manager ⚠️ Start-End Mode only
 
 ### Phase 3: Animation & Preview
 **Goal**: Animated shots and complete preview
 
-14. **Agent 4.4** - Video Prompt Engineer ✓ Critical
-15. **Agent 4.5** - Video Generator ✓ Animation
-16. **Agent 5.1** - Voiceover Synthesizer ✓ Audio
-17. **Agent 5.2** - Background Music Composer ✓ Music
-18. **Agent 5.3** - Video Compositor ✓ Final assembly
+16. **Agent 4.4** - Video Prompt Engineer ✓ Critical
+17. **Agent 4.5** - Video Generator ✓ Animation (dual-mode support)
+18. **Agent 5.1** - Voiceover Synthesizer ✓ Audio
+19. **Agent 5.2** - Background Music Composer ✓ Music
+20. **Agent 5.3** - Video Compositor ✓ Final assembly
 
 ### Phase 4: Polish & Publishing
 **Goal**: Export and distribution
@@ -935,12 +1203,13 @@ Technical: {aspect_ratio from Step 1}
 
 | Category | Count |
 |----------|-------|
-| **Total Agents** | 22 |
-| **AI Agents** | 17 (16 active + 1 deferred) |
-| **Non-AI Agents** | 5 |
+| **Total Agents** | 24 |
+| **AI Agents** | 18 (17 active + 1 deferred) |
+| **Non-AI Agents** | 6 |
 | **Deferred Agents** | 1 (Agent 2.4) |
-| **Active Agents** | 21 |
-| **Critical Path Agents** | 18 |
+| **Active Agents** | 23 |
+| **Critical Path Agents** | 19 |
+| **Start-End Mode Only** | 2 (Agent 3.4, 4.7) |
 
 ### AI Model Requirements
 

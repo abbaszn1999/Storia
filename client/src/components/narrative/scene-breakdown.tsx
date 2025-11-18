@@ -31,8 +31,10 @@ interface SceneBreakdownProps {
   shots: { [sceneId: string]: Shot[] };
   shotVersions?: { [shotId: string]: ShotVersion[] };
   continuityLocked?: boolean;
+  continuityGroups?: { [sceneId: string]: ContinuityGroup[] };
   onScenesGenerated: (scenes: Scene[], shots: { [sceneId: string]: Shot[] }, shotVersions?: { [shotId: string]: ShotVersion[] }) => void;
   onContinuityLocked?: () => void;
+  onContinuityGroupsChange?: (groups: { [sceneId: string]: ContinuityGroup[] }) => void;
   onNext: () => void;
 }
 
@@ -45,8 +47,10 @@ export function SceneBreakdown({
   shots, 
   shotVersions, 
   continuityLocked = false,
+  continuityGroups: propsGroups = {},
   onScenesGenerated, 
   onContinuityLocked,
+  onContinuityGroupsChange,
   onNext 
 }: SceneBreakdownProps) {
   const { toast } = useToast();
@@ -58,13 +62,107 @@ export function SceneBreakdown({
   const [deleteSceneId, setDeleteSceneId] = useState<string | null>(null);
   const [deleteShotId, setDeleteShotId] = useState<string | null>(null);
   const [synopsis, setSynopsis] = useState<string>(script ? script.substring(0, 200) : "");
-  const [continuityGroups, setContinuityGroups] = useState<{ [sceneId: string]: ContinuityGroup[] }>({});
   const [isGeneratingContinuity, setIsGeneratingContinuity] = useState(false);
+  const [localContinuityLocked, setLocalContinuityLocked] = useState(continuityLocked);
+  
+  // Use props continuityGroups if available, otherwise local state
+  const continuityGroups = propsGroups;
+  const setContinuityGroups = onContinuityGroupsChange || (() => {});
+
+  // Sync localContinuityLocked with prop when it changes
+  useEffect(() => {
+    setLocalContinuityLocked(continuityLocked);
+  }, [continuityLocked]);
+
+  const handleGenerateContinuityProposal = async (sceneId: string) => {
+    setIsGeneratingContinuity(true);
+    try {
+      // TODO: Call Agent 3.4 (Continuity Producer) to generate proposal
+      // For now, create a dummy proposal
+      const sceneShots = shots[sceneId] || [];
+      if (sceneShots.length < 2) {
+        toast({
+          title: "Not enough shots",
+          description: "At least 2 shots are needed to create continuity connections.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create a simple continuity group proposal (first 2 shots connected)
+      const dummyGroup: ContinuityGroup = {
+        id: `group-${Date.now()}`,
+        sceneId,
+        groupNumber: 1,
+        shotIds: [sceneShots[0].id, sceneShots[1].id],
+        description: "AI detected continuous camera movement between these shots",
+        transitionType: "flow",
+        createdAt: new Date(),
+      };
+
+      setContinuityGroups(prev => ({
+        ...prev,
+        [sceneId]: [dummyGroup],
+      }));
+
+      toast({
+        title: "Continuity Proposal Generated",
+        description: "Review and approve the proposed shot connections.",
+      });
+    } catch (error) {
+      toast({
+        title: "Generation Failed",
+        description: "Failed to generate continuity proposal. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingContinuity(false);
+    }
+  };
+
+  const handleContinuityApproval = async (sceneId: string, groups: ContinuityGroup[]) => {
+    try {
+      // Save the approved groups to the backend
+      for (const group of groups) {
+        await apiRequest('POST', `/api/narrative/continuity-groups`, {
+          sceneId: group.sceneId,
+          groupNumber: group.groupNumber,
+          shotIds: group.shotIds,
+          description: group.description,
+          transitionType: group.transitionType,
+        });
+      }
+
+      // Lock the continuity for the entire video
+      await apiRequest('POST', `/api/narrative/videos/${videoId}/lock-continuity`);
+
+      // Only update state after successful API calls
+      if (onContinuityLocked) {
+        onContinuityLocked();
+      }
+
+      toast({
+        title: "Continuity Locked",
+        description: "Shot connections are now final. Proceeding to storyboard generation.",
+      });
+    } catch (error: any) {
+      // Reset local lock state on failure
+      setLocalContinuityLocked(false);
+      toast({
+        title: "Lock Failed",
+        description: error.message || "Failed to lock continuity. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   // TEMPORARY: Load dummy data for testing UI
   useEffect(() => {
-    if (scenes.length === 0 && Object.keys(shots).length === 0) {
-      const dummyScenes: Scene[] = [
+    // Don't load if we already have data from parent
+    if (scenes.length > 0 || Object.keys(shots).length > 0) return;
+    if (propsGroups && Object.keys(propsGroups).length > 0) return;
+    
+    const dummyScenes: Scene[] = [
         {
           id: "scene-1",
           videoId,
@@ -878,6 +976,22 @@ export function SceneBreakdown({
                         Add Shot
                       </Button>
                     </div>
+
+                    {/* Continuity Proposal for Start-End Mode */}
+                    {narrativeMode === "start-end" && !localContinuityLocked && (
+                      <div className="mt-6 pt-6 border-t">
+                        <ContinuityProposal
+                          sceneId={scene.id}
+                          sceneTitle={scene.title}
+                          shots={sceneShots}
+                          proposedGroups={continuityGroups[scene.id] || []}
+                          onGroupsApproved={(groups) => handleContinuityApproval(scene.id, groups)}
+                          onGenerateProposal={() => handleGenerateContinuityProposal(scene.id)}
+                          isGenerating={isGeneratingContinuity}
+                          isLocked={localContinuityLocked}
+                        />
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );
@@ -902,7 +1016,11 @@ export function SceneBreakdown({
               </span>{' '}
               ({totalShots} shots)
             </div>
-            <Button onClick={onNext} data-testid="button-next">
+            <Button 
+              onClick={onNext} 
+              disabled={narrativeMode === "start-end" && !localContinuityLocked}
+              data-testid="button-next"
+            >
               Next
               <span className="ml-2">→</span>
             </Button>

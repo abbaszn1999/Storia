@@ -34,6 +34,8 @@ export default function NarrativeMode() {
   const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
   const [characters, setCharacters] = useState<Character[]>([]);
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
+  const [continuityLocked, setContinuityLocked] = useState(false);
+  const [continuityGroups, setContinuityGroups] = useState<{ [sceneId: string]: any[] }>({});
   const [worldSettings, setWorldSettings] = useState<{ 
     artStyle: string; 
     imageModel?: string;
@@ -132,6 +134,8 @@ export default function NarrativeMode() {
               shotVersions={shotVersions}
               characters={characters}
               referenceImages={referenceImages}
+              continuityLocked={continuityLocked}
+              continuityGroups={continuityGroups}
               worldSettings={worldSettings}
               onScriptChange={setScript}
               onAspectRatioChange={setAspectRatio}
@@ -143,6 +147,8 @@ export default function NarrativeMode() {
               onShotVersionsChange={setShotVersions}
               onCharactersChange={setCharacters}
               onReferenceImagesChange={setReferenceImages}
+              onContinuityLockedChange={setContinuityLocked}
+              onContinuityGroupsChange={setContinuityGroups}
               onWorldSettingsChange={setWorldSettings}
               onNext={handleNext}
             />

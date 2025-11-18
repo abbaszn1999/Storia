@@ -4,7 +4,7 @@
 Storia is a scalable, modular SaaS platform for creating AI-powered videos and stories. The platform guides users through the complete creative process from initial concept to final export and publishing.
 
 ## Current State
-**MVP Focus**: Narrative Video Mode - Full-stack implementation with production-ready storage layer
+**MVP Focus**: Narrative Video Mode - Full-stack implementation with production-ready storage layer and Start-End Frame workflow integration
 
 ### Implemented Features
 - ✅ Complete database schema with PostgreSQL (users, workspaces, videos, stories, characters, voices, brandkits, uploads, content_calendar, **scenes, shots, shot_versions, reference_images**)
@@ -20,10 +20,18 @@ Storia is a scalable, modular SaaS platform for creating AI-powered videos and s
   - **Script Editor**: AI generation, duration/genre/language selection
   - **World & Cast**: Character creation, reference image upload for style/character consistency
   - **Scene Breakdown**: Automatic script analysis, scene/shot visualization, **full CRUD operations (add/edit/delete scenes and shots)**
+    - **Start-End Frame Mode Integration**: Continuity proposal UI with AI-generated shot connections, approval flow, and locked state
   - **Storyboard Editor**: Shot-by-shot image generation, camera movement presets, regeneration
   - Animatic preview (placeholder)
   - Export & publish (placeholder)
-- ✅ Component library (VideoCard, CharacterCard, StoryboardFrame, StatCard, CalendarItem, ModeSelector)
+- ✅ **Dual Narrative Mode Support**:
+  - **Image-Reference Mode**: Single reference image per shot for independent generation
+  - **Start-End Frame Mode**: Connected shots with seamless transitions via continuity groups
+    - Mode selector UI with detailed descriptions and visual indicators
+    - Continuity proposal component for reviewing and approving AI-suggested shot connections
+    - Locked continuity state enforced after approval (blocks Next button until locked)
+    - Backend API routes for creating, fetching, and locking continuity groups
+- ✅ Component library (VideoCard, CharacterCard, StoryboardFrame, StatCard, CalendarItem, ModeSelector, ContinuityProposal)
 - ✅ Dark mode support with theme toggle
 - ✅ Modular backend structure ready for AI integrations
 

@@ -23,6 +23,8 @@ interface NarrativeWorkflowProps {
   shotVersions: { [shotId: string]: ShotVersion[] };
   characters: Character[];
   referenceImages: ReferenceImage[];
+  continuityLocked: boolean;
+  continuityGroups: { [sceneId: string]: any[] };
   worldSettings: { 
     artStyle: string; 
     imageModel?: string;
@@ -39,6 +41,8 @@ interface NarrativeWorkflowProps {
   onShotVersionsChange: (shotVersions: { [shotId: string]: ShotVersion[] }) => void;
   onCharactersChange: (characters: Character[]) => void;
   onReferenceImagesChange: (referenceImages: ReferenceImage[]) => void;
+  onContinuityLockedChange: (locked: boolean) => void;
+  onContinuityGroupsChange: (groups: { [sceneId: string]: any[] }) => void;
   onWorldSettingsChange: (settings: { 
     artStyle: string; 
     imageModel: string;
@@ -63,6 +67,8 @@ export function NarrativeWorkflow({
   shotVersions,
   characters,
   referenceImages,
+  continuityLocked,
+  continuityGroups,
   worldSettings,
   onScriptChange,
   onAspectRatioChange,
@@ -74,6 +80,8 @@ export function NarrativeWorkflow({
   onShotVersionsChange,
   onCharactersChange,
   onReferenceImagesChange,
+  onContinuityLockedChange,
+  onContinuityGroupsChange,
   onWorldSettingsChange,
   onNext,
 }: NarrativeWorkflowProps) {
@@ -434,9 +442,12 @@ export function NarrativeWorkflow({
           videoId={videoId}
           script={script}
           scriptModel={scriptModel}
+          narrativeMode={narrativeMode}
           scenes={scenes}
           shots={shots}
           shotVersions={shotVersions}
+          continuityLocked={continuityLocked}
+          continuityGroups={continuityGroups}
           onScenesGenerated={(newScenes, newShots, newShotVersions) => {
             onScenesChange(newScenes);
             onShotsChange(newShots);
@@ -444,6 +455,8 @@ export function NarrativeWorkflow({
               onShotVersionsChange(newShotVersions);
             }
           }}
+          onContinuityLocked={() => onContinuityLockedChange(true)}
+          onContinuityGroupsChange={onContinuityGroupsChange}
           onNext={onNext}
         />
       )}

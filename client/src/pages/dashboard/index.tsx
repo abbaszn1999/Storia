@@ -106,7 +106,7 @@ export default function Dashboard() {
               New Project
             </Button>
           </DialogTrigger>
-            <DialogContent className="max-w-4xl">
+          <DialogContent className="max-w-4xl">
             <DialogHeader>
               <DialogTitle>Create New Project</DialogTitle>
               <DialogDescription>

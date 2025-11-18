@@ -159,66 +159,6 @@ export function SceneBreakdown({
     }
   };
 
-  // Seed demo data from backend if needed
-  useEffect(() => {
-    // Only seed if we have no scenes
-    if (scenes.length > 0) return;
-    
-    const seedDemoData = async () => {
-      try {
-        const response = await apiRequest('POST', `/api/narrative/videos/${videoId}/seed-demo`) as unknown as {
-          scenes: Scene[];
-          shots: Shot[];
-          shotVersions: ShotVersion[];
-          continuityGroups?: ContinuityGroup[];
-          message: string;
-        };
-        
-        if (response.scenes && response.shots) {
-          // Group shots by scene
-          const shotsByScene: { [sceneId: string]: Shot[] } = {};
-          response.shots.forEach((shot) => {
-            if (!shotsByScene[shot.sceneId]) {
-              shotsByScene[shot.sceneId] = [];
-            }
-            shotsByScene[shot.sceneId].push(shot);
-          });
-          
-          // Group shot versions by shot
-          const versionsByShot: { [shotId: string]: ShotVersion[] } = {};
-          response.shotVersions.forEach((version) => {
-            if (!versionsByShot[version.shotId]) {
-              versionsByShot[version.shotId] = [];
-            }
-            versionsByShot[version.shotId].push(version);
-          });
-          
-          // Group continuity groups by scene if available
-          if (response.continuityGroups && onContinuityGroupsChange) {
-            const groupsByScene: { [sceneId: string]: ContinuityGroup[] } = {};
-            response.continuityGroups.forEach((group) => {
-              if (!groupsByScene[group.sceneId]) {
-                groupsByScene[group.sceneId] = [];
-              }
-              groupsByScene[group.sceneId].push(group);
-            });
-            onContinuityGroupsChange(groupsByScene);
-          }
-          
-          onScenesGenerated(response.scenes, shotsByScene, versionsByShot);
-        }
-      } catch (error) {
-        console.error('Failed to seed demo data:', error);
-        toast({
-          title: "Failed to load demo data",
-          description: "Unable to initialize the scene breakdown. Please refresh the page.",
-          variant: "destructive",
-        });
-      }
-    };
-    
-    seedDemoData();
-  }, [videoId, scenes.length, onScenesGenerated, toast]);
 
   const moveScene = async (sceneId: string, direction: 'up' | 'down') => {
     const sceneIndex = scenes.findIndex(s => s.id === sceneId);
@@ -299,20 +239,53 @@ export function SceneBreakdown({
 
   const breakdownMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch('/api/narrative/breakdown', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          videoId,
-          script,
-          model: scriptModel,
-        }),
+      const response = await apiRequest('POST', `/api/narrative/videos/${videoId}/seed-demo`) as unknown as {
+        scenes: Scene[];
+        shots: Shot[];
+        shotVersions: ShotVersion[];
+        continuityGroups?: ContinuityGroup[];
+        message: string;
+      };
+      
+      // Group shots by scene
+      const shotsByScene: { [sceneId: string]: Shot[] } = {};
+      response.shots.forEach((shot) => {
+        if (!shotsByScene[shot.sceneId]) {
+          shotsByScene[shot.sceneId] = [];
+        }
+        shotsByScene[shot.sceneId].push(shot);
       });
-      if (!response.ok) throw new Error('Failed to generate breakdown');
-      return response.json() as Promise<{ scenes: Scene[]; shots: { [sceneId: string]: Shot[] } }>;
+      
+      // Group shot versions by shot
+      const versionsByShot: { [shotId: string]: ShotVersion[] } = {};
+      response.shotVersions.forEach((version) => {
+        if (!versionsByShot[version.shotId]) {
+          versionsByShot[version.shotId] = [];
+        }
+        versionsByShot[version.shotId].push(version);
+      });
+      
+      return {
+        scenes: response.scenes,
+        shots: shotsByScene,
+        shotVersions: versionsByShot,
+        continuityGroups: response.continuityGroups || [],
+      };
     },
     onSuccess: (data) => {
-      onScenesGenerated(data.scenes, data.shots);
+      onScenesGenerated(data.scenes, data.shots, data.shotVersions);
+      
+      // Handle continuity groups if available
+      if (data.continuityGroups && data.continuityGroups.length > 0 && onContinuityGroupsChange) {
+        const groupsByScene: { [sceneId: string]: ContinuityGroup[] } = {};
+        data.continuityGroups.forEach((group: ContinuityGroup) => {
+          if (!groupsByScene[group.sceneId]) {
+            groupsByScene[group.sceneId] = [];
+          }
+          groupsByScene[group.sceneId].push(group);
+        });
+        onContinuityGroupsChange(groupsByScene);
+      }
       setSynopsis(script.substring(0, 200));
       toast({
         title: "Breakdown Complete",

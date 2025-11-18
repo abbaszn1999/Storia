@@ -20,7 +20,7 @@
 
 ## Overview
 
-The Narrative Mode workflow consists of **22 specialized agents** (AI and non-AI) that guide users from initial concept to final published video. Each agent has specific inputs, outputs, and responsibilities designed to create a seamless creative experience.
+The Narrative Mode workflow consists of **24 specialized agents** (18 AI, 6 non-AI) that guide users from initial concept to final published video. Each agent has specific inputs, outputs, and responsibilities designed to create a seamless creative experience with support for both image-reference and start-end frame continuity workflows.
 
 ### Key Design Principles
 - **Modularity**: Each agent handles one specific task
@@ -363,7 +363,7 @@ Format as a single cohesive description that can be injected into image generati
 | Shots | Array[Object] | List of shots for this scene |
 | └─ Shot number | Integer | Sequential shot ID within scene |
 | └─ Duration | Integer | Shot duration (seconds) |
-| └─ Camera angle | Enum | Close-up, Medium, Wide, Extreme Wide, etc. |
+| └─ Shot type | Enum | Close-up, Medium, Wide, Extreme Wide, etc. |
 | └─ Camera movement | Enum | Static, Pan, Zoom, Dolly, etc. |
 | └─ Narration text | String | Voiceover for this shot (with @tags) |
 | └─ Action description | String | Visual action (with @tags) |
@@ -435,7 +435,7 @@ Format as a single cohesive description that can be injected into image generati
 | └─ Scene number | Integer | Scene identifier | ✓ |
 | └─ Shots | Array[Object] | List of shots in scene | ✓ |
 |   └─ Shot number | Integer | Sequential shot ID | ✓ |
-|   └─ Camera angle | String | Framing info | ✓ |
+|   └─ Shot type | String | Framing (close-up, medium, wide, etc.) | ✓ |
 |   └─ Camera movement | String | Static, Pan, Zoom, etc. | ✓ |
 |   └─ Action description | String | Visual action with @tags | ✓ |
 |   └─ Location | String | @location{id} | ✓ |
@@ -445,7 +445,7 @@ Format as a single cohesive description that can be injected into image generati
 | Field | Type | Description |
 |-------|------|-------------|
 | Continuity groups | Array[Object] | Proposed shot connections by scene |
-| └─ Scene ID | String | Parent scene identifier |
+| └─ Scene ID | UUID | Parent scene identifier |
 | └─ Group number | Integer | Sequential group ID within scene |
 | └─ Connected shot IDs | Array[String] | Ordered list of shots to connect |
 | └─ Connection type | String | "flow", "pan", "character-movement", etc. |
@@ -483,7 +483,7 @@ Scene 1: Kitchen Morning
 **Prompt Template**:
 ```
 Analyze these shots and identify which should be connected for seamless continuity:
-[Shot data with camera angles, movements, actions, locations]
+[Shot data with shot types, movements, actions, locations]
 
 Propose continuity groups where:
 - Shots share the same location and time
@@ -511,8 +511,8 @@ For each group, explain WHY these shots should connect.
 | Narrative mode | Enum | Video settings ("image-reference" \| "start-end") | ✓ |
 | Continuity groups | Array[Object] | Agent 3.4 output (start-end mode only) | Conditional |
 | Shot data | Object | Agent 3.2 output | ✓ |
-| └─ Shot ID | String | Unique identifier | ✓ |
-| └─ Camera angle | String | Framing info | ✓ |
+| └─ Shot ID | UUID | Unique identifier | ✓ |
+| └─ Shot type | String | Framing (close-up, medium, wide, etc.) | ✓ |
 | └─ Action description | String | With @tags | ✓ |
 | └─ Characters | Array[String] | @character{id} list | ✓ |
 | └─ Location | String | @location{id} | ✓ |
@@ -542,7 +542,7 @@ For each group, explain WHY these shots should connect.
   - **Non-connected shots**: Generate start + end frames
 - Parse @tags from action description
 - Inject corresponding reference images automatically
-- Combine: camera angle + action + character refs + location ref + art style
+- Combine: shot type + action + character refs + location ref + art style
 
 **Dual-Mode Logic**:
 ```javascript

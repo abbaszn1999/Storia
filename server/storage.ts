@@ -30,6 +30,23 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUUID(value: string): boolean {
+  return UUID_REGEX.test(value);
+}
+
+function validateShotIds(shotIds: unknown): void {
+  if (!Array.isArray(shotIds)) {
+    throw new Error('shotIds must be an array');
+  }
+  for (const id of shotIds) {
+    if (typeof id !== 'string' || !isValidUUID(id)) {
+      throw new Error(`Invalid shot ID: ${id}. Must be a valid UUID.`);
+    }
+  }
+}
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -516,6 +533,8 @@ export class MemStorage implements IStorage {
   }
 
   async createContinuityGroup(insertGroup: InsertContinuityGroup): Promise<ContinuityGroup> {
+    validateShotIds(insertGroup.shotIds);
+    
     const id = randomUUID();
     const group: ContinuityGroup = {
       ...insertGroup,
@@ -531,6 +550,11 @@ export class MemStorage implements IStorage {
   async updateContinuityGroup(id: string, updates: Partial<ContinuityGroup>): Promise<ContinuityGroup> {
     const group = this.continuityGroups.get(id);
     if (!group) throw new Error('Continuity group not found');
+    
+    if (updates.shotIds !== undefined) {
+      validateShotIds(updates.shotIds);
+    }
+    
     const updated = { ...group, ...updates };
     this.continuityGroups.set(id, updated);
     return updated;

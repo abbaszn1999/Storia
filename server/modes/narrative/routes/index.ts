@@ -40,6 +40,52 @@ router.post('/script/analyze', async (req: Request, res: Response) => {
   }
 });
 
+router.post('/breakdown', async (req: Request, res: Response) => {
+  try {
+    const { videoId, script, model } = req.body;
+    
+    // Generate scene breakdown using Agent 3.1 & 3.2
+    const sceneData = await NarrativeAgents.analyzeScript(script);
+    
+    // Transform to match expected frontend format with shots grouped by scene
+    const scenes = sceneData.map((scene: any) => ({
+      id: `scene-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      videoId,
+      title: scene.title,
+      description: scene.description,
+      location: scene.location || 'Unknown',
+      timeOfDay: scene.timeOfDay || 'day',
+      duration: scene.duration || 10,
+      lighting: scene.lighting || 'natural',
+      weather: scene.weather || 'clear',
+      sortOrder: scene.sortOrder || 0,
+      createdAt: new Date(),
+    }));
+    
+    // Group shots by scene
+    const shots: { [sceneId: string]: Shot[] } = {};
+    sceneData.forEach((scene: any, sceneIndex: number) => {
+      const sceneId = scenes[sceneIndex].id;
+      shots[sceneId] = (scene.shots || []).map((shot: any, shotIndex: number) => ({
+        id: `shot-${Date.now()}-${sceneIndex}-${shotIndex}`,
+        sceneId,
+        shotType: shot.shotType || 'medium',
+        description: shot.description,
+        cameraMovement: shot.cameraMovement || 'static',
+        duration: shot.duration || 3,
+        sortOrder: shotIndex,
+        currentVersionId: null,
+        createdAt: new Date(),
+      }));
+    });
+
+    res.json({ scenes, shots });
+  } catch (error) {
+    console.error('Breakdown generation error:', error);
+    res.status(500).json({ error: 'Failed to generate breakdown' });
+  }
+});
+
 router.post('/character/create', async (req: Request, res: Response) => {
   try {
     const { name, role, description, style } = req.body;

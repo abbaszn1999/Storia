@@ -100,12 +100,12 @@ export function SceneBreakdown({
         createdAt: new Date(),
       };
 
-      // Use functional updater to avoid stale state
+      // Merge with existing continuity groups
       if (onContinuityGroupsChange) {
-        onContinuityGroupsChange((prev: { [sceneId: string]: ContinuityGroup[] }) => ({
-          ...prev,
+        onContinuityGroupsChange({
+          ...continuityGroups,
           [sceneId]: [dummyGroup],
-        }));
+        });
       }
 
       toast({
@@ -166,13 +166,13 @@ export function SceneBreakdown({
     
     const seedDemoData = async () => {
       try {
-        const response = await apiRequest<{
+        const response = await apiRequest('POST', `/api/narrative/videos/${videoId}/seed-demo`) as unknown as {
           scenes: Scene[];
           shots: Shot[];
           shotVersions: ShotVersion[];
           continuityGroups?: ContinuityGroup[];
           message: string;
-        }>('POST', `/api/narrative/videos/${videoId}/seed-demo`);
+        };
         
         if (response.scenes && response.shots) {
           // Group shots by scene
@@ -676,7 +676,6 @@ export function SceneBreakdown({
                           onGroupsApproved={(groups) => handleContinuityApproval(scene.id, groups)}
                           onGenerateProposal={() => handleGenerateContinuityProposal(scene.id)}
                           isGenerating={isGeneratingContinuity}
-                          isLocked={localContinuityLocked}
                         />
                       </div>
                     )}

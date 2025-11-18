@@ -65,20 +65,113 @@ export function SceneBreakdown({
   const [isGeneratingContinuity, setIsGeneratingContinuity] = useState(false);
   const [localContinuityLocked, setLocalContinuityLocked] = useState(continuityLocked);
   
-  // Local state fallback for continuity groups (only used when no parent callback)
-  const [localContinuityGroups, setLocalContinuityGroups] = useState<{ [sceneId: string]: ContinuityGroup[] }>(propsGroups);
+  // Separate state for approved vs. proposed vs. declined groups
+  // Approved groups have status="approved" and persist across regenerations
+  // Proposed groups have status="proposed" and can be edited/approved/declined
+  // Declined groups have status="declined" and are kept for history
+  const [localApprovedGroups, setLocalApprovedGroups] = useState<{ [sceneId: string]: ContinuityGroup[] }>({});
+  const [localProposalDraft, setLocalProposalDraft] = useState<{ [sceneId: string]: ContinuityGroup[] }>({});
+  const [localDeclinedGroups, setLocalDeclinedGroups] = useState<{ [sceneId: string]: ContinuityGroup[] }>({});
+  
+  // Initialize from propsGroups by separating approved vs proposed vs declined
+  useEffect(() => {
+    const approved: { [sceneId: string]: ContinuityGroup[] } = {};
+    const proposed: { [sceneId: string]: ContinuityGroup[] } = {};
+    const declined: { [sceneId: string]: ContinuityGroup[] } = {};
+    
+    Object.entries(propsGroups).forEach(([sceneId, groups]) => {
+      groups.forEach(group => {
+        if (group.status === "approved") {
+          if (!approved[sceneId]) approved[sceneId] = [];
+          approved[sceneId].push(group);
+        } else if (group.status === "proposed") {
+          if (!proposed[sceneId]) proposed[sceneId] = [];
+          proposed[sceneId].push(group);
+        } else if (group.status === "declined") {
+          if (!declined[sceneId]) declined[sceneId] = [];
+          declined[sceneId].push(group);
+        }
+      });
+    });
+    
+    setLocalApprovedGroups(approved);
+    setLocalProposalDraft(proposed);
+    setLocalDeclinedGroups(declined);
+  }, []); // Only run once on mount
   
   // If parent provides callback, use props as source of truth; otherwise use local state
   const hasParentCallback = Boolean(onContinuityGroupsChange);
-  const continuityGroups = hasParentCallback ? propsGroups : localContinuityGroups;
   
-  const setContinuityGroups = (groups: { [sceneId: string]: ContinuityGroup[] }) => {
+  // Merge approved, proposed, and declined groups for display
+  const mergeAllGroups = (
+    approved: { [sceneId: string]: ContinuityGroup[] }, 
+    proposed: { [sceneId: string]: ContinuityGroup[] },
+    declined: { [sceneId: string]: ContinuityGroup[] }
+  ) => {
+    const merged: { [sceneId: string]: ContinuityGroup[] } = {};
+    
+    // Add all approved groups
+    Object.entries(approved).forEach(([sceneId, groups]) => {
+      merged[sceneId] = [...groups];
+    });
+    
+    // Add all proposed groups
+    Object.entries(proposed).forEach(([sceneId, groups]) => {
+      if (!merged[sceneId]) merged[sceneId] = [];
+      merged[sceneId].push(...groups);
+    });
+    
+    // Add all declined groups
+    Object.entries(declined).forEach(([sceneId, groups]) => {
+      if (!merged[sceneId]) merged[sceneId] = [];
+      merged[sceneId].push(...groups);
+    });
+    
+    return merged;
+  };
+  
+  const approvedGroups = hasParentCallback 
+    ? Object.fromEntries(
+        Object.entries(propsGroups).map(([sceneId, groups]) => [
+          sceneId, 
+          groups.filter(g => g.status === "approved")
+        ]).filter(([_, groups]) => groups.length > 0)
+      )
+    : localApprovedGroups;
+    
+  const proposalDraft = hasParentCallback
+    ? Object.fromEntries(
+        Object.entries(propsGroups).map(([sceneId, groups]) => [
+          sceneId,
+          groups.filter(g => g.status === "proposed")
+        ]).filter(([_, groups]) => groups.length > 0)
+      )
+    : localProposalDraft;
+  
+  const declinedGroups = hasParentCallback
+    ? Object.fromEntries(
+        Object.entries(propsGroups).map(([sceneId, groups]) => [
+          sceneId,
+          groups.filter(g => g.status === "declined")
+        ]).filter(([_, groups]) => groups.length > 0)
+      )
+    : localDeclinedGroups;
+  
+  const continuityGroups = mergeAllGroups(approvedGroups, proposalDraft, declinedGroups);
+  
+  // Update all three maps and notify parent
+  const updateAllGroupMaps = (
+    approved: { [sceneId: string]: ContinuityGroup[] },
+    proposed: { [sceneId: string]: ContinuityGroup[] },
+    declined: { [sceneId: string]: ContinuityGroup[] }
+  ) => {
     if (hasParentCallback) {
-      // Parent manages state - delegate to parent callback
-      onContinuityGroupsChange!(groups);
+      const merged = mergeAllGroups(approved, proposed, declined);
+      onContinuityGroupsChange!(merged);
     } else {
-      // No parent callback - manage state locally
-      setLocalContinuityGroups(groups);
+      setLocalApprovedGroups(approved);
+      setLocalProposalDraft(proposed);
+      setLocalDeclinedGroups(declined);
     }
   };
 
@@ -86,10 +179,6 @@ export function SceneBreakdown({
   useEffect(() => {
     setLocalContinuityLocked(continuityLocked);
   }, [continuityLocked]);
-
-  // Note: We do NOT sync localContinuityGroups with propsGroups
-  // When parent provides callback, props are the ONLY source of truth
-  // localContinuityGroups is ONLY used when no parent callback exists
 
   const handleGenerateContinuityProposal = async () => {
     setIsGeneratingContinuity(true);
@@ -109,6 +198,10 @@ export function SceneBreakdown({
             shotIds: [sceneShots[0].id, sceneShots[1].id],
             description: "AI detected continuous camera movement between these shots",
             transitionType: "flow",
+            status: "proposed",
+            editedBy: null,
+            editedAt: null,
+            approvedAt: null,
             createdAt: new Date(),
           };
           newGroups[scene.id] = [dummyGroup];
@@ -124,7 +217,8 @@ export function SceneBreakdown({
         return;
       }
 
-      setContinuityGroups(newGroups);
+      // Set new proposals (preserves existing approved and declined groups)
+      updateAllGroupMaps(approvedGroups, newGroups, declinedGroups);
 
       toast({
         title: "Continuity Proposal Generated",
@@ -141,35 +235,138 @@ export function SceneBreakdown({
     }
   };
 
-  const handleContinuityApproval = async (groups: { [sceneId: string]: ContinuityGroup[] }) => {
-    try {
-      // For now, just update local state (no backend storage)
-      // TODO: When backend is ready, save groups and lock video
-      
-      // Persist the approved groups (create new object to trigger React update)
-      setContinuityGroups({ ...groups });
-      
-      // Set local lock state immediately for UI responsiveness
-      setLocalContinuityLocked(true);
-      
-      // Update parent state to lock continuity
-      if (onContinuityLocked) {
-        onContinuityLocked();
-      }
-
+  // Granular callbacks for per-group actions
+  const handleGroupApprove = (sceneId: string, groupId: string) => {
+    // Find the group in proposals
+    const sceneProposals = proposalDraft[sceneId] || [];
+    const groupToApprove = sceneProposals.find((g: ContinuityGroup) => g.id === groupId);
+    
+    if (!groupToApprove) {
       toast({
-        title: "Continuity Locked",
-        description: "Shot connections are now final. Proceeding to storyboard generation.",
-      });
-    } catch (error: any) {
-      // Reset local lock state on failure
-      setLocalContinuityLocked(false);
-      toast({
-        title: "Lock Failed",
-        description: error.message || "Failed to lock continuity. Please try again.",
+        title: "Group not found",
+        description: "Could not find the group to approve.",
         variant: "destructive",
       });
+      return;
     }
+
+    // Mark as approved and move to approved map
+    const approvedGroup: ContinuityGroup = {
+      ...groupToApprove,
+      status: "approved",
+      approvedAt: new Date(),
+    };
+
+    const newApproved = { ...approvedGroups };
+    if (!newApproved[sceneId]) newApproved[sceneId] = [];
+    newApproved[sceneId] = [...newApproved[sceneId], approvedGroup];
+
+    const newProposed = { ...proposalDraft };
+    newProposed[sceneId] = sceneProposals.filter((g: ContinuityGroup) => g.id !== groupId);
+    if (newProposed[sceneId].length === 0) delete newProposed[sceneId];
+
+    updateAllGroupMaps(newApproved, newProposed, declinedGroups);
+
+    toast({
+      title: "Group Approved",
+      description: "Continuity group approved successfully.",
+    });
+  };
+
+  const handleGroupDecline = (sceneId: string, groupId: string) => {
+    // Find the group in proposals
+    const sceneProposals = proposalDraft[sceneId] || [];
+    const groupToDecline = sceneProposals.find((g: ContinuityGroup) => g.id === groupId);
+    
+    if (!groupToDecline) {
+      toast({
+        title: "Group not found",
+        description: "Could not find the group to decline.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Mark as declined and move to declined map
+    const declinedGroup: ContinuityGroup = {
+      ...groupToDecline,
+      status: "declined",
+    };
+
+    const newDeclined = { ...declinedGroups };
+    if (!newDeclined[sceneId]) newDeclined[sceneId] = [];
+    newDeclined[sceneId] = [...newDeclined[sceneId], declinedGroup];
+
+    const newProposed = { ...proposalDraft };
+    newProposed[sceneId] = sceneProposals.filter((g: ContinuityGroup) => g.id !== groupId);
+    if (newProposed[sceneId].length === 0) delete newProposed[sceneId];
+
+    updateAllGroupMaps(approvedGroups, newProposed, newDeclined);
+
+    toast({
+      title: "Group Declined",
+      description: "Continuity group declined successfully.",
+    });
+  };
+
+  const handleGroupEdit = (sceneId: string, updatedGroup: ContinuityGroup) => {
+    // Update the group in proposals (status stays "proposed")
+    const sceneProposals = proposalDraft[sceneId] || [];
+    const groupIndex = sceneProposals.findIndex((g: ContinuityGroup) => g.id === updatedGroup.id);
+    
+    if (groupIndex === -1) {
+      toast({
+        title: "Group not found",
+        description: "Could not find the group to edit.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const editedGroup: ContinuityGroup = {
+      ...updatedGroup,
+      status: "proposed", // Keep as proposed
+      editedBy: "user", // TODO: Use actual user ID when auth is implemented
+      editedAt: new Date(),
+    };
+
+    const newProposed = { ...proposalDraft };
+    newProposed[sceneId] = [...sceneProposals];
+    newProposed[sceneId][groupIndex] = editedGroup;
+
+    updateAllGroupMaps(approvedGroups, newProposed, declinedGroups);
+
+    toast({
+      title: "Group Updated",
+      description: "Continuity group updated successfully.",
+    });
+  };
+
+  const handleLock = () => {
+    // Lock the continuity (at least one group must be approved)
+    const hasApprovedGroups = Object.values(approvedGroups).some((groups: ContinuityGroup[]) => groups.length > 0);
+    
+    if (!hasApprovedGroups) {
+      toast({
+        title: "No Approved Groups",
+        description: "Please approve at least one continuity group before locking.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Set local lock state immediately for UI responsiveness
+    setLocalContinuityLocked(true);
+    
+    // Update parent state to lock continuity
+    if (onContinuityLocked) {
+      onContinuityLocked();
+    }
+
+    toast({
+      title: "Continuity Locked",
+      description: "Shot connections are now final. Proceeding to storyboard generation.",
+    });
   };
 
   // TEMPORARY: Load dummy data for testing UI
@@ -888,14 +1085,20 @@ export function SceneBreakdown({
           )}
 
           {/* Continuity Proposal for Start-End Mode - Top of Page */}
-          {narrativeMode === "start-end" && !localContinuityLocked && (
+          {narrativeMode === "start-end" && (
             <ContinuityProposal
               scenes={scenes}
               allShots={shots}
-              proposedGroups={continuityGroups}
-              onGroupsApproved={handleContinuityApproval}
+              proposedGroups={proposalDraft}
+              approvedGroups={approvedGroups}
+              declinedGroups={declinedGroups}
+              onGroupApprove={handleGroupApprove}
+              onGroupDecline={handleGroupDecline}
+              onGroupEdit={handleGroupEdit}
+              onLock={handleLock}
               onGenerateProposal={handleGenerateContinuityProposal}
               isGenerating={isGeneratingContinuity}
+              isLocked={localContinuityLocked}
             />
           )}
 

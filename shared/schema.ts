@@ -200,6 +200,10 @@ export const continuityGroups = pgTable("continuity_groups", {
   shotIds: jsonb("shot_ids").notNull(),
   description: text("description"),
   transitionType: text("transition_type"),
+  status: text("status").default("proposed").notNull(), // 'proposed' | 'approved' | 'declined'
+  editedBy: text("edited_by"), // Optional: who last edited this group
+  editedAt: timestamp("edited_at"), // Optional: when was it last edited
+  approvedAt: timestamp("approved_at"), // Optional: when was it approved
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -100,10 +100,10 @@ export function SceneBreakdown({
         createdAt: new Date(),
       };
 
-      setContinuityGroups(prev => ({
-        ...prev,
+      setContinuityGroups({
+        ...continuityGroups,
         [sceneId]: [dummyGroup],
-      }));
+      });
 
       toast({
         title: "Continuity Proposal Generated",
@@ -987,7 +987,6 @@ export function SceneBreakdown({
                           onGroupsApproved={(groups) => handleContinuityApproval(scene.id, groups)}
                           onGenerateProposal={() => handleGenerateContinuityProposal(scene.id)}
                           isGenerating={isGeneratingContinuity}
-                          isLocked={localContinuityLocked}
                         />
                       </div>
                     )}
@@ -1017,7 +1016,6 @@ export function SceneBreakdown({
             </div>
             <Button 
               onClick={onNext} 
-              disabled={narrativeMode === "start-end" && !localContinuityLocked}
               data-testid="button-next"
             >
               Next

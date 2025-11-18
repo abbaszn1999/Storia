@@ -527,9 +527,8 @@ export function SceneBreakdown({
         shot.currentVersionId = versionId;
       });
 
-      setSynopsis("An adventurous explorer discovers a mysterious map leading to an ancient temple deep in the Amazon rainforest. Her journey takes her from a dusty attic to the heart of the jungle, where she faces both natural obstacles and the lure of forgotten civilizations. As she pushes through the dense vegetation, the temple's secrets begin to reveal themselves.");
-      onScenesGenerated(dummyScenes, dummyShots, dummyShotVersions);
-    }
+    setSynopsis("An adventurous explorer discovers a mysterious map leading to an ancient temple deep in the Amazon rainforest. Her journey takes her from a dusty attic to the heart of the jungle, where she faces both natural obstacles and the lure of forgotten civilizations. As she pushes through the dense vegetation, the temple's secrets begin to reveal themselves.");
+    onScenesGenerated(dummyScenes, dummyShots, dummyShotVersions);
   }, []);
 
   const moveScene = async (sceneId: string, direction: 'up' | 'down') => {

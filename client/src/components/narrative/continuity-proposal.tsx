@@ -1,40 +1,69 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link as LinkIcon, Sparkles, Check, X, Edit2, AlertTriangle } from "lucide-react";
-import type { Shot, ContinuityGroup } from "@shared/schema";
+import type { Shot, ContinuityGroup, Scene } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface ContinuityProposalProps {
-  sceneId: string;
-  sceneTitle: string;
-  shots: Shot[];
-  proposedGroups: ContinuityGroup[];
-  onGroupsApproved: (groups: ContinuityGroup[]) => void;
+  scenes: Scene[];
+  allShots: { [sceneId: string]: Shot[] };
+  proposedGroups: { [sceneId: string]: ContinuityGroup[] };
+  onGroupsApproved: (groups: { [sceneId: string]: ContinuityGroup[] }) => void;
   onGenerateProposal: () => void;
   isGenerating?: boolean;
 }
 
 export function ContinuityProposal({
-  sceneId,
-  sceneTitle,
-  shots,
+  scenes,
+  allShots,
   proposedGroups,
   onGroupsApproved,
   onGenerateProposal,
   isGenerating = false,
 }: ContinuityProposalProps) {
-  const [editedGroups, setEditedGroups] = useState<ContinuityGroup[]>(proposedGroups);
+  const [editedGroups, setEditedGroups] = useState<{ [sceneId: string]: ContinuityGroup[] }>(proposedGroups);
   const [isApproved, setIsApproved] = useState(false);
+  const prevProposedGroupsRef = useRef<string>("");
+
+  // Sync editedGroups with proposedGroups when new proposals are generated
+  useEffect(() => {
+    // Deterministic deep comparison (sort keys to avoid false positives from key ordering)
+    const serializeWithSortedKeys = (obj: any) => JSON.stringify(obj, Object.keys(obj).sort());
+    const newSerialized = serializeWithSortedKeys(proposedGroups);
+    const contentChanged = prevProposedGroupsRef.current !== newSerialized;
+    
+    // Update the ref with new value
+    prevProposedGroupsRef.current = newSerialized;
+    
+    // Always sync the groups
+    setEditedGroups(proposedGroups);
+    
+    // Only reset approval if content actually changed
+    // This prevents resetting after approval when parent re-sets the same groups
+    if (contentChanged) {
+      setIsApproved(false);
+    }
+  }, [proposedGroups]);
 
   const handleApprove = () => {
+    // Don't allow approving if there are no groups
+    const totalGroups = Object.values(editedGroups).flat().length;
+    if (totalGroups === 0) {
+      return;
+    }
     setIsApproved(true);
     onGroupsApproved(editedGroups);
   };
 
-  const getShotById = (shotId: string) => {
-    return shots.find(s => s.id === shotId);
+  const getShotById = (sceneId: string, shotId: string) => {
+    const sceneShots = allShots[sceneId] || [];
+    return sceneShots.find(s => s.id === shotId);
+  };
+
+  const getSceneById = (sceneId: string) => {
+    return scenes.find(s => s.id === sceneId);
   };
 
   const getConnectionTypeColor = (type: string | null) => {
@@ -55,7 +84,10 @@ export function ContinuityProposal({
     }
   };
 
-  if (proposedGroups.length === 0 && !isGenerating) {
+  const totalProposedGroups = Object.values(proposedGroups).flat().length;
+  const totalShots = Object.values(allShots).flat().length;
+
+  if (totalProposedGroups === 0 && !isGenerating) {
     return (
       <Card className="border-2 border-dashed border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
         <CardContent className="p-8">
@@ -66,12 +98,12 @@ export function ContinuityProposal({
             <div className="space-y-2">
               <h3 className="text-lg font-semibold">Generate Continuity Proposal</h3>
               <p className="text-muted-foreground max-w-md">
-                Let AI analyze your shots and suggest which ones should connect seamlessly for cinematic flow
+                Let AI analyze all {totalShots} shots across {scenes.length} scene{scenes.length !== 1 ? 's' : ''} and suggest which ones should connect seamlessly for cinematic flow
               </p>
             </div>
             <Button onClick={onGenerateProposal} className="bg-gradient-storia" data-testid="button-generate-continuity">
               <Sparkles className="h-4 w-4 mr-2" />
-              Analyze Shots for Continuity
+              Analyze All Shots for Continuity
             </Button>
           </div>
         </CardContent>
@@ -100,7 +132,7 @@ export function ContinuityProposal({
         <Alert className="border-primary/50 bg-primary/5">
           <AlertTriangle className="h-4 w-4 text-primary" />
           <AlertDescription>
-            <strong>Review Required:</strong> AI has proposed continuity connections between shots. 
+            <strong>Review Required:</strong> AI has proposed continuity connections across all scenes. 
             Review and approve to lock the continuity before proceeding to storyboard generation.
           </AlertDescription>
         </Alert>
@@ -114,9 +146,9 @@ export function ContinuityProposal({
                 <LinkIcon className="h-5 w-5 text-white" />
               </div>
               <div>
-                <CardTitle>Continuity Proposal: {sceneTitle}</CardTitle>
+                <CardTitle>Continuity Proposal for All Scenes</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {editedGroups.length} connected group{editedGroups.length !== 1 ? 's' : ''} proposed
+                  {totalProposedGroups} connected group{totalProposedGroups !== 1 ? 's' : ''} proposed across {scenes.length} scene{scenes.length !== 1 ? 's' : ''}
                 </p>
               </div>
             </div>
@@ -126,69 +158,90 @@ export function ContinuityProposal({
                 Approved & Locked
               </Badge>
             ) : (
-              <Button onClick={handleApprove} className="bg-gradient-storia" data-testid="button-approve-continuity">
+              <Button 
+                onClick={handleApprove} 
+                disabled={totalProposedGroups === 0}
+                className="bg-gradient-storia" 
+                data-testid="button-approve-continuity"
+              >
                 <Check className="h-4 w-4 mr-2" />
-                Approve & Lock
+                Approve & Lock All
               </Button>
             )}
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
-          {editedGroups.map((group, idx) => (
-            <Card key={group.id} className="border-l-4 border-l-primary">
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="font-mono">
-                        Group {idx + 1}
-                      </Badge>
-                      <Badge variant="outline" className={getConnectionTypeColor(group.transitionType)}>
-                        {getConnectionTypeIcon(group.transitionType)} {group.transitionType || 'Unknown'}
-                      </Badge>
-                    </div>
-                  </div>
+        <CardContent className="space-y-6">
+          {scenes.map((scene) => {
+            const sceneGroups = editedGroups[scene.id] || [];
+            if (sceneGroups.length === 0) return null;
 
-                  {group.description && (
-                    <p className="text-sm text-muted-foreground italic">
-                      {group.description}
-                    </p>
-                  )}
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {(group.shotIds as string[]).map((shotId, shotIdx) => {
-                      const shot = getShotById(shotId);
-                      if (!shot) return null;
-
-                      return (
-                        <div key={shotId} className="flex items-center">
-                          <Badge
-                            variant="outline"
-                            className="bg-card hover-elevate"
-                            data-testid={`badge-shot-${shot.shotNumber}`}
-                          >
-                            <span className="font-mono text-xs">Shot {shot.shotNumber}</span>
-                            <span className="mx-2 text-muted-foreground">·</span>
-                            <span className="text-xs">{shot.shotType}</span>
-                          </Badge>
-                          {shotIdx < (group.shotIds as string[]).length - 1 && (
-                            <LinkIcon className="h-3 w-3 mx-2 text-primary" />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="text-xs text-muted-foreground pt-2 border-t">
-                    <span className="font-semibold">Effect:</span> {(group.shotIds as string[]).length - 1} seamless transition
-                    {(group.shotIds as string[]).length - 1 !== 1 ? 's' : ''} • 
-                    Only first shot generates start frame, last shot generates end frame
-                  </div>
+            return (
+              <div key={scene.id} className="space-y-3">
+                <div className="flex items-center gap-2 mb-3">
+                  <Badge variant="outline" className="font-semibold">{scene.title}</Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {sceneGroups.length} group{sceneGroups.length !== 1 ? 's' : ''}
+                  </span>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+
+                {sceneGroups.map((group, idx) => (
+                  <Card key={group.id} className="border-l-4 border-l-primary">
+                    <CardContent className="p-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="font-mono">
+                              Group {idx + 1}
+                            </Badge>
+                            <Badge variant="outline" className={getConnectionTypeColor(group.transitionType)}>
+                              {getConnectionTypeIcon(group.transitionType)} {group.transitionType || 'Unknown'}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        {group.description && (
+                          <p className="text-sm text-muted-foreground italic">
+                            {group.description}
+                          </p>
+                        )}
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {(group.shotIds as string[]).map((shotId, shotIdx) => {
+                            const shot = getShotById(scene.id, shotId);
+                            if (!shot) return null;
+
+                            return (
+                              <div key={shotId} className="flex items-center">
+                                <Badge
+                                  variant="outline"
+                                  className="bg-card hover-elevate"
+                                  data-testid={`badge-shot-${shot.shotNumber}`}
+                                >
+                                  <span className="font-mono text-xs">Shot {shot.shotNumber}</span>
+                                  <span className="mx-2 text-muted-foreground">·</span>
+                                  <span className="text-xs">{shot.shotType}</span>
+                                </Badge>
+                                {shotIdx < (group.shotIds as string[]).length - 1 && (
+                                  <LinkIcon className="h-3 w-3 mx-2 text-primary" />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="text-xs text-muted-foreground pt-2 border-t">
+                          <span className="font-semibold">Effect:</span> {(group.shotIds as string[]).length - 1} seamless transition
+                          {(group.shotIds as string[]).length - 1 !== 1 ? 's' : ''} • 
+                          Only first shot generates start frame, last shot generates end frame
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            );
+          })}
 
           {isApproved && (
             <Alert className="border-green-500/50 bg-green-500/5">

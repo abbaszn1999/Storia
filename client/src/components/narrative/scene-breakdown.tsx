@@ -65,49 +65,70 @@ export function SceneBreakdown({
   const [isGeneratingContinuity, setIsGeneratingContinuity] = useState(false);
   const [localContinuityLocked, setLocalContinuityLocked] = useState(continuityLocked);
   
-  // Use props continuityGroups if available, otherwise local state
-  const continuityGroups = propsGroups;
-  const setContinuityGroups = onContinuityGroupsChange || (() => {});
+  // Local state fallback for continuity groups (only used when no parent callback)
+  const [localContinuityGroups, setLocalContinuityGroups] = useState<{ [sceneId: string]: ContinuityGroup[] }>(propsGroups);
+  
+  // If parent provides callback, use props as source of truth; otherwise use local state
+  const hasParentCallback = Boolean(onContinuityGroupsChange);
+  const continuityGroups = hasParentCallback ? propsGroups : localContinuityGroups;
+  
+  const setContinuityGroups = (groups: { [sceneId: string]: ContinuityGroup[] }) => {
+    if (hasParentCallback) {
+      // Parent manages state - delegate to parent callback
+      onContinuityGroupsChange!(groups);
+    } else {
+      // No parent callback - manage state locally
+      setLocalContinuityGroups(groups);
+    }
+  };
 
-  // Sync localContinuityLocked with prop when it changes
+  // Sync local lock state with prop when it changes
   useEffect(() => {
     setLocalContinuityLocked(continuityLocked);
   }, [continuityLocked]);
 
-  const handleGenerateContinuityProposal = async (sceneId: string) => {
+  // Note: We do NOT sync localContinuityGroups with propsGroups
+  // When parent provides callback, props are the ONLY source of truth
+  // localContinuityGroups is ONLY used when no parent callback exists
+
+  const handleGenerateContinuityProposal = async () => {
     setIsGeneratingContinuity(true);
     try {
-      // TODO: Call Agent 3.4 (Continuity Producer) to generate proposal
-      // For now, create a dummy proposal
-      const sceneShots = shots[sceneId] || [];
-      if (sceneShots.length < 2) {
+      // TODO: Call Agent 3.4 (Continuity Producer) to generate proposal for ALL scenes
+      // For now, create dummy proposals for each scene with enough shots
+      const newGroups: { [sceneId: string]: ContinuityGroup[] } = {};
+      
+      scenes.forEach((scene) => {
+        const sceneShots = shots[scene.id] || [];
+        if (sceneShots.length >= 2) {
+          // Create a simple continuity group proposal (first 2 shots connected)
+          const dummyGroup: ContinuityGroup = {
+            id: `group-${scene.id}-${Date.now()}`,
+            sceneId: scene.id,
+            groupNumber: 1,
+            shotIds: [sceneShots[0].id, sceneShots[1].id],
+            description: "AI detected continuous camera movement between these shots",
+            transitionType: "flow",
+            createdAt: new Date(),
+          };
+          newGroups[scene.id] = [dummyGroup];
+        }
+      });
+
+      if (Object.keys(newGroups).length === 0) {
         toast({
           title: "Not enough shots",
-          description: "At least 2 shots are needed to create continuity connections.",
+          description: "At least one scene needs 2 or more shots to create continuity connections.",
           variant: "destructive",
         });
         return;
       }
 
-      // Create a simple continuity group proposal (first 2 shots connected)
-      const dummyGroup: ContinuityGroup = {
-        id: `group-${Date.now()}`,
-        sceneId,
-        groupNumber: 1,
-        shotIds: [sceneShots[0].id, sceneShots[1].id],
-        description: "AI detected continuous camera movement between these shots",
-        transitionType: "flow",
-        createdAt: new Date(),
-      };
-
-      setContinuityGroups({
-        ...continuityGroups,
-        [sceneId]: [dummyGroup],
-      });
+      setContinuityGroups(newGroups);
 
       toast({
         title: "Continuity Proposal Generated",
-        description: "Review and approve the proposed shot connections.",
+        description: `Generated proposals for ${Object.keys(newGroups).length} scene${Object.keys(newGroups).length !== 1 ? 's' : ''}. Review and approve to proceed.`,
       });
     } catch (error) {
       toast({
@@ -120,10 +141,16 @@ export function SceneBreakdown({
     }
   };
 
-  const handleContinuityApproval = async (sceneId: string, groups: ContinuityGroup[]) => {
+  const handleContinuityApproval = async (groups: { [sceneId: string]: ContinuityGroup[] }) => {
     try {
       // For now, just update local state (no backend storage)
       // TODO: When backend is ready, save groups and lock video
+      
+      // Persist the approved groups (create new object to trigger React update)
+      setContinuityGroups({ ...groups });
+      
+      // Set local lock state immediately for UI responsiveness
+      setLocalContinuityLocked(true);
       
       // Update parent state to lock continuity
       if (onContinuityLocked) {
@@ -860,6 +887,18 @@ export function SceneBreakdown({
             </Card>
           )}
 
+          {/* Continuity Proposal for Start-End Mode - Top of Page */}
+          {narrativeMode === "start-end" && !localContinuityLocked && (
+            <ContinuityProposal
+              scenes={scenes}
+              allShots={shots}
+              proposedGroups={continuityGroups}
+              onGroupsApproved={handleContinuityApproval}
+              onGenerateProposal={handleGenerateContinuityProposal}
+              isGenerating={isGeneratingContinuity}
+            />
+          )}
+
           <div className="space-y-4">
             {scenes.map((scene, sceneIndex) => {
               const sceneShots = shots[scene.id] || [];
@@ -964,21 +1003,6 @@ export function SceneBreakdown({
                         Add Shot
                       </Button>
                     </div>
-
-                    {/* Continuity Proposal for Start-End Mode */}
-                    {narrativeMode === "start-end" && !localContinuityLocked && (
-                      <div className="mt-6 pt-6 border-t">
-                        <ContinuityProposal
-                          sceneId={scene.id}
-                          sceneTitle={scene.title}
-                          shots={sceneShots}
-                          proposedGroups={continuityGroups[scene.id] || []}
-                          onGroupsApproved={(groups) => handleContinuityApproval(scene.id, groups)}
-                          onGenerateProposal={() => handleGenerateContinuityProposal(scene.id)}
-                          isGenerating={isGeneratingContinuity}
-                        />
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               );

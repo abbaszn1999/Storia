@@ -228,7 +228,7 @@ export function SceneBreakdown({
       const dummyShots: { [sceneId: string]: Shot[] } = {
         "scene-1": [
           {
-            id: "shot-1-1",
+            id: crypto.randomUUID(),
             sceneId: "scene-1",
             shotNumber: 1,
             shotType: "Close-Up",
@@ -243,7 +243,7 @@ export function SceneBreakdown({
             updatedAt: new Date(),
           },
           {
-            id: "shot-1-2",
+            id: crypto.randomUUID(),
             sceneId: "scene-1",
             shotNumber: 2,
             shotType: "Medium Shot",
@@ -258,7 +258,7 @@ export function SceneBreakdown({
             updatedAt: new Date(),
           },
           {
-            id: "shot-1-3",
+            id: crypto.randomUUID(),
             sceneId: "scene-1",
             shotNumber: 3,
             shotType: "Medium Close-Up",
@@ -273,7 +273,7 @@ export function SceneBreakdown({
             updatedAt: new Date(),
           },
           {
-            id: "shot-1-4",
+            id: crypto.randomUUID(),
             sceneId: "scene-1",
             shotNumber: 4,
             shotType: "Extreme Close-Up",
@@ -290,7 +290,7 @@ export function SceneBreakdown({
         ],
         "scene-2": [
           {
-            id: "shot-2-1",
+            id: crypto.randomUUID(),
             sceneId: "scene-2",
             shotNumber: 1,
             shotType: "Wide Shot",
@@ -305,7 +305,7 @@ export function SceneBreakdown({
             updatedAt: new Date(),
           },
           {
-            id: "shot-2-2",
+            id: crypto.randomUUID(),
             sceneId: "scene-2",
             shotNumber: 2,
             shotType: "Medium Shot",
@@ -320,7 +320,7 @@ export function SceneBreakdown({
             updatedAt: new Date(),
           },
           {
-            id: "shot-2-3",
+            id: crypto.randomUUID(),
             sceneId: "scene-2",
             shotNumber: 3,
             shotType: "Aerial",
@@ -335,7 +335,7 @@ export function SceneBreakdown({
             updatedAt: new Date(),
           },
           {
-            id: "shot-2-4",
+            id: crypto.randomUUID(),
             sceneId: "scene-2",
             shotNumber: 4,
             shotType: "Close-Up",
@@ -352,7 +352,7 @@ export function SceneBreakdown({
         ],
         "scene-3": [
           {
-            id: "shot-3-1",
+            id: crypto.randomUUID(),
             sceneId: "scene-3",
             shotNumber: 1,
             shotType: "Medium Shot",
@@ -367,7 +367,7 @@ export function SceneBreakdown({
             updatedAt: new Date(),
           },
           {
-            id: "shot-3-2",
+            id: crypto.randomUUID(),
             sceneId: "scene-3",
             shotNumber: 2,
             shotType: "Medium Shot",
@@ -382,7 +382,7 @@ export function SceneBreakdown({
             updatedAt: new Date(),
           },
           {
-            id: "shot-3-3",
+            id: crypto.randomUUID(),
             sceneId: "scene-3",
             shotNumber: 3,
             shotType: "POV",
@@ -397,7 +397,7 @@ export function SceneBreakdown({
             updatedAt: new Date(),
           },
           {
-            id: "shot-3-4",
+            id: crypto.randomUUID(),
             sceneId: "scene-3",
             shotNumber: 4,
             shotType: "Close-Up",
@@ -414,7 +414,7 @@ export function SceneBreakdown({
         ],
         "scene-4": [
           {
-            id: "shot-4-1",
+            id: crypto.randomUUID(),
             sceneId: "scene-4",
             shotNumber: 1,
             shotType: "Medium Shot",
@@ -429,7 +429,7 @@ export function SceneBreakdown({
             updatedAt: new Date(),
           },
           {
-            id: "shot-4-2",
+            id: crypto.randomUUID(),
             sceneId: "scene-4",
             shotNumber: 2,
             shotType: "Wide Shot",
@@ -444,7 +444,7 @@ export function SceneBreakdown({
             updatedAt: new Date(),
           },
           {
-            id: "shot-4-3",
+            id: crypto.randomUUID(),
             sceneId: "scene-4",
             shotNumber: 3,
             shotType: "Medium Close-Up",
@@ -459,7 +459,7 @@ export function SceneBreakdown({
             updatedAt: new Date(),
           },
           {
-            id: "shot-4-4",
+            id: crypto.randomUUID(),
             sceneId: "scene-4",
             shotNumber: 4,
             shotType: "Medium Shot",
@@ -474,7 +474,7 @@ export function SceneBreakdown({
             updatedAt: new Date(),
           },
           {
-            id: "shot-4-5",
+            id: crypto.randomUUID(),
             sceneId: "scene-4",
             shotNumber: 5,
             shotType: "Aerial",

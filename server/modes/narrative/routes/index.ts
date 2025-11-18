@@ -4,7 +4,7 @@ import { NarrativeAgents } from '../agents';
 import { getCameraMovementPrompt } from '../utils/camera-presets';
 import { StorageCleanup } from '../utils/storage-cleanup';
 import { storage } from '../../../storage';
-import { insertSceneSchema, insertShotSchema } from '@shared/schema';
+import { insertSceneSchema, insertShotSchema, insertContinuityGroupSchema } from '@shared/schema';
 
 const router = Router();
 
@@ -215,6 +215,90 @@ router.delete('/shots/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Shot deletion error:', error);
     res.status(500).json({ error: 'Failed to delete shot' });
+  }
+});
+
+router.get('/continuity-groups/scene/:sceneId', async (req: Request, res: Response) => {
+  try {
+    const { sceneId } = req.params;
+    const groups = await storage.getContinuityGroupsBySceneId(sceneId);
+    res.json(groups);
+  } catch (error) {
+    console.error('Error fetching continuity groups:', error);
+    res.status(500).json({ error: 'Failed to fetch continuity groups' });
+  }
+});
+
+router.post('/continuity-groups', async (req: Request, res: Response) => {
+  try {
+    const parsed = insertContinuityGroupSchema.parse(req.body);
+    const group = await storage.createContinuityGroup(parsed);
+    res.json(group);
+  } catch (error: any) {
+    console.error('Continuity group creation error:', error);
+    res.status(400).json({ error: error.message || 'Failed to create continuity group' });
+  }
+});
+
+router.put('/continuity-groups/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const existing = await storage.getContinuityGroupById(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Continuity group not found' });
+    }
+    
+    const partialSchema = insertContinuityGroupSchema.partial();
+    const parsed = partialSchema.parse(req.body);
+    
+    const updates: Partial<typeof existing> = {};
+    if (parsed.sceneId !== undefined) updates.sceneId = parsed.sceneId;
+    if (parsed.groupNumber !== undefined) updates.groupNumber = parsed.groupNumber;
+    if (parsed.shotIds !== undefined) updates.shotIds = parsed.shotIds;
+    if (parsed.description !== undefined) updates.description = parsed.description;
+    if (parsed.transitionType !== undefined) updates.transitionType = parsed.transitionType;
+    
+    const group = await storage.updateContinuityGroup(id, updates);
+    res.json(group);
+  } catch (error: any) {
+    console.error('Continuity group update error:', error);
+    res.status(400).json({ error: error.message || 'Failed to update continuity group' });
+  }
+});
+
+router.delete('/continuity-groups/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await storage.deleteContinuityGroup(id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Continuity group deletion error:', error);
+    res.status(500).json({ error: 'Failed to delete continuity group' });
+  }
+});
+
+router.post('/videos/:videoId/lock-continuity', async (req: Request, res: Response) => {
+  try {
+    const { videoId } = req.params;
+    const video = await storage.getVideo(videoId);
+    
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+    
+    if (video.continuityLocked) {
+      return res.status(400).json({ error: 'Continuity is already locked for this video' });
+    }
+    
+    if (video.narrativeMode !== 'start-end') {
+      return res.status(400).json({ error: 'Continuity lock only applies to start-end narrative mode' });
+    }
+    
+    await storage.updateVideo(videoId, { continuityLocked: true });
+    res.json({ success: true, continuityLocked: true });
+  } catch (error) {
+    console.error('Error locking continuity:', error);
+    res.status(500).json({ error: 'Failed to lock continuity' });
   }
 });
 

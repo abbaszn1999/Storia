@@ -6,9 +6,10 @@ import { Loader2, Sparkles, Edit, Trash2, Plus, Copy, ChevronUp, ChevronDown } f
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import type { Scene, Shot, ShotVersion } from "@shared/schema";
+import type { Scene, Shot, ShotVersion, ContinuityGroup } from "@shared/schema";
 import { SceneDialog } from "./scene-dialog";
 import { ShotDialog } from "./shot-dialog";
+import { ContinuityProposal } from "./continuity-proposal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,14 +26,29 @@ interface SceneBreakdownProps {
   videoId: string;
   script: string;
   scriptModel: string;
+  narrativeMode?: "image-reference" | "start-end";
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions?: { [shotId: string]: ShotVersion[] };
+  continuityLocked?: boolean;
   onScenesGenerated: (scenes: Scene[], shots: { [sceneId: string]: Shot[] }, shotVersions?: { [shotId: string]: ShotVersion[] }) => void;
+  onContinuityLocked?: () => void;
   onNext: () => void;
 }
 
-export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, shotVersions, onScenesGenerated, onNext }: SceneBreakdownProps) {
+export function SceneBreakdown({ 
+  videoId, 
+  script, 
+  scriptModel, 
+  narrativeMode,
+  scenes, 
+  shots, 
+  shotVersions, 
+  continuityLocked = false,
+  onScenesGenerated, 
+  onContinuityLocked,
+  onNext 
+}: SceneBreakdownProps) {
   const { toast } = useToast();
   const [sceneDialogOpen, setSceneDialogOpen] = useState(false);
   const [shotDialogOpen, setShotDialogOpen] = useState(false);
@@ -42,6 +58,8 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
   const [deleteSceneId, setDeleteSceneId] = useState<string | null>(null);
   const [deleteShotId, setDeleteShotId] = useState<string | null>(null);
   const [synopsis, setSynopsis] = useState<string>(script ? script.substring(0, 200) : "");
+  const [continuityGroups, setContinuityGroups] = useState<{ [sceneId: string]: ContinuityGroup[] }>({});
+  const [isGeneratingContinuity, setIsGeneratingContinuity] = useState(false);
 
   // TEMPORARY: Load dummy data for testing UI
   useEffect(() => {
@@ -56,6 +74,10 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
           location: "Grandmother's Attic",
           timeOfDay: "Evening",
           duration: 45,
+          videoModel: null,
+          imageModel: null,
+          lighting: null,
+          weather: null,
           createdAt: new Date(),
         },
         {
@@ -67,6 +89,10 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
           location: "Small Aircraft over Amazon",
           timeOfDay: "Morning",
           duration: 45,
+          videoModel: null,
+          imageModel: null,
+          lighting: null,
+          weather: null,
           createdAt: new Date(),
         },
         {
@@ -78,6 +104,10 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
           location: "Amazon Rainforest",
           timeOfDay: "Afternoon",
           duration: 45,
+          videoModel: null,
+          imageModel: null,
+          lighting: null,
+          weather: null,
           createdAt: new Date(),
         },
         {
@@ -89,6 +119,10 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
           location: "Ancient Temple Entrance",
           timeOfDay: "Twilight",
           duration: 45,
+          videoModel: null,
+          imageModel: null,
+          lighting: null,
+          weather: null,
           createdAt: new Date(),
         },
       ];
@@ -103,6 +137,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Close-up of dusty boxes and old photographs in dim attic lighting",
             duration: 8,
             cameraMovement: "static",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -115,6 +152,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Sarah's hand reaches into an ornate wooden box, pulling out an aged, yellowed map",
             duration: 12,
             cameraMovement: "push in",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -127,6 +167,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Sarah's eyes widen as she unfolds the map, candlelight illuminating ancient markings",
             duration: 15,
             cameraMovement: "dolly in",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -139,6 +182,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Extreme close-up of the map showing detailed illustrations of a temple hidden in jungle",
             duration: 10,
             cameraMovement: "pan right",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -153,6 +199,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Wide shot of small propeller plane on tarmac at sunrise",
             duration: 10,
             cameraMovement: "static",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -165,6 +214,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Sarah climbs into the plane with her backpack and equipment",
             duration: 8,
             cameraMovement: "tracking",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -177,6 +229,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Aerial view from plane window showing endless green canopy of Amazon rainforest",
             duration: 12,
             cameraMovement: "slow zoom",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -189,6 +244,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Interior shot of Sarah studying the map intensely, finger tracing route",
             duration: 15,
             cameraMovement: "push in",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -203,6 +261,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Low angle shot of machete cutting through thick jungle vines",
             duration: 8,
             cameraMovement: "handheld",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -215,6 +276,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Sarah and guide navigate through dense undergrowth, sweat on their faces",
             duration: 14,
             cameraMovement: "tracking",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -227,6 +291,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "POV shot looking up through canopy as mysterious bird calls echo",
             duration: 10,
             cameraMovement: "tilt up",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -239,6 +306,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Close-up of Sarah checking compass against map, determination in her expression",
             duration: 13,
             cameraMovement: "static",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -253,6 +323,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Sarah's hand pushes aside wall of hanging vines in slow motion",
             duration: 10,
             cameraMovement: "push forward",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -265,6 +338,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Reveal shot of massive temple structure emerging from jungle vegetation",
             duration: 18,
             cameraMovement: "crane up",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -277,6 +353,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Sarah's face in golden hour lighting, expression of wonder and amazement",
             duration: 8,
             cameraMovement: "static",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -289,6 +368,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Dolly shot along temple wall showing intricate carvings and glowing symbols",
             duration: 12,
             cameraMovement: "dolly right",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -301,6 +383,9 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             description: "Wide establishing shot of temple against jungle backdrop as sun sets",
             duration: 12,
             cameraMovement: "static",
+            videoModel: null,
+            imageModel: null,
+            soundEffects: null,
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -327,9 +412,15 @@ export function SceneBreakdown({ videoId, script, scriptModel, scenes, shots, sh
             versionNumber: 1,
             imagePrompt: shot.description || '',
             imageUrl,
+            startFramePrompt: null,
+            startFrameUrl: null,
+            endFramePrompt: null,
+            endFrameUrl: null,
             videoPrompt: null,
             videoUrl: null,
+            videoDuration: null,
             status: "completed",
+            needsRerender: false,
             createdAt: new Date(),
           },
         ];

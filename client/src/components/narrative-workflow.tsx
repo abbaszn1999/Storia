@@ -12,6 +12,7 @@ interface NarrativeWorkflowProps {
   activeStep: string;
   videoId: string;
   workspaceId: string;
+  narrativeMode: "image-reference" | "start-end";
   script: string;
   aspectRatio: string;
   scriptModel: string;
@@ -51,6 +52,7 @@ export function NarrativeWorkflow({
   activeStep,
   videoId,
   workspaceId,
+  narrativeMode,
   script,
   aspectRatio,
   scriptModel,

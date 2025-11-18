@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NarrativeWorkflow } from "@/components/narrative-workflow";
+import { NarrativeModeSelector } from "@/components/narrative/narrative-mode-selector";
 import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
 
 const steps = [
@@ -19,6 +20,7 @@ export default function NarrativeMode() {
   const [videoTitle] = useState("Untitled Project");
   const [activeStep, setActiveStep] = useState("script");
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
+  const [narrativeMode, setNarrativeMode] = useState<"image-reference" | "start-end" | null>(null);
   
   const [videoId] = useState(`video-${Date.now()}`);
   const [workspaceId] = useState("workspace-1");
@@ -110,34 +112,41 @@ export default function NarrativeMode() {
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
         <div className="max-w-[1600px] mx-auto px-6 py-8">
-          <NarrativeWorkflow 
-            activeStep={activeStep}
-            videoId={videoId}
-            workspaceId={workspaceId}
-            script={script}
-            aspectRatio={aspectRatio}
-            scriptModel={scriptModel}
-            voiceActorId={voiceActorId}
-            voiceOverEnabled={voiceOverEnabled}
-            scenes={scenes}
-            shots={shots}
-            shotVersions={shotVersions}
-            characters={characters}
-            referenceImages={referenceImages}
-            worldSettings={worldSettings}
-            onScriptChange={setScript}
-            onAspectRatioChange={setAspectRatio}
-            onScriptModelChange={setScriptModel}
-            onVoiceActorChange={setVoiceActorId}
-            onVoiceOverToggle={setVoiceOverEnabled}
-            onScenesChange={setScenes}
-            onShotsChange={setShots}
-            onShotVersionsChange={setShotVersions}
-            onCharactersChange={setCharacters}
-            onReferenceImagesChange={setReferenceImages}
-            onWorldSettingsChange={setWorldSettings}
-            onNext={handleNext}
-          />
+          {!narrativeMode ? (
+            <div className="flex items-center justify-center min-h-[600px]">
+              <NarrativeModeSelector onSelectMode={(mode) => setNarrativeMode(mode)} />
+            </div>
+          ) : (
+            <NarrativeWorkflow 
+              activeStep={activeStep}
+              videoId={videoId}
+              workspaceId={workspaceId}
+              narrativeMode={narrativeMode}
+              script={script}
+              aspectRatio={aspectRatio}
+              scriptModel={scriptModel}
+              voiceActorId={voiceActorId}
+              voiceOverEnabled={voiceOverEnabled}
+              scenes={scenes}
+              shots={shots}
+              shotVersions={shotVersions}
+              characters={characters}
+              referenceImages={referenceImages}
+              worldSettings={worldSettings}
+              onScriptChange={setScript}
+              onAspectRatioChange={setAspectRatio}
+              onScriptModelChange={setScriptModel}
+              onVoiceActorChange={setVoiceActorId}
+              onVoiceOverToggle={setVoiceOverEnabled}
+              onScenesChange={setScenes}
+              onShotsChange={setShots}
+              onShotVersionsChange={setShotVersions}
+              onCharactersChange={setCharacters}
+              onReferenceImagesChange={setReferenceImages}
+              onWorldSettingsChange={setWorldSettings}
+              onNext={handleNext}
+            />
+          )}
         </div>
       </main>
     </div>

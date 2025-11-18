@@ -56,7 +56,9 @@ export interface IStorage {
   createWorkspace(workspace: InsertWorkspace): Promise<Workspace>;
   
   getVideosByWorkspaceId(workspaceId: string): Promise<Video[]>;
+  getVideo(id: string): Promise<Video | undefined>;
   createVideo(video: InsertVideo): Promise<Video>;
+  updateVideo(id: string, video: Partial<Video>): Promise<Video>;
   
   getStoriesByWorkspaceId(workspaceId: string): Promise<Story[]>;
   createStory(story: InsertStory): Promise<Story>;
@@ -99,6 +101,7 @@ export interface IStorage {
   deleteReferenceImage(id: string): Promise<void>;
   
   getContinuityGroupsBySceneId(sceneId: string): Promise<ContinuityGroup[]>;
+  getContinuityGroupById(id: string): Promise<ContinuityGroup | undefined>;
   createContinuityGroup(group: InsertContinuityGroup): Promise<ContinuityGroup>;
   updateContinuityGroup(id: string, group: Partial<ContinuityGroup>): Promise<ContinuityGroup>;
   deleteContinuityGroup(id: string): Promise<void>;
@@ -180,6 +183,10 @@ export class MemStorage implements IStorage {
     return Array.from(this.videos.values()).filter((v) => v.workspaceId === workspaceId);
   }
 
+  async getVideo(id: string): Promise<Video | undefined> {
+    return this.videos.get(id);
+  }
+
   async createVideo(insertVideo: InsertVideo): Promise<Video> {
     const id = randomUUID();
     const video: Video = {
@@ -202,6 +209,14 @@ export class MemStorage implements IStorage {
     };
     this.videos.set(id, video);
     return video;
+  }
+
+  async updateVideo(id: string, updates: Partial<Video>): Promise<Video> {
+    const video = this.videos.get(id);
+    if (!video) throw new Error('Video not found');
+    const updated = { ...video, ...updates, updatedAt: new Date() };
+    this.videos.set(id, updated);
+    return updated;
   }
 
   async getStoriesByWorkspaceId(workspaceId: string): Promise<Story[]> {
@@ -530,6 +545,10 @@ export class MemStorage implements IStorage {
 
   async getContinuityGroupsBySceneId(sceneId: string): Promise<ContinuityGroup[]> {
     return Array.from(this.continuityGroups.values()).filter((cg) => cg.sceneId === sceneId);
+  }
+
+  async getContinuityGroupById(id: string): Promise<ContinuityGroup | undefined> {
+    return this.continuityGroups.get(id);
   }
 
   async createContinuityGroup(insertGroup: InsertContinuityGroup): Promise<ContinuityGroup> {

@@ -154,6 +154,7 @@ interface SortableShotCardProps {
   referenceImage: ReferenceImage | null;
   isGenerating: boolean;
   voiceOverEnabled: boolean;
+  narrativeMode: "image-reference" | "start-end";
   isConnectedToNext: boolean;
   showEndFrame: boolean;
   onSelectShot: (shot: Shot) => void;
@@ -177,6 +178,7 @@ function SortableShotCard({
   referenceImage,
   isGenerating,
   voiceOverEnabled,
+  narrativeMode,
   isConnectedToNext,
   showEndFrame,
   onSelectShot,
@@ -239,25 +241,29 @@ function SortableShotCard({
               alt={`Shot ${shotIndex + 1}`}
               className="w-full h-full object-cover"
             />
-            {/* START/END Frame Badges */}
-            <div className="absolute top-2 left-2 flex gap-1">
-              <Badge variant="secondary" className="text-xs bg-background/90 backdrop-blur-sm" data-testid={`badge-start-frame-${shot.id}`}>
-                START
-              </Badge>
-              {showEndFrame && !isConnectedToNext && (
-                <Badge variant="secondary" className="text-xs bg-background/90 backdrop-blur-sm" data-testid={`badge-end-frame-${shot.id}`}>
-                  END
-                </Badge>
-              )}
-            </div>
-            {/* Connection Indicator */}
-            {isConnectedToNext && (
-              <div className="absolute top-2 right-2" data-testid={`connection-indicator-${shot.id}`}>
-                <Badge variant="default" className="text-xs bg-gradient-storia text-white shadow-md flex items-center gap-1">
-                  <Zap className="h-3 w-3" />
-                  Connected
-                </Badge>
-              </div>
+            {/* START/END Frame Badges (Start-End Mode Only) */}
+            {narrativeMode === "start-end" && (
+              <>
+                <div className="absolute top-2 left-2 flex gap-1">
+                  <Badge variant="secondary" className="text-xs bg-background/90 backdrop-blur-sm" data-testid={`badge-start-frame-${shot.id}`}>
+                    START
+                  </Badge>
+                  {showEndFrame && !isConnectedToNext && (
+                    <Badge variant="secondary" className="text-xs bg-background/90 backdrop-blur-sm" data-testid={`badge-end-frame-${shot.id}`}>
+                      END
+                    </Badge>
+                  )}
+                </div>
+                {/* Connection Indicator */}
+                {isConnectedToNext && (
+                  <div className="absolute top-2 right-2" data-testid={`connection-indicator-${shot.id}`}>
+                    <Badge variant="default" className="text-xs bg-gradient-storia text-white shadow-md flex items-center gap-1">
+                      <Zap className="h-3 w-3" />
+                      Connected
+                    </Badge>
+                  </div>
+                )}
+              </>
             )}
           </>
         ) : isGenerating ? (
@@ -1076,6 +1082,7 @@ export function StoryboardEditor({
                                 referenceImage={referenceImage}
                                 isGenerating={isGenerating}
                                 voiceOverEnabled={voiceOverEnabled}
+                                narrativeMode={narrativeMode}
                                 isConnectedToNext={isConnectedToNext}
                                 showEndFrame={showEndFrame}
                                 onSelectShot={handleSelectShot}

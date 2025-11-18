@@ -1005,10 +1005,17 @@ export function SceneBreakdown({
             </div>
             <Button 
               onClick={onNext} 
+              disabled={narrativeMode === "start-end" && !localContinuityLocked}
               data-testid="button-next"
             >
-              Next
-              <span className="ml-2">→</span>
+              {narrativeMode === "start-end" && !localContinuityLocked ? (
+                <>Lock Continuity First</>
+              ) : (
+                <>
+                  Next
+                  <span className="ml-2">→</span>
+                </>
+              )}
             </Button>
           </div>
 

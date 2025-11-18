@@ -257,15 +257,32 @@ export function SceneBreakdown({
       approvedAt: new Date(),
     };
 
-    const newApproved = { ...approvedGroups };
+    // Deep clone approved groups map
+    const newApproved: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(approvedGroups) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      newApproved[id] = [...groups]; // Clone array
+    });
     if (!newApproved[sceneId]) newApproved[sceneId] = [];
     newApproved[sceneId] = [...newApproved[sceneId], approvedGroup];
 
-    const newProposed = { ...proposalDraft };
-    newProposed[sceneId] = sceneProposals.filter((g: ContinuityGroup) => g.id !== groupId);
-    if (newProposed[sceneId].length === 0) delete newProposed[sceneId];
+    // Deep clone proposed groups map
+    const newProposed: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(proposalDraft) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      if (id === sceneId) {
+        newProposed[id] = groups.filter((g: ContinuityGroup) => g.id !== groupId);
+      } else {
+        newProposed[id] = [...groups]; // Clone array
+      }
+    });
+    if (newProposed[sceneId]?.length === 0) delete newProposed[sceneId];
 
-    updateAllGroupMaps(newApproved, newProposed, declinedGroups);
+    // Deep clone declined groups map
+    const newDeclined: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(declinedGroups) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      newDeclined[id] = [...groups]; // Clone array
+    });
+
+    updateAllGroupMaps(newApproved, newProposed, newDeclined);
 
     toast({
       title: "Group Approved",
@@ -293,15 +310,32 @@ export function SceneBreakdown({
       status: "declined",
     };
 
-    const newDeclined = { ...declinedGroups };
+    // Deep clone declined groups map
+    const newDeclined: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(declinedGroups) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      newDeclined[id] = [...groups]; // Clone array
+    });
     if (!newDeclined[sceneId]) newDeclined[sceneId] = [];
     newDeclined[sceneId] = [...newDeclined[sceneId], declinedGroup];
 
-    const newProposed = { ...proposalDraft };
-    newProposed[sceneId] = sceneProposals.filter((g: ContinuityGroup) => g.id !== groupId);
-    if (newProposed[sceneId].length === 0) delete newProposed[sceneId];
+    // Deep clone proposed groups map
+    const newProposed: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(proposalDraft) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      if (id === sceneId) {
+        newProposed[id] = groups.filter((g: ContinuityGroup) => g.id !== groupId);
+      } else {
+        newProposed[id] = [...groups]; // Clone array
+      }
+    });
+    if (newProposed[sceneId]?.length === 0) delete newProposed[sceneId];
 
-    updateAllGroupMaps(approvedGroups, newProposed, newDeclined);
+    // Deep clone approved groups map
+    const newApproved: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(approvedGroups) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      newApproved[id] = [...groups]; // Clone array
+    });
+
+    updateAllGroupMaps(newApproved, newProposed, newDeclined);
 
     toast({
       title: "Group Declined",
@@ -330,11 +364,31 @@ export function SceneBreakdown({
       editedAt: new Date(),
     };
 
-    const newProposed = { ...proposalDraft };
-    newProposed[sceneId] = [...sceneProposals];
-    newProposed[sceneId][groupIndex] = editedGroup;
+    // Deep clone proposed groups map
+    const newProposed: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(proposalDraft) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      if (id === sceneId) {
+        const clonedGroups = [...groups];
+        clonedGroups[groupIndex] = editedGroup;
+        newProposed[id] = clonedGroups;
+      } else {
+        newProposed[id] = [...groups]; // Clone array
+      }
+    });
 
-    updateAllGroupMaps(approvedGroups, newProposed, declinedGroups);
+    // Deep clone approved groups map
+    const newApproved: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(approvedGroups) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      newApproved[id] = [...groups]; // Clone array
+    });
+
+    // Deep clone declined groups map
+    const newDeclined: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(declinedGroups) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      newDeclined[id] = [...groups]; // Clone array
+    });
+
+    updateAllGroupMaps(newApproved, newProposed, newDeclined);
 
     toast({
       title: "Group Updated",
@@ -344,7 +398,8 @@ export function SceneBreakdown({
 
   const handleLock = () => {
     // Lock the continuity (at least one group must be approved)
-    const hasApprovedGroups = Object.values(approvedGroups).some((groups: ContinuityGroup[]) => groups.length > 0);
+    const approvedGroupsArray = Object.values(approvedGroups) as ContinuityGroup[][];
+    const hasApprovedGroups = approvedGroupsArray.some((groups) => groups.length > 0);
     
     if (!hasApprovedGroups) {
       toast({

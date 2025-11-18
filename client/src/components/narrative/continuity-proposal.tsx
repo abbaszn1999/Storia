@@ -1,69 +1,44 @@
-import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Link as LinkIcon, Sparkles, Check, X, Edit2, AlertTriangle } from "lucide-react";
+import { Link as LinkIcon, Sparkles, Check, X, Edit2, AlertTriangle, Lock } from "lucide-react";
 import type { Shot, ContinuityGroup, Scene } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
 
 interface ContinuityProposalProps {
   scenes: Scene[];
   allShots: { [sceneId: string]: Shot[] };
   proposedGroups: { [sceneId: string]: ContinuityGroup[] };
-  onGroupsApproved: (groups: { [sceneId: string]: ContinuityGroup[] }) => void;
+  approvedGroups: { [sceneId: string]: ContinuityGroup[] };
+  declinedGroups?: { [sceneId: string]: ContinuityGroup[] };
+  onGroupApprove: (sceneId: string, groupId: string) => void;
+  onGroupDecline: (sceneId: string, groupId: string) => void;
+  onGroupEdit: (sceneId: string, updatedGroup: ContinuityGroup) => void;
+  onLock: () => void;
   onGenerateProposal: () => void;
   isGenerating?: boolean;
+  isLocked?: boolean;
 }
 
 export function ContinuityProposal({
   scenes,
   allShots,
   proposedGroups,
-  onGroupsApproved,
+  approvedGroups,
+  declinedGroups = {},
+  onGroupApprove,
+  onGroupDecline,
+  onGroupEdit,
+  onLock,
   onGenerateProposal,
   isGenerating = false,
+  isLocked = false,
 }: ContinuityProposalProps) {
-  const [editedGroups, setEditedGroups] = useState<{ [sceneId: string]: ContinuityGroup[] }>(proposedGroups);
-  const [isApproved, setIsApproved] = useState(false);
-  const prevProposedGroupsRef = useRef<string>("");
-
-  // Sync editedGroups with proposedGroups when new proposals are generated
-  useEffect(() => {
-    // Deterministic deep comparison (sort keys to avoid false positives from key ordering)
-    const serializeWithSortedKeys = (obj: any) => JSON.stringify(obj, Object.keys(obj).sort());
-    const newSerialized = serializeWithSortedKeys(proposedGroups);
-    const contentChanged = prevProposedGroupsRef.current !== newSerialized;
-    
-    // Update the ref with new value
-    prevProposedGroupsRef.current = newSerialized;
-    
-    // Always sync the groups
-    setEditedGroups(proposedGroups);
-    
-    // Only reset approval if content actually changed
-    // This prevents resetting after approval when parent re-sets the same groups
-    if (contentChanged) {
-      setIsApproved(false);
-    }
-  }, [proposedGroups]);
-
-  const handleApprove = () => {
-    // Don't allow approving if there are no groups
-    const totalGroups = Object.values(editedGroups).flat().length;
-    if (totalGroups === 0) {
-      return;
-    }
-    setIsApproved(true);
-    onGroupsApproved(editedGroups);
-  };
 
   const getShotById = (sceneId: string, shotId: string) => {
     const sceneShots = allShots[sceneId] || [];
-    return sceneShots.find(s => s.id === shotId);
-  };
-
-  const getSceneById = (sceneId: string) => {
-    return scenes.find(s => s.id === sceneId);
+    return sceneShots.find((s: Shot) => s.id === shotId);
   };
 
   const getConnectionTypeColor = (type: string | null) => {
@@ -85,9 +60,105 @@ export function ContinuityProposal({
   };
 
   const totalProposedGroups = Object.values(proposedGroups).flat().length;
+  const totalApprovedGroups = Object.values(approvedGroups).flat().length;
+  const totalDeclinedGroups = Object.values(declinedGroups).flat().length;
   const totalShots = Object.values(allShots).flat().length;
 
-  if (totalProposedGroups === 0 && !isGenerating) {
+  const canLock = totalApprovedGroups > 0;
+
+  // Helper to render a group card with optional action buttons
+  const renderGroupCard = (
+    scene: Scene,
+    group: ContinuityGroup,
+    idx: number,
+    showActions: boolean = false,
+    isApprovedGroup: boolean = false
+  ) => {
+    return (
+      <Card key={group.id} className={`border-l-4 ${isApprovedGroup ? 'border-l-green-500' : 'border-l-primary'}`}>
+        <CardContent className="p-4">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="font-mono">
+                  Group {idx + 1}
+                </Badge>
+                <Badge variant="outline" className={getConnectionTypeColor(group.transitionType)}>
+                  {getConnectionTypeIcon(group.transitionType)} {group.transitionType || 'Unknown'}
+                </Badge>
+                {isApprovedGroup && (
+                  <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
+                    <Check className="h-3 w-3 mr-1" />
+                    Approved
+                  </Badge>
+                )}
+              </div>
+              {showActions && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onGroupApprove(scene.id, group.id)}
+                    data-testid={`button-approve-group-${group.id}`}
+                  >
+                    <Check className="h-4 w-4 mr-1" />
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onGroupDecline(scene.id, group.id)}
+                    data-testid={`button-decline-group-${group.id}`}
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Decline
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {group.description && (
+              <p className="text-sm text-muted-foreground italic">
+                {group.description}
+              </p>
+            )}
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {(group.shotIds as string[]).map((shotId, shotIdx) => {
+                const shot = getShotById(scene.id, shotId);
+                if (!shot) return null;
+
+                return (
+                  <div key={shotId} className="flex items-center">
+                    <Badge
+                      variant="outline"
+                      className="bg-card hover-elevate"
+                      data-testid={`badge-shot-${shot.shotNumber}`}
+                    >
+                      <span className="font-mono text-xs">Shot {shot.shotNumber}</span>
+                      <span className="mx-2 text-muted-foreground">·</span>
+                      <span className="text-xs">{shot.shotType}</span>
+                    </Badge>
+                    {shotIdx < (group.shotIds as string[]).length - 1 && (
+                      <LinkIcon className="h-3 w-3 mx-2 text-primary" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="text-xs text-muted-foreground pt-2 border-t">
+              <span className="font-semibold">Effect:</span> {(group.shotIds as string[]).length - 1} seamless transition
+              {(group.shotIds as string[]).length - 1 !== 1 ? 's' : ''} • 
+              Only first shot generates start frame, last shot generates end frame
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  if (totalProposedGroups === 0 && totalApprovedGroups === 0 && !isGenerating) {
     return (
       <Card className="border-2 border-dashed border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
         <CardContent className="p-8">
@@ -128,132 +199,124 @@ export function ContinuityProposal({
 
   return (
     <div className="space-y-6">
-      {!isApproved && (
+      {/* Alert for review */}
+      {!isLocked && totalProposedGroups > 0 && (
         <Alert className="border-primary/50 bg-primary/5">
           <AlertTriangle className="h-4 w-4 text-primary" />
           <AlertDescription>
             <strong>Review Required:</strong> AI has proposed continuity connections across all scenes. 
-            Review and approve to lock the continuity before proceeding to storyboard generation.
+            Review and approve/decline individual groups to lock the continuity before proceeding to storyboard generation.
           </AlertDescription>
         </Alert>
       )}
 
-      <Card className={isApproved ? "border-green-500/50 bg-green-500/5" : ""}>
-        <CardHeader>
-          <div className="flex items-center justify-between">
+      {/* Approved Groups Section (always visible when there are approved groups) */}
+      {totalApprovedGroups > 0 && (
+        <Card className="border-green-500/50 bg-green-500/5">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-green-500">
+                  <Check className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <CardTitle>Approved Continuity Groups</CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {totalApprovedGroups} group{totalApprovedGroups !== 1 ? 's' : ''} approved and locked
+                  </p>
+                </div>
+              </div>
+              {isLocked && (
+                <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
+                  <Lock className="h-3 w-3 mr-1" />
+                  Locked
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {scenes.map((scene) => {
+              const sceneGroups = approvedGroups[scene.id] || [];
+              if (sceneGroups.length === 0) return null;
+
+              return (
+                <div key={scene.id} className="space-y-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge variant="outline" className="font-semibold">{scene.title}</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {sceneGroups.length} group{sceneGroups.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  {sceneGroups.map((group, idx) => renderGroupCard(scene, group, idx, false, true))}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Proposed Groups Section (only show when not locked) */}
+      {!isLocked && totalProposedGroups > 0 && (
+        <Card>
+          <CardHeader>
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-gradient-storia">
                 <LinkIcon className="h-5 w-5 text-white" />
               </div>
               <div>
-                <CardTitle>Continuity Proposal for All Scenes</CardTitle>
+                <CardTitle>Proposed Continuity Groups</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {totalProposedGroups} connected group{totalProposedGroups !== 1 ? 's' : ''} proposed across {scenes.length} scene{scenes.length !== 1 ? 's' : ''}
+                  {totalProposedGroups} group{totalProposedGroups !== 1 ? 's' : ''} pending review
                 </p>
               </div>
             </div>
-            {isApproved ? (
-              <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
-                <Check className="h-3 w-3 mr-1" />
-                Approved & Locked
-              </Badge>
-            ) : (
-              <Button 
-                onClick={handleApprove} 
-                disabled={totalProposedGroups === 0}
-                className="bg-gradient-storia" 
-                data-testid="button-approve-continuity"
-              >
-                <Check className="h-4 w-4 mr-2" />
-                Approve & Lock All
-              </Button>
-            )}
-          </div>
-        </CardHeader>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {scenes.map((scene) => {
+              const sceneGroups = proposedGroups[scene.id] || [];
+              if (sceneGroups.length === 0) return null;
 
-        <CardContent className="space-y-6">
-          {scenes.map((scene) => {
-            const sceneGroups = editedGroups[scene.id] || [];
-            if (sceneGroups.length === 0) return null;
-
-            return (
-              <div key={scene.id} className="space-y-3">
-                <div className="flex items-center gap-2 mb-3">
-                  <Badge variant="outline" className="font-semibold">{scene.title}</Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {sceneGroups.length} group{sceneGroups.length !== 1 ? 's' : ''}
-                  </span>
+              return (
+                <div key={scene.id} className="space-y-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge variant="outline" className="font-semibold">{scene.title}</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {sceneGroups.length} group{sceneGroups.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  {sceneGroups.map((group, idx) => renderGroupCard(scene, group, idx, true, false))}
                 </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
-                {sceneGroups.map((group, idx) => (
-                  <Card key={group.id} className="border-l-4 border-l-primary">
-                    <CardContent className="p-4">
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="font-mono">
-                              Group {idx + 1}
-                            </Badge>
-                            <Badge variant="outline" className={getConnectionTypeColor(group.transitionType)}>
-                              {getConnectionTypeIcon(group.transitionType)} {group.transitionType || 'Unknown'}
-                            </Badge>
-                          </div>
-                        </div>
+      {/* Lock Button */}
+      {!isLocked && totalApprovedGroups > 0 && (
+        <div className="flex justify-end">
+          <Button 
+            onClick={onLock} 
+            disabled={!canLock}
+            className="bg-gradient-storia" 
+            data-testid="button-lock-continuity"
+          >
+            <Lock className="h-4 w-4 mr-2" />
+            Lock & Continue
+          </Button>
+        </div>
+      )}
 
-                        {group.description && (
-                          <p className="text-sm text-muted-foreground italic">
-                            {group.description}
-                          </p>
-                        )}
-
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {(group.shotIds as string[]).map((shotId, shotIdx) => {
-                            const shot = getShotById(scene.id, shotId);
-                            if (!shot) return null;
-
-                            return (
-                              <div key={shotId} className="flex items-center">
-                                <Badge
-                                  variant="outline"
-                                  className="bg-card hover-elevate"
-                                  data-testid={`badge-shot-${shot.shotNumber}`}
-                                >
-                                  <span className="font-mono text-xs">Shot {shot.shotNumber}</span>
-                                  <span className="mx-2 text-muted-foreground">·</span>
-                                  <span className="text-xs">{shot.shotType}</span>
-                                </Badge>
-                                {shotIdx < (group.shotIds as string[]).length - 1 && (
-                                  <LinkIcon className="h-3 w-3 mx-2 text-primary" />
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        <div className="text-xs text-muted-foreground pt-2 border-t">
-                          <span className="font-semibold">Effect:</span> {(group.shotIds as string[]).length - 1} seamless transition
-                          {(group.shotIds as string[]).length - 1 !== 1 ? 's' : ''} • 
-                          Only first shot generates start frame, last shot generates end frame
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            );
-          })}
-
-          {isApproved && (
-            <Alert className="border-green-500/50 bg-green-500/5">
-              <Check className="h-4 w-4 text-green-500" />
-              <AlertDescription className="text-green-700 dark:text-green-400">
-                <strong>Continuity Locked:</strong> Shot connections are now final. 
-                The storyboard will generate frames according to this continuity plan.
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
+      {/* Locked Alert */}
+      {isLocked && (
+        <Alert className="border-green-500/50 bg-green-500/5">
+          <Lock className="h-4 w-4 text-green-500" />
+          <AlertDescription className="text-green-700 dark:text-green-400">
+            <strong>Continuity Locked:</strong> Shot connections are now final. 
+            The storyboard will generate frames according to this continuity plan.
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }

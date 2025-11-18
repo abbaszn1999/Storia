@@ -116,6 +116,7 @@ const CAMERA_MOVEMENTS = [
 
 interface StoryboardEditorProps {
   videoId: string;
+  narrativeMode: "image-reference" | "start-end";
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
@@ -123,6 +124,8 @@ interface StoryboardEditorProps {
   characters: Character[];
   voiceActorId: string | null;
   voiceOverEnabled: boolean;
+  continuityLocked: boolean;
+  continuityGroups: { [sceneId: string]: any[] };
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
   onGenerateShot: (shotId: string) => void;
@@ -151,6 +154,8 @@ interface SortableShotCardProps {
   referenceImage: ReferenceImage | null;
   isGenerating: boolean;
   voiceOverEnabled: boolean;
+  isConnectedToNext: boolean;
+  showEndFrame: boolean;
   onSelectShot: (shot: Shot) => void;
   onRegenerateShot: (shotId: string) => void;
   onUpdatePrompt: (shotId: string, prompt: string) => void;
@@ -172,6 +177,8 @@ function SortableShotCard({
   referenceImage,
   isGenerating,
   voiceOverEnabled,
+  isConnectedToNext,
+  showEndFrame,
   onSelectShot,
   onRegenerateShot,
   onUpdatePrompt,
@@ -226,11 +233,33 @@ function SortableShotCard({
     >
       <div className="aspect-video bg-muted relative group">
         {version?.imageUrl ? (
-          <img
-            src={version.imageUrl}
-            alt={`Shot ${shotIndex + 1}`}
-            className="w-full h-full object-cover"
-          />
+          <>
+            <img
+              src={version.imageUrl}
+              alt={`Shot ${shotIndex + 1}`}
+              className="w-full h-full object-cover"
+            />
+            {/* START/END Frame Badges */}
+            <div className="absolute top-2 left-2 flex gap-1">
+              <Badge variant="secondary" className="text-xs bg-background/90 backdrop-blur-sm" data-testid={`badge-start-frame-${shot.id}`}>
+                START
+              </Badge>
+              {showEndFrame && !isConnectedToNext && (
+                <Badge variant="secondary" className="text-xs bg-background/90 backdrop-blur-sm" data-testid={`badge-end-frame-${shot.id}`}>
+                  END
+                </Badge>
+              )}
+            </div>
+            {/* Connection Indicator */}
+            {isConnectedToNext && (
+              <div className="absolute top-2 right-2" data-testid={`connection-indicator-${shot.id}`}>
+                <Badge variant="default" className="text-xs bg-gradient-storia text-white shadow-md flex items-center gap-1">
+                  <Zap className="h-3 w-3" />
+                  Connected
+                </Badge>
+              </div>
+            )}
+          </>
         ) : isGenerating ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -530,6 +559,7 @@ function SortableShotCard({
 
 export function StoryboardEditor({
   videoId,
+  narrativeMode,
   scenes,
   shots,
   shotVersions,
@@ -537,6 +567,8 @@ export function StoryboardEditor({
   characters,
   voiceActorId,
   voiceOverEnabled,
+  continuityLocked,
+  continuityGroups,
   onVoiceActorChange,
   onVoiceOverToggle,
   onGenerateShot,
@@ -603,6 +635,53 @@ export function StoryboardEditor({
     if (!shot.currentVersionId) return null;
     const versions = shotVersions[shot.id] || [];
     return versions.find((v) => v.id === shot.currentVersionId) || null;
+  };
+
+  // Helper: Check if a shot is connected to the next shot in Start-End Frame mode
+  const isShotConnectedToNext = (sceneId: string, shotIndex: number): boolean => {
+    if (narrativeMode !== "start-end" || !continuityLocked) return false;
+    
+    const sceneGroups = continuityGroups[sceneId] || [];
+    const sceneShots = localShots[sceneId] || [];
+    
+    if (shotIndex >= sceneShots.length - 1) return false; // Last shot can't connect to next
+    
+    const currentShot = sceneShots[shotIndex];
+    const nextShot = sceneShots[shotIndex + 1];
+    
+    // Check if current and next shots are in the same continuity group
+    for (const group of sceneGroups) {
+      const shotIds = group.shotIds || [];
+      const currentIdx = shotIds.indexOf(currentShot.id);
+      const nextIdx = shotIds.indexOf(nextShot.id);
+      
+      if (currentIdx !== -1 && nextIdx === currentIdx + 1) {
+        return true; // Current shot connects to next shot
+      }
+    }
+    
+    return false;
+  };
+
+  // Helper: Check if a shot is the last in a continuity group (should show END frame)
+  const isShotStandalone = (sceneId: string, shotIndex: number): boolean => {
+    if (narrativeMode !== "start-end" || !continuityLocked) return false;
+    
+    const sceneGroups = continuityGroups[sceneId] || [];
+    const sceneShots = localShots[sceneId] || [];
+    const currentShot = sceneShots[shotIndex];
+    
+    // Check if shot is in any group
+    for (const group of sceneGroups) {
+      const shotIds = group.shotIds || [];
+      if (shotIds.includes(currentShot.id)) {
+        // Check if it's the last in the group
+        const idx = shotIds.indexOf(currentShot.id);
+        return idx === shotIds.length - 1; // Last in group shows END frame
+      }
+    }
+    
+    return true; // Not in any group = standalone
   };
 
   // Count shots that have been animated to video
@@ -982,6 +1061,8 @@ export function StoryboardEditor({
                           const version = getShotVersion(shot);
                           const referenceImage = getShotReferenceImage(shot.id);
                           const isGenerating = false;
+                          const isConnectedToNext = isShotConnectedToNext(scene.id, shotIndex);
+                          const showEndFrame = isShotStandalone(scene.id, shotIndex);
 
                           return (
                             <>
@@ -995,6 +1076,8 @@ export function StoryboardEditor({
                                 referenceImage={referenceImage}
                                 isGenerating={isGenerating}
                                 voiceOverEnabled={voiceOverEnabled}
+                                isConnectedToNext={isConnectedToNext}
+                                showEndFrame={showEndFrame}
                                 onSelectShot={handleSelectShot}
                                 onRegenerateShot={onRegenerateShot}
                                 onUpdatePrompt={handleUpdatePrompt}

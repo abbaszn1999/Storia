@@ -481,6 +481,7 @@ export function NarrativeWorkflow({
       {activeStep === "storyboard" && (
         <StoryboardEditor
           videoId={videoId}
+          narrativeMode={narrativeMode}
           scenes={scenes}
           shots={shots}
           shotVersions={shotVersions}
@@ -488,6 +489,8 @@ export function NarrativeWorkflow({
           characters={characters}
           voiceActorId={voiceActorId}
           voiceOverEnabled={voiceOverEnabled}
+          continuityLocked={continuityLocked}
+          continuityGroups={continuityGroups}
           onVoiceActorChange={onVoiceActorChange}
           onVoiceOverToggle={onVoiceOverToggle}
           onGenerateShot={handleGenerateShot}

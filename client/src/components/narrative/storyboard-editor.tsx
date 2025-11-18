@@ -230,9 +230,29 @@ function SortableShotCard({
   // Determine available frames and which image to display
   const hasStartFrame = version?.startFrameUrl || version?.imageUrl;
   const hasEndFrame = version?.endFrameUrl;
-  const displayImageUrl = narrativeMode === "start-end" 
-    ? (activeFrame === "start" ? (version?.startFrameUrl || version?.imageUrl) : version?.endFrameUrl)
-    : version?.imageUrl;
+  
+  // Calculate display image URL with proper fallbacks
+  let displayImageUrl: string | null | undefined;
+  let actualFrameShown: "start" | "end" | null = null;
+  
+  if (narrativeMode === "start-end") {
+    if (activeFrame === "start") {
+      displayImageUrl = version?.startFrameUrl || version?.imageUrl;
+      actualFrameShown = "start";
+    } else {
+      // Only show end frame if it exists, otherwise fall back to start
+      if (hasEndFrame) {
+        displayImageUrl = version?.endFrameUrl;
+        actualFrameShown = "end";
+      } else {
+        displayImageUrl = version?.startFrameUrl || version?.imageUrl;
+        actualFrameShown = "start";
+      }
+    }
+  } else {
+    displayImageUrl = version?.imageUrl;
+    actualFrameShown = null;
+  }
 
   return (
     <Card
@@ -246,7 +266,7 @@ function SortableShotCard({
           <>
             <img
               src={displayImageUrl}
-              alt={`Shot ${shotIndex + 1} - ${activeFrame} frame`}
+              alt={`Shot ${shotIndex + 1}${actualFrameShown ? ` - ${actualFrameShown} frame` : ""}`}
               className="w-full h-full object-cover"
             />
             {/* Start/End Frame Tab Selector (Start-End Mode Only) */}
@@ -264,7 +284,10 @@ function SortableShotCard({
                   Start
                 </button>
                 <button
-                  onClick={() => hasEndFrame && setActiveFrame("end")}
+                  onClick={() => {
+                    if (!hasEndFrame) return; // Explicit guard to prevent switching to undefined frame
+                    setActiveFrame("end");
+                  }}
                   disabled={!hasEndFrame}
                   className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
                     activeFrame === "end"
@@ -1110,27 +1133,28 @@ export function StoryboardEditor({
                                 onDeleteShot={onDeleteShot}
                                 shotsCount={sceneShots.length}
                               />
-                              {onAddShot && (
-                                <div className="relative group shrink-0 w-3 flex items-center justify-center">
-                                  {/* Connection Link Icon (Start-End Mode Only) */}
-                                  {narrativeMode === "start-end" && isConnectedToNext && (
-                                    <div 
-                                      className="absolute flex items-center justify-center w-8 h-8 rounded-full bg-gradient-storia text-white shadow-md"
-                                      data-testid={`connection-link-${shot.id}`}
-                                      title="Connected shots"
-                                    >
-                                      <Link2 className="h-4 w-4" />
-                                    </div>
-                                  )}
+                              {/* Connection Link Icon and Add Shot Button */}
+                              <div className="relative shrink-0 w-8 flex items-center justify-center">
+                                {/* Connection Link Icon - Always visible when connected (Start-End Mode Only) */}
+                                {narrativeMode === "start-end" && isConnectedToNext ? (
+                                  <div 
+                                    className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-storia text-white shadow-md"
+                                    data-testid={`connection-link-${shot.id}`}
+                                    title="Connected shots"
+                                  >
+                                    <Link2 className="h-4 w-4" />
+                                  </div>
+                                ) : onAddShot ? (
+                                  /* Add Shot Button - Only when not connected */
                                   <button
                                     onClick={() => onAddShot(scene.id, shotIndex)}
-                                    className="absolute opacity-0 group-hover:opacity-100 flex items-center justify-center w-7 h-7 rounded-full bg-background border-2 border-dashed border-primary/50 hover-elevate active-elevate-2 transition-all"
+                                    className="opacity-0 hover:opacity-100 flex items-center justify-center w-7 h-7 rounded-full bg-background border-2 border-dashed border-primary/50 hover-elevate active-elevate-2 transition-opacity"
                                     data-testid={`button-add-shot-after-${shotIndex}`}
                                   >
                                     <Plus className="h-4 w-4 text-primary" />
                                   </button>
-                                </div>
-                              )}
+                                ) : null}
+                              </div>
                             </>
                           );
                         })}

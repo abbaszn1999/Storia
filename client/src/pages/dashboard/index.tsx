@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Video, Zap, Calendar, TrendingUp, Plus } from "lucide-react";
+import { Video, Zap, Calendar, TrendingUp, Plus, Sparkles } from "lucide-react";
 import { useLocation } from "wouter";
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/stat-card";
 import { VideoCard } from "@/components/video-card";
@@ -19,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { VIDEO_MODE_ROUTES, STORY_TEMPLATE_ROUTES } from "@/lib/routes";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -90,6 +92,25 @@ export default function Dashboard() {
     }
   };
 
+  const seedDemoMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('POST', '/api/seed-demo');
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Demo Data Seeded",
+        description: `Created ${data.data.characters} characters, ${data.data.voices} voices, ${data.data.videos} videos, and ${data.data.locations} locations`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to seed demo data",
+        description: "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -99,14 +120,24 @@ export default function Dashboard() {
             Welcome back! Here's an overview of your creative workspace.
           </p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogClose}>
-          <DialogTrigger asChild>
-            <Button size="lg" className="gap-2" data-testid="button-create-project">
-              <Plus className="h-4 w-4" />
-              New Project
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl">
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => seedDemoMutation.mutate()}
+            disabled={seedDemoMutation.isPending}
+            data-testid="button-seed-demo"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            {seedDemoMutation.isPending ? "Seeding..." : "Seed Demo Data"}
+          </Button>
+          <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogClose}>
+            <DialogTrigger asChild>
+              <Button size="lg" className="gap-2" data-testid="button-create-project">
+                <Plus className="h-4 w-4" />
+                New Project
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl">
             <DialogHeader>
               <DialogTitle>Create New Project</DialogTitle>
               <DialogDescription>
@@ -193,8 +224,9 @@ export default function Dashboard() {
                 </>
               )}
             </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

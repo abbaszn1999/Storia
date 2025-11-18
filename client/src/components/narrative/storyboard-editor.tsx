@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, ChevronDown, Shirt, Eraser, Trash2, Play, Pause, Check } from "lucide-react";
+import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, ChevronDown, Shirt, Eraser, Trash2, Play, Pause, Check, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, ReferenceImage, Character } from "@shared/schema";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
@@ -209,6 +209,7 @@ function SortableShotCard({
 
   const { toast } = useToast();
   const [localPrompt, setLocalPrompt] = useState(shot.description || "");
+  const [activeFrame, setActiveFrame] = useState<"start" | "end">("start");
 
   const handlePromptBlur = () => {
     if (localPrompt !== shot.description) {
@@ -226,6 +227,13 @@ function SortableShotCard({
     }
   };
 
+  // Determine available frames and which image to display
+  const hasStartFrame = version?.startFrameUrl || version?.imageUrl;
+  const hasEndFrame = version?.endFrameUrl;
+  const displayImageUrl = narrativeMode === "start-end" 
+    ? (activeFrame === "start" ? (version?.startFrameUrl || version?.imageUrl) : version?.endFrameUrl)
+    : version?.imageUrl;
+
   return (
     <Card
       ref={setNodeRef}
@@ -234,36 +242,42 @@ function SortableShotCard({
       data-testid={`card-shot-${shot.id}`}
     >
       <div className="aspect-video bg-muted relative group">
-        {version?.imageUrl ? (
+        {displayImageUrl ? (
           <>
             <img
-              src={version.imageUrl}
-              alt={`Shot ${shotIndex + 1}`}
+              src={displayImageUrl}
+              alt={`Shot ${shotIndex + 1} - ${activeFrame} frame`}
               className="w-full h-full object-cover"
             />
-            {/* START/END Frame Badges (Start-End Mode Only) */}
+            {/* Start/End Frame Tab Selector (Start-End Mode Only) */}
             {narrativeMode === "start-end" && (
-              <>
-                <div className="absolute top-2 left-2 flex gap-1">
-                  <Badge variant="secondary" className="text-xs bg-background/90 backdrop-blur-sm" data-testid={`badge-start-frame-${shot.id}`}>
-                    START
-                  </Badge>
-                  {showEndFrame && !isConnectedToNext && (
-                    <Badge variant="secondary" className="text-xs bg-background/90 backdrop-blur-sm" data-testid={`badge-end-frame-${shot.id}`}>
-                      END
-                    </Badge>
-                  )}
-                </div>
-                {/* Connection Indicator */}
-                {isConnectedToNext && (
-                  <div className="absolute top-2 right-2" data-testid={`connection-indicator-${shot.id}`}>
-                    <Badge variant="default" className="text-xs bg-gradient-storia text-white shadow-md flex items-center gap-1">
-                      <Zap className="h-3 w-3" />
-                      Connected
-                    </Badge>
-                  </div>
-                )}
-              </>
+              <div className="absolute top-2 left-2 flex gap-1 bg-background/90 backdrop-blur-sm rounded-md p-1">
+                <button
+                  onClick={() => setActiveFrame("start")}
+                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                    activeFrame === "start"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  data-testid={`button-start-frame-${shot.id}`}
+                >
+                  Start
+                </button>
+                <button
+                  onClick={() => hasEndFrame && setActiveFrame("end")}
+                  disabled={!hasEndFrame}
+                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                    activeFrame === "end"
+                      ? "bg-primary text-primary-foreground"
+                      : hasEndFrame
+                      ? "text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground/50 cursor-not-allowed"
+                  }`}
+                  data-testid={`button-end-frame-${shot.id}`}
+                >
+                  End
+                </button>
+              </div>
             )}
           </>
         ) : isGenerating ? (
@@ -276,7 +290,7 @@ function SortableShotCard({
           </div>
         )}
         
-        <div className="absolute top-2 left-2 flex items-center gap-2">
+        <div className="absolute bottom-2 left-2 flex items-center gap-2">
           <div
             {...attributes}
             {...listeners}
@@ -1098,6 +1112,16 @@ export function StoryboardEditor({
                               />
                               {onAddShot && (
                                 <div className="relative group shrink-0 w-3 flex items-center justify-center">
+                                  {/* Connection Link Icon (Start-End Mode Only) */}
+                                  {narrativeMode === "start-end" && isConnectedToNext && (
+                                    <div 
+                                      className="absolute flex items-center justify-center w-8 h-8 rounded-full bg-gradient-storia text-white shadow-md"
+                                      data-testid={`connection-link-${shot.id}`}
+                                      title="Connected shots"
+                                    >
+                                      <Link2 className="h-4 w-4" />
+                                    </div>
+                                  )}
                                   <button
                                     onClick={() => onAddShot(scene.id, shotIndex)}
                                     className="absolute opacity-0 group-hover:opacity-100 flex items-center justify-center w-7 h-7 rounded-full bg-background border-2 border-dashed border-primary/50 hover-elevate active-elevate-2 transition-all"

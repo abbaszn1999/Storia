@@ -157,6 +157,7 @@ interface SortableShotCardProps {
   narrativeMode: "image-reference" | "start-end";
   isConnectedToNext: boolean;
   showEndFrame: boolean;
+  isPartOfConnection: boolean;
   onSelectShot: (shot: Shot) => void;
   onRegenerateShot: (shotId: string) => void;
   onUpdatePrompt: (shotId: string, prompt: string) => void;
@@ -181,6 +182,7 @@ function SortableShotCard({
   narrativeMode,
   isConnectedToNext,
   showEndFrame,
+  isPartOfConnection,
   onSelectShot,
   onRegenerateShot,
   onUpdatePrompt,
@@ -199,7 +201,11 @@ function SortableShotCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: shot.id });
+  } = useSortable({ 
+    id: shot.id,
+    // Note: We don't use disabled flag as it also disables drop target
+    // Instead, we conditionally spread listeners to prevent dragging
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -315,10 +321,15 @@ function SortableShotCard({
         
         <div className="absolute bottom-2 left-2 flex items-center gap-2">
           <div
-            {...attributes}
-            {...listeners}
-            className="h-6 w-6 flex items-center justify-center bg-background/80 rounded cursor-grab active:cursor-grabbing hover-elevate"
+            {...(!isPartOfConnection ? attributes : {})}
+            {...(!isPartOfConnection ? listeners : {})}
+            className={`h-6 w-6 flex items-center justify-center bg-background/80 rounded ${
+              isPartOfConnection 
+                ? "cursor-not-allowed opacity-50" 
+                : "cursor-grab active:cursor-grabbing hover-elevate"
+            }`}
             data-testid={`drag-handle-${shot.id}`}
+            title={isPartOfConnection ? "Connected shots cannot be reordered" : "Drag to reorder"}
           >
             <GripVertical className="h-4 w-4" />
           </div>
@@ -727,6 +738,25 @@ export function StoryboardEditor({
     return true; // Not in any group = standalone
   };
 
+  // Helper: Check if a shot is part of any connected sequence (disables dragging)
+  const isShotPartOfConnection = (sceneId: string, shotIndex: number): boolean => {
+    if (narrativeMode !== "start-end" || !continuityLocked) return false;
+    
+    const sceneGroups = continuityGroups[sceneId] || [];
+    const sceneShots = localShots[sceneId] || [];
+    const currentShot = sceneShots[shotIndex];
+    
+    // Check if shot is in any continuity group
+    for (const group of sceneGroups) {
+      const shotIds = group.shotIds || [];
+      if (shotIds.includes(currentShot.id)) {
+        return true; // Part of a connected sequence
+      }
+    }
+    
+    return false;
+  };
+
   // Count shots that have been animated to video
   const animatedCount = allShots.filter((shot) => {
     const version = getShotVersion(shot);
@@ -1106,6 +1136,7 @@ export function StoryboardEditor({
                           const isGenerating = false;
                           const isConnectedToNext = isShotConnectedToNext(scene.id, shotIndex);
                           const showEndFrame = isShotStandalone(scene.id, shotIndex);
+                          const isPartOfConnection = isShotPartOfConnection(scene.id, shotIndex);
 
                           return (
                             <>
@@ -1122,6 +1153,7 @@ export function StoryboardEditor({
                                 narrativeMode={narrativeMode}
                                 isConnectedToNext={isConnectedToNext}
                                 showEndFrame={showEndFrame}
+                                isPartOfConnection={isPartOfConnection}
                                 onSelectShot={handleSelectShot}
                                 onRegenerateShot={onRegenerateShot}
                                 onUpdatePrompt={handleUpdatePrompt}

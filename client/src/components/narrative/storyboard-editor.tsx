@@ -236,6 +236,7 @@ function SortableShotCard({
   // Determine available frames and which image to display
   const hasStartFrame = version?.startFrameUrl || version?.imageUrl;
   const hasEndFrame = version?.endFrameUrl;
+  const shouldShowEndTab = narrativeMode === "start-end" && showEndFrame; // Enable End tab for standalone/last shots
   
   // Calculate display image URL with proper fallbacks
   let displayImageUrl: string | null | undefined;
@@ -246,13 +247,14 @@ function SortableShotCard({
       displayImageUrl = version?.startFrameUrl || version?.imageUrl;
       actualFrameShown = "start";
     } else {
-      // Only show end frame if it exists, otherwise fall back to start
+      // End frame requested
       if (hasEndFrame) {
         displayImageUrl = version?.endFrameUrl;
         actualFrameShown = "end";
       } else {
-        displayImageUrl = version?.startFrameUrl || version?.imageUrl;
-        actualFrameShown = "start";
+        // No end frame yet - show placeholder
+        displayImageUrl = null;
+        actualFrameShown = "end";
       }
     }
   } else {
@@ -268,54 +270,57 @@ function SortableShotCard({
       data-testid={`card-shot-${shot.id}`}
     >
       <div className="aspect-video bg-muted relative group">
+        {/* Start/End Frame Tab Selector (Start-End Mode Only) */}
+        {narrativeMode === "start-end" && (
+          <div className="absolute top-2 left-2 flex gap-1 bg-background/90 backdrop-blur-sm rounded-md p-1 z-10">
+            <button
+              onClick={() => setActiveFrame("start")}
+              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                activeFrame === "start"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid={`button-start-frame-${shot.id}`}
+            >
+              Start
+            </button>
+            <button
+              onClick={() => {
+                if (!shouldShowEndTab) return; // Only allow for standalone/last shots
+                setActiveFrame("end");
+              }}
+              disabled={!shouldShowEndTab}
+              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                activeFrame === "end"
+                  ? "bg-primary text-primary-foreground"
+                  : shouldShowEndTab
+                  ? "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground/50 cursor-not-allowed"
+              }`}
+              data-testid={`button-end-frame-${shot.id}`}
+              title={!shouldShowEndTab ? "Connected shots don't have end frames" : ""}
+            >
+              End
+            </button>
+          </div>
+        )}
+        
         {displayImageUrl ? (
-          <>
-            <img
-              src={displayImageUrl}
-              alt={`Shot ${shotIndex + 1}${actualFrameShown ? ` - ${actualFrameShown} frame` : ""}`}
-              className="w-full h-full object-cover"
-            />
-            {/* Start/End Frame Tab Selector (Start-End Mode Only) */}
-            {narrativeMode === "start-end" && (
-              <div className="absolute top-2 left-2 flex gap-1 bg-background/90 backdrop-blur-sm rounded-md p-1">
-                <button
-                  onClick={() => setActiveFrame("start")}
-                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                    activeFrame === "start"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                  data-testid={`button-start-frame-${shot.id}`}
-                >
-                  Start
-                </button>
-                <button
-                  onClick={() => {
-                    if (!hasEndFrame) return; // Explicit guard to prevent switching to undefined frame
-                    setActiveFrame("end");
-                  }}
-                  disabled={!hasEndFrame}
-                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                    activeFrame === "end"
-                      ? "bg-primary text-primary-foreground"
-                      : hasEndFrame
-                      ? "text-muted-foreground hover:text-foreground"
-                      : "text-muted-foreground/50 cursor-not-allowed"
-                  }`}
-                  data-testid={`button-end-frame-${shot.id}`}
-                >
-                  End
-                </button>
-              </div>
-            )}
-          </>
+          <img
+            src={displayImageUrl}
+            alt={`Shot ${shotIndex + 1}${actualFrameShown ? ` - ${actualFrameShown} frame` : ""}`}
+            className="w-full h-full object-cover"
+          />
         ) : isGenerating ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-card/50">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-card/50 gap-2">
             <ImageIcon className="h-12 w-12 text-muted-foreground" />
+            {narrativeMode === "start-end" && activeFrame === "end" && (
+              <p className="text-xs text-muted-foreground">End frame not generated</p>
+            )}
           </div>
         )}
         

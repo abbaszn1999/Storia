@@ -122,21 +122,10 @@ export function SceneBreakdown({
 
   const handleContinuityApproval = async (sceneId: string, groups: ContinuityGroup[]) => {
     try {
-      // Save the approved groups to the backend
-      for (const group of groups) {
-        await apiRequest('POST', `/api/narrative/continuity-groups`, {
-          sceneId: group.sceneId,
-          groupNumber: group.groupNumber,
-          shotIds: group.shotIds,
-          description: group.description,
-          transitionType: group.transitionType,
-        });
-      }
-
-      // Lock the continuity for the entire video
-      await apiRequest('POST', `/api/narrative/videos/${videoId}/lock-continuity`);
-
-      // Only update state after successful API calls
+      // For now, just update local state (no backend storage)
+      // TODO: When backend is ready, save groups and lock video
+      
+      // Update parent state to lock continuity
       if (onContinuityLocked) {
         onContinuityLocked();
       }

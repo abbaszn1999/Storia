@@ -30,6 +30,14 @@ The platform follows a modular design with clear separation of concerns, support
 - **Multi-Workspace Architecture**: Supports managing separate social media integrations for different brands or clients within isolated workspaces.
 - **Publishing Flow**: Allows users to select platforms, handles connection status, uploads video with metadata, and supports immediate or scheduled publishing via a content calendar.
 - **Export Page**: Features final video preview at the top, displaying the latest version of the compiled video with export settings and platform metadata below.
+- **AI Production Campaign System**: Bulk video generation feature enabling users to create campaigns with AI-generated concepts, automated scheduling, and production management:
+    - **Campaign Creation**: Configure video count, aspect ratio, duration, language, art style, tone, genre, and target audience
+    - **Automation Modes**: Manual (requires approval) or Auto (fully automated production)
+    - **Concept Generation**: AI analyzes prompts and generates structured video concepts with titles and descriptions
+    - **Review & Approval**: Drag-and-drop reordering, inline editing, and granular approve/reject controls per concept
+    - **Production Dashboard**: Live progress tracking with stats cards, video grid, and pause/resume/cancel controls
+    - **Settings Isolation**: Mid-production settings updates affect upcoming videos only, completed videos remain unchanged
+    - **Auto-Scheduling**: Even distribution of videos across specified date range for automated publishing
 
 ### Database Schema (Core Tables)
 - `users`: User accounts.
@@ -45,6 +53,8 @@ The platform follows a modular design with clear separation of concerns, support
 - `reference_images`: Character/location/style references.
 - `continuity_groups`: For connected shot sequences in Start-End Frame mode.
 - `workspace_integrations`: OAuth connections for social media publishing.
+- `production_campaigns`: AI production campaigns with settings, status, and progress tracking.
+- `campaign_videos`: Individual videos within campaigns with concept data and production status.
 
 ### AI Agent System
 A comprehensive system with 24 specialized agents (18 AI, 6 non-AI) supporting dual narrative modes. Agents handle tasks across text generation (Script Generator, Scene Analyzer), image generation (Character Image Generator, Storyboard Image Generator), video generation (Video Generator, Video Compositor), audio generation (Voiceover Synthesizer, Background Music Composer), vision & analysis, and platform publishing. Key agents include the Continuity Producer and Continuity Manager for Start-End Frame mode.

@@ -152,6 +152,7 @@ interface SortableShotCardProps {
   sceneModel: string | null;
   sceneImageModel: string | null;
   version: ShotVersion | null;
+  nextShotVersion: ShotVersion | null;
   referenceImage: ReferenceImage | null;
   isGenerating: boolean;
   voiceOverEnabled: boolean;
@@ -177,6 +178,7 @@ function SortableShotCard({
   sceneModel,
   sceneImageModel,
   version,
+  nextShotVersion,
   referenceImage,
   isGenerating,
   voiceOverEnabled,
@@ -836,6 +838,32 @@ export function StoryboardEditor({
     }
     
     return false;
+  };
+
+  // Helper: Get the next connected shot in a continuity group
+  const getNextConnectedShot = (sceneId: string, shotIndex: number): Shot | null => {
+    if (narrativeMode !== "start-end" || !continuityLocked) return null;
+    
+    const sceneGroups = continuityGroups[sceneId] || [];
+    const sceneShots = localShots[sceneId] || [];
+    
+    if (shotIndex >= sceneShots.length - 1) return null; // Last shot has no next
+    
+    const currentShot = sceneShots[shotIndex];
+    const nextShot = sceneShots[shotIndex + 1];
+    
+    // Check if current and next shots are in the same continuity group
+    for (const group of sceneGroups) {
+      const shotIds = group.shotIds || [];
+      const currentIdx = shotIds.indexOf(currentShot.id);
+      const nextIdx = shotIds.indexOf(nextShot.id);
+      
+      if (currentIdx !== -1 && nextIdx === currentIdx + 1) {
+        return nextShot; // Return the next connected shot
+      }
+    }
+    
+    return null;
   };
 
   // Count shots that have been animated to video

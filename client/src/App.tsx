@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
+import { WorkspaceProvider } from "@/contexts/workspace-context";
 
 import Dashboard from "@/pages/dashboard";
 import Videos from "@/pages/videos";
@@ -90,10 +91,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="dark">
-        <TooltipProvider>
-          <MainLayout />
-          <Toaster />
-        </TooltipProvider>
+        <WorkspaceProvider>
+          <TooltipProvider>
+            <MainLayout />
+            <Toaster />
+          </TooltipProvider>
+        </WorkspaceProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

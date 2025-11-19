@@ -28,8 +28,6 @@ const sceneFormSchema = z.object({
   sceneNumber: z.number().min(1),
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
-  location: z.string().optional(),
-  timeOfDay: z.string().optional(),
   duration: z.number().min(1).optional(),
 });
 
@@ -62,8 +60,6 @@ export function SceneDialog({
       sceneNumber: scene?.sceneNumber ?? sceneCount + 1,
       title: scene?.title ?? "",
       description: scene?.description ?? "",
-      location: scene?.location ?? "",
-      timeOfDay: scene?.timeOfDay ?? "",
       duration: scene?.duration ?? undefined,
     },
   });
@@ -74,8 +70,6 @@ export function SceneDialog({
         sceneNumber: scene.sceneNumber,
         title: scene.title,
         description: scene.description ?? "",
-        location: scene.location ?? "",
-        timeOfDay: scene.timeOfDay ?? "",
         duration: scene.duration ?? undefined,
       });
     } else {
@@ -83,8 +77,6 @@ export function SceneDialog({
         sceneNumber: sceneCount + 1,
         title: "",
         description: "",
-        location: "",
-        timeOfDay: "",
         duration: undefined,
       });
     }
@@ -134,34 +126,6 @@ export function SceneDialog({
                   <FormLabel>Title</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="Scene title" data-testid="input-scene-title" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="location"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Location</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="e.g., Kitchen, Forest, Office" data-testid="input-scene-location" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="timeOfDay"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Time of Day</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="e.g., Morning, Night, Sunset" data-testid="input-scene-time" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

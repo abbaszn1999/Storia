@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 
 const mainNavItems = [
   { title: "Dashboard", url: "/", icon: Home },
@@ -38,11 +39,12 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 space-y-3">
         <div className="flex items-center gap-2">
           <img src="/storia-logo.png" alt="Storia" className="h-8 w-8" />
           <span className="text-xl font-display font-semibold">Storia</span>
         </div>
+        <WorkspaceSwitcher />
       </SidebarHeader>
       
       <SidebarContent>
@@ -98,10 +100,10 @@ export function AppSidebar() {
       <SidebarFooter className="p-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={location === "/settings"} data-testid="link-settings">
-              <Link href="/settings">
+            <SidebarMenuButton asChild isActive={location === "/workspace/settings"} data-testid="link-workspace-settings">
+              <Link href="/workspace/settings">
                 <Settings className="h-4 w-4" />
-                <span>Settings</span>
+                <span>Workspace Settings</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

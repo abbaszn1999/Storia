@@ -1,250 +1,7 @@
 # Storia - AI Video Creator Platform
 
 ## Overview
-Storia is a scalable, modular SaaS platform for creating AI-powered videos and stories. The platform guides users through the complete creative process from initial concept to final export and publishing.
-
-## Current State
-**MVP Focus**: Narrative Video Mode - Full-stack implementation with production-ready storage layer and Start-End Frame workflow integration
-
-### Implemented Features
-- ✅ Complete database schema with PostgreSQL (users, workspaces, videos, stories, characters, voices, brandkits, uploads, content_calendar, **scenes, shots, shot_versions, reference_images**)
-- ✅ Object storage integration for media files
-- ✅ **Production-ready storage interface with full CRUD operations for narrative workflow**
-  - Cascading deletes for scenes/shots/versions
-  - Mutual exclusivity enforcement for approved shot versions
-  - Automatic currentVersionId pointer management
-- ✅ Comprehensive frontend with Storia brand identity (purple/magenta/cyan gradient theme)
-- ✅ Full navigation with sidebar (Dashboard, Videos, Stories, Calendar, collapsible Assets Library)
-- ✅ **Assets Library**: Collapsible sidebar section with Characters, Locations, Voices, Brand Kits, and Uploads
-- ✅ **Complete Narrative Video workflow with functional components:**
-  - **Script Editor**: AI generation, duration/genre/language selection
-  - **World & Cast**: Character creation, reference image upload for style/character consistency
-  - **Scene Breakdown**: Automatic script analysis, scene/shot visualization, **full CRUD operations (add/edit/delete scenes and shots)**
-    - **Start-End Frame Mode Integration**: Continuity proposal UI with AI-generated shot connections, approval flow, and locked state
-  - **Storyboard Editor**: Shot-by-shot image generation, camera movement presets, regeneration
-    - **Unified Version History with Video Support**: Complete version viewing and comparison system
-      - Per-shot preview state (prevents cross-shot contamination)
-      - Video/Image type badges with duration metadata
-      - Play button overlays for video versions
-      - Preview any version without activation (cyan ring indicator)
-      - "Set Active" button to promote versions
-      - Compare Mode: Side-by-side view with synchronized playback controls
-      - Single version preview with instructions for comparison
-      - HTML5 video player with native controls
-  - Animatic preview (placeholder)
-  - Export & publish (placeholder)
-- ✅ **Dual Narrative Mode Support**:
-  - **Image-Reference Mode**: Single reference image per shot for independent generation
-  - **Start-End Frame Mode**: Connected shots with seamless transitions via continuity groups
-    - Mode selector UI with detailed descriptions and visual indicators
-    - Continuity proposal component for reviewing and approving AI-suggested shot connections
-    - Locked continuity state enforced after approval (blocks Next button until locked)
-    - Backend API routes for creating, fetching, and locking continuity groups
-- ✅ Component library (VideoCard, CharacterCard, StoryboardFrame, StatCard, CalendarItem, ModeSelector, ContinuityProposal)
-- ✅ Dark mode support with theme toggle
-- ✅ Modular backend structure ready for AI integrations
-
-## Project Architecture
-
-### Database Tables
-- **users**: User accounts with credits and subscription tier
-- **workspaces**: User workspaces for organizing projects
-- **videos**: Video projects with mode, narrativeMode ("image-reference" | "start-end"), status, script, continuityLocked flag
-- **stories**: Short-form content with templates
-- **characters**: AI characters with appearance and voice settings
-- **voices**: Voice profiles for character synthesis
-- **brandkits**: Brand identity kits (colors, fonts, logos, guidelines)
-- **uploads**: User-uploaded media files
-- **content_calendar**: Scheduled content for publishing
-- **scenes**: Scene breakdown with title, description, duration (calculated from shot durations, not user-editable)
-- **shots**: Individual shots with camera angles, movements, duration
-- **shot_versions**: Version control with start/end frame URLs, video URLs, needsRerender flag
-- **reference_images**: Character/location/style reference images
-- **continuity_groups**: Connected shot sequences for start-end frame mode
-
-### Frontend Structure
-```
-client/src/
-├── components/
-│   ├── app-sidebar.tsx         # Main navigation sidebar with collapsible Assets section
-│   ├── theme-provider.tsx      # Dark/light mode management
-│   ├── theme-toggle.tsx        # Theme switcher button
-│   ├── video-card.tsx          # Video project card
-│   ├── character-card.tsx      # Character asset card
-│   ├── storyboard-frame.tsx    # Storyboard shot frame
-│   ├── stat-card.tsx           # Dashboard statistics
-│   ├── mode-selector.tsx       # Video mode selection
-│   ├── narrative-workflow.tsx  # Step-by-step workflow
-│   ├── calendar-item.tsx       # Scheduled content item
-│   └── examples/               # Component examples for testing
-├── pages/
-│   ├── dashboard.tsx           # Main dashboard
-│   ├── videos.tsx              # Video project list
-│   ├── calendar.tsx            # Content calendar
-│   ├── characters.tsx          # Character library management
-│   ├── voices.tsx              # Voice library management
-│   ├── brandkits.tsx           # Brand kits management
-│   ├── uploads.tsx             # Upload management
-│   ├── assets/
-│   │   └── locations/          # Locations library
-│   │       └── index.tsx
-│   └── videos/
-│       └── narrative-mode/     # Narrative workflow page
-└── App.tsx                     # Main app with routing
-```
-
-### Backend Structure (Infrastructure Ready)
-```
-server/
-├── routes.ts                   # API endpoint definitions
-├── storage.ts                  # In-memory storage interface
-└── (planned structure)
-    ├── modes/
-    │   ├── narrative/          # Narrative video mode logic
-    │   ├── vlog/               # Character vlog mode
-    │   ├── ambient/            # Ambient visual mode
-    │   └── ...
-    ├── ai-models/
-    │   ├── text/               # OpenAI, Gemini, Claude
-    │   ├── image/              # Imagen 4, GPT-Image
-    │   ├── video/              # Kling, Veo, Runway
-    │   └── voice/              # Eleven Labs, VoiceKiller
-    ├── integrations/
-    │   ├── youtube/            # YouTube OAuth & publishing
-    │   ├── tiktok/             # TikTok integration
-    │   ├── instagram/          # Instagram integration
-    │   └── facebook/           # Facebook integration
-    └── publisher/
-        ├── scheduler/          # Content scheduling
-        └── calendar/           # Calendar management
-```
-
-## Design System
-
-### Brand Identity (Version 1.0 - Official)
-- **Name**: Storia (ستوريا)
-- **Brand Essence**: From spark to screen - cinematic, intelligent, accessible
-- **Logo**: Gradient orb with Storia Pink → Violet → Orange colors
-
-### Color System (Version 2.0 - Eye Comfort Optimized)
-**Core Brand Colors:**
-- **Brand Purple**: #8B3FFF (HSL 269° 100% 62%) - Main brand identity, primary actions
-- **Deep Magenta**: #C944E6 (HSL 286° 77% 58%) - Softer vibrant accent, comfortable on eyes
-- **Deep Purple UI**: #5B1FB3 (HSL 269° 71% 40%) - UI elements, darker states
-- **Tech Blue**: #6D5BFF (HSL 250° 100% 67%) - Purple-blue accent for tech elements
-- **Cyber Cyan**: #22D3EE (HSL 187° 85% 53%) - Professional comfortable cyan for highlights
-- **Neutral Pink**: #FF3F8E (HSL 333° 100% 62%) - Energy, call-to-action accents
-
-**Dark Mode Palette (Deep Purple-Tinted Theme):**
-- **Dark Background**: #0A0A14 (HSL 240° 35% 4%) - Very dark, almost black base
-- **Dark Card**: HSL(240° 28% 14%) - Elevated surfaces (cards, panels)
-- **Dark Sidebar**: HSL(240° 32% 12%) - Sidebar background
-- **Dark Borders**: HSL(240° 20% 20%) - Subtle borders and dividers
-- **White**: #FFFFFF - Text & high contrast elements
-- **Medium Gray**: #6D7780 - Muted text and secondary elements
-
-**Light Mode Palette:**
-- **Light Background**: #FFFFFF - Clean white base
-- **Light Card**: HSL(220° 6% 97%) - Slightly off-white for elevation
-- **Light Sidebar**: HSL(220° 6% 94%) - Sidebar background
-- **Light Borders**: HSL(220° 13% 91%) - Subtle borders and dividers
-
-**Design Philosophy:**
-The purple/magenta/cyan palette creates a modern, professional aesthetic optimized for extended viewing. Deep purple-tinted backgrounds provide depth and dimension while the softer magenta (#C944E6) and comfortable cyan (#22D3EE) reduce eye strain during long creative sessions.
-
-**Gradient Usage:**
-- **Primary Gradient**: Purple → Magenta (#8B3FFF → #C944E6) - Main brand gradient
-- **Energy Gradient**: Pink → Deep Purple (#FF3F8E → #5B1FB3) - High-energy elements
-- Used for: Hero sections, CTAs, buttons, brand elements, loading states
-- Implementation: `bg-gradient-storia` utility class (35° angle)
-
-### Typography System
-- **Primary/Headlines**: Plus Jakarta Sans - Modern, friendly, cinematic curves
-- **Body Text**: Inter - Highly legible at small sizes
-- **Accent/Numerals**: Space Grotesk - Tech elegance for stats and code-like labels
-- **Fallbacks**: system-ui, Arial
-
-### Accessibility
-- WCAG AA contrast ratio 4.5:1 for body text
-- White/Charcoal on Midnight Green backgrounds for optimal readability
-
-### UI Patterns
-- Dark mode by default with light mode support
-- Sidebar navigation (280px fixed width)
-- Card-based layouts with subtle elevation on hover
-- Workflow step indicators with progress tracking
-- Modal dialogs for creation flows
-- Toast notifications for feedback
-
-## AI Agent Architecture
-
-**Complete Specification**: See [docs/agents/narrative-mode-agents.md](docs/agents/narrative-mode-agents.md)
-
-### Agent System Overview
-- **24 specialized agents** (18 AI, 6 non-AI, 1 deferred)
-- **Dual narrative modes**: Image-Reference (single frame) & Start-End Frame (seamless continuity)
-- **Reference tagging system**: @character{id}, @location{id}, @style for entity consistency
-- **6 workflow steps**: Script Editor → World & Cast → Scene Breakdown → Storyboard Editor → Animatic Preview → Export & Publish
-
-**New Start-End Frame Mode:**
-- Agent 3.4: Continuity Producer - analyzes shots and proposes connected groups
-- Agent 4.7: Continuity Manager - tracks dependencies and re-render warnings
-- Agents 4.1, 4.2, 4.5: Enhanced with dual-mode support for paired keyframe generation
-
-### Key Agents by Category
-
-**Text Generation**
-- Agent 1.1: Script Generator (GPT-4/Claude/Gemini)
-- Agent 2.1: Character Analyzer (script analysis)
-- Agent 3.1: Scene Analyzer (narrative structure)
-- Agent 3.2: Shot Composer (cinematic breakdown)
-
-**Image Generation**
-- Agent 2.3: Character Image Generator (Imagen 4/DALL-E 3)
-- Agent 2.7: Location Image Generator (environment consistency)
-- Agent 4.2: Storyboard Image Generator (shot frames)
-- Agent 4.3: Image Editor (iterative refinement)
-
-**Video Generation**
-- Agent 4.4: Video Prompt Engineer (motion prompt creation)
-- Agent 4.5: Video Generator (Kling/Veo/Runway - image-to-video)
-- Agent 5.3: Video Compositor (FFmpeg/Cloud - shot assembly)
-- Agent 6.1: Final Video Renderer (export quality)
-
-**Audio Generation**
-- Agent 5.1: Voiceover Synthesizer (Eleven Labs/Google TTS)
-- Agent 5.2: Background Music Composer (Suno/MusicGen)
-
-**Vision & Analysis**
-- Agent 2.5: Style Reference Descriptor (GPT-4 Vision - image to text)
-- Agent 2.2: Character Prompt Engineer (optimized prompts)
-- Agent 4.1: Shot Prompt Engineer (reference image injection)
-
-**Publishing Platforms**
-- Agent 6.2: Platform Publisher (YouTube, TikTok, Instagram, Facebook)
-
-## Development Workflow
-
-### Current Phase: Frontend Prototype
-- All UI components built and tested
-- Dark mode fully functional
-- Responsive design implemented
-- Component examples for verification
-
-### Next Phase: Backend Implementation
-1. **Scene Duration Calculation** (Required for MVP)
-   - Implement server-side calculation of scene.duration from sum of shot durations
-   - Trigger recalculation on shot create/update/delete operations
-   - Default to 0 for scenes with no shots
-2. **Agent System Implementation** (see docs/agents/narrative-mode-agents.md)
-   - Phase 1: Core narrative pipeline (Agents 1.1, 2.1-2.7, 3.1-3.3)
-   - Phase 2: Visual generation (Agents 4.1-4.2, 4.6)
-   - Phase 3: Animation & preview (Agents 4.4-4.5, 5.1-5.3)
-   - Phase 4: Export & publishing (Agents 4.3, 6.1-6.2)
-3. Set up AI model integrations (OpenAI, Imagen, Kling, Eleven Labs)
-4. Build publishing integrations (YouTube, TikTok, Instagram, Facebook)
-5. Implement credit system and subscription billing
-6. Add real-time collaboration features
+Storia is a scalable, modular SaaS platform designed for creating AI-powered videos and stories. Its primary purpose is to guide users through the entire creative process, from initial concept generation to final video export and publishing. The platform aims to revolutionize video creation by leveraging AI for narrative development, visual asset generation, and seamless transitions. The MVP focuses on a "Narrative Video Mode" with a production-ready storage layer and a "Start-End Frame" workflow integration for advanced continuity.
 
 ## User Preferences
 - Focus on scalable, modular architecture
@@ -252,15 +9,61 @@ The purple/magenta/cyan palette creates a modern, professional aesthetic optimiz
 - Infrastructure-first approach: prepare integration structure before implementation
 - Clean separation between modes, AI models, and integrations
 
-## Technical Stack
-- **Frontend**: React + TypeScript, Wouter (routing), TanStack Query, Tailwind CSS, Shadcn UI
-- **Backend**: Express.js, Node.js
-- **Database**: PostgreSQL with Drizzle ORM
-- **Storage**: Replit Object Storage
-- **Deployment**: Replit (development and production)
+## System Architecture
 
-## Notes
-- Using in-memory storage (MemStorage) for MVP - ready to swap with database implementation
-- All database schemas defined and ready for migration
-- Component-driven development with examples for testing
-- Modular folder structure prevents future refactoring
+### Core Design Principles
+The platform follows a modular design with clear separation of concerns, supporting multiple video creation modes and integrating various AI models. It emphasizes a robust backend structure capable of handling diverse AI integrations and external publishing platforms.
+
+### UI/UX Decisions
+- **Brand Identity**: Storia (ستوريا) - Cinematic, intelligent, accessible, with a gradient orb logo (Storia Pink → Violet → Orange).
+- **Color System**: Optimized for eye comfort with a primary palette of Brand Purple (#8B3FFF), Deep Magenta (#C944E6), Deep Purple UI (#5B1FB3), Tech Blue (#6D5BFF), Cyber Cyan (#22D3EE), and Neutral Pink (#FF3F8E). Default dark mode with a deep purple-tinted theme, and light mode support.
+- **Typography**: Plus Jakarta Sans for headlines, Inter for body text, and Space Grotesk for accents/numerals.
+- **UI Patterns**: Sidebar navigation, card-based layouts, workflow step indicators, modal dialogs, and toast notifications. Dark mode is default.
+- **Accessibility**: WCAG AA contrast ratio compliance.
+
+### Technical Implementations
+- **Narrative Video Workflow**: Guides users through Script Editor, World & Cast, Scene Breakdown, Storyboard Editor, Animatic Preview, and Export & Publish.
+- **Dual Narrative Modes**:
+    - **Image-Reference Mode**: Single reference image per shot.
+    - **Start-End Frame Mode**: Connects shots with seamless transitions via continuity groups, utilizing AI for shot connection proposals.
+- **Version Control**: Unified version history with video support for shot-by-shot generation, including preview, comparison, and activation of versions.
+- **Multi-Workspace Architecture**: Supports managing separate social media integrations for different brands or clients within isolated workspaces.
+- **Publishing Flow**: Allows users to select platforms, handles connection status, uploads video with metadata, and supports immediate or scheduled publishing via a content calendar.
+
+### Database Schema (Core Tables)
+- `users`: User accounts.
+- `workspaces`: Project organization.
+- `videos`: Video projects, including mode, narrative mode, status, script, and continuityLocked flag.
+- `characters`: AI character definitions.
+- `voices`: Voice profiles.
+- `brandkits`: Brand identity assets.
+- `uploads`: User media files.
+- `scenes`: Scene breakdowns.
+- `shots`: Individual shots.
+- `shot_versions`: Version control for shots, including start/end frame URLs and video URLs.
+- `reference_images`: Character/location/style references.
+- `continuity_groups`: For connected shot sequences in Start-End Frame mode.
+- `workspace_integrations`: OAuth connections for social media publishing.
+
+### AI Agent System
+A comprehensive system with 24 specialized agents (18 AI, 6 non-AI) supporting dual narrative modes. Agents handle tasks across text generation (Script Generator, Scene Analyzer), image generation (Character Image Generator, Storyboard Image Generator), video generation (Video Generator, Video Compositor), audio generation (Voiceover Synthesizer, Background Music Composer), vision & analysis, and platform publishing. Key agents include the Continuity Producer and Continuity Manager for Start-End Frame mode.
+
+### Technology Stack
+- **Frontend**: React, TypeScript, Wouter, TanStack Query, Tailwind CSS, Shadcn UI.
+- **Backend**: Express.js, Node.js.
+- **Database**: PostgreSQL with Drizzle ORM.
+- **Storage**: Replit Object Storage.
+- **Deployment**: Replit.
+
+## External Dependencies
+
+- **Replit Connector**: Used for YouTube OAuth integration.
+- **YouTube Data API v3**: For publishing videos to YouTube.
+- **TikTok Content Posting API**: For publishing to TikTok.
+- **Facebook Graph API**: For publishing to Instagram and Facebook (including Reels).
+- **AI Models (Planned Integrations)**:
+    - **Text Generation**: OpenAI (GPT-4), Claude, Gemini.
+    - **Image Generation**: Imagen 4, DALL-E 3.
+    - **Video Generation**: Kling, Veo, Runway.
+    - **Voice Generation**: Eleven Labs, Google TTS.
+    - **Music Generation**: Suno, MusicGen.

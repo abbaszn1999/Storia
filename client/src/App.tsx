@@ -24,6 +24,7 @@ import Calendar from "@/pages/calendar";
 import History from "@/pages/history";
 import Profile from "@/pages/profile";
 import Settings from "@/pages/settings";
+import WorkspaceSettings from "@/pages/workspace-settings";
 import Subscription from "@/pages/subscription";
 import NotFound from "@/pages/not-found";
 
@@ -77,6 +78,7 @@ function MainLayout() {
               
               <Route path="/profile" component={Profile} />
               <Route path="/settings" component={Settings} />
+              <Route path="/workspace/settings" component={WorkspaceSettings} />
               <Route path="/subscription" component={Subscription} />
               <Route component={NotFound} />
             </Switch>

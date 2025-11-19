@@ -570,7 +570,6 @@ function SortableShotCard({
                       description: "Auto-generated sound effects prompt",
                     });
                   }}
-                  disabled={!voiceOverEnabled}
                   data-testid={`button-auto-generate-sound-${shot.id}`}
                 >
                   <Wand2 className="mr-1 h-3 w-3" />
@@ -578,11 +577,10 @@ function SortableShotCard({
                 </Button>
               </div>
               <Textarea
-                placeholder={voiceOverEnabled ? "Describe sound effects for this shot..." : "Enable Voice Over in header to add sound effects"}
+                placeholder="Describe sound effects for this shot..."
                 value={shot.soundEffects || ""}
                 onChange={(e) => onUpdateShot(shot.id, { soundEffects: e.target.value })}
                 className="min-h-[60px] text-xs resize-none"
-                disabled={!voiceOverEnabled}
                 data-testid={`textarea-sound-effects-${shot.id}`}
               />
             </div>

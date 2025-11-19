@@ -889,7 +889,7 @@ export function StoryboardEditor({
         title: "Generating Image",
         description: "Creating image from your prompt...",
       });
-      setSelectedShot(null);
+      // Keep dialog open so user can approve or select from versions
     }
   };
 

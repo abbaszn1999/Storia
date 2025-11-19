@@ -16,31 +16,53 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load workspaces on mount (mock for now, will integrate with API later)
+  // Load workspaces on mount
   useEffect(() => {
     const loadWorkspaces = async () => {
       try {
-        // TODO: Replace with actual API call when auth is implemented
-        // For now, create a default workspace
-        const mockWorkspace: Workspace = {
-          id: "default-workspace",
-          userId: "default-user",
-          name: "My Workspace",
-          description: "Default workspace",
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
+        // TODO: Replace hardcoded userId with auth when implemented
+        const userId = "default-user";
         
-        setWorkspaces([mockWorkspace]);
+        // Fetch workspaces from API
+        const response = await fetch(`/api/workspaces?userId=${userId}`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch workspaces");
+        }
+        
+        let fetchedWorkspaces: Workspace[] = await response.json();
+        
+        // If no workspaces exist, create a default one
+        if (fetchedWorkspaces.length === 0) {
+          const createResponse = await fetch("/api/workspaces", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId,
+              name: "My Workspace",
+              description: "Default workspace",
+            }),
+          });
+          
+          if (!createResponse.ok) {
+            throw new Error("Failed to create default workspace");
+          }
+          
+          const newWorkspace = await createResponse.json();
+          fetchedWorkspaces = [newWorkspace];
+        }
+        
+        setWorkspaces(fetchedWorkspaces);
         
         // Check localStorage for saved workspace preference
         const savedWorkspaceId = localStorage.getItem("currentWorkspaceId");
-        if (savedWorkspaceId === mockWorkspace.id) {
-          setCurrentWorkspace(mockWorkspace);
+        const savedWorkspace = fetchedWorkspaces.find((ws) => ws.id === savedWorkspaceId);
+        
+        if (savedWorkspace) {
+          setCurrentWorkspace(savedWorkspace);
         } else {
           // Default to first workspace
-          setCurrentWorkspace(mockWorkspace);
-          localStorage.setItem("currentWorkspaceId", mockWorkspace.id);
+          setCurrentWorkspace(fetchedWorkspaces[0]);
+          localStorage.setItem("currentWorkspaceId", fetchedWorkspaces[0].id);
         }
       } catch (error) {
         console.error("Failed to load workspaces:", error);

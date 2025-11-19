@@ -21,6 +21,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/workspaces', async (req, res) => {
+    try {
+      const { userId, name, description } = req.body;
+      
+      if (!userId || !name) {
+        return res.status(400).json({ error: 'userId and name are required' });
+      }
+
+      const workspace = await storage.createWorkspace({ userId, name, description });
+      res.json(workspace);
+    } catch (error) {
+      console.error('Error creating workspace:', error);
+      res.status(500).json({ error: 'Failed to create workspace' });
+    }
+  });
+
   app.patch('/api/workspaces/:id', async (req, res) => {
     try {
       const { id } = req.params;

@@ -56,6 +56,7 @@ export interface IStorage {
   
   getWorkspacesByUserId(userId: string): Promise<Workspace[]>;
   createWorkspace(workspace: InsertWorkspace): Promise<Workspace>;
+  updateWorkspace(id: string, workspace: Partial<Workspace>): Promise<Workspace>;
   
   getVideosByWorkspaceId(workspaceId: string): Promise<Video[]>;
   getVideo(id: string): Promise<Video | undefined>;
@@ -187,6 +188,23 @@ export class MemStorage implements IStorage {
     };
     this.workspaces.set(id, workspace);
     return workspace;
+  }
+
+  async updateWorkspace(id: string, updates: Partial<Workspace>): Promise<Workspace> {
+    const workspace = this.workspaces.get(id);
+    if (!workspace) {
+      throw new Error(`Workspace with id ${id} not found`);
+    }
+    const updated: Workspace = {
+      ...workspace,
+      ...updates,
+      id: workspace.id,
+      userId: workspace.userId,
+      createdAt: workspace.createdAt,
+      updatedAt: new Date(),
+    };
+    this.workspaces.set(id, updated);
+    return updated;
   }
 
   async getVideosByWorkspaceId(workspaceId: string): Promise<Video[]> {

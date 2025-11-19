@@ -937,6 +937,7 @@ export function StoryboardEditor({
                   role="combobox"
                   aria-expanded={voiceDropdownOpen}
                   className="w-48 h-9 justify-between"
+                  disabled={!voiceOverEnabled}
                   data-testid="button-voice-selector"
                 >
                   <span className={voiceActorId ? "font-medium text-sm" : "text-muted-foreground text-sm"}>

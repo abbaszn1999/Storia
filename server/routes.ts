@@ -2,6 +2,22 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import narrativeRoutes from "./modes/narrative/routes";
+import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema } from "@shared/schema";
+import { z } from "zod";
+
+// TODO: Replace with actual session-based authentication
+// This function should derive userId from req.session or req.user, not from query parameters
+function getCurrentUserId(req: any): string {
+  // TEMPORARY: Using hardcoded userId until auth is implemented
+  // When auth is added, this should be: return req.session?.userId || req.user?.id
+  return "default-user";
+}
+
+// Helper function to verify workspace ownership
+async function verifyWorkspaceOwnership(workspaceId: string, userId: string): Promise<boolean> {
+  const workspaces = await storage.getWorkspacesByUserId(userId);
+  return workspaces.some((ws) => ws.id === workspaceId);
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/narrative', narrativeRoutes);
@@ -9,10 +25,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Workspace routes
   app.get('/api/workspaces', async (req, res) => {
     try {
-      const userId = req.query.userId as string;
-      if (!userId) {
-        return res.status(400).json({ error: 'userId is required' });
-      }
+      // Get userId from session (currently hardcoded, will use req.session when auth is added)
+      const userId = getCurrentUserId(req);
       const workspaces = await storage.getWorkspacesByUserId(userId);
       res.json(workspaces);
     } catch (error) {
@@ -23,15 +37,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/workspaces', async (req, res) => {
     try {
-      const { userId, name, description } = req.body;
-      
-      if (!userId || !name) {
-        return res.status(400).json({ error: 'userId and name are required' });
-      }
+      // Validate request body with Zod
+      const validatedData = insertWorkspaceSchema.parse(req.body);
 
-      const workspace = await storage.createWorkspace({ userId, name, description });
+      const workspace = await storage.createWorkspace(validatedData);
       res.json(workspace);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation error', details: error.errors });
+      }
       console.error('Error creating workspace:', error);
       res.status(500).json({ error: 'Failed to create workspace' });
     }
@@ -40,15 +54,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/workspaces/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, description } = req.body;
-      
-      if (!name) {
-        return res.status(400).json({ error: 'name is required' });
+      const userId = getCurrentUserId(req);
+
+      // Verify ownership
+      const hasAccess = await verifyWorkspaceOwnership(id, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
       }
 
-      const updated = await storage.updateWorkspace(id, { name, description });
+      // Validate only the fields that can be updated
+      const updateSchema = z.object({
+        name: z.string().min(1).optional(),
+        description: z.string().optional(),
+      });
+      
+      const validatedData = updateSchema.parse(req.body);
+
+      const updated = await storage.updateWorkspace(id, validatedData);
       res.json(updated);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation error', details: error.errors });
+      }
       console.error('Error updating workspace:', error);
       res.status(500).json({ error: 'Failed to update workspace' });
     }
@@ -58,6 +85,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/workspaces/:workspaceId/integrations', async (req, res) => {
     try {
       const { workspaceId } = req.params;
+      const userId = getCurrentUserId(req);
+
+      // Verify ownership
+      const hasAccess = await verifyWorkspaceOwnership(workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
+      }
+
       const integrations = await storage.getWorkspaceIntegrations(workspaceId);
       res.json(integrations);
     } catch (error) {
@@ -69,18 +104,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/workspaces/:workspaceId/integrations', async (req, res) => {
     try {
       const { workspaceId } = req.params;
-      const integrationData = req.body;
+      const userId = getCurrentUserId(req);
 
-      if (!integrationData.platform) {
-        return res.status(400).json({ error: 'platform is required' });
+      // Verify ownership
+      const hasAccess = await verifyWorkspaceOwnership(workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
       }
 
-      const integration = await storage.createWorkspaceIntegration({
-        ...integrationData,
+      // Validate request body with Zod
+      const validatedData = insertWorkspaceIntegrationSchema.parse({
+        ...req.body,
         workspaceId,
       });
+
+      const integration = await storage.createWorkspaceIntegration(validatedData);
       res.json(integration);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation error', details: error.errors });
+      }
       console.error('Error creating workspace integration:', error);
       if (error instanceof Error && error.message.includes('already exists')) {
         return res.status(409).json({ error: error.message });
@@ -91,7 +134,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/workspaces/:workspaceId/integrations/:id', async (req, res) => {
     try {
-      const { id } = req.params;
+      const { workspaceId, id } = req.params;
+      const userId = getCurrentUserId(req);
+
+      // Verify ownership
+      const hasAccess = await verifyWorkspaceOwnership(workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
+      }
+
+      // Verify the integration belongs to this workspace
+      const integrations = await storage.getWorkspaceIntegrations(workspaceId);
+      const integration = integrations.find((i) => i.id === id);
+      if (!integration) {
+        return res.status(404).json({ error: 'Integration not found in this workspace' });
+      }
+
       await storage.deleteWorkspaceIntegration(id);
       res.json({ success: true });
     } catch (error) {

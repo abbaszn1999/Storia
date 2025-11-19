@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { WorkspaceIntegration } from "@shared/schema";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const PLATFORMS = [
   { 
@@ -46,14 +46,28 @@ const PLATFORMS = [
 ];
 
 export default function WorkspaceSettings() {
-  const { currentWorkspace, setCurrentWorkspace } = useWorkspace();
+  const { currentWorkspace, setCurrentWorkspace, setWorkspaces } = useWorkspace();
   const { toast } = useToast();
   const [workspaceName, setWorkspaceName] = useState(currentWorkspace?.name || "");
   const [workspaceDescription, setWorkspaceDescription] = useState(currentWorkspace?.description || "");
+  const [deletingIntegrationId, setDeletingIntegrationId] = useState<string | null>(null);
 
-  // Fetch workspace integrations
+  // Sync form inputs when currentWorkspace changes
+  useEffect(() => {
+    if (currentWorkspace) {
+      setWorkspaceName(currentWorkspace.name);
+      setWorkspaceDescription(currentWorkspace.description || "");
+    }
+  }, [currentWorkspace]);
+
+  // Fetch workspace integrations (userId is handled server-side via session)
   const { data: integrations = [], isLoading: integrationsLoading } = useQuery<WorkspaceIntegration[]>({
     queryKey: ['/api/workspaces', currentWorkspace?.id, 'integrations'],
+    queryFn: async () => {
+      const response = await fetch(`/api/workspaces/${currentWorkspace?.id}/integrations`);
+      if (!response.ok) throw new Error("Failed to fetch integrations");
+      return response.json();
+    },
     enabled: !!currentWorkspace?.id,
   });
 
@@ -67,6 +81,17 @@ export default function WorkspaceSettings() {
     },
     onSuccess: (updatedWorkspace) => {
       setCurrentWorkspace(updatedWorkspace);
+      
+      // Update the workspaces array to keep it in sync
+      queryClient.setQueryData(['/api/workspaces'], (oldData: any) => {
+        if (!oldData) return [updatedWorkspace];
+        return oldData.map((ws: any) => ws.id === updatedWorkspace.id ? updatedWorkspace : ws);
+      });
+      
+      setWorkspaces((prev) => 
+        prev.map((ws) => ws.id === updatedWorkspace.id ? updatedWorkspace : ws)
+      );
+      
       toast({
         title: "Workspace Updated",
         description: "Your workspace settings have been saved successfully.",
@@ -84,18 +109,21 @@ export default function WorkspaceSettings() {
   // Mutation for deleting integration
   const deleteIntegrationMutation = useMutation({
     mutationFn: async (integrationId: string) => {
+      setDeletingIntegrationId(integrationId);
       return apiRequest(`/api/workspaces/${currentWorkspace?.id}/integrations/${integrationId}`, {
         method: "DELETE",
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/workspaces', currentWorkspace?.id, 'integrations'] });
+      setDeletingIntegrationId(null);
       toast({
         title: "Integration Removed",
         description: "Platform integration has been disconnected.",
       });
     },
     onError: () => {
+      setDeletingIntegrationId(null);
       toast({
         title: "Error",
         description: "Failed to remove integration. Please try again.",
@@ -283,10 +311,10 @@ export default function WorkspaceSettings() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleDisconnect(integration.id)}
-                              disabled={deleteIntegrationMutation.isPending}
+                              disabled={deletingIntegrationId === integration.id}
                               data-testid={`button-remove-${platform.id}`}
                             >
-                              {deleteIntegrationMutation.isPending && (
+                              {deletingIntegrationId === integration.id && (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                               )}
                               Disconnect

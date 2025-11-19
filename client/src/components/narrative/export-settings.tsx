@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Scissors, Download, Share2, Calendar, Youtube, Instagram, Sparkles } from "lucide-react";
+import { Scissors, Download, Share2, Calendar, Youtube, Instagram, Sparkles, Play } from "lucide-react";
 import { SiTiktok, SiFacebook } from "react-icons/si";
 
 const RESOLUTION_OPTIONS = [
@@ -241,6 +241,23 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      {/* Video Preview */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Final Video Preview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
+            <div className="text-center text-muted-foreground">
+              <Play className="w-16 h-16 mx-auto mb-3" />
+              <h3 className="text-lg font-semibold text-foreground">Final Video</h3>
+              <p className="mt-1 text-sm">Your compiled video will appear here</p>
+              <p className="mt-2 text-xs">Video compilation will be available after implementing the video generation pipeline</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Export Settings */}
       <Card>
         <CardHeader>

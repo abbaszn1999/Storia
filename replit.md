@@ -25,10 +25,11 @@ The platform follows a modular design with clear separation of concerns, support
 - **Narrative Video Workflow**: Guides users through Script Editor, World & Cast, Scene Breakdown, Storyboard Editor, Animatic Preview, and Export & Publish.
 - **Dual Narrative Modes**:
     - **Image-Reference Mode**: Single reference image per shot.
-    - **Start-End Frame Mode**: Connects shots with seamless transitions via continuity groups, utilizing AI for shot connection proposals.
-- **Version Control**: Unified version history with video support for shot-by-shot generation, including preview, comparison, and activation of versions.
+    - **Start-End Frame Mode**: Connects shots with seamless transitions via continuity groups, utilizing AI for shot connection proposals. Connected shots automatically display the next shot's start frame as their end frame, with real-time syncing when the next shot changes.
+- **Version Control**: Unified version history with video support for shot-by-shot generation, including preview, comparison, and activation of versions. Single dynamic video generation button that changes from "Generate Video" to "Regenerate" based on video existence.
 - **Multi-Workspace Architecture**: Supports managing separate social media integrations for different brands or clients within isolated workspaces.
 - **Publishing Flow**: Allows users to select platforms, handles connection status, uploads video with metadata, and supports immediate or scheduled publishing via a content calendar.
+- **Export Page**: Features final video preview at the top, displaying the latest version of the compiled video with export settings and platform metadata below.
 
 ### Database Schema (Core Tables)
 - `users`: User accounts.

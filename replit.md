@@ -22,6 +22,15 @@ Storia is a scalable, modular SaaS platform for creating AI-powered videos and s
   - **Scene Breakdown**: Automatic script analysis, scene/shot visualization, **full CRUD operations (add/edit/delete scenes and shots)**
     - **Start-End Frame Mode Integration**: Continuity proposal UI with AI-generated shot connections, approval flow, and locked state
   - **Storyboard Editor**: Shot-by-shot image generation, camera movement presets, regeneration
+    - **Unified Version History with Video Support**: Complete version viewing and comparison system
+      - Per-shot preview state (prevents cross-shot contamination)
+      - Video/Image type badges with duration metadata
+      - Play button overlays for video versions
+      - Preview any version without activation (cyan ring indicator)
+      - "Set Active" button to promote versions
+      - Compare Mode: Side-by-side view with synchronized playback controls
+      - Single version preview with instructions for comparison
+      - HTML5 video player with native controls
   - Animatic preview (placeholder)
   - Export & publish (placeholder)
 - ✅ **Dual Narrative Mode Support**:

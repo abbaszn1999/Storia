@@ -693,7 +693,7 @@ export function StoryboardEditor({
     if (selectedShot && selectedShot.currentVersionId) {
       setPreviewVersions(prev => ({
         ...prev,
-        [selectedShot.id]: selectedShot.currentVersionId
+        [selectedShot.id]: selectedShot.currentVersionId as string
       }));
     }
   }, [selectedShot?.id, selectedShot?.currentVersionId]);
@@ -1171,7 +1171,22 @@ export function StoryboardEditor({
                       </Select>
                     </div>
 
-                    <div className="text-xs text-muted-foreground pt-1">
+                    <Button
+                      size="sm"
+                      className="w-full mt-2"
+                      onClick={() => {
+                        toast({
+                          title: "Animate Scene",
+                          description: `Video animation for all ${sceneShots.length} shots in "${scene.title}" will be implemented in the next phase with AI video models (Kling/Veo/Runway).`,
+                        });
+                      }}
+                      data-testid={`button-animate-scene-${scene.id}`}
+                    >
+                      <Play className="mr-2 h-4 w-4" />
+                      Animate Scene's Shots
+                    </Button>
+
+                    <div className="text-xs text-muted-foreground pt-2">
                       <div>{sceneShots.length} shots</div>
                     </div>
                   </div>
@@ -1596,9 +1611,8 @@ export function StoryboardEditor({
                           onSelectVersion(selectedShot.id, previewedVersion.id);
                           // Reset preview for this shot after activating
                           setPreviewVersions(prev => {
-                            const updated = { ...prev };
-                            delete updated[selectedShot.id];
-                            return updated;
+                            const { [selectedShot.id]: _, ...rest } = prev;
+                            return rest;
                           });
                           toast({
                             title: "Version Activated",

@@ -27,6 +27,8 @@ import {
   type InsertReferenceImage,
   type ContinuityGroup,
   type InsertContinuityGroup,
+  type WorkspaceIntegration,
+  type InsertWorkspaceIntegration,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -106,6 +108,12 @@ export interface IStorage {
   updateContinuityGroup(id: string, group: Partial<ContinuityGroup>): Promise<ContinuityGroup>;
   deleteContinuityGroup(id: string): Promise<void>;
   deleteContinuityGroupsBySceneId(sceneId: string): Promise<void>;
+  
+  getWorkspaceIntegrations(workspaceId: string): Promise<WorkspaceIntegration[]>;
+  getWorkspaceIntegration(workspaceId: string, platform: string): Promise<WorkspaceIntegration | undefined>;
+  createWorkspaceIntegration(integration: InsertWorkspaceIntegration): Promise<WorkspaceIntegration>;
+  updateWorkspaceIntegration(id: string, integration: Partial<WorkspaceIntegration>): Promise<WorkspaceIntegration>;
+  deleteWorkspaceIntegration(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -123,6 +131,7 @@ export class MemStorage implements IStorage {
   private shotVersions: Map<string, ShotVersion>;
   private referenceImages: Map<string, ReferenceImage>;
   private continuityGroups: Map<string, ContinuityGroup>;
+  private workspaceIntegrations: Map<string, WorkspaceIntegration>;
 
   constructor() {
     this.users = new Map();
@@ -139,6 +148,7 @@ export class MemStorage implements IStorage {
     this.shotVersions = new Map();
     this.referenceImages = new Map();
     this.continuityGroups = new Map();
+    this.workspaceIntegrations = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -588,6 +598,58 @@ export class MemStorage implements IStorage {
     for (const group of groups) {
       this.continuityGroups.delete(group.id);
     }
+  }
+
+  async getWorkspaceIntegrations(workspaceId: string): Promise<WorkspaceIntegration[]> {
+    return Array.from(this.workspaceIntegrations.values()).filter(
+      (integration) => integration.workspaceId === workspaceId
+    );
+  }
+
+  async getWorkspaceIntegration(workspaceId: string, platform: string): Promise<WorkspaceIntegration | undefined> {
+    return Array.from(this.workspaceIntegrations.values()).find(
+      (integration) => integration.workspaceId === workspaceId && integration.platform === platform
+    );
+  }
+
+  async createWorkspaceIntegration(insertIntegration: InsertWorkspaceIntegration): Promise<WorkspaceIntegration> {
+    // Check if integration already exists for this workspace + platform
+    const existing = await this.getWorkspaceIntegration(
+      insertIntegration.workspaceId,
+      insertIntegration.platform
+    );
+    if (existing) {
+      throw new Error(`Integration for ${insertIntegration.platform} already exists in this workspace`);
+    }
+
+    const id = randomUUID();
+    const integration: WorkspaceIntegration = {
+      ...insertIntegration,
+      id,
+      accessToken: insertIntegration.accessToken ?? null,
+      refreshToken: insertIntegration.refreshToken ?? null,
+      tokenExpiresAt: insertIntegration.tokenExpiresAt ?? null,
+      platformUserId: insertIntegration.platformUserId ?? null,
+      platformUsername: insertIntegration.platformUsername ?? null,
+      platformProfileImage: insertIntegration.platformProfileImage ?? null,
+      isActive: insertIntegration.isActive ?? true,
+      lastSyncedAt: insertIntegration.lastSyncedAt ?? null,
+      createdAt: new Date(),
+    };
+    this.workspaceIntegrations.set(id, integration);
+    return integration;
+  }
+
+  async updateWorkspaceIntegration(id: string, updates: Partial<WorkspaceIntegration>): Promise<WorkspaceIntegration> {
+    const integration = this.workspaceIntegrations.get(id);
+    if (!integration) throw new Error('Workspace integration not found');
+    const updated = { ...integration, ...updates };
+    this.workspaceIntegrations.set(id, updated);
+    return updated;
+  }
+
+  async deleteWorkspaceIntegration(id: string): Promise<void> {
+    this.workspaceIntegrations.delete(id);
   }
 }
 

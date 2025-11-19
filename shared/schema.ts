@@ -205,6 +205,21 @@ export const continuityGroups = pgTable("continuity_groups", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const workspaceIntegrations = pgTable("workspace_integrations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
+  platform: text("platform").notNull(), // 'youtube' | 'tiktok' | 'instagram' | 'facebook'
+  accessToken: text("access_token"), // Encrypted OAuth access token
+  refreshToken: text("refresh_token"), // Encrypted OAuth refresh token
+  tokenExpiresAt: timestamp("token_expires_at"), // Token expiration timestamp
+  platformUserId: text("platform_user_id"), // e.g., YouTube channel ID
+  platformUsername: text("platform_username"), // Display name for UI
+  platformProfileImage: text("platform_profile_image"), // Avatar URL
+  isActive: boolean("is_active").default(true).notNull(),
+  lastSyncedAt: timestamp("last_synced_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -286,6 +301,11 @@ export const insertContinuityGroupSchema = createInsertSchema(continuityGroups).
   createdAt: true,
 });
 
+export const insertWorkspaceIntegrationSchema = createInsertSchema(workspaceIntegrations).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;
@@ -316,3 +336,5 @@ export type InsertReferenceImage = z.infer<typeof insertReferenceImageSchema>;
 export type ReferenceImage = typeof referenceImages.$inferSelect;
 export type InsertContinuityGroup = z.infer<typeof insertContinuityGroupSchema>;
 export type ContinuityGroup = typeof continuityGroups.$inferSelect;
+export type InsertWorkspaceIntegration = z.infer<typeof insertWorkspaceIntegrationSchema>;
+export type WorkspaceIntegration = typeof workspaceIntegrations.$inferSelect;

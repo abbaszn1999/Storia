@@ -1153,9 +1153,14 @@ export function SceneBreakdown({
                 <Card key={scene.id} className="bg-card/50" data-testid={`scene-${scene.id}`}>
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-semibold">
-                        Scene{sceneIndex + 1}: {scene.title}
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold">
+                          Scene {sceneIndex + 1}: {scene.title}
+                        </h3>
+                        <Badge variant="secondary" className="text-xs" data-testid={`scene-duration-${scene.id}`}>
+                          {scene.duration || 0}s
+                        </Badge>
+                      </div>
                       <div className="flex items-center gap-1">
                         <Button
                           size="icon"

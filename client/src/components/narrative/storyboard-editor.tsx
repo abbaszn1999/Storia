@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, ChevronDown, Shirt, Eraser, Trash2, Play, Pause, Check, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, ReferenceImage, Character } from "@shared/schema";
@@ -216,6 +217,8 @@ function SortableShotCard({
   const { toast } = useToast();
   const [localPrompt, setLocalPrompt] = useState(shot.description || "");
   const [activeFrame, setActiveFrame] = useState<"start" | "end">("start");
+  const [advancedImageOpen, setAdvancedImageOpen] = useState(false);
+  const [advancedVideoOpen, setAdvancedVideoOpen] = useState(false);
 
   const handlePromptBlur = () => {
     if (localPrompt !== shot.description) {
@@ -385,91 +388,110 @@ function SortableShotCard({
               />
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Image Model</Label>
-              <Select
-                value={shot.imageModel || "scene-default"}
-                onValueChange={(value) => onUpdateShot(shot.id, { imageModel: value === "scene-default" ? null : value })}
-              >
-                <SelectTrigger className="h-8 text-xs" data-testid={`select-image-model-${shot.id}`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="scene-default">
-                    Scene Default {sceneImageModel ? `(${sceneImageModel})` : ""}
-                  </SelectItem>
-                  {IMAGE_MODELS.map((model) => (
-                    <SelectItem key={model} value={model}>
-                      {model}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Reference Image</Label>
-              {referenceImage ? (
-                <div className="relative">
-                  <div className="aspect-video rounded-md overflow-hidden border">
-                    <img
-                      src={referenceImage.imageUrl}
-                      alt="Reference"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <Button
-                    size="icon"
-                    variant="destructive"
-                    className="absolute top-2 left-2 h-6 w-6"
-                    onClick={() => onDeleteReference(shot.id)}
-                    data-testid={`button-delete-reference-${shot.id}`}
+            <Collapsible open={advancedImageOpen} onOpenChange={setAdvancedImageOpen}>
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-between p-2 h-auto text-xs font-medium"
+                  data-testid={`button-toggle-advanced-image-${shot.id}`}
+                >
+                  <span className="text-muted-foreground">Advanced Settings</span>
+                  {advancedImageOpen ? (
+                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 mt-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Image Model</Label>
+                  <Select
+                    value={shot.imageModel || "scene-default"}
+                    onValueChange={(value) => onUpdateShot(shot.id, { imageModel: value === "scene-default" ? null : value })}
                   >
-                    <X className="h-3 w-3" />
-                  </Button>
+                    <SelectTrigger className="h-8 text-xs" data-testid={`select-image-model-${shot.id}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="scene-default">
+                        Scene Default {sceneImageModel ? `(${sceneImageModel})` : ""}
+                      </SelectItem>
+                      {IMAGE_MODELS.map((model) => (
+                        <SelectItem key={model} value={model}>
+                          {model}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ) : (
-                <div>
-                  <Input
-                    id={`reference-upload-${shot.id}`}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFileSelect}
-                    data-testid={`input-reference-${shot.id}`}
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => document.getElementById(`reference-upload-${shot.id}`)?.click()}
-                    data-testid={`button-upload-reference-${shot.id}`}
-                  >
-                    <Upload className="mr-2 h-3 w-3" />
-                    Upload Reference
-                  </Button>
-                </div>
-              )}
-            </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Shot Type</Label>
-              <Select
-                value={shot.shotType}
-                onValueChange={(value) => onUpdateShot(shot.id, { shotType: value })}
-              >
-                <SelectTrigger className="h-8 text-xs" data-testid={`select-shot-type-${shot.id}`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SHOT_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Reference Image</Label>
+                  {referenceImage ? (
+                    <div className="relative">
+                      <div className="aspect-video rounded-md overflow-hidden border">
+                        <img
+                          src={referenceImage.imageUrl}
+                          alt="Reference"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        className="absolute top-2 left-2 h-6 w-6"
+                        onClick={() => onDeleteReference(shot.id)}
+                        data-testid={`button-delete-reference-${shot.id}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div>
+                      <Input
+                        id={`reference-upload-${shot.id}`}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleFileSelect}
+                        data-testid={`input-reference-${shot.id}`}
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => document.getElementById(`reference-upload-${shot.id}`)?.click()}
+                        data-testid={`button-upload-reference-${shot.id}`}
+                      >
+                        <Upload className="mr-2 h-3 w-3" />
+                        Upload Reference
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Shot Type</Label>
+                  <Select
+                    value={shot.shotType}
+                    onValueChange={(value) => onUpdateShot(shot.id, { shotType: value })}
+                  >
+                    <SelectTrigger className="h-8 text-xs" data-testid={`select-shot-type-${shot.id}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SHOT_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             <div className="flex gap-2">
               <Button
@@ -508,82 +530,101 @@ function SortableShotCard({
               />
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Video Model</Label>
-              <Select
-                value={shot.videoModel || "scene-default"}
-                onValueChange={(value) => onUpdateShot(shot.id, { videoModel: value === "scene-default" ? null : value })}
-              >
-                <SelectTrigger className="h-8 text-xs" data-testid={`select-video-model-${shot.id}`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="scene-default">
-                    Scene Default {sceneModel ? `(${sceneModel})` : ""}
-                  </SelectItem>
-                  {VIDEO_MODELS.map((model) => (
-                    <SelectItem key={model} value={model}>
-                      {model}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Duration</Label>
-              <Select
-                value={version?.videoDuration?.toString() || ""}
-                onValueChange={(value) => onUpdateVideoDuration(shot.id, parseInt(value))}
-                disabled={!shot.videoModel && !sceneModel}
-              >
-                <SelectTrigger className="h-8 text-xs" data-testid={`select-video-duration-${shot.id}`}>
-                  <SelectValue placeholder="Select duration" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(shot.videoModel && VIDEO_MODEL_DURATIONS[shot.videoModel] 
-                    ? VIDEO_MODEL_DURATIONS[shot.videoModel]
-                    : sceneModel && VIDEO_MODEL_DURATIONS[sceneModel]
-                    ? VIDEO_MODEL_DURATIONS[sceneModel]
-                    : []
-                  ).map((duration) => (
-                    <SelectItem key={duration} value={duration.toString()}>
-                      {duration}s
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground">Sound Effects</Label>
+            <Collapsible open={advancedVideoOpen} onOpenChange={setAdvancedVideoOpen}>
+              <CollapsibleTrigger asChild>
                 <Button
-                  size="sm"
                   variant="ghost"
-                  className="h-6 text-xs px-2"
-                  onClick={() => {
-                    const autoPrompt = `Ambient sounds for ${shot.shotType.toLowerCase()} shot${shot.description ? ': ' + shot.description : ''}`;
-                    onUpdateShot(shot.id, { soundEffects: autoPrompt });
-                    toast({
-                      title: "Sound effects generated",
-                      description: "Auto-generated sound effects prompt",
-                    });
-                  }}
-                  data-testid={`button-auto-generate-sound-${shot.id}`}
+                  size="sm"
+                  className="w-full justify-between p-2 h-auto text-xs font-medium"
+                  data-testid={`button-toggle-advanced-video-${shot.id}`}
                 >
-                  <Wand2 className="mr-1 h-3 w-3" />
-                  Automatically
+                  <span className="text-muted-foreground">Advanced Settings</span>
+                  {advancedVideoOpen ? (
+                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                  )}
                 </Button>
-              </div>
-              <Textarea
-                placeholder="Describe sound effects for this shot..."
-                value={shot.soundEffects || ""}
-                onChange={(e) => onUpdateShot(shot.id, { soundEffects: e.target.value })}
-                className="min-h-[60px] text-xs resize-none"
-                data-testid={`textarea-sound-effects-${shot.id}`}
-              />
-            </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 mt-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Video Model</Label>
+                  <Select
+                    value={shot.videoModel || "scene-default"}
+                    onValueChange={(value) => onUpdateShot(shot.id, { videoModel: value === "scene-default" ? null : value })}
+                  >
+                    <SelectTrigger className="h-8 text-xs" data-testid={`select-video-model-${shot.id}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="scene-default">
+                        Scene Default {sceneModel ? `(${sceneModel})` : ""}
+                      </SelectItem>
+                      {VIDEO_MODELS.map((model) => (
+                        <SelectItem key={model} value={model}>
+                          {model}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Duration</Label>
+                  <Select
+                    value={version?.videoDuration?.toString() || ""}
+                    onValueChange={(value) => onUpdateVideoDuration(shot.id, parseInt(value))}
+                    disabled={!shot.videoModel && !sceneModel}
+                  >
+                    <SelectTrigger className="h-8 text-xs" data-testid={`select-video-duration-${shot.id}`}>
+                      <SelectValue placeholder="Select duration" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(shot.videoModel && VIDEO_MODEL_DURATIONS[shot.videoModel] 
+                        ? VIDEO_MODEL_DURATIONS[shot.videoModel]
+                        : sceneModel && VIDEO_MODEL_DURATIONS[sceneModel]
+                        ? VIDEO_MODEL_DURATIONS[sceneModel]
+                        : []
+                      ).map((duration) => (
+                        <SelectItem key={duration} value={duration.toString()}>
+                          {duration}s
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Sound Effects</Label>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-xs px-2"
+                      onClick={() => {
+                        const autoPrompt = `Ambient sounds for ${shot.shotType.toLowerCase()} shot${shot.description ? ': ' + shot.description : ''}`;
+                        onUpdateShot(shot.id, { soundEffects: autoPrompt });
+                        toast({
+                          title: "Sound effects generated",
+                          description: "Auto-generated sound effects prompt",
+                        });
+                      }}
+                      data-testid={`button-auto-generate-sound-${shot.id}`}
+                    >
+                      <Wand2 className="mr-1 h-3 w-3" />
+                      Automatically
+                    </Button>
+                  </div>
+                  <Textarea
+                    placeholder="Describe sound effects for this shot..."
+                    value={shot.soundEffects || ""}
+                    onChange={(e) => onUpdateShot(shot.id, { soundEffects: e.target.value })}
+                    className="min-h-[60px] text-xs resize-none"
+                    data-testid={`textarea-sound-effects-${shot.id}`}
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             <div className="flex gap-2">
               <Button

@@ -1118,7 +1118,6 @@ export function StoryboardEditor({
                     </div>
 
                     <div className="text-xs text-muted-foreground pt-1">
-                      <div>Location: {scene.location}</div>
                       <div>{sceneShots.length} shots</div>
                     </div>
                   </div>

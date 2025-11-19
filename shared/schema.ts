@@ -138,8 +138,6 @@ export const scenes = pgTable("scenes", {
   sceneNumber: integer("scene_number").notNull(),
   title: text("title").notNull(),
   description: text("description"),
-  location: text("location"),
-  timeOfDay: text("time_of_day"),
   duration: integer("duration"),
   videoModel: text("video_model"),
   imageModel: text("image_model"),

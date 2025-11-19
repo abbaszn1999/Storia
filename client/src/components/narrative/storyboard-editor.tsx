@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -654,6 +654,12 @@ export function StoryboardEditor({
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
   const [showEnhancementDialog, setShowEnhancementDialog] = useState(false);
   const [dontRemindAgain, setDontRemindAgain] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareVersions, setCompareVersions] = useState<string[]>([]);
+  const [syncedPlaying, setSyncedPlaying] = useState(false);
+  const [previewVersions, setPreviewVersions] = useState<Record<string, string>>({});
+  const video1Ref = useRef<HTMLVideoElement>(null);
+  const video2Ref = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
 
   // Sync localShots with incoming shots prop to reflect updates
@@ -671,6 +677,16 @@ export function StoryboardEditor({
       }
     }
   }, [shots]);
+
+  // Initialize preview to active version when shot changes
+  useEffect(() => {
+    if (selectedShot && selectedShot.currentVersionId) {
+      setPreviewVersions(prev => ({
+        ...prev,
+        [selectedShot.id]: selectedShot.currentVersionId
+      }));
+    }
+  }, [selectedShot?.id, selectedShot?.currentVersionId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -692,6 +708,17 @@ export function StoryboardEditor({
     if (!shot.currentVersionId) return null;
     const versions = shotVersions[shot.id] || [];
     return versions.find((v) => v.id === shot.currentVersionId) || null;
+  };
+
+  // Helper to get the version being previewed (or active version if no preview)
+  const getPreviewedVersion = (shot: Shot): ShotVersion | null => {
+    const versions = shotVersions[shot.id] || [];
+    const previewId = previewVersions[shot.id];
+    if (previewId) {
+      const preview = versions.find((v) => v.id === previewId);
+      if (preview) return preview;
+    }
+    return getShotVersion(shot);
   };
 
   // Helper: Check if a shot is connected to the next shot in Start-End Frame mode
@@ -909,6 +936,24 @@ export function StoryboardEditor({
   const handleSelectVoice = (voiceId: string) => {
     onVoiceActorChange(voiceId);
     setVoiceDropdownOpen(false);
+  };
+
+  // Synchronized playback handlers for compare mode
+  const handleSyncedPlayPause = () => {
+    if (syncedPlaying) {
+      video1Ref.current?.pause();
+      video2Ref.current?.pause();
+      setSyncedPlaying(false);
+    } else {
+      video1Ref.current?.play();
+      video2Ref.current?.play();
+      setSyncedPlaying(true);
+    }
+  };
+
+  const handleSyncedSeek = (time: number) => {
+    if (video1Ref.current) video1Ref.current.currentTime = time;
+    if (video2Ref.current) video2Ref.current.currentTime = time;
   };
 
   const selectedVoice = VOICE_LIBRARY.find(v => v.id === voiceActorId);
@@ -1220,7 +1265,13 @@ export function StoryboardEditor({
       </div>
 
       {selectedShot && (
-        <Dialog open={!!selectedShot} onOpenChange={() => setSelectedShot(null)}>
+        <Dialog open={!!selectedShot} onOpenChange={() => {
+          setSelectedShot(null);
+          setPreviewVersions({}); // Reset all preview state when closing
+          setCompareMode(false);
+          setCompareVersions([]);
+          setSyncedPlaying(false);
+        }}>
           <DialogContent className="max-w-7xl h-[90vh] p-0 gap-0">
             <div className="relative w-full h-full flex bg-background">
               {/* Left Sidebar - Version History */}
@@ -1234,15 +1285,39 @@ export function StoryboardEditor({
                     .sort((a, b) => a.versionNumber - b.versionNumber)
                     .map((version) => {
                       const isActive = version.id === selectedShot.currentVersionId;
+                      const isPreviewed = !compareMode && version.id === previewVersions[selectedShot.id];
+                      const isSelectedForCompare = compareVersions.includes(version.id);
                       return (
                         <div
                           key={version.id}
                           className={`relative group ${
-                            isActive ? "ring-2 ring-primary rounded-md" : "hover-elevate cursor-pointer"
+                            compareMode && isSelectedForCompare 
+                              ? "ring-2 ring-primary rounded-md" 
+                              : isPreviewed
+                              ? "ring-2 ring-cyan-500 rounded-md"
+                              : isActive
+                              ? "ring-2 ring-primary/50 rounded-md"
+                              : "hover-elevate cursor-pointer"
                           }`}
                           onClick={() => {
-                            if (onSelectVersion && !isActive) {
-                              onSelectVersion(selectedShot.id, version.id);
+                            if (compareMode) {
+                              // Toggle selection for comparison
+                              if (isSelectedForCompare) {
+                                setCompareVersions(compareVersions.filter(id => id !== version.id));
+                              } else if (compareVersions.length < 2) {
+                                setCompareVersions([...compareVersions, version.id]);
+                              } else {
+                                toast({
+                                  title: "Maximum reached",
+                                  description: "You can only compare 2 versions at a time",
+                                });
+                              }
+                            } else {
+                              // Normal mode: set as preview version for this shot
+                              setPreviewVersions(prev => ({
+                                ...prev,
+                                [selectedShot.id]: version.id
+                              }));
                             }
                           }}
                           data-testid={`version-thumbnail-${version.id}`}
@@ -1259,12 +1334,41 @@ export function StoryboardEditor({
                                 <ImageIcon className="h-6 w-6 text-muted-foreground" />
                               </div>
                             )}
+                            
+                            {/* Play button overlay for video versions */}
+                            {version.videoUrl && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="bg-background/90 rounded-full p-2">
+                                  <Play className="h-4 w-4" />
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <div className="absolute top-1.5 left-1.5">
+                          
+                          {/* Top left badges */}
+                          <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
                             <Badge variant={isActive ? "default" : "secondary"} className="text-xs h-5">
                               {isActive ? "Active" : `v${version.versionNumber}`}
                             </Badge>
                           </div>
+                          
+                          {/* Bottom left badges - Video/Image type and duration */}
+                          <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
+                            {version.videoUrl ? (
+                              <>
+                                <Badge variant="secondary" className="text-xs h-5 bg-background/90">
+                                  <Video className="h-3 w-3 mr-1" />
+                                  {version.videoDuration ? `${version.videoDuration}s` : 'Video'}
+                                </Badge>
+                              </>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs h-5 bg-background/90">
+                                <ImageIcon className="h-3 w-3 mr-1" />
+                                Image
+                              </Badge>
+                            )}
+                          </div>
+                          
                           {!isActive && onDeleteVersion && (
                             <Button
                               size="icon"
@@ -1286,22 +1390,220 @@ export function StoryboardEditor({
               </div>
 
               {/* Main Content Area */}
-              <div className="relative flex-1 bg-gradient-to-br from-background via-muted/20 to-background flex items-center justify-center">
-                {/* Main Image */}
-                <div className="absolute inset-0 flex items-center justify-center p-12 pb-32">
-                  {getShotVersion(selectedShot)?.imageUrl ? (
-                    <img
-                      src={getShotVersion(selectedShot)!.imageUrl!}
-                      alt="Shot"
-                      className="max-w-full max-h-full object-contain rounded-lg"
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
-                      <ImageIcon className="h-32 w-32" />
-                      <p className="text-xl">No image generated yet</p>
-                    </div>
-                  )}
+              <div className="relative flex-1 bg-gradient-to-br from-background via-muted/20 to-background flex flex-col">
+                {/* Compare Mode Toggle */}
+                <div className="absolute top-6 left-6 z-20">
+                  <Button
+                    variant={compareMode ? "default" : "outline"}
+                    onClick={() => {
+                      setCompareMode(!compareMode);
+                      setCompareVersions([]);
+                    }}
+                    data-testid="button-toggle-compare-mode"
+                  >
+                    <Link2 className="mr-2 h-4 w-4" />
+                    {compareMode ? "Exit Compare" : "Compare Versions"}
+                  </Button>
                 </div>
+                
+                {/* Main Image or Video */}
+                {!compareMode ? (
+                  <div className="flex-1 flex items-center justify-center p-12 pb-32">
+                    {getPreviewedVersion(selectedShot)?.videoUrl ? (
+                      <div className="w-full max-w-4xl">
+                        <video
+                          key={getPreviewedVersion(selectedShot)!.videoUrl}
+                          src={getPreviewedVersion(selectedShot)!.videoUrl!}
+                          controls
+                          className="w-full rounded-lg shadow-2xl"
+                          data-testid="video-player"
+                        />
+                      </div>
+                    ) : getPreviewedVersion(selectedShot)?.imageUrl ? (
+                      <img
+                        src={getPreviewedVersion(selectedShot)!.imageUrl!}
+                        alt="Shot"
+                        className="max-w-full max-h-full object-contain rounded-lg"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                        <ImageIcon className="h-32 w-32" />
+                        <p className="text-xl">No image generated yet</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Compare Mode View */
+                  <div className="flex-1 flex flex-col p-6 pb-32">
+                    {/* Synchronized Playback Controls */}
+                    {compareVersions.length === 2 && (
+                      <div className="flex items-center justify-center mb-4">
+                        <div className="bg-background/95 backdrop-blur-md rounded-lg border shadow-lg p-3 flex items-center gap-4">
+                          <Label className="text-sm text-muted-foreground">Synchronized Playback:</Label>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleSyncedPlayPause}
+                            data-testid="button-synced-play-pause"
+                          >
+                            {syncedPlaying ? (
+                              <>
+                                <Pause className="mr-2 h-4 w-4" />
+                                Pause Both
+                              </>
+                            ) : (
+                              <>
+                                <Play className="mr-2 h-4 w-4" />
+                                Play Both
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className={`flex-1 ${compareVersions.length === 2 ? 'grid grid-cols-2 gap-4' : 'flex items-center justify-center'}`}>
+                      {compareVersions.length === 0 ? (
+                        <div className="text-center text-muted-foreground">
+                          <div>
+                            <p className="text-lg mb-2">Select versions to compare</p>
+                            <p className="text-sm">Click on version thumbnails in the sidebar to select them</p>
+                          </div>
+                        </div>
+                      ) : compareVersions.length === 1 ? (
+                        /* Single Version Preview */
+                        (() => {
+                          const version = shotVersions[selectedShot!.id]?.find(v => v.id === compareVersions[0]);
+                          if (!version) return null;
+                          
+                          return (
+                            <div className="flex flex-col gap-4 max-w-4xl w-full">
+                              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                                <div className="flex items-center gap-3">
+                                  <Badge variant="secondary">
+                                    Version {version.versionNumber}
+                                  </Badge>
+                                  <span className="text-sm text-muted-foreground">
+                                    Select another version to compare side-by-side
+                                  </span>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setCompareVersions([])}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <div className="flex-1 flex items-center justify-center bg-background/50 rounded-lg overflow-hidden">
+                                {version.videoUrl ? (
+                                  <video
+                                    src={version.videoUrl}
+                                    controls
+                                    className="w-full rounded-lg shadow-2xl"
+                                    data-testid="compare-video-single"
+                                  />
+                                ) : version.imageUrl ? (
+                                  <img
+                                    src={version.imageUrl}
+                                    alt={`v${version.versionNumber}`}
+                                    className="w-full h-full object-contain rounded-lg"
+                                  />
+                                ) : (
+                                  <div className="flex items-center justify-center text-muted-foreground">
+                                    <ImageIcon className="h-16 w-16" />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        compareVersions.slice(0, 2).map((versionId, idx) => {
+                          const version = shotVersions[selectedShot!.id]?.find(v => v.id === versionId);
+                          if (!version) return null;
+                          const videoRef = idx === 0 ? video1Ref : video2Ref;
+                          
+                          return (
+                            <div key={versionId} className="flex flex-col gap-2">
+                              <div className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
+                                <Badge variant="secondary">
+                                  Version {version.versionNumber}
+                                </Badge>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setCompareVersions(compareVersions.filter(id => id !== versionId));
+                                    setSyncedPlaying(false);
+                                  }}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <div className="flex-1 flex items-center justify-center bg-background/50 rounded-lg overflow-hidden">
+                                {version.videoUrl ? (
+                                  <video
+                                    ref={videoRef}
+                                    src={version.videoUrl}
+                                    controls
+                                    className="w-full h-full object-contain"
+                                    data-testid={`compare-video-${idx}`}
+                                    onPlay={() => {
+                                      if (syncedPlaying) setSyncedPlaying(true);
+                                    }}
+                                    onPause={() => {
+                                      if (syncedPlaying) setSyncedPlaying(false);
+                                    }}
+                                  />
+                                ) : version.imageUrl ? (
+                                  <img
+                                    src={version.imageUrl}
+                                    alt={`v${version.versionNumber}`}
+                                    className="w-full h-full object-contain"
+                                  />
+                                ) : (
+                                  <div className="flex items-center justify-center text-muted-foreground">
+                                    <ImageIcon className="h-16 w-16" />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Action Bar - Above edit toolbar, shows when viewing non-active version */}
+                {!compareMode && previewVersions[selectedShot.id] && previewVersions[selectedShot.id] !== selectedShot.currentVersionId && (
+                  <div className="absolute top-6 right-6 z-20">
+                    <Button
+                      onClick={() => {
+                        const previewedVersion = getPreviewedVersion(selectedShot);
+                        if (previewedVersion && onSelectVersion) {
+                          onSelectVersion(selectedShot.id, previewedVersion.id);
+                          // Reset preview for this shot after activating
+                          setPreviewVersions(prev => {
+                            const updated = { ...prev };
+                            delete updated[selectedShot.id];
+                            return updated;
+                          });
+                          toast({
+                            title: "Version Activated",
+                            description: `Version ${previewedVersion.versionNumber} is now active`,
+                          });
+                        }
+                      }}
+                      className="bg-primary hover:bg-primary/90"
+                      data-testid="button-set-active-version"
+                    >
+                      <Check className="mr-2 h-4 w-4" />
+                      Set as Active
+                    </Button>
+                  </div>
+                )}
 
                 {/* Context Panel - Appears above toolbar based on active category */}
                 {activeCategory && (

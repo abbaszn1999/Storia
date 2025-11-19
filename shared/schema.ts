@@ -306,6 +306,88 @@ export const insertWorkspaceIntegrationSchema = createInsertSchema(workspaceInte
   createdAt: true,
 });
 
+// AI Production Campaign tables
+export const productionCampaigns = pgTable("production_campaigns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  conceptPrompt: text("concept_prompt").notNull(),
+  videoCount: integer("video_count").notNull(),
+  status: text("status").default("draft").notNull(), // draft, generating_concepts, review, in_progress, paused, completed, cancelled
+  automationMode: text("automation_mode").default("manual").notNull(), // manual (requires approval), auto (fully automated)
+  
+  // Video settings
+  aspectRatio: text("aspect_ratio").default("16:9").notNull(),
+  duration: integer("duration").default(60).notNull(), // Target duration in seconds
+  language: text("language").default("en").notNull(),
+  artStyle: text("art_style").notNull(),
+  tone: text("tone").notNull(),
+  genre: text("genre").notNull(),
+  targetAudience: text("target_audience"),
+  
+  // Scheduling
+  scheduleStartDate: timestamp("schedule_start_date"),
+  scheduleEndDate: timestamp("schedule_end_date"),
+  distributionPattern: text("distribution_pattern").default("even").notNull(), // even, custom
+  
+  // Publishing
+  selectedPlatforms: jsonb("selected_platforms").default([]).notNull(), // Array of platform IDs
+  
+  // AI generation settings
+  scriptModel: text("script_model"),
+  imageModel: text("image_model"),
+  videoModel: text("video_model"),
+  voiceActorId: text("voice_actor_id"),
+  
+  // Progress tracking
+  videosGenerated: integer("videos_generated").default(0).notNull(),
+  videosPublished: integer("videos_published").default(0).notNull(),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const campaignVideos = pgTable("campaign_videos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  campaignId: varchar("campaign_id").notNull().references(() => productionCampaigns.id),
+  videoId: varchar("video_id").references(() => videos.id),
+  
+  // Generated concept
+  title: text("title").notNull(),
+  conceptDescription: text("concept_description").notNull(),
+  script: text("script"),
+  orderIndex: integer("order_index").notNull(),
+  
+  // Status tracking
+  status: text("status").default("pending").notNull(), // pending, generating, review_required, approved, in_production, completed, failed, cancelled
+  generationProgress: integer("generation_progress").default(0).notNull(), // 0-100%
+  
+  // Scheduling
+  scheduledPublishDate: timestamp("scheduled_publish_date"),
+  actualPublishDate: timestamp("actual_publish_date"),
+  
+  // Metadata
+  metadata: jsonb("metadata"), // Platform-specific metadata
+  errorMessage: text("error_message"),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertProductionCampaignSchema = createInsertSchema(productionCampaigns).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  videosGenerated: true,
+  videosPublished: true,
+});
+
+export const insertCampaignVideoSchema = createInsertSchema(campaignVideos).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;
@@ -338,3 +420,7 @@ export type InsertContinuityGroup = z.infer<typeof insertContinuityGroupSchema>;
 export type ContinuityGroup = typeof continuityGroups.$inferSelect;
 export type InsertWorkspaceIntegration = z.infer<typeof insertWorkspaceIntegrationSchema>;
 export type WorkspaceIntegration = typeof workspaceIntegrations.$inferSelect;
+export type InsertProductionCampaign = z.infer<typeof insertProductionCampaignSchema>;
+export type ProductionCampaign = typeof productionCampaigns.$inferSelect;
+export type InsertCampaignVideo = z.infer<typeof insertCampaignVideoSchema>;
+export type CampaignVideo = typeof campaignVideos.$inferSelect;

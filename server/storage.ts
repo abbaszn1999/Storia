@@ -29,6 +29,10 @@ import {
   type InsertContinuityGroup,
   type WorkspaceIntegration,
   type InsertWorkspaceIntegration,
+  type ProductionCampaign,
+  type InsertProductionCampaign,
+  type CampaignVideo,
+  type InsertCampaignVideo,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -115,6 +119,17 @@ export interface IStorage {
   createWorkspaceIntegration(integration: InsertWorkspaceIntegration): Promise<WorkspaceIntegration>;
   updateWorkspaceIntegration(id: string, integration: Partial<WorkspaceIntegration>): Promise<WorkspaceIntegration>;
   deleteWorkspaceIntegration(id: string): Promise<void>;
+  
+  getCampaignsByUserId(userId: string): Promise<ProductionCampaign[]>;
+  getCampaign(id: string): Promise<ProductionCampaign | undefined>;
+  createCampaign(campaign: InsertProductionCampaign): Promise<ProductionCampaign>;
+  updateCampaign(id: string, campaign: Partial<ProductionCampaign>): Promise<ProductionCampaign>;
+  deleteCampaign(id: string): Promise<void>;
+  getCampaignVideos(campaignId: string): Promise<CampaignVideo[]>;
+  getCampaignVideo(id: string): Promise<CampaignVideo | undefined>;
+  createCampaignVideo(video: InsertCampaignVideo): Promise<CampaignVideo>;
+  updateCampaignVideo(id: string, video: Partial<CampaignVideo>): Promise<CampaignVideo>;
+  deleteCampaignVideo(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -133,6 +148,8 @@ export class MemStorage implements IStorage {
   private referenceImages: Map<string, ReferenceImage>;
   private continuityGroups: Map<string, ContinuityGroup>;
   private workspaceIntegrations: Map<string, WorkspaceIntegration>;
+  private productionCampaigns: Map<string, ProductionCampaign>;
+  private campaignVideos: Map<string, CampaignVideo>;
 
   constructor() {
     this.users = new Map();
@@ -150,6 +167,8 @@ export class MemStorage implements IStorage {
     this.referenceImages = new Map();
     this.continuityGroups = new Map();
     this.workspaceIntegrations = new Map();
+    this.productionCampaigns = new Map();
+    this.campaignVideos = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -668,6 +687,102 @@ export class MemStorage implements IStorage {
 
   async deleteWorkspaceIntegration(id: string): Promise<void> {
     this.workspaceIntegrations.delete(id);
+  }
+
+  async getCampaignsByUserId(userId: string): Promise<ProductionCampaign[]> {
+    return Array.from(this.productionCampaigns.values()).filter(
+      (campaign) => campaign.userId === userId
+    );
+  }
+
+  async getCampaign(id: string): Promise<ProductionCampaign | undefined> {
+    return this.productionCampaigns.get(id);
+  }
+
+  async createCampaign(insertCampaign: InsertProductionCampaign): Promise<ProductionCampaign> {
+    const id = randomUUID();
+    const campaign: ProductionCampaign = {
+      ...insertCampaign,
+      id,
+      status: insertCampaign.status ?? "draft",
+      automationMode: insertCampaign.automationMode ?? "manual",
+      aspectRatio: insertCampaign.aspectRatio ?? "16:9",
+      duration: insertCampaign.duration ?? 60,
+      language: insertCampaign.language ?? "en",
+      distributionPattern: insertCampaign.distributionPattern ?? "even",
+      selectedPlatforms: insertCampaign.selectedPlatforms ?? [],
+      targetAudience: insertCampaign.targetAudience ?? null,
+      scheduleStartDate: insertCampaign.scheduleStartDate ?? null,
+      scheduleEndDate: insertCampaign.scheduleEndDate ?? null,
+      scriptModel: insertCampaign.scriptModel ?? null,
+      imageModel: insertCampaign.imageModel ?? null,
+      videoModel: insertCampaign.videoModel ?? null,
+      voiceActorId: insertCampaign.voiceActorId ?? null,
+      videosGenerated: 0,
+      videosPublished: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.productionCampaigns.set(id, campaign);
+    return campaign;
+  }
+
+  async updateCampaign(id: string, updates: Partial<ProductionCampaign>): Promise<ProductionCampaign> {
+    const campaign = this.productionCampaigns.get(id);
+    if (!campaign) throw new Error('Production campaign not found');
+    const updated = { ...campaign, ...updates, updatedAt: new Date() };
+    this.productionCampaigns.set(id, updated);
+    return updated;
+  }
+
+  async deleteCampaign(id: string): Promise<void> {
+    this.productionCampaigns.delete(id);
+    const videos = await this.getCampaignVideos(id);
+    for (const video of videos) {
+      this.campaignVideos.delete(video.id);
+    }
+  }
+
+  async getCampaignVideos(campaignId: string): Promise<CampaignVideo[]> {
+    return Array.from(this.campaignVideos.values()).filter(
+      (video) => video.campaignId === campaignId
+    );
+  }
+
+  async getCampaignVideo(id: string): Promise<CampaignVideo | undefined> {
+    return this.campaignVideos.get(id);
+  }
+
+  async createCampaignVideo(insertVideo: InsertCampaignVideo): Promise<CampaignVideo> {
+    const id = randomUUID();
+    const video: CampaignVideo = {
+      ...insertVideo,
+      id,
+      videoId: insertVideo.videoId ?? null,
+      script: insertVideo.script ?? null,
+      status: insertVideo.status ?? "pending",
+      generationProgress: insertVideo.generationProgress ?? 0,
+      scheduledPublishDate: insertVideo.scheduledPublishDate ?? null,
+      actualPublishDate: insertVideo.actualPublishDate ?? null,
+      metadata: insertVideo.metadata ?? null,
+      errorMessage: insertVideo.errorMessage ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.campaignVideos.set(id, video);
+    return video;
+  }
+
+  async updateCampaignVideo(id: string, updates: Partial<CampaignVideo>): Promise<CampaignVideo> {
+    const video = this.campaignVideos.get(id);
+    if (!video) throw new Error('Campaign video not found');
+    const updated = { ...video, ...updates, updatedAt: new Date() };
+    this.campaignVideos.set(id, updated);
+    return updated;
+  }
+
+  async deleteCampaignVideo(id: string): Promise<void> {
+    this.campaignVideos.delete(id);
   }
 }
 

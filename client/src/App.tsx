@@ -26,6 +26,10 @@ import Profile from "@/pages/profile";
 import Settings from "@/pages/settings";
 import WorkspaceSettings from "@/pages/workspace-settings";
 import Subscription from "@/pages/subscription";
+import ProductionCampaigns from "@/pages/production";
+import ProductionCampaignCreate from "@/pages/production/create";
+import ProductionCampaignReview from "@/pages/production/review";
+import ProductionCampaignDashboard from "@/pages/production/dashboard";
 import NotFound from "@/pages/not-found";
 
 function MainLayout() {
@@ -65,6 +69,12 @@ function MainLayout() {
               <Route path="/stories" component={Stories} />
               <Route path="/history" component={History} />
               <Route path="/calendar" component={Calendar} />
+              
+              {/* Production Campaigns */}
+              <Route path="/production" component={ProductionCampaigns} />
+              <Route path="/production/new" component={ProductionCampaignCreate} />
+              <Route path="/production/:id/review" component={ProductionCampaignReview} />
+              <Route path="/production/:id/dashboard" component={ProductionCampaignDashboard} />
               
               {/* Assets Library */}
               <Route path="/assets">

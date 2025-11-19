@@ -47,7 +47,7 @@ Storia is a scalable, modular SaaS platform for creating AI-powered videos and s
 - **brandkits**: Brand identity kits (colors, fonts, logos, guidelines)
 - **uploads**: User-uploaded media files
 - **content_calendar**: Scheduled content for publishing
-- **scenes**: Scene breakdown with title, location, duration, lighting, weather
+- **scenes**: Scene breakdown with title, description, duration (calculated from shot durations, not user-editable)
 - **shots**: Individual shots with camera angles, movements, duration
 - **shot_versions**: Version control with start/end frame URLs, video URLs, needsRerender flag
 - **reference_images**: Character/location/style reference images
@@ -223,15 +223,19 @@ The purple/magenta/cyan palette creates a modern, professional aesthetic optimiz
 - Component examples for verification
 
 ### Next Phase: Backend Implementation
-1. **Agent System Implementation** (see docs/agents/narrative-mode-agents.md)
+1. **Scene Duration Calculation** (Required for MVP)
+   - Implement server-side calculation of scene.duration from sum of shot durations
+   - Trigger recalculation on shot create/update/delete operations
+   - Default to 0 for scenes with no shots
+2. **Agent System Implementation** (see docs/agents/narrative-mode-agents.md)
    - Phase 1: Core narrative pipeline (Agents 1.1, 2.1-2.7, 3.1-3.3)
    - Phase 2: Visual generation (Agents 4.1-4.2, 4.6)
    - Phase 3: Animation & preview (Agents 4.4-4.5, 5.1-5.3)
    - Phase 4: Export & publishing (Agents 4.3, 6.1-6.2)
-2. Set up AI model integrations (OpenAI, Imagen, Kling, Eleven Labs)
-3. Build publishing integrations (YouTube, TikTok, Instagram, Facebook)
-4. Implement credit system and subscription billing
-5. Add real-time collaboration features
+3. Set up AI model integrations (OpenAI, Imagen, Kling, Eleven Labs)
+4. Build publishing integrations (YouTube, TikTok, Instagram, Facebook)
+5. Implement credit system and subscription billing
+6. Add real-time collaboration features
 
 ## User Preferences
 - Focus on scalable, modular architecture

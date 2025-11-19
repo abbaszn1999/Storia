@@ -1063,7 +1063,6 @@ export function SceneBreakdown({
       sceneNumber: scenes.length + 1,
       title: `${scene.title} (Copy)`,
       description: scene.description,
-      duration: scene.duration,
     };
     createSceneMutation.mutate(newSceneData);
   };

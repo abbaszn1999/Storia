@@ -28,7 +28,6 @@ const sceneFormSchema = z.object({
   sceneNumber: z.number().min(1),
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
-  duration: z.number().min(1).optional(),
 });
 
 type SceneFormValues = z.infer<typeof sceneFormSchema>;
@@ -60,7 +59,6 @@ export function SceneDialog({
       sceneNumber: scene?.sceneNumber ?? sceneCount + 1,
       title: scene?.title ?? "",
       description: scene?.description ?? "",
-      duration: scene?.duration ?? undefined,
     },
   });
 
@@ -70,14 +68,12 @@ export function SceneDialog({
         sceneNumber: scene.sceneNumber,
         title: scene.title,
         description: scene.description ?? "",
-        duration: scene.duration ?? undefined,
       });
     } else {
       form.reset({
         sceneNumber: sceneCount + 1,
         title: "",
         description: "",
-        duration: undefined,
       });
     }
   }, [scene, sceneCount, form]);
@@ -145,27 +141,6 @@ export function SceneDialog({
                       className="resize-none"
                       rows={3}
                       data-testid="input-scene-description"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="duration"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Duration (seconds)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      {...field}
-                      value={field.value ?? ""}
-                      onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
-                      placeholder="Optional"
-                      data-testid="input-scene-duration"
                     />
                   </FormControl>
                   <FormMessage />

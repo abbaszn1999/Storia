@@ -262,6 +262,7 @@ export const insertContentCalendarSchema = createInsertSchema(contentCalendar).o
 export const insertSceneSchema = createInsertSchema(scenes).omit({
   id: true,
   createdAt: true,
+  duration: true, // Duration is calculated from sum of shot durations, not user-provided
 });
 
 export const insertShotSchema = createInsertSchema(shots).omit({

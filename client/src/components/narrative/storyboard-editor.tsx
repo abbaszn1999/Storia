@@ -590,7 +590,12 @@ function SortableShotCard({
                 size="sm"
                 variant="outline"
                 className="flex-1"
-                disabled
+                onClick={() => {
+                  toast({
+                    title: "Video Generation",
+                    description: "Video generation will be implemented in the next phase with AI model integration (Kling/Veo/Runway).",
+                  });
+                }}
                 data-testid={`button-generate-video-${shot.id}`}
               >
                 <Video className="mr-2 h-3 w-3" />
@@ -600,7 +605,12 @@ function SortableShotCard({
                 size="sm"
                 variant="outline"
                 className="flex-1"
-                disabled
+                onClick={() => {
+                  toast({
+                    title: "Video Regeneration",
+                    description: "Video regeneration will be available after implementing the AI video generation pipeline.",
+                  });
+                }}
                 data-testid={`button-regenerate-video-${shot.id}`}
               >
                 <RefreshCw className="mr-2 h-3 w-3" />

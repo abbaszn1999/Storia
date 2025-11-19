@@ -241,7 +241,10 @@ function SortableShotCard({
   // Determine available frames and which image to display
   const hasStartFrame = version?.startFrameUrl || version?.imageUrl;
   const hasEndFrame = version?.endFrameUrl;
-  const shouldShowEndTab = narrativeMode === "start-end" && showEndFrame; // Enable End tab for standalone/last shots
+  const hasNextShotStartFrame = nextShotVersion?.startFrameUrl || nextShotVersion?.imageUrl;
+  
+  // Enable End tab for standalone/last shots OR connected shots (which will show next shot's start)
+  const shouldShowEndTab = narrativeMode === "start-end" && (showEndFrame || isConnectedToNext);
   
   // Calculate display image URL with proper fallbacks
   let displayImageUrl: string | null | undefined;
@@ -253,7 +256,11 @@ function SortableShotCard({
       actualFrameShown = "start";
     } else {
       // End frame requested
-      if (hasEndFrame) {
+      if (isConnectedToNext && hasNextShotStartFrame) {
+        // For connected shots, show the next shot's start frame as this shot's end frame
+        displayImageUrl = hasNextShotStartFrame;
+        actualFrameShown = "end";
+      } else if (hasEndFrame) {
         displayImageUrl = version?.endFrameUrl;
         actualFrameShown = "end";
       } else {
@@ -291,7 +298,7 @@ function SortableShotCard({
             </button>
             <button
               onClick={() => {
-                if (!shouldShowEndTab) return; // Only allow for standalone/last shots
+                if (!shouldShowEndTab) return;
                 setActiveFrame("end");
               }}
               disabled={!shouldShowEndTab}
@@ -303,9 +310,15 @@ function SortableShotCard({
                   : "text-muted-foreground/50 cursor-not-allowed"
               }`}
               data-testid={`button-end-frame-${shot.id}`}
-              title={!shouldShowEndTab ? "Connected shots don't have end frames" : ""}
+              title={
+                isConnectedToNext 
+                  ? "End frame synced with next shot's start frame" 
+                  : shouldShowEndTab 
+                  ? "View end frame" 
+                  : ""
+              }
             >
-              End
+              End {isConnectedToNext && <span className="ml-1 text-[10px]">↻</span>}
             </button>
           </div>
         )}
@@ -634,30 +647,27 @@ function SortableShotCard({
                 variant="outline"
                 className="flex-1"
                 onClick={() => {
+                  const hasVideo = version?.videoUrl;
                   toast({
-                    title: "Video Generation",
-                    description: "Video generation will be implemented in the next phase with AI model integration (Kling/Veo/Runway).",
+                    title: hasVideo ? "Video Regeneration" : "Video Generation",
+                    description: hasVideo 
+                      ? "Video regeneration will be available after implementing the AI video generation pipeline."
+                      : "Video generation will be implemented in the next phase with AI model integration (Kling/Veo/Runway).",
                   });
                 }}
                 data-testid={`button-generate-video-${shot.id}`}
               >
-                <Video className="mr-2 h-3 w-3" />
-                Generate Video
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1"
-                onClick={() => {
-                  toast({
-                    title: "Video Regeneration",
-                    description: "Video regeneration will be available after implementing the AI video generation pipeline.",
-                  });
-                }}
-                data-testid={`button-regenerate-video-${shot.id}`}
-              >
-                <RefreshCw className="mr-2 h-3 w-3" />
-                Re-generate
+                {version?.videoUrl ? (
+                  <>
+                    <RefreshCw className="mr-2 h-3 w-3" />
+                    Regenerate
+                  </>
+                ) : (
+                  <>
+                    <Video className="mr-2 h-3 w-3" />
+                    Generate Video
+                  </>
+                )}
               </Button>
             </div>
           </TabsContent>
@@ -1279,6 +1289,10 @@ export function StoryboardEditor({
                           const isConnectedToNext = isShotConnectedToNext(scene.id, shotIndex);
                           const showEndFrame = isShotStandalone(scene.id, shotIndex);
                           const isPartOfConnection = isShotPartOfConnection(scene.id, shotIndex);
+                          
+                          // Get next shot's version for connected shots
+                          const nextShot = getNextConnectedShot(scene.id, shotIndex);
+                          const nextShotVersion = nextShot ? getShotVersion(nextShot) : null;
 
                           return (
                             <>
@@ -1289,6 +1303,7 @@ export function StoryboardEditor({
                                 sceneModel={scene.videoModel || VIDEO_MODELS[0]}
                                 sceneImageModel={scene.imageModel || IMAGE_MODELS[0]}
                                 version={version}
+                                nextShotVersion={nextShotVersion}
                                 referenceImage={referenceImage}
                                 isGenerating={isGenerating}
                                 voiceOverEnabled={voiceOverEnabled}

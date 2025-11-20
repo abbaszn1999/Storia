@@ -311,32 +311,45 @@ export const productionCampaigns = pgTable("production_campaigns", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
   name: text("name").notNull(),
-  conceptPrompt: text("concept_prompt").notNull(),
-  videoCount: integer("video_count").notNull(),
+  storyIdeas: text("story_ideas").array().notNull(), // Array of story ideas - each becomes one video
   status: text("status").default("draft").notNull(), // draft, generating_concepts, review, in_progress, paused, completed, cancelled
   automationMode: text("automation_mode").default("manual").notNull(), // manual (requires approval), auto (fully automated)
+  
+  // Narrative mode selection
+  narrativeMode: text("narrative_mode").notNull(), // image-reference or start-end-frame
   
   // Video settings
   aspectRatio: text("aspect_ratio").default("16:9").notNull(),
   duration: integer("duration").default(60).notNull(), // Target duration in seconds
   language: text("language").default("en").notNull(),
-  artStyle: text("art_style").notNull(),
+  artStyle: text("art_style"),
+  styleReferenceImageUrl: text("style_reference_image_url"), // User can provide style reference instead of art style
   tone: text("tone").notNull(),
   genre: text("genre").notNull(),
   targetAudience: text("target_audience"),
+  resolution: text("resolution").default("1080p").notNull(), // 720p, 1080p, 4k
+  
+  // AI generation toggles and settings
+  animateImages: boolean("animate_images").default(true).notNull(), // Whether to animate images with video model
+  hasVoiceOver: boolean("has_voice_over").default(true).notNull(),
+  hasSoundEffects: boolean("has_sound_effects").default(true).notNull(),
+  hasBackgroundMusic: boolean("has_background_music").default(true).notNull(),
   
   // Scheduling
   scheduleStartDate: timestamp("schedule_start_date"),
   scheduleEndDate: timestamp("schedule_end_date"),
+  preferredPublishHours: jsonb("preferred_publish_hours").default([]).notNull(), // Array of hours (0-23) or "AI" for AI-suggested
+  maxVideosPerDay: integer("max_videos_per_day").default(1).notNull(),
   distributionPattern: text("distribution_pattern").default("even").notNull(), // even, custom
   
   // Publishing
   selectedPlatforms: jsonb("selected_platforms").default([]).notNull(), // Array of platform IDs
   
-  // AI generation settings
-  scriptModel: text("script_model"),
+  // AI model settings
+  scripterModel: text("scripter_model"),
   imageModel: text("image_model"),
   videoModel: text("video_model"),
+  voiceModel: text("voice_model"),
   voiceActorId: text("voice_actor_id"),
   
   // Progress tracking

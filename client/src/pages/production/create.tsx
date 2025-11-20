@@ -1,74 +1,113 @@
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useState } from "react";
 import { useLocation } from "wouter";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { useMutation } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Sparkles } from "lucide-react";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { Sparkles, ArrowLeft, ArrowRight } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { WizardProgress } from "@/components/production/wizard-progress";
+import { Step1TypeSelection } from "@/components/production/step1-type-selection";
+import { Step2ModeSelection } from "@/components/production/step2-mode-selection";
+import { Step3CampaignBasics } from "@/components/production/step3-campaign-basics";
+import { Step4VideoSettings } from "@/components/production/step4-video-settings";
+import { Step5Casting } from "@/components/production/step5-casting";
+import { Step6Scheduling } from "@/components/production/step6-scheduling";
+import { Step7Publishing } from "@/components/production/step7-publishing";
 
-const formSchema = z.object({
-  name: z.string().min(1, "Campaign name is required"),
-  conceptPrompt: z.string().min(10, "Concept prompt must be at least 10 characters"),
-  videoCount: z.number().min(1).max(50),
-  automationMode: z.enum(["manual", "auto"]),
-  aspectRatio: z.string(),
-  duration: z.number(),
-  language: z.string(),
-  artStyle: z.string(),
-  tone: z.string(),
-  genre: z.string(),
-  targetAudience: z.string().optional(),
-  scheduleStartDate: z.date().optional(),
-  scheduleEndDate: z.date().optional(),
-  selectedPlatforms: z.array(z.string()),
-});
-
-type FormValues = z.infer<typeof formSchema>;
-
-const platforms = [
-  { id: "youtube", label: "YouTube" },
-  { id: "tiktok", label: "TikTok" },
-  { id: "instagram", label: "Instagram" },
-  { id: "facebook", label: "Facebook" },
+const wizardSteps = [
+  { number: 1, title: "Type" },
+  { number: 2, title: "Mode" },
+  { number: 3, title: "Basics" },
+  { number: 4, title: "Video Settings" },
+  { number: 5, title: "Casting" },
+  { number: 6, title: "Scheduling" },
+  { number: 7, title: "Publishing" },
 ];
 
 export default function ProductionCampaignCreate() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const [currentStep, setCurrentStep] = useState(1);
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: "",
-      conceptPrompt: "",
-      videoCount: 10,
-      automationMode: "manual",
-      aspectRatio: "16:9",
-      duration: 60,
-      language: "en",
-      artStyle: "Realistic",
-      tone: "Educational",
-      genre: "Educational",
-      targetAudience: "",
-      selectedPlatforms: [],
-    },
-  });
+  // Step 1: Type Selection
+  const [contentType, setContentType] = useState<"video" | "story">("video");
+
+  // Step 2: Mode Selection
+  const [narrativeMode, setNarrativeMode] = useState<"image-reference" | "start-end-frame">("image-reference");
+
+  // Step 3: Campaign Basics
+  const [campaignName, setCampaignName] = useState("");
+  const [storyIdeas, setStoryIdeas] = useState<string[]>([""]);
+  const [scripterModel, setScripterModel] = useState("gpt-4");
+
+  // Step 4: Video Settings
+  const [aspectRatio, setAspectRatio] = useState("16:9");
+  const [duration, setDuration] = useState(60);
+  const [language, setLanguage] = useState("en");
+  const [styleMode, setStyleMode] = useState<"preset" | "reference">("preset");
+  const [artStyle, setArtStyle] = useState("cinematic");
+  const [styleReferenceImageUrl, setStyleReferenceImageUrl] = useState("");
+  const [tone, setTone] = useState("dramatic");
+  const [genre, setGenre] = useState("action");
+  const [imageModel, setImageModel] = useState("imagen-4");
+  const [videoModel, setVideoModel] = useState("kling");
+  const [animateImages, setAnimateImages] = useState(true);
+  const [hasVoiceOver, setHasVoiceOver] = useState(true);
+  const [voiceModel, setVoiceModel] = useState("eleven-labs");
+  const [voiceActorId, setVoiceActorId] = useState("actor-1");
+  const [hasSoundEffects, setHasSoundEffects] = useState(true);
+  const [hasBackgroundMusic, setHasBackgroundMusic] = useState(true);
+  const [resolution, setResolution] = useState("1080p");
+  const [targetAudience, setTargetAudience] = useState("");
+
+  // Step 5: Casting
+  const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+
+  // Step 6: Scheduling
+  const [scheduleStartDate, setScheduleStartDate] = useState("");
+  const [scheduleEndDate, setScheduleEndDate] = useState("");
+  const [automationMode, setAutomationMode] = useState<"manual" | "auto">("manual");
+  const [publishHoursMode, setPublishHoursMode] = useState<"user" | "ai">("ai");
+  const [preferredPublishHours, setPreferredPublishHours] = useState<number[]>([]);
+  const [maxVideosPerDay, setMaxVideosPerDay] = useState(1);
+
+  // Step 7: Publishing
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
 
   const createCampaign = useMutation({
-    mutationFn: async (data: FormValues) => {
+    mutationFn: async () => {
+      const data = {
+        name: campaignName,
+        storyIdeas: storyIdeas.filter(idea => idea.trim() !== ""),
+        narrativeMode,
+        automationMode,
+        aspectRatio,
+        duration,
+        language,
+        artStyle: styleMode === "preset" ? artStyle : undefined,
+        styleReferenceImageUrl: styleMode === "reference" ? styleReferenceImageUrl : undefined,
+        tone,
+        genre,
+        targetAudience: targetAudience || undefined,
+        resolution,
+        animateImages,
+        hasVoiceOver,
+        hasSoundEffects,
+        hasBackgroundMusic,
+        scripterModel,
+        imageModel,
+        videoModel,
+        voiceModel: hasVoiceOver ? voiceModel : undefined,
+        voiceActorId: hasVoiceOver ? voiceActorId : undefined,
+        scheduleStartDate: scheduleStartDate || undefined,
+        scheduleEndDate: scheduleEndDate || undefined,
+        preferredPublishHours: publishHoursMode === "user" ? preferredPublishHours : ["AI"],
+        maxVideosPerDay,
+        selectedPlatforms,
+      };
+
       const res = await apiRequest("POST", "/api/production-campaigns", data);
       return await res.json();
     },
@@ -89,8 +128,154 @@ export default function ProductionCampaignCreate() {
     },
   });
 
-  const onSubmit = (data: FormValues) => {
-    createCampaign.mutate(data);
+  const handleNext = () => {
+    // Validation for each step
+    if (currentStep === 3 && (!campaignName || storyIdeas.filter(idea => idea.trim() !== "").length === 0)) {
+      toast({
+        title: "Validation Error",
+        description: "Please provide a campaign name and at least one story idea.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (currentStep === 6) {
+      const validIdeas = storyIdeas.filter(idea => idea.trim() !== "").length;
+      if (scheduleStartDate && scheduleEndDate && maxVideosPerDay > 0) {
+        const start = new Date(scheduleStartDate);
+        const end = new Date(scheduleEndDate);
+        const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const maxPossibleVideos = daysDiff * maxVideosPerDay;
+
+        if (maxPossibleVideos < validIdeas) {
+          toast({
+            title: "Validation Error",
+            description: `Cannot fit ${validIdeas} videos in ${daysDiff} days with max ${maxVideosPerDay} video(s) per day.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
+
+    if (currentStep < 7) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (selectedPlatforms.length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please select at least one publishing platform.",
+        variant: "destructive",
+      });
+      return;
+    }
+    createCampaign.mutate();
+  };
+
+  const renderStep = () => {
+    switch (currentStep) {
+      case 1:
+        return <Step1TypeSelection value={contentType} onChange={setContentType} />;
+      case 2:
+        return <Step2ModeSelection value={narrativeMode} onChange={setNarrativeMode} />;
+      case 3:
+        return (
+          <Step3CampaignBasics
+            campaignName={campaignName}
+            onCampaignNameChange={setCampaignName}
+            storyIdeas={storyIdeas}
+            onStoryIdeasChange={setStoryIdeas}
+            scripterModel={scripterModel}
+            onScripterModelChange={setScripterModel}
+          />
+        );
+      case 4:
+        return (
+          <Step4VideoSettings
+            aspectRatio={aspectRatio}
+            onAspectRatioChange={setAspectRatio}
+            duration={duration}
+            onDurationChange={setDuration}
+            language={language}
+            onLanguageChange={setLanguage}
+            styleMode={styleMode}
+            onStyleModeChange={setStyleMode}
+            artStyle={artStyle}
+            onArtStyleChange={setArtStyle}
+            styleReferenceImageUrl={styleReferenceImageUrl}
+            onStyleReferenceImageUrlChange={setStyleReferenceImageUrl}
+            tone={tone}
+            onToneChange={setTone}
+            genre={genre}
+            onGenreChange={setGenre}
+            imageModel={imageModel}
+            onImageModelChange={setImageModel}
+            videoModel={videoModel}
+            onVideoModelChange={setVideoModel}
+            animateImages={animateImages}
+            onAnimateImagesChange={setAnimateImages}
+            hasVoiceOver={hasVoiceOver}
+            onHasVoiceOverChange={setHasVoiceOver}
+            voiceModel={voiceModel}
+            onVoiceModelChange={setVoiceModel}
+            voiceActorId={voiceActorId}
+            onVoiceActorIdChange={setVoiceActorId}
+            hasSoundEffects={hasSoundEffects}
+            onHasSoundEffectsChange={setHasSoundEffects}
+            hasBackgroundMusic={hasBackgroundMusic}
+            onHasBackgroundMusicChange={setHasBackgroundMusic}
+            resolution={resolution}
+            onResolutionChange={setResolution}
+            targetAudience={targetAudience}
+            onTargetAudienceChange={setTargetAudience}
+          />
+        );
+      case 5:
+        return (
+          <Step5Casting
+            selectedCharacters={selectedCharacters}
+            onSelectedCharactersChange={setSelectedCharacters}
+            selectedLocations={selectedLocations}
+            onSelectedLocationsChange={setSelectedLocations}
+          />
+        );
+      case 6:
+        return (
+          <Step6Scheduling
+            scheduleStartDate={scheduleStartDate}
+            onScheduleStartDateChange={setScheduleStartDate}
+            scheduleEndDate={scheduleEndDate}
+            onScheduleEndDateChange={setScheduleEndDate}
+            automationMode={automationMode}
+            onAutomationModeChange={setAutomationMode}
+            publishHoursMode={publishHoursMode}
+            onPublishHoursModeChange={setPublishHoursMode}
+            preferredPublishHours={preferredPublishHours}
+            onPreferredPublishHoursChange={setPreferredPublishHours}
+            maxVideosPerDay={maxVideosPerDay}
+            onMaxVideosPerDayChange={setMaxVideosPerDay}
+            videoCount={storyIdeas.filter(idea => idea.trim() !== "").length}
+          />
+        );
+      case 7:
+        return (
+          <Step7Publishing
+            selectedPlatforms={selectedPlatforms}
+            onSelectedPlatformsChange={setSelectedPlatforms}
+          />
+        );
+      default:
+        return null;
+    }
   };
 
   return (
@@ -105,401 +290,39 @@ export default function ProductionCampaignCreate() {
         </p>
       </div>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <Card data-testid="card-campaign-basics">
-            <CardHeader>
-              <CardTitle>Campaign Basics</CardTitle>
-              <CardDescription>Define your campaign name and concept</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Campaign Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="My Video Campaign" {...field} data-testid="input-campaign-name" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+      <WizardProgress currentStep={currentStep} steps={wizardSteps} />
 
-              <FormField
-                control={form.control}
-                name="conceptPrompt"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Concept Prompt</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Describe the overall theme and topics for your video series. The AI will generate unique video concepts based on this prompt."
-                        rows={5}
-                        {...field}
-                        data-testid="textarea-concept-prompt"
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      The AI will use this to generate {form.watch("videoCount")} unique video concepts
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+      <Card>
+        <CardContent className="pt-6">
+          {renderStep()}
+        </CardContent>
+      </Card>
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="videoCount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Number of Videos</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={50}
-                          {...field}
-                          onChange={(e) => field.onChange(parseInt(e.target.value))}
-                          data-testid="input-video-count"
-                        />
-                      </FormControl>
-                      <FormDescription>1-50 videos</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+      <div className="flex justify-between">
+        <Button
+          variant="outline"
+          onClick={currentStep === 1 ? () => navigate("/production") : handleBack}
+          data-testid="button-back"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          {currentStep === 1 ? "Cancel" : "Back"}
+        </Button>
 
-                <FormField
-                  control={form.control}
-                  name="automationMode"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col gap-2">
-                      <FormLabel>Automation Mode</FormLabel>
-                      <div className="flex items-center gap-2">
-                        <FormControl>
-                          <Switch
-                            checked={field.value === "auto"}
-                            onCheckedChange={(checked) => field.onChange(checked ? "auto" : "manual")}
-                            data-testid="switch-automation-mode"
-                          />
-                        </FormControl>
-                        <span className="text-sm">{field.value === "auto" ? "Fully Automated" : "Manual Review"}</span>
-                      </div>
-                      <FormDescription>
-                        {field.value === "auto" ? "Videos will be generated and published automatically" : "Review each video before publishing"}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card data-testid="card-video-settings">
-            <CardHeader>
-              <CardTitle>Video Settings</CardTitle>
-              <CardDescription>Configure video format and style</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="aspectRatio"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Aspect Ratio</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-aspect-ratio">
-                            <SelectValue placeholder="Select ratio" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="16:9">16:9 (Landscape)</SelectItem>
-                          <SelectItem value="9:16">9:16 (Portrait)</SelectItem>
-                          <SelectItem value="1:1">1:1 (Square)</SelectItem>
-                          <SelectItem value="4:5">4:5 (Vertical)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="duration"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Duration</FormLabel>
-                      <Select onValueChange={(value) => field.onChange(parseInt(value))} defaultValue={field.value.toString()}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-duration">
-                            <SelectValue placeholder="Select duration" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="30">30 seconds</SelectItem>
-                          <SelectItem value="60">60 seconds</SelectItem>
-                          <SelectItem value="90">90 seconds</SelectItem>
-                          <SelectItem value="120">2 minutes</SelectItem>
-                          <SelectItem value="180">3 minutes</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="language"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Language</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-language">
-                            <SelectValue placeholder="Select language" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="en">English</SelectItem>
-                          <SelectItem value="es">Spanish</SelectItem>
-                          <SelectItem value="fr">French</SelectItem>
-                          <SelectItem value="de">German</SelectItem>
-                          <SelectItem value="ar">Arabic</SelectItem>
-                          <SelectItem value="zh">Chinese</SelectItem>
-                          <SelectItem value="ja">Japanese</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="artStyle"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Art Style</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-art-style">
-                            <SelectValue placeholder="Select style" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Realistic">Realistic</SelectItem>
-                          <SelectItem value="Cartoon">Cartoon</SelectItem>
-                          <SelectItem value="Anime">Anime</SelectItem>
-                          <SelectItem value="3D Animation">3D Animation</SelectItem>
-                          <SelectItem value="Minimalist">Minimalist</SelectItem>
-                          <SelectItem value="Watercolor">Watercolor</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="tone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tone</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-tone">
-                            <SelectValue placeholder="Select tone" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Educational">Educational</SelectItem>
-                          <SelectItem value="Entertaining">Entertaining</SelectItem>
-                          <SelectItem value="Inspirational">Inspirational</SelectItem>
-                          <SelectItem value="Dramatic">Dramatic</SelectItem>
-                          <SelectItem value="Humorous">Humorous</SelectItem>
-                          <SelectItem value="Professional">Professional</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="genre"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Genre</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-genre">
-                            <SelectValue placeholder="Select genre" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Educational">Educational</SelectItem>
-                          <SelectItem value="Tutorial">Tutorial</SelectItem>
-                          <SelectItem value="Storytelling">Storytelling</SelectItem>
-                          <SelectItem value="Documentary">Documentary</SelectItem>
-                          <SelectItem value="Marketing">Marketing</SelectItem>
-                          <SelectItem value="Entertainment">Entertainment</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="targetAudience"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Target Audience</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., Tech enthusiasts, Young professionals" {...field} data-testid="input-target-audience" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card data-testid="card-scheduling">
-            <CardHeader>
-              <CardTitle>Scheduling</CardTitle>
-              <CardDescription>Set up automated publishing schedule</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="scheduleStartDate"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Start Date</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              className={cn("justify-start text-left font-normal", !field.value && "text-muted-foreground")}
-                              data-testid="button-schedule-start-date"
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {field.value ? format(field.value, "PPP") : "Pick a date"}
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="scheduleEndDate"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>End Date</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              className={cn("justify-start text-left font-normal", !field.value && "text-muted-foreground")}
-                              data-testid="button-schedule-end-date"
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {field.value ? format(field.value, "PPP") : "Pick a date"}
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card data-testid="card-platforms">
-            <CardHeader>
-              <CardTitle>Publishing Platforms</CardTitle>
-              <CardDescription>Select where to publish your videos</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FormField
-                control={form.control}
-                name="selectedPlatforms"
-                render={() => (
-                  <FormItem>
-                    <div className="grid grid-cols-2 gap-4">
-                      {platforms.map((platform) => (
-                        <FormField
-                          key={platform.id}
-                          control={form.control}
-                          name="selectedPlatforms"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value?.includes(platform.id)}
-                                  onCheckedChange={(checked) => {
-                                    return checked
-                                      ? field.onChange([...field.value, platform.id])
-                                      : field.onChange(field.value?.filter((value) => value !== platform.id));
-                                  }}
-                                  data-testid={`checkbox-platform-${platform.id}`}
-                                />
-                              </FormControl>
-                              <FormLabel className="font-normal">{platform.label}</FormLabel>
-                            </FormItem>
-                          )}
-                        />
-                      ))}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-end gap-4">
-            <Button type="button" variant="outline" onClick={() => navigate("/production")} data-testid="button-cancel">
-              Cancel
-            </Button>
-            <Button type="submit" disabled={createCampaign.isPending} data-testid="button-create-campaign">
-              {createCampaign.isPending ? "Creating..." : "Create Campaign & Generate Concepts"}
-            </Button>
-          </div>
-        </form>
-      </Form>
+        {currentStep < 7 ? (
+          <Button onClick={handleNext} data-testid="button-next">
+            Next
+            <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
+        ) : (
+          <Button
+            onClick={handleSubmit}
+            disabled={createCampaign.isPending}
+            data-testid="button-create-campaign"
+          >
+            {createCampaign.isPending ? "Creating..." : "Create Campaign"}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

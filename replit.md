@@ -30,12 +30,20 @@ The platform follows a modular design with clear separation of concerns, support
 - **Multi-Workspace Architecture**: Supports managing separate social media integrations for different brands or clients within isolated workspaces.
 - **Publishing Flow**: Allows users to select platforms, handles connection status, uploads video with metadata, and supports immediate or scheduled publishing via a content calendar.
 - **Export Page**: Features final video preview at the top, displaying the latest version of the compiled video with export settings and platform metadata below.
-- **AI Production Campaign System**: Bulk video generation feature enabling users to create campaigns with AI-generated concepts, automated scheduling, and production management:
-    - **Campaign Creation**: Configure video count, aspect ratio, duration, language, art style, tone, genre, and target audience
+- **AI Production Campaign System**: Bulk video generation feature enabling users to create campaigns with story-based video production, automated scheduling, and production management:
+    - **Wizard-Style Creation**: 7-step guided workflow for campaign setup:
+        1. Type Selection (Narrative Video for MVP)
+        2. Mode Selection (Image-Reference vs Start-End Frame)
+        3. Campaign Basics (name, story ideas array, scripter model)
+        4. Video Settings (aspect ratio, duration, language, art style/reference image, tone, genre, AI models, voice settings, toggles, resolution, audience)
+        5. Casting (optional characters and locations)
+        6. Scheduling (dates, automation mode, publish hours, max videos/day with validation)
+        7. Publishing Platforms (workspace integrations)
+    - **Story-Based Production**: Each story idea becomes one video; campaign_videos are automatically created server-side from validated story ideas array
+    - **Backend Validation**: Enforces story ideas presence, scheduling constraints (date order, maxVideosPerDay > 0, capacity checks, publish hours 0-23)
     - **Automation Modes**: Manual (requires approval) or Auto (fully automated production)
-    - **Concept Generation**: AI analyzes prompts and generates structured video concepts with titles and descriptions
-    - **Review & Approval**: Drag-and-drop reordering, inline editing, and granular approve/reject controls per concept
-    - **Production Dashboard**: Live progress tracking with stats cards, video grid, and pause/resume/cancel controls
+    - **Production Dashboard**: Live progress tracking with stats cards, video grid, pause/resume/cancel controls, and collapsible settings view
+    - **Campaign History Tabs**: All, Active, Paused, History, Cancelled for organized campaign management
     - **Settings Isolation**: Mid-production settings updates affect upcoming videos only, completed videos remain unchanged
     - **Auto-Scheduling**: Even distribution of videos across specified date range for automated publishing
 
@@ -53,8 +61,8 @@ The platform follows a modular design with clear separation of concerns, support
 - `reference_images`: Character/location/style references.
 - `continuity_groups`: For connected shot sequences in Start-End Frame mode.
 - `workspace_integrations`: OAuth connections for social media publishing.
-- `production_campaigns`: AI production campaigns with settings, status, and progress tracking.
-- `campaign_videos`: Individual videos within campaigns with concept data and production status.
+- `production_campaigns`: AI production campaigns with comprehensive settings including storyIdeas array, AI model selections (scripter, image, video, voice), narrative mode, style references, voice settings, scheduling parameters (preferredPublishHours, maxVideosPerDay), status, and progress tracking.
+- `campaign_videos`: Individual videos within campaigns with concept data (derived from story ideas) and production status.
 
 ### AI Agent System
 A comprehensive system with 24 specialized agents (18 AI, 6 non-AI) supporting dual narrative modes. Agents handle tasks across text generation (Script Generator, Scene Analyzer), image generation (Character Image Generator, Storyboard Image Generator), video generation (Video Generator, Video Compositor), audio generation (Voiceover Synthesizer, Background Music Composer), vision & analysis, and platform publishing. Key agents include the Continuity Producer and Continuity Manager for Start-End Frame mode.

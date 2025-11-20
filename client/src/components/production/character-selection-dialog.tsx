@@ -19,6 +19,7 @@ interface Character {
   id: string;
   name: string;
   description?: string;
+  personality?: string;
   appearance?: string;
   thumbnailUrl?: string;
   referenceImages?: string[];
@@ -39,7 +40,7 @@ export function CharacterSelectionDialog({
 }: CharacterSelectionDialogProps) {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
-  const [newCharacter, setNewCharacter] = useState({ name: "", description: "", appearance: "" });
+  const [newCharacter, setNewCharacter] = useState({ name: "", description: "", personality: "", appearance: "" });
   const [characterReferenceImages, setCharacterReferenceImages] = useState<string[]>([]);
   const [generatedCharacterImage, setGeneratedCharacterImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -65,6 +66,7 @@ export function CharacterSelectionDialog({
           workspaceId,
           name: newCharacter.name,
           description: newCharacter.description,
+          personality: newCharacter.personality,
           appearance: newCharacter.appearance,
           thumbnailUrl: generatedCharacterImage || undefined,
           referenceImages: characterReferenceImages,
@@ -76,7 +78,7 @@ export function CharacterSelectionDialog({
     onSuccess: (newChar) => {
       queryClient.invalidateQueries({ queryKey: [`/api/characters?workspaceId=${workspaceId}`] });
       onSelectedCharactersChange([...selectedCharacterIds, newChar.id]);
-      setNewCharacter({ name: "", description: "", appearance: "" });
+      setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
       setCharacterReferenceImages([]);
       setGeneratedCharacterImage(null);
       toast({
@@ -264,8 +266,19 @@ export function CharacterSelectionDialog({
                     placeholder="Brief description of the character's role..."
                     value={newCharacter.description}
                     onChange={(e) => setNewCharacter({ ...newCharacter, description: e.target.value })}
-                    rows={3}
+                    rows={2}
                     data-testid="input-character-description"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="char-personality">Personality</Label>
+                  <Textarea
+                    id="char-personality"
+                    placeholder="Character traits, behavior, mannerisms..."
+                    value={newCharacter.personality}
+                    onChange={(e) => setNewCharacter({ ...newCharacter, personality: e.target.value })}
+                    rows={2}
+                    data-testid="input-character-personality"
                   />
                 </div>
                 <div className="space-y-2">
@@ -275,7 +288,7 @@ export function CharacterSelectionDialog({
                     placeholder="Physical appearance, clothing, distinctive features..."
                     value={newCharacter.appearance}
                     onChange={(e) => setNewCharacter({ ...newCharacter, appearance: e.target.value })}
-                    rows={3}
+                    rows={2}
                     data-testid="input-character-appearance"
                   />
                 </div>

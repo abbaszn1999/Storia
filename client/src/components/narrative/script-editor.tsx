@@ -185,35 +185,6 @@ export function ScriptEditor({ initialScript = "", aspectRatio = "16:9", scriptM
           </div>
         </Card>
 
-        {/* AI Model Selection */}
-        <div className="space-y-3">
-          <Label className="text-sm font-semibold">AI Model</Label>
-          <Select 
-            value={selectedModel} 
-            onValueChange={(value) => {
-              setSelectedModel(value);
-              onScriptModelChange?.(value);
-            }}
-          >
-            <SelectTrigger data-testid="select-ai-model">
-              <SelectValue placeholder="Select AI model" />
-            </SelectTrigger>
-            <SelectContent>
-              {AI_MODELS.map((model) => (
-                <SelectItem key={model.value} value={model.value} data-testid={`option-model-${model.value}`}>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-medium">{model.label}</span>
-                    <span className="text-xs text-muted-foreground">{model.description}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Selects the AI model for script generation and scene breakdown
-          </p>
-        </div>
-
         {/* Aspect Ratio */}
         <div className="space-y-3">
           <Label className="text-sm font-semibold">Aspect Ratio</Label>
@@ -319,6 +290,32 @@ export function ScriptEditor({ initialScript = "", aspectRatio = "16:9", scriptM
 
       {/* Right: Script Editor */}
       <div className="flex-1 flex flex-col gap-4">
+        {/* AI Model Selection */}
+        <div className="space-y-2">
+          <Label className="text-sm font-semibold">AI Model</Label>
+          <Select 
+            value={selectedModel} 
+            onValueChange={(value) => {
+              setSelectedModel(value);
+              onScriptModelChange?.(value);
+            }}
+          >
+            <SelectTrigger data-testid="select-ai-model">
+              <SelectValue placeholder="Select AI model" />
+            </SelectTrigger>
+            <SelectContent>
+              {AI_MODELS.map((model) => (
+                <SelectItem key={model.value} value={model.value} data-testid={`option-model-${model.value}`}>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">{model.label}</span>
+                    <span className="text-xs text-muted-foreground">{model.description}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Story Idea Input */}
         <div className="flex flex-col">
           <div className="flex items-center justify-between mb-2">

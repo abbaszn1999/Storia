@@ -194,21 +194,62 @@ export function SceneBreakdown({
       scenes.forEach((scene) => {
         const sceneShots = shots[scene.id] || [];
         if (sceneShots.length >= 2) {
-          // Create a simple continuity group proposal (first 2 shots connected)
-          const dummyGroup: ContinuityGroup = {
-            id: `group-${scene.id}-${Date.now()}`,
-            sceneId: scene.id,
-            groupNumber: 1,
-            shotIds: [sceneShots[0].id, sceneShots[1].id],
-            description: "AI detected continuous camera movement between these shots",
-            transitionType: "flow",
-            status: "proposed",
-            editedBy: null,
-            editedAt: null,
-            approvedAt: null,
-            createdAt: new Date(),
-          };
-          newGroups[scene.id] = [dummyGroup];
+          const sceneGroups: ContinuityGroup[] = [];
+          let groupNumber = 1;
+          let currentIndex = 0;
+          
+          // Create varied-length groups to demonstrate the arrow visualization
+          // Mix of 2-shot, 3-shot, 4-shot, and 5-shot sequences
+          while (currentIndex < sceneShots.length - 1) {
+            // Determine group size based on remaining shots and variation
+            const remainingShots = sceneShots.length - currentIndex;
+            let groupSize: number;
+            
+            if (remainingShots >= 5 && Math.random() > 0.6) {
+              groupSize = 5; // 40% chance for 5-shot sequence
+            } else if (remainingShots >= 4 && Math.random() > 0.5) {
+              groupSize = 4; // 50% chance for 4-shot sequence
+            } else if (remainingShots >= 3 && Math.random() > 0.4) {
+              groupSize = 3; // 60% chance for 3-shot sequence
+            } else {
+              groupSize = Math.min(2, remainingShots); // Default to 2-shot
+            }
+            
+            // Create group with the determined size
+            const groupShotIds = sceneShots
+              .slice(currentIndex, currentIndex + groupSize)
+              .map(s => s.id);
+            
+            const transitionTypes = ["flow", "zoom", "pan", "cut"] as const;
+            const descriptions = [
+              "AI detected continuous camera movement between these shots",
+              "Seamless transition with consistent lighting and perspective",
+              "Connected sequence with matching visual elements",
+              "Smooth flow maintaining spatial continuity"
+            ];
+            
+            const dummyGroup: ContinuityGroup = {
+              id: `group-${scene.id}-${groupNumber}-${Date.now()}`,
+              sceneId: scene.id,
+              groupNumber: groupNumber,
+              shotIds: groupShotIds,
+              description: descriptions[Math.floor(Math.random() * descriptions.length)],
+              transitionType: transitionTypes[Math.floor(Math.random() * transitionTypes.length)],
+              status: "proposed",
+              editedBy: null,
+              editedAt: null,
+              approvedAt: null,
+              createdAt: new Date(),
+            };
+            
+            sceneGroups.push(dummyGroup);
+            currentIndex += groupSize;
+            groupNumber++;
+          }
+          
+          if (sceneGroups.length > 0) {
+            newGroups[scene.id] = sceneGroups;
+          }
         }
       });
 

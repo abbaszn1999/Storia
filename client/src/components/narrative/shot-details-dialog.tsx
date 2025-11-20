@@ -1,6 +1,8 @@
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Clock, FileText } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Clock, FileText, Search } from "lucide-react";
 import type { Scene, Shot } from "@shared/schema";
 
 interface ShotDetailsDialogProps {
@@ -11,7 +13,33 @@ interface ShotDetailsDialogProps {
 }
 
 export function ShotDetailsDialog({ open, onOpenChange, scenes, shots }: ShotDetailsDialogProps) {
+  const [searchQuery, setSearchQuery] = useState("");
   const totalDuration = scenes.reduce((total, scene) => total + (scene.duration || 0), 0);
+
+  // Filter scenes and shots based on search query
+  const filteredScenes = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return scenes;
+    }
+
+    const query = searchQuery.toLowerCase();
+    
+    return scenes.filter((scene) => {
+      const sceneShots = shots[scene.id] || [];
+      
+      // Check if scene title or description matches
+      const sceneMatches = 
+        scene.title.toLowerCase().includes(query) ||
+        scene.description?.toLowerCase().includes(query);
+      
+      // Check if any shot narration matches
+      const shotMatches = sceneShots.some((shot) => 
+        shot.description?.toLowerCase().includes(query)
+      );
+      
+      return sceneMatches || shotMatches;
+    });
+  }, [scenes, shots, searchQuery]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -30,14 +58,31 @@ export function ShotDetailsDialog({ open, onOpenChange, scenes, shots }: ShotDet
           </DialogDescription>
         </DialogHeader>
         
+        {/* Search Input */}
+        <div className="relative mt-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search narration text..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+            data-testid="input-search-narration"
+          />
+        </div>
+        
         <div className="mt-4 space-y-6">
           {scenes.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">No scenes available</p>
             </div>
+          ) : filteredScenes.length === 0 ? (
+            <div className="text-center py-12">
+              <Search className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">No results found for "{searchQuery}"</p>
+            </div>
           ) : (
-            scenes.map((scene) => {
+            filteredScenes.map((scene) => {
               const sceneShots = shots[scene.id] || [];
               
               return (
@@ -74,9 +119,6 @@ export function ShotDetailsDialog({ open, onOpenChange, scenes, shots }: ShotDet
                             <Badge variant="outline" className="text-xs shrink-0">
                               Shot {shot.shotNumber}
                             </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {shot.shotType}
-                            </span>
                             {shot.duration && (
                               <div className="flex items-center gap-1 ml-auto text-xs text-muted-foreground">
                                 <Clock className="h-3 w-3" />

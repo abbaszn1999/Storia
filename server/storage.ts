@@ -184,7 +184,7 @@ export class MemStorage implements IStorage {
     const campaignId = "sample-campaign-1";
     const sampleCampaign: ProductionCampaign = {
       id: campaignId,
-      userId: "demo-user-1",
+      userId: "default-user",
       name: "Tech Explainer Series - Q1 2025",
       storyIdeas: [
         "The Future of AI in Healthcare: How Machine Learning is Revolutionizing Patient Care",

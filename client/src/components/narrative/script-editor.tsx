@@ -65,6 +65,7 @@ const ASPECT_RATIOS = [
 export function ScriptEditor({ initialScript = "", aspectRatio = "16:9", scriptModel = "gpt-4o", onScriptChange, onAspectRatioChange, onScriptModelChange, onNext }: ScriptEditorProps) {
   const [storyIdea, setStoryIdea] = useState("");
   const [generatedScript, setGeneratedScript] = useState(initialScript);
+  const [hasGeneratedOnce, setHasGeneratedOnce] = useState(!!initialScript);
   const [duration, setDuration] = useState("60");
   const [selectedAspectRatio, setSelectedAspectRatio] = useState(aspectRatio);
   const [selectedModel, setSelectedModel] = useState(scriptModel);
@@ -89,10 +90,11 @@ export function ScriptEditor({ initialScript = "", aspectRatio = "16:9", scriptM
     },
     onSuccess: (data: { script: string }) => {
       setGeneratedScript(data.script);
+      setHasGeneratedOnce(true);
       onScriptChange(data.script);
       toast({
         title: "Script Generated",
-        description: "Your story idea has been expanded into a full script.",
+        description: "Your story idea has been expanded into a full script. You can now edit it.",
       });
     },
     onError: () => {
@@ -371,10 +373,11 @@ export function ScriptEditor({ initialScript = "", aspectRatio = "16:9", scriptM
           </div>
           <Textarea
             id="generated-script"
-            placeholder="Your AI-generated script will appear here. You can edit it before continuing."
+            placeholder={hasGeneratedOnce ? "Edit your AI-generated script here..." : "Generate a script from your story idea first. The AI-generated script will appear here and you can edit it."}
             className="flex-1 resize-none font-mono text-sm"
             value={generatedScript}
             onChange={(e) => handleGeneratedScriptChange(e.target.value)}
+            disabled={!hasGeneratedOnce}
             data-testid="input-generated-script"
           />
         </div>

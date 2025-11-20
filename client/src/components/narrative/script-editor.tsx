@@ -290,41 +290,40 @@ export function ScriptEditor({ initialScript = "", aspectRatio = "16:9", scriptM
 
       {/* Right: Script Editor */}
       <div className="flex-1 flex flex-col gap-4">
-        {/* AI Model Selection */}
-        <div className="space-y-2">
-          <Label className="text-sm font-semibold">AI Model</Label>
-          <Select 
-            value={selectedModel} 
-            onValueChange={(value) => {
-              setSelectedModel(value);
-              onScriptModelChange?.(value);
-            }}
-          >
-            <SelectTrigger data-testid="select-ai-model">
-              <SelectValue placeholder="Select AI model" />
-            </SelectTrigger>
-            <SelectContent>
-              {AI_MODELS.map((model) => (
-                <SelectItem key={model.value} value={model.value} data-testid={`option-model-${model.value}`}>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-medium">{model.label}</span>
-                    <span className="text-xs text-muted-foreground">{model.description}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
         {/* Story Idea Input */}
         <div className="flex flex-col">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between gap-4 mb-2">
             <Label htmlFor="story-idea" className="text-sm font-semibold">
               Your Story Idea
             </Label>
-            <span className="text-xs text-muted-foreground">
-              {ideaCharCount} characters
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">
+                {ideaCharCount} characters
+              </span>
+              <Select 
+                value={selectedModel} 
+                onValueChange={(value) => {
+                  setSelectedModel(value);
+                  onScriptModelChange?.(value);
+                }}
+              >
+                <SelectTrigger className="w-[180px] h-8" data-testid="select-ai-model">
+                  <span className="text-sm">
+                    {AI_MODELS.find(m => m.value === selectedModel)?.label || "Select AI model"}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  {AI_MODELS.map((model) => (
+                    <SelectItem key={model.value} value={model.value} data-testid={`option-model-${model.value}`}>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-medium">{model.label}</span>
+                        <span className="text-xs text-muted-foreground">{model.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <Textarea
             id="story-idea"

@@ -9,6 +9,8 @@ import {
   type InsertStory,
   type Character,
   type InsertCharacter,
+  type Location,
+  type InsertLocation,
   type Voice,
   type InsertVoice,
   type Brandkit,
@@ -72,6 +74,9 @@ export interface IStorage {
   
   getCharactersByWorkspaceId(workspaceId: string): Promise<Character[]>;
   createCharacter(character: InsertCharacter): Promise<Character>;
+  
+  getLocationsByWorkspaceId(workspaceId: string): Promise<Location[]>;
+  createLocation(location: InsertLocation): Promise<Location>;
   
   getVoicesByWorkspaceId(workspaceId: string): Promise<Voice[]>;
   createVoice(voice: InsertVoice): Promise<Voice>;
@@ -138,6 +143,7 @@ export class MemStorage implements IStorage {
   private videos: Map<string, Video>;
   private stories: Map<string, Story>;
   private characters: Map<string, Character>;
+  private locations: Map<string, Location>;
   private voices: Map<string, Voice>;
   private brandkits: Map<string, Brandkit>;
   private uploads: Map<string, Upload>;
@@ -157,6 +163,7 @@ export class MemStorage implements IStorage {
     this.videos = new Map();
     this.stories = new Map();
     this.characters = new Map();
+    this.locations = new Map();
     this.voices = new Map();
     this.brandkits = new Map();
     this.uploads = new Map();
@@ -308,6 +315,25 @@ export class MemStorage implements IStorage {
     };
     this.characters.set(id, character);
     return character;
+  }
+
+  async getLocationsByWorkspaceId(workspaceId: string): Promise<Location[]> {
+    return Array.from(this.locations.values()).filter((l) => l.workspaceId === workspaceId);
+  }
+
+  async createLocation(insertLocation: InsertLocation): Promise<Location> {
+    const id = randomUUID();
+    const location: Location = {
+      ...insertLocation,
+      id,
+      description: insertLocation.description ?? null,
+      details: insertLocation.details ?? null,
+      thumbnailUrl: insertLocation.thumbnailUrl ?? null,
+      referenceImages: insertLocation.referenceImages ?? null,
+      createdAt: new Date(),
+    };
+    this.locations.set(id, location);
+    return location;
   }
 
   async getVoicesByWorkspaceId(workspaceId: string): Promise<Voice[]> {

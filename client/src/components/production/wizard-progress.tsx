@@ -9,9 +9,22 @@ interface WizardProgressProps {
 }
 
 export function WizardProgress({ currentStep, steps }: WizardProgressProps) {
+  const currentStepData = steps.find(s => s.number === currentStep);
+  
   return (
     <div className="w-full py-6">
-      <div className="flex items-center justify-between relative">
+      {/* Mobile: Show only current step */}
+      <div className="block md:hidden text-center">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <span className="text-sm text-muted-foreground">
+            Step {currentStep} of {steps.length}
+          </span>
+        </div>
+        <h3 className="text-lg font-semibold">{currentStepData?.title}</h3>
+      </div>
+
+      {/* Desktop: Show all steps */}
+      <div className="hidden md:flex items-center justify-between relative">
         {steps.map((step, index) => (
           <div key={step.number} className="flex flex-col items-center flex-1 relative">
             <div className="flex items-center w-full">

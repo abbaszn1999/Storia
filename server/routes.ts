@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import narrativeRoutes from "./modes/narrative/routes";
-import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertProductionCampaignSchema, insertCampaignVideoSchema } from "@shared/schema";
+import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertProductionCampaignSchema, insertCampaignVideoSchema, insertCharacterSchema, insertLocationSchema } from "@shared/schema";
 import { z } from "zod";
 
 // TODO: Replace with actual session-based authentication
@@ -490,6 +490,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching characters:', error);
       res.status(500).json({ error: 'Failed to fetch characters' });
+    }
+  });
+
+  app.post('/api/characters', async (req, res) => {
+    try {
+      const userId = getCurrentUserId(req);
+      const validated = insertCharacterSchema.parse(req.body);
+      
+      // Verify workspace belongs to user
+      const workspaces = await storage.getWorkspacesByUserId(userId);
+      const workspace = workspaces.find(w => w.id === validated.workspaceId);
+      if (!workspace) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
+      }
+
+      const character = await storage.createCharacter(validated);
+      res.json(character);
+    } catch (error) {
+      console.error('Error creating character:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation error', details: error.errors });
+      }
+      res.status(500).json({ error: 'Failed to create character' });
+    }
+  });
+
+  // Location routes
+  app.get('/api/locations', async (req, res) => {
+    try {
+      const workspaceId = req.query.workspaceId as string;
+      if (!workspaceId) {
+        return res.status(400).json({ error: 'workspaceId is required' });
+      }
+      const locations = await storage.getLocationsByWorkspaceId(workspaceId);
+      res.json(locations);
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      res.status(500).json({ error: 'Failed to fetch locations' });
+    }
+  });
+
+  app.post('/api/locations', async (req, res) => {
+    try {
+      const userId = getCurrentUserId(req);
+      const validated = insertLocationSchema.parse(req.body);
+      
+      // Verify workspace belongs to user
+      const workspaces = await storage.getWorkspacesByUserId(userId);
+      const workspace = workspaces.find(w => w.id === validated.workspaceId);
+      if (!workspace) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
+      }
+
+      const location = await storage.createLocation(validated);
+      res.json(location);
+    } catch (error) {
+      console.error('Error creating location:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation error', details: error.errors });
+      }
+      res.status(500).json({ error: 'Failed to create location' });
     }
   });
 

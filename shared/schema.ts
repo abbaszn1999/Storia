@@ -119,6 +119,17 @@ export const uploads = pgTable("uploads", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const locations = pgTable("locations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  details: text("details"),
+  thumbnailUrl: text("thumbnail_url"),
+  referenceImages: jsonb("reference_images"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const contentCalendar = pgTable("content_calendar", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
@@ -250,6 +261,11 @@ export const insertStorySceneSchema = createInsertSchema(storyScenes).omit({
 });
 
 export const insertCharacterSchema = createInsertSchema(characters).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertLocationSchema = createInsertSchema(locations).omit({
   id: true,
   createdAt: true,
 });
@@ -414,6 +430,8 @@ export type InsertStoryScene = z.infer<typeof insertStorySceneSchema>;
 export type StoryScene = typeof storyScenes.$inferSelect;
 export type InsertCharacter = z.infer<typeof insertCharacterSchema>;
 export type Character = typeof characters.$inferSelect;
+export type InsertLocation = z.infer<typeof insertLocationSchema>;
+export type Location = typeof locations.$inferSelect;
 export type InsertVoice = z.infer<typeof insertVoiceSchema>;
 export type Voice = typeof voices.$inferSelect;
 export type InsertBrandkit = z.infer<typeof insertBrandkitSchema>;

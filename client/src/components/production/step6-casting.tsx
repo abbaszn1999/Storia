@@ -7,9 +7,15 @@ import { CharacterSelectionDialog } from "./character-selection-dialog";
 import { LocationSelectionDialog } from "./location-selection-dialog";
 import { useQuery } from "@tanstack/react-query";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 
 interface Character {
+  id: string;
+  name: string;
+  description?: string;
+  thumbnailUrl?: string;
+}
+
+interface Location {
   id: string;
   name: string;
   description?: string;
@@ -20,7 +26,7 @@ interface Step6CastingProps {
   selectedCharacters: string[];
   onSelectedCharactersChange: (ids: string[]) => void;
   selectedLocations: string[];
-  onSelectedLocationsChange: (locations: string[]) => void;
+  onSelectedLocationsChange: (ids: string[]) => void;
 }
 
 export function Step6Casting({
@@ -35,6 +41,10 @@ export function Step6Casting({
   const workspaceId = "default-workspace";
   const { data: characters = [] } = useQuery<Character[]>({
     queryKey: [`/api/characters?workspaceId=${workspaceId}`],
+  });
+
+  const { data: locations = [] } = useQuery<Location[]>({
+    queryKey: [`/api/locations?workspaceId=${workspaceId}`],
   });
   return (
     <div className="space-y-6">
@@ -126,13 +136,29 @@ export function Step6Casting({
               </CardContent>
             </Card>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {selectedLocations.map((location) => (
-                <Badge key={location} variant="secondary" className="gap-1" data-testid={`badge-location-${location}`}>
-                  <MapPin className="h-3 w-3" />
-                  {location}
-                </Badge>
-              ))}
+            <div className="grid grid-cols-3 gap-4">
+              {selectedLocations.map((id) => {
+                const location = locations.find(l => l.id === id);
+                return (
+                  <Card key={id} data-testid={`card-location-${id}`}>
+                    <CardContent className="p-0 aspect-[4/3] relative overflow-hidden">
+                      <div className="h-full bg-muted flex items-center justify-center">
+                        {location?.thumbnailUrl ? (
+                          <img src={location.thumbnailUrl} alt={location.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <MapPin className="h-12 w-12 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                        <p className="text-sm font-semibold text-white">{location?.name || 'Loading...'}</p>
+                        {location?.description && (
+                          <p className="text-xs text-white/70 line-clamp-1">{location.description}</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
@@ -155,7 +181,7 @@ export function Step6Casting({
       <LocationSelectionDialog
         open={locationDialogOpen}
         onOpenChange={setLocationDialogOpen}
-        selectedLocations={selectedLocations}
+        selectedLocationIds={selectedLocations}
         onSelectedLocationsChange={onSelectedLocationsChange}
       />
     </div>

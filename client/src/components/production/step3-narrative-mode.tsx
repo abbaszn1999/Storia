@@ -1,12 +1,12 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Image, ArrowRightLeft } from "lucide-react";
 
-interface Step2ModeSelectionProps {
+interface Step3NarrativeModeProps {
   value: "image-reference" | "start-end-frame";
   onChange: (value: "image-reference" | "start-end-frame") => void;
 }
 
-export function Step2ModeSelection({ value, onChange }: Step2ModeSelectionProps) {
+export function Step3NarrativeMode({ value, onChange }: Step3NarrativeModeProps) {
   return (
     <div className="space-y-6">
       <div>

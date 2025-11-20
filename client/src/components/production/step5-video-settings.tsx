@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Upload } from "lucide-react";
 
-interface Step4VideoSettingsProps {
+interface Step5VideoSettingsProps {
   aspectRatio: string;
   onAspectRatioChange: (value: string) => void;
   duration: number;
@@ -45,7 +45,7 @@ interface Step4VideoSettingsProps {
   onTargetAudienceChange: (value: string) => void;
 }
 
-export function Step4VideoSettings(props: Step4VideoSettingsProps) {
+export function Step5VideoSettings(props: Step5VideoSettingsProps) {
   return (
     <div className="space-y-6">
       <div>

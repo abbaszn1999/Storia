@@ -315,8 +315,9 @@ export const productionCampaigns = pgTable("production_campaigns", {
   status: text("status").default("draft").notNull(), // draft, generating_concepts, review, in_progress, paused, completed, cancelled
   automationMode: text("automation_mode").default("manual").notNull(), // manual (requires approval), auto (fully automated)
   
-  // Narrative mode selection
-  narrativeMode: text("narrative_mode").notNull(), // image-reference or start-end-frame
+  // Video mode and narrative mode selection
+  videoMode: text("video_mode").default("narrative").notNull(), // narrative, character_vlog, video_podcast
+  narrativeMode: text("narrative_mode").notNull(), // image-reference or start-end-frame (only for narrative mode)
   
   // Video settings
   aspectRatio: text("aspect_ratio").default("16:9").notNull(),

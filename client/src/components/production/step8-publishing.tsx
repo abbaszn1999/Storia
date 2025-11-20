@@ -10,15 +10,15 @@ interface Platform {
   connected: boolean;
 }
 
-interface Step7PublishingProps {
+interface Step8PublishingProps {
   selectedPlatforms: string[];
   onSelectedPlatformsChange: (platforms: string[]) => void;
 }
 
-export function Step7Publishing({
+export function Step8Publishing({
   selectedPlatforms,
   onSelectedPlatformsChange,
-}: Step7PublishingProps) {
+}: Step8PublishingProps) {
   const platforms: Platform[] = [
     { id: "youtube", name: "YouTube", icon: SiYoutube, connected: false },
     { id: "tiktok", name: "TikTok", icon: SiTiktok, connected: false },

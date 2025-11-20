@@ -3,19 +3,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Plus, User, MapPin } from "lucide-react";
 
-interface Step5CastingProps {
+interface Step6CastingProps {
   selectedCharacters: string[];
   onSelectedCharactersChange: (ids: string[]) => void;
   selectedLocations: string[];
   onSelectedLocationsChange: (ids: string[]) => void;
 }
 
-export function Step5Casting({
+export function Step6Casting({
   selectedCharacters,
   onSelectedCharactersChange,
   selectedLocations,
   onSelectedLocationsChange,
-}: Step5CastingProps) {
+}: Step6CastingProps) {
   return (
     <div className="space-y-6">
       <div>

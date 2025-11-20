@@ -8,21 +8,23 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { WizardProgress } from "@/components/production/wizard-progress";
 import { Step1TypeSelection } from "@/components/production/step1-type-selection";
-import { Step2ModeSelection } from "@/components/production/step2-mode-selection";
-import { Step3CampaignBasics } from "@/components/production/step3-campaign-basics";
-import { Step4VideoSettings } from "@/components/production/step4-video-settings";
-import { Step5Casting } from "@/components/production/step5-casting";
-import { Step6Scheduling } from "@/components/production/step6-scheduling";
-import { Step7Publishing } from "@/components/production/step7-publishing";
+import { Step2VideoMode } from "@/components/production/step2-video-mode";
+import { Step3NarrativeMode } from "@/components/production/step3-narrative-mode";
+import { Step4CampaignBasics } from "@/components/production/step4-campaign-basics";
+import { Step5VideoSettings } from "@/components/production/step5-video-settings";
+import { Step6Casting } from "@/components/production/step6-casting";
+import { Step7Scheduling } from "@/components/production/step7-scheduling";
+import { Step8Publishing } from "@/components/production/step8-publishing";
 
 const wizardSteps = [
   { number: 1, title: "Type" },
-  { number: 2, title: "Mode" },
-  { number: 3, title: "Basics" },
-  { number: 4, title: "Video Settings" },
-  { number: 5, title: "Casting" },
-  { number: 6, title: "Scheduling" },
-  { number: 7, title: "Publishing" },
+  { number: 2, title: "Video Mode" },
+  { number: 3, title: "Narrative Mode" },
+  { number: 4, title: "Basics" },
+  { number: 5, title: "Video Settings" },
+  { number: 6, title: "Casting" },
+  { number: 7, title: "Scheduling" },
+  { number: 8, title: "Publishing" },
 ];
 
 export default function ProductionCampaignCreate() {
@@ -33,15 +35,18 @@ export default function ProductionCampaignCreate() {
   // Step 1: Type Selection
   const [contentType, setContentType] = useState<"video" | "story">("video");
 
-  // Step 2: Mode Selection
+  // Step 2: Video Mode Selection
+  const [videoMode, setVideoMode] = useState<string>("narrative");
+
+  // Step 3: Narrative Mode Selection
   const [narrativeMode, setNarrativeMode] = useState<"image-reference" | "start-end-frame">("image-reference");
 
-  // Step 3: Campaign Basics
+  // Step 4: Campaign Basics
   const [campaignName, setCampaignName] = useState("");
   const [storyIdeas, setStoryIdeas] = useState<string[]>([""]);
   const [scripterModel, setScripterModel] = useState("gpt-4");
 
-  // Step 4: Video Settings
+  // Step 5: Video Settings
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [duration, setDuration] = useState(60);
   const [language, setLanguage] = useState("en");
@@ -61,11 +66,11 @@ export default function ProductionCampaignCreate() {
   const [resolution, setResolution] = useState("1080p");
   const [targetAudience, setTargetAudience] = useState("");
 
-  // Step 5: Casting
+  // Step 6: Casting
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
 
-  // Step 6: Scheduling
+  // Step 7: Scheduling
   const [scheduleStartDate, setScheduleStartDate] = useState("");
   const [scheduleEndDate, setScheduleEndDate] = useState("");
   const [automationMode, setAutomationMode] = useState<"manual" | "auto">("manual");
@@ -73,7 +78,7 @@ export default function ProductionCampaignCreate() {
   const [preferredPublishHours, setPreferredPublishHours] = useState<number[]>([]);
   const [maxVideosPerDay, setMaxVideosPerDay] = useState(1);
 
-  // Step 7: Publishing
+  // Step 8: Publishing
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
 
   const createCampaign = useMutation({
@@ -130,7 +135,7 @@ export default function ProductionCampaignCreate() {
 
   const handleNext = () => {
     // Validation for each step
-    if (currentStep === 3 && (!campaignName || storyIdeas.filter(idea => idea.trim() !== "").length === 0)) {
+    if (currentStep === 4 && (!campaignName || storyIdeas.filter(idea => idea.trim() !== "").length === 0)) {
       toast({
         title: "Validation Error",
         description: "Please provide a campaign name and at least one story idea.",
@@ -139,7 +144,7 @@ export default function ProductionCampaignCreate() {
       return;
     }
 
-    if (currentStep === 6) {
+    if (currentStep === 7) {
       const validIdeas = storyIdeas.filter(idea => idea.trim() !== "").length;
       if (scheduleStartDate && scheduleEndDate && maxVideosPerDay > 0) {
         const start = new Date(scheduleStartDate);
@@ -158,7 +163,7 @@ export default function ProductionCampaignCreate() {
       }
     }
 
-    if (currentStep < 7) {
+    if (currentStep < 8) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -186,10 +191,12 @@ export default function ProductionCampaignCreate() {
       case 1:
         return <Step1TypeSelection value={contentType} onChange={setContentType} />;
       case 2:
-        return <Step2ModeSelection value={narrativeMode} onChange={setNarrativeMode} />;
+        return <Step2VideoMode videoMode={videoMode} onVideoModeChange={setVideoMode} />;
       case 3:
+        return <Step3NarrativeMode value={narrativeMode} onChange={setNarrativeMode} />;
+      case 4:
         return (
-          <Step3CampaignBasics
+          <Step4CampaignBasics
             campaignName={campaignName}
             onCampaignNameChange={setCampaignName}
             storyIdeas={storyIdeas}
@@ -198,9 +205,9 @@ export default function ProductionCampaignCreate() {
             onScripterModelChange={setScripterModel}
           />
         );
-      case 4:
+      case 5:
         return (
-          <Step4VideoSettings
+          <Step5VideoSettings
             aspectRatio={aspectRatio}
             onAspectRatioChange={setAspectRatio}
             duration={duration}
@@ -239,18 +246,18 @@ export default function ProductionCampaignCreate() {
             onTargetAudienceChange={setTargetAudience}
           />
         );
-      case 5:
+      case 6:
         return (
-          <Step5Casting
+          <Step6Casting
             selectedCharacters={selectedCharacters}
             onSelectedCharactersChange={setSelectedCharacters}
             selectedLocations={selectedLocations}
             onSelectedLocationsChange={setSelectedLocations}
           />
         );
-      case 6:
+      case 7:
         return (
-          <Step6Scheduling
+          <Step7Scheduling
             scheduleStartDate={scheduleStartDate}
             onScheduleStartDateChange={setScheduleStartDate}
             scheduleEndDate={scheduleEndDate}
@@ -266,9 +273,9 @@ export default function ProductionCampaignCreate() {
             videoCount={storyIdeas.filter(idea => idea.trim() !== "").length}
           />
         );
-      case 7:
+      case 8:
         return (
-          <Step7Publishing
+          <Step8Publishing
             selectedPlatforms={selectedPlatforms}
             onSelectedPlatformsChange={setSelectedPlatforms}
           />
@@ -308,7 +315,7 @@ export default function ProductionCampaignCreate() {
           {currentStep === 1 ? "Cancel" : "Back"}
         </Button>
 
-        {currentStep < 7 ? (
+        {currentStep < 8 ? (
           <Button onClick={handleNext} data-testid="button-next">
             Next
             <ArrowRight className="h-4 w-4 ml-2" />

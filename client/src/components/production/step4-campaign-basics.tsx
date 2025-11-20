@@ -5,7 +5,7 @@ import { Plus, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-interface Step3CampaignBasicsProps {
+interface Step4CampaignBasicsProps {
   campaignName: string;
   onCampaignNameChange: (value: string) => void;
   storyIdeas: string[];
@@ -14,14 +14,14 @@ interface Step3CampaignBasicsProps {
   onScripterModelChange: (value: string) => void;
 }
 
-export function Step3CampaignBasics({
+export function Step4CampaignBasics({
   campaignName,
   onCampaignNameChange,
   storyIdeas,
   onStoryIdeasChange,
   scripterModel,
   onScripterModelChange,
-}: Step3CampaignBasicsProps) {
+}: Step4CampaignBasicsProps) {
   const addStoryIdea = () => {
     onStoryIdeasChange([...storyIdeas, ""]);
   };

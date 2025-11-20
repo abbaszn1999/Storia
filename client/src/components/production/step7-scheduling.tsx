@@ -8,7 +8,7 @@ import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-interface Step6SchedulingProps {
+interface Step7SchedulingProps {
   scheduleStartDate: string;
   onScheduleStartDateChange: (value: string) => void;
   scheduleEndDate: string;
@@ -24,7 +24,7 @@ interface Step6SchedulingProps {
   videoCount: number;
 }
 
-export function Step6Scheduling({
+export function Step7Scheduling({
   scheduleStartDate,
   onScheduleStartDateChange,
   scheduleEndDate,
@@ -38,7 +38,7 @@ export function Step6Scheduling({
   maxVideosPerDay,
   onMaxVideosPerDayChange,
   videoCount,
-}: Step6SchedulingProps) {
+}: Step7SchedulingProps) {
   const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {

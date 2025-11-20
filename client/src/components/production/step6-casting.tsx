@@ -1,13 +1,26 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Plus, User, MapPin } from "lucide-react";
+import { useState } from "react";
+import { CharacterSelectionDialog } from "./character-selection-dialog";
+import { LocationSelectionDialog } from "./location-selection-dialog";
+import { useQuery } from "@tanstack/react-query";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+
+interface Character {
+  id: string;
+  name: string;
+  description?: string;
+  thumbnailUrl?: string;
+}
 
 interface Step6CastingProps {
   selectedCharacters: string[];
   onSelectedCharactersChange: (ids: string[]) => void;
   selectedLocations: string[];
-  onSelectedLocationsChange: (ids: string[]) => void;
+  onSelectedLocationsChange: (locations: string[]) => void;
 }
 
 export function Step6Casting({
@@ -16,6 +29,13 @@ export function Step6Casting({
   selectedLocations,
   onSelectedLocationsChange,
 }: Step6CastingProps) {
+  const [characterDialogOpen, setCharacterDialogOpen] = useState(false);
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false);
+
+  const workspaceId = "default-workspace";
+  const { data: characters = [] } = useQuery<Character[]>({
+    queryKey: [`/api/characters?workspaceId=${workspaceId}`],
+  });
   return (
     <div className="space-y-6">
       <div>
@@ -33,6 +53,7 @@ export function Step6Casting({
               type="button"
               variant="outline"
               size="sm"
+              onClick={() => setCharacterDialogOpen(true)}
               data-testid="button-add-character"
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -51,13 +72,31 @@ export function Step6Casting({
             </Card>
           ) : (
             <div className="grid grid-cols-3 gap-4">
-              {selectedCharacters.map((id) => (
-                <Card key={id} data-testid={`card-character-${id}`}>
-                  <CardContent className="p-4">
-                    <p className="font-medium">Character {id}</p>
-                  </CardContent>
-                </Card>
-              ))}
+              {selectedCharacters.map((id) => {
+                const character = characters.find(c => c.id === id);
+                return (
+                  <Card key={id} data-testid={`card-character-${id}`}>
+                    <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={character?.thumbnailUrl} alt={character?.name} />
+                        <AvatarFallback>
+                          <User className="h-5 w-5" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold truncate text-sm">{character?.name || 'Loading...'}</h4>
+                      </div>
+                    </CardHeader>
+                    {character?.description && (
+                      <CardContent className="pt-0">
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {character.description}
+                        </p>
+                      </CardContent>
+                    )}
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
@@ -69,10 +108,11 @@ export function Step6Casting({
               type="button"
               variant="outline"
               size="sm"
+              onClick={() => setLocationDialogOpen(true)}
               data-testid="button-add-location"
             >
               <Plus className="h-4 w-4 mr-2" />
-              Select Locations
+              Add Locations
             </Button>
           </div>
           
@@ -86,13 +126,12 @@ export function Step6Casting({
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-3 gap-4">
-              {selectedLocations.map((id) => (
-                <Card key={id} data-testid={`card-location-${id}`}>
-                  <CardContent className="p-4">
-                    <p className="font-medium">Location {id}</p>
-                  </CardContent>
-                </Card>
+            <div className="flex flex-wrap gap-2">
+              {selectedLocations.map((location) => (
+                <Badge key={location} variant="secondary" className="gap-1" data-testid={`badge-location-${location}`}>
+                  <MapPin className="h-3 w-3" />
+                  {location}
+                </Badge>
               ))}
             </div>
           )}
@@ -105,6 +144,20 @@ export function Step6Casting({
           automatically create appropriate characters and settings based on your story ideas.
         </p>
       </div>
+
+      <CharacterSelectionDialog
+        open={characterDialogOpen}
+        onOpenChange={setCharacterDialogOpen}
+        selectedCharacterIds={selectedCharacters}
+        onSelectedCharactersChange={onSelectedCharactersChange}
+      />
+
+      <LocationSelectionDialog
+        open={locationDialogOpen}
+        onOpenChange={setLocationDialogOpen}
+        selectedLocations={selectedLocations}
+        onSelectedLocationsChange={onSelectedLocationsChange}
+      />
     </div>
   );
 }

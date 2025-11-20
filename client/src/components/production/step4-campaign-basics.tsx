@@ -1,9 +1,11 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Upload } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useRef } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface Step4CampaignBasicsProps {
   campaignName: string;
@@ -22,6 +24,9 @@ export function Step4CampaignBasics({
   scripterModel,
   onScripterModelChange,
 }: Step4CampaignBasicsProps) {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const addStoryIdea = () => {
     onStoryIdeasChange([...storyIdeas, ""]);
   };
@@ -34,6 +39,81 @@ export function Step4CampaignBasics({
     const newIdeas = [...storyIdeas];
     newIdeas[index] = value;
     onStoryIdeasChange(newIdeas);
+  };
+
+  const handleCSVUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a CSV file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        const lines = text.split('\n').map(line => line.trim()).filter(line => line);
+        
+        // Remove header if it exists (looks like "Story Ideas" or similar)
+        const ideas = lines[0].toLowerCase().includes('story') || lines[0].toLowerCase().includes('idea')
+          ? lines.slice(1)
+          : lines;
+        
+        const filteredIdeas = ideas.filter(idea => idea.length > 0);
+        
+        if (filteredIdeas.length === 0) {
+          toast({
+            title: "No ideas found",
+            description: "The CSV file appears to be empty",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Replace empty ideas with CSV ideas and append remaining ones
+        const updatedIdeas = [...storyIdeas];
+        let csvIndex = 0;
+        
+        // First, fill empty slots with CSV ideas
+        for (let i = 0; i < updatedIdeas.length && csvIndex < filteredIdeas.length; i++) {
+          if (!updatedIdeas[i].trim()) {
+            updatedIdeas[i] = filteredIdeas[csvIndex];
+            csvIndex++;
+          }
+        }
+        
+        // Then append any remaining CSV ideas
+        while (csvIndex < filteredIdeas.length) {
+          updatedIdeas.push(filteredIdeas[csvIndex]);
+          csvIndex++;
+        }
+        
+        onStoryIdeasChange(updatedIdeas);
+        
+        toast({
+          title: "CSV imported successfully",
+          description: `Imported ${filteredIdeas.length} story ${filteredIdeas.length === 1 ? 'idea' : 'ideas'}`,
+        });
+      } catch (error) {
+        toast({
+          title: "Error parsing CSV",
+          description: "Failed to read the CSV file",
+          variant: "destructive",
+        });
+      }
+    };
+    reader.readAsText(file);
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   return (
@@ -76,19 +156,39 @@ export function Step4CampaignBasics({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label>Story Ideas ({storyIdeas.length})</Label>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addStoryIdea}
-              data-testid="button-add-story-idea"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Idea
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                data-testid="button-upload-csv"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Upload CSV
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addStoryIdea}
+                data-testid="button-add-story-idea"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Idea
+              </Button>
+            </div>
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            onChange={handleCSVUpload}
+            className="hidden"
+            data-testid="input-csv-file"
+          />
           <p className="text-sm text-muted-foreground">
-            Each story idea will generate one video in your campaign
+            Each story idea will generate one video in your campaign. Upload a CSV file with one idea per line.
           </p>
 
           <div className="space-y-3 mt-4">

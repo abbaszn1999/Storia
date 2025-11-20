@@ -179,6 +179,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const campaign = await storage.createCampaign(validatedData);
+      
+      // Automatically create campaign_videos from story ideas
+      const storyIdeas = validatedData.storyIdeas || [];
+      for (let i = 0; i < storyIdeas.length; i++) {
+        await storage.createCampaignVideo({
+          campaignId: campaign.id,
+          title: `${campaign.name} - Video ${i + 1}`,
+          conceptDescription: storyIdeas[i],
+          orderIndex: i,
+          status: 'pending',
+        });
+      }
+      
       res.json(campaign);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -228,8 +241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateSchema = z.object({
         name: z.string().min(1).optional(),
         status: z.string().optional(),
-        conceptPrompt: z.string().optional(),
-        videoCount: z.number().min(1).max(50).optional(),
+        storyIdeas: z.array(z.string()).optional(),
         automationMode: z.enum(['manual', 'auto']).optional(),
         aspectRatio: z.string().optional(),
         duration: z.number().optional(),
@@ -316,23 +328,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update campaign status to generating_concepts
       await storage.updateCampaign(id, { status: 'generating_concepts' });
 
-      // Generate mock concepts (in production, this would call AI service)
-      const concepts = [];
-      for (let i = 0; i < campaign.videoCount; i++) {
-        const concept = await storage.createCampaignVideo({
-          campaignId: id,
-          title: `${campaign.name} - Video ${i + 1}`,
-          conceptDescription: `AI-generated concept for video ${i + 1} based on: ${campaign.conceptPrompt}`,
-          orderIndex: i,
-          status: 'pending',
-        });
-        concepts.push(concept);
-      }
+      // Get existing campaign videos (already created from story ideas)
+      const videos = await storage.getCampaignVideos(id);
 
       // Update campaign status to review
       await storage.updateCampaign(id, { status: 'review' });
 
-      res.json({ success: true, concepts });
+      res.json({ success: true, concepts: videos });
     } catch (error) {
       console.error('Error generating concepts:', error);
       res.status(500).json({ error: 'Failed to generate concepts' });

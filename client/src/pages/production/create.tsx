@@ -86,6 +86,7 @@ export default function ProductionCampaignCreate() {
       const data = {
         name: campaignName,
         storyIdeas: storyIdeas.filter(idea => idea.trim() !== ""),
+        videoMode,
         narrativeMode,
         automationMode,
         aspectRatio,

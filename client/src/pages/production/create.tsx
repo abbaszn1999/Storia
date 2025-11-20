@@ -98,7 +98,7 @@ export default function ProductionCampaignCreate() {
       <div>
         <h1 className="text-3xl font-display font-bold flex items-center gap-2">
           <Sparkles className="h-8 w-8 text-primary" />
-          Create AI Production Campaign
+          Create Auto Production Campaign
         </h1>
         <p className="text-muted-foreground mt-2">
           Set up an automated video production campaign powered by AI

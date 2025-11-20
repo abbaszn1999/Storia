@@ -15,9 +15,9 @@ export default function ProductionCampaigns() {
     queryKey: ["/api/production-campaigns"],
   });
 
-  const activeCampaigns = campaigns.filter((c) => c.status === "in_progress" || c.status === "review" || c.status === "generating_concepts");
+  const activeCampaigns = campaigns.filter((c) => c.status === "in_progress" || c.status === "review" || c.status === "generating_concepts" || c.status === "paused");
   const completedCampaigns = campaigns.filter((c) => c.status === "completed");
-  const draftCampaigns = campaigns.filter((c) => c.status === "draft" || c.status === "paused" || c.status === "cancelled");
+  const cancelledCampaigns = campaigns.filter((c) => c.status === "cancelled" || c.status === "draft");
 
   if (isLoading) {
     return (
@@ -93,7 +93,7 @@ export default function ProductionCampaigns() {
         <div>
           <h1 className="text-3xl font-display font-bold flex items-center gap-2">
             <Sparkles className="h-8 w-8 text-primary" />
-            AI Production Campaigns
+            Auto Production Campaigns
           </h1>
           <p className="text-muted-foreground mt-2">Automate your video production at scale</p>
         </div>
@@ -103,18 +103,42 @@ export default function ProductionCampaigns() {
         </Button>
       </div>
 
-      <Tabs defaultValue="active" data-testid="tabs-campaigns">
+      <Tabs defaultValue="all" data-testid="tabs-campaigns">
         <TabsList>
+          <TabsTrigger value="all" data-testid="tab-all">
+            All ({campaigns.length})
+          </TabsTrigger>
           <TabsTrigger value="active" data-testid="tab-active">
             Active ({activeCampaigns.length})
           </TabsTrigger>
           <TabsTrigger value="history" data-testid="tab-history">
             History ({completedCampaigns.length})
           </TabsTrigger>
-          <TabsTrigger value="drafts" data-testid="tab-drafts">
-            Drafts ({draftCampaigns.length})
+          <TabsTrigger value="cancelled" data-testid="tab-cancelled">
+            Cancelled ({cancelledCampaigns.length})
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="all" className="mt-6">
+          {campaigns.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16">
+                <Sparkles className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-4">No campaigns yet</p>
+                <Button onClick={() => navigate("/production/new")} data-testid="button-create-first">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Your First Campaign
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-3 gap-6">
+              {campaigns.map((campaign) => (
+                <CampaignCard key={campaign.id} campaign={campaign} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
 
         <TabsContent value="active" className="mt-6">
           {activeCampaigns.length === 0 ? (
@@ -122,7 +146,7 @@ export default function ProductionCampaigns() {
               <CardContent className="flex flex-col items-center justify-center py-16">
                 <Sparkles className="h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground mb-4">No active campaigns</p>
-                <Button onClick={() => navigate("/production/new")} data-testid="button-create-first">
+                <Button onClick={() => navigate("/production/new")} data-testid="button-create-first-active">
                   <Plus className="h-4 w-4 mr-2" />
                   Create Your First Campaign
                 </Button>
@@ -153,16 +177,16 @@ export default function ProductionCampaigns() {
           )}
         </TabsContent>
 
-        <TabsContent value="drafts" className="mt-6">
-          {draftCampaigns.length === 0 ? (
+        <TabsContent value="cancelled" className="mt-6">
+          {cancelledCampaigns.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-16">
-                <p className="text-muted-foreground">No draft campaigns</p>
+                <p className="text-muted-foreground">No cancelled campaigns</p>
               </CardContent>
             </Card>
           ) : (
             <div className="grid grid-cols-3 gap-6">
-              {draftCampaigns.map((campaign) => (
+              {cancelledCampaigns.map((campaign) => (
                 <CampaignCard key={campaign.id} campaign={campaign} />
               ))}
             </div>

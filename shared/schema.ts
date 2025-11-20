@@ -306,7 +306,7 @@ export const insertWorkspaceIntegrationSchema = createInsertSchema(workspaceInte
   createdAt: true,
 });
 
-// AI Production Campaign tables
+// Auto Production Campaign tables
 export const productionCampaigns = pgTable("production_campaigns", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),

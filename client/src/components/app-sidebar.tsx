@@ -35,7 +35,6 @@ const assetNavItems = [
 
 const productionNavItems = [
   { title: "New Campaign", url: "/production/new", icon: Plus },
-  { title: "Active Campaigns", url: "/production", icon: TrendingUp },
   { title: "Campaign History", url: "/production", icon: Archive },
 ];
 
@@ -80,7 +79,7 @@ export function AppSidebar() {
               <CollapsibleTrigger className="flex w-full items-center justify-between hover-elevate active-elevate-2 rounded-md px-2 py-1.5" data-testid="button-toggle-production">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
-                  AI Production
+                  Auto Production
                 </div>
                 <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=closed]/production:-rotate-90" />
               </CollapsibleTrigger>

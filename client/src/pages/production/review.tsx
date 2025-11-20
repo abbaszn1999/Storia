@@ -230,7 +230,7 @@ export default function ProductionCampaignReview() {
       <Card data-testid="card-campaign-info">
         <CardHeader>
           <CardTitle>Campaign Overview</CardTitle>
-          <CardDescription>{campaign.conceptPrompt}</CardDescription>
+          <CardDescription>{campaign.storyIdeas.length} video concepts based on your story ideas</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-4 gap-4 text-sm">
@@ -248,7 +248,9 @@ export default function ProductionCampaignReview() {
             </div>
             <div>
               <div className="text-muted-foreground">Art Style</div>
-              <div className="font-semibold">{campaign.artStyle}</div>
+              <div className="font-semibold">
+                {campaign.artStyle || (campaign.styleReferenceImageUrl ? "Reference Image" : "Not set")}
+              </div>
             </div>
           </div>
         </CardContent>

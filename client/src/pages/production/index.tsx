@@ -54,14 +54,18 @@ export default function ProductionCampaigns() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground line-clamp-2">{campaign.conceptPrompt}</p>
+        <p className="text-sm text-muted-foreground line-clamp-2">
+          {campaign.storyIdeas && campaign.storyIdeas.length > 0 
+            ? `${campaign.storyIdeas.length} story ${campaign.storyIdeas.length === 1 ? 'idea' : 'ideas'}` 
+            : "No story ideas"}
+        </p>
         
         <div className="grid grid-cols-3 gap-4 text-sm">
           <div>
             <div className="text-muted-foreground">Videos</div>
             <div className="font-semibold flex items-center gap-1">
               <Video className="h-3 w-3" />
-              {campaign.videosGenerated}/{campaign.videoCount}
+              {campaign.videosGenerated}/{campaign.storyIdeas.length}
             </div>
           </div>
           <div>

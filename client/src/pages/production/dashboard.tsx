@@ -95,7 +95,11 @@ export default function ProductionCampaignDashboard() {
               {campaign.status}
             </Badge>
           </h1>
-          <p className="text-muted-foreground mt-2">{campaign.conceptPrompt}</p>
+          <p className="text-muted-foreground mt-2">
+            {campaign.storyIdeas && campaign.storyIdeas.length > 0 
+              ? `${campaign.storyIdeas.length} story ${campaign.storyIdeas.length === 1 ? 'idea' : 'ideas'} / videos` 
+              : "No story ideas"}
+          </p>
         </div>
         <div className="flex gap-2">
           {campaign.status === "in_progress" ? (
@@ -200,15 +204,17 @@ export default function ProductionCampaignDashboard() {
                 </div>
                 <div>
                   <div className="text-muted-foreground">Art Style</div>
-                  <div className="font-semibold">{campaign.artStyle}</div>
+                  <div className="font-semibold">
+                    {campaign.artStyle || (campaign.styleReferenceImageUrl ? "Reference Image" : "Not set")}
+                  </div>
                 </div>
                 <div>
                   <div className="text-muted-foreground">Tone</div>
-                  <div className="font-semibold">{campaign.tone}</div>
+                  <div className="font-semibold">{campaign.tone || "Not set"}</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground">Genre</div>
-                  <div className="font-semibold">{campaign.genre}</div>
+                  <div className="font-semibold">{campaign.genre || "Not set"}</div>
                 </div>
               </div>
             </CardContent>

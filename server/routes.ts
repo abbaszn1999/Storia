@@ -173,6 +173,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/production-campaigns', async (req, res) => {
     try {
       const userId = getCurrentUserId(req);
+      
+      // Additional validation beyond schema
+      const storyIdeas = req.body.storyIdeas;
+      if (!storyIdeas || !Array.isArray(storyIdeas) || storyIdeas.length === 0) {
+        return res.status(400).json({ error: 'At least one story idea is required' });
+      }
+      
+      // Validate scheduling constraints if provided
+      if (req.body.scheduleStartDate && req.body.scheduleEndDate) {
+        const start = new Date(req.body.scheduleStartDate);
+        const end = new Date(req.body.scheduleEndDate);
+        if (end < start) {
+          return res.status(400).json({ error: 'End date must be after start date' });
+        }
+        
+        const maxVideosPerDay = req.body.maxVideosPerDay || 1;
+        if (maxVideosPerDay <= 0) {
+          return res.status(400).json({ error: 'Max videos per day must be greater than 0' });
+        }
+        
+        const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const maxPossibleVideos = daysDiff * maxVideosPerDay;
+        if (maxPossibleVideos < storyIdeas.length) {
+          return res.status(400).json({ 
+            error: `Cannot fit ${storyIdeas.length} videos in ${daysDiff} days with max ${maxVideosPerDay} video(s) per day` 
+          });
+        }
+      }
+      
+      // Validate publish hours if provided
+      if (req.body.preferredPublishHours && Array.isArray(req.body.preferredPublishHours)) {
+        const hours = req.body.preferredPublishHours.filter((h: any) => typeof h === 'number');
+        const invalidHours = hours.filter((h: number) => h < 0 || h > 23);
+        if (invalidHours.length > 0) {
+          return res.status(400).json({ error: 'Publish hours must be between 0 and 23' });
+        }
+      }
+      
       const validatedData = insertProductionCampaignSchema.parse({
         ...req.body,
         userId,
@@ -180,8 +218,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const campaign = await storage.createCampaign(validatedData);
       
-      // Automatically create campaign_videos from story ideas
-      const storyIdeas = validatedData.storyIdeas || [];
+      // Automatically create campaign_videos from story ideas (server-side derivation)
       for (let i = 0; i < storyIdeas.length; i++) {
         await storage.createCampaignVideo({
           campaignId: campaign.id,

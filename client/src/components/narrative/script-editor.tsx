@@ -307,8 +307,8 @@ export function ScriptEditor({ initialScript = "", aspectRatio = "16:9", scriptM
                   onScriptModelChange?.(value);
                 }}
               >
-                <SelectTrigger className="w-[180px] h-8" data-testid="select-ai-model">
-                  <span className="text-sm">
+                <SelectTrigger className="w-[180px] h-8 px-3" data-testid="select-ai-model">
+                  <span className="text-sm truncate">
                     {AI_MODELS.find(m => m.value === selectedModel)?.label || "Select AI model"}
                   </span>
                 </SelectTrigger>

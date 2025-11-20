@@ -15,7 +15,8 @@ export default function ProductionCampaigns() {
     queryKey: ["/api/production-campaigns"],
   });
 
-  const activeCampaigns = campaigns.filter((c) => c.status === "in_progress" || c.status === "review" || c.status === "generating_concepts" || c.status === "paused");
+  const activeCampaigns = campaigns.filter((c) => c.status === "in_progress" || c.status === "review" || c.status === "generating_concepts");
+  const pausedCampaigns = campaigns.filter((c) => c.status === "paused");
   const completedCampaigns = campaigns.filter((c) => c.status === "completed");
   const cancelledCampaigns = campaigns.filter((c) => c.status === "cancelled" || c.status === "draft");
 
@@ -111,6 +112,9 @@ export default function ProductionCampaigns() {
           <TabsTrigger value="active" data-testid="tab-active">
             Active ({activeCampaigns.length})
           </TabsTrigger>
+          <TabsTrigger value="paused" data-testid="tab-paused">
+            Paused ({pausedCampaigns.length})
+          </TabsTrigger>
           <TabsTrigger value="history" data-testid="tab-history">
             History ({completedCampaigns.length})
           </TabsTrigger>
@@ -155,6 +159,22 @@ export default function ProductionCampaigns() {
           ) : (
             <div className="grid grid-cols-3 gap-6">
               {activeCampaigns.map((campaign) => (
+                <CampaignCard key={campaign.id} campaign={campaign} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="paused" className="mt-6">
+          {pausedCampaigns.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16">
+                <p className="text-muted-foreground">No paused campaigns</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-3 gap-6">
+              {pausedCampaigns.map((campaign) => (
                 <CampaignCard key={campaign.id} campaign={campaign} />
               ))}
             </div>

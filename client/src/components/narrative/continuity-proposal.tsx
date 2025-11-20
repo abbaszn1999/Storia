@@ -158,156 +158,103 @@ export function ContinuityProposal({
     );
   };
 
+  // Show the generate button when there are no proposals
   if (totalProposedGroups === 0 && totalApprovedGroups === 0 && !isGenerating) {
     return (
-      <Card className="border-2 border-dashed border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
-        <CardContent className="p-8">
-          <div className="flex flex-col items-center justify-center text-center space-y-4">
-            <div className="p-4 rounded-full bg-gradient-storia">
-              <Sparkles className="h-8 w-8 text-white" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold">Generate Continuity Proposal</h3>
-              <p className="text-muted-foreground max-w-md">
-                Let AI analyze all {totalShots} shots across {scenes.length} scene{scenes.length !== 1 ? 's' : ''} and suggest which ones should connect seamlessly for cinematic flow
-              </p>
-            </div>
-            <Button onClick={onGenerateProposal} className="bg-gradient-storia" data-testid="button-generate-continuity">
-              <Sparkles className="h-4 w-4 mr-2" />
-              Analyze All Shots for Continuity
-            </Button>
+      <div className="flex items-center justify-between p-4 bg-card/30 rounded-lg border border-dashed border-primary/30">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-gradient-storia">
+            <Sparkles className="h-5 w-5 text-white" />
           </div>
-        </CardContent>
-      </Card>
+          <div>
+            <p className="text-sm font-medium">Ready to analyze shot continuity</p>
+            <p className="text-xs text-muted-foreground">
+              AI will suggest which shots should connect seamlessly across {scenes.length} scene{scenes.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+        </div>
+        <Button onClick={onGenerateProposal} className="bg-gradient-storia" data-testid="button-generate-continuity">
+          <Sparkles className="h-4 w-4 mr-2" />
+          Analyze All Shots for Continuity
+        </Button>
+      </div>
     );
   }
 
+  // Show loading state while generating
   if (isGenerating) {
     return (
-      <Card>
-        <CardContent className="p-8">
-          <div className="flex flex-col items-center justify-center space-y-4">
-            <div className="animate-spin">
-              <Sparkles className="h-8 w-8 text-primary" />
-            </div>
-            <p className="text-muted-foreground">Analyzing shot continuity...</p>
+      <div className="flex items-center justify-center p-6 bg-card/30 rounded-lg">
+        <div className="flex items-center gap-3">
+          <div className="animate-spin">
+            <Sparkles className="h-5 w-5 text-primary" />
           </div>
-        </CardContent>
-      </Card>
+          <p className="text-sm text-muted-foreground">Analyzing shot continuity...</p>
+        </div>
+      </div>
     );
   }
 
+  // Show status bar when proposals exist or are approved
   return (
-    <div className="space-y-6">
-      {/* Alert for review */}
+    <div className="space-y-4">
+      {/* Review alert for proposed connections */}
       {!isLocked && totalProposedGroups > 0 && (
         <Alert className="border-primary/50 bg-primary/5">
           <AlertTriangle className="h-4 w-4 text-primary" />
           <AlertDescription>
-            <strong>Review Required:</strong> AI has proposed continuity connections across all scenes. 
-            Review and approve/decline individual groups to lock the continuity before proceeding to storyboard generation.
+            <strong>Review Required:</strong> AI has proposed continuity connections. 
+            Review the arrows in the shot list below and approve or decline each connection.
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Approved Groups Section (always visible when there are approved groups) */}
-      {totalApprovedGroups > 0 && (
-        <Card className="border-green-500/50 bg-green-500/5">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-green-500">
-                  <Check className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <CardTitle>Approved Continuity Groups</CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {totalApprovedGroups} group{totalApprovedGroups !== 1 ? 's' : ''} approved and locked
-                  </p>
-                </div>
+      {/* Status bar showing approved and pending connections */}
+      {(totalProposedGroups > 0 || totalApprovedGroups > 0) && (
+        <div className="flex items-center justify-between p-4 bg-card/30 rounded-lg border">
+          <div className="flex items-center gap-6">
+            {totalApprovedGroups > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-green-500" />
+                <span className="text-sm">
+                  <span className="font-medium text-green-600 dark:text-green-400">{totalApprovedGroups}</span> approved
+                </span>
               </div>
-              {isLocked && (
-                <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
-                  <Lock className="h-3 w-3 mr-1" />
-                  Locked
-                </Badge>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {scenes.map((scene) => {
-              const sceneGroups = approvedGroups[scene.id] || [];
-              if (sceneGroups.length === 0) return null;
-
-              return (
-                <div key={scene.id} className="space-y-3">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Badge variant="outline" className="font-semibold">{scene.title}</Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {sceneGroups.length} group{sceneGroups.length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  {sceneGroups.map((group, idx) => renderGroupCard(scene, group, idx, false, true))}
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Proposed Groups Section (only show when not locked) */}
-      {!isLocked && totalProposedGroups > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-gradient-storia">
-                <LinkIcon className="h-5 w-5 text-white" />
+            )}
+            {!isLocked && totalProposedGroups > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-primary" />
+                <span className="text-sm">
+                  <span className="font-medium text-primary">{totalProposedGroups}</span> pending review
+                </span>
               </div>
-              <div>
-                <CardTitle>Proposed Continuity Groups</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {totalProposedGroups} group{totalProposedGroups !== 1 ? 's' : ''} pending review
-                </p>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {scenes.map((scene) => {
-              const sceneGroups = proposedGroups[scene.id] || [];
-              if (sceneGroups.length === 0) return null;
-
-              return (
-                <div key={scene.id} className="space-y-3">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Badge variant="outline" className="font-semibold">{scene.title}</Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {sceneGroups.length} group{sceneGroups.length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  {sceneGroups.map((group, idx) => renderGroupCard(scene, group, idx, true, false))}
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Lock Button */}
-      {!isLocked && totalApprovedGroups > 0 && (
-        <div className="flex justify-end">
-          <Button 
-            onClick={onLock} 
-            disabled={!canLock}
-            className="bg-gradient-storia" 
-            data-testid="button-lock-continuity"
-          >
-            <Lock className="h-4 w-4 mr-2" />
-            Lock & Continue
-          </Button>
+            )}
+          </div>
+          
+          {/* Lock button */}
+          {!isLocked && totalApprovedGroups > 0 && (
+            <Button 
+              onClick={onLock} 
+              disabled={!canLock}
+              className="bg-gradient-storia" 
+              data-testid="button-lock-continuity"
+            >
+              <Lock className="h-4 w-4 mr-2" />
+              Lock & Continue
+            </Button>
+          )}
+          
+          {/* Locked indicator */}
+          {isLocked && (
+            <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
+              <Lock className="h-3 w-3 mr-1" />
+              Locked
+            </Badge>
+          )}
         </div>
       )}
 
-      {/* Locked Alert */}
+      {/* Locked success alert */}
       {isLocked && (
         <Alert className="border-green-500/50 bg-green-500/5">
           <Lock className="h-4 w-4 text-green-500" />

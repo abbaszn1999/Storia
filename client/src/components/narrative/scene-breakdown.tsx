@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import type { Scene, Shot, ShotVersion, ContinuityGroup } from "@shared/schema";
 import { SceneDialog } from "./scene-dialog";
 import { ShotDialog } from "./shot-dialog";
 import { ContinuityProposal } from "./continuity-proposal";
+import { ShotContinuityArrows } from "./shot-continuity-arrows";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,6 +65,9 @@ export function SceneBreakdown({
   const [synopsis, setSynopsis] = useState<string>(script ? script.substring(0, 200) : "");
   const [isGeneratingContinuity, setIsGeneratingContinuity] = useState(false);
   const [localContinuityLocked, setLocalContinuityLocked] = useState(continuityLocked);
+  
+  // Refs for shot elements to measure their positions (per scene)
+  const shotRefsMap = useRef<{ [sceneId: string]: React.RefObject<(HTMLDivElement | null)[]> }>({});
   
   // Separate state for approved vs. proposed vs. declined groups
   // Approved groups have status="approved" and persist across regenerations
@@ -393,6 +397,186 @@ export function SceneBreakdown({
     toast({
       title: "Group Updated",
       description: "Continuity group updated successfully.",
+    });
+  };
+
+  // Handle approving individual shot-to-shot connections
+  const handleApproveConnection = (sceneId: string, shotId1: string, shotId2: string) => {
+    // Find the group containing this connection in proposals
+    const sceneProposals = proposalDraft[sceneId] || [];
+    const groupWithConnection = sceneProposals.find((g: ContinuityGroup) => {
+      const shotIds = g.shotIds as string[];
+      const idx1 = shotIds.indexOf(shotId1);
+      const idx2 = shotIds.indexOf(shotId2);
+      return idx1 >= 0 && idx2 === idx1 + 1;
+    });
+    
+    if (!groupWithConnection) return;
+    
+    const shotIds = groupWithConnection.shotIds as string[];
+    const idx1 = shotIds.indexOf(shotId1);
+    
+    // If this is the only connection in the group, approve the entire group
+    if (shotIds.length === 2) {
+      handleGroupApprove(sceneId, groupWithConnection.id);
+      return;
+    }
+    
+    // Otherwise, split the group:
+    // 1. Create an approved group with just this connection [shotId1, shotId2]
+    // 2. Keep remaining shots as separate proposed groups
+    
+    const approvedGroup: ContinuityGroup = {
+      ...groupWithConnection,
+      id: crypto.randomUUID(),
+      shotIds: [shotId1, shotId2],
+      status: "approved",
+      approvedAt: new Date(),
+    };
+    
+    // Create new proposed groups from the remaining parts
+    const newProposedGroups: ContinuityGroup[] = [];
+    
+    // Before the approved connection
+    if (idx1 > 0) {
+      const beforeShots = shotIds.slice(0, idx1 + 1); // Include shotId1
+      if (beforeShots.length >= 2) {
+        newProposedGroups.push({
+          ...groupWithConnection,
+          id: crypto.randomUUID(),
+          shotIds: beforeShots,
+          status: "proposed",
+        });
+      }
+    }
+    
+    // After the approved connection
+    if (idx1 + 2 < shotIds.length) {
+      const afterShots = shotIds.slice(idx1 + 1); // Start from shotId2
+      if (afterShots.length >= 2) {
+        newProposedGroups.push({
+          ...groupWithConnection,
+          id: crypto.randomUUID(),
+          shotIds: afterShots,
+          status: "proposed",
+        });
+      }
+    }
+    
+    // Update all group maps
+    const newApproved: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(approvedGroups) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      newApproved[id] = [...groups];
+    });
+    if (!newApproved[sceneId]) newApproved[sceneId] = [];
+    newApproved[sceneId] = [...newApproved[sceneId], approvedGroup];
+    
+    const newProposed: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(proposalDraft) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      if (id === sceneId) {
+        // Remove old group and add new split groups
+        newProposed[id] = groups.filter((g: ContinuityGroup) => g.id !== groupWithConnection.id);
+        newProposed[id].push(...newProposedGroups);
+      } else {
+        newProposed[id] = [...groups];
+      }
+    });
+    if (newProposed[sceneId]?.length === 0) delete newProposed[sceneId];
+    
+    const newDeclined: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(declinedGroups) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      newDeclined[id] = [...groups];
+    });
+    
+    updateAllGroupMaps(newApproved, newProposed, newDeclined);
+    
+    toast({
+      title: "Connection Approved",
+      description: "Shot connection approved successfully.",
+    });
+  };
+
+  // Handle declining individual shot-to-shot connections
+  const handleDeclineConnection = (sceneId: string, shotId1: string, shotId2: string) => {
+    // Find the group containing this connection in proposals
+    const sceneProposals = proposalDraft[sceneId] || [];
+    const groupWithConnection = sceneProposals.find((g: ContinuityGroup) => {
+      const shotIds = g.shotIds as string[];
+      const idx1 = shotIds.indexOf(shotId1);
+      const idx2 = shotIds.indexOf(shotId2);
+      return idx1 >= 0 && idx2 === idx1 + 1;
+    });
+    
+    if (!groupWithConnection) return;
+    
+    const shotIds = groupWithConnection.shotIds as string[];
+    const idx1 = shotIds.indexOf(shotId1);
+    
+    // If this is the only connection in the group, decline the entire group
+    if (shotIds.length === 2) {
+      handleGroupDecline(sceneId, groupWithConnection.id);
+      return;
+    }
+    
+    // Otherwise, split the group and remove this connection:
+    // Keep shots before and after as separate proposed groups
+    
+    const newProposedGroups: ContinuityGroup[] = [];
+    
+    // Before the declined connection
+    if (idx1 > 0) {
+      const beforeShots = shotIds.slice(0, idx1 + 1); // Include shotId1
+      if (beforeShots.length >= 2) {
+        newProposedGroups.push({
+          ...groupWithConnection,
+          id: crypto.randomUUID(),
+          shotIds: beforeShots,
+          status: "proposed",
+        });
+      }
+    }
+    
+    // After the declined connection
+    if (idx1 + 2 < shotIds.length) {
+      const afterShots = shotIds.slice(idx1 + 1); // Start from shotId2
+      if (afterShots.length >= 2) {
+        newProposedGroups.push({
+          ...groupWithConnection,
+          id: crypto.randomUUID(),
+          shotIds: afterShots,
+          status: "proposed",
+        });
+      }
+    }
+    
+    // Update all group maps
+    const newProposed: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(proposalDraft) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      if (id === sceneId) {
+        // Remove old group and add new split groups
+        newProposed[id] = groups.filter((g: ContinuityGroup) => g.id !== groupWithConnection.id);
+        newProposed[id].push(...newProposedGroups);
+      } else {
+        newProposed[id] = [...groups];
+      }
+    });
+    if (newProposed[sceneId]?.length === 0) delete newProposed[sceneId];
+    
+    const newApproved: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(approvedGroups) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      newApproved[id] = [...groups];
+    });
+    
+    const newDeclined: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(declinedGroups) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      newDeclined[id] = [...groups];
+    });
+    
+    updateAllGroupMaps(newApproved, newProposed, newDeclined);
+    
+    toast({
+      title: "Connection Declined",
+      description: "Shot connection declined successfully.",
     });
   };
 
@@ -1149,6 +1333,22 @@ export function SceneBreakdown({
           <div className="space-y-4">
             {scenes.map((scene, sceneIndex) => {
               const sceneShots = shots[scene.id] || [];
+              
+              // Initialize refs for this scene if not already done
+              if (!shotRefsMap.current[scene.id]) {
+                const newRef: React.RefObject<(HTMLDivElement | null)[]> = {
+                  get current() {
+                    return this._current || [];
+                  },
+                  set current(value) {
+                    this._current = value;
+                  },
+                  _current: new Array(sceneShots.length).fill(null) as (HTMLDivElement | null)[],
+                } as any;
+                shotRefsMap.current[scene.id] = newRef;
+              }
+              const shotRefs = shotRefsMap.current[scene.id];
+              
               return (
                 <Card key={scene.id} className="bg-card/50" data-testid={`scene-${scene.id}`}>
                   <CardContent className="p-6">
@@ -1207,10 +1407,29 @@ export function SceneBreakdown({
                       </div>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="relative space-y-2">
+                      {/* Render continuity arrows for start-end mode */}
+                      {narrativeMode === "start-end" && sceneShots.length > 0 && (
+                        <ShotContinuityArrows
+                          sceneId={scene.id}
+                          sceneShots={sceneShots}
+                          proposedGroups={proposalDraft[scene.id] || []}
+                          approvedGroups={approvedGroups[scene.id] || []}
+                          isLocked={localContinuityLocked}
+                          onApproveConnection={(shotId1, shotId2) => handleApproveConnection(scene.id, shotId1, shotId2)}
+                          onDeclineConnection={(shotId1, shotId2) => handleDeclineConnection(scene.id, shotId1, shotId2)}
+                          shotRefs={shotRefs}
+                        />
+                      )}
+                      
                       {sceneShots.map((shot, shotIndex) => (
                         <div
                           key={shot.id}
+                          ref={(el) => {
+                            if (shotRefs.current) {
+                              shotRefs.current[shotIndex] = el;
+                            }
+                          }}
                           className="flex items-start gap-3 p-3 rounded-lg bg-background/50 hover-elevate"
                           data-testid={`shot-${shot.id}`}
                         >

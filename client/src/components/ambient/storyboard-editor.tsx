@@ -85,6 +85,17 @@ const WEATHER_OPTIONS = [
   "Stormy",
 ];
 
+const ANIMATION_MODE_OPTIONS = [
+  { value: "smooth-image", label: "Smooth Image (Ken Burns)" },
+  { value: "animate", label: "Full Animation (AI Video)" },
+];
+
+const MOTION_INTENSITY_OPTIONS = [
+  { value: "subtle", label: "Subtle" },
+  { value: "moderate", label: "Moderate" },
+  { value: "dynamic", label: "Dynamic" },
+];
+
 const SHOT_TYPES = [
   "Extreme Close-up",
   "Close-up",
@@ -454,7 +465,7 @@ function SortableShotCard({
                 value={localPrompt}
                 onChange={(e) => setLocalPrompt(e.target.value)}
                 onBlur={handlePromptBlur}
-                placeholder="Describe the shot..."
+                placeholder="Describe the visual atmosphere (e.g., sunlight filtering through misty trees, calm water reflecting clouds...)"
                 className="min-h-20 text-xs resize-none"
                 data-testid={`input-prompt-${shot.id}`}
               />
@@ -978,7 +989,7 @@ export function StoryboardEditor({
       }
     });
     toast({
-      title: "Generating Storyboard",
+      title: "Generating Composition",
       description: `Generating images for ${totalCount - generatedCount} shots...`,
     });
   };
@@ -1145,14 +1156,14 @@ export function StoryboardEditor({
   };
 
   const selectedVoice = VOICE_LIBRARY.find(v => v.id === voiceActorId);
-  const selectedVoiceLabel = selectedVoice?.name || "Select voice actor";
+  const selectedVoiceLabel = selectedVoice?.name || "Select narrator";
 
   return (
     <div className="space-y-6">
       <div className="sticky top-0 z-50 bg-background py-4 border-b">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h3 className="text-lg font-semibold">Storyboard</h3>
+            <h3 className="text-lg font-semibold">Composition</h3>
             <p className="text-sm text-muted-foreground">
               {generatedCount} of {totalCount} shots generated • Drag to reorder
             </p>
@@ -1160,7 +1171,7 @@ export function StoryboardEditor({
           
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <Label className="text-sm text-muted-foreground">Voice Actor</Label>
+              <Label className="text-sm text-muted-foreground">Narrator</Label>
             <Popover open={voiceDropdownOpen} onOpenChange={setVoiceDropdownOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -1281,7 +1292,7 @@ export function StoryboardEditor({
                         variant="ghost"
                         className="h-7 w-7 text-muted-foreground hover:text-destructive"
                         onClick={() => {
-                          if (window.confirm(`Delete scene "${scene.title}"? This will also delete all ${sceneShots.length} shot(s) in this scene.`)) {
+                          if (window.confirm(`Delete segment "${scene.title}"? This will also delete all ${sceneShots.length} shot(s) in this segment.`)) {
                             onDeleteScene(scene.id);
                           }
                         }}
@@ -1372,19 +1383,55 @@ export function StoryboardEditor({
                       </Select>
                     </div>
 
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Animation Mode</Label>
+                      <Select
+                        defaultValue="smooth-image"
+                      >
+                        <SelectTrigger className="h-8 text-xs" data-testid={`select-animation-mode-${scene.id}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ANIMATION_MODE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Motion Intensity</Label>
+                      <Select
+                        defaultValue="subtle"
+                      >
+                        <SelectTrigger className="h-8 text-xs" data-testid={`select-motion-intensity-${scene.id}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MOTION_INTENSITY_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <Button
                       size="sm"
                       className="w-full mt-2"
                       onClick={() => {
                         toast({
-                          title: "Animate Scene",
-                          description: `Video animation for all ${sceneShots.length} shots in "${scene.title}" will be implemented in the next phase with AI video models (Kling/Veo/Runway).`,
+                          title: "Animate Segment",
+                          description: `Video animation for all ${sceneShots.length} shots in "${scene.title}" will be generated with AI video models.`,
                         });
                       }}
                       data-testid={`button-animate-scene-${scene.id}`}
                     >
                       <Play className="mr-2 h-4 w-4" />
-                      Animate Scene's Shots
+                      Animate Segment's Shots
                     </Button>
 
                     <div className="text-xs text-muted-foreground pt-2">

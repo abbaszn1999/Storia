@@ -42,7 +42,7 @@ const modes = [
     title: "Logo Animation",
     description: "Brand storytelling through motion",
     icon: Clapperboard,
-    available: false,
+    available: true,
   },
 ];
 

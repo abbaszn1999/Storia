@@ -45,15 +45,13 @@ export default function AmbientMode() {
   const [worldSettings, setWorldSettings] = useState<{ 
     artStyle: string; 
     imageModel?: string;
-    worldDescription?: string;
-    locations?: Array<{ id: string; name: string; description: string }>;
+    animationMode?: "animate" | "smooth-image";
     imageInstructions?: string;
     videoInstructions?: string;
   }>({
     artStyle: "none",
-    imageModel: "Flux",
-    worldDescription: "",
-    locations: [],
+    imageModel: "flux",
+    animationMode: "smooth-image",
     imageInstructions: "",
     videoInstructions: "",
   });

@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { AtmosphereEditor } from "@/components/ambient/atmosphere-editor";
 import { SceneBreakdown } from "@/components/ambient/scene-breakdown";
-import { WorldCast } from "@/components/ambient/world-cast";
+import { VisualWorld } from "@/components/ambient/visual-world";
 import { StoryboardEditor } from "@/components/ambient/storyboard-editor";
 import { AnimaticPreview } from "@/components/ambient/animatic-preview";
 import { ExportSettings, type ExportData } from "@/components/ambient/export-settings";
@@ -33,8 +33,7 @@ interface AmbientWorkflowProps {
   worldSettings: { 
     artStyle: string; 
     imageModel?: string;
-    worldDescription?: string;
-    locations?: Array<{ id: string; name: string; description: string }>;
+    animationMode?: "animate" | "smooth-image";
     imageInstructions?: string;
     videoInstructions?: string;
   };
@@ -58,8 +57,7 @@ interface AmbientWorkflowProps {
   onWorldSettingsChange: (settings: { 
     artStyle: string; 
     imageModel: string;
-    worldDescription: string;
-    locations: Array<{ id: string; name: string; description: string }>;
+    animationMode: "animate" | "smooth-image";
     imageInstructions: string;
     videoInstructions: string;
   }) => void;
@@ -467,18 +465,14 @@ export function AmbientWorkflow({
       )}
 
       {activeStep === "world" && (
-        <WorldCast
+        <VisualWorld
           videoId={videoId}
-          workspaceId={workspaceId}
-          characters={characters}
           referenceImages={referenceImages}
           artStyle={worldSettings.artStyle}
           imageModel={worldSettings.imageModel}
-          worldDescription={worldSettings.worldDescription}
-          locations={worldSettings.locations}
+          animationMode={worldSettings.animationMode}
           imageInstructions={worldSettings.imageInstructions}
           videoInstructions={worldSettings.videoInstructions}
-          onCharactersChange={onCharactersChange}
           onReferenceImagesChange={onReferenceImagesChange}
           onWorldSettingsChange={onWorldSettingsChange}
           onNext={onNext}

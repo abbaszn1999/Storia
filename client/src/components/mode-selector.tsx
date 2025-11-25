@@ -21,7 +21,7 @@ const modes = [
     title: "Ambient Visual",
     description: "Mood-driven visual storytelling",
     icon: Sparkles,
-    available: false,
+    available: true,
   },
   {
     id: "podcast",

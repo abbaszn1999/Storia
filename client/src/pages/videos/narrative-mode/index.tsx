@@ -42,11 +42,17 @@ export default function NarrativeMode() {
     imageModel?: string;
     worldDescription?: string;
     locations?: Array<{ id: string; name: string; description: string }>;
+    imageInstructions?: string;
+    videoInstructions?: string;
+    negativePrompts?: string;
   }>({
     artStyle: "none",
     imageModel: "Flux",
     worldDescription: "",
     locations: [],
+    imageInstructions: "",
+    videoInstructions: "",
+    negativePrompts: "",
   });
 
   const isStepCompleted = (stepId: string) => completedSteps.includes(stepId);

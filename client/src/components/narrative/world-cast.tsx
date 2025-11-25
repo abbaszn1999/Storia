@@ -19,7 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Upload, Check, Pencil, User, Library, ChevronDown, Loader2, Sparkles, X, MapPin, Trash2, RefreshCw } from "lucide-react";
+import { Plus, Upload, Check, Pencil, User, Library, ChevronDown, ChevronUp, Loader2, Sparkles, X, MapPin, Trash2, RefreshCw, Settings2 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import type { Character, ReferenceImage } from "@shared/schema";
 import { LocationDialog } from "@/components/narrative/location-dialog";
@@ -187,6 +188,9 @@ interface WorldCastProps {
   imageModel?: string;
   worldDescription?: string;
   locations?: Location[];
+  imageInstructions?: string;
+  videoInstructions?: string;
+  negativePrompts?: string;
   onCharactersChange: (characters: Character[]) => void;
   onReferenceImagesChange: (images: ReferenceImage[]) => void;
   onWorldSettingsChange?: (settings: { 
@@ -194,6 +198,9 @@ interface WorldCastProps {
     imageModel: string;
     worldDescription: string;
     locations: Location[];
+    imageInstructions: string;
+    videoInstructions: string;
+    negativePrompts: string;
   }) => void;
   onNext: () => void;
 }
@@ -237,6 +244,9 @@ export function WorldCast({
   imageModel = "Flux",
   worldDescription = "",
   locations = [],
+  imageInstructions = "",
+  videoInstructions = "",
+  negativePrompts = "",
   onCharactersChange, 
   onReferenceImagesChange,
   onWorldSettingsChange,
@@ -260,6 +270,10 @@ export function WorldCast({
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [isLocationRecommendationOpen, setIsLocationRecommendationOpen] = useState(false);
   const [isLocationLibraryOpen, setIsLocationLibraryOpen] = useState(false);
+  const [isAiSettingsOpen, setIsAiSettingsOpen] = useState(false);
+  const [selectedImageInstructions, setSelectedImageInstructions] = useState(imageInstructions);
+  const [selectedVideoInstructions, setSelectedVideoInstructions] = useState(videoInstructions);
+  const [selectedNegativePrompts, setSelectedNegativePrompts] = useState(negativePrompts);
   const { toast } = useToast();
 
   // Fetch character library from database
@@ -489,7 +503,10 @@ export function WorldCast({
         artStyle: styleId, 
         imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
-        locations: locationsList
+        locations: locationsList,
+        imageInstructions: selectedImageInstructions,
+        videoInstructions: selectedVideoInstructions,
+        negativePrompts: selectedNegativePrompts
       });
     }
   };
@@ -501,7 +518,10 @@ export function WorldCast({
         artStyle: selectedArtStyle, 
         imageModel: model,
         worldDescription: selectedWorldDescription,
-        locations: locationsList
+        locations: locationsList,
+        imageInstructions: selectedImageInstructions,
+        videoInstructions: selectedVideoInstructions,
+        negativePrompts: selectedNegativePrompts
       });
     }
   };
@@ -513,7 +533,10 @@ export function WorldCast({
         artStyle: selectedArtStyle, 
         imageModel: selectedImageModel,
         worldDescription: description,
-        locations: locationsList
+        locations: locationsList,
+        imageInstructions: selectedImageInstructions,
+        videoInstructions: selectedVideoInstructions,
+        negativePrompts: selectedNegativePrompts
       });
     }
   };
@@ -557,7 +580,10 @@ export function WorldCast({
         artStyle: selectedArtStyle, 
         imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
-        locations: updatedLocations
+        locations: updatedLocations,
+        imageInstructions: selectedImageInstructions,
+        videoInstructions: selectedVideoInstructions,
+        negativePrompts: selectedNegativePrompts
       });
     }
 
@@ -587,7 +613,10 @@ export function WorldCast({
         artStyle: selectedArtStyle, 
         imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
-        locations: updatedLocations
+        locations: updatedLocations,
+        imageInstructions: selectedImageInstructions,
+        videoInstructions: selectedVideoInstructions,
+        negativePrompts: selectedNegativePrompts
       });
     }
   };
@@ -610,7 +639,10 @@ export function WorldCast({
         artStyle: selectedArtStyle, 
         imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
-        locations: updatedLocations
+        locations: updatedLocations,
+        imageInstructions: selectedImageInstructions,
+        videoInstructions: selectedVideoInstructions,
+        negativePrompts: selectedNegativePrompts
       });
     }
   };
@@ -623,13 +655,61 @@ export function WorldCast({
         artStyle: selectedArtStyle, 
         imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
-        locations: updatedLocations
+        locations: updatedLocations,
+        imageInstructions: selectedImageInstructions,
+        videoInstructions: selectedVideoInstructions,
+        negativePrompts: selectedNegativePrompts
       });
     }
     toast({
       title: "Location Deleted",
       description: "Location has been removed.",
     });
+  };
+
+  const handleImageInstructionsChange = (instructions: string) => {
+    setSelectedImageInstructions(instructions);
+    if (onWorldSettingsChange) {
+      onWorldSettingsChange({ 
+        artStyle: selectedArtStyle, 
+        imageModel: selectedImageModel,
+        worldDescription: selectedWorldDescription,
+        locations: locationsList,
+        imageInstructions: instructions,
+        videoInstructions: selectedVideoInstructions,
+        negativePrompts: selectedNegativePrompts
+      });
+    }
+  };
+
+  const handleVideoInstructionsChange = (instructions: string) => {
+    setSelectedVideoInstructions(instructions);
+    if (onWorldSettingsChange) {
+      onWorldSettingsChange({ 
+        artStyle: selectedArtStyle, 
+        imageModel: selectedImageModel,
+        worldDescription: selectedWorldDescription,
+        locations: locationsList,
+        imageInstructions: selectedImageInstructions,
+        videoInstructions: instructions,
+        negativePrompts: selectedNegativePrompts
+      });
+    }
+  };
+
+  const handleNegativePromptsChange = (prompts: string) => {
+    setSelectedNegativePrompts(prompts);
+    if (onWorldSettingsChange) {
+      onWorldSettingsChange({ 
+        artStyle: selectedArtStyle, 
+        imageModel: selectedImageModel,
+        worldDescription: selectedWorldDescription,
+        locations: locationsList,
+        imageInstructions: selectedImageInstructions,
+        videoInstructions: selectedVideoInstructions,
+        negativePrompts: prompts
+      });
+    }
   };
 
   const getCharacterReferenceImages = (characterId: string) => {
@@ -771,6 +851,89 @@ export function WorldCast({
                 ))}
               </div>
             </div>
+
+            {/* AI Generation Settings - Collapsible */}
+            <Collapsible
+              open={isAiSettingsOpen}
+              onOpenChange={setIsAiSettingsOpen}
+              className="mt-6"
+            >
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="w-full flex items-center justify-between p-3 rounded-lg border border-dashed hover:border-solid hover:bg-muted/50"
+                  data-testid="button-toggle-ai-settings"
+                >
+                  <div className="flex items-center gap-2">
+                    <Settings2 className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">AI Generation Settings</span>
+                    {(selectedImageInstructions || selectedVideoInstructions || selectedNegativePrompts) && (
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                        Configured
+                      </span>
+                    )}
+                  </div>
+                  {isAiSettingsOpen ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-4 space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  These instructions will be appended to every AI generation request in your project.
+                </p>
+
+                {/* Image Generation Instructions */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">IMAGE GENERATION INSTRUCTIONS</Label>
+                  <Textarea
+                    placeholder="E.g., 'Soft cinematic lighting, film grain, shallow depth of field, warm color palette, professional photography quality'"
+                    value={selectedImageInstructions}
+                    onChange={(e) => handleImageInstructionsChange(e.target.value)}
+                    rows={3}
+                    className="text-sm"
+                    data-testid="input-image-instructions"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Style guidelines applied to all image generations
+                  </p>
+                </div>
+
+                {/* Video/Animation Instructions */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">VIDEO / ANIMATION INSTRUCTIONS</Label>
+                  <Textarea
+                    placeholder="E.g., 'Slow, cinematic camera movements, 24fps film look, smooth transitions, natural motion blur, subtle camera shake'"
+                    value={selectedVideoInstructions}
+                    onChange={(e) => handleVideoInstructionsChange(e.target.value)}
+                    rows={3}
+                    className="text-sm"
+                    data-testid="input-video-instructions"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Motion and animation guidelines applied to all video generations
+                  </p>
+                </div>
+
+                {/* Negative Prompts */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">NEGATIVE PROMPTS</Label>
+                  <Textarea
+                    placeholder="E.g., 'blurry, distorted, low quality, watermark, text, jpeg artifacts, ugly, deformed, extra limbs, bad anatomy'"
+                    value={selectedNegativePrompts}
+                    onChange={(e) => handleNegativePromptsChange(e.target.value)}
+                    rows={2}
+                    className="text-sm"
+                    data-testid="input-negative-prompts"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    What to avoid in all generations (applied to both images and videos)
+                  </p>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         </CardContent>
       </Card>

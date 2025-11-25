@@ -14,6 +14,7 @@ interface AmbientWorkflowProps {
   workspaceId: string;
   narrativeMode: "image-reference" | "start-end";
   atmosphereDescription: string;
+  voiceOverScript: string;
   aspectRatio: string;
   atmosphereModel: string;
   voiceActorId: string | null;
@@ -38,6 +39,7 @@ interface AmbientWorkflowProps {
     videoInstructions?: string;
   };
   onAtmosphereDescriptionChange: (description: string) => void;
+  onVoiceOverScriptChange: (script: string) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
   onAtmosphereModelChange: (model: string) => void;
   onVoiceActorChange: (voiceActorId: string) => void;
@@ -70,6 +72,7 @@ export function AmbientWorkflow({
   workspaceId,
   narrativeMode,
   atmosphereDescription,
+  voiceOverScript,
   aspectRatio,
   atmosphereModel,
   voiceActorId,
@@ -87,6 +90,7 @@ export function AmbientWorkflow({
   continuityGroups,
   worldSettings,
   onAtmosphereDescriptionChange,
+  onVoiceOverScriptChange,
   onAspectRatioChange,
   onAtmosphereModelChange,
   onVoiceActorChange,
@@ -420,11 +424,13 @@ export function AmbientWorkflow({
       {activeStep === "script" && (
         <AtmosphereEditor
           initialDescription={atmosphereDescription}
+          initialVoiceOverScript={voiceOverScript}
           aspectRatio={aspectRatio}
           atmosphereModel={atmosphereModel}
           voiceOverEnabled={voiceOverEnabled}
           voiceOverLanguage={voiceOverLanguage}
           onDescriptionChange={onAtmosphereDescriptionChange}
+          onVoiceOverScriptChange={onVoiceOverScriptChange}
           onAspectRatioChange={onAspectRatioChange}
           onAtmosphereModelChange={onAtmosphereModelChange}
           onVoiceOverEnabledChange={onVoiceOverEnabledChange}

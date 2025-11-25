@@ -25,6 +25,7 @@ export default function AmbientMode() {
   const [workspaceId] = useState("workspace-1");
   
   const [atmosphereDescription, setAtmosphereDescription] = useState("");
+  const [voiceOverScript, setVoiceOverScript] = useState("");
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [atmosphereModel, setAtmosphereModel] = useState("gpt-4o");
   const [voiceActorId, setVoiceActorId] = useState<string | null>(null);
@@ -137,6 +138,7 @@ export default function AmbientMode() {
             workspaceId={workspaceId}
             narrativeMode="image-reference"
             atmosphereDescription={atmosphereDescription}
+            voiceOverScript={voiceOverScript}
             aspectRatio={aspectRatio}
             atmosphereModel={atmosphereModel}
             voiceActorId={voiceActorId}
@@ -154,6 +156,7 @@ export default function AmbientMode() {
             continuityGroups={continuityGroups}
             worldSettings={worldSettings}
             onAtmosphereDescriptionChange={setAtmosphereDescription}
+            onVoiceOverScriptChange={setVoiceOverScript}
             onAspectRatioChange={setAspectRatio}
             onAtmosphereModelChange={setAtmosphereModel}
             onVoiceActorChange={setVoiceActorId}

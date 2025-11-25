@@ -44,7 +44,6 @@ export default function NarrativeMode() {
     locations?: Array<{ id: string; name: string; description: string }>;
     imageInstructions?: string;
     videoInstructions?: string;
-    negativePrompts?: string;
   }>({
     artStyle: "none",
     imageModel: "Flux",
@@ -52,7 +51,6 @@ export default function NarrativeMode() {
     locations: [],
     imageInstructions: "",
     videoInstructions: "",
-    negativePrompts: "",
   });
 
   const isStepCompleted = (stepId: string) => completedSteps.includes(stepId);

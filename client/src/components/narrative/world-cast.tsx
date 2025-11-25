@@ -190,7 +190,6 @@ interface WorldCastProps {
   locations?: Location[];
   imageInstructions?: string;
   videoInstructions?: string;
-  negativePrompts?: string;
   onCharactersChange: (characters: Character[]) => void;
   onReferenceImagesChange: (images: ReferenceImage[]) => void;
   onWorldSettingsChange?: (settings: { 
@@ -200,7 +199,6 @@ interface WorldCastProps {
     locations: Location[];
     imageInstructions: string;
     videoInstructions: string;
-    negativePrompts: string;
   }) => void;
   onNext: () => void;
 }
@@ -246,7 +244,6 @@ export function WorldCast({
   locations = [],
   imageInstructions = "",
   videoInstructions = "",
-  negativePrompts = "",
   onCharactersChange, 
   onReferenceImagesChange,
   onWorldSettingsChange,
@@ -273,7 +270,6 @@ export function WorldCast({
   const [isAiSettingsOpen, setIsAiSettingsOpen] = useState(false);
   const [selectedImageInstructions, setSelectedImageInstructions] = useState(imageInstructions);
   const [selectedVideoInstructions, setSelectedVideoInstructions] = useState(videoInstructions);
-  const [selectedNegativePrompts, setSelectedNegativePrompts] = useState(negativePrompts);
   const { toast } = useToast();
 
   // Fetch character library from database
@@ -505,8 +501,7 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: locationsList,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions,
-        negativePrompts: selectedNegativePrompts
+        videoInstructions: selectedVideoInstructions
       });
     }
   };
@@ -520,8 +515,7 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: locationsList,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions,
-        negativePrompts: selectedNegativePrompts
+        videoInstructions: selectedVideoInstructions
       });
     }
   };
@@ -535,8 +529,7 @@ export function WorldCast({
         worldDescription: description,
         locations: locationsList,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions,
-        negativePrompts: selectedNegativePrompts
+        videoInstructions: selectedVideoInstructions
       });
     }
   };
@@ -582,8 +575,7 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: updatedLocations,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions,
-        negativePrompts: selectedNegativePrompts
+        videoInstructions: selectedVideoInstructions
       });
     }
 
@@ -615,8 +607,7 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: updatedLocations,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions,
-        negativePrompts: selectedNegativePrompts
+        videoInstructions: selectedVideoInstructions
       });
     }
   };
@@ -641,8 +632,7 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: updatedLocations,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions,
-        negativePrompts: selectedNegativePrompts
+        videoInstructions: selectedVideoInstructions
       });
     }
   };
@@ -657,8 +647,7 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: updatedLocations,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions,
-        negativePrompts: selectedNegativePrompts
+        videoInstructions: selectedVideoInstructions
       });
     }
     toast({
@@ -676,8 +665,7 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: locationsList,
         imageInstructions: instructions,
-        videoInstructions: selectedVideoInstructions,
-        negativePrompts: selectedNegativePrompts
+        videoInstructions: selectedVideoInstructions
       });
     }
   };
@@ -691,23 +679,7 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: locationsList,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: instructions,
-        negativePrompts: selectedNegativePrompts
-      });
-    }
-  };
-
-  const handleNegativePromptsChange = (prompts: string) => {
-    setSelectedNegativePrompts(prompts);
-    if (onWorldSettingsChange) {
-      onWorldSettingsChange({ 
-        artStyle: selectedArtStyle, 
-        imageModel: selectedImageModel,
-        worldDescription: selectedWorldDescription,
-        locations: locationsList,
-        imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions,
-        negativePrompts: prompts
+        videoInstructions: instructions
       });
     }
   };
@@ -867,7 +839,7 @@ export function WorldCast({
                   <div className="flex items-center gap-2">
                     <Settings2 className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm font-medium">AI Generation Settings</span>
-                    {(selectedImageInstructions || selectedVideoInstructions || selectedNegativePrompts) && (
+                    {(selectedImageInstructions || selectedVideoInstructions) && (
                       <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                         Configured
                       </span>
@@ -914,22 +886,6 @@ export function WorldCast({
                   />
                   <p className="text-xs text-muted-foreground">
                     Motion and animation guidelines applied to all video generations
-                  </p>
-                </div>
-
-                {/* Negative Prompts */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">NEGATIVE PROMPTS</Label>
-                  <Textarea
-                    placeholder="E.g., 'blurry, distorted, low quality, watermark, text, jpeg artifacts, ugly, deformed, extra limbs, bad anatomy'"
-                    value={selectedNegativePrompts}
-                    onChange={(e) => handleNegativePromptsChange(e.target.value)}
-                    rows={2}
-                    className="text-sm"
-                    data-testid="input-negative-prompts"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    What to avoid in all generations (applied to both images and videos)
                   </p>
                 </div>
               </CollapsibleContent>

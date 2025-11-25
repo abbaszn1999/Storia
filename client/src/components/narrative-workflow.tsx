@@ -32,7 +32,6 @@ interface NarrativeWorkflowProps {
     locations?: Array<{ id: string; name: string; description: string }>;
     imageInstructions?: string;
     videoInstructions?: string;
-    negativePrompts?: string;
   };
   onScriptChange: (script: string) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
@@ -53,7 +52,6 @@ interface NarrativeWorkflowProps {
     locations: Array<{ id: string; name: string; description: string }>;
     imageInstructions: string;
     videoInstructions: string;
-    negativePrompts: string;
   }) => void;
   onNext: () => void;
 }
@@ -479,7 +477,6 @@ export function NarrativeWorkflow({
           locations={worldSettings.locations}
           imageInstructions={worldSettings.imageInstructions}
           videoInstructions={worldSettings.videoInstructions}
-          negativePrompts={worldSettings.negativePrompts}
           onCharactersChange={onCharactersChange}
           onReferenceImagesChange={onReferenceImagesChange}
           onWorldSettingsChange={onWorldSettingsChange}

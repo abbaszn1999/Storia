@@ -59,32 +59,6 @@ const VIDEO_MODEL_DURATIONS: { [key: string]: number[] } = {
   "Minimax": [6],
 };
 
-const LIGHTING_OPTIONS = [
-  "Natural Daylight",
-  "Golden Hour",
-  "Blue Hour",
-  "Overcast",
-  "Night",
-  "Studio Lighting",
-  "Soft Light",
-  "Hard Light",
-  "Backlit",
-  "Dramatic",
-];
-
-const WEATHER_OPTIONS = [
-  "Clear",
-  "Partly Cloudy",
-  "Cloudy",
-  "Overcast",
-  "Light Rain",
-  "Heavy Rain",
-  "Foggy",
-  "Misty",
-  "Snowy",
-  "Stormy",
-];
-
 const ANIMATION_MODE_OPTIONS = [
   { value: "smooth-image", label: "Smooth Image (Ken Burns)" },
   { value: "animate", label: "Full Animation (AI Video)" },
@@ -1248,44 +1222,6 @@ export function StoryboardEditor({
                           {VIDEO_MODELS.map((model) => (
                             <SelectItem key={model} value={model}>
                               {model}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Lighting</Label>
-                      <Select
-                        value={scene.lighting || LIGHTING_OPTIONS[0]}
-                        onValueChange={(value) => onUpdateScene?.(scene.id, { lighting: value })}
-                      >
-                        <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-lighting-${scene.id}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {LIGHTING_OPTIONS.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Weather</Label>
-                      <Select
-                        value={scene.weather || WEATHER_OPTIONS[0]}
-                        onValueChange={(value) => onUpdateScene?.(scene.id, { weather: value })}
-                      >
-                        <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-weather-${scene.id}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {WEATHER_OPTIONS.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
                             </SelectItem>
                           ))}
                         </SelectContent>

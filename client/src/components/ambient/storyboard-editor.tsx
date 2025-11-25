@@ -781,9 +781,7 @@ export function StoryboardEditor({
   const [activeCategory, setActiveCategory] = useState<"prompt" | "clothes" | "remove" | "expression" | "figure" | "camera" | "effects" | "variations" | null>(null);
   const [selectedCharacterId, setSelectedCharacterId] = useState<string>("");
   const [localShots, setLocalShots] = useState(shots);
-  const [playingVoice, setPlayingVoice] = useState<string | null>(null);
-  const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
-  const [showEnhancementDialog, setShowEnhancementDialog] = useState(false);
+    const [showEnhancementDialog, setShowEnhancementDialog] = useState(false);
   const [dontRemindAgain, setDontRemindAgain] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [compareVersions, setCompareVersions] = useState<string[]>([]);
@@ -1083,26 +1081,6 @@ export function StoryboardEditor({
     }
   };
 
-  const handlePlayVoice = (voiceId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (playingVoice === voiceId) {
-      setPlayingVoice(null);
-    } else {
-      setPlayingVoice(voiceId);
-      const voice = VOICE_LIBRARY.find(v => v.id === voiceId);
-      if (voice?.previewUrl) {
-        const audio = new Audio(voice.previewUrl);
-        audio.play();
-        audio.onended = () => setPlayingVoice(null);
-      }
-    }
-  };
-
-  const handleSelectVoice = (voiceId: string) => {
-    onVoiceActorChange(voiceId);
-    setVoiceDropdownOpen(false);
-  };
-
   const handleEditReferenceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -1155,9 +1133,6 @@ export function StoryboardEditor({
     if (video2Ref.current) video2Ref.current.currentTime = time;
   };
 
-  const selectedVoice = VOICE_LIBRARY.find(v => v.id === voiceActorId);
-  const selectedVoiceLabel = selectedVoice?.name || "Select narrator";
-
   return (
     <div className="space-y-6">
       <div className="sticky top-0 z-50 bg-background py-4 border-b">
@@ -1170,72 +1145,6 @@ export function StoryboardEditor({
           </div>
           
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Label className="text-sm text-muted-foreground">Narrator</Label>
-            <Popover open={voiceDropdownOpen} onOpenChange={setVoiceDropdownOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={voiceDropdownOpen}
-                  className="w-48 h-9 justify-between"
-                  disabled={!voiceOverEnabled}
-                  data-testid="button-voice-selector"
-                >
-                  <span className={voiceActorId ? "font-medium text-sm" : "text-muted-foreground text-sm"}>
-                    {selectedVoiceLabel}
-                  </span>
-                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                <ScrollArea className="max-h-[300px]">
-                  <div className="p-1">
-                    {VOICE_LIBRARY.map((voice) => (
-                      <div
-                        key={voice.id}
-                        className="flex items-center gap-2 px-2 py-2 hover-elevate rounded-md cursor-pointer"
-                        onClick={() => handleSelectVoice(voice.id)}
-                        data-testid={`option-voice-${voice.id}`}
-                      >
-                        <div className="flex items-center gap-2 flex-1">
-                          {voiceActorId === voice.id && (
-                            <Check className="h-4 w-4 text-primary" data-testid={`icon-selected-${voice.id}`} />
-                          )}
-                          <span className={`flex-1 text-sm ${voiceActorId === voice.id ? "font-medium" : ""}`}>
-                            {voice.name}
-                          </span>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 shrink-0"
-                          onClick={(e) => handlePlayVoice(voice.id, e)}
-                          data-testid={`button-play-${voice.id}`}
-                        >
-                          {playingVoice === voice.id ? (
-                            <Pause className="h-4 w-4" />
-                          ) : (
-                            <Play className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Label className="text-sm text-muted-foreground">Voice Over</Label>
-            <Switch
-              checked={voiceOverEnabled}
-              onCheckedChange={onVoiceOverToggle}
-              data-testid="toggle-voice-over"
-            />
-          </div>
-
           <div className="flex items-center border rounded-md p-0.5 bg-muted/50">
             <Button
               size="sm"

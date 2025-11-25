@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Sparkles, Volume2, VolumeX, Lock } from "lucide-react";
+import { Loader2, Sparkles, Volume2, VolumeX, Lock, Play, Pause, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { VOICE_LIBRARY } from "@/constants/voice-library";
 
 interface AtmosphereEditorProps {
   initialDescription?: string;
@@ -16,12 +17,14 @@ interface AtmosphereEditorProps {
   atmosphereModel?: string;
   voiceOverEnabled?: boolean;
   voiceOverLanguage?: string;
+  narratorId?: string;
   onDescriptionChange: (description: string) => void;
   onVoiceOverScriptChange?: (script: string) => void;
   onAspectRatioChange?: (aspectRatio: string) => void;
   onAtmosphereModelChange?: (model: string) => void;
   onVoiceOverEnabledChange?: (enabled: boolean) => void;
   onVoiceOverLanguageChange?: (language: string) => void;
+  onNarratorChange?: (narratorId: string) => void;
   onCategoryChange?: (category: string) => void;
   onMoodChange?: (moods: string[]) => void;
   onDurationChange?: (duration: string) => void;
@@ -95,12 +98,14 @@ export function AtmosphereEditor({
   atmosphereModel = "gpt-4o",
   voiceOverEnabled = false,
   voiceOverLanguage = "English",
+  narratorId = "",
   onDescriptionChange,
   onVoiceOverScriptChange,
   onAspectRatioChange,
   onAtmosphereModelChange,
   onVoiceOverEnabledChange,
   onVoiceOverLanguageChange,
+  onNarratorChange,
   onCategoryChange,
   onMoodChange,
   onDurationChange,
@@ -116,8 +121,20 @@ export function AtmosphereEditor({
   const [selectedModel, setSelectedModel] = useState(atmosphereModel);
   const [localVoiceOverEnabled, setLocalVoiceOverEnabled] = useState(voiceOverEnabled);
   const [language, setLanguage] = useState(voiceOverLanguage);
+  const [selectedNarrator, setSelectedNarrator] = useState(narratorId || VOICE_LIBRARY[0]?.id || "");
+  const [playingVoice, setPlayingVoice] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   const handleDescriptionChange = (value: string) => {
     setAtmosphereDescription(value);
@@ -172,11 +189,51 @@ export function AtmosphereEditor({
   const handleVoiceOverToggle = (enabled: boolean) => {
     setLocalVoiceOverEnabled(enabled);
     onVoiceOverEnabledChange?.(enabled);
+    if (!enabled && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+      setPlayingVoice(null);
+    }
   };
 
   const handleLanguageChange = (value: string) => {
     setLanguage(value);
     onVoiceOverLanguageChange?.(value);
+  };
+
+  const handleNarratorChange = (voiceId: string) => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+      setPlayingVoice(null);
+    }
+    setSelectedNarrator(voiceId);
+    onNarratorChange?.(voiceId);
+  };
+
+  const handlePlayVoice = (voiceId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    
+    if (playingVoice === voiceId) {
+      setPlayingVoice(null);
+    } else {
+      const voice = VOICE_LIBRARY.find(v => v.id === voiceId);
+      if (voice?.previewUrl) {
+        const audio = new Audio(voice.previewUrl);
+        audioRef.current = audio;
+        audio.play();
+        audio.onended = () => {
+          setPlayingVoice(null);
+          audioRef.current = null;
+        };
+        setPlayingVoice(voiceId);
+      }
+    }
   };
 
   const handleGenerateAtmosphere = () => {
@@ -414,6 +471,55 @@ Remember: this tranquility is always available to you. Whenever you need it, clo
                 >
                   {lang}
                 </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Narrator - Only show when voiceover enabled */}
+        {localVoiceOverEnabled && (
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Narrator</Label>
+            <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
+              {VOICE_LIBRARY.map((voice) => (
+                <Card
+                  key={voice.id}
+                  className={`p-2 cursor-pointer transition-colors ${
+                    selectedNarrator === voice.id
+                      ? "border-primary bg-primary/5"
+                      : "hover-elevate"
+                  }`}
+                  onClick={() => handleNarratorChange(voice.id)}
+                  data-testid={`card-narrator-${voice.id}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium">{voice.name}</span>
+                        <Badge variant="outline" className="text-[10px] px-1 py-0">
+                          {voice.style}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{voice.description}</p>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 shrink-0"
+                      onClick={(e) => handlePlayVoice(voice.id, e)}
+                      data-testid={`button-play-voice-${voice.id}`}
+                    >
+                      {playingVoice === voice.id ? (
+                        <Pause className="h-3.5 w-3.5" />
+                      ) : (
+                        <Play className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                </Card>
               ))}
             </div>
           </div>

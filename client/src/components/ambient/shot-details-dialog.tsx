@@ -50,7 +50,7 @@ export function ShotDetailsDialog({ open, onOpenChange, scenes, shots }: ShotDet
             Shot-by-Shot Details
           </DialogTitle>
           <DialogDescription className="flex items-center gap-2">
-            Complete breakdown of scenes and shots with narration and timing
+            Complete breakdown of segments and shots with narration and timing
             <div className="flex items-center gap-1 ml-auto">
               <Clock className="h-3 w-3" />
               <span>{totalDuration}s total</span>
@@ -74,7 +74,7 @@ export function ShotDetailsDialog({ open, onOpenChange, scenes, shots }: ShotDet
           {scenes.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">No scenes available</p>
+              <p className="text-sm text-muted-foreground">No segments available</p>
             </div>
           ) : filteredScenes.length === 0 ? (
             <div className="text-center py-12">
@@ -86,11 +86,11 @@ export function ShotDetailsDialog({ open, onOpenChange, scenes, shots }: ShotDet
               const sceneShots = shots[scene.id] || [];
               
               return (
-                <div key={scene.id} className="space-y-4 pb-6 border-b last:border-0" data-testid={`scene-${scene.id}`}>
-                  {/* Scene Header */}
+                <div key={scene.id} className="space-y-4 pb-6 border-b last:border-0" data-testid={`segment-${scene.id}`}>
+                  {/* Segment Header */}
                   <div className="flex items-start gap-3">
                     <Badge variant="secondary" className="shrink-0 mt-0.5">
-                      Scene {scene.sceneNumber}
+                      Segment {scene.sceneNumber}
                     </Badge>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-semibold text-base mb-1">{scene.title}</h4>

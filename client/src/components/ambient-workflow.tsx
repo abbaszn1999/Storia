@@ -517,6 +517,7 @@ export function AmbientWorkflow({
           script={atmosphereDescription}
           scenes={scenes}
           shots={shots}
+          voiceOverEnabled={voiceOverEnabled}
           onNext={onNext} 
         />
       )}

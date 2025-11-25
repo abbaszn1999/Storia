@@ -14,10 +14,10 @@ export function FullScriptDialog({ open, onOpenChange, script }: FullScriptDialo
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
-            Full Script
+            Full Narration
           </DialogTitle>
           <DialogDescription>
-            Complete narration script for your video
+            Complete voiceover narration for your ambient video
           </DialogDescription>
         </DialogHeader>
         
@@ -31,7 +31,7 @@ export function FullScriptDialog({ open, onOpenChange, script }: FullScriptDialo
           ) : (
             <div className="text-center py-12">
               <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">No script available</p>
+              <p className="text-sm text-muted-foreground">No narration available</p>
             </div>
           )}
         </div>

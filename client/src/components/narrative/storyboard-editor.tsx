@@ -115,6 +115,15 @@ const CAMERA_MOVEMENTS = [
   "Steadicam",
 ];
 
+const CAMERA_ANGLE_PRESETS = [
+  { id: "rotate-left-45", label: "Rotate 45° Left", icon: "↺", rotation: -45, vertical: 0, zoom: 0 },
+  { id: "rotate-right-45", label: "Rotate 45° Right", icon: "↻", rotation: 45, vertical: 0, zoom: 0 },
+  { id: "birds-eye", label: "Bird's Eye View", icon: "⬇", rotation: 0, vertical: 1, zoom: 0 },
+  { id: "worms-eye", label: "Worm's Eye View", icon: "⬆", rotation: 0, vertical: -1, zoom: 0 },
+  { id: "close-up", label: "Close-up", icon: "🔍", rotation: 0, vertical: 0, zoom: 5 },
+  { id: "wide-angle", label: "Wide Angle", icon: "📐", rotation: 0, vertical: 0, zoom: -3, wideAngle: true },
+];
+
 interface StoryboardEditorProps {
   videoId: string;
   narrativeMode: "image-reference" | "start-end";
@@ -221,6 +230,7 @@ function SortableShotCard({
   const [activeFrame, setActiveFrame] = useState<"start" | "end">("start");
   const [advancedImageOpen, setAdvancedImageOpen] = useState(false);
   const [advancedVideoOpen, setAdvancedVideoOpen] = useState(false);
+  const [cameraPopoverOpen, setCameraPopoverOpen] = useState(false);
 
   const handlePromptBlur = () => {
     if (localPrompt !== shot.description) {
@@ -360,8 +370,47 @@ function SortableShotCard({
             # {shotIndex + 1}
           </Badge>
         </div>
-        {onDeleteShot && shotsCount > 1 && (
-          <div className="absolute top-2 right-2">
+        <div className="absolute top-2 right-2 flex items-center gap-1">
+          {displayImageUrl && (
+            <Popover open={cameraPopoverOpen} onOpenChange={setCameraPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6 bg-background/80 text-muted-foreground hover:text-primary"
+                  title="Quick camera angle"
+                  data-testid={`button-camera-angle-${shot.id}`}
+                >
+                  <Camera className="h-3 w-3" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2" align="end">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground px-2 pb-1">Camera Angle</p>
+                  {CAMERA_ANGLE_PRESETS.map((preset) => (
+                    <Button
+                      key={preset.id}
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-xs h-8 px-2"
+                      onClick={() => {
+                        toast({
+                          title: "Applying Camera Angle",
+                          description: `Transforming image: ${preset.label}`,
+                        });
+                        setCameraPopoverOpen(false);
+                      }}
+                      data-testid={`button-camera-preset-${preset.id}-${shot.id}`}
+                    >
+                      <span className="mr-2 text-sm">{preset.icon}</span>
+                      {preset.label}
+                    </Button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+          {onDeleteShot && shotsCount > 1 && (
             <Button
               size="icon"
               variant="ghost"
@@ -375,8 +424,8 @@ function SortableShotCard({
             >
               <Trash2 className="h-3 w-3" />
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <CardContent className="p-4">
@@ -722,6 +771,10 @@ export function StoryboardEditor({
   const [syncedPlaying, setSyncedPlaying] = useState(false);
   const [previewVersions, setPreviewVersions] = useState<Record<string, string>>({});
   const [editReferenceImages, setEditReferenceImages] = useState<Array<{ id: string; url: string; name: string }>>([]);
+  const [cameraRotation, setCameraRotation] = useState(0);
+  const [cameraVertical, setCameraVertical] = useState(0);
+  const [cameraZoom, setCameraZoom] = useState(0);
+  const [cameraWideAngle, setCameraWideAngle] = useState(false);
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
   const editReferenceInputRef = useRef<HTMLInputElement>(null);
@@ -1418,6 +1471,10 @@ export function StoryboardEditor({
           setSyncedPlaying(false);
           setEditReferenceImages([]); // Clear reference images when closing
           setEditChange(""); // Clear edit change text
+          setCameraRotation(0); // Reset camera controls
+          setCameraVertical(0);
+          setCameraZoom(0);
+          setCameraWideAngle(false);
         }}>
           <DialogContent className="max-w-7xl h-[90vh] p-0 gap-0">
             <div className="relative w-full h-full flex bg-background">
@@ -1902,22 +1959,111 @@ export function StoryboardEditor({
                       )}
 
                       {activeCategory === "camera" && (
-                      <div className="space-y-3">
-                        <Label className="text-sm text-muted-foreground">Camera Movement</Label>
-                        <Select defaultValue={selectedShot.cameraMovement || undefined}>
-                          <SelectTrigger className="bg-background/50">
-                            <SelectValue placeholder="Select movement" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CAMERA_MOVEMENTS.map((movement) => (
-                              <SelectItem key={movement} value={movement}>
-                                {movement}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-sm font-medium">Camera Angle Control</Label>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs h-7"
+                              onClick={() => {
+                                setCameraRotation(0);
+                                setCameraVertical(0);
+                                setCameraZoom(0);
+                                setCameraWideAngle(false);
+                              }}
+                              data-testid="button-reset-camera"
+                            >
+                              <RefreshCw className="h-3 w-3 mr-1" />
+                              Reset
+                            </Button>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs text-muted-foreground">Rotation (Left ↔ Right)</Label>
+                                <span className="text-xs font-mono text-muted-foreground">{cameraRotation}°</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="-90"
+                                max="90"
+                                value={cameraRotation}
+                                onChange={(e) => setCameraRotation(Number(e.target.value))}
+                                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                                data-testid="slider-camera-rotation"
+                              />
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs text-muted-foreground">Vertical (Bird ↔ Worm)</Label>
+                                <span className="text-xs font-mono text-muted-foreground">{cameraVertical > 0 ? `↑${cameraVertical}` : cameraVertical < 0 ? `↓${Math.abs(cameraVertical)}` : "0"}</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="-1"
+                                max="1"
+                                step="0.1"
+                                value={cameraVertical}
+                                onChange={(e) => setCameraVertical(Number(e.target.value))}
+                                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                                data-testid="slider-camera-vertical"
+                              />
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs text-muted-foreground">Zoom (Wide ↔ Close-up)</Label>
+                                <span className="text-xs font-mono text-muted-foreground">{cameraZoom > 0 ? `+${cameraZoom}` : cameraZoom}</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="-5"
+                                max="10"
+                                value={cameraZoom}
+                                onChange={(e) => setCameraZoom(Number(e.target.value))}
+                                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                                data-testid="slider-camera-zoom"
+                              />
+                            </div>
+                            
+                            <div className="flex items-center justify-between py-2">
+                              <Label className="text-xs text-muted-foreground">Wide-Angle Lens</Label>
+                              <Switch
+                                checked={cameraWideAngle}
+                                onCheckedChange={setCameraWideAngle}
+                                data-testid="switch-camera-wide-angle"
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="pt-2 border-t">
+                            <Label className="text-xs text-muted-foreground mb-2 block">Quick Presets</Label>
+                            <div className="flex flex-wrap gap-1.5">
+                              {CAMERA_ANGLE_PRESETS.map((preset) => (
+                                <Button
+                                  key={preset.id}
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs h-7 px-2"
+                                  onClick={() => {
+                                    setCameraRotation(preset.rotation);
+                                    setCameraVertical(preset.vertical);
+                                    setCameraZoom(preset.zoom);
+                                    setCameraWideAngle(preset.wideAngle || false);
+                                  }}
+                                  data-testid={`button-camera-quick-preset-${preset.id}`}
+                                >
+                                  <span className="mr-1">{preset.icon}</span>
+                                  {preset.label}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {activeCategory === "effects" && (
                         <div className="space-y-3">

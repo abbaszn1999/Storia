@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Scissors, Download, Share2, Calendar, Youtube, Instagram, Sparkles, Play } from "lucide-react";
+import { Download, Share2, Calendar, Youtube, Instagram, Sparkles, Play } from "lucide-react";
 import { SiTiktok, SiFacebook } from "react-icons/si";
 
 const RESOLUTION_OPTIONS = [
@@ -39,7 +39,6 @@ export interface PlatformMetadata {
 export interface ExportData {
   resolution: string;
   platformMetadata: PlatformMetadata;
-  autoGenerateShorts: boolean;
   publishType: "instant" | "schedule";
   selectedPlatforms: string[];
   scheduleDate?: string;
@@ -59,7 +58,6 @@ const PLATFORMS = [
 
 export function ExportSettings({ onExport }: ExportSettingsProps) {
   const [resolution, setResolution] = useState("1080p");
-  const [autoGenerateShorts, setAutoGenerateShorts] = useState(false);
   
   // Platform metadata state
   const [metadataPlatforms, setMetadataPlatforms] = useState<Platform[]>([]);
@@ -231,7 +229,6 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
     onExport({
       resolution,
       platformMetadata,
-      autoGenerateShorts,
       publishType,
       selectedPlatforms,
       scheduleDate: publishType === "schedule" ? scheduleDate : undefined,
@@ -480,30 +477,6 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Post-Processing Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Auto-generate Shorts</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <Scissors className="w-5 h-5 text-primary mt-0.5" />
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">
-                  Let AI find the best hooks and create short-form clips from your video.
-                </p>
-              </div>
-            </div>
-            <Switch
-              checked={autoGenerateShorts}
-              onCheckedChange={setAutoGenerateShorts}
-              data-testid="switch-auto-generate-shorts"
-            />
-          </div>
         </CardContent>
       </Card>
 

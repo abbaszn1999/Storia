@@ -159,6 +159,7 @@ interface SortableShotCardProps {
   isGenerating: boolean;
   voiceOverEnabled: boolean;
   narrativeMode: "image-reference" | "start-end";
+  animationMode: "smooth-image" | "animate";
   isConnectedToNext: boolean;
   showEndFrame: boolean;
   isPartOfConnection: boolean;
@@ -185,6 +186,7 @@ function SortableShotCard({
   isGenerating,
   voiceOverEnabled,
   narrativeMode,
+  animationMode,
   isConnectedToNext,
   showEndFrame,
   isPartOfConnection,
@@ -423,13 +425,15 @@ function SortableShotCard({
 
       <CardContent className="p-4">
         <Tabs defaultValue="image" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-3">
+          <TabsList className={`grid w-full mb-3 ${animationMode === "smooth-image" ? "grid-cols-1" : "grid-cols-2"}`}>
             <TabsTrigger value="image" className="text-xs" data-testid={`tab-image-${shot.id}`}>
               Image
             </TabsTrigger>
-            <TabsTrigger value="video" className="text-xs" data-testid={`tab-video-${shot.id}`}>
-              Video
-            </TabsTrigger>
+            {animationMode === "animate" && (
+              <TabsTrigger value="video" className="text-xs" data-testid={`tab-video-${shot.id}`}>
+                Video
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="image" className="space-y-3 mt-0">
@@ -768,6 +772,7 @@ export function StoryboardEditor({
   const [cameraWideAngle, setCameraWideAngle] = useState(false);
   const [viewMode, setViewMode] = useState<"cards" | "timeline">("cards");
   const [timelinePlayhead, setTimelinePlayhead] = useState(0);
+  const [sceneAnimationModes, setSceneAnimationModes] = useState<Record<string, string>>({});
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
   const editReferenceInputRef = useRef<HTMLInputElement>(null);
@@ -1210,28 +1215,12 @@ export function StoryboardEditor({
                     </div>
 
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Video Model</Label>
-                      <Select
-                        value={scene.videoModel || VIDEO_MODELS[0]}
-                        onValueChange={(value) => onUpdateScene?.(scene.id, { videoModel: value })}
-                      >
-                        <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-video-model-${scene.id}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {VIDEO_MODELS.map((model) => (
-                            <SelectItem key={model} value={model}>
-                              {model}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Animation Mode</Label>
                       <Select
-                        defaultValue="smooth-image"
+                        value={sceneAnimationModes[scene.id] || "smooth-image"}
+                        onValueChange={(value) => {
+                          setSceneAnimationModes(prev => ({ ...prev, [scene.id]: value }));
+                        }}
                       >
                         <SelectTrigger className="h-8 text-xs" data-testid={`select-animation-mode-${scene.id}`}>
                           <SelectValue />
@@ -1245,6 +1234,27 @@ export function StoryboardEditor({
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {(sceneAnimationModes[scene.id] || "smooth-image") === "animate" && (
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Video Model</Label>
+                        <Select
+                          value={scene.videoModel || VIDEO_MODELS[0]}
+                          onValueChange={(value) => onUpdateScene?.(scene.id, { videoModel: value })}
+                        >
+                          <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-video-model-${scene.id}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {VIDEO_MODELS.map((model) => (
+                              <SelectItem key={model} value={model}>
+                                {model}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
 
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Motion Intensity</Label>
@@ -1323,6 +1333,7 @@ export function StoryboardEditor({
                                 isGenerating={isGenerating}
                                 voiceOverEnabled={voiceOverEnabled}
                                 narrativeMode={narrativeMode}
+                                animationMode={(sceneAnimationModes[scene.id] || "smooth-image") as "smooth-image" | "animate"}
                                 isConnectedToNext={isConnectedToNext}
                                 showEndFrame={showEndFrame}
                                 isPartOfConnection={isPartOfConnection}

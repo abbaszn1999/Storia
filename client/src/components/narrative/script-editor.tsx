@@ -14,11 +14,19 @@ interface ScriptEditorProps {
   initialScript?: string;
   aspectRatio?: string;
   scriptModel?: string;
+  videoMode?: "narrative" | "character-vlog";
+  narrationStyle?: "third-person" | "first-person";
   onScriptChange: (script: string) => void;
   onAspectRatioChange?: (aspectRatio: string) => void;
   onScriptModelChange?: (model: string) => void;
+  onNarrationStyleChange?: (style: "third-person" | "first-person") => void;
   onNext: () => void;
 }
+
+const NARRATION_STYLES = [
+  { id: "third-person", label: "Third Person", description: "The narrator describes the character's actions (\"Luna walked through the forest...\")" },
+  { id: "first-person", label: "First Person", description: "The character narrates their own story (\"I woke up that morning feeling...\")" },
+];
 
 const AI_MODELS = [
   { value: "gpt-4o", label: "GPT-4o (Recommended)", description: "Latest OpenAI model, fast and capable" },
@@ -62,13 +70,25 @@ const ASPECT_RATIOS = [
   { id: "1:1", label: "1:1" },
 ];
 
-export function ScriptEditor({ initialScript = "", aspectRatio = "16:9", scriptModel = "gpt-4o", onScriptChange, onAspectRatioChange, onScriptModelChange, onNext }: ScriptEditorProps) {
+export function ScriptEditor({ 
+  initialScript = "", 
+  aspectRatio = "16:9", 
+  scriptModel = "gpt-4o", 
+  videoMode = "narrative",
+  narrationStyle = "third-person",
+  onScriptChange, 
+  onAspectRatioChange, 
+  onScriptModelChange, 
+  onNarrationStyleChange,
+  onNext 
+}: ScriptEditorProps) {
   const [storyIdea, setStoryIdea] = useState("");
   const [generatedScript, setGeneratedScript] = useState(initialScript);
   const [hasGeneratedOnce, setHasGeneratedOnce] = useState(!!initialScript);
   const [duration, setDuration] = useState("60");
   const [selectedAspectRatio, setSelectedAspectRatio] = useState(aspectRatio);
   const [selectedModel, setSelectedModel] = useState(scriptModel);
+  const [selectedNarrationStyle, setSelectedNarrationStyle] = useState(narrationStyle);
   const [selectedGenres, setSelectedGenres] = useState<string[]>(["Adventure"]);
   const [selectedTones, setSelectedTones] = useState<string[]>(["Dramatic"]);
   const [language, setLanguage] = useState("English");
@@ -286,6 +306,33 @@ export function ScriptEditor({ initialScript = "", aspectRatio = "16:9", scriptM
             ))}
           </div>
         </div>
+
+        {/* Narration Style - Only for Character Vlog mode */}
+        {videoMode === "character-vlog" && (
+          <div className="space-y-3">
+            <Label className="text-sm font-semibold">Narration Style</Label>
+            <div className="space-y-2">
+              {NARRATION_STYLES.map((style) => (
+                <button
+                  key={style.id}
+                  onClick={() => {
+                    setSelectedNarrationStyle(style.id as "third-person" | "first-person");
+                    onNarrationStyleChange?.(style.id as "third-person" | "first-person");
+                  }}
+                  className={`w-full text-left p-3 rounded-lg border transition-all hover-elevate ${
+                    selectedNarrationStyle === style.id
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-muted/50"
+                  }`}
+                  data-testid={`button-narration-${style.id}`}
+                >
+                  <div className="font-medium text-sm">{style.label}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{style.description}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Right: Script Editor */}

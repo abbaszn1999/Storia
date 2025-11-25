@@ -16,6 +16,7 @@ interface CharacterVlogWorkflowProps {
   script: string;
   aspectRatio: string;
   scriptModel: string;
+  narrationStyle: "third-person" | "first-person";
   voiceActorId: string | null;
   voiceOverEnabled: boolean;
   scenes: Scene[];
@@ -37,6 +38,7 @@ interface CharacterVlogWorkflowProps {
   onScriptChange: (script: string) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
   onScriptModelChange: (model: string) => void;
+  onNarrationStyleChange: (style: "third-person" | "first-person") => void;
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
   onScenesChange: (scenes: Scene[]) => void;
@@ -66,6 +68,7 @@ export function CharacterVlogWorkflow({
   script,
   aspectRatio,
   scriptModel,
+  narrationStyle,
   voiceActorId,
   voiceOverEnabled,
   scenes,
@@ -80,6 +83,7 @@ export function CharacterVlogWorkflow({
   onScriptChange,
   onAspectRatioChange,
   onScriptModelChange,
+  onNarrationStyleChange,
   onVoiceActorChange,
   onVoiceOverToggle,
   onScenesChange,
@@ -410,9 +414,12 @@ export function CharacterVlogWorkflow({
           initialScript={script}
           aspectRatio={aspectRatio}
           scriptModel={scriptModel}
+          videoMode="character-vlog"
+          narrationStyle={narrationStyle}
           onScriptChange={onScriptChange}
           onAspectRatioChange={onAspectRatioChange}
           onScriptModelChange={onScriptModelChange}
+          onNarrationStyleChange={onNarrationStyleChange}
           onNext={onNext}
         />
       )}

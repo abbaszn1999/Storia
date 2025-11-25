@@ -250,7 +250,10 @@ export function WorldCast({
   onCharactersChange, 
   onReferenceImagesChange,
   onWorldSettingsChange,
-  onNext 
+  onNext,
+  videoMode = "narrative",
+  mainCharacter,
+  onMainCharacterChange,
 }: WorldCastProps) {
   const [isAddCharacterOpen, setIsAddCharacterOpen] = useState(false);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
@@ -342,6 +345,11 @@ export function WorldCast({
 
       onCharactersChange([...characters, character]);
       
+      // In Character Vlog mode, if no mainCharacter exists, set this as primary
+      if (videoMode === "character-vlog" && !mainCharacter && onMainCharacterChange) {
+        onMainCharacterChange(character);
+      }
+      
       // Add reference images for this character
       const newRefs = characterReferenceImages.map((url, idx) => ({
         id: `ref-${characterId}-${idx}`,
@@ -357,8 +365,8 @@ export function WorldCast({
       onReferenceImagesChange([...referenceImages, ...newRefs]);
       
       toast({
-        title: "Character Added",
-        description: `${character.name} has been added to your cast.`,
+        title: videoMode === "character-vlog" && !mainCharacter ? "Primary Character Added" : "Character Added",
+        description: `${character.name} has been added ${videoMode === "character-vlog" && !mainCharacter ? "as your primary character" : "to your cast"}.`,
       });
     }
 
@@ -900,7 +908,9 @@ export function WorldCast({
       {/* Cast Section */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-xl font-semibold">Cast</h3>
+          <h3 className="text-xl font-semibold">
+            {videoMode === "character-vlog" ? "Your Characters" : "Cast"}
+          </h3>
           <Button
             variant="outline"
             size="sm"
@@ -908,96 +918,289 @@ export function WorldCast({
             data-testid="button-recommend-characters"
           >
             <Sparkles className="mr-2 h-4 w-4" />
-            Recommend AI Characters
+            {videoMode === "character-vlog" ? "Recommend Primary Character" : "Recommend AI Characters"}
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {/* Add Character Card with Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Card
-                className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-card/50"
-                data-testid="button-add-character"
-              >
-                <CardContent className="flex flex-col items-center justify-center p-6">
-                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-2">
-                    <Plus className="h-6 w-6 text-muted-foreground" />
-                  </div>
-                  <p className="text-sm font-medium">Add character</p>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground mt-1" />
-                </CardContent>
-              </Card>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem
-                onClick={() => {
-                  setEditingCharacter(null);
-                  setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
-                  setCharacterReferenceImages([]);
-                  setGeneratedCharacterImage(null);
-                  setIsAddCharacterOpen(true);
-                }}
-                data-testid="menu-create-new-character"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Create New Character
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setIsLibraryOpen(true)}
-                data-testid="menu-browse-library"
-              >
-                <Library className="h-4 w-4 mr-2" />
-                Browse Library
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {/* Character Vlog Mode: Primary + Secondary Characters */}
+        {videoMode === "character-vlog" ? (
+          <div className="space-y-6">
+            {/* Primary Character Section */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-semibold text-primary">Primary Character</h4>
+                <span className="text-xs text-muted-foreground">(Required - the story is about this character)</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {/* Add Primary Character Card - only show if no main character */}
+                {!mainCharacter && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Card
+                        className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-primary/5 border-primary/30 border-dashed"
+                        data-testid="button-add-primary-character"
+                      >
+                        <CardContent className="flex flex-col items-center justify-center p-6">
+                          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
+                            <Plus className="h-6 w-6 text-primary" />
+                          </div>
+                          <p className="text-sm font-medium text-primary">Add Primary</p>
+                          <ChevronDown className="h-4 w-4 text-primary/70 mt-1" />
+                        </CardContent>
+                      </Card>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setEditingCharacter(null);
+                          setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
+                          setCharacterReferenceImages([]);
+                          setGeneratedCharacterImage(null);
+                          setIsAddCharacterOpen(true);
+                        }}
+                        data-testid="menu-create-primary-character"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create New Character
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setIsLibraryOpen(true)}
+                        data-testid="menu-browse-library-primary"
+                      >
+                        <Library className="h-4 w-4 mr-2" />
+                        Browse Library
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
 
-          {/* Character Cards */}
-          {characters.map((character) => {
-            const charRefs = getCharacterReferenceImages(character.id);
-            return (
-              <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group" data-testid={`character-${character.id}`}>
-                <CardContent className="p-0 h-full">
-                  <div className="h-full bg-muted flex items-center justify-center relative">
-                    {character.thumbnailUrl ? (
-                      <img src={character.thumbnailUrl} alt={character.name} className="h-full w-full object-cover" />
-                    ) : (
-                      <User className="h-16 w-16 text-muted-foreground" />
-                    )}
-                    
-                    {/* Reference Images Indicator */}
-                    {charRefs.length > 0 && (
-                      <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded">
-                        {charRefs.length} ref
+                {/* Primary Character Card */}
+                {mainCharacter && (
+                  <Card className="relative aspect-[3/4] overflow-hidden group ring-2 ring-primary" data-testid={`primary-character-${mainCharacter.id}`}>
+                    <CardContent className="p-0 h-full">
+                      <div className="h-full bg-muted flex items-center justify-center relative">
+                        {mainCharacter.thumbnailUrl ? (
+                          <img src={mainCharacter.thumbnailUrl} alt={mainCharacter.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <User className="h-16 w-16 text-muted-foreground" />
+                        )}
+                        
+                        {/* Primary Badge */}
+                        <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded font-medium">
+                          Primary
+                        </div>
+                        
+                        {/* Edit Button */}
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => handleEditCharacter(mainCharacter)}
+                          data-testid={`button-edit-primary-character`}
+                        >
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Edit
+                        </Button>
                       </div>
-                    )}
+                      
+                      {/* Character Info */}
+                      <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                        <p className="text-sm font-semibold text-white">{mainCharacter.name}</p>
+                        {mainCharacter.description && (
+                          <p className="text-xs text-white/80 line-clamp-2">{mainCharacter.description}</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </div>
+
+            {/* Secondary Characters Section */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-semibold text-muted-foreground">Secondary Characters</h4>
+                <span className="text-xs text-muted-foreground">(Optional - up to 2 supporting characters)</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {/* Add Secondary Character Card - only show if less than 2 secondary */}
+                {characters.filter(c => c.id !== mainCharacter?.id).length < 2 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Card
+                        className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-card/50"
+                        data-testid="button-add-secondary-character"
+                      >
+                        <CardContent className="flex flex-col items-center justify-center p-6">
+                          <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-2">
+                            <Plus className="h-6 w-6 text-muted-foreground" />
+                          </div>
+                          <p className="text-sm font-medium">Add Secondary</p>
+                          <ChevronDown className="h-4 w-4 text-muted-foreground mt-1" />
+                        </CardContent>
+                      </Card>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setEditingCharacter(null);
+                          setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
+                          setCharacterReferenceImages([]);
+                          setGeneratedCharacterImage(null);
+                          setIsAddCharacterOpen(true);
+                        }}
+                        data-testid="menu-create-secondary-character"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create New Character
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setIsLibraryOpen(true)}
+                        data-testid="menu-browse-library-secondary"
+                      >
+                        <Library className="h-4 w-4 mr-2" />
+                        Browse Library
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+
+                {/* Secondary Character Cards */}
+                {characters.filter(c => c.id !== mainCharacter?.id).map((character) => {
+                  const charRefs = getCharacterReferenceImages(character.id);
+                  return (
+                    <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group" data-testid={`secondary-character-${character.id}`}>
+                      <CardContent className="p-0 h-full">
+                        <div className="h-full bg-muted flex items-center justify-center relative">
+                          {character.thumbnailUrl ? (
+                            <img src={character.thumbnailUrl} alt={character.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <User className="h-16 w-16 text-muted-foreground" />
+                          )}
+                          
+                          {/* Reference Images Indicator */}
+                          {charRefs.length > 0 && (
+                            <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded">
+                              {charRefs.length} ref
+                            </div>
+                          )}
+                          
+                          {/* Edit Button */}
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => handleEditCharacter(character)}
+                            data-testid={`button-edit-secondary-character-${character.id}`}
+                          >
+                            <Pencil className="h-3 w-3 mr-1" />
+                            Edit
+                          </Button>
+                        </div>
+                        
+                        {/* Character Info */}
+                        <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                          <p className="text-sm font-semibold text-white">{character.name}</p>
+                          {character.description && (
+                            <p className="text-xs text-white/80 line-clamp-2">{character.description}</p>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Narrative Mode: Standard Cast Grid */
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {/* Add Character Card with Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Card
+                  className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-card/50"
+                  data-testid="button-add-character"
+                >
+                  <CardContent className="flex flex-col items-center justify-center p-6">
+                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-2">
+                      <Plus className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm font-medium">Add character</p>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground mt-1" />
+                  </CardContent>
+                </Card>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setEditingCharacter(null);
+                    setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
+                    setCharacterReferenceImages([]);
+                    setGeneratedCharacterImage(null);
+                    setIsAddCharacterOpen(true);
+                  }}
+                  data-testid="menu-create-new-character"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create New Character
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setIsLibraryOpen(true)}
+                  data-testid="menu-browse-library"
+                >
+                  <Library className="h-4 w-4 mr-2" />
+                  Browse Library
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Character Cards */}
+            {characters.map((character) => {
+              const charRefs = getCharacterReferenceImages(character.id);
+              return (
+                <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group" data-testid={`character-${character.id}`}>
+                  <CardContent className="p-0 h-full">
+                    <div className="h-full bg-muted flex items-center justify-center relative">
+                      {character.thumbnailUrl ? (
+                        <img src={character.thumbnailUrl} alt={character.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <User className="h-16 w-16 text-muted-foreground" />
+                      )}
+                      
+                      {/* Reference Images Indicator */}
+                      {charRefs.length > 0 && (
+                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded">
+                          {charRefs.length} ref
+                        </div>
+                      )}
+                      
+                      {/* Edit Button */}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleEditCharacter(character)}
+                        data-testid={`button-edit-character-${character.id}`}
+                      >
+                        <Pencil className="h-3 w-3 mr-1" />
+                        Edit
+                      </Button>
+                    </div>
                     
-                    {/* Edit Button */}
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => handleEditCharacter(character)}
-                      data-testid={`button-edit-character-${character.id}`}
-                    >
-                      <Pencil className="h-3 w-3 mr-1" />
-                      Edit
-                    </Button>
-                  </div>
-                  
-                  {/* Character Info */}
-                  <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
-                    <p className="text-sm font-semibold text-white">{character.name}</p>
-                    {character.description && (
-                      <p className="text-xs text-white/80 line-clamp-2">{character.description}</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                    {/* Character Info */}
+                    <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                      <p className="text-sm font-semibold text-white">{character.name}</p>
+                      {character.description && (
+                        <p className="text-xs text-white/80 line-clamp-2">{character.description}</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Locations Section */}

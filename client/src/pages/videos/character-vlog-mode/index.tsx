@@ -28,6 +28,7 @@ export default function CharacterVlogMode() {
   const [script, setScript] = useState("");
   const [aspectRatio, setAspectRatio] = useState("9:16");
   const [scriptModel, setScriptModel] = useState("gpt-4o");
+  const [narrationStyle, setNarrationStyle] = useState<"third-person" | "first-person">("third-person");
   const [voiceActorId, setVoiceActorId] = useState<string | null>(null);
   const [voiceOverEnabled, setVoiceOverEnabled] = useState(true);
   const [scenes, setScenes] = useState<Scene[]>([]);
@@ -138,6 +139,7 @@ export default function CharacterVlogMode() {
               script={script}
               aspectRatio={aspectRatio}
               scriptModel={scriptModel}
+              narrationStyle={narrationStyle}
               voiceActorId={voiceActorId}
               voiceOverEnabled={voiceOverEnabled}
               scenes={scenes}
@@ -152,6 +154,7 @@ export default function CharacterVlogMode() {
               onScriptChange={setScript}
               onAspectRatioChange={setAspectRatio}
               onScriptModelChange={setScriptModel}
+              onNarrationStyleChange={setNarrationStyle}
               onVoiceActorChange={setVoiceActorId}
               onVoiceOverToggle={setVoiceOverEnabled}
               onScenesChange={setScenes}

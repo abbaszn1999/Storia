@@ -1512,6 +1512,22 @@ export function StoryboardEditor({
                             </>
                           );
                         })}
+                        
+                        {/* Add Shot Button - Always visible at end of row */}
+                        {onAddShot && (
+                          <div className="shrink-0 flex items-center">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-32 w-24 flex flex-col gap-2 border-dashed border-2 border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5"
+                              onClick={() => onAddShot(scene.id, Math.max(0, sceneShots.length - 1))}
+                              data-testid={`button-add-shot-${scene.id}`}
+                            >
+                              <Plus className="h-5 w-5 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">Add Shot</span>
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </SortableContext>
                   </DndContext>

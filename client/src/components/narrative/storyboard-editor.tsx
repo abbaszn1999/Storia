@@ -1457,56 +1457,59 @@ export function StoryboardEditor({
                                     <Link2 className="h-4 w-4" />
                                   </div>
                                 ) : shotIndex < sceneShots.length - 1 ? (
-                                  /* Transition Control - Between non-connected shots */
-                                  <Popover>
-                                    <PopoverTrigger asChild>
+                                  /* Transition Control with Add Shot - Between non-connected shots */
+                                  <div className="flex flex-col items-center gap-1">
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <button
+                                          className="flex flex-col items-center justify-center w-10 gap-0.5 py-1 rounded-md bg-muted/50 hover:bg-muted border border-dashed border-muted-foreground/30 hover:border-primary/50 transition-colors"
+                                          data-testid={`button-transition-${shot.id}`}
+                                          title="Set transition"
+                                        >
+                                          <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                                          <span className="text-[9px] text-muted-foreground font-medium">
+                                            {shot.transition || "Cut"}
+                                          </span>
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-44 p-2" align="center">
+                                        <div className="space-y-1">
+                                          <p className="text-xs font-medium text-muted-foreground px-2 pb-1">Transition</p>
+                                          {TRANSITION_TYPES.map((trans) => (
+                                            <Button
+                                              key={trans.id}
+                                              variant={shot.transition === trans.id ? "secondary" : "ghost"}
+                                              size="sm"
+                                              className="w-full justify-start text-xs h-8 px-2"
+                                              onClick={() => {
+                                                onUpdateShot(shot.id, { transition: trans.id });
+                                                toast({
+                                                  title: "Transition Updated",
+                                                  description: `Set to "${trans.label}" - ${trans.description}`,
+                                                });
+                                              }}
+                                              data-testid={`button-transition-${trans.id}-${shot.id}`}
+                                            >
+                                              <span className="flex-1 text-left">{trans.label}</span>
+                                              {shot.transition === trans.id && (
+                                                <Check className="h-3 w-3 text-primary" />
+                                              )}
+                                            </Button>
+                                          ))}
+                                        </div>
+                                      </PopoverContent>
+                                    </Popover>
+                                    {onAddShot && (
                                       <button
-                                        className="flex flex-col items-center justify-center w-10 gap-0.5 py-1 rounded-md bg-muted/50 hover:bg-muted border border-dashed border-muted-foreground/30 hover:border-primary/50 transition-colors"
-                                        data-testid={`button-transition-${shot.id}`}
-                                        title="Set transition"
+                                        onClick={() => onAddShot(scene.id, shotIndex)}
+                                        className="flex items-center justify-center w-6 h-6 rounded-full bg-background border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                                        data-testid={`button-add-shot-between-${shotIndex}`}
+                                        title="Insert shot here"
                                       >
-                                        <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                                        <span className="text-[9px] text-muted-foreground font-medium">
-                                          {shot.transition || "Cut"}
-                                        </span>
+                                        <Plus className="h-3 w-3 text-muted-foreground" />
                                       </button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-44 p-2" align="center">
-                                      <div className="space-y-1">
-                                        <p className="text-xs font-medium text-muted-foreground px-2 pb-1">Transition</p>
-                                        {TRANSITION_TYPES.map((trans) => (
-                                          <Button
-                                            key={trans.id}
-                                            variant={shot.transition === trans.id ? "secondary" : "ghost"}
-                                            size="sm"
-                                            className="w-full justify-start text-xs h-8 px-2"
-                                            onClick={() => {
-                                              onUpdateShot(shot.id, { transition: trans.id });
-                                              toast({
-                                                title: "Transition Updated",
-                                                description: `Set to "${trans.label}" - ${trans.description}`,
-                                              });
-                                            }}
-                                            data-testid={`button-transition-${trans.id}-${shot.id}`}
-                                          >
-                                            <span className="flex-1 text-left">{trans.label}</span>
-                                            {shot.transition === trans.id && (
-                                              <Check className="h-3 w-3 text-primary" />
-                                            )}
-                                          </Button>
-                                        ))}
-                                      </div>
-                                    </PopoverContent>
-                                  </Popover>
-                                ) : onAddShot ? (
-                                  /* Add Shot Button - Only for last shot */
-                                  <button
-                                    onClick={() => onAddShot(scene.id, shotIndex)}
-                                    className="opacity-0 hover:opacity-100 flex items-center justify-center w-7 h-7 rounded-full bg-background border-2 border-dashed border-primary/50 hover-elevate active-elevate-2 transition-opacity"
-                                    data-testid={`button-add-shot-after-${shotIndex}`}
-                                  >
-                                    <Plus className="h-4 w-4 text-primary" />
-                                  </button>
+                                    )}
+                                  </div>
                                 ) : null}
                               </div>
                             </>

@@ -721,8 +721,10 @@ export function StoryboardEditor({
   const [compareVersions, setCompareVersions] = useState<string[]>([]);
   const [syncedPlaying, setSyncedPlaying] = useState(false);
   const [previewVersions, setPreviewVersions] = useState<Record<string, string>>({});
+  const [editReferenceImages, setEditReferenceImages] = useState<Array<{ id: string; url: string; name: string }>>([]);
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
+  const editReferenceInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // Sync localShots with incoming shots prop to reflect updates
@@ -1025,6 +1027,40 @@ export function StoryboardEditor({
   const handleSelectVoice = (voiceId: string) => {
     onVoiceActorChange(voiceId);
     setVoiceDropdownOpen(false);
+  };
+
+  const handleEditReferenceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach((file) => {
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Invalid file type",
+          description: "Please upload image files only",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const url = event.target?.result as string;
+        setEditReferenceImages((prev) => [
+          ...prev,
+          { id: crypto.randomUUID(), url, name: file.name }
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (editReferenceInputRef.current) {
+      editReferenceInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveEditReference = (id: string) => {
+    setEditReferenceImages((prev) => prev.filter((img) => img.id !== id));
   };
 
   // Synchronized playback handlers for compare mode
@@ -1380,6 +1416,8 @@ export function StoryboardEditor({
           setCompareMode(false);
           setCompareVersions([]);
           setSyncedPlaying(false);
+          setEditReferenceImages([]); // Clear reference images when closing
+          setEditChange(""); // Clear edit change text
         }}>
           <DialogContent className="max-w-7xl h-[90vh] p-0 gap-0">
             <div className="relative w-full h-full flex bg-background">
@@ -1720,13 +1758,59 @@ export function StoryboardEditor({
                       {activeCategory === "prompt" && (
                         <div className="space-y-3">
                           <Label className="text-sm text-muted-foreground">What would you like to change?</Label>
-                          <Input
-                            value={editChange}
-                            onChange={(e) => setEditChange(e.target.value)}
-                            placeholder="e.g., Make the sky darker and add dramatic lighting"
-                            className="bg-background/50"
-                            data-testid="input-edit-change"
-                          />
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={editChange}
+                              onChange={(e) => setEditChange(e.target.value)}
+                              placeholder="e.g., Make the sky darker and add dramatic lighting"
+                              className="bg-background/50 flex-1"
+                              data-testid="input-edit-change"
+                            />
+                            <input
+                              ref={editReferenceInputRef}
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={handleEditReferenceUpload}
+                              data-testid="input-edit-reference-upload"
+                            />
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="outline"
+                              onClick={() => editReferenceInputRef.current?.click()}
+                              className="shrink-0 bg-background/50 hover-elevate"
+                              title="Add reference image"
+                              data-testid="button-add-edit-reference"
+                            >
+                              <ImageIcon className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          {editReferenceImages.length > 0 && (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {editReferenceImages.map((img) => (
+                                <div
+                                  key={img.id}
+                                  className="relative group w-14 h-14 rounded-md overflow-hidden border bg-muted"
+                                >
+                                  <img
+                                    src={img.url}
+                                    alt={img.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <button
+                                    onClick={() => handleRemoveEditReference(img.id)}
+                                    className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-background/80 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                                    title="Remove reference"
+                                    data-testid={`button-remove-edit-reference-${img.id}`}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
 

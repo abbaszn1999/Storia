@@ -4,17 +4,23 @@ import { Film, Link as LinkIcon } from "lucide-react";
 
 interface NarrativeModeSelectorProps {
   onSelectMode: (mode: "image-reference" | "start-end") => void;
+  title?: string;
+  description?: string;
 }
 
-export function NarrativeModeSelector({ onSelectMode }: NarrativeModeSelectorProps) {
+export function NarrativeModeSelector({ 
+  onSelectMode, 
+  title = "Choose Your Workflow",
+  description = "Select how you want to generate your video shots"
+}: NarrativeModeSelectorProps) {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="text-center space-y-2">
         <h2 className="text-3xl font-bold bg-gradient-storia bg-clip-text text-transparent">
-          Choose Your Workflow
+          {title}
         </h2>
         <p className="text-muted-foreground text-lg">
-          Select how you want to generate your video shots
+          {description}
         </p>
       </div>
 

@@ -201,6 +201,9 @@ interface WorldCastProps {
     videoInstructions: string;
   }) => void;
   onNext: () => void;
+  videoMode?: "narrative" | "character-vlog";
+  mainCharacter?: Character | null;
+  onMainCharacterChange?: (character: Character | null) => void;
 }
 
 const VIDEO_STYLES = [
@@ -1362,9 +1365,6 @@ export function WorldCast({
         onOpenChange={setIsLocationRecommendationOpen}
         onAddLocation={handleAddLocationFromRecommendation}
         existingLocations={locationsList}
-        videoId={videoId}
-        workspaceId={workspaceId}
-        imageModel={selectedImageModel}
       />
 
       {/* Location Library Dialog */}

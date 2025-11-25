@@ -8,7 +8,7 @@ import { ExportSettings, type ExportData } from "@/components/narrative/export-s
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
 
-interface NarrativeWorkflowProps {
+interface CharacterVlogWorkflowProps {
   activeStep: string;
   videoId: string;
   workspaceId: string;
@@ -25,6 +25,7 @@ interface NarrativeWorkflowProps {
   referenceImages: ReferenceImage[];
   continuityLocked: boolean;
   continuityGroups: { [sceneId: string]: any[] };
+  mainCharacter: Character | null;
   worldSettings: { 
     artStyle: string; 
     imageModel?: string;
@@ -45,6 +46,7 @@ interface NarrativeWorkflowProps {
   onReferenceImagesChange: (referenceImages: ReferenceImage[]) => void;
   onContinuityLockedChange: (locked: boolean) => void;
   onContinuityGroupsChange: (groups: { [sceneId: string]: any[] }) => void;
+  onMainCharacterChange: (character: Character | null) => void;
   onWorldSettingsChange: (settings: { 
     artStyle: string; 
     imageModel: string;
@@ -56,7 +58,7 @@ interface NarrativeWorkflowProps {
   onNext: () => void;
 }
 
-export function NarrativeWorkflow({
+export function CharacterVlogWorkflow({
   activeStep,
   videoId,
   workspaceId,
@@ -73,6 +75,7 @@ export function NarrativeWorkflow({
   referenceImages,
   continuityLocked,
   continuityGroups,
+  mainCharacter,
   worldSettings,
   onScriptChange,
   onAspectRatioChange,
@@ -86,17 +89,16 @@ export function NarrativeWorkflow({
   onReferenceImagesChange,
   onContinuityLockedChange,
   onContinuityGroupsChange,
+  onMainCharacterChange,
   onWorldSettingsChange,
   onNext,
-}: NarrativeWorkflowProps) {
+}: CharacterVlogWorkflowProps) {
   const { toast } = useToast();
 
   const handleExport = (data: ExportData) => {
-    // Validation: Check platform metadata for publishing platforms
     if (data.selectedPlatforms.length > 0) {
       const missingMetadata: string[] = [];
       
-      // Check if YouTube is selected and has metadata
       if (data.selectedPlatforms.includes("youtube")) {
         const ytMeta = data.platformMetadata.youtube;
         if (!ytMeta || !ytMeta.title || !ytMeta.description || !ytMeta.tags) {
@@ -104,7 +106,6 @@ export function NarrativeWorkflow({
         }
       }
       
-      // Check if any social platform is selected and has shared caption
       const socialPlatforms = data.selectedPlatforms.filter(p => p !== "youtube");
       if (socialPlatforms.length > 0) {
         const socialMeta = data.platformMetadata.social;
@@ -123,7 +124,6 @@ export function NarrativeWorkflow({
       }
     }
 
-    // Validation: If platforms are selected AND scheduling, require date/time
     if (data.selectedPlatforms.length > 0 && data.publishType === "schedule") {
       if (!data.scheduleDate || !data.scheduleTime) {
         toast({
@@ -135,27 +135,23 @@ export function NarrativeWorkflow({
       }
     }
 
-    // All validation passed - show success message based on action
     if (data.selectedPlatforms.length === 0) {
-      // Just export (no publishing)
       toast({
         title: "Export started!",
-        description: `Your video is being exported in ${data.resolution}. You'll be notified when it's ready.`,
+        description: `Your character vlog is being exported in ${data.resolution}. You'll be notified when it's ready.`,
       });
     } else if (data.publishType === "instant") {
-      // Export and publish instantly
       const platformNames = data.selectedPlatforms.join(", ");
       toast({
         title: "Export & Publishing!",
-        description: `Your video is being exported and will be published to ${platformNames}.`,
+        description: `Your character vlog is being exported and will be published to ${platformNames}.`,
       });
     } else {
-      // Export and schedule
       const platformNames = data.selectedPlatforms.join(", ");
       const scheduleDateTime = `${data.scheduleDate} at ${data.scheduleTime}`;
       toast({
         title: "Export & Scheduled!",
-        description: `Your video will be exported and published to ${platformNames} on ${scheduleDateTime}.`,
+        description: `Your character vlog will be exported and published to ${platformNames} on ${scheduleDateTime}.`,
       });
     }
 
@@ -207,16 +203,13 @@ export function NarrativeWorkflow({
   };
 
   const handleUploadShotReference = (shotId: string, file: File) => {
-    // Create a temporary URL for the uploaded image
     const tempUrl = URL.createObjectURL(file);
     
-    // Find existing reference image for this shot
     const existingRef = referenceImages.find(
       (ref) => ref.shotId === shotId && ref.type === "shot_reference"
     );
 
     if (existingRef) {
-      // Update existing reference
       onReferenceImagesChange(
         referenceImages.map((ref) =>
           ref.shotId === shotId && ref.type === "shot_reference"
@@ -225,7 +218,6 @@ export function NarrativeWorkflow({
         )
       );
     } else {
-      // Add new reference
       const newRef: ReferenceImage = {
         id: `ref-${Date.now()}`,
         videoId: videoId,
@@ -259,12 +251,10 @@ export function NarrativeWorkflow({
   };
 
   const handleSelectVersion = (shotId: string, versionId: string) => {
-    // Update the shot's currentVersionId
     handleUpdateShot(shotId, { currentVersionId: versionId });
   };
 
   const handleDeleteVersion = (shotId: string, versionId: string) => {
-    // Remove the version from shotVersions
     const versions = shotVersions[shotId] || [];
     const filteredVersions = versions.filter(v => v.id !== versionId);
     
@@ -342,11 +332,9 @@ export function NarrativeWorkflow({
       updatedAt: new Date(),
     };
 
-    // Insert the new shot after the specified index
     const newShots = [...sceneShots];
     newShots.splice(afterShotIndex + 1, 0, newShot);
 
-    // Update shot numbers
     const updatedShots = newShots.map((shot, idx) => ({
       ...shot,
       shotNumber: idx + 1,
@@ -359,7 +347,6 @@ export function NarrativeWorkflow({
   };
 
   const handleDeleteScene = (sceneId: string) => {
-    // Remove the scene
     const updatedScenes = scenes
       .filter(scene => scene.id !== sceneId)
       .map((scene, idx) => ({
@@ -369,12 +356,10 @@ export function NarrativeWorkflow({
     
     onScenesChange(updatedScenes);
     
-    // Remove all shots for this scene
     const updatedShots = { ...shots };
     delete updatedShots[sceneId];
     onShotsChange(updatedShots);
     
-    // Remove all shot versions for shots in this scene
     const sceneShots = shots[sceneId] || [];
     const updatedShotVersions = { ...shotVersions };
     sceneShots.forEach(shot => {
@@ -382,7 +367,6 @@ export function NarrativeWorkflow({
     });
     onShotVersionsChange(updatedShotVersions);
     
-    // Remove reference images for shots in this scene
     const shotIds = sceneShots.map(s => s.id);
     onReferenceImagesChange(
       referenceImages.filter(ref => !shotIds.includes(ref.shotId || ''))
@@ -390,7 +374,6 @@ export function NarrativeWorkflow({
   };
 
   const handleDeleteShot = (shotId: string) => {
-    // Find which scene this shot belongs to
     const sceneId = Object.keys(shots).find(sId => 
       shots[sId]?.some(shot => shot.id === shotId)
     );
@@ -399,7 +382,6 @@ export function NarrativeWorkflow({
     
     const sceneShots = shots[sceneId] || [];
     
-    // Remove the shot and renumber remaining shots
     const updatedShots = sceneShots
       .filter(shot => shot.id !== shotId)
       .map((shot, idx) => ({
@@ -412,12 +394,10 @@ export function NarrativeWorkflow({
       [sceneId]: updatedShots,
     });
     
-    // Remove shot versions for this shot
     const updatedShotVersions = { ...shotVersions };
     delete updatedShotVersions[shotId];
     onShotVersionsChange(updatedShotVersions);
     
-    // Remove reference images for this shot
     onReferenceImagesChange(
       referenceImages.filter(ref => ref.shotId !== shotId)
     );
@@ -477,6 +457,9 @@ export function NarrativeWorkflow({
           onReferenceImagesChange={onReferenceImagesChange}
           onWorldSettingsChange={onWorldSettingsChange}
           onNext={onNext}
+          videoMode="character-vlog"
+          mainCharacter={mainCharacter}
+          onMainCharacterChange={onMainCharacterChange}
         />
       )}
 

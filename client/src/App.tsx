@@ -13,6 +13,7 @@ import { WorkspaceProvider } from "@/contexts/workspace-context";
 import Dashboard from "@/pages/dashboard";
 import Videos from "@/pages/videos";
 import NarrativeMode from "@/pages/videos/narrative-mode";
+import CharacterVlogMode from "@/pages/videos/character-vlog-mode";
 import Stories from "@/pages/stories";
 import StoryRouter from "@/pages/stories/story-router";
 import Characters from "@/pages/characters";
@@ -34,12 +35,13 @@ import NotFound from "@/pages/not-found";
 
 function MainLayout() {
   const [location] = useLocation();
-  const isFullPageRoute = /^\/videos\/narrative\/[^/]+$/.test(location) || /^\/stories\/create\/[^/]+$/.test(location);
+  const isFullPageRoute = /^\/videos\/narrative\/[^/]+$/.test(location) || /^\/videos\/vlog\/[^/]+$/.test(location) || /^\/stories\/create\/[^/]+$/.test(location);
 
   if (isFullPageRoute) {
     return (
       <Switch>
         <Route path="/videos/narrative/:id" component={NarrativeMode} />
+        <Route path="/videos/vlog/:id" component={CharacterVlogMode} />
         <Route path="/stories/create/:template" component={StoryRouter} />
       </Switch>
     );

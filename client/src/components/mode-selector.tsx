@@ -12,9 +12,9 @@ const modes = [
   {
     id: "vlog",
     title: "Character Vlog",
-    description: "AI character-led monologues and presentations",
+    description: "Create story-driven videos starring a single character",
     icon: MessageSquare,
-    available: false,
+    available: true,
   },
   {
     id: "ambient",

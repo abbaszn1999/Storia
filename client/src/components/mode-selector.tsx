@@ -35,7 +35,7 @@ const modes = [
     title: "Social Commerce",
     description: "Product showcase and promotional videos",
     icon: ShoppingBag,
-    available: false,
+    available: true,
   },
   {
     id: "logo",

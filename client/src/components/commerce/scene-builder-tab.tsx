@@ -27,11 +27,11 @@ interface SceneBuilderTabProps {
 }
 
 const SCENE_TYPES = [
-  { id: "hook", label: "Hook", icon: Zap, color: "bg-red-500/20 text-red-500" },
-  { id: "feature", label: "Feature", icon: Sparkles, color: "bg-blue-500/20 text-blue-500" },
-  { id: "demo", label: "Demo", icon: Eye, color: "bg-green-500/20 text-green-500" },
-  { id: "social-proof", label: "Social Proof", icon: ShoppingBag, color: "bg-purple-500/20 text-purple-500" },
-  { id: "cta", label: "CTA", icon: ShoppingBag, color: "bg-orange-500/20 text-orange-500" }
+  { id: "hook", label: "Hook", icon: Zap, color: "bg-destructive/20 text-destructive dark:bg-destructive/30 dark:text-destructive" },
+  { id: "feature", label: "Feature", icon: Sparkles, color: "bg-primary/20 text-primary dark:bg-primary/30 dark:text-primary" },
+  { id: "demo", label: "Demo", icon: Eye, color: "bg-accent/50 text-accent-foreground dark:bg-accent/40" },
+  { id: "social-proof", label: "Social Proof", icon: ShoppingBag, color: "bg-secondary text-secondary-foreground" },
+  { id: "cta", label: "CTA", icon: ShoppingBag, color: "bg-muted text-foreground" }
 ];
 
 const SHOT_STYLES = [
@@ -49,9 +49,9 @@ const TEXT_STYLES = [
   { id: "bold-impact", label: "Bold Impact", preview: "BOLD" },
   { id: "elegant", label: "Elegant Script", preview: "Elegant" },
   { id: "minimal", label: "Minimal Sans", preview: "Clean" },
-  { id: "trendy", label: "Trendy Gen-Z", preview: "viral ✨" },
-  { id: "classic", label: "Classic", preview: "Professional" },
-  { id: "playful", label: "Playful", preview: "Fun!" }
+  { id: "trendy", label: "Trendy Gen-Z", preview: "viral" },
+  { id: "classic", label: "Classic", preview: "Pro" },
+  { id: "playful", label: "Playful", preview: "Fun" }
 ];
 
 const DEFAULT_SCENES = [

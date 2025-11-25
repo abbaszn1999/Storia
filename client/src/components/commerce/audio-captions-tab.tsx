@@ -69,12 +69,12 @@ const VOICE_STYLES = [
 ];
 
 const MUSIC_MOODS = [
-  { id: "upbeat", label: "Upbeat", emoji: "🎵" },
-  { id: "chill", label: "Chill", emoji: "😌" },
-  { id: "dramatic", label: "Dramatic", emoji: "🎬" },
-  { id: "inspiring", label: "Inspiring", emoji: "✨" },
-  { id: "trendy", label: "Trendy", emoji: "🔥" },
-  { id: "luxury", label: "Luxury", emoji: "💎" }
+  { id: "upbeat", label: "Upbeat", icon: Music },
+  { id: "chill", label: "Chill", icon: Volume2 },
+  { id: "dramatic", label: "Dramatic", icon: Sparkles },
+  { id: "inspiring", label: "Inspiring", icon: TrendingUp },
+  { id: "trendy", label: "Trendy", icon: Mic },
+  { id: "luxury", label: "Luxury", icon: Bell }
 ];
 
 const CAPTION_STYLES = [
@@ -215,7 +215,7 @@ export function AudioCaptionsTab({ onNext, onPrev }: AudioCaptionsTabProps) {
                     className="p-3 rounded-lg border border-border cursor-pointer hover-elevate transition-all text-center"
                     data-testid={`button-music-${mood.id}`}
                   >
-                    <span className="text-2xl mb-1 block">{mood.emoji}</span>
+                    <mood.icon className="h-6 w-6 mx-auto mb-1 text-primary" />
                     <p className="text-xs font-medium">{mood.label}</p>
                   </div>
                 ))}

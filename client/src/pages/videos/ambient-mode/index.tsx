@@ -1,35 +1,39 @@
-import { useState, useEffect } from "react";
-import { ArrowLeft, Check } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, Check, Waves } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AmbientWorkflow } from "@/components/ambient-workflow";
-import { NarrativeModeSelector } from "@/components/ambient/narrative-mode-selector";
 import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
 
 const steps = [
-  { id: "script", label: "Script" },
-  { id: "world", label: "World & Cast" },
-  { id: "breakdown", label: "Breakdown" },
-  { id: "storyboard", label: "Storyboard" },
-  { id: "animatic", label: "Animatic" },
+  { id: "script", label: "Atmosphere" },
+  { id: "world", label: "Visual World" },
+  { id: "breakdown", label: "Flow Design" },
+  { id: "storyboard", label: "Composition" },
+  { id: "animatic", label: "Preview" },
   { id: "export", label: "Export" },
 ];
 
 export default function AmbientMode() {
-  const [videoTitle] = useState("Untitled Project");
+  const [videoTitle] = useState("Untitled Ambient Video");
   const [activeStep, setActiveStep] = useState("script");
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
-  const [narrativeMode, setNarrativeMode] = useState<"image-reference" | "start-end" | null>(null);
   
-  const [videoId] = useState(`video-${Date.now()}`);
+  const [videoId] = useState(`ambient-${Date.now()}`);
   const [workspaceId] = useState("workspace-1");
-  const [script, setScript] = useState("");
+  
+  const [atmosphereDescription, setAtmosphereDescription] = useState("");
   const [aspectRatio, setAspectRatio] = useState("16:9");
-  const [scriptModel, setScriptModel] = useState("gpt-4o");
+  const [atmosphereModel, setAtmosphereModel] = useState("gpt-4o");
   const [voiceActorId, setVoiceActorId] = useState<string | null>(null);
-  const [voiceOverEnabled, setVoiceOverEnabled] = useState(true);
+  const [voiceOverEnabled, setVoiceOverEnabled] = useState(false);
+  const [voiceOverLanguage, setVoiceOverLanguage] = useState("English");
+  const [category, setCategory] = useState("nature");
+  const [moods, setMoods] = useState<string[]>(["Relaxing"]);
+  const [duration, setDuration] = useState("1800");
+  
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [shots, setShots] = useState<{ [sceneId: string]: Shot[] }>({});
   const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
@@ -82,12 +86,20 @@ export default function AmbientMode() {
               
               <div className="h-6 w-px bg-border" />
               
-              <h1 className="text-sm font-semibold truncate max-w-[200px]" data-testid="ambient-video-title">{videoTitle}</h1>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="gap-1">
+                  <Waves className="h-3 w-3" />
+                  Ambient Visual
+                </Badge>
+                <h1 className="text-sm font-semibold truncate max-w-[200px]" data-testid="ambient-video-title">
+                  {videoTitle}
+                </h1>
+              </div>
             </div>
 
             {/* Center: Step Navigation */}
             <div className="flex items-center gap-3">
-              {steps.map((step, index) => (
+              {steps.map((step) => (
                 <button
                   key={step.id}
                   onClick={() => setActiveStep(step.id)}
@@ -118,46 +130,48 @@ export default function AmbientMode() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
-        <div className="max-w-[1600px] mx-auto px-6 py-8">
-          {!narrativeMode ? (
-            <div className="flex items-center justify-center min-h-[600px]" data-testid="ambient-mode-selector-container">
-              <NarrativeModeSelector onSelectMode={(mode) => setNarrativeMode(mode)} />
-            </div>
-          ) : (
-            <AmbientWorkflow 
-              activeStep={activeStep}
-              videoId={videoId}
-              workspaceId={workspaceId}
-              narrativeMode={narrativeMode}
-              script={script}
-              aspectRatio={aspectRatio}
-              scriptModel={scriptModel}
-              voiceActorId={voiceActorId}
-              voiceOverEnabled={voiceOverEnabled}
-              scenes={scenes}
-              shots={shots}
-              shotVersions={shotVersions}
-              characters={characters}
-              referenceImages={referenceImages}
-              continuityLocked={continuityLocked}
-              continuityGroups={continuityGroups}
-              worldSettings={worldSettings}
-              onScriptChange={setScript}
-              onAspectRatioChange={setAspectRatio}
-              onScriptModelChange={setScriptModel}
-              onVoiceActorChange={setVoiceActorId}
-              onVoiceOverToggle={setVoiceOverEnabled}
-              onScenesChange={setScenes}
-              onShotsChange={setShots}
-              onShotVersionsChange={setShotVersions}
-              onCharactersChange={setCharacters}
-              onReferenceImagesChange={setReferenceImages}
-              onContinuityLockedChange={setContinuityLocked}
-              onContinuityGroupsChange={setContinuityGroups}
-              onWorldSettingsChange={setWorldSettings}
-              onNext={handleNext}
-            />
-          )}
+        <div className="max-w-[1600px] mx-auto">
+          <AmbientWorkflow 
+            activeStep={activeStep}
+            videoId={videoId}
+            workspaceId={workspaceId}
+            narrativeMode="image-reference"
+            atmosphereDescription={atmosphereDescription}
+            aspectRatio={aspectRatio}
+            atmosphereModel={atmosphereModel}
+            voiceActorId={voiceActorId}
+            voiceOverEnabled={voiceOverEnabled}
+            voiceOverLanguage={voiceOverLanguage}
+            category={category}
+            moods={moods}
+            duration={duration}
+            scenes={scenes}
+            shots={shots}
+            shotVersions={shotVersions}
+            characters={characters}
+            referenceImages={referenceImages}
+            continuityLocked={continuityLocked}
+            continuityGroups={continuityGroups}
+            worldSettings={worldSettings}
+            onAtmosphereDescriptionChange={setAtmosphereDescription}
+            onAspectRatioChange={setAspectRatio}
+            onAtmosphereModelChange={setAtmosphereModel}
+            onVoiceActorChange={setVoiceActorId}
+            onVoiceOverEnabledChange={setVoiceOverEnabled}
+            onVoiceOverLanguageChange={setVoiceOverLanguage}
+            onCategoryChange={setCategory}
+            onMoodsChange={setMoods}
+            onDurationChange={setDuration}
+            onScenesChange={setScenes}
+            onShotsChange={setShots}
+            onShotVersionsChange={setShotVersions}
+            onCharactersChange={setCharacters}
+            onReferenceImagesChange={setReferenceImages}
+            onContinuityLockedChange={setContinuityLocked}
+            onContinuityGroupsChange={setContinuityGroups}
+            onWorldSettingsChange={setWorldSettings}
+            onNext={handleNext}
+          />
         </div>
       </main>
     </div>

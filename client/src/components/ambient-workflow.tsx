@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ScriptEditor } from "@/components/ambient/script-editor";
+import { AtmosphereEditor } from "@/components/ambient/atmosphere-editor";
 import { SceneBreakdown } from "@/components/ambient/scene-breakdown";
 import { WorldCast } from "@/components/ambient/world-cast";
 import { StoryboardEditor } from "@/components/ambient/storyboard-editor";
@@ -13,11 +13,15 @@ interface AmbientWorkflowProps {
   videoId: string;
   workspaceId: string;
   narrativeMode: "image-reference" | "start-end";
-  script: string;
+  atmosphereDescription: string;
   aspectRatio: string;
-  scriptModel: string;
+  atmosphereModel: string;
   voiceActorId: string | null;
   voiceOverEnabled: boolean;
+  voiceOverLanguage: string;
+  category: string;
+  moods: string[];
+  duration: string;
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
@@ -33,11 +37,15 @@ interface AmbientWorkflowProps {
     imageInstructions?: string;
     videoInstructions?: string;
   };
-  onScriptChange: (script: string) => void;
+  onAtmosphereDescriptionChange: (description: string) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
-  onScriptModelChange: (model: string) => void;
+  onAtmosphereModelChange: (model: string) => void;
   onVoiceActorChange: (voiceActorId: string) => void;
-  onVoiceOverToggle: (enabled: boolean) => void;
+  onVoiceOverEnabledChange: (enabled: boolean) => void;
+  onVoiceOverLanguageChange: (language: string) => void;
+  onCategoryChange: (category: string) => void;
+  onMoodsChange: (moods: string[]) => void;
+  onDurationChange: (duration: string) => void;
   onScenesChange: (scenes: Scene[]) => void;
   onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
   onShotVersionsChange: (shotVersions: { [shotId: string]: ShotVersion[] }) => void;
@@ -61,11 +69,15 @@ export function AmbientWorkflow({
   videoId,
   workspaceId,
   narrativeMode,
-  script,
+  atmosphereDescription,
   aspectRatio,
-  scriptModel,
+  atmosphereModel,
   voiceActorId,
   voiceOverEnabled,
+  voiceOverLanguage,
+  category,
+  moods,
+  duration,
   scenes,
   shots,
   shotVersions,
@@ -74,11 +86,15 @@ export function AmbientWorkflow({
   continuityLocked,
   continuityGroups,
   worldSettings,
-  onScriptChange,
+  onAtmosphereDescriptionChange,
   onAspectRatioChange,
-  onScriptModelChange,
+  onAtmosphereModelChange,
   onVoiceActorChange,
-  onVoiceOverToggle,
+  onVoiceOverEnabledChange,
+  onVoiceOverLanguageChange,
+  onCategoryChange,
+  onMoodsChange,
+  onDurationChange,
   onScenesChange,
   onShotsChange,
   onShotVersionsChange,
@@ -402,13 +418,20 @@ export function AmbientWorkflow({
   return (
     <div>
       {activeStep === "script" && (
-        <ScriptEditor
-          initialScript={script}
+        <AtmosphereEditor
+          initialDescription={atmosphereDescription}
           aspectRatio={aspectRatio}
-          scriptModel={scriptModel}
-          onScriptChange={onScriptChange}
+          atmosphereModel={atmosphereModel}
+          voiceOverEnabled={voiceOverEnabled}
+          voiceOverLanguage={voiceOverLanguage}
+          onDescriptionChange={onAtmosphereDescriptionChange}
           onAspectRatioChange={onAspectRatioChange}
-          onScriptModelChange={onScriptModelChange}
+          onAtmosphereModelChange={onAtmosphereModelChange}
+          onVoiceOverEnabledChange={onVoiceOverEnabledChange}
+          onVoiceOverLanguageChange={onVoiceOverLanguageChange}
+          onCategoryChange={onCategoryChange}
+          onMoodChange={onMoodsChange}
+          onDurationChange={onDurationChange}
           onNext={onNext}
         />
       )}
@@ -416,8 +439,8 @@ export function AmbientWorkflow({
       {activeStep === "breakdown" && (
         <SceneBreakdown
           videoId={videoId}
-          script={script}
-          scriptModel={scriptModel}
+          script={atmosphereDescription}
+          scriptModel={atmosphereModel}
           narrativeMode={narrativeMode}
           scenes={scenes}
           shots={shots}
@@ -470,7 +493,7 @@ export function AmbientWorkflow({
           continuityLocked={continuityLocked}
           continuityGroups={continuityGroups}
           onVoiceActorChange={onVoiceActorChange}
-          onVoiceOverToggle={onVoiceOverToggle}
+          onVoiceOverToggle={onVoiceOverEnabledChange}
           onGenerateShot={handleGenerateShot}
           onRegenerateShot={handleRegenerateShot}
           onUpdateShot={handleUpdateShot}
@@ -491,7 +514,7 @@ export function AmbientWorkflow({
 
       {activeStep === "animatic" && (
         <AnimaticPreview 
-          script={script}
+          script={atmosphereDescription}
           scenes={scenes}
           shots={shots}
           onNext={onNext} 

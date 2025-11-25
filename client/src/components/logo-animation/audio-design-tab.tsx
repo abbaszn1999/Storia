@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
+import type { LogoAnimationSettings } from "@/components/logo-animation-workflow";
 import { 
   Music,
   Volume2,
@@ -17,6 +18,8 @@ import {
 } from "lucide-react";
 
 interface AudioDesignTabProps {
+  settings: LogoAnimationSettings;
+  onUpdate: (updates: Partial<LogoAnimationSettings>) => void;
   onNext: () => void;
   onPrev: () => void;
 }
@@ -70,7 +73,20 @@ const TIMING_MARKERS = [
   { id: "end", label: "Animation End", time: "3.0s" }
 ];
 
-export function AudioDesignTab({ onNext, onPrev }: AudioDesignTabProps) {
+function formatTime(value: number): string {
+  return `${(value / 100).toFixed(1)}s`;
+}
+
+export function AudioDesignTab({ settings, onUpdate, onNext, onPrev }: AudioDesignTabProps) {
+  const handleVolumeChange = (key: keyof LogoAnimationSettings["volume"], value: number) => {
+    onUpdate({
+      volume: {
+        ...settings.volume,
+        [key]: value
+      }
+    });
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Sound Type Selection */}
@@ -84,15 +100,22 @@ export function AudioDesignTab({ onNext, onPrev }: AudioDesignTabProps) {
         <CardContent>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             {SOUND_TYPES.map((sound) => (
-              <div
+              <button
                 key={sound.id}
-                className="p-4 rounded-lg border border-border cursor-pointer hover-elevate transition-all text-center"
+                onClick={() => onUpdate({ soundType: sound.id })}
+                className={`p-4 rounded-lg border text-center transition-all ${
+                  settings.soundType === sound.id
+                    ? "border-primary bg-primary/10"
+                    : "border-border hover-elevate"
+                }`}
                 data-testid={`button-sound-${sound.id}`}
               >
-                <sound.icon className="h-8 w-8 mx-auto mb-2 text-primary" />
+                <sound.icon className={`h-8 w-8 mx-auto mb-2 ${
+                  settings.soundType === sound.id ? "text-primary" : "text-muted-foreground"
+                }`} />
                 <p className="text-sm font-medium">{sound.label}</p>
                 <p className="text-xs text-muted-foreground">{sound.description}</p>
-              </div>
+              </button>
             ))}
           </div>
         </CardContent>
@@ -110,14 +133,19 @@ export function AudioDesignTab({ onNext, onPrev }: AudioDesignTabProps) {
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
               {SOUND_CHARACTERS.map((character) => (
-                <div
+                <button
                   key={character.id}
-                  className="p-3 rounded-lg border border-border cursor-pointer hover-elevate transition-all"
+                  onClick={() => onUpdate({ soundCharacter: character.id })}
+                  className={`p-3 rounded-lg border text-left transition-all ${
+                    settings.soundCharacter === character.id
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover-elevate"
+                  }`}
                   data-testid={`button-character-${character.id}`}
                 >
                   <p className="text-sm font-medium">{character.label}</p>
                   <p className="text-xs text-muted-foreground">{character.description}</p>
-                </div>
+                </button>
               ))}
             </div>
           </CardContent>
@@ -135,25 +163,40 @@ export function AudioDesignTab({ onNext, onPrev }: AudioDesignTabProps) {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label>Master Volume</Label>
-                <span className="text-sm text-muted-foreground">80%</span>
+                <span className="text-sm text-muted-foreground">{settings.volume.master}%</span>
               </div>
-              <Slider defaultValue={[80]} max={100} data-testid="slider-master-volume" />
+              <Slider 
+                value={[settings.volume.master]} 
+                onValueChange={([value]) => handleVolumeChange("master", value)}
+                max={100} 
+                data-testid="slider-master-volume" 
+              />
             </div>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label>Fade In</Label>
-                <span className="text-sm text-muted-foreground">0.2s</span>
+                <span className="text-sm text-muted-foreground">{formatTime(settings.volume.fadeIn)}</span>
               </div>
-              <Slider defaultValue={[20]} max={100} data-testid="slider-fade-in" />
+              <Slider 
+                value={[settings.volume.fadeIn]} 
+                onValueChange={([value]) => handleVolumeChange("fadeIn", value)}
+                max={100} 
+                data-testid="slider-fade-in" 
+              />
             </div>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label>Fade Out</Label>
-                <span className="text-sm text-muted-foreground">0.5s</span>
+                <span className="text-sm text-muted-foreground">{formatTime(settings.volume.fadeOut)}</span>
               </div>
-              <Slider defaultValue={[50]} max={100} data-testid="slider-fade-out" />
+              <Slider 
+                value={[settings.volume.fadeOut]} 
+                onValueChange={([value]) => handleVolumeChange("fadeOut", value)}
+                max={100} 
+                data-testid="slider-fade-out" 
+              />
             </div>
           </CardContent>
         </Card>
@@ -215,14 +258,22 @@ export function AudioDesignTab({ onNext, onPrev }: AudioDesignTabProps) {
                 <p className="text-sm font-medium">Sync to Animation</p>
                 <p className="text-xs text-muted-foreground">Match sound to motion</p>
               </div>
-              <Switch defaultChecked data-testid="switch-sync-animation" />
+              <Switch 
+                checked={settings.syncToAnimation}
+                onCheckedChange={(checked) => onUpdate({ syncToAnimation: checked })}
+                data-testid="switch-sync-animation" 
+              />
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
               <div>
                 <p className="text-sm font-medium">Impact on Reveal</p>
                 <p className="text-xs text-muted-foreground">Hit sound at logo reveal</p>
               </div>
-              <Switch defaultChecked data-testid="switch-impact-reveal" />
+              <Switch 
+                checked={settings.impactOnReveal}
+                onCheckedChange={(checked) => onUpdate({ impactOnReveal: checked })}
+                data-testid="switch-impact-reveal" 
+              />
             </div>
           </div>
         </CardContent>
@@ -250,7 +301,9 @@ export function AudioDesignTab({ onNext, onPrev }: AudioDesignTabProps) {
                 <span>0:03</span>
               </div>
             </div>
-            <Badge variant="secondary">Whoosh + Impact</Badge>
+            <Badge variant="secondary">
+              {SOUND_TYPES.find(s => s.id === settings.soundType)?.label || "Audio"}
+            </Badge>
           </div>
         </CardContent>
       </Card>

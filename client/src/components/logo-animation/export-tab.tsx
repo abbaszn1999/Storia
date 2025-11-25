@@ -1,8 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import type { LogoAnimationSettings } from "@/components/logo-animation-workflow";
 import { 
   Download,
   Play,
@@ -15,11 +15,12 @@ import {
   FileVideo,
   Layers,
   Sparkles,
-  RotateCw,
   Copy
 } from "lucide-react";
 
 interface ExportTabProps {
+  settings: LogoAnimationSettings;
+  onUpdate: (updates: Partial<LogoAnimationSettings>) => void;
   onPrev: () => void;
 }
 
@@ -50,14 +51,23 @@ const FORMATS = [
   { id: "webm", label: "WebM", description: "Web optimized" }
 ];
 
-const VARIATION_OPTIONS = [
+const VARIATION_OPTIONS: { id: keyof LogoAnimationSettings["variations"]; label: string; description: string }[] = [
   { id: "loop", label: "Loop Version", description: "Seamless loop for continuous play" },
   { id: "reverse", label: "Reverse (Outro)", description: "Animation plays in reverse" },
   { id: "watermark", label: "Watermark Size", description: "Small corner version" },
   { id: "stinger", label: "Transition Stinger", description: "For video transitions" }
 ];
 
-export function ExportTab({ onPrev }: ExportTabProps) {
+export function ExportTab({ settings, onUpdate, onPrev }: ExportTabProps) {
+  const handleVariationToggle = (variationId: keyof LogoAnimationSettings["variations"]) => {
+    onUpdate({
+      variations: {
+        ...settings.variations,
+        [variationId]: !settings.variations[variationId]
+      }
+    });
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Final Preview */}
@@ -100,19 +110,25 @@ export function ExportTab({ onPrev }: ExportTabProps) {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Duration</span>
-                    <span>3 seconds</span>
+                    <span>{settings.duration} seconds</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Style</span>
-                    <span>Reveal</span>
+                    <span className="capitalize">{settings.animationApproach}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Effects</span>
-                    <span>Glow, Shadow</span>
+                    <span>
+                      {[
+                        settings.visualEffects.glow && "Glow",
+                        settings.visualEffects.shadow && "Shadow",
+                        settings.visualEffects.particles && "Particles"
+                      ].filter(Boolean).join(", ") || "None"}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Audio</span>
-                    <span>Whoosh + Impact</span>
+                    <span className="capitalize">{settings.soundType.replace("-", " ")}</span>
                   </div>
                 </div>
               </div>
@@ -142,14 +158,19 @@ export function ExportTab({ onPrev }: ExportTabProps) {
           <CardContent>
             <div className="grid grid-cols-4 gap-3">
               {DURATION_PRESETS.map((duration) => (
-                <div
+                <button
                   key={duration.value}
-                  className="p-3 rounded-lg border border-border cursor-pointer hover-elevate transition-all text-center"
+                  onClick={() => onUpdate({ duration: duration.value })}
+                  className={`p-3 rounded-lg border text-center transition-all ${
+                    settings.duration === duration.value
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover-elevate"
+                  }`}
                   data-testid={`button-duration-${duration.value}`}
                 >
                   <p className="text-lg font-semibold">{duration.label}</p>
                   <p className="text-xs text-muted-foreground">{duration.description}</p>
-                </div>
+                </button>
               ))}
             </div>
           </CardContent>
@@ -166,15 +187,22 @@ export function ExportTab({ onPrev }: ExportTabProps) {
           <CardContent>
             <div className="grid grid-cols-4 gap-3">
               {ASPECT_RATIOS.map((ratio) => (
-                <div
+                <button
                   key={ratio.id}
-                  className="p-3 rounded-lg border border-border cursor-pointer hover-elevate transition-all text-center"
+                  onClick={() => onUpdate({ aspectRatio: ratio.id })}
+                  className={`p-3 rounded-lg border text-center transition-all ${
+                    settings.aspectRatio === ratio.id
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover-elevate"
+                  }`}
                   data-testid={`button-ratio-${ratio.id}`}
                 >
-                  <ratio.icon className="h-6 w-6 mx-auto mb-1 text-primary" />
+                  <ratio.icon className={`h-6 w-6 mx-auto mb-1 ${
+                    settings.aspectRatio === ratio.id ? "text-primary" : "text-muted-foreground"
+                  }`} />
                   <p className="text-sm font-medium">{ratio.label}</p>
                   <p className="text-[10px] text-muted-foreground">{ratio.description}</p>
-                </div>
+                </button>
               ))}
             </div>
           </CardContent>
@@ -193,19 +221,24 @@ export function ExportTab({ onPrev }: ExportTabProps) {
           <CardContent>
             <div className="space-y-2">
               {RESOLUTIONS.map((res) => (
-                <div
+                <button
                   key={res.id}
-                  className="flex items-center justify-between p-3 rounded-lg border border-border cursor-pointer hover-elevate"
+                  onClick={() => onUpdate({ resolution: res.id })}
+                  className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all ${
+                    settings.resolution === res.id
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover-elevate"
+                  }`}
                   data-testid={`button-resolution-${res.id}`}
                 >
-                  <div>
+                  <div className="text-left">
                     <p className="text-sm font-medium">{res.label}</p>
                     <p className="text-xs text-muted-foreground">{res.description}</p>
                   </div>
                   {res.id === "1080p" && (
                     <Badge variant="secondary" className="text-xs">Recommended</Badge>
                   )}
-                </div>
+                </button>
               ))}
             </div>
           </CardContent>
@@ -222,14 +255,19 @@ export function ExportTab({ onPrev }: ExportTabProps) {
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
               {FORMATS.map((format) => (
-                <div
+                <button
                   key={format.id}
-                  className="p-3 rounded-lg border border-border cursor-pointer hover-elevate transition-all"
+                  onClick={() => onUpdate({ format: format.id })}
+                  className={`p-3 rounded-lg border text-left transition-all ${
+                    settings.format === format.id
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover-elevate"
+                  }`}
                   data-testid={`button-format-${format.id}`}
                 >
                   <p className="text-sm font-medium">.{format.label}</p>
                   <p className="text-xs text-muted-foreground">{format.description}</p>
-                </div>
+                </button>
               ))}
             </div>
 
@@ -238,7 +276,11 @@ export function ExportTab({ onPrev }: ExportTabProps) {
                 <p className="text-sm font-medium">Transparent Background</p>
                 <p className="text-xs text-muted-foreground">Alpha channel (MOV/WebM only)</p>
               </div>
-              <Switch data-testid="switch-transparent" />
+              <Switch 
+                checked={settings.transparentBackground}
+                onCheckedChange={(checked) => onUpdate({ transparentBackground: checked })}
+                data-testid="switch-transparent" 
+              />
             </div>
           </CardContent>
         </Card>
@@ -260,7 +302,10 @@ export function ExportTab({ onPrev }: ExportTabProps) {
                 className="flex items-start gap-3 p-4 rounded-lg bg-muted/50"
                 data-testid={`toggle-variation-${variation.id}`}
               >
-                <Switch />
+                <Switch 
+                  checked={settings.variations[variation.id]}
+                  onCheckedChange={() => handleVariationToggle(variation.id)}
+                />
                 <div>
                   <p className="text-sm font-medium">{variation.label}</p>
                   <p className="text-xs text-muted-foreground">{variation.description}</p>

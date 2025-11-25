@@ -3,6 +3,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import type { LogoAnimationSettings } from "@/components/logo-animation-workflow";
 import { 
   Upload, 
   Image as ImageIcon,
@@ -19,6 +20,8 @@ import {
 } from "lucide-react";
 
 interface LogoBrandTabProps {
+  settings: LogoAnimationSettings;
+  onUpdate: (updates: Partial<LogoAnimationSettings>) => void;
   onNext: () => void;
 }
 
@@ -41,12 +44,38 @@ const ANIMATION_CONTEXTS = [
 ];
 
 const DETECTED_ELEMENTS = [
-  { id: "icon", label: "Icon / Symbol", detected: true },
-  { id: "wordmark", label: "Wordmark", detected: true },
-  { id: "tagline", label: "Tagline", detected: false }
+  { id: "icon", label: "Icon / Symbol", key: "icon" as const },
+  { id: "wordmark", label: "Wordmark", key: "wordmark" as const },
+  { id: "tagline", label: "Tagline", key: "tagline" as const }
 ];
 
-export function LogoBrandTab({ onNext }: LogoBrandTabProps) {
+export function LogoBrandTab({ settings, onUpdate, onNext }: LogoBrandTabProps) {
+  const handlePersonalitySelect = (id: string) => {
+    onUpdate({ brandPersonality: id });
+  };
+
+  const handleContextSelect = (id: string) => {
+    onUpdate({ animationContext: id });
+  };
+
+  const handleColorChange = (colorKey: keyof typeof settings.brandColors, value: string) => {
+    onUpdate({ 
+      brandColors: { 
+        ...settings.brandColors, 
+        [colorKey]: value 
+      } 
+    });
+  };
+
+  const handleElementToggle = (elementKey: keyof typeof settings.detectedElements) => {
+    onUpdate({
+      detectedElements: {
+        ...settings.detectedElements,
+        [elementKey]: !settings.detectedElements[elementKey]
+      }
+    });
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -61,9 +90,9 @@ export function LogoBrandTab({ onNext }: LogoBrandTabProps) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div 
-                className="aspect-video rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center gap-3 cursor-pointer hover-elevate transition-colors bg-muted/30"
-                data-testid="upload-logo"
+              <button 
+                className="w-full aspect-video rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center gap-3 cursor-pointer hover-elevate transition-colors bg-muted/30"
+                data-testid="button-upload-logo"
               >
                 <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
                   <ImageIcon className="h-8 w-8 text-muted-foreground" />
@@ -72,10 +101,8 @@ export function LogoBrandTab({ onNext }: LogoBrandTabProps) {
                   <p className="text-sm font-medium">Drop your logo here</p>
                   <p className="text-xs text-muted-foreground">SVG, PNG, or vector file</p>
                 </div>
-                <Button variant="outline" size="sm" data-testid="button-browse-logo">
-                  Browse Files
-                </Button>
-              </div>
+                <span className="text-sm text-primary">Browse Files</span>
+              </button>
 
               <div className="text-xs text-muted-foreground text-center">
                 For best results, use a high-resolution file with transparent background
@@ -94,34 +121,38 @@ export function LogoBrandTab({ onNext }: LogoBrandTabProps) {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {DETECTED_ELEMENTS.map((element) => (
-                  <div
-                    key={element.id}
-                    className={`flex items-center justify-between p-3 rounded-lg border ${
-                      element.detected ? "border-primary/50 bg-primary/5" : "border-border bg-muted/30"
-                    }`}
-                    data-testid={`element-${element.id}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-md flex items-center justify-center ${
-                        element.detected ? "bg-primary/20" : "bg-muted"
-                      }`}>
-                        {element.id === "icon" && <Hexagon className="h-5 w-5 text-primary" />}
-                        {element.id === "wordmark" && <Type className="h-5 w-5 text-primary" />}
-                        {element.id === "tagline" && <Type className="h-4 w-4 text-muted-foreground" />}
+                {DETECTED_ELEMENTS.map((element) => {
+                  const isActive = settings.detectedElements[element.key];
+                  return (
+                    <button
+                      key={element.id}
+                      onClick={() => handleElementToggle(element.key)}
+                      className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all ${
+                        isActive ? "border-primary/50 bg-primary/5" : "border-border bg-muted/30"
+                      }`}
+                      data-testid={`button-element-${element.id}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-md flex items-center justify-center ${
+                          isActive ? "bg-primary/20" : "bg-muted"
+                        }`}>
+                          {element.id === "icon" && <Hexagon className="h-5 w-5 text-primary" />}
+                          {element.id === "wordmark" && <Type className="h-5 w-5 text-primary" />}
+                          {element.id === "tagline" && <Type className="h-4 w-4 text-muted-foreground" />}
+                        </div>
+                        <div className="text-left">
+                          <p className="text-sm font-medium">{element.label}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {isActive ? "Active" : "Inactive"}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium">{element.label}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {element.detected ? "Detected" : "Not detected"}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge variant={element.detected ? "default" : "outline"} className="text-xs">
-                      {element.detected ? "Active" : "Add"}
-                    </Badge>
-                  </div>
-                ))}
+                      <Badge variant={isActive ? "default" : "outline"} className="text-xs">
+                        {isActive ? "On" : "Off"}
+                      </Badge>
+                    </button>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -140,14 +171,19 @@ export function LogoBrandTab({ onNext }: LogoBrandTabProps) {
             <CardContent>
               <div className="grid grid-cols-2 gap-3">
                 {BRAND_PERSONALITIES.map((personality) => (
-                  <div
+                  <button
                     key={personality.id}
-                    className="p-3 rounded-lg border border-border cursor-pointer hover-elevate transition-all"
+                    onClick={() => handlePersonalitySelect(personality.id)}
+                    className={`p-3 rounded-lg border text-left transition-all ${
+                      settings.brandPersonality === personality.id
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover-elevate"
+                    }`}
                     data-testid={`button-personality-${personality.id}`}
                   >
                     <p className="text-sm font-medium">{personality.label}</p>
                     <p className="text-xs text-muted-foreground">{personality.description}</p>
-                  </div>
+                  </button>
                 ))}
               </div>
             </CardContent>
@@ -167,9 +203,13 @@ export function LogoBrandTab({ onNext }: LogoBrandTabProps) {
                 <div className="flex-1 space-y-2">
                   <Label className="text-xs">Primary</Label>
                   <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-md bg-primary" />
+                    <div 
+                      className="w-10 h-10 rounded-md border border-border" 
+                      style={{ backgroundColor: settings.brandColors.primary }}
+                    />
                     <Input 
-                      placeholder="#8B3FFF" 
+                      value={settings.brandColors.primary}
+                      onChange={(e) => handleColorChange("primary", e.target.value)}
                       className="flex-1 h-10"
                       data-testid="input-color-primary"
                     />
@@ -178,9 +218,13 @@ export function LogoBrandTab({ onNext }: LogoBrandTabProps) {
                 <div className="flex-1 space-y-2">
                   <Label className="text-xs">Secondary</Label>
                   <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-md bg-secondary" />
+                    <div 
+                      className="w-10 h-10 rounded-md border border-border" 
+                      style={{ backgroundColor: settings.brandColors.secondary }}
+                    />
                     <Input 
-                      placeholder="#C944E6" 
+                      value={settings.brandColors.secondary}
+                      onChange={(e) => handleColorChange("secondary", e.target.value)}
                       className="flex-1 h-10"
                       data-testid="input-color-secondary"
                     />
@@ -191,9 +235,13 @@ export function LogoBrandTab({ onNext }: LogoBrandTabProps) {
                 <div className="flex-1 space-y-2">
                   <Label className="text-xs">Accent</Label>
                   <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-md bg-accent" />
+                    <div 
+                      className="w-10 h-10 rounded-md border border-border" 
+                      style={{ backgroundColor: settings.brandColors.accent }}
+                    />
                     <Input 
-                      placeholder="#FF3F8E" 
+                      value={settings.brandColors.accent}
+                      onChange={(e) => handleColorChange("accent", e.target.value)}
                       className="flex-1 h-10"
                       data-testid="input-color-accent"
                     />
@@ -202,9 +250,13 @@ export function LogoBrandTab({ onNext }: LogoBrandTabProps) {
                 <div className="flex-1 space-y-2">
                   <Label className="text-xs">Background</Label>
                   <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-md bg-background border border-border" />
+                    <div 
+                      className="w-10 h-10 rounded-md border border-border" 
+                      style={{ backgroundColor: settings.brandColors.background }}
+                    />
                     <Input 
-                      placeholder="#000000" 
+                      value={settings.brandColors.background}
+                      onChange={(e) => handleColorChange("background", e.target.value)}
                       className="flex-1 h-10"
                       data-testid="input-color-background"
                     />
@@ -225,9 +277,14 @@ export function LogoBrandTab({ onNext }: LogoBrandTabProps) {
             <CardContent>
               <div className="grid grid-cols-2 gap-3">
                 {ANIMATION_CONTEXTS.map((context) => (
-                  <div
+                  <button
                     key={context.id}
-                    className="p-3 rounded-lg border border-border cursor-pointer hover-elevate transition-all"
+                    onClick={() => handleContextSelect(context.id)}
+                    className={`p-3 rounded-lg border text-left transition-all ${
+                      settings.animationContext === context.id
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover-elevate"
+                    }`}
                     data-testid={`button-context-${context.id}`}
                   >
                     <div className="flex items-center gap-2 mb-1">
@@ -235,7 +292,7 @@ export function LogoBrandTab({ onNext }: LogoBrandTabProps) {
                       <p className="text-sm font-medium">{context.label}</p>
                     </div>
                     <p className="text-xs text-muted-foreground">{context.description}</p>
-                  </div>
+                  </button>
                 ))}
               </div>
             </CardContent>

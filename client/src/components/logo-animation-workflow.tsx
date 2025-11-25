@@ -135,20 +135,63 @@ export function LogoAnimationWorkflow({ currentStep, onStepChange }: LogoAnimati
     onStepChange(currentStep - 1);
   };
 
+  const updateSettings = (updates: Partial<LogoAnimationSettings>) => {
+    setSettings(prev => ({ ...prev, ...updates }));
+  };
+
   const renderTab = () => {
     switch (currentStep) {
       case 0:
-        return <LogoBrandTab onNext={handleNext} />;
+        return (
+          <LogoBrandTab 
+            settings={settings}
+            onUpdate={updateSettings}
+            onNext={handleNext} 
+          />
+        );
       case 1:
-        return <AnimationStyleTab onNext={handleNext} onPrev={handlePrev} />;
+        return (
+          <AnimationStyleTab 
+            settings={settings}
+            onUpdate={updateSettings}
+            onNext={handleNext} 
+            onPrev={handlePrev} 
+          />
+        );
       case 2:
-        return <EffectsEnvironmentTab onNext={handleNext} onPrev={handlePrev} />;
+        return (
+          <EffectsEnvironmentTab 
+            settings={settings}
+            onUpdate={updateSettings}
+            onNext={handleNext} 
+            onPrev={handlePrev} 
+          />
+        );
       case 3:
-        return <AudioDesignTab onNext={handleNext} onPrev={handlePrev} />;
+        return (
+          <AudioDesignTab 
+            settings={settings}
+            onUpdate={updateSettings}
+            onNext={handleNext} 
+            onPrev={handlePrev} 
+          />
+        );
       case 4:
-        return <ExportTab onPrev={handlePrev} />;
+        return (
+          <ExportTab 
+            settings={settings}
+            onUpdate={updateSettings}
+            onPrev={handlePrev} 
+          />
+        );
       default:
-        return <LogoBrandTab onNext={handleNext} />;
+        return (
+          <LogoBrandTab 
+            settings={settings}
+            onUpdate={updateSettings}
+            onNext={handleNext} 
+          />
+        );
     }
   };
 

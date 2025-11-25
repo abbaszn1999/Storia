@@ -3,6 +3,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
+import type { LogoAnimationSettings } from "@/components/logo-animation-workflow";
 import { 
   Sparkles,
   Eye,
@@ -19,6 +20,8 @@ import {
 } from "lucide-react";
 
 interface AnimationStyleTabProps {
+  settings: LogoAnimationSettings;
+  onUpdate: (updates: Partial<LogoAnimationSettings>) => void;
   onNext: () => void;
   onPrev: () => void;
 }
@@ -28,57 +31,49 @@ const ANIMATION_APPROACHES = [
     id: "reveal", 
     label: "Reveal", 
     icon: Eye,
-    description: "Fade in, slide, or wipe on",
-    preview: "Elegant entrance"
+    description: "Fade in, slide, or wipe on"
   },
   { 
     id: "build", 
     label: "Build", 
     icon: Layers,
-    description: "Draw on or assemble pieces",
-    preview: "Piece by piece"
+    description: "Draw on or assemble pieces"
   },
   { 
     id: "morph", 
     label: "Morph", 
     icon: Wand2,
-    description: "Transform from another shape",
-    preview: "Shape shifting"
+    description: "Transform from another shape"
   },
   { 
     id: "particle", 
     label: "Particle", 
     icon: Sparkles,
-    description: "Form from or dissolve to particles",
-    preview: "Magical assembly"
+    description: "Form from or dissolve to particles"
   },
   { 
     id: "kinetic", 
     label: "Kinetic", 
     icon: Zap,
-    description: "Bouncy, energetic motion",
-    preview: "High energy"
+    description: "Bouncy, energetic motion"
   },
   { 
     id: "elegant", 
     label: "Elegant", 
     icon: Wind,
-    description: "Smooth, sophisticated easing",
-    preview: "Refined motion"
+    description: "Smooth, sophisticated easing"
   },
   { 
     id: "glitch", 
     label: "Glitch / Tech", 
     icon: Activity,
-    description: "Digital, cyberpunk effects",
-    preview: "Tech aesthetic"
+    description: "Digital, cyberpunk effects"
   },
   { 
     id: "3d", 
     label: "3D", 
     icon: Box,
-    description: "Depth, rotation, perspective",
-    preview: "Dimensional"
+    description: "Depth, rotation, perspective"
   }
 ];
 
@@ -98,7 +93,19 @@ const ELEMENT_SEQUENCING = [
   { id: "staggered", label: "Staggered", icon: RotateCw, description: "Sequential cascade" }
 ];
 
-export function AnimationStyleTab({ onNext, onPrev }: AnimationStyleTabProps) {
+function getIntensityLabel(value: number): string {
+  if (value <= 30) return "Subtle";
+  if (value <= 70) return "Medium";
+  return "Dynamic";
+}
+
+function getSpeedLabel(value: number): string {
+  if (value <= 30) return "Slow";
+  if (value <= 70) return "Normal";
+  return "Fast";
+}
+
+export function AnimationStyleTab({ settings, onUpdate, onNext, onPrev }: AnimationStyleTabProps) {
   return (
     <div className="p-6 space-y-6">
       {/* Animation Approach */}
@@ -112,17 +119,26 @@ export function AnimationStyleTab({ onNext, onPrev }: AnimationStyleTabProps) {
         <CardContent>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {ANIMATION_APPROACHES.map((approach) => (
-              <div
+              <button
                 key={approach.id}
-                className="p-4 rounded-lg border border-border cursor-pointer hover-elevate transition-all group"
+                onClick={() => onUpdate({ animationApproach: approach.id })}
+                className={`p-4 rounded-lg border text-left transition-all group ${
+                  settings.animationApproach === approach.id
+                    ? "border-primary bg-primary/10"
+                    : "border-border hover-elevate"
+                }`}
                 data-testid={`button-approach-${approach.id}`}
               >
-                <div className="aspect-video rounded-md bg-muted/50 mb-3 flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                  <approach.icon className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                <div className={`aspect-video rounded-md mb-3 flex items-center justify-center transition-colors ${
+                  settings.animationApproach === approach.id ? "bg-primary/20" : "bg-muted/50 group-hover:bg-primary/10"
+                }`}>
+                  <approach.icon className={`h-8 w-8 transition-colors ${
+                    settings.animationApproach === approach.id ? "text-primary" : "text-muted-foreground group-hover:text-primary"
+                  }`} />
                 </div>
                 <p className="text-sm font-medium">{approach.label}</p>
                 <p className="text-xs text-muted-foreground">{approach.description}</p>
-              </div>
+              </button>
             ))}
           </div>
         </CardContent>
@@ -141,9 +157,15 @@ export function AnimationStyleTab({ onNext, onPrev }: AnimationStyleTabProps) {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <Label>Animation Energy</Label>
-                <Badge variant="outline">Medium</Badge>
+                <Badge variant="outline">{getIntensityLabel(settings.motionIntensity)}</Badge>
               </div>
-              <Slider defaultValue={[50]} max={100} step={10} data-testid="slider-intensity" />
+              <Slider 
+                value={[settings.motionIntensity]} 
+                onValueChange={([value]) => onUpdate({ motionIntensity: value })}
+                max={100} 
+                step={10} 
+                data-testid="slider-intensity" 
+              />
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Subtle</span>
                 <span>Balanced</span>
@@ -154,9 +176,15 @@ export function AnimationStyleTab({ onNext, onPrev }: AnimationStyleTabProps) {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <Label>Animation Speed</Label>
-                <Badge variant="outline">Normal</Badge>
+                <Badge variant="outline">{getSpeedLabel(settings.animationSpeed)}</Badge>
               </div>
-              <Slider defaultValue={[50]} max={100} step={10} data-testid="slider-speed" />
+              <Slider 
+                value={[settings.animationSpeed]} 
+                onValueChange={([value]) => onUpdate({ animationSpeed: value })}
+                max={100} 
+                step={10} 
+                data-testid="slider-speed" 
+              />
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Slow</span>
                 <span>Normal</span>
@@ -177,14 +205,19 @@ export function AnimationStyleTab({ onNext, onPrev }: AnimationStyleTabProps) {
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
               {EASING_STYLES.map((easing) => (
-                <div
+                <button
                   key={easing.id}
-                  className="p-3 rounded-lg border border-border cursor-pointer hover-elevate transition-all"
+                  onClick={() => onUpdate({ easingStyle: easing.id })}
+                  className={`p-3 rounded-lg border text-left transition-all ${
+                    settings.easingStyle === easing.id
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover-elevate"
+                  }`}
                   data-testid={`button-easing-${easing.id}`}
                 >
                   <p className="text-sm font-medium">{easing.label}</p>
                   <p className="text-xs text-muted-foreground">{easing.description}</p>
-                </div>
+                </button>
               ))}
             </div>
           </CardContent>
@@ -202,15 +235,22 @@ export function AnimationStyleTab({ onNext, onPrev }: AnimationStyleTabProps) {
         <CardContent>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {ELEMENT_SEQUENCING.map((sequence) => (
-              <div
+              <button
                 key={sequence.id}
-                className="p-4 rounded-lg border border-border cursor-pointer hover-elevate transition-all text-center"
+                onClick={() => onUpdate({ elementSequencing: sequence.id })}
+                className={`p-4 rounded-lg border text-center transition-all ${
+                  settings.elementSequencing === sequence.id
+                    ? "border-primary bg-primary/10"
+                    : "border-border hover-elevate"
+                }`}
                 data-testid={`button-sequence-${sequence.id}`}
               >
-                <sequence.icon className="h-8 w-8 mx-auto mb-2 text-primary" />
+                <sequence.icon className={`h-8 w-8 mx-auto mb-2 ${
+                  settings.elementSequencing === sequence.id ? "text-primary" : "text-muted-foreground"
+                }`} />
                 <p className="text-sm font-medium">{sequence.label}</p>
                 <p className="text-xs text-muted-foreground">{sequence.description}</p>
-              </div>
+              </button>
             ))}
           </div>
         </CardContent>
@@ -233,7 +273,9 @@ export function AnimationStyleTab({ onNext, onPrev }: AnimationStyleTabProps) {
                 <Sparkles className="h-12 w-12 text-primary" />
               </div>
               <p className="text-lg font-semibold">Your Logo</p>
-              <p className="text-sm text-muted-foreground">Animation preview will appear here</p>
+              <p className="text-sm text-muted-foreground">
+                {ANIMATION_APPROACHES.find(a => a.id === settings.animationApproach)?.label} animation
+              </p>
             </div>
 
             <Button 

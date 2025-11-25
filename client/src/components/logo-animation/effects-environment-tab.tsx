@@ -1,9 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
+import type { LogoAnimationSettings } from "@/components/logo-animation-workflow";
 import { 
   Palette,
   Sun,
@@ -13,11 +13,12 @@ import {
   Circle,
   Layers,
   Zap,
-  Eye,
   Upload
 } from "lucide-react";
 
 interface EffectsEnvironmentTabProps {
+  settings: LogoAnimationSettings;
+  onUpdate: (updates: Partial<LogoAnimationSettings>) => void;
   onNext: () => void;
   onPrev: () => void;
 }
@@ -31,13 +32,13 @@ const BACKGROUND_OPTIONS = [
   { id: "custom", label: "Custom Image", description: "Upload background", icon: Upload }
 ];
 
-const VISUAL_EFFECTS = [
-  { id: "glow", label: "Glow / Bloom", description: "Soft light emanation", enabled: true },
-  { id: "shadow", label: "Shadow / Depth", description: "3D drop shadow", enabled: true },
-  { id: "light-rays", label: "Light Rays", description: "Volumetric lighting", enabled: false },
-  { id: "particles", label: "Particles", description: "Floating elements", enabled: false },
-  { id: "reflections", label: "Reflections", description: "Mirror surface", enabled: false },
-  { id: "grain", label: "Film Grain", description: "Cinematic texture", enabled: false }
+const VISUAL_EFFECTS: { id: keyof LogoAnimationSettings["visualEffects"]; label: string; description: string }[] = [
+  { id: "glow", label: "Glow / Bloom", description: "Soft light emanation" },
+  { id: "shadow", label: "Shadow / Depth", description: "3D drop shadow" },
+  { id: "lightRays", label: "Light Rays", description: "Volumetric lighting" },
+  { id: "particles", label: "Particles", description: "Floating elements" },
+  { id: "reflections", label: "Reflections", description: "Mirror surface" },
+  { id: "grain", label: "Film Grain", description: "Cinematic texture" }
 ];
 
 const COLOR_TREATMENTS = [
@@ -49,7 +50,25 @@ const COLOR_TREATMENTS = [
   { id: "metallic", label: "Metallic", description: "Gold, silver, chrome" }
 ];
 
-export function EffectsEnvironmentTab({ onNext, onPrev }: EffectsEnvironmentTabProps) {
+export function EffectsEnvironmentTab({ settings, onUpdate, onNext, onPrev }: EffectsEnvironmentTabProps) {
+  const handleEffectToggle = (effectId: keyof LogoAnimationSettings["visualEffects"]) => {
+    onUpdate({
+      visualEffects: {
+        ...settings.visualEffects,
+        [effectId]: !settings.visualEffects[effectId]
+      }
+    });
+  };
+
+  const handleIntensityChange = (type: keyof LogoAnimationSettings["effectIntensity"], value: number) => {
+    onUpdate({
+      effectIntensity: {
+        ...settings.effectIntensity,
+        [type]: value
+      }
+    });
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -64,9 +83,14 @@ export function EffectsEnvironmentTab({ onNext, onPrev }: EffectsEnvironmentTabP
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               {BACKGROUND_OPTIONS.map((bg) => (
-                <div
+                <button
                   key={bg.id}
-                  className="p-3 rounded-lg border border-border cursor-pointer hover-elevate transition-all"
+                  onClick={() => onUpdate({ backgroundType: bg.id })}
+                  className={`p-3 rounded-lg border text-left transition-all ${
+                    settings.backgroundType === bg.id
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover-elevate"
+                  }`}
                   data-testid={`button-background-${bg.id}`}
                 >
                   <div className="flex items-center gap-2 mb-1">
@@ -74,7 +98,7 @@ export function EffectsEnvironmentTab({ onNext, onPrev }: EffectsEnvironmentTabP
                     <p className="text-sm font-medium">{bg.label}</p>
                   </div>
                   <p className="text-xs text-muted-foreground">{bg.description}</p>
-                </div>
+                </button>
               ))}
             </div>
 
@@ -82,11 +106,17 @@ export function EffectsEnvironmentTab({ onNext, onPrev }: EffectsEnvironmentTabP
             <div className="pt-2 border-t border-border space-y-3">
               <Label className="text-xs">Background Color</Label>
               <div className="flex gap-2">
-                <div className="w-10 h-10 rounded-md bg-background border border-border" />
-                <div className="w-10 h-10 rounded-md bg-card border border-border" />
-                <div className="w-10 h-10 rounded-md bg-muted" />
-                <div className="w-10 h-10 rounded-md bg-primary" />
-                <div className="w-10 h-10 rounded-md bg-secondary" />
+                {["#000000", "#111111", "#1a1a1a", "#8B3FFF", "#C944E6"].map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => onUpdate({ backgroundColor: color })}
+                    className={`w-10 h-10 rounded-md border transition-all ${
+                      settings.backgroundColor === color ? "border-primary ring-2 ring-primary/50" : "border-border"
+                    }`}
+                    style={{ backgroundColor: color }}
+                    data-testid={`button-bg-color-${color.replace("#", "")}`}
+                  />
+                ))}
                 <Button variant="outline" size="icon" className="w-10 h-10" data-testid="button-custom-bg-color">
                   <Palette className="h-4 w-4" />
                 </Button>
@@ -115,7 +145,10 @@ export function EffectsEnvironmentTab({ onNext, onPrev }: EffectsEnvironmentTabP
                     <p className="text-sm font-medium">{effect.label}</p>
                     <p className="text-xs text-muted-foreground">{effect.description}</p>
                   </div>
-                  <Switch defaultChecked={effect.enabled} />
+                  <Switch 
+                    checked={settings.visualEffects[effect.id]} 
+                    onCheckedChange={() => handleEffectToggle(effect.id)}
+                  />
                 </div>
               ))}
             </div>
@@ -134,12 +167,19 @@ export function EffectsEnvironmentTab({ onNext, onPrev }: EffectsEnvironmentTabP
         <CardContent>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             {COLOR_TREATMENTS.map((treatment) => (
-              <div
+              <button
                 key={treatment.id}
-                className="p-4 rounded-lg border border-border cursor-pointer hover-elevate transition-all"
+                onClick={() => onUpdate({ colorTreatment: treatment.id })}
+                className={`p-4 rounded-lg border text-left transition-all ${
+                  settings.colorTreatment === treatment.id
+                    ? "border-primary bg-primary/10"
+                    : "border-border hover-elevate"
+                }`}
                 data-testid={`button-treatment-${treatment.id}`}
               >
-                <div className="aspect-[3/2] rounded-md bg-muted/50 mb-3 flex items-center justify-center overflow-hidden">
+                <div className={`aspect-[3/2] rounded-md mb-3 flex items-center justify-center overflow-hidden ${
+                  settings.colorTreatment === treatment.id ? "bg-primary/20" : "bg-muted/50"
+                }`}>
                   {treatment.id === "full-color" && (
                     <div className="flex gap-1">
                       <div className="w-4 h-8 bg-primary rounded" />
@@ -166,12 +206,12 @@ export function EffectsEnvironmentTab({ onNext, onPrev }: EffectsEnvironmentTabP
                     <div className="w-full h-full bg-gradient-to-br from-primary to-accent" />
                   )}
                   {treatment.id === "metallic" && (
-                    <div className="w-full h-full bg-gradient-to-br from-amber-300 via-amber-100 to-amber-400" />
+                    <div className="w-full h-full bg-gradient-to-br from-primary/60 via-primary/30 to-primary/80" />
                   )}
                 </div>
                 <p className="text-sm font-medium">{treatment.label}</p>
                 <p className="text-xs text-muted-foreground">{treatment.description}</p>
-              </div>
+              </button>
             ))}
           </div>
         </CardContent>
@@ -193,9 +233,14 @@ export function EffectsEnvironmentTab({ onNext, onPrev }: EffectsEnvironmentTabP
                   <Sun className="h-4 w-4" />
                   Glow Intensity
                 </Label>
-                <span className="text-sm text-muted-foreground">50%</span>
+                <span className="text-sm text-muted-foreground">{settings.effectIntensity.glow}%</span>
               </div>
-              <Slider defaultValue={[50]} max={100} data-testid="slider-glow" />
+              <Slider 
+                value={[settings.effectIntensity.glow]} 
+                onValueChange={([value]) => handleIntensityChange("glow", value)}
+                max={100} 
+                data-testid="slider-glow" 
+              />
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -203,9 +248,14 @@ export function EffectsEnvironmentTab({ onNext, onPrev }: EffectsEnvironmentTabP
                   <Layers className="h-4 w-4" />
                   Shadow Depth
                 </Label>
-                <span className="text-sm text-muted-foreground">40%</span>
+                <span className="text-sm text-muted-foreground">{settings.effectIntensity.shadow}%</span>
               </div>
-              <Slider defaultValue={[40]} max={100} data-testid="slider-shadow" />
+              <Slider 
+                value={[settings.effectIntensity.shadow]} 
+                onValueChange={([value]) => handleIntensityChange("shadow", value)}
+                max={100} 
+                data-testid="slider-shadow" 
+              />
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -213,9 +263,14 @@ export function EffectsEnvironmentTab({ onNext, onPrev }: EffectsEnvironmentTabP
                   <Sparkles className="h-4 w-4" />
                   Particle Density
                 </Label>
-                <span className="text-sm text-muted-foreground">30%</span>
+                <span className="text-sm text-muted-foreground">{settings.effectIntensity.particles}%</span>
               </div>
-              <Slider defaultValue={[30]} max={100} data-testid="slider-particles" />
+              <Slider 
+                value={[settings.effectIntensity.particles]} 
+                onValueChange={([value]) => handleIntensityChange("particles", value)}
+                max={100} 
+                data-testid="slider-particles" 
+              />
             </div>
           </div>
         </CardContent>

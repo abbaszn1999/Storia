@@ -13,7 +13,6 @@ import {
   ArrowLeft, 
   Search, 
   Clock, 
-  TrendingUp,
   Star,
   ArrowRight,
   Filter,
@@ -76,8 +75,6 @@ export default function Stories() {
     return matchesSearch && matchesCategory;
   });
 
-  const popularTemplates = STORY_TEMPLATES.filter(t => t.popular);
-
   return (
     <div className="min-h-full">
       {/* Header Section */}
@@ -137,85 +134,7 @@ export default function Stories() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8 space-y-10">
-        {/* Featured Section - Only show when viewing all or marketing */}
-        {(activeCategory === 'all' || activeCategory === 'marketing') && !searchQuery && (
-          <section>
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold">Popular Templates</h2>
-              <Badge variant="secondary" className="text-xs">Recommended</Badge>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {popularTemplates.map((template) => {
-                const Icon = getTemplateIcon(template.id);
-                
-                return (
-                  <Link href={`/stories/create/${template.id}`} key={template.id} data-testid={`link-featured-${template.id}`}>
-                    <Card 
-                      className="group relative overflow-hidden hover-elevate cursor-pointer border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent"
-                      data-testid={`card-featured-${template.id}`}
-                    >
-                      <div className="absolute top-3 right-3">
-                        <Badge className="bg-primary/90 text-primary-foreground gap-1">
-                          <Star className="h-3 w-3" />
-                          Popular
-                        </Badge>
-                      </div>
-                      
-                      <div className="p-6">
-                        <div className="flex items-start gap-4">
-                          {/* Icon */}
-                          <div className={`shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br ${template.iconColor} flex items-center justify-center shadow-lg`}>
-                            <Icon className="h-7 w-7 text-white" />
-                          </div>
-                          
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-xl font-bold mb-1 group-hover:text-primary transition-colors">
-                              {template.name}
-                            </h3>
-                            <p className="text-sm text-muted-foreground mb-3">
-                              {template.description}
-                            </p>
-                            
-                            {/* Metadata Row */}
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground mb-4">
-                              <span className="flex items-center gap-1">
-                                <Clock className="h-3.5 w-3.5" />
-                                {template.estimatedDuration}
-                              </span>
-                              <Badge variant="outline" className={`text-xs ${getDifficultyColor(template.difficulty)}`}>
-                                {template.difficulty}
-                              </Badge>
-                            </div>
-
-                            {/* Structure Flow */}
-                            {template.structure && (
-                              <div className="flex items-center gap-1 flex-wrap">
-                                {template.structure.map((step, index) => (
-                                  <div key={index} className="flex items-center">
-                                    <span className="text-xs px-2 py-1 rounded-md bg-muted/50 text-muted-foreground font-medium">
-                                      {step}
-                                    </span>
-                                    {index < template.structure!.length - 1 && (
-                                      <ArrowRight className="h-3 w-3 text-muted-foreground/50 mx-1" />
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
+      <div className="max-w-7xl mx-auto px-6 py-8">
         {/* All Templates Section */}
         <section>
           <div className="flex items-center justify-between mb-4">

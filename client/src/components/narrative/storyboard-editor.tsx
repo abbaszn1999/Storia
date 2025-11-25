@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, ChevronDown, Shirt, Eraser, Trash2, Play, Pause, Check, Link2 } from "lucide-react";
+import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, ChevronDown, Shirt, Eraser, Trash2, Play, Pause, Check, Link2, LayoutGrid, Clock, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, ReferenceImage, Character } from "@shared/schema";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
@@ -122,6 +122,14 @@ const CAMERA_ANGLE_PRESETS = [
   { id: "worms-eye", label: "Worm's Eye View", icon: "⬆", rotation: 0, vertical: -1, zoom: 0 },
   { id: "close-up", label: "Close-up", icon: "🔍", rotation: 0, vertical: 0, zoom: 5 },
   { id: "wide-angle", label: "Wide Angle", icon: "📐", rotation: 0, vertical: 0, zoom: -3, wideAngle: true },
+];
+
+const TRANSITION_TYPES = [
+  { id: "cut", label: "Cut", description: "Instant transition" },
+  { id: "fade", label: "Fade", description: "Fade to/from black" },
+  { id: "dissolve", label: "Dissolve", description: "Cross-dissolve blend" },
+  { id: "wipe", label: "Wipe", description: "Wipe transition" },
+  { id: "slide", label: "Slide", description: "Slide transition" },
 ];
 
 interface StoryboardEditorProps {
@@ -775,6 +783,8 @@ export function StoryboardEditor({
   const [cameraVertical, setCameraVertical] = useState(0);
   const [cameraZoom, setCameraZoom] = useState(0);
   const [cameraWideAngle, setCameraWideAngle] = useState(false);
+  const [viewMode, setViewMode] = useState<"cards" | "timeline">("cards");
+  const [timelinePlayhead, setTimelinePlayhead] = useState(0);
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
   const editReferenceInputRef = useRef<HTMLInputElement>(null);
@@ -1215,6 +1225,29 @@ export function StoryboardEditor({
             />
           </div>
 
+          <div className="flex items-center border rounded-md p-0.5 bg-muted/50">
+            <Button
+              size="sm"
+              variant={viewMode === "cards" ? "default" : "ghost"}
+              className="h-7 px-2.5"
+              onClick={() => setViewMode("cards")}
+              data-testid="button-view-cards"
+            >
+              <LayoutGrid className="h-4 w-4 mr-1" />
+              Cards
+            </Button>
+            <Button
+              size="sm"
+              variant={viewMode === "timeline" ? "default" : "ghost"}
+              className="h-7 px-2.5"
+              onClick={() => setViewMode("timeline")}
+              data-testid="button-view-timeline"
+            >
+              <Clock className="h-4 w-4 mr-1" />
+              Timeline
+            </Button>
+          </div>
+
           <Button
             onClick={handleContinueToAnimatic}
             disabled={generatedCount < totalCount}
@@ -1361,6 +1394,7 @@ export function StoryboardEditor({
                 </div>
 
                 <div className="flex-1 overflow-x-auto">
+                  {viewMode === "cards" ? (
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -1422,8 +1456,50 @@ export function StoryboardEditor({
                                   >
                                     <Link2 className="h-4 w-4" />
                                   </div>
+                                ) : shotIndex < sceneShots.length - 1 ? (
+                                  /* Transition Control - Between non-connected shots */
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <button
+                                        className="flex flex-col items-center justify-center w-10 gap-0.5 py-1 rounded-md bg-muted/50 hover:bg-muted border border-dashed border-muted-foreground/30 hover:border-primary/50 transition-colors"
+                                        data-testid={`button-transition-${shot.id}`}
+                                        title="Set transition"
+                                      >
+                                        <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                                        <span className="text-[9px] text-muted-foreground font-medium">
+                                          {shot.transition || "Cut"}
+                                        </span>
+                                      </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-44 p-2" align="center">
+                                      <div className="space-y-1">
+                                        <p className="text-xs font-medium text-muted-foreground px-2 pb-1">Transition</p>
+                                        {TRANSITION_TYPES.map((trans) => (
+                                          <Button
+                                            key={trans.id}
+                                            variant={shot.transition === trans.id ? "secondary" : "ghost"}
+                                            size="sm"
+                                            className="w-full justify-start text-xs h-8 px-2"
+                                            onClick={() => {
+                                              onUpdateShot(shot.id, { transition: trans.id });
+                                              toast({
+                                                title: "Transition Updated",
+                                                description: `Set to "${trans.label}" - ${trans.description}`,
+                                              });
+                                            }}
+                                            data-testid={`button-transition-${trans.id}-${shot.id}`}
+                                          >
+                                            <span className="flex-1 text-left">{trans.label}</span>
+                                            {shot.transition === trans.id && (
+                                              <Check className="h-3 w-3 text-primary" />
+                                            )}
+                                          </Button>
+                                        ))}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
                                 ) : onAddShot ? (
-                                  /* Add Shot Button - Only when not connected */
+                                  /* Add Shot Button - Only for last shot */
                                   <button
                                     onClick={() => onAddShot(scene.id, shotIndex)}
                                     className="opacity-0 hover:opacity-100 flex items-center justify-center w-7 h-7 rounded-full bg-background border-2 border-dashed border-primary/50 hover-elevate active-elevate-2 transition-opacity"
@@ -1439,6 +1515,157 @@ export function StoryboardEditor({
                       </div>
                     </SortableContext>
                   </DndContext>
+                  ) : (
+                    /* Timeline View */
+                    <div className="space-y-3">
+                      {/* Timeline Header with Time Markers */}
+                      <div className="flex items-center h-6 text-xs text-muted-foreground border-b border-muted">
+                        <div className="w-16 shrink-0 text-center font-medium">Shot</div>
+                        <div className="flex-1 flex">
+                          {(() => {
+                            const totalDuration = sceneShots.reduce((sum, s) => sum + (s.duration || 5), 0);
+                            const markers = [];
+                            for (let i = 0; i <= totalDuration; i += 5) {
+                              const position = (i / totalDuration) * 100;
+                              markers.push(
+                                <span key={i} className="absolute text-[10px]" style={{ left: `${position}%` }}>
+                                  {i}s
+                                </span>
+                              );
+                            }
+                            return <div className="relative flex-1">{markers}</div>;
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Timeline Tracks */}
+                      <div className="space-y-2">
+                        {sceneShots.map((shot, shotIndex) => {
+                          const version = getShotVersion(shot);
+                          const duration = shot.duration || 5;
+                          const totalDuration = sceneShots.reduce((sum, s) => sum + (s.duration || 5), 0);
+                          const widthPercent = (duration / totalDuration) * 100;
+                          const startOffset = sceneShots.slice(0, shotIndex).reduce((sum, s) => sum + (s.duration || 5), 0);
+                          const leftPercent = (startOffset / totalDuration) * 100;
+                          const isConnectedToNext = isShotConnectedToNext(scene.id, shotIndex);
+                          const isPartOfConnection = isShotPartOfConnection(scene.id, shotIndex);
+
+                          return (
+                            <div key={shot.id} className="flex items-center h-16 gap-2">
+                              {/* Shot Number */}
+                              <div className="w-16 shrink-0 flex items-center justify-center">
+                                <Badge variant="secondary" className="text-xs">
+                                  #{shotIndex + 1}
+                                </Badge>
+                              </div>
+
+                              {/* Timeline Track */}
+                              <div className="flex-1 relative h-full">
+                                <div
+                                  className={`absolute h-full rounded-md border-2 flex items-center gap-2 px-2 cursor-pointer transition-colors ${
+                                    isPartOfConnection 
+                                      ? "bg-gradient-to-r from-primary/20 to-primary/10 border-primary/50" 
+                                      : "bg-muted/50 border-muted-foreground/20 hover:border-primary/50"
+                                  }`}
+                                  style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}
+                                  onClick={() => handleSelectShot(shot)}
+                                  data-testid={`timeline-shot-${shot.id}`}
+                                >
+                                  {/* Thumbnail */}
+                                  <div className="w-12 h-12 rounded overflow-hidden shrink-0 bg-card">
+                                    {version?.imageUrl || version?.startFrameUrl ? (
+                                      <img
+                                        src={version.startFrameUrl || version.imageUrl || ""}
+                                        alt={`Shot ${shotIndex + 1}`}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Shot Info */}
+                                  <div className="flex-1 min-w-0 overflow-hidden">
+                                    <p className="text-xs font-medium truncate">
+                                      {shot.description?.slice(0, 30) || "No description"}
+                                      {shot.description && shot.description.length > 30 ? "..." : ""}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground">
+                                      {duration}s • {shot.shotType || "Medium Shot"}
+                                    </p>
+                                  </div>
+
+                                  {/* Connection Indicator */}
+                                  {isConnectedToNext && (
+                                    <div className="shrink-0">
+                                      <Link2 className="h-3 w-3 text-primary" />
+                                    </div>
+                                  )}
+
+                                  {/* Transition Badge (for non-connected shots) */}
+                                  {!isConnectedToNext && shotIndex < sceneShots.length - 1 && (
+                                    <div className="absolute -right-3 top-1/2 -translate-y-1/2 z-10">
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <button
+                                            className="flex items-center justify-center w-6 h-6 rounded-full bg-background border shadow-sm text-[8px] font-medium text-muted-foreground hover:text-primary hover:border-primary transition-colors"
+                                            onClick={(e) => e.stopPropagation()}
+                                            data-testid={`timeline-transition-${shot.id}`}
+                                          >
+                                            {(shot.transition || "cut").charAt(0).toUpperCase()}
+                                          </button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-36 p-1.5" align="center">
+                                          {TRANSITION_TYPES.map((trans) => (
+                                            <Button
+                                              key={trans.id}
+                                              variant={shot.transition === trans.id ? "secondary" : "ghost"}
+                                              size="sm"
+                                              className="w-full justify-start text-xs h-7 px-2"
+                                              onClick={() => {
+                                                onUpdateShot(shot.id, { transition: trans.id });
+                                              }}
+                                            >
+                                              {trans.label}
+                                            </Button>
+                                          ))}
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Playhead / Scrubber */}
+                      <div className="flex items-center gap-2 pt-2 border-t">
+                        <div className="w-16 shrink-0" />
+                        <div className="flex-1 flex items-center gap-3">
+                          <span className="text-xs text-muted-foreground font-mono w-12">
+                            {timelinePlayhead.toFixed(1)}s
+                          </span>
+                          <input
+                            type="range"
+                            min="0"
+                            max={sceneShots.reduce((sum, s) => sum + (s.duration || 5), 0)}
+                            step="0.1"
+                            value={timelinePlayhead}
+                            onChange={(e) => setTimelinePlayhead(Number(e.target.value))}
+                            className="flex-1 h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                            data-testid={`timeline-scrubber-${scene.id}`}
+                          />
+                          <span className="text-xs text-muted-foreground font-mono w-12 text-right">
+                            {sceneShots.reduce((sum, s) => sum + (s.duration || 5), 0)}s
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

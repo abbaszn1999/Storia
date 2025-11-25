@@ -168,6 +168,7 @@ export const shots = pgTable("shots", {
   videoModel: text("video_model"),
   imageModel: text("image_model"),
   soundEffects: text("sound_effects"),
+  transition: text("transition").default("cut"),
   currentVersionId: varchar("current_version_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

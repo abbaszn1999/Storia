@@ -649,7 +649,7 @@ export function SceneBreakdown({
     });
   };
 
-  // TEMPORARY: Load dummy data for testing UI
+  // TEMPORARY: Load dummy data for testing UI (Ambient mode)
   useEffect(() => {
     // Don't load if we already have data from parent
     if (scenes.length > 0 || Object.keys(shots).length > 0) return;
@@ -660,52 +660,52 @@ export function SceneBreakdown({
           id: "scene-1",
           videoId,
           sceneNumber: 1,
-          title: "The Discovery",
-          description: "Sarah stumbles upon an ancient map in her grandmother's attic, revealing the location of a hidden temple deep in the Amazon jungle.",
-          duration: 45,
+          title: "Morning Mist",
+          description: "Soft morning light filters through dense forest canopy. Mist rises gently from the forest floor as dewdrops glisten on leaves.",
+          duration: 60,
           videoModel: null,
           imageModel: null,
-          lighting: null,
-          weather: null,
+          lighting: "Golden Hour",
+          weather: "Misty",
           createdAt: new Date(),
         },
         {
           id: "scene-2",
           videoId,
           sceneNumber: 2,
-          title: "Journey Begins",
-          description: "Sarah packs her gear and boards a small plane to Brazil. As they fly over the vast rainforest, she studies the map with growing excitement.",
+          title: "Flowing Waters",
+          description: "A peaceful stream winds through moss-covered rocks. Sunlight dances on the rippling water surface creating natural patterns.",
           duration: 45,
           videoModel: null,
           imageModel: null,
-          lighting: null,
-          weather: null,
+          lighting: "Natural Daylight",
+          weather: "Clear",
           createdAt: new Date(),
         },
         {
           id: "scene-3",
           videoId,
           sceneNumber: 3,
-          title: "Into the Jungle",
-          description: "Sarah and her guide hack through dense vegetation. Strange sounds echo through the trees as they navigate treacherous terrain towards their destination.",
+          title: "Forest Depths",
+          description: "Deep within the ancient forest, shafts of light pierce through the canopy. Ferns sway gently in the breeze.",
           duration: 45,
           videoModel: null,
           imageModel: null,
-          lighting: null,
-          weather: null,
+          lighting: "Soft Light",
+          weather: "Partly Cloudy",
           createdAt: new Date(),
         },
         {
           id: "scene-4",
           videoId,
           sceneNumber: 4,
-          title: "The Temple Revealed",
-          description: "Pushing through a wall of vines, Sarah gasps as an magnificent ancient temple emerges from the jungle, covered in mysterious symbols glowing faintly in the twilight.",
-          duration: 45,
+          title: "Twilight Calm",
+          description: "As evening approaches, the forest takes on warm golden tones. Birds settle into the trees as nature prepares for rest.",
+          duration: 60,
           videoModel: null,
           imageModel: null,
-          lighting: null,
-          weather: null,
+          lighting: "Golden Hour",
+          weather: "Clear",
           createdAt: new Date(),
         },
       ];
@@ -716,14 +716,15 @@ export function SceneBreakdown({
             id: crypto.randomUUID(),
             sceneId: "scene-1",
             shotNumber: 1,
-            shotType: "Close-Up",
-            description: "Close-up of dusty boxes and old photographs in dim attic lighting",
-            duration: 8,
-            cameraMovement: "static",
+            shotType: "Wide Shot",
+            description: "Wide view of misty forest at dawn, soft golden light filtering through trees",
+            duration: 20,
+            cameraMovement: "slow zoom-in",
             videoModel: null,
             imageModel: null,
             soundEffects: null,
             currentVersionId: null,
+            transition: null,
             createdAt: new Date(),
             updatedAt: new Date(),
           },
@@ -731,14 +732,15 @@ export function SceneBreakdown({
             id: crypto.randomUUID(),
             sceneId: "scene-1",
             shotNumber: 2,
-            shotType: "Medium Shot",
-            description: "Sarah's hand reaches into an ornate wooden box, pulling out an aged, yellowed map",
-            duration: 12,
-            cameraMovement: "push in",
+            shotType: "Close-Up",
+            description: "Dewdrops on a fern leaf, slowly rolling and catching morning light",
+            duration: 15,
+            cameraMovement: "static",
             videoModel: null,
             imageModel: null,
             soundEffects: null,
             currentVersionId: null,
+            transition: null,
             createdAt: new Date(),
             updatedAt: new Date(),
           },
@@ -746,29 +748,15 @@ export function SceneBreakdown({
             id: crypto.randomUUID(),
             sceneId: "scene-1",
             shotNumber: 3,
-            shotType: "Medium Close-Up",
-            description: "Sarah's eyes widen as she unfolds the map, candlelight illuminating ancient markings",
-            duration: 15,
-            cameraMovement: "dolly in",
+            shotType: "Medium Shot",
+            description: "Mist rising from the forest floor between ancient tree trunks",
+            duration: 25,
+            cameraMovement: "pan-left",
             videoModel: null,
             imageModel: null,
             soundEffects: null,
             currentVersionId: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-1",
-            shotNumber: 4,
-            shotType: "Extreme Close-Up",
-            description: "Extreme close-up of the map showing detailed illustrations of a temple hidden in jungle",
-            duration: 10,
-            cameraMovement: "pan right",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
+            transition: null,
             createdAt: new Date(),
             updatedAt: new Date(),
           },
@@ -779,13 +767,14 @@ export function SceneBreakdown({
             sceneId: "scene-2",
             shotNumber: 1,
             shotType: "Wide Shot",
-            description: "Wide shot of small propeller plane on tarmac at sunrise",
-            duration: 10,
+            description: "Gentle stream flowing over smooth stones, sunlight sparkling on water",
+            duration: 20,
             cameraMovement: "static",
             videoModel: null,
             imageModel: null,
             soundEffects: null,
             currentVersionId: null,
+            transition: null,
             createdAt: new Date(),
             updatedAt: new Date(),
           },
@@ -793,44 +782,15 @@ export function SceneBreakdown({
             id: crypto.randomUUID(),
             sceneId: "scene-2",
             shotNumber: 2,
-            shotType: "Medium Shot",
-            description: "Sarah climbs into the plane with her backpack and equipment",
-            duration: 8,
-            cameraMovement: "tracking",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-2",
-            shotNumber: 3,
-            shotType: "Aerial",
-            description: "Aerial view from plane window showing endless green canopy of Amazon rainforest",
-            duration: 12,
-            cameraMovement: "slow zoom",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-2",
-            shotNumber: 4,
             shotType: "Close-Up",
-            description: "Interior shot of Sarah studying the map intensely, finger tracing route",
+            description: "Water ripples creating natural patterns, light dancing on surface",
             duration: 15,
-            cameraMovement: "push in",
+            cameraMovement: "slow zoom-in",
             videoModel: null,
             imageModel: null,
             soundEffects: null,
             currentVersionId: null,
+            transition: null,
             createdAt: new Date(),
             updatedAt: new Date(),
           },
@@ -840,14 +800,15 @@ export function SceneBreakdown({
             id: crypto.randomUUID(),
             sceneId: "scene-3",
             shotNumber: 1,
-            shotType: "Medium Shot",
-            description: "Low angle shot of machete cutting through thick jungle vines",
-            duration: 8,
-            cameraMovement: "handheld",
+            shotType: "Wide Shot",
+            description: "Shafts of light piercing through dense forest canopy, illuminating floating particles",
+            duration: 20,
+            cameraMovement: "tilt-up",
             videoModel: null,
             imageModel: null,
             soundEffects: null,
             currentVersionId: null,
+            transition: null,
             createdAt: new Date(),
             updatedAt: new Date(),
           },
@@ -856,43 +817,14 @@ export function SceneBreakdown({
             sceneId: "scene-3",
             shotNumber: 2,
             shotType: "Medium Shot",
-            description: "Sarah and guide navigate through dense undergrowth, sweat on their faces",
-            duration: 14,
-            cameraMovement: "tracking",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-3",
-            shotNumber: 3,
-            shotType: "POV",
-            description: "POV shot looking up through canopy as mysterious bird calls echo",
-            duration: 10,
-            cameraMovement: "tilt up",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-3",
-            shotNumber: 4,
-            shotType: "Close-Up",
-            description: "Close-up of Sarah checking compass against map, determination in her expression",
-            duration: 13,
+            description: "Ferns and leaves gently swaying in soft forest breeze",
+            duration: 15,
             cameraMovement: "static",
             videoModel: null,
             imageModel: null,
             soundEffects: null,
             currentVersionId: null,
+            transition: null,
             createdAt: new Date(),
             updatedAt: new Date(),
           },
@@ -902,14 +834,15 @@ export function SceneBreakdown({
             id: crypto.randomUUID(),
             sceneId: "scene-4",
             shotNumber: 1,
-            shotType: "Medium Shot",
-            description: "Sarah's hand pushes aside wall of hanging vines in slow motion",
-            duration: 10,
-            cameraMovement: "push forward",
+            shotType: "Wide Shot",
+            description: "Golden sunset light bathing the forest in warm amber tones",
+            duration: 25,
+            cameraMovement: "slow pan-right",
             videoModel: null,
             imageModel: null,
             soundEffects: null,
             currentVersionId: null,
+            transition: null,
             createdAt: new Date(),
             updatedAt: new Date(),
           },
@@ -917,14 +850,15 @@ export function SceneBreakdown({
             id: crypto.randomUUID(),
             sceneId: "scene-4",
             shotNumber: 2,
-            shotType: "Wide Shot",
-            description: "Reveal shot of massive temple structure emerging from jungle vegetation",
-            duration: 18,
-            cameraMovement: "crane up",
+            shotType: "Medium Shot",
+            description: "Silhouettes of trees against orange and purple twilight sky",
+            duration: 20,
+            cameraMovement: "static",
             videoModel: null,
             imageModel: null,
             soundEffects: null,
             currentVersionId: null,
+            transition: null,
             createdAt: new Date(),
             updatedAt: new Date(),
           },
@@ -932,44 +866,15 @@ export function SceneBreakdown({
             id: crypto.randomUUID(),
             sceneId: "scene-4",
             shotNumber: 3,
-            shotType: "Medium Close-Up",
-            description: "Sarah's face in golden hour lighting, expression of wonder and amazement",
-            duration: 8,
-            cameraMovement: "static",
+            shotType: "Wide Shot",
+            description: "Final wide shot of peaceful forest as darkness gently settles",
+            duration: 15,
+            cameraMovement: "slow zoom-out",
             videoModel: null,
             imageModel: null,
             soundEffects: null,
             currentVersionId: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-4",
-            shotNumber: 4,
-            shotType: "Medium Shot",
-            description: "Dolly shot along temple wall showing intricate carvings and glowing symbols",
-            duration: 12,
-            cameraMovement: "dolly right",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-4",
-            shotNumber: 5,
-            shotType: "Aerial",
-            description: "Wide establishing shot of temple against jungle backdrop as sun sets",
-            duration: 12,
-            cameraMovement: "static",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
+            transition: null,
             createdAt: new Date(),
             updatedAt: new Date(),
           },
@@ -1012,7 +917,7 @@ export function SceneBreakdown({
         shot.currentVersionId = versionId;
       });
 
-    setSynopsis("An adventurous explorer discovers a mysterious map leading to an ancient temple deep in the Amazon rainforest. Her journey takes her from a dusty attic to the heart of the jungle, where she faces both natural obstacles and the lure of forgotten civilizations. As she pushes through the dense vegetation, the temple's secrets begin to reveal themselves.");
+    setSynopsis("A peaceful journey through a tranquil forest, from misty dawn to golden twilight. Experience the gentle beauty of nature as light plays through the canopy, water flows over ancient stones, and the forest transitions through the day's quiet moments.");
     onScenesGenerated(dummyScenes, dummyShots, dummyShotVersions);
   }, []);
 
@@ -1302,7 +1207,7 @@ export function SceneBreakdown({
         <div className="space-y-6">
           <div className="text-center py-12">
             <p className="text-muted-foreground mb-6">
-              AI will analyze your script and break it down into scenes and shots.
+              AI will analyze your atmosphere description and create visual segments.
             </p>
             <Button
               size="lg"
@@ -1313,12 +1218,12 @@ export function SceneBreakdown({
               {breakdownMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Analyzing Script...
+                  Creating Segments...
                 </>
               ) : (
                 <>
                   <Sparkles className="mr-2 h-4 w-4" />
-                  Generate Scene Breakdown
+                  Generate Flow Design
                 </>
               )}
             </Button>
@@ -1332,7 +1237,7 @@ export function SceneBreakdown({
               data-testid="button-add-scene"
             >
               <Plus className="h-4 w-4 mr-2" />
-              Add Scene Manually
+              Add Segment Manually
             </Button>
           </div>
         </div>
@@ -1353,23 +1258,7 @@ export function SceneBreakdown({
             </Card>
           )}
 
-          {/* Continuity Proposal for Start-End Mode - Top of Page */}
-          {narrativeMode === "start-end" && (
-            <ContinuityProposal
-              scenes={scenes}
-              allShots={shots}
-              proposedGroups={proposalDraft}
-              approvedGroups={approvedGroups}
-              declinedGroups={declinedGroups}
-              onGroupApprove={handleGroupApprove}
-              onGroupDecline={handleGroupDecline}
-              onGroupEdit={handleGroupEdit}
-              onLock={handleLock}
-              onGenerateProposal={handleGenerateContinuityProposal}
-              isGenerating={isGeneratingContinuity}
-              isLocked={localContinuityLocked}
-            />
-          )}
+          {/* Continuity Proposal removed for Ambient mode - not applicable */}
 
           <div className="space-y-4">
             {scenes.map((scene, sceneIndex) => {
@@ -1396,7 +1285,7 @@ export function SceneBreakdown({
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold">
-                          Scene {sceneIndex + 1}: {scene.title}
+                          Segment {sceneIndex + 1}: {scene.title}
                         </h3>
                         <Badge variant="secondary" className="text-xs" data-testid={`scene-duration-${scene.id}`}>
                           {scene.duration || 0}s
@@ -1449,19 +1338,7 @@ export function SceneBreakdown({
                     </div>
 
                     <div className="relative space-y-2">
-                      {/* Render continuity arrows for start-end mode */}
-                      {narrativeMode === "start-end" && sceneShots.length > 0 && (
-                        <ShotContinuityArrows
-                          sceneId={scene.id}
-                          sceneShots={sceneShots}
-                          proposedGroups={proposalDraft[scene.id] || []}
-                          approvedGroups={approvedGroups[scene.id] || []}
-                          isLocked={localContinuityLocked}
-                          onApproveConnection={(shotId1, shotId2) => handleApproveConnection(scene.id, shotId1, shotId2)}
-                          onDeclineConnection={(shotId1, shotId2) => handleDeclineConnection(scene.id, shotId1, shotId2)}
-                          shotRefs={shotRefs}
-                        />
-                      )}
+                      {/* Continuity arrows removed for Ambient mode */}
                       
                       {sceneShots.map((shot, shotIndex) => (
                         <div
@@ -1477,12 +1354,11 @@ export function SceneBreakdown({
                           <div className="h-2 w-2 rounded-full bg-primary mt-2 shrink-0" />
                           <div className="flex-1 min-w-0">
                             <span className="text-sm font-medium mr-2">Shot {shotIndex + 1}</span>
-                            <span className="text-sm text-muted-foreground mr-2">subtitles:</span>
                             <span className="text-sm">{shot.description}</span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <Badge variant="outline" className="text-xs">
-                              {shot.description?.length || 0}/200
+                              {shot.duration}s
                             </Badge>
                             <Button
                               size="icon"
@@ -1527,7 +1403,7 @@ export function SceneBreakdown({
               data-testid="button-add-scene"
             >
               <Plus className="h-4 w-4 mr-2" />
-              Add Scene
+              Add Segment
             </Button>
           </div>
 
@@ -1541,17 +1417,10 @@ export function SceneBreakdown({
             </div>
             <Button 
               onClick={onNext} 
-              disabled={narrativeMode === "start-end" && !localContinuityLocked}
               data-testid="button-next"
             >
-              {narrativeMode === "start-end" && !localContinuityLocked ? (
-                <>Lock Continuity First</>
-              ) : (
-                <>
-                  Next
-                  <span className="ml-2">→</span>
-                </>
-              )}
+              Next
+              <span className="ml-2">→</span>
             </Button>
           </div>
 
@@ -1578,9 +1447,9 @@ export function SceneBreakdown({
           <AlertDialog open={!!deleteSceneId} onOpenChange={(open) => !open && setDeleteSceneId(null)}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete Scene</AlertDialogTitle>
+                <AlertDialogTitle>Delete Segment</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure you want to delete this scene? This will also delete all shots in this scene. This action cannot be undone.
+                  Are you sure you want to delete this segment? This will also delete all shots in this segment. This action cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

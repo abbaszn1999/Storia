@@ -24,13 +24,6 @@ const modes = [
     available: true,
   },
   {
-    id: "podcast",
-    title: "Video Podcast",
-    description: "Conversation-style content creation",
-    icon: Mic,
-    available: false,
-  },
-  {
     id: "commerce",
     title: "Social Commerce",
     description: "Product showcase and promotional videos",
@@ -43,6 +36,13 @@ const modes = [
     description: "Brand storytelling through motion",
     icon: Clapperboard,
     available: true,
+  },
+  {
+    id: "podcast",
+    title: "Video Podcast",
+    description: "Conversation-style content creation",
+    icon: Mic,
+    available: false,
   },
 ];
 

@@ -107,7 +107,7 @@ export default function AmbientVisualModePage() {
           <AmbientVisualWorkflow 
             activeStep={activeStep}
             onStepChange={(step) => {
-              setHighestCompletedStep(Math.max(highestCompletedStep, activeStep));
+              setHighestCompletedStep(prev => Math.max(prev, step - 1));
               setActiveStep(step);
             }}
             projectName={videoTitle}

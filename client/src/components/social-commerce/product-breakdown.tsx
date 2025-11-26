@@ -81,6 +81,8 @@ interface ProductBreakdownProps {
   shots: { [segmentId: string]: ProductShot[] };
   onSegmentsChange: (segments: ProductSegment[]) => void;
   onShotsChange: (shots: { [segmentId: string]: ProductShot[] }) => void;
+  onContinuityGroupsChange: (groups: { [segmentId: string]: any[] }) => void;
+  onContinuityLockedChange: (locked: boolean) => void;
   onNext: () => void;
 }
 
@@ -125,6 +127,8 @@ export function ProductBreakdown({
   shots,
   onSegmentsChange,
   onShotsChange,
+  onContinuityGroupsChange,
+  onContinuityLockedChange,
   onNext,
 }: ProductBreakdownProps) {
   const isStartEndMode = narrativeMode === "start-end";
@@ -522,6 +526,25 @@ export function ProductBreakdown({
       setConnectionGroups(groups);
       setIsAnalyzingConnections(false);
       
+      // Convert connectionGroups to continuityGroups format for StoryboardEditor
+      // StoryboardEditor expects: { [segmentId: string]: Array<{ shotIds: string[] }> }
+      const continuityGroups: { [segmentId: string]: any[] } = {};
+      groups.forEach(group => {
+        const segId = group.segmentId;
+        if (!continuityGroups[segId]) {
+          continuityGroups[segId] = [];
+        }
+        continuityGroups[segId].push({
+          id: group.id,
+          shotIds: group.shotIds,
+          type: group.type,
+          description: group.description,
+        });
+      });
+      
+      // Sync continuity groups with parent
+      onContinuityGroupsChange(continuityGroups);
+      
       const withinCount = groups.filter(g => g.type === "within-segment").length;
       const bridgeCount = groups.filter(g => g.type === "bridge").length;
       
@@ -534,6 +557,8 @@ export function ProductBreakdown({
 
   const lockConnections = () => {
     setIsConnectionsLocked(true);
+    // Sync locked state with parent for StoryboardEditor
+    onContinuityLockedChange(true);
     toast({
       title: "Connections Locked",
       description: "Shot connections are now finalized. The storyboard will generate frames according to this continuity plan.",

@@ -648,6 +648,8 @@ export function SocialCommerceWorkflow({
           shots={productShots}
           onSegmentsChange={handleSegmentsChange}
           onShotsChange={handleProductShotsChange}
+          onContinuityGroupsChange={onContinuityGroupsChange}
+          onContinuityLockedChange={onContinuityLockedChange}
           onNext={onNext}
         />
       )}

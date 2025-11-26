@@ -1,10 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { AtmosphereEditor } from "@/components/ambient/atmosphere-editor";
-import { SceneBreakdown } from "@/components/ambient/scene-breakdown";
+import { SceneBreakdown } from "@/components/narrative/scene-breakdown";
 import { VisualWorld } from "@/components/ambient/visual-world";
-import { StoryboardEditor } from "@/components/ambient/storyboard-editor";
-import { AnimaticPreview } from "@/components/ambient/animatic-preview";
-import { ExportSettings, type ExportData } from "@/components/ambient/export-settings";
+import { StoryboardEditor } from "@/components/narrative/storyboard-editor";
+import { AnimaticPreview } from "@/components/narrative/animatic-preview";
+import { ExportSettings, type ExportData } from "@/components/narrative/export-settings";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
 
@@ -492,6 +492,8 @@ export function AmbientWorkflow({
           voiceOverEnabled={voiceOverEnabled}
           continuityLocked={continuityLocked}
           continuityGroups={continuityGroups}
+          isAmbientMode={true}
+          animationMode={worldSettings.animationMode || "animate"}
           onVoiceActorChange={onVoiceActorChange}
           onVoiceOverToggle={onVoiceOverEnabledChange}
           onGenerateShot={handleGenerateShot}

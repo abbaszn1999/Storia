@@ -85,6 +85,17 @@ const WEATHER_OPTIONS = [
   "Stormy",
 ];
 
+const ANIMATION_MODE_OPTIONS = [
+  { value: "smooth-image", label: "Smooth Image (Ken Burns)" },
+  { value: "animate", label: "Full Animation (AI Video)" },
+];
+
+const MOTION_INTENSITY_OPTIONS = [
+  { value: "subtle", label: "Subtle" },
+  { value: "moderate", label: "Moderate" },
+  { value: "dynamic", label: "Dynamic" },
+];
+
 const SHOT_TYPES = [
   "Extreme Close-up",
   "Close-up",
@@ -146,6 +157,8 @@ interface StoryboardEditorProps {
   continuityGroups: { [sceneId: string]: any[] };
   isCommerceMode?: boolean;
   isLogoMode?: boolean;
+  isAmbientMode?: boolean;
+  animationMode?: "smooth-image" | "animate";
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
   onGenerateShot: (shotId: string) => void;
@@ -750,6 +763,8 @@ export function StoryboardEditor({
   continuityGroups,
   isCommerceMode = false,
   isLogoMode = false,
+  isAmbientMode = false,
+  animationMode = "animate",
   onVoiceActorChange,
   onVoiceOverToggle,
   onGenerateShot,

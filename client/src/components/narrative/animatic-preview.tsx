@@ -25,10 +25,11 @@ interface AnimaticPreviewProps {
   script: string;
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
+  voiceOverEnabled?: boolean;
   onNext: () => void;
 }
 
-export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPreviewProps) {
+export function AnimaticPreview({ script, scenes, shots, voiceOverEnabled = true, onNext }: AnimaticPreviewProps) {
   const [backgroundMusicEnabled, setBackgroundMusicEnabled] = useState(true);
   const [musicStyle, setMusicStyle] = useState("Cinematic Epic");
   const [volume, setVolume] = useState([50]);

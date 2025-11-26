@@ -3,11 +3,27 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X, Upload, FileText, Sparkles, GripVertical } from "lucide-react";
+import { Plus, X, Upload, FileText, Sparkles, GripVertical, Cloud, Waves } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
+
+const AMBIENT_CATEGORIES = [
+  { id: "nature", label: "Nature" },
+  { id: "weather", label: "Weather" },
+  { id: "urban", label: "Urban" },
+  { id: "cozy", label: "Cozy" },
+  { id: "abstract", label: "Abstract" },
+  { id: "cosmic", label: "Cosmic" },
+  { id: "underwater", label: "Underwater" },
+  { id: "seasonal", label: "Seasonal" },
+];
+
+const AMBIENT_MOODS = [
+  "Relaxing", "Meditative", "Calming", "Peaceful", "Dreamy", "Energizing",
+  "Focused", "Mysterious", "Romantic", "Melancholic", "Uplifting", "Ethereal"
+];
 
 interface Step4CampaignBasicsProps {
   campaignName: string;
@@ -16,6 +32,11 @@ interface Step4CampaignBasicsProps {
   onStoryIdeasChange: (ideas: string[]) => void;
   scripterModel: string;
   onScripterModelChange: (value: string) => void;
+  videoMode?: string;
+  ambientCategory?: string;
+  onAmbientCategoryChange?: (value: string) => void;
+  ambientMoods?: string[];
+  onAmbientMoodsChange?: (moods: string[]) => void;
 }
 
 export function Step4CampaignBasics({
@@ -25,9 +46,29 @@ export function Step4CampaignBasics({
   onStoryIdeasChange,
   scripterModel,
   onScripterModelChange,
+  videoMode = "narrative",
+  ambientCategory = "",
+  onAmbientCategoryChange,
+  ambientMoods = [],
+  onAmbientMoodsChange,
 }: Step4CampaignBasicsProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const isAmbientMode = videoMode === "ambient_visual";
+  const ideasLabel = isAmbientMode ? "Atmosphere Descriptions" : "Story Ideas";
+  const ideaPlaceholder = isAmbientMode 
+    ? "Describe the atmosphere you want to create..." 
+    : "Describe your story idea...";
+  
+  const toggleMood = (mood: string) => {
+    if (!onAmbientMoodsChange) return;
+    if (ambientMoods.includes(mood)) {
+      onAmbientMoodsChange(ambientMoods.filter(m => m !== mood));
+    } else if (ambientMoods.length < 3) {
+      onAmbientMoodsChange([...ambientMoods, mood]);
+    }
+  };
 
   const addStoryIdea = () => {
     onStoryIdeasChange([...storyIdeas, ""]);
@@ -120,7 +161,10 @@ export function Step4CampaignBasics({
       <div>
         <h2 className="text-2xl font-display font-bold">Campaign Basics</h2>
         <p className="text-muted-foreground mt-2">
-          Name your campaign and add story ideas - each idea becomes one video
+          {isAmbientMode 
+            ? "Name your campaign and describe atmospheres - each description becomes one ambient video"
+            : "Name your campaign and add story ideas - each idea becomes one video"
+          }
         </p>
       </div>
 
@@ -137,7 +181,7 @@ export function Step4CampaignBasics({
               <Label htmlFor="campaign-name">Campaign Name</Label>
               <Input
                 id="campaign-name"
-                placeholder="e.g., Summer Travel Series 2025"
+                placeholder={isAmbientMode ? "e.g., Relaxation Ambience Pack" : "e.g., Summer Travel Series 2025"}
                 value={campaignName}
                 onChange={(e) => onCampaignNameChange(e.target.value)}
                 data-testid="input-campaign-name"
@@ -145,10 +189,10 @@ export function Step4CampaignBasics({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="scripter-model">AI Scripter Model</Label>
+              <Label htmlFor="scripter-model">AI {isAmbientMode ? "Atmosphere" : "Scripter"} Model</Label>
               <Select value={scripterModel} onValueChange={onScripterModelChange}>
                 <SelectTrigger id="scripter-model" data-testid="select-scripter-model">
-                  <SelectValue placeholder="Select AI scripter model" />
+                  <SelectValue placeholder={isAmbientMode ? "Select AI atmosphere model" : "Select AI scripter model"} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="gpt-4">GPT-4</SelectItem>
@@ -159,7 +203,10 @@ export function Step4CampaignBasics({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                This model will generate scripts from your story ideas
+                {isAmbientMode 
+                  ? "This model will enhance your atmosphere descriptions"
+                  : "This model will generate scripts from your story ideas"
+                }
               </p>
             </div>
           </CardContent>
@@ -178,13 +225,19 @@ export function Step4CampaignBasics({
             </div>
             <div className="space-y-3">
               <div className="flex justify-between items-center py-2 border-b border-primary/10">
-                <span className="text-sm text-muted-foreground">Videos to create</span>
+                <span className="text-sm text-muted-foreground">{isAmbientMode ? "Ambiences" : "Videos"} to create</span>
                 <Badge variant="secondary">{validIdeasCount}</Badge>
               </div>
               <div className="flex justify-between items-center py-2 border-b border-primary/10">
-                <span className="text-sm text-muted-foreground">Scripter Model</span>
+                <span className="text-sm text-muted-foreground">{isAmbientMode ? "Atmosphere" : "Scripter"} Model</span>
                 <Badge variant="outline">{scripterModel.toUpperCase()}</Badge>
               </div>
+              {isAmbientMode && ambientCategory && (
+                <div className="flex justify-between items-center py-2 border-b border-primary/10">
+                  <span className="text-sm text-muted-foreground">Category</span>
+                  <Badge variant="outline" className="capitalize">{ambientCategory}</Badge>
+                </div>
+              )}
               <div className="flex justify-between items-center py-2">
                 <span className="text-sm text-muted-foreground">Status</span>
                 <Badge variant={campaignName && validIdeasCount > 0 ? "default" : "secondary"}>
@@ -196,12 +249,76 @@ export function Step4CampaignBasics({
         </Card>
       </div>
 
+      {isAmbientMode && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Cloud className="h-4 w-4 text-primary" />
+                Ambient Category
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {AMBIENT_CATEGORIES.map((cat) => (
+                  <Button
+                    key={cat.id}
+                    type="button"
+                    variant={ambientCategory === cat.id ? "default" : "outline"}
+                    size="sm"
+                    className="justify-start"
+                    onClick={() => onAmbientCategoryChange?.(cat.id)}
+                    data-testid={`button-category-${cat.id}`}
+                  >
+                    {cat.label}
+                  </Button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Waves className="h-4 w-4 text-primary" />
+                Moods
+                <Badge variant="secondary" className="ml-2">{ambientMoods.length}/3</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {AMBIENT_MOODS.map((mood) => (
+                  <Badge
+                    key={mood}
+                    variant={ambientMoods.includes(mood) ? "default" : "outline"}
+                    className={`cursor-pointer ${
+                      ambientMoods.includes(mood) 
+                        ? "" 
+                        : ambientMoods.length >= 3 
+                          ? "opacity-50 cursor-not-allowed" 
+                          : "hover-elevate"
+                    }`}
+                    onClick={() => toggleMood(mood)}
+                    data-testid={`badge-mood-${mood.toLowerCase()}`}
+                  >
+                    {mood}
+                  </Badge>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Select up to 3 moods for your ambient videos
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              Story Ideas
+              {isAmbientMode ? <Waves className="h-4 w-4 text-primary" /> : <Sparkles className="h-4 w-4 text-primary" />}
+              {ideasLabel}
               <Badge variant="secondary" className="ml-2">{storyIdeas.length}</Badge>
             </CardTitle>
             <div className="flex gap-2">
@@ -222,12 +339,15 @@ export function Step4CampaignBasics({
                 data-testid="button-add-story-idea"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Add Idea
+                {isAmbientMode ? "Add Atmosphere" : "Add Idea"}
               </Button>
             </div>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Each story idea will generate one complete video with script, scenes, and shots
+            {isAmbientMode 
+              ? "Each atmosphere description will generate one ambient video with seamless loops"
+              : "Each story idea will generate one complete video with script, scenes, and shots"
+            }
           </p>
         </CardHeader>
         <CardContent>
@@ -253,7 +373,10 @@ export function Step4CampaignBasics({
                   {index + 1}
                 </div>
                 <Textarea
-                  placeholder={`Describe your story idea #${index + 1}...`}
+                  placeholder={isAmbientMode 
+                    ? `Describe the atmosphere #${index + 1}... e.g., "Peaceful forest with gentle rain"` 
+                    : `Describe your story idea #${index + 1}...`
+                  }
                   value={idea}
                   onChange={(e) => updateStoryIdea(index, e.target.value)}
                   className="flex-1 min-h-[60px] resize-none border-0 bg-transparent focus-visible:ring-0 p-0"
@@ -276,7 +399,10 @@ export function Step4CampaignBasics({
 
           {storyIdeas.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
-              <p>No story ideas yet. Click "Add Idea" to get started.</p>
+              <p>{isAmbientMode 
+                ? "No atmosphere descriptions yet. Click \"Add Atmosphere\" to get started."
+                : "No story ideas yet. Click \"Add Idea\" to get started."
+              }</p>
             </div>
           )}
         </CardContent>

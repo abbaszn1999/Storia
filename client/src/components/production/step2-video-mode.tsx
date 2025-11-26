@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Film, User, Podcast, Check } from "lucide-react";
+import { Film, User, Podcast, Waves, Check } from "lucide-react";
 
 interface Step2VideoModeProps {
   videoMode: string;
@@ -23,6 +23,14 @@ const videoModes = [
     icon: User,
     available: true,
     features: ["AI host character", "First/third person", "Casual tone", "Engaging delivery"],
+  },
+  {
+    id: "ambient_visual",
+    name: "Ambient Video",
+    description: "Seamless looping visuals for relaxation, focus, or atmospheric content",
+    icon: Waves,
+    available: true,
+    features: ["Seamless looping", "Mood-based", "Long-form support", "Parallax effects"],
   },
   {
     id: "video_podcast",

@@ -78,6 +78,8 @@ export default function ProductionCampaignCreate() {
 
   // Stories Mode - Narrative Template state
   const [storyTopics, setStoryTopics] = useState<string[]>([]);
+  const [storyMediaType, setStoryMediaType] = useState<"static" | "animated">("static");
+  const [storyTransition, setStoryTransition] = useState<string>("fade");
 
   // Stories Mode - ASMR Template state
   const [asmrCategory, setAsmrCategory] = useState<string>("food");
@@ -243,6 +245,8 @@ export default function ProductionCampaignCreate() {
         } else {
           data.storyTopics = storyTopics.filter(t => t.trim());
           data.storyIdeas = storyTopics.filter(t => t.trim()); // Use topics as story ideas for campaign videos
+          data.storyMediaType = storyMediaType;
+          data.storyTransition = storyMediaType === "static" ? storyTransition : undefined;
           data.hasVoiceOver = storyHasVoiceOver;
           data.storyVoiceProfile = storyHasVoiceOver ? storyVoiceProfile : undefined;
           data.storyBackgroundMusicTrack = storyBackgroundMusicTrack;
@@ -537,6 +541,10 @@ export default function ProductionCampaignCreate() {
               storyTopics={storyTopics}
               onStoryTopicsChange={setStoryTopics}
               storyTemplate={storyTemplate}
+              storyMediaType={storyMediaType}
+              onStoryMediaTypeChange={setStoryMediaType}
+              storyTransition={storyTransition}
+              onStoryTransitionChange={setStoryTransition}
             />
           );
         }

@@ -388,6 +388,8 @@ export const productionCampaigns = pgTable("production_campaigns", {
   storyTemplate: text("story_template"), // problem-solution, tease-reveal, before-after, myth-busting, asmr-sensory
   storyTemplateType: text("story_template_type"), // narrative or direct (ASMR)
   storyTopics: text("story_topics").array(), // Array of topics for narrative templates
+  storyMediaType: text("story_media_type"), // static (images with transitions) or animated (AI video clips)
+  storyTransition: text("story_transition"), // fade, zoom, slide, dissolve, pan (only for static media type)
   storyVoiceProfile: text("story_voice_profile"), // Voice selection for stories
   storyBackgroundMusicTrack: text("story_background_music_track"),
   storyVoiceVolume: integer("story_voice_volume").default(80),

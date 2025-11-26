@@ -3,7 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X, Sparkles, FileText, Lightbulb, RefreshCw, AlertCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, X, Sparkles, FileText, Lightbulb, RefreshCw, AlertCircle, Image, Film } from "lucide-react";
 
 interface Step3StoryTopicsProps {
   campaignName: string;
@@ -11,6 +12,10 @@ interface Step3StoryTopicsProps {
   storyTopics: string[];
   onStoryTopicsChange: (topics: string[]) => void;
   storyTemplate: string;
+  storyMediaType: "static" | "animated";
+  onStoryMediaTypeChange: (type: "static" | "animated") => void;
+  storyTransition: string;
+  onStoryTransitionChange: (transition: string) => void;
 }
 
 const templateStructures: Record<string, { name: string; icon: typeof Lightbulb; structure: string[] }> = {
@@ -36,12 +41,25 @@ const templateStructures: Record<string, { name: string; icon: typeof Lightbulb;
   },
 };
 
+const TRANSITIONS = [
+  { id: "fade", label: "Fade" },
+  { id: "zoom", label: "Zoom" },
+  { id: "slide", label: "Slide" },
+  { id: "dissolve", label: "Dissolve" },
+  { id: "pan", label: "Pan" },
+  { id: "wipe", label: "Wipe" },
+];
+
 export function Step3StoryTopics({
   campaignName,
   onCampaignNameChange,
   storyTopics,
   onStoryTopicsChange,
   storyTemplate,
+  storyMediaType,
+  onStoryMediaTypeChange,
+  storyTransition,
+  onStoryTransitionChange,
 }: Step3StoryTopicsProps) {
   const [newTopic, setNewTopic] = useState("");
   
@@ -88,6 +106,73 @@ export function Step3StoryTopics({
               className="w-full px-3 py-2 rounded-md border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
               data-testid="input-campaign-name"
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="pt-6 space-y-6">
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-3 block">Media Type</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => onStoryMediaTypeChange("static")}
+                  className={`p-4 rounded-lg border-2 transition-all text-left ${
+                    storyMediaType === "static"
+                      ? "border-primary bg-primary/5"
+                      : "border-muted hover:border-muted-foreground/30"
+                  }`}
+                  data-testid="button-media-static"
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className={`p-2 rounded-lg ${storyMediaType === "static" ? "bg-primary/10" : "bg-muted"}`}>
+                      <Image className={`h-5 w-5 ${storyMediaType === "static" ? "text-primary" : "text-muted-foreground"}`} />
+                    </div>
+                    <span className="font-medium">Static Image</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">With transitions</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onStoryMediaTypeChange("animated")}
+                  className={`p-4 rounded-lg border-2 transition-all text-left ${
+                    storyMediaType === "animated"
+                      ? "border-primary bg-primary/5"
+                      : "border-muted hover:border-muted-foreground/30"
+                  }`}
+                  data-testid="button-media-animated"
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className={`p-2 rounded-lg ${storyMediaType === "animated" ? "bg-primary/10" : "bg-muted"}`}>
+                      <Film className={`h-5 w-5 ${storyMediaType === "animated" ? "text-primary" : "text-muted-foreground"}`} />
+                    </div>
+                    <span className="font-medium">Animated</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">AI video clip</p>
+                </button>
+              </div>
+            </div>
+
+            {storyMediaType === "static" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Transition</label>
+                <Select value={storyTransition} onValueChange={onStoryTransitionChange}>
+                  <SelectTrigger className="w-full" data-testid="select-transition">
+                    <SelectValue placeholder="Select transition style" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TRANSITIONS.map((transition) => (
+                      <SelectItem key={transition.id} value={transition.id}>
+                        {transition.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

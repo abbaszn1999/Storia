@@ -3,7 +3,7 @@ import { ArrowLeft, Check, User } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { CharacterVlogWorkflow } from "@/components/character-vlog-workflow";
+import { CharacterVlogWorkflow } from "@/components/character-vlog";
 import { NarrativeModeSelector } from "@/components/narrative/narrative-mode-selector";
 import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";

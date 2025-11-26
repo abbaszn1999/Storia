@@ -467,7 +467,7 @@ export function LogoNarrativeWorkflow({
       )}
 
       {activeStep === "export" && (
-        <ExportSettings onExport={handleExport} showAutoGenerateShorts={false} />
+        <ExportSettings onExport={handleExport} />
       )}
     </div>
   );

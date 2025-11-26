@@ -725,7 +725,7 @@ export function SocialCommerceWorkflow({
       )}
 
       {activeStep === "export" && (
-        <ExportSettings onExport={handleExport} showAutoGenerateShorts={false} />
+        <ExportSettings onExport={handleExport} />
       )}
     </div>
   );

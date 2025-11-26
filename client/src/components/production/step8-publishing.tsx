@@ -28,6 +28,7 @@ interface Step8PublishingProps {
   selectedPlatforms: string[];
   onSelectedPlatformsChange: (platforms: string[]) => void;
   videoMode?: string;
+  contentType?: "video" | "stories";
   autoShortsEnabled?: boolean;
   onAutoShortsEnabledChange?: (enabled: boolean) => void;
   shortsPerVideo?: number;
@@ -50,6 +51,7 @@ export function Step8Publishing({
   selectedPlatforms,
   onSelectedPlatformsChange,
   videoMode = "narrative",
+  contentType = "video",
   autoShortsEnabled = false,
   onAutoShortsEnabledChange,
   shortsPerVideo = 3,
@@ -109,7 +111,7 @@ export function Step8Publishing({
     { id: "facebook_reels", name: "Facebook Reels", icon: SiFacebook, color: "text-blue-500" },
   ];
 
-  const showAutoShorts = videoMode === "narrative" || videoMode === "character_vlog";
+  const showAutoShorts = contentType !== "stories" && (videoMode === "narrative" || videoMode === "character_vlog");
 
   const togglePlatform = (platformId: string) => {
     if (selectedPlatforms.includes(platformId)) {

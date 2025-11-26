@@ -25,8 +25,12 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Step1TypeSelection } from "@/components/production/step1-type-selection";
 import { Step2VideoMode } from "@/components/production/step2-video-mode";
+import { Step2StoryTemplate } from "@/components/production/step2-story-template";
 import { Step3NarrativeMode } from "@/components/production/step3-narrative-mode";
+import { Step3StoryTopics } from "@/components/production/step3-story-topics";
+import { Step3ASMRSettings } from "@/components/production/step3-asmr-settings";
 import { Step4CampaignBasics } from "@/components/production/step4-campaign-basics";
+import { Step4StoryAudio } from "@/components/production/step4-story-audio";
 import { Step5VideoSettings } from "@/components/production/step5-video-settings";
 import { Step6Casting } from "@/components/production/step6-casting";
 import { Step7Scheduling } from "@/components/production/step7-scheduling";
@@ -49,10 +53,15 @@ export default function ProductionCampaignCreate() {
   const [currentStep, setCurrentStep] = useState(1);
 
   // Step 1: Type Selection
-  const [contentType, setContentType] = useState<"video" | "story">("video");
+  const [contentType, setContentType] = useState<"video" | "stories">("video");
 
-  // Step 2: Video Mode Selection
+  // Step 2: Video Mode Selection (for video) or Story Template Selection (for stories)
   const [videoMode, setVideoMode] = useState<string>("narrative");
+  const [storyTemplate, setStoryTemplate] = useState<string>("problem-solution");
+  
+  // Helper to determine story template type
+  const isASMRTemplate = storyTemplate === "asmr-sensory";
+  const isStoriesMode = contentType === "stories";
 
   // Step 3: Narrative Mode Selection
   const [narrativeMode, setNarrativeMode] = useState<"image-reference" | "start-end-frame">("image-reference");
@@ -67,20 +76,70 @@ export default function ProductionCampaignCreate() {
   const [ambientCategory, setAmbientCategory] = useState<string>("nature");
   const [ambientMoods, setAmbientMoods] = useState<string[]>([]);
 
-  // Computed wizard steps based on video mode
+  // Stories Mode - Narrative Template state
+  const [storyTopics, setStoryTopics] = useState<string[]>([]);
+
+  // Stories Mode - ASMR Template state
+  const [asmrCategory, setAsmrCategory] = useState<string>("food");
+  const [asmrMaterial, setAsmrMaterial] = useState<string>("");
+  const [asmrPrompts, setAsmrPrompts] = useState<string[]>([]);
+  const [asmrVideoModel, setAsmrVideoModel] = useState<string>("kling");
+  const [asmrIsLoopable, setAsmrIsLoopable] = useState(false);
+  const [asmrSoundIntensity, setAsmrSoundIntensity] = useState(50);
+
+  // Stories Mode - Audio settings
+  const [storyHasVoiceOver, setStoryHasVoiceOver] = useState(true);
+  const [storyVoiceProfile, setStoryVoiceProfile] = useState<string>("narrator-soft");
+  const [storyBackgroundMusicTrack, setStoryBackgroundMusicTrack] = useState<string>("uplifting-corporate");
+  const [storyVoiceVolume, setStoryVoiceVolume] = useState(80);
+  const [storyMusicVolume, setStoryMusicVolume] = useState(40);
+
+  // Computed wizard steps based on content type and video mode
   const isAmbientMode = videoMode === "ambient_visual";
-  const wizardSteps = allWizardSteps.filter(step => isAmbientMode ? step.forAmbient : true);
+  
+  // Get wizard steps based on content type
+  const getWizardSteps = () => {
+    if (isStoriesMode) {
+      // Stories mode has different steps based on template type
+      if (isASMRTemplate) {
+        // ASMR: Type → Template → ASMR Settings → Scheduling → Publishing
+        return [
+          { number: 1, title: "Content Type", icon: Layers, description: "Video or Stories" },
+          { number: 2, title: "Template", icon: Film, description: "Story structure" },
+          { number: 3, title: "ASMR Setup", icon: Settings, description: "Prompts & settings" },
+          { number: 7, title: "Scheduling", icon: Calendar, description: "Timeline" },
+          { number: 8, title: "Publishing", icon: Share2, description: "Platforms" },
+        ];
+      } else {
+        // Narrative templates: Type → Template → Topics → Audio → Scheduling → Publishing
+        return [
+          { number: 1, title: "Content Type", icon: Layers, description: "Video or Stories" },
+          { number: 2, title: "Template", icon: Film, description: "Story structure" },
+          { number: 3, title: "Topics", icon: FileText, description: "Story ideas" },
+          { number: 4, title: "Audio", icon: Settings, description: "Voice & music" },
+          { number: 7, title: "Scheduling", icon: Calendar, description: "Timeline" },
+          { number: 8, title: "Publishing", icon: Share2, description: "Platforms" },
+        ];
+      }
+    }
+    // Video mode (existing logic)
+    return allWizardSteps.filter(step => isAmbientMode ? step.forAmbient : true);
+  };
+  
+  const wizardSteps = getWizardSteps();
   const totalSteps = wizardSteps.length;
   
   // Helper to get the actual step number for navigation
   const getNextStep = (current: number): number => {
-    if (isAmbientMode && current === 2) return 4; // Skip step 3 for ambient
-    return current + 1;
+    const currentIndex = wizardSteps.findIndex(s => s.number === current);
+    const nextStep = wizardSteps[currentIndex + 1];
+    return nextStep?.number || current;
   };
   
   const getPrevStep = (current: number): number => {
-    if (isAmbientMode && current === 4) return 2; // Skip step 3 for ambient
-    return current - 1;
+    const currentIndex = wizardSteps.findIndex(s => s.number === current);
+    const prevStep = wizardSteps[currentIndex - 1];
+    return prevStep?.number || current;
   };
   
   const getStepIndex = (stepNumber: number): number => {
@@ -153,66 +212,98 @@ export default function ProductionCampaignCreate() {
   const createCampaign = useMutation({
     mutationFn: async () => {
       const isAmbient = videoMode === "ambient_visual";
+      const isStories = contentType === "stories";
       
-      const data = {
+      // Base data for all modes
+      const data: Record<string, unknown> = {
         name: campaignName,
-        storyIdeas: storyIdeas.filter(idea => idea.trim() !== ""),
-        videoMode,
-        narrativeMode: isAmbient ? undefined : narrativeMode,
-        narrationStyle: videoMode === "character_vlog" ? narrationStyle : undefined,
-        mainCharacterId: videoMode === "character_vlog" && mainCharacterId ? mainCharacterId : undefined,
         automationMode,
-        aspectRatio,
-        duration: isAmbient ? duration : duration,
-        language,
-        artStyle: styleMode === "preset" ? artStyle : undefined,
-        styleReferenceImageUrl: styleMode === "reference" ? styleReferenceImageUrl : undefined,
-        tone: isAmbient ? undefined : tone,
-        genre: isAmbient ? undefined : genre,
-        targetAudience: targetAudience || undefined,
-        resolution,
-        animateImages: isAmbient ? ambientAnimationMode === "animate" : animateImages,
-        hasVoiceOver,
-        hasSoundEffects,
-        hasBackgroundMusic,
-        scripterModel,
-        imageModel,
-        videoModel,
-        imageCustomInstructions: imageCustomInstructions || undefined,
-        videoCustomInstructions: videoCustomInstructions || undefined,
-        voiceModel: hasVoiceOver ? voiceModel : undefined,
-        voiceActorId: hasVoiceOver ? voiceActorId : undefined,
         scheduleStartDate: scheduleStartDate || undefined,
         scheduleEndDate: scheduleEndDate || undefined,
         preferredPublishHours: publishHoursMode === "user" ? preferredPublishHours : ["AI"],
         maxVideosPerDay,
         selectedPlatforms,
-        // Auto Shorts settings (only for Narrative and Character Vlog)
-        ...(!isAmbient && autoShortsEnabled && {
-          autoShortsEnabled,
-          shortsPerVideo,
-          shortsHookTypes,
-          shortsMinConfidence,
-          autoPublishShorts,
-          shortsPlatforms: autoPublishShorts ? shortsPlatforms : [],
-          shortsScheduleMode,
-          shortsStaggerHours: shortsScheduleMode === "staggered" ? shortsStaggerHours : undefined,
-        }),
-        // Ambient mode specific fields
-        ...(isAmbient && {
-          ambientCategory,
-          ambientMoods,
-          ambientAnimationMode,
-          ambientPacing,
-          ambientSegmentCount,
-          ambientTransitionStyle,
-          ambientVariationType,
-          ambientCameraMotion,
-          ambientLoopMode,
-          ambientVisualRhythm,
-          ambientEnableParallax,
-        }),
       };
+
+      if (isStories) {
+        // Stories mode data
+        const isASMR = storyTemplate === "asmr-sensory";
+        data.videoMode = "stories";
+        data.storyTemplate = storyTemplate;
+        data.storyTemplateType = isASMR ? "direct" : "narrative";
+        
+        if (isASMR) {
+          data.asmrPrompts = asmrPrompts.filter(p => p.trim());
+          data.asmrCategory = asmrCategory;
+          data.asmrMaterial = asmrMaterial || undefined;
+          data.asmrVideoModel = asmrVideoModel;
+          data.asmrIsLoopable = asmrIsLoopable;
+          data.asmrSoundIntensity = asmrSoundIntensity;
+          data.storyIdeas = asmrPrompts.filter(p => p.trim()); // Use prompts as story ideas for campaign videos
+        } else {
+          data.storyTopics = storyTopics.filter(t => t.trim());
+          data.storyIdeas = storyTopics.filter(t => t.trim()); // Use topics as story ideas for campaign videos
+          data.hasVoiceOver = storyHasVoiceOver;
+          data.storyVoiceProfile = storyHasVoiceOver ? storyVoiceProfile : undefined;
+          data.storyBackgroundMusicTrack = storyBackgroundMusicTrack;
+          data.storyVoiceVolume = storyVoiceVolume;
+          data.storyMusicVolume = storyMusicVolume;
+        }
+      } else {
+        // Video mode data (existing logic)
+        data.storyIdeas = storyIdeas.filter(idea => idea.trim() !== "");
+        data.videoMode = videoMode;
+        data.narrativeMode = isAmbient ? undefined : narrativeMode;
+        data.narrationStyle = videoMode === "character_vlog" ? narrationStyle : undefined;
+        data.mainCharacterId = videoMode === "character_vlog" && mainCharacterId ? mainCharacterId : undefined;
+        data.aspectRatio = aspectRatio;
+        data.duration = duration;
+        data.language = language;
+        data.artStyle = styleMode === "preset" ? artStyle : undefined;
+        data.styleReferenceImageUrl = styleMode === "reference" ? styleReferenceImageUrl : undefined;
+        data.tone = isAmbient ? undefined : tone;
+        data.genre = isAmbient ? undefined : genre;
+        data.targetAudience = targetAudience || undefined;
+        data.resolution = resolution;
+        data.animateImages = isAmbient ? ambientAnimationMode === "animate" : animateImages;
+        data.hasVoiceOver = hasVoiceOver;
+        data.hasSoundEffects = hasSoundEffects;
+        data.hasBackgroundMusic = hasBackgroundMusic;
+        data.scripterModel = scripterModel;
+        data.imageModel = imageModel;
+        data.videoModel = videoModel;
+        data.imageCustomInstructions = imageCustomInstructions || undefined;
+        data.videoCustomInstructions = videoCustomInstructions || undefined;
+        data.voiceModel = hasVoiceOver ? voiceModel : undefined;
+        data.voiceActorId = hasVoiceOver ? voiceActorId : undefined;
+        
+        // Auto Shorts settings (only for Narrative and Character Vlog)
+        if (!isAmbient && autoShortsEnabled) {
+          data.autoShortsEnabled = autoShortsEnabled;
+          data.shortsPerVideo = shortsPerVideo;
+          data.shortsHookTypes = shortsHookTypes;
+          data.shortsMinConfidence = shortsMinConfidence;
+          data.autoPublishShorts = autoPublishShorts;
+          data.shortsPlatforms = autoPublishShorts ? shortsPlatforms : [];
+          data.shortsScheduleMode = shortsScheduleMode;
+          data.shortsStaggerHours = shortsScheduleMode === "staggered" ? shortsStaggerHours : undefined;
+        }
+        
+        // Ambient mode specific fields
+        if (isAmbient) {
+          data.ambientCategory = ambientCategory;
+          data.ambientMoods = ambientMoods;
+          data.ambientAnimationMode = ambientAnimationMode;
+          data.ambientPacing = ambientPacing;
+          data.ambientSegmentCount = ambientSegmentCount;
+          data.ambientTransitionStyle = ambientTransitionStyle;
+          data.ambientVariationType = ambientVariationType;
+          data.ambientCameraMotion = ambientCameraMotion;
+          data.ambientLoopMode = ambientLoopMode;
+          data.ambientVisualRhythm = ambientVisualRhythm;
+          data.ambientEnableParallax = ambientEnableParallax;
+        }
+      }
 
       const res = await apiRequest("POST", "/api/production-campaigns", data);
       return await res.json();
@@ -235,7 +326,39 @@ export default function ProductionCampaignCreate() {
   });
 
   const handleNext = () => {
-    if (currentStep === 4 && (!campaignName || storyIdeas.filter(idea => idea.trim() !== "").length === 0)) {
+    // Stories mode validation for step 3
+    if (isStoriesMode && currentStep === 3) {
+      if (!campaignName.trim()) {
+        toast({
+          title: "Validation Error",
+          description: "Please provide a campaign name.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (isASMRTemplate) {
+        if (asmrPrompts.filter(p => p.trim()).length === 0) {
+          toast({
+            title: "Validation Error",
+            description: "Please add at least one visual prompt for ASMR generation.",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else {
+        if (storyTopics.filter(t => t.trim()).length === 0) {
+          toast({
+            title: "Validation Error",
+            description: "Please add at least one topic for video generation.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
+
+    // Video mode validation for step 4 (campaign basics)
+    if (!isStoriesMode && currentStep === 4 && (!campaignName || storyIdeas.filter(idea => idea.trim() !== "").length === 0)) {
       toast({
         title: "Validation Error",
         description: isAmbientMode 
@@ -266,7 +389,17 @@ export default function ProductionCampaignCreate() {
     }
 
     if (currentStep === 7) {
-      const validIdeas = storyIdeas.filter(idea => idea.trim() !== "").length;
+      // Get the correct video count based on mode
+      const getVideoCount = () => {
+        if (isStoriesMode) {
+          return isASMRTemplate 
+            ? asmrPrompts.filter(p => p.trim()).length 
+            : storyTopics.filter(t => t.trim()).length;
+        }
+        return storyIdeas.filter(idea => idea.trim() !== "").length;
+      };
+      
+      const validIdeas = getVideoCount();
       if (scheduleStartDate && scheduleEndDate && maxVideosPerDay > 0) {
         const start = new Date(scheduleStartDate);
         const end = new Date(scheduleEndDate);
@@ -311,8 +444,18 @@ export default function ProductionCampaignCreate() {
   const getStepSummary = (stepNumber: number): string | null => {
     switch (stepNumber) {
       case 1:
-        return contentType === "video" ? "Video" : "Story";
+        return contentType === "video" ? "Video" : "Stories";
       case 2:
+        if (isStoriesMode) {
+          const templateNames: Record<string, string> = {
+            "problem-solution": "Problem-Sol",
+            "tease-reveal": "Tease-Reveal",
+            "before-after": "Before-After",
+            "myth-busting": "Myth-Bust",
+            "asmr-sensory": "ASMR",
+          };
+          return templateNames[storyTemplate] || storyTemplate;
+        }
         return videoMode === "narrative" 
           ? "Narrative" 
           : videoMode === "character_vlog" 
@@ -321,8 +464,19 @@ export default function ProductionCampaignCreate() {
               ? "Ambient"
               : videoMode;
       case 3:
+        if (isStoriesMode) {
+          const count = isASMRTemplate 
+            ? asmrPrompts.filter(p => p.trim()).length 
+            : storyTopics.filter(t => t.trim()).length;
+          return campaignName ? `${count} ${isASMRTemplate ? "prompts" : "topics"}` : null;
+        }
         return narrativeMode === "image-reference" ? "Image Ref" : "Start-End";
       case 4:
+        // Stories narrative: audio settings step
+        if (isStoriesMode && !isASMRTemplate) {
+          return storyHasVoiceOver ? "Voice + Music" : "Music only";
+        }
+        // Video mode: campaign basics
         const ideaCount = storyIdeas.filter(i => i.trim()).length;
         return campaignName ? `${ideaCount} ${isAmbientMode ? "atmos" : "ideas"}` : null;
       case 5:
@@ -348,10 +502,65 @@ export default function ProductionCampaignCreate() {
       case 1:
         return <Step1TypeSelection value={contentType} onChange={setContentType} />;
       case 2:
+        // Stories mode: show template selection, Video mode: show video mode selection
+        if (isStoriesMode) {
+          return <Step2StoryTemplate storyTemplate={storyTemplate} onStoryTemplateChange={setStoryTemplate} />;
+        }
         return <Step2VideoMode videoMode={videoMode} onVideoModeChange={setVideoMode} />;
       case 3:
+        // Stories mode: show topics or ASMR settings based on template
+        if (isStoriesMode) {
+          if (isASMRTemplate) {
+            return (
+              <Step3ASMRSettings
+                campaignName={campaignName}
+                onCampaignNameChange={setCampaignName}
+                asmrPrompts={asmrPrompts}
+                onAsmrPromptsChange={setAsmrPrompts}
+                asmrCategory={asmrCategory}
+                onAsmrCategoryChange={setAsmrCategory}
+                asmrMaterial={asmrMaterial}
+                onAsmrMaterialChange={setAsmrMaterial}
+                asmrVideoModel={asmrVideoModel}
+                onAsmrVideoModelChange={setAsmrVideoModel}
+                asmrIsLoopable={asmrIsLoopable}
+                onAsmrIsLoopableChange={setAsmrIsLoopable}
+                asmrSoundIntensity={asmrSoundIntensity}
+                onAsmrSoundIntensityChange={setAsmrSoundIntensity}
+              />
+            );
+          }
+          return (
+            <Step3StoryTopics
+              campaignName={campaignName}
+              onCampaignNameChange={setCampaignName}
+              storyTopics={storyTopics}
+              onStoryTopicsChange={setStoryTopics}
+              storyTemplate={storyTemplate}
+            />
+          );
+        }
+        // Video mode: narrative mode selection
         return <Step3NarrativeMode value={narrativeMode} onChange={setNarrativeMode} />;
       case 4:
+        // Stories mode (narrative templates): audio settings
+        if (isStoriesMode && !isASMRTemplate) {
+          return (
+            <Step4StoryAudio
+              hasVoiceOver={storyHasVoiceOver}
+              onHasVoiceOverChange={setStoryHasVoiceOver}
+              voiceProfile={storyVoiceProfile}
+              onVoiceProfileChange={setStoryVoiceProfile}
+              backgroundMusicTrack={storyBackgroundMusicTrack}
+              onBackgroundMusicTrackChange={setStoryBackgroundMusicTrack}
+              voiceVolume={storyVoiceVolume}
+              onVoiceVolumeChange={setStoryVoiceVolume}
+              musicVolume={storyMusicVolume}
+              onMusicVolumeChange={setStoryMusicVolume}
+            />
+          );
+        }
+        // Video mode: campaign basics
         return (
           <Step4CampaignBasics
             campaignName={campaignName}
@@ -446,6 +655,16 @@ export default function ProductionCampaignCreate() {
           />
         );
       case 7:
+        // Get correct video count based on mode
+        const getSchedulingVideoCount = () => {
+          if (isStoriesMode) {
+            return isASMRTemplate 
+              ? asmrPrompts.filter(p => p.trim()).length 
+              : storyTopics.filter(t => t.trim()).length;
+          }
+          return storyIdeas.filter(idea => idea.trim() !== "").length;
+        };
+        
         return (
           <Step7Scheduling
             scheduleStartDate={scheduleStartDate}
@@ -460,7 +679,7 @@ export default function ProductionCampaignCreate() {
             onPreferredPublishHoursChange={setPreferredPublishHours}
             maxVideosPerDay={maxVideosPerDay}
             onMaxVideosPerDayChange={setMaxVideosPerDay}
-            videoCount={storyIdeas.filter(idea => idea.trim() !== "").length}
+            videoCount={getSchedulingVideoCount()}
           />
         );
       case 8:
@@ -469,6 +688,7 @@ export default function ProductionCampaignCreate() {
             selectedPlatforms={selectedPlatforms}
             onSelectedPlatformsChange={setSelectedPlatforms}
             videoMode={videoMode}
+            contentType={contentType}
             autoShortsEnabled={autoShortsEnabled}
             onAutoShortsEnabledChange={setAutoShortsEnabled}
             shortsPerVideo={shortsPerVideo}
@@ -492,7 +712,16 @@ export default function ProductionCampaignCreate() {
     }
   };
 
-  const validStoryCount = storyIdeas.filter(i => i.trim()).length;
+  // Get correct video count for display based on mode
+  const getValidVideoCount = () => {
+    if (isStoriesMode) {
+      return isASMRTemplate 
+        ? asmrPrompts.filter(p => p.trim()).length 
+        : storyTopics.filter(t => t.trim()).length;
+    }
+    return storyIdeas.filter(idea => idea.trim() !== "").length;
+  };
+  const validStoryCount = getValidVideoCount();
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">

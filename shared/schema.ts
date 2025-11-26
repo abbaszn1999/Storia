@@ -384,6 +384,23 @@ export const productionCampaigns = pgTable("production_campaigns", {
   voiceModel: text("voice_model"),
   voiceActorId: text("voice_actor_id"),
   
+  // Stories mode settings
+  storyTemplate: text("story_template"), // problem-solution, tease-reveal, before-after, myth-busting, asmr-sensory
+  storyTemplateType: text("story_template_type"), // narrative or direct (ASMR)
+  storyTopics: text("story_topics").array(), // Array of topics for narrative templates
+  storyVoiceProfile: text("story_voice_profile"), // Voice selection for stories
+  storyBackgroundMusicTrack: text("story_background_music_track"),
+  storyVoiceVolume: integer("story_voice_volume").default(80),
+  storyMusicVolume: integer("story_music_volume").default(40),
+  
+  // ASMR-specific settings
+  asmrCategory: text("asmr_category"), // food, hands, nature, art, unboxing
+  asmrMaterial: text("asmr_material"), // Material/texture for sound generation
+  asmrPrompts: text("asmr_prompts").array(), // Visual prompts for ASMR videos
+  asmrVideoModel: text("asmr_video_model"),
+  asmrIsLoopable: boolean("asmr_is_loopable").default(false),
+  asmrSoundIntensity: integer("asmr_sound_intensity").default(50), // 0-100
+  
   // Ambient Video mode settings
   ambientCategory: text("ambient_category"), // nature, weather, urban, cozy, abstract, cosmic, underwater, seasonal
   ambientMoods: jsonb("ambient_moods").default([]), // Array of moods (max 3): Relaxing, Meditative, etc.

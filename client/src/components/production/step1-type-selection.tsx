@@ -1,10 +1,10 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Video, FileText, Check } from "lucide-react";
+import { Video, Zap, Check } from "lucide-react";
 
 interface Step1TypeSelectionProps {
-  value: "video" | "story";
-  onChange: (value: "video" | "story") => void;
+  value: "video" | "stories";
+  onChange: (value: "video" | "stories") => void;
 }
 
 const contentTypes = [
@@ -17,12 +17,12 @@ const contentTypes = [
     features: ["Script generation", "Scene breakdown", "AI visuals", "Voice narration"],
   },
   {
-    id: "story" as const,
-    name: "Story Publishing",
-    description: "Create illustrated stories for blogs and social media platforms",
-    icon: FileText,
-    available: false,
-    features: ["Coming Soon"],
+    id: "stories" as const,
+    name: "Stories Mode",
+    description: "Short-form content using proven templates for social media platforms",
+    icon: Zap,
+    available: true,
+    features: ["Template-driven", "15-60s videos", "Quick turnaround", "Social optimized"],
   },
 ];
 

@@ -1,0 +1,628 @@
+import { useState, useEffect } from "react";
+import { useLocation, useRoute } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Play,
+  Download,
+  Share2,
+  Calendar,
+  Clock,
+  ArrowLeft,
+  Settings2,
+  Sparkles,
+  CheckCircle2,
+  Loader2,
+  Copy,
+  Scissors,
+  Monitor,
+} from "lucide-react";
+import { SiYoutube, SiTiktok, SiInstagram, SiFacebook } from "react-icons/si";
+
+const PLATFORMS = [
+  { id: "youtube", name: "YouTube Shorts", icon: SiYoutube, color: "bg-red-600", specs: "9:16, up to 60s" },
+  { id: "tiktok", name: "TikTok", icon: SiTiktok, color: "bg-black", specs: "9:16, 15-60s" },
+  { id: "instagram", name: "Instagram Reels", icon: SiInstagram, color: "bg-gradient-to-br from-purple-600 to-pink-500", specs: "9:16, 15-90s" },
+  { id: "facebook", name: "Facebook Reels", icon: SiFacebook, color: "bg-blue-600", specs: "9:16, 15-90s" },
+];
+
+const RESOLUTIONS = [
+  { value: "720p", label: "720p HD", description: "Faster export, smaller file" },
+  { value: "1080p", label: "1080p Full HD", description: "Recommended for most platforms" },
+  { value: "2160p", label: "4K Ultra HD", description: "Maximum quality" },
+];
+
+interface StoryExportData {
+  videoUrl: string;
+  duration: number;
+  aspectRatio: string;
+  storyType: string;
+  category?: string;
+  visualPrompt?: string;
+  soundPrompt?: string;
+  material?: string;
+  isLoopable?: boolean;
+  isBinaural?: boolean;
+  ambientBackground?: string;
+  videoModel?: string;
+}
+
+export default function StoryPreviewExport() {
+  const [, navigate] = useLocation();
+  const [, params] = useRoute("/stories/:storyType/export");
+  
+  const [exportData, setExportData] = useState<StoryExportData | null>(() => {
+    const storedData = localStorage.getItem("storia_story_export_data");
+    if (storedData) {
+      try {
+        return JSON.parse(storedData);
+      } catch (e) {
+        console.error("Failed to parse export data", e);
+        return null;
+      }
+    }
+    return null;
+  });
+  
+  useEffect(() => {
+    if (!exportData) {
+      const storyTypeParam = params?.storyType || "asmr";
+      navigate(`/stories/${storyTypeParam}`);
+    }
+  }, [exportData, navigate, params?.storyType]);
+  
+  const storyType = exportData?.storyType || params?.storyType || "asmr";
+  const videoUrl = exportData?.videoUrl || "https://storia.app/v/demo";
+  const duration = exportData?.duration || 15;
+  const aspectRatio = exportData?.aspectRatio || "9:16";
+  const category = exportData?.category || "ASMR";
+  const visualPrompt = exportData?.visualPrompt || "";
+  const soundPrompt = exportData?.soundPrompt || "";
+  const material = exportData?.material || "";
+  
+  const [resolution, setResolution] = useState("1080p");
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [publishType, setPublishType] = useState<"instant" | "schedule">("instant");
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [autoGenerateShorts, setAutoGenerateShorts] = useState(false);
+  
+  const [youtubeTitle, setYoutubeTitle] = useState("");
+  const [youtubeDescription, setYoutubeDescription] = useState("");
+  const [youtubeTags, setYoutubeTags] = useState("");
+  const [socialCaption, setSocialCaption] = useState("");
+  
+  const [isExporting, setIsExporting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+
+  const handlePlatformToggle = (platformId: string) => {
+    setSelectedPlatforms((prev) =>
+      prev.includes(platformId)
+        ? prev.filter((id) => id !== platformId)
+        : [...prev, platformId]
+    );
+  };
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    setIsDownloading(false);
+  };
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    setIsExporting(false);
+  };
+
+  const handleAIRecommendation = async () => {
+    setIsGeneratingAI(true);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    
+    const categoryName = exportData?.category || "ASMR";
+    const material = exportData?.material || "";
+    
+    if (selectedPlatforms.includes("youtube")) {
+      setYoutubeTitle(`Satisfying ${categoryName} Experience - Ultimate Relaxation`);
+      setYoutubeDescription(`Experience pure relaxation with this calming ${categoryName.toLowerCase()} video${material ? ` featuring ${material}` : ""}. Perfect for sleep, study, or unwinding after a long day. Created with Storia AI.`);
+      setYoutubeTags(`ASMR, ${categoryName.toLowerCase()}, relaxation, satisfying, calming, sleep, study, triggers${material ? `, ${material}` : ""}`);
+    }
+    
+    if (selectedPlatforms.some(p => ["tiktok", "instagram", "facebook"].includes(p))) {
+      setSocialCaption(`Pure ${categoryName.toLowerCase()} relaxation vibes\n\nLet these satisfying sounds wash over you\n\n#ASMR #${categoryName.replace(/\s+/g, "")} #Satisfying #Relaxing #Tingles #SleepSounds`);
+    }
+    
+    setIsGeneratingAI(false);
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(videoUrl);
+  };
+
+  const handleBack = () => {
+    localStorage.removeItem("storia_story_export_data");
+    navigate(`/stories/${storyType}`);
+  };
+
+  const hasYouTube = selectedPlatforms.includes("youtube");
+  const hasSocialPlatforms = selectedPlatforms.some(p => ["tiktok", "instagram", "facebook"].includes(p));
+
+  return (
+    <div className="h-screen flex flex-col bg-background">
+      <header className="border-b border-border bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
+        <div className="px-6 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleBack}
+                data-testid="button-back"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                <div>
+                  <h1 className="text-lg font-semibold">Preview & Export</h1>
+                  <p className="text-xs text-muted-foreground">Your video is ready to publish</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={handleBack}
+                className="gap-2"
+                data-testid="button-edit-settings"
+              >
+                <Settings2 className="h-4 w-4" />
+                Edit Settings
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 overflow-auto">
+        <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <Play className="h-4 w-4 text-primary" />
+                Video Preview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                  <div
+                    className={`mx-auto bg-gradient-to-br from-gray-900 to-purple-900 rounded-lg overflow-hidden relative ${
+                      aspectRatio === "9:16"
+                        ? "aspect-[9/16] max-h-[500px]"
+                        : aspectRatio === "16:9"
+                        ? "aspect-video max-h-[400px]"
+                        : aspectRatio === "4:5"
+                        ? "aspect-[4/5] max-h-[450px]"
+                        : "aspect-square max-h-[400px]"
+                    }`}
+                    data-testid="video-preview"
+                  >
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(139,63,255,0.3),transparent_50%)]" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Button
+                        variant="secondary"
+                        size="lg"
+                        className="gap-2"
+                        data-testid="button-play"
+                      >
+                        <Play className="h-5 w-5" />
+                        Play Preview
+                      </Button>
+                    </div>
+                    <div className="absolute top-3 left-3">
+                      <Badge variant="secondary" className="text-xs">{duration}s</Badge>
+                    </div>
+                    <div className="absolute top-3 right-3">
+                      <Badge variant="outline" className="text-xs bg-background/80">{aspectRatio}</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="p-4 rounded-lg bg-muted/50 space-y-3">
+                    <h4 className="font-medium text-sm">Video Summary</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Category</span>
+                        <span>{category}</span>
+                      </div>
+                      {material && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Material</span>
+                          <span>{material}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Duration</span>
+                        <span>{duration} seconds</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Aspect Ratio</span>
+                        <span>{aspectRatio}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Resolution</span>
+                        <span>{resolution}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Type</span>
+                        <span className="capitalize">{storyType.toUpperCase()}</span>
+                      </div>
+                      {exportData?.isLoopable && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Loop</span>
+                          <span className="text-emerald-500">Enabled</span>
+                        </div>
+                      )}
+                      {exportData?.isBinaural && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Audio</span>
+                          <span>Binaural 3D</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {(visualPrompt || soundPrompt) && (
+                    <div className="p-4 rounded-lg bg-muted/50 space-y-3">
+                      <h4 className="font-medium text-sm">Generation Prompts</h4>
+                      {visualPrompt && (
+                        <div className="space-y-1">
+                          <span className="text-xs text-muted-foreground">Visual</span>
+                          <p className="text-sm line-clamp-2">{visualPrompt}</p>
+                        </div>
+                      )}
+                      {soundPrompt && (
+                        <div className="space-y-1">
+                          <span className="text-xs text-muted-foreground">Sound</span>
+                          <p className="text-sm line-clamp-2">{soundPrompt}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1 gap-2"
+                      onClick={handleDownload}
+                      disabled={isDownloading}
+                      data-testid="button-download"
+                    >
+                      {isDownloading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
+                      {isDownloading ? "Downloading..." : "Download"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleCopyLink}
+                      data-testid="button-copy-link"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base font-medium flex items-center gap-2">
+                  <Share2 className="h-4 w-4 text-primary" />
+                  Select Platforms
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  {PLATFORMS.map((platform) => {
+                    const Icon = platform.icon;
+                    const isSelected = selectedPlatforms.includes(platform.id);
+                    return (
+                      <div
+                        key={platform.id}
+                        className={`flex items-center justify-between p-3 rounded-lg border-2 transition-colors cursor-pointer ${
+                          isSelected
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover-elevate"
+                        }`}
+                        onClick={() => handlePlatformToggle(platform.id)}
+                        data-testid={`platform-${platform.id}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => handlePlatformToggle(platform.id)}
+                            data-testid={`checkbox-${platform.id}`}
+                          />
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${platform.color}`}>
+                            <Icon className="h-5 w-5 text-white" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{platform.name}</p>
+                            <p className="text-xs text-muted-foreground">{platform.specs}</p>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-xs">Connect</Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-6">
+              <Card>
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-base font-medium flex items-center gap-2">
+                    <Monitor className="h-4 w-4 text-primary" />
+                    Export Settings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Resolution</Label>
+                    <Select value={resolution} onValueChange={setResolution}>
+                      <SelectTrigger data-testid="select-resolution">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {RESOLUTIONS.map((res) => (
+                          <SelectItem key={res.value} value={res.value}>
+                            <div className="flex flex-col">
+                              <span>{res.label}</span>
+                              <span className="text-xs text-muted-foreground">{res.description}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-3">
+                      <Scissors className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <Label className="cursor-pointer">Auto-generate Shorts</Label>
+                        <p className="text-xs text-muted-foreground">Create clips for different platforms</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={autoGenerateShorts}
+                      onCheckedChange={setAutoGenerateShorts}
+                      data-testid="switch-auto-shorts"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-base font-medium flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    Publishing
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <RadioGroup value={publishType} onValueChange={(v: "instant" | "schedule") => setPublishType(v)}>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="instant" id="instant" data-testid="radio-instant" />
+                      <Label htmlFor="instant" className="font-normal cursor-pointer flex items-center gap-2">
+                        <Share2 className="w-4 h-4 text-primary" />
+                        Publish Instantly
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="schedule" id="schedule" data-testid="radio-schedule" />
+                      <Label htmlFor="schedule" className="font-normal cursor-pointer flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-primary" />
+                        Schedule for Later
+                      </Label>
+                    </div>
+                  </RadioGroup>
+
+                  {publishType === "schedule" && (
+                    <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg border">
+                      <div className="space-y-2">
+                        <Label htmlFor="schedule-date" className="text-sm">Date</Label>
+                        <Input
+                          id="schedule-date"
+                          type="date"
+                          value={scheduleDate}
+                          onChange={(e) => setScheduleDate(e.target.value)}
+                          data-testid="input-schedule-date"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="schedule-time" className="text-sm">Time</Label>
+                        <Input
+                          id="schedule-time"
+                          type="time"
+                          value={scheduleTime}
+                          onChange={(e) => setScheduleTime(e.target.value)}
+                          data-testid="input-schedule-time"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {selectedPlatforms.length > 0 && (
+            <Card>
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-medium flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    Platform Metadata
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAIRecommendation}
+                    disabled={isGeneratingAI}
+                    className="gap-2"
+                    data-testid="button-ai-metadata"
+                  >
+                    {isGeneratingAI ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                    AI Suggestions
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {hasYouTube && (
+                  <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+                    <div className="flex items-center gap-2 mb-2">
+                      <SiYoutube className="w-4 h-4 text-red-600" />
+                      <h4 className="font-semibold text-sm">YouTube Details</h4>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="youtube-title">Title</Label>
+                      <Input
+                        id="youtube-title"
+                        placeholder="Enter video title"
+                        value={youtubeTitle}
+                        onChange={(e) => setYoutubeTitle(e.target.value)}
+                        data-testid="input-youtube-title"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="youtube-description">Description</Label>
+                      <Textarea
+                        id="youtube-description"
+                        placeholder="Write a description for your video..."
+                        value={youtubeDescription}
+                        onChange={(e) => setYoutubeDescription(e.target.value)}
+                        className="min-h-[100px]"
+                        data-testid="textarea-youtube-description"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="youtube-tags">Tags</Label>
+                      <Input
+                        id="youtube-tags"
+                        placeholder="Enter tags separated by commas"
+                        value={youtubeTags}
+                        onChange={(e) => setYoutubeTags(e.target.value)}
+                        data-testid="input-youtube-tags"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {hasSocialPlatforms && (
+                  <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex -space-x-1">
+                        {selectedPlatforms.includes("tiktok") && (
+                          <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center ring-2 ring-background">
+                            <SiTiktok className="w-3 h-3 text-white" />
+                          </div>
+                        )}
+                        {selectedPlatforms.includes("instagram") && (
+                          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center ring-2 ring-background">
+                            <SiInstagram className="w-3 h-3 text-white" />
+                          </div>
+                        )}
+                        {selectedPlatforms.includes("facebook") && (
+                          <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center ring-2 ring-background">
+                            <SiFacebook className="w-3 h-3 text-white" />
+                          </div>
+                        )}
+                      </div>
+                      <h4 className="font-semibold text-sm">Social Media Caption</h4>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="social-caption">Caption</Label>
+                      <Textarea
+                        id="social-caption"
+                        placeholder="Write a caption for your social media posts..."
+                        value={socialCaption}
+                        onChange={(e) => setSocialCaption(e.target.value)}
+                        className="min-h-[120px]"
+                        data-testid="textarea-social-caption"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        This caption will be used for TikTok, Instagram, and Facebook
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="flex gap-4 justify-end pb-6">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              data-testid="button-cancel"
+            >
+              Back to Editor
+            </Button>
+            <Button
+              size="lg"
+              onClick={handleExport}
+              disabled={isExporting}
+              className="gap-2 min-w-[200px]"
+              data-testid="button-export"
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {publishType === "schedule" ? "Scheduling..." : "Publishing..."}
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" />
+                  {selectedPlatforms.length > 0
+                    ? publishType === "schedule"
+                      ? "Export & Schedule"
+                      : "Export & Publish"
+                    : "Export Video"}
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

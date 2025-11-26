@@ -19,6 +19,8 @@ import SocialCommerceMode from "@/pages/videos/social-commerce-mode";
 import LogoAnimationMode from "@/pages/videos/logo-animation-mode";
 import Stories from "@/pages/stories";
 import StoryRouter from "@/pages/stories/story-router";
+import StoryPreviewExport from "@/pages/stories/story-preview-export";
+import ASMRGenerator from "@/pages/stories/asmr";
 import Characters from "@/pages/characters";
 import Locations from "@/pages/assets/locations";
 import Voices from "@/pages/voices";
@@ -38,7 +40,7 @@ import NotFound from "@/pages/not-found";
 
 function MainLayout() {
   const [location] = useLocation();
-  const isFullPageRoute = /^\/videos\/narrative\/[^/]+$/.test(location) || /^\/videos\/vlog\/[^/]+$/.test(location) || /^\/videos\/ambient\/[^/]+$/.test(location) || /^\/videos\/commerce\/[^/]+$/.test(location) || /^\/videos\/logo\/[^/]+$/.test(location) || /^\/stories\/create\/[^/]+$/.test(location);
+  const isFullPageRoute = /^\/videos\/narrative\/[^/]+$/.test(location) || /^\/videos\/vlog\/[^/]+$/.test(location) || /^\/videos\/ambient\/[^/]+$/.test(location) || /^\/videos\/commerce\/[^/]+$/.test(location) || /^\/videos\/logo\/[^/]+$/.test(location) || /^\/stories\/create\/[^/]+$/.test(location) || /^\/stories\/asmr$/.test(location) || /^\/stories\/[^/]+\/export$/.test(location);
 
   if (isFullPageRoute) {
     return (
@@ -49,6 +51,8 @@ function MainLayout() {
         <Route path="/videos/commerce/:id" component={SocialCommerceMode} />
         <Route path="/videos/logo/:id" component={LogoAnimationMode} />
         <Route path="/stories/create/:template" component={StoryRouter} />
+        <Route path="/stories/asmr" component={ASMRGenerator} />
+        <Route path="/stories/:storyType/export" component={StoryPreviewExport} />
       </Switch>
     );
   }

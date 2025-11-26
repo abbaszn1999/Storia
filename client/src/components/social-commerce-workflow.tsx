@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ProductScriptEditor } from "@/components/social-commerce/product-script-editor";
+import { ProductWorldCast } from "@/components/social-commerce/product-world-cast";
 import { SceneBreakdown } from "@/components/narrative/scene-breakdown";
-import { WorldCast } from "@/components/narrative/world-cast";
 import { StoryboardEditor } from "@/components/narrative/storyboard-editor";
 import { AnimaticPreview } from "@/components/narrative/animatic-preview";
 import { ExportSettings, type ExportData } from "@/components/narrative/export-settings";
@@ -45,6 +45,15 @@ interface SocialCommerceWorkflowProps {
     imageInstructions?: string;
     videoInstructions?: string;
   };
+  commerceSettings: {
+    visualStyle: string;
+    backdrop: string;
+    productDisplay: string[];
+    talentType: string;
+    talents: Array<{ id: string; name: string; type: "hands" | "lifestyle" | "spokesperson"; description: string; imageUrl: string | null }>;
+    styleReference: string | null;
+    additionalInstructions: string;
+  };
   onScriptChange: (script: string) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
   onDurationChange: (duration: string) => void;
@@ -69,6 +78,15 @@ interface SocialCommerceWorkflowProps {
     locations: Array<{ id: string; name: string; description: string }>;
     imageInstructions: string;
     videoInstructions: string;
+  }) => void;
+  onCommerceSettingsChange: (settings: {
+    visualStyle: string;
+    backdrop: string;
+    productDisplay: string[];
+    talentType: string;
+    talents: Array<{ id: string; name: string; type: "hands" | "lifestyle" | "spokesperson"; description: string; imageUrl: string | null }>;
+    styleReference: string | null;
+    additionalInstructions: string;
   }) => void;
   onNext: () => void;
 }
@@ -96,6 +114,7 @@ export function SocialCommerceWorkflow({
   continuityLocked,
   continuityGroups,
   worldSettings,
+  commerceSettings,
   onScriptChange,
   onAspectRatioChange,
   onDurationChange,
@@ -114,6 +133,7 @@ export function SocialCommerceWorkflow({
   onContinuityLockedChange,
   onContinuityGroupsChange,
   onWorldSettingsChange,
+  onCommerceSettingsChange,
   onNext,
 }: SocialCommerceWorkflowProps) {
   const { toast } = useToast();
@@ -479,20 +499,24 @@ export function SocialCommerceWorkflow({
       )}
 
       {activeStep === "world" && (
-        <WorldCast
+        <ProductWorldCast
           videoId={videoId}
           workspaceId={workspaceId}
-          characters={characters}
-          referenceImages={referenceImages}
-          artStyle={worldSettings.artStyle}
-          imageModel={worldSettings.imageModel}
-          worldDescription={worldSettings.worldDescription}
-          locations={worldSettings.locations}
-          imageInstructions={worldSettings.imageInstructions}
-          videoInstructions={worldSettings.videoInstructions}
-          onCharactersChange={onCharactersChange}
-          onReferenceImagesChange={onReferenceImagesChange}
-          onWorldSettingsChange={onWorldSettingsChange}
+          productPhotos={productPhotos}
+          visualStyle={commerceSettings.visualStyle}
+          backdrop={commerceSettings.backdrop}
+          productDisplay={commerceSettings.productDisplay}
+          talentType={commerceSettings.talentType}
+          talents={commerceSettings.talents}
+          styleReference={commerceSettings.styleReference}
+          additionalInstructions={commerceSettings.additionalInstructions}
+          onVisualStyleChange={(style) => onCommerceSettingsChange({ ...commerceSettings, visualStyle: style })}
+          onBackdropChange={(backdrop) => onCommerceSettingsChange({ ...commerceSettings, backdrop })}
+          onProductDisplayChange={(displays) => onCommerceSettingsChange({ ...commerceSettings, productDisplay: displays })}
+          onTalentTypeChange={(type) => onCommerceSettingsChange({ ...commerceSettings, talentType: type })}
+          onTalentsChange={(talents) => onCommerceSettingsChange({ ...commerceSettings, talents })}
+          onStyleReferenceChange={(ref) => onCommerceSettingsChange({ ...commerceSettings, styleReference: ref })}
+          onAdditionalInstructionsChange={(instructions) => onCommerceSettingsChange({ ...commerceSettings, additionalInstructions: instructions })}
           onNext={onNext}
         />
       )}

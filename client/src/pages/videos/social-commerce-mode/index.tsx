@@ -80,6 +80,25 @@ export default function SocialCommerceMode() {
     videoInstructions: "",
   });
 
+  // Commerce World Settings
+  const [commerceSettings, setCommerceSettings] = useState<{
+    visualStyle: string;
+    backdrop: string;
+    productDisplay: string[];
+    talentType: string;
+    talents: Array<{ id: string; name: string; type: "hands" | "lifestyle" | "spokesperson"; description: string; imageUrl: string | null }>;
+    styleReference: string | null;
+    additionalInstructions: string;
+  }>({
+    visualStyle: "minimal",
+    backdrop: "white-studio",
+    productDisplay: ["hero"],
+    talentType: "none",
+    talents: [],
+    styleReference: null,
+    additionalInstructions: "",
+  });
+
   const isStepCompleted = (stepId: string) => completedSteps.includes(stepId);
   const currentStepIndex = steps.findIndex((s) => s.id === activeStep);
 
@@ -200,6 +219,8 @@ export default function SocialCommerceMode() {
               onContinuityLockedChange={setContinuityLocked}
               onContinuityGroupsChange={setContinuityGroups}
               onWorldSettingsChange={setWorldSettings}
+              commerceSettings={commerceSettings}
+              onCommerceSettingsChange={setCommerceSettings}
               onNext={handleNext}
             />
           )}

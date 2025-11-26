@@ -229,6 +229,8 @@ export default function StoryCreate() {
             <ExportVideo
               onBack={handleBack}
               onExport={handleExport}
+              sceneCount={scenes.length}
+              templateName={template.name}
             />
           )}
         </div>

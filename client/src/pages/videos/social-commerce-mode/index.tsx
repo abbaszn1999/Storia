@@ -32,7 +32,8 @@ export default function SocialCommerceMode() {
   const [videoTitle] = useState(urlParams.get("title") || "Untitled Product Video");
   const [activeStep, setActiveStep] = useState("script");
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
-  const [narrativeMode, setNarrativeMode] = useState<"image-reference" | "start-end" | null>(null);
+  // Commerce mode always uses start-end for automatic linear shot connections
+  const [narrativeMode, setNarrativeMode] = useState<"image-reference" | "start-end">("start-end");
   
   const [videoId] = useState(params.videoId || urlParams.get("id") || `video-${Date.now()}`);
   const [workspaceId] = useState(urlParams.get("workspace") || "workspace-1");

@@ -36,11 +36,12 @@ import ProductionCampaigns from "@/pages/production";
 import ProductionCampaignCreate from "@/pages/production/create";
 import ProductionCampaignReview from "@/pages/production/review";
 import ProductionCampaignDashboard from "@/pages/production/dashboard";
+import CreateShorts from "@/pages/shorts/create";
 import NotFound from "@/pages/not-found";
 
 function MainLayout() {
   const [location] = useLocation();
-  const isFullPageRoute = /^\/videos\/narrative\/[^/]+$/.test(location) || /^\/videos\/vlog\/[^/]+$/.test(location) || /^\/videos\/ambient\/[^/]+$/.test(location) || /^\/videos\/commerce\/[^/]+$/.test(location) || /^\/videos\/logo\/[^/]+$/.test(location) || /^\/stories\/create\/[^/]+$/.test(location) || /^\/stories\/asmr$/.test(location) || /^\/stories\/[^/]+\/export$/.test(location);
+  const isFullPageRoute = /^\/videos\/narrative\/[^/]+$/.test(location) || /^\/videos\/vlog\/[^/]+$/.test(location) || /^\/videos\/ambient\/[^/]+$/.test(location) || /^\/videos\/commerce\/[^/]+$/.test(location) || /^\/videos\/logo\/[^/]+$/.test(location) || /^\/stories\/create\/[^/]+$/.test(location) || /^\/stories\/asmr$/.test(location) || /^\/stories\/[^/]+\/export$/.test(location) || /^\/shorts\/create\/[^/]+$/.test(location);
 
   if (isFullPageRoute) {
     return (
@@ -53,6 +54,7 @@ function MainLayout() {
         <Route path="/stories/create/:template" component={StoryRouter} />
         <Route path="/stories/asmr" component={ASMRGenerator} />
         <Route path="/stories/:storyType/export" component={StoryPreviewExport} />
+        <Route path="/shorts/create/:videoId" component={CreateShorts} />
       </Switch>
     );
   }

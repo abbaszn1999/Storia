@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -17,30 +18,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   Check, 
   Plus, 
   Upload, 
   X, 
   User, 
-  Camera, 
-  Box,
-  Sparkles,
-  MapPin,
-  Image,
-  Layers,
   Hand,
   UserCircle,
   Mic,
   Pencil,
   Trash2,
-  Wand2,
-  Video,
-  ChevronRight,
-  Info
+  ChevronDown,
+  ChevronUp,
+  Settings2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -82,54 +74,55 @@ interface Talent {
 }
 
 const PHOTOGRAPHY_STYLES = [
-  { id: "minimal", name: "Minimal", description: "Clean, uncluttered focus" },
-  { id: "lifestyle", name: "Lifestyle", description: "Real-world context" },
-  { id: "dynamic", name: "Dynamic", description: "Movement & energy" },
-  { id: "flatlay", name: "Flat Lay", description: "Top-down arrangement" },
-  { id: "studio", name: "Studio Pro", description: "Professional lighting" },
-  { id: "natural", name: "Natural", description: "Soft, organic feel" },
-  { id: "dramatic", name: "Dramatic", description: "Bold contrasts" },
-  { id: "editorial", name: "Editorial", description: "Magazine style" },
+  { id: "none", name: "None", color: null },
+  { id: "minimal", name: "Minimal", color: "from-gray-400 to-gray-600" },
+  { id: "lifestyle", name: "Lifestyle", color: "from-amber-400 to-orange-500" },
+  { id: "dynamic", name: "Dynamic", color: "from-red-400 to-rose-600" },
+  { id: "flatlay", name: "Flat Lay", color: "from-teal-400 to-cyan-600" },
+  { id: "studio", name: "Studio Pro", color: "from-slate-500 to-slate-700" },
+  { id: "natural", name: "Natural", color: "from-green-400 to-emerald-600" },
+  { id: "dramatic", name: "Dramatic", color: "from-purple-500 to-violet-700" },
+  { id: "editorial", name: "Editorial", color: "from-pink-400 to-fuchsia-600" },
 ];
 
 const BACKDROP_OPTIONS = [
-  { id: "white-studio", name: "White Studio", description: "Clean white background" },
-  { id: "colored-backdrop", name: "Colored", description: "Solid color backdrop" },
-  { id: "lifestyle-indoor", name: "Indoor Scene", description: "Interior setting" },
-  { id: "lifestyle-outdoor", name: "Outdoor", description: "Natural environment" },
-  { id: "gradient", name: "Gradient", description: "Smooth color transition" },
-  { id: "textured", name: "Textured", description: "Surface with texture" },
+  { id: "white-studio", name: "White Studio" },
+  { id: "colored-backdrop", name: "Colored" },
+  { id: "lifestyle-indoor", name: "Indoor Scene" },
+  { id: "lifestyle-outdoor", name: "Outdoor" },
+  { id: "gradient", name: "Gradient" },
+  { id: "textured", name: "Textured" },
 ];
 
 const PRODUCT_DISPLAY_OPTIONS = [
-  { id: "hero", name: "Hero Shot", description: "Primary beauty shot" },
-  { id: "closeup", name: "Close-up", description: "Detail & texture focus" },
-  { id: "in-use", name: "In Use", description: "Product demonstration" },
-  { id: "unboxing", name: "Unboxing", description: "Packaging reveal" },
-  { id: "360", name: "360° View", description: "Multi-angle rotation" },
-  { id: "scale", name: "Scale", description: "Size comparison" },
-  { id: "ingredients", name: "Features", description: "Component breakdown" },
+  { id: "hero", name: "Hero Shot" },
+  { id: "closeup", name: "Close-up" },
+  { id: "in-use", name: "In Use" },
+  { id: "unboxing", name: "Unboxing" },
+  { id: "360", name: "360° View" },
+  { id: "scale", name: "Scale" },
+  { id: "ingredients", name: "Features" },
 ];
 
 const TALENT_TYPES = [
-  { id: "none", name: "No Talent", description: "Product-only focus", icon: Box },
-  { id: "hands", name: "Hands Only", description: "Hand interaction", icon: Hand },
-  { id: "lifestyle", name: "Lifestyle Model", description: "Full model", icon: UserCircle },
-  { id: "spokesperson", name: "Spokesperson", description: "Presenter", icon: Mic },
+  { id: "none", name: "No Talent", icon: User },
+  { id: "hands", name: "Hands Only", icon: Hand },
+  { id: "lifestyle", name: "Lifestyle Model", icon: UserCircle },
+  { id: "spokesperson", name: "Spokesperson", icon: Mic },
 ];
 
 const IMAGE_MODELS = [
-  { id: "imagen-4", name: "Imagen 4", description: "Google's latest - photorealistic" },
-  { id: "dall-e-3", name: "DALL-E 3", description: "OpenAI - creative & detailed" },
-  { id: "flux-pro", name: "Flux Pro", description: "Fast & high quality" },
-  { id: "midjourney", name: "Midjourney", description: "Artistic & stylized" },
+  { id: "imagen-4", name: "Imagen 4" },
+  { id: "dall-e-3", name: "DALL-E 3" },
+  { id: "flux-pro", name: "Flux Pro" },
+  { id: "midjourney", name: "Midjourney" },
 ];
 
 const VIDEO_MODELS = [
-  { id: "kling", name: "Kling", description: "Realistic motion & physics" },
-  { id: "veo", name: "Veo 2", description: "Google's cinematic AI" },
-  { id: "runway", name: "Runway Gen-3", description: "Creative control" },
-  { id: "pika", name: "Pika", description: "Quick & stylized" },
+  { id: "kling", name: "Kling" },
+  { id: "veo", name: "Veo 2" },
+  { id: "runway", name: "Runway Gen-3" },
+  { id: "pika", name: "Pika" },
 ];
 
 export function ProductWorldCast({
@@ -164,6 +157,7 @@ export function ProductWorldCast({
   const [editingTalent, setEditingTalent] = useState<Talent | null>(null);
   const [newTalent, setNewTalent] = useState({ name: "", description: "", type: "lifestyle" as Talent["type"] });
   const [talentImage, setTalentImage] = useState<string | null>(null);
+  const [isAiSettingsOpen, setIsAiSettingsOpen] = useState(false);
   const { toast } = useToast();
 
   const handleToggleProductDisplay = (displayId: string) => {
@@ -295,160 +289,60 @@ export function ProductWorldCast({
   };
 
   return (
-    <div className="max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-semibold mb-2">World & Cast</h2>
-        <p className="text-muted-foreground">
-          Define the visual style, environment, and presentation for your product video.
-        </p>
-      </div>
-
-      <div className="space-y-6">
-        {/* AI Generation Models */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Wand2 className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold">AI Generation</h3>
-                <p className="text-sm text-muted-foreground">Select AI models and provide custom instructions</p>
-              </div>
+    <div className="space-y-8">
+      {/* World Settings Section */}
+      <Card>
+        <CardContent className="p-6">
+          <h3 className="text-lg font-semibold mb-6">World Settings</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Image AI Model */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">IMAGE AI MODEL</Label>
+              <Select value={imageModel} onValueChange={onImageModelChange}>
+                <SelectTrigger className="h-9" data-testid="select-image-model">
+                  <SelectValue placeholder="Select image model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {IMAGE_MODELS.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      {model.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Image Generation */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Image className="h-4 w-4 text-muted-foreground" />
-                  <Label className="text-sm font-medium">Image Generation</Label>
-                </div>
-                
-                <Select value={imageModel} onValueChange={onImageModelChange}>
-                  <SelectTrigger data-testid="select-image-model">
-                    <SelectValue placeholder="Select image model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {IMAGE_MODELS.map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
-                        <div className="flex flex-col">
-                          <span>{model.name}</span>
-                          <span className="text-xs text-muted-foreground">{model.description}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Textarea
-                  placeholder="Custom image instructions... (e.g., 'Ensure product colors are accurate, use soft shadows, maintain brand aesthetic')"
-                  value={imageInstructions}
-                  onChange={(e) => onImageInstructionsChange(e.target.value)}
-                  rows={3}
-                  className="text-sm"
-                  data-testid="input-image-instructions"
-                />
-              </div>
-
-              {/* Video Generation */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Video className="h-4 w-4 text-muted-foreground" />
-                  <Label className="text-sm font-medium">Video Generation</Label>
-                </div>
-                
-                <Select value={videoModel} onValueChange={onVideoModelChange}>
-                  <SelectTrigger data-testid="select-video-model">
-                    <SelectValue placeholder="Select video model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VIDEO_MODELS.map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
-                        <div className="flex flex-col">
-                          <span>{model.name}</span>
-                          <span className="text-xs text-muted-foreground">{model.description}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Textarea
-                  placeholder="Custom video instructions... (e.g., 'Smooth camera motion, subtle product rotation, cinematic transitions')"
-                  value={videoInstructions}
-                  onChange={(e) => onVideoInstructionsChange(e.target.value)}
-                  rows={3}
-                  className="text-sm"
-                  data-testid="input-video-instructions"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Visual Style */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Camera className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold">Visual Style</h3>
-                <p className="text-sm text-muted-foreground">Choose the photography style for your product</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {PHOTOGRAPHY_STYLES.map((style) => {
-                const isSelected = visualStyle === style.id;
-                return (
-                  <button
-                    key={style.id}
-                    type="button"
-                    onClick={() => onVisualStyleChange(style.id)}
-                    className={`relative p-4 rounded-lg border text-left transition-all hover-elevate ${
-                      isSelected 
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary' 
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                    data-testid={`style-${style.id}`}
-                  >
-                    {isSelected && (
-                      <div className="absolute top-2 right-2">
-                        <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                          <Check className="h-3 w-3 text-primary-foreground" />
-                        </div>
-                      </div>
-                    )}
-                    <p className="font-medium text-sm">{style.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{style.description}</p>
-                  </button>
-                );
-              })}
+            {/* Video AI Model */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">VIDEO AI MODEL</Label>
+              <Select value={videoModel} onValueChange={onVideoModelChange}>
+                <SelectTrigger className="h-9" data-testid="select-video-model">
+                  <SelectValue placeholder="Select video model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {VIDEO_MODELS.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      {model.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Style Reference */}
-            <div className="mt-6 pt-6 border-t">
-              <div className="flex items-start gap-4">
-                <div className="flex-1">
-                  <Label className="text-sm font-medium">Style Reference</Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Upload an image to match your desired visual style
-                  </p>
-                </div>
-                
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">STYLE REFERENCE</Label>
+              <div className="space-y-2">
                 {styleReference ? (
-                  <div className="relative group">
-                    <div className="w-24 h-24 rounded-lg border overflow-hidden">
+                  <div className="relative aspect-video rounded-lg border bg-muted">
+                    <div className="absolute inset-0 rounded-lg overflow-hidden">
                       <img src={styleReference} alt="Style Reference" className="h-full w-full object-cover" />
                     </div>
                     <Button
                       size="icon"
                       variant="destructive"
-                      className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-2 left-2 h-6 w-6 z-10"
                       onClick={handleRemoveStyleReference}
                       data-testid="button-remove-style-ref"
                     >
@@ -456,7 +350,7 @@ export function ProductWorldCast({
                     </Button>
                   </div>
                 ) : (
-                  <label className="flex flex-col items-center justify-center w-24 h-24 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary/50 transition-colors">
+                  <label className="flex flex-col items-center justify-center h-20 border-2 border-dashed rounded-lg cursor-pointer hover-elevate">
                     <input
                       type="file"
                       accept="image/*"
@@ -467,196 +361,264 @@ export function ProductWorldCast({
                       }}
                       data-testid="input-upload-style-ref"
                     />
-                    <Upload className="h-5 w-5 text-muted-foreground mb-1" />
-                    <span className="text-xs text-muted-foreground">Upload</span>
+                    <Upload className="h-4 w-4 text-muted-foreground mb-1" />
+                    <span className="text-xs text-muted-foreground">Upload Image</span>
                   </label>
                 )}
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Environment & Display - Two Column Layout */}
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Backdrop */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Layers className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold">Environment</h3>
-                  <p className="text-sm text-muted-foreground">Background setting</p>
-                </div>
-              </div>
+          <div className="mt-6 space-y-3">
+            {/* Image Instructions */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">IMAGE GENERATION INSTRUCTIONS</Label>
+              <Textarea
+                placeholder="Describe the visual style, lighting, and mood for product images... (e.g., soft studio lighting, clean white background, subtle shadows)"
+                value={imageInstructions}
+                onChange={(e) => onImageInstructionsChange(e.target.value)}
+                rows={3}
+                data-testid="input-image-instructions"
+              />
+            </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                {BACKDROP_OPTIONS.map((option) => {
-                  const isSelected = backdrop === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => onBackdropChange(option.id)}
-                      className={`p-3 rounded-lg border text-left transition-all hover-elevate ${
-                        isSelected 
-                          ? 'border-primary bg-primary/5' 
-                          : 'border-border hover:border-primary/50'
-                      }`}
-                      data-testid={`backdrop-${option.id}`}
-                    >
-                      <div className="flex items-center gap-2">
-                        {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                        <span className="text-sm font-medium">{option.name}</span>
+            {/* Photography Style */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">STYLE</Label>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                {PHOTOGRAPHY_STYLES.map((style) => (
+                  <Card
+                    key={style.id}
+                    className={`cursor-pointer transition-all hover-elevate relative group overflow-hidden ${
+                      visualStyle === style.id ? 'ring-2 ring-primary' : ''
+                    }`}
+                    onClick={() => onVisualStyleChange(style.id)}
+                    data-testid={`style-${style.id}`}
+                  >
+                    <CardContent className="p-0">
+                      <div className="relative">
+                        <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
+                          {style.color ? (
+                            <div className={`w-full h-full bg-gradient-to-br ${style.color}`} />
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-background/50" />
+                          )}
+                        </div>
+                        {visualStyle === style.id && (
+                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+                              <Check className="h-5 w-5 text-primary-foreground" />
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </button>
-                  );
-                })}
+                      <div className="p-2 text-center bg-card">
+                        <p className="text-xs font-medium leading-tight">{style.name}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Product Display */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Image className="h-5 w-5 text-primary" />
+            {/* AI Generation Settings - Collapsible */}
+            <Collapsible
+              open={isAiSettingsOpen}
+              onOpenChange={setIsAiSettingsOpen}
+              className="mt-6"
+            >
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="w-full flex items-center justify-between p-3 rounded-lg border border-dashed hover:border-solid hover:bg-muted/50"
+                  data-testid="button-toggle-ai-settings"
+                >
+                  <div className="flex items-center gap-2">
+                    <Settings2 className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Video Generation Settings</span>
+                    {videoInstructions && (
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                        Configured
+                      </span>
+                    )}
+                  </div>
+                  {isAiSettingsOpen ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-4 space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  These instructions will be appended to every video generation request.
+                </p>
+
+                {/* Video Generation Instructions */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">VIDEO / ANIMATION INSTRUCTIONS</Label>
+                  <Textarea
+                    placeholder="E.g., 'Smooth camera movements, product rotation, subtle zooms, seamless transitions, professional product video feel'"
+                    value={videoInstructions}
+                    onChange={(e) => onVideoInstructionsChange(e.target.value)}
+                    rows={3}
+                    className="text-sm"
+                    data-testid="input-video-instructions"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Motion and animation guidelines applied to all video generations
+                  </p>
                 </div>
-                <div>
-                  <h3 className="font-semibold">Shot Types</h3>
-                  <p className="text-sm text-muted-foreground">Select all that apply</p>
-                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Product Settings Section */}
+      <Card>
+        <CardContent className="p-6">
+          <h3 className="text-lg font-semibold mb-6">Product Settings</h3>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Backdrop */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">BACKDROP / ENVIRONMENT</Label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {BACKDROP_OPTIONS.map((option) => (
+                  <Card
+                    key={option.id}
+                    className={`cursor-pointer transition-all hover-elevate p-3 ${
+                      backdrop === option.id ? 'ring-2 ring-primary bg-primary/5' : ''
+                    }`}
+                    onClick={() => onBackdropChange(option.id)}
+                    data-testid={`backdrop-${option.id}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {backdrop === option.id && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                      <span className="text-xs font-medium">{option.name}</span>
+                    </div>
+                  </Card>
+                ))}
               </div>
+            </div>
 
+            {/* Shot Types */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">SHOT TYPES (Select all that apply)</Label>
               <div className="flex flex-wrap gap-2">
                 {PRODUCT_DISPLAY_OPTIONS.map((option) => {
                   const isSelected = productDisplay.includes(option.id);
                   return (
-                    <button
+                    <Card
                       key={option.id}
-                      type="button"
-                      onClick={() => handleToggleProductDisplay(option.id)}
-                      className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all hover-elevate ${
-                        isSelected 
-                          ? 'border-primary bg-primary/5 text-primary' 
-                          : 'border-border hover:border-primary/50'
+                      className={`cursor-pointer transition-all hover-elevate px-3 py-2 ${
+                        isSelected ? 'ring-2 ring-primary bg-primary/5' : ''
                       }`}
+                      onClick={() => handleToggleProductDisplay(option.id)}
                       data-testid={`display-${option.id}`}
                     >
-                      {isSelected && <Check className="h-3.5 w-3.5" />}
-                      <span className="font-medium">{option.name}</span>
-                    </button>
+                      <div className="flex items-center gap-2">
+                        {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                        <span className="text-xs font-medium">{option.name}</span>
+                      </div>
+                    </Card>
                   );
                 })}
               </div>
-
               {productDisplay.length > 0 && (
-                <p className="text-xs text-muted-foreground mt-4">
+                <p className="text-xs text-muted-foreground">
                   {productDisplay.length} shot type{productDisplay.length !== 1 ? 's' : ''} selected
                 </p>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Talent Section */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-semibold">Talent / Models</h3>
+          {talentType !== "none" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEditingTalent(null);
+                setNewTalent({ name: "", description: "", type: talentType === "hands" ? "hands" : talentType === "spokesperson" ? "spokesperson" : "lifestyle" });
+                setTalentImage(null);
+                setIsAddTalentOpen(true);
+              }}
+              data-testid="button-add-talent"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Talent
+            </Button>
+          )}
         </div>
 
-        {/* Talent Section */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <User className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold">Talent</h3>
-                  <p className="text-sm text-muted-foreground">Human presence in your video</p>
-                </div>
-              </div>
-
-              {talentType !== "none" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setEditingTalent(null);
-                    setNewTalent({ name: "", description: "", type: talentType === "hands" ? "hands" : talentType === "spokesperson" ? "spokesperson" : "lifestyle" });
-                    setTalentImage(null);
-                    setIsAddTalentOpen(true);
-                  }}
-                  data-testid="button-add-talent"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Talent
-                </Button>
-              )}
-            </div>
-
-            {/* Talent Type Selection */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-              {TALENT_TYPES.map((type) => {
-                const Icon = type.icon;
-                const isSelected = talentType === type.id;
-                return (
-                  <button
-                    key={type.id}
-                    type="button"
-                    onClick={() => onTalentTypeChange(type.id)}
-                    className={`relative p-4 rounded-lg border text-center transition-all hover-elevate ${
-                      isSelected 
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary' 
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                    data-testid={`talent-type-${type.id}`}
-                  >
-                    <Icon className={`h-6 w-6 mx-auto mb-2 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
-                    <p className="font-medium text-sm">{type.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{type.description}</p>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Talent List */}
-            {talentType !== "none" && (
-              <>
-                {talents.length === 0 ? (
-                  <div className="border border-dashed rounded-lg p-8 text-center">
-                    <User className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground">
-                      No talent added yet. Add models or presenters for your video.
-                    </p>
+        {/* Talent Type Selection */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {TALENT_TYPES.map((type) => {
+            const Icon = type.icon;
+            return (
+              <Card
+                key={type.id}
+                className={`cursor-pointer transition-all hover-elevate relative group overflow-hidden ${
+                  talentType === type.id ? 'ring-2 ring-primary' : ''
+                }`}
+                onClick={() => onTalentTypeChange(type.id)}
+                data-testid={`talent-type-${type.id}`}
+              >
+                <CardContent className="p-0">
+                  <div className="relative">
+                    <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
+                      <Icon className={`h-10 w-10 ${talentType === type.id ? 'text-primary' : 'text-muted-foreground'}`} />
+                    </div>
+                    {talentType === type.id && (
+                      <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                        <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+                          <Check className="h-5 w-5 text-primary-foreground" />
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {talents.map((talent) => {
-                      const TalentIcon = getTalentTypeIcon(talent.type);
-                      return (
-                        <div 
-                          key={talent.id} 
-                          className="relative group rounded-lg border overflow-hidden"
-                          data-testid={`talent-${talent.id}`}
-                        >
-                          <div className="aspect-[3/4] bg-muted flex items-center justify-center">
-                            {talent.imageUrl ? (
-                              <img src={talent.imageUrl} alt={talent.name} className="h-full w-full object-cover" />
-                            ) : (
-                              <TalentIcon className="h-12 w-12 text-muted-foreground" />
-                            )}
-                          </div>
-                          
-                          {/* Overlay with info */}
-                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent p-3 pt-8">
-                            <Badge variant="secondary" className="mb-2 text-xs capitalize">
-                              {talent.type}
-                            </Badge>
-                            <p className="text-sm font-medium text-white">{talent.name}</p>
-                            {talent.description && (
-                              <p className="text-xs text-white/70 line-clamp-1">{talent.description}</p>
-                            )}
-                          </div>
+                  <div className="p-2 text-center bg-card">
+                    <p className="text-xs font-medium leading-tight">{type.name}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
 
+        {/* Talent List */}
+        {talentType !== "none" && (
+          <>
+            {talents.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="flex flex-col items-center justify-center py-8">
+                  <User className="h-10 w-10 text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground text-center">
+                    No talent added yet. Add models or presenters for your product video.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {talents.map((talent) => {
+                  const TalentIcon = getTalentTypeIcon(talent.type);
+                  return (
+                    <Card key={talent.id} className="relative overflow-hidden group" data-testid={`talent-${talent.id}`}>
+                      <CardContent className="p-0">
+                        <div className="aspect-[3/4] bg-muted flex items-center justify-center relative">
+                          {talent.imageUrl ? (
+                            <img src={talent.imageUrl} alt={talent.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <TalentIcon className="h-16 w-16 text-muted-foreground" />
+                          )}
+                          
                           {/* Action buttons */}
                           <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Button
@@ -678,51 +640,49 @@ export function ProductWorldCast({
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
+
+                          {/* Type badge */}
+                          <div className="absolute top-2 left-2 bg-primary/90 text-primary-foreground text-xs px-2 py-1 rounded capitalize">
+                            {talent.type}
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
+                        
+                        {/* Info */}
+                        <div className="p-3 bg-gradient-to-t from-black/80 to-transparent absolute bottom-0 left-0 right-0">
+                          <p className="text-sm font-semibold text-white">{talent.name}</p>
+                          {talent.description && (
+                            <p className="text-xs text-white/80 line-clamp-1">{talent.description}</p>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
             )}
-          </CardContent>
-        </Card>
+          </>
+        )}
+      </div>
 
-        {/* Additional Instructions */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold">Additional Instructions</h3>
-                <p className="text-sm text-muted-foreground">General guidance for the entire video</p>
-              </div>
-            </div>
+      {/* Additional Instructions */}
+      <Card>
+        <CardContent className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Additional Instructions</h3>
+          <Textarea
+            placeholder="Add any specific instructions that apply to the entire video... (e.g., 'Maintain consistent warm lighting throughout, keep brand colors prominent, use smooth transitions between shots')"
+            value={additionalInstructions}
+            onChange={(e) => onAdditionalInstructionsChange(e.target.value)}
+            rows={3}
+            data-testid="input-additional-instructions"
+          />
+        </CardContent>
+      </Card>
 
-            <Textarea
-              placeholder="Add any specific instructions that apply to the entire video... (e.g., 'Maintain consistent warm lighting throughout, keep brand colors prominent, use smooth transitions between shots')"
-              value={additionalInstructions}
-              onChange={(e) => onAdditionalInstructionsChange(e.target.value)}
-              rows={3}
-              className="text-sm"
-              data-testid="input-additional-instructions"
-            />
-          </CardContent>
-        </Card>
-
-        {/* Continue Button */}
-        <div className="flex items-center justify-between pt-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Info className="h-4 w-4" />
-            <span>Visual style and at least one shot type are required</span>
-          </div>
-          <Button onClick={handleContinue} data-testid="button-continue-world">
-            Continue to Breakdown
-            <ChevronRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
+      {/* Continue Button */}
+      <div className="flex justify-end pt-4">
+        <Button onClick={handleContinue} data-testid="button-continue-world">
+          Continue to Scene Breakdown
+        </Button>
       </div>
 
       {/* Add/Edit Talent Dialog */}

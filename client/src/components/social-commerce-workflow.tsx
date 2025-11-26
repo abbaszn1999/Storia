@@ -692,6 +692,7 @@ export function SocialCommerceWorkflow({
           voiceOverEnabled={voiceOverEnabled}
           continuityLocked={continuityLocked}
           continuityGroups={continuityGroups}
+          isCommerceMode={true}
           onVoiceActorChange={onVoiceActorChange}
           onVoiceOverToggle={onVoiceOverToggle}
           onGenerateShot={handleGenerateShot}

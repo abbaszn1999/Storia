@@ -144,6 +144,7 @@ interface StoryboardEditorProps {
   voiceOverEnabled: boolean;
   continuityLocked: boolean;
   continuityGroups: { [sceneId: string]: any[] };
+  isCommerceMode?: boolean;
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
   onGenerateShot: (shotId: string) => void;
@@ -746,6 +747,7 @@ export function StoryboardEditor({
   voiceOverEnabled,
   continuityLocked,
   continuityGroups,
+  isCommerceMode = false,
   onVoiceActorChange,
   onVoiceOverToggle,
   onGenerateShot,
@@ -1159,71 +1161,76 @@ export function StoryboardEditor({
           </div>
           
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Label className="text-sm text-muted-foreground">Voice Actor</Label>
-            <Popover open={voiceDropdownOpen} onOpenChange={setVoiceDropdownOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={voiceDropdownOpen}
-                  className="w-48 h-9 justify-between"
-                  disabled={!voiceOverEnabled}
-                  data-testid="button-voice-selector"
-                >
-                  <span className={voiceActorId ? "font-medium text-sm" : "text-muted-foreground text-sm"}>
-                    {selectedVoiceLabel}
-                  </span>
-                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                <ScrollArea className="max-h-[300px]">
-                  <div className="p-1">
-                    {VOICE_LIBRARY.map((voice) => (
-                      <div
-                        key={voice.id}
-                        className="flex items-center gap-2 px-2 py-2 hover-elevate rounded-md cursor-pointer"
-                        onClick={() => handleSelectVoice(voice.id)}
-                        data-testid={`option-voice-${voice.id}`}
+            {/* Voice Actor and Voice Over - Hidden in Commerce Mode */}
+            {!isCommerceMode && (
+              <>
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm text-muted-foreground">Voice Actor</Label>
+                  <Popover open={voiceDropdownOpen} onOpenChange={setVoiceDropdownOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={voiceDropdownOpen}
+                        className="w-48 h-9 justify-between"
+                        disabled={!voiceOverEnabled}
+                        data-testid="button-voice-selector"
                       >
-                        <div className="flex items-center gap-2 flex-1">
-                          {voiceActorId === voice.id && (
-                            <Check className="h-4 w-4 text-primary" data-testid={`icon-selected-${voice.id}`} />
-                          )}
-                          <span className={`flex-1 text-sm ${voiceActorId === voice.id ? "font-medium" : ""}`}>
-                            {voice.name}
-                          </span>
+                        <span className={voiceActorId ? "font-medium text-sm" : "text-muted-foreground text-sm"}>
+                          {selectedVoiceLabel}
+                        </span>
+                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                      <ScrollArea className="max-h-[300px]">
+                        <div className="p-1">
+                          {VOICE_LIBRARY.map((voice) => (
+                            <div
+                              key={voice.id}
+                              className="flex items-center gap-2 px-2 py-2 hover-elevate rounded-md cursor-pointer"
+                              onClick={() => handleSelectVoice(voice.id)}
+                              data-testid={`option-voice-${voice.id}`}
+                            >
+                              <div className="flex items-center gap-2 flex-1">
+                                {voiceActorId === voice.id && (
+                                  <Check className="h-4 w-4 text-primary" data-testid={`icon-selected-${voice.id}`} />
+                                )}
+                                <span className={`flex-1 text-sm ${voiceActorId === voice.id ? "font-medium" : ""}`}>
+                                  {voice.name}
+                                </span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 shrink-0"
+                                onClick={(e) => handlePlayVoice(voice.id, e)}
+                                data-testid={`button-play-${voice.id}`}
+                              >
+                                {playingVoice === voice.id ? (
+                                  <Pause className="h-4 w-4" />
+                                ) : (
+                                  <Play className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          ))}
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 shrink-0"
-                          onClick={(e) => handlePlayVoice(voice.id, e)}
-                          data-testid={`button-play-${voice.id}`}
-                        >
-                          {playingVoice === voice.id ? (
-                            <Pause className="h-4 w-4" />
-                          ) : (
-                            <Play className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </PopoverContent>
-            </Popover>
-          </div>
+                      </ScrollArea>
+                    </PopoverContent>
+                  </Popover>
+                </div>
 
-          <div className="flex items-center gap-2">
-            <Label className="text-sm text-muted-foreground">Voice Over</Label>
-            <Switch
-              checked={voiceOverEnabled}
-              onCheckedChange={onVoiceOverToggle}
-              data-testid="toggle-voice-over"
-            />
-          </div>
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm text-muted-foreground">Voice Over</Label>
+                  <Switch
+                    checked={voiceOverEnabled}
+                    onCheckedChange={onVoiceOverToggle}
+                    data-testid="toggle-voice-over"
+                  />
+                </div>
+              </>
+            )}
 
           <div className="flex items-center border rounded-md p-0.5 bg-muted/50">
             <Button
@@ -1334,43 +1341,48 @@ export function StoryboardEditor({
                       </Select>
                     </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Lighting</Label>
-                      <Select
-                        value={scene.lighting || LIGHTING_OPTIONS[0]}
-                        onValueChange={(value) => onUpdateScene?.(scene.id, { lighting: value })}
-                      >
-                        <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-lighting-${scene.id}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {LIGHTING_OPTIONS.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {/* Lighting and Weather - Hidden in Commerce Mode */}
+                    {!isCommerceMode && (
+                      <>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Lighting</Label>
+                          <Select
+                            value={scene.lighting || LIGHTING_OPTIONS[0]}
+                            onValueChange={(value) => onUpdateScene?.(scene.id, { lighting: value })}
+                          >
+                            <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-lighting-${scene.id}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {LIGHTING_OPTIONS.map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Weather</Label>
-                      <Select
-                        value={scene.weather || WEATHER_OPTIONS[0]}
-                        onValueChange={(value) => onUpdateScene?.(scene.id, { weather: value })}
-                      >
-                        <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-weather-${scene.id}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {WEATHER_OPTIONS.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Weather</Label>
+                          <Select
+                            value={scene.weather || WEATHER_OPTIONS[0]}
+                            onValueChange={(value) => onUpdateScene?.(scene.id, { weather: value })}
+                          >
+                            <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-weather-${scene.id}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {WEATHER_OPTIONS.map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
+                    )}
 
                     <Button
                       size="sm"

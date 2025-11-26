@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -26,8 +27,13 @@ import {
   Copy,
   Monitor,
   Subtitles,
+  ImageIcon,
+  Video,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { SiYoutube, SiTiktok, SiInstagram, SiFacebook } from "react-icons/si";
+import type { StoryScene } from "./storyboard-editor";
 
 const PLATFORMS = [
   { id: "youtube", name: "YouTube Shorts", icon: SiYoutube, color: "bg-red-600", specs: "9:16, up to 60s" },
@@ -47,9 +53,20 @@ interface ExportVideoProps {
   onExport: () => void;
   sceneCount?: number;
   templateName?: string;
+  aspectRatio?: string;
+  duration?: number;
+  scenes?: StoryScene[];
 }
 
-export function ExportVideo({ onBack, onExport, sceneCount = 4, templateName = "Problem-Solution" }: ExportVideoProps) {
+export function ExportVideo({ 
+  onBack, 
+  onExport, 
+  sceneCount = 4, 
+  templateName = "Problem-Solution",
+  aspectRatio = "9:16",
+  duration = 30,
+  scenes = [],
+}: ExportVideoProps) {
   const [resolution, setResolution] = useState("1080p");
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
@@ -65,6 +82,7 @@ export function ExportVideo({ onBack, onExport, sceneCount = 4, templateName = "
   const [isExporting, setIsExporting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [currentPreviewScene, setCurrentPreviewScene] = useState(0);
 
   const handlePlatformToggle = (platformId: string) => {
     setSelectedPlatforms((prev) =>
@@ -108,17 +126,32 @@ export function ExportVideo({ onBack, onExport, sceneCount = 4, templateName = "
     navigator.clipboard.writeText("https://storia.app/v/demo");
   };
 
+  const handlePrevScene = () => {
+    if (scenes.length === 0) return;
+    setCurrentPreviewScene((prev) => (prev > 0 ? prev - 1 : scenes.length - 1));
+  };
+
+  const handleNextScene = () => {
+    if (scenes.length === 0) return;
+    setCurrentPreviewScene((prev) => (prev < scenes.length - 1 ? prev + 1 : 0));
+  };
+
   const hasYouTube = selectedPlatforms.includes("youtube");
   const hasSocialPlatforms = selectedPlatforms.some(p => ["tiktok", "instagram", "facebook"].includes(p));
+  
+  const totalDuration = scenes.length > 0 
+    ? scenes.reduce((sum, scene) => sum + scene.duration, 0)
+    : duration;
 
-  const estimatedDuration = sceneCount * 8;
+  const safePreviewIndex = scenes.length > 0 ? Math.min(currentPreviewScene, scenes.length - 1) : 0;
+  const currentScene = scenes.length > 0 ? scenes[safePreviewIndex] : null;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold">Export & Publish</h1>
+        <h1 className="text-3xl font-bold">Preview & Export</h1>
         <p className="text-lg text-muted-foreground">
-          Choose your export settings and publish to your favorite platforms.
+          Review your video and publish to your favorite platforms.
         </p>
       </div>
 
@@ -132,28 +165,112 @@ export function ExportVideo({ onBack, onExport, sceneCount = 4, templateName = "
         <CardContent>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
-              <div
-                className="mx-auto bg-gradient-to-br from-gray-900 to-purple-900 rounded-lg overflow-hidden relative aspect-[9/16] max-h-[400px]"
-                data-testid="video-preview"
-              >
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(139,63,255,0.3),transparent_50%)]" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Button
-                    variant="secondary"
-                    size="lg"
-                    className="gap-2"
-                    data-testid="button-play-preview"
-                  >
-                    <Play className="h-5 w-5" />
-                    Play Preview
-                  </Button>
+              <div className="relative">
+                <div
+                  className={`mx-auto bg-gradient-to-br from-gray-900 to-purple-900 rounded-lg overflow-hidden relative ${
+                    aspectRatio === "9:16"
+                      ? "aspect-[9/16] max-h-[400px]"
+                      : aspectRatio === "16:9"
+                      ? "aspect-video max-h-[350px]"
+                      : aspectRatio === "4:5"
+                      ? "aspect-[4/5] max-h-[400px]"
+                      : "aspect-square max-h-[350px]"
+                  }`}
+                  data-testid="video-preview"
+                >
+                  {currentScene?.imageUrl ? (
+                    <img
+                      src={currentScene.imageUrl}
+                      alt={`Scene ${currentScene.sceneNumber}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <>
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(139,63,255,0.3),transparent_50%)]" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Button
+                          variant="secondary"
+                          size="lg"
+                          className="gap-2"
+                          data-testid="button-play-preview"
+                        >
+                          <Play className="h-5 w-5" />
+                          Play Preview
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                  
+                  <div className="absolute top-3 left-3 flex gap-2">
+                    <Badge variant="secondary" className="text-xs">{totalDuration}s</Badge>
+                    {currentScene?.isAnimated && (
+                      <Badge className="text-xs">
+                        <Video className="h-3 w-3 mr-1" />
+                        Animated
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="absolute top-3 right-3">
+                    <Badge variant="outline" className="text-xs bg-background/80">{aspectRatio}</Badge>
+                  </div>
+
+                  {scenes.length > 1 && (
+                    <>
+                      <button
+                        onClick={handlePrevScene}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors"
+                        data-testid="button-prev-scene"
+                      >
+                        <ChevronLeft className="h-5 w-5 text-white" />
+                      </button>
+                      <button
+                        onClick={handleNextScene}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors"
+                        data-testid="button-next-scene"
+                      >
+                        <ChevronRight className="h-5 w-5 text-white" />
+                      </button>
+                      <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
+                        <Badge variant="secondary" className="text-xs">
+                          Scene {safePreviewIndex + 1} of {scenes.length}
+                        </Badge>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div className="absolute top-3 left-3">
-                  <Badge variant="secondary" className="text-xs">~{estimatedDuration}s</Badge>
-                </div>
-                <div className="absolute top-3 right-3">
-                  <Badge variant="outline" className="text-xs bg-background/80">9:16</Badge>
-                </div>
+
+                {scenes.length > 0 && (
+                  <div className="mt-4">
+                    <ScrollArea className="w-full">
+                      <div className="flex gap-2 pb-2">
+                        {scenes.map((scene, index) => (
+                          <button
+                            key={scene.id}
+                            onClick={() => setCurrentPreviewScene(index)}
+                            className={`flex-shrink-0 w-16 h-12 rounded overflow-hidden border-2 transition-all ${
+                              safePreviewIndex === index
+                                ? "border-primary"
+                                : "border-transparent opacity-60 hover:opacity-100"
+                            }`}
+                            data-testid={`thumbnail-scene-${index}`}
+                          >
+                            {scene.imageUrl ? (
+                              <img
+                                src={scene.imageUrl}
+                                alt={`Scene ${scene.sceneNumber}`}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-muted flex items-center justify-center">
+                                <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -167,15 +284,15 @@ export function ExportVideo({ onBack, onExport, sceneCount = 4, templateName = "
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Scenes</span>
-                    <span>{sceneCount} scenes</span>
+                    <span>{scenes.length || sceneCount} scenes</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Duration</span>
-                    <span>~{estimatedDuration} seconds</span>
+                    <span>{totalDuration} seconds</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Aspect Ratio</span>
-                    <span>9:16</span>
+                    <span>{aspectRatio}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Resolution</span>
@@ -298,7 +415,7 @@ export function ExportVideo({ onBack, onExport, sceneCount = 4, templateName = "
                   <Subtitles className="h-5 w-5 text-primary" />
                   <div>
                     <p className="text-sm font-medium">Enable Subtitles</p>
-                    <p className="text-xs text-muted-foreground">Add auto-generated captions to your video</p>
+                    <p className="text-xs text-muted-foreground">Add auto-generated captions</p>
                   </div>
                 </div>
                 <Switch

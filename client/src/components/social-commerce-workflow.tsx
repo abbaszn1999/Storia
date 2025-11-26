@@ -53,6 +53,10 @@ interface SocialCommerceWorkflowProps {
     talents: Array<{ id: string; name: string; type: "hands" | "lifestyle" | "spokesperson"; description: string; imageUrl: string | null }>;
     styleReference: string | null;
     additionalInstructions: string;
+    imageModel: string;
+    videoModel: string;
+    imageInstructions: string;
+    videoInstructions: string;
   };
   onScriptChange: (script: string) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
@@ -87,6 +91,10 @@ interface SocialCommerceWorkflowProps {
     talents: Array<{ id: string; name: string; type: "hands" | "lifestyle" | "spokesperson"; description: string; imageUrl: string | null }>;
     styleReference: string | null;
     additionalInstructions: string;
+    imageModel: string;
+    videoModel: string;
+    imageInstructions: string;
+    videoInstructions: string;
   }) => void;
   onNext: () => void;
 }
@@ -510,6 +518,10 @@ export function SocialCommerceWorkflow({
           talents={commerceSettings.talents}
           styleReference={commerceSettings.styleReference}
           additionalInstructions={commerceSettings.additionalInstructions}
+          imageModel={commerceSettings.imageModel}
+          videoModel={commerceSettings.videoModel}
+          imageInstructions={commerceSettings.imageInstructions}
+          videoInstructions={commerceSettings.videoInstructions}
           onVisualStyleChange={(style) => onCommerceSettingsChange({ ...commerceSettings, visualStyle: style })}
           onBackdropChange={(backdrop) => onCommerceSettingsChange({ ...commerceSettings, backdrop })}
           onProductDisplayChange={(displays) => onCommerceSettingsChange({ ...commerceSettings, productDisplay: displays })}
@@ -517,6 +529,10 @@ export function SocialCommerceWorkflow({
           onTalentsChange={(talents) => onCommerceSettingsChange({ ...commerceSettings, talents })}
           onStyleReferenceChange={(ref) => onCommerceSettingsChange({ ...commerceSettings, styleReference: ref })}
           onAdditionalInstructionsChange={(instructions) => onCommerceSettingsChange({ ...commerceSettings, additionalInstructions: instructions })}
+          onImageModelChange={(model) => onCommerceSettingsChange({ ...commerceSettings, imageModel: model })}
+          onVideoModelChange={(model) => onCommerceSettingsChange({ ...commerceSettings, videoModel: model })}
+          onImageInstructionsChange={(instructions) => onCommerceSettingsChange({ ...commerceSettings, imageInstructions: instructions })}
+          onVideoInstructionsChange={(instructions) => onCommerceSettingsChange({ ...commerceSettings, videoInstructions: instructions })}
           onNext={onNext}
         />
       )}

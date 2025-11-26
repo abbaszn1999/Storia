@@ -89,6 +89,10 @@ export default function SocialCommerceMode() {
     talents: Array<{ id: string; name: string; type: "hands" | "lifestyle" | "spokesperson"; description: string; imageUrl: string | null }>;
     styleReference: string | null;
     additionalInstructions: string;
+    imageModel: string;
+    videoModel: string;
+    imageInstructions: string;
+    videoInstructions: string;
   }>({
     visualStyle: "minimal",
     backdrop: "white-studio",
@@ -97,6 +101,10 @@ export default function SocialCommerceMode() {
     talents: [],
     styleReference: null,
     additionalInstructions: "",
+    imageModel: "imagen-4",
+    videoModel: "kling",
+    imageInstructions: "",
+    videoInstructions: "",
   });
 
   const isStepCompleted = (stepId: string) => completedSteps.includes(stepId);

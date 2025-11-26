@@ -1343,24 +1343,44 @@ export function StoryboardEditor({
                       </Select>
                     </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Video Model</Label>
-                      <Select
-                        value={scene.videoModel || VIDEO_MODELS[0]}
-                        onValueChange={(value) => onUpdateScene?.(scene.id, { videoModel: value })}
-                      >
-                        <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-video-model-${scene.id}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {VIDEO_MODELS.map((model) => (
-                            <SelectItem key={model} value={model}>
-                              {model}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {/* Video Model - Hidden when using smooth-image animation mode */}
+                    {!(isAmbientMode && animationMode === "smooth-image") && (
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Video Model</Label>
+                        <Select
+                          value={scene.videoModel || VIDEO_MODELS[0]}
+                          onValueChange={(value) => onUpdateScene?.(scene.id, { videoModel: value })}
+                        >
+                          <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-video-model-${scene.id}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {VIDEO_MODELS.map((model) => (
+                              <SelectItem key={model} value={model}>
+                                {model}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {/* Animation Mode Display - Ambient Mode Only */}
+                    {isAmbientMode && (
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Animation Mode</Label>
+                        <div className="flex items-center gap-2 h-8 px-3 rounded-md border bg-muted/50">
+                          <span className="text-xs">
+                            {animationMode === "smooth-image" ? "Smooth Image (Ken Burns)" : "Full Animation (AI Video)"}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">
+                          {animationMode === "smooth-image" 
+                            ? "Images will use subtle pan/zoom motion" 
+                            : "Full AI video generation for each shot"}
+                        </p>
+                      </div>
+                    )}
 
                     {/* Lighting and Weather - Hidden in Commerce/Logo/Ambient Mode */}
                     {!isCommerceMode && !isLogoMode && !isAmbientMode && (

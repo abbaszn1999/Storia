@@ -196,7 +196,8 @@ export default function CreateShorts() {
 
   const selectedHooks = hooks.filter((h) => h.selected);
   const canProceedToPublish = selectedHooks.length > 0;
-  const canProceedToReview = selectedHooks.length > 0 && selectedPlatforms.length > 0;
+  const isScheduleValid = publishType === "instant" || (scheduleDate && scheduleTime);
+  const canProceedToReview = selectedHooks.length > 0 && selectedPlatforms.length > 0 && isScheduleValid;
 
   const generateClipDetails = () => {
     const baseDate = publishType === "schedule" && scheduleDate 
@@ -551,6 +552,11 @@ export default function CreateShorts() {
                 <p className="text-xs text-muted-foreground">
                   Clips will be spaced 2 hours apart starting from this time
                 </p>
+                {(!scheduleDate || !scheduleTime) && (
+                  <p className="text-xs text-amber-500 mt-2">
+                    Please select both date and time to continue
+                  </p>
+                )}
               </div>
             </div>
           )}

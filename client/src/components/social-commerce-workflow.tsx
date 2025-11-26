@@ -26,6 +26,7 @@ interface SocialCommerceWorkflowProps {
   voiceActorId: string | null;
   voiceOverEnabled: boolean;
   voiceOverConcept: string;
+  voiceOverScript: string;
   videoConcept: string;
   productPhotos: string[];
   productDetails: ProductDetails;
@@ -50,6 +51,7 @@ interface SocialCommerceWorkflowProps {
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
   onVoiceOverConceptChange: (concept: string) => void;
+  onVoiceOverScriptChange: (script: string) => void;
   onVideoConceptChange: (concept: string) => void;
   onProductPhotosChange: (photos: string[]) => void;
   onProductDetailsChange: (details: ProductDetails) => void;
@@ -82,6 +84,7 @@ export function SocialCommerceWorkflow({
   voiceActorId,
   voiceOverEnabled,
   voiceOverConcept,
+  voiceOverScript,
   videoConcept,
   productPhotos,
   productDetails,
@@ -99,6 +102,7 @@ export function SocialCommerceWorkflow({
   onVoiceActorChange,
   onVoiceOverToggle,
   onVoiceOverConceptChange,
+  onVoiceOverScriptChange,
   onVideoConceptChange,
   onProductPhotosChange,
   onProductDetailsChange,
@@ -433,6 +437,7 @@ export function SocialCommerceWorkflow({
           voiceOverEnabled={voiceOverEnabled}
           voiceActorId={voiceActorId}
           voiceOverConcept={voiceOverConcept}
+          voiceOverScript={voiceOverScript}
           videoConcept={videoConcept}
           generatedScript={script}
           onProductPhotosChange={onProductPhotosChange}
@@ -442,6 +447,7 @@ export function SocialCommerceWorkflow({
           onVoiceOverToggle={onVoiceOverToggle}
           onVoiceActorChange={onVoiceActorChange}
           onVoiceOverConceptChange={onVoiceOverConceptChange}
+          onVoiceOverScriptChange={onVoiceOverScriptChange}
           onVideoConceptChange={onVideoConceptChange}
           onScriptChange={onScriptChange}
           onNext={onNext}

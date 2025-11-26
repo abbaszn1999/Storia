@@ -47,6 +47,7 @@ export default function SocialCommerceMode() {
   });
   const [videoConcept, setVideoConcept] = useState("");
   const [voiceOverConcept, setVoiceOverConcept] = useState("");
+  const [voiceOverScript, setVoiceOverScript] = useState("");
   
   // Video settings
   const [script, setScript] = useState("");
@@ -169,6 +170,7 @@ export default function SocialCommerceMode() {
               voiceActorId={voiceActorId}
               voiceOverEnabled={voiceOverEnabled}
               voiceOverConcept={voiceOverConcept}
+              voiceOverScript={voiceOverScript}
               videoConcept={videoConcept}
               productPhotos={productPhotos}
               productDetails={productDetails}
@@ -186,6 +188,7 @@ export default function SocialCommerceMode() {
               onVoiceActorChange={setVoiceActorId}
               onVoiceOverToggle={setVoiceOverEnabled}
               onVoiceOverConceptChange={setVoiceOverConcept}
+              onVoiceOverScriptChange={setVoiceOverScript}
               onVideoConceptChange={setVideoConcept}
               onProductPhotosChange={setProductPhotos}
               onProductDetailsChange={setProductDetails}

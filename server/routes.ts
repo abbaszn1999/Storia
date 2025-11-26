@@ -554,6 +554,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Commerce API routes (Social Commerce mode)
+  app.post('/api/commerce/script/generate', async (req, res) => {
+    try {
+      const { productDetails, videoConcept, voiceOverConcept, duration, aspectRatio, voiceOverEnabled } = req.body;
+      
+      if (!productDetails?.title) {
+        return res.status(400).json({ error: 'Product title is required' });
+      }
+      if (!videoConcept) {
+        return res.status(400).json({ error: 'Video concept is required' });
+      }
+
+      // TODO: Replace with actual AI script generation
+      const script = `[SCENE 1: HOOK - ${Math.ceil(duration * 0.2)}s]
+Visual: Close-up of ${productDetails.title}
+Action: Dramatic reveal with dynamic lighting
+
+[SCENE 2: PROBLEM - ${Math.ceil(duration * 0.15)}s]
+Visual: Show the everyday struggle your audience faces
+Action: Quick cuts of frustration moments
+
+[SCENE 3: SOLUTION - ${Math.ceil(duration * 0.25)}s]
+Visual: ${productDetails.title} in action
+Action: Demonstrate key features
+${productDetails.description ? `Highlight: ${productDetails.description.slice(0, 100)}` : ''}
+
+[SCENE 4: BENEFITS - ${Math.ceil(duration * 0.2)}s]
+Visual: Happy customer using the product
+Action: Show lifestyle transformation
+${productDetails.price ? `Value: ${productDetails.price}` : ''}
+
+[SCENE 5: CTA - ${Math.ceil(duration * 0.2)}s]
+Visual: Product beauty shot with branding
+Action: Clear call to action
+CTA: ${productDetails.cta || 'Shop Now'}
+
+---
+Video Concept: ${videoConcept}
+Aspect Ratio: ${aspectRatio}
+Duration: ${duration}s
+${voiceOverEnabled ? `Voice Over Style: ${voiceOverConcept || 'Engaging and persuasive'}` : 'No voice over'}`;
+
+      res.json({ script });
+    } catch (error) {
+      console.error('Error generating commerce script:', error);
+      res.status(500).json({ error: 'Failed to generate script' });
+    }
+  });
+
+  app.post('/api/commerce/voiceover/generate', async (req, res) => {
+    try {
+      const { productDetails, videoConcept, voiceOverConcept, duration, voiceActorId } = req.body;
+      
+      if (!productDetails?.title) {
+        return res.status(400).json({ error: 'Product title is required' });
+      }
+      if (!voiceActorId) {
+        return res.status(400).json({ error: 'Narrator selection is required' });
+      }
+
+      // TODO: Replace with actual AI voiceover script generation
+      const toneStyle = voiceOverConcept || 'engaging and conversational';
+      const script = `Introducing ${productDetails.title}.
+
+${productDetails.description 
+  ? `${productDetails.description.split('.')[0]}.` 
+  : 'The solution you\'ve been waiting for.'}
+
+${videoConcept 
+  ? `Imagine ${videoConcept.toLowerCase().includes('lifestyle') ? 'living your best life with this by your side' : 'having the perfect solution right at your fingertips'}.`
+  : 'Experience the difference today.'}
+
+${productDetails.price 
+  ? `All this for just ${productDetails.price}.` 
+  : 'At an unbeatable value.'}
+
+${productDetails.cta || 'Shop now'} and transform your experience.
+
+---
+Narrator Style: ${toneStyle}
+Estimated Duration: ~${duration}s`;
+
+      res.json({ script });
+    } catch (error) {
+      console.error('Error generating voiceover script:', error);
+      res.status(500).json({ error: 'Failed to generate voiceover script' });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

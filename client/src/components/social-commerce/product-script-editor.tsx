@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Sparkles, ImagePlus, X, Package, Mic, Video, DollarSign } from "lucide-react";
+import { Loader2, Sparkles, ImagePlus, X, Package, Mic, Video, DollarSign, Clock, Volume2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +26,7 @@ interface ProductScriptEditorProps {
   voiceOverEnabled: boolean;
   voiceActorId: string | null;
   voiceOverConcept: string;
+  voiceOverScript: string;
   videoConcept: string;
   generatedScript: string;
   onProductPhotosChange: (photos: string[]) => void;
@@ -35,6 +36,7 @@ interface ProductScriptEditorProps {
   onVoiceOverToggle: (enabled: boolean) => void;
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverConceptChange: (concept: string) => void;
+  onVoiceOverScriptChange: (script: string) => void;
   onVideoConceptChange: (concept: string) => void;
   onScriptChange: (script: string) => void;
   onNext: () => void;
@@ -62,6 +64,18 @@ const NARRATORS = [
   { id: "narrator-5", name: "Marcus", voice: "Deep Male", style: "Authoritative" },
 ];
 
+function estimateReadTime(text: string): string {
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  const wordsPerMinute = 150;
+  const seconds = Math.round((words / wordsPerMinute) * 60);
+  if (seconds < 60) {
+    return `~${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `~${minutes}m ${remainingSeconds}s`;
+}
+
 export function ProductScriptEditor({
   productPhotos,
   productDetails,
@@ -70,6 +84,7 @@ export function ProductScriptEditor({
   voiceOverEnabled,
   voiceActorId,
   voiceOverConcept,
+  voiceOverScript,
   videoConcept,
   generatedScript,
   onProductPhotosChange,
@@ -79,11 +94,13 @@ export function ProductScriptEditor({
   onVoiceOverToggle,
   onVoiceActorChange,
   onVoiceOverConceptChange,
+  onVoiceOverScriptChange,
   onVideoConceptChange,
   onScriptChange,
   onNext,
 }: ProductScriptEditorProps) {
-  const [hasGeneratedOnce, setHasGeneratedOnce] = useState(!!generatedScript);
+  const [hasGeneratedScriptOnce, setHasGeneratedScriptOnce] = useState(!!generatedScript);
+  const [hasGeneratedVoiceOverOnce, setHasGeneratedVoiceOverOnce] = useState(!!voiceOverScript);
   const { toast } = useToast();
 
   const generateScriptMutation = useMutation({
@@ -99,7 +116,7 @@ export function ProductScriptEditor({
       return await res.json();
     },
     onSuccess: (data: { script: string }) => {
-      setHasGeneratedOnce(true);
+      setHasGeneratedScriptOnce(true);
       onScriptChange(data.script);
       toast({
         title: "Script Generated",
@@ -110,6 +127,34 @@ export function ProductScriptEditor({
       toast({
         title: "Generation Failed",
         description: "Failed to generate script. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const generateVoiceOverMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/commerce/voiceover/generate', {
+        productDetails,
+        videoConcept,
+        voiceOverConcept,
+        duration: parseInt(duration),
+        voiceActorId,
+      });
+      return await res.json();
+    },
+    onSuccess: (data: { script: string }) => {
+      setHasGeneratedVoiceOverOnce(true);
+      onVoiceOverScriptChange(data.script);
+      toast({
+        title: "Voiceover Script Generated",
+        description: "Your voiceover script is ready. Edit it as needed.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Generation Failed",
+        description: "Failed to generate voiceover script. Please try again.",
         variant: "destructive",
       });
     },
@@ -156,6 +201,26 @@ export function ProductScriptEditor({
     generateScriptMutation.mutate();
   };
 
+  const handleGenerateVoiceOver = () => {
+    if (!productDetails.title.trim()) {
+      toast({
+        title: "Product Title Required",
+        description: "Please enter your product title before generating voiceover.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!voiceActorId) {
+      toast({
+        title: "Narrator Required",
+        description: "Please select a narrator before generating voiceover.",
+        variant: "destructive",
+      });
+      return;
+    }
+    generateVoiceOverMutation.mutate();
+  };
+
   const handleContinue = () => {
     if (productPhotos.length === 0) {
       toast({
@@ -184,10 +249,12 @@ export function ProductScriptEditor({
     onNext();
   };
 
+  const wordCount = voiceOverScript.trim().split(/\s+/).filter(Boolean).length;
+
   return (
     <div className="flex gap-6 h-[calc(100vh-220px)]">
-      {/* Left Column: Product Setup */}
-      <div className="w-[400px] space-y-4 overflow-y-auto pr-2">
+      {/* Left Column: Product Setup & Settings */}
+      <div className="w-[380px] space-y-4 overflow-y-auto pr-2">
         {/* Product Photos */}
         <Card>
           <CardHeader className="pb-3">
@@ -232,7 +299,7 @@ export function ProductScriptEditor({
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Upload up to 3 product shots. These will be used as visual anchors in your video.
+              Upload up to 3 product shots for your video.
             </p>
           </CardContent>
         </Card>
@@ -270,7 +337,7 @@ export function ProductScriptEditor({
                 placeholder="Key features and benefits..."
                 value={productDetails.description}
                 onChange={(e) => updateProductDetail("description", e.target.value)}
-                className="min-h-[80px] resize-none"
+                className="min-h-[60px] resize-none"
                 data-testid="input-product-description"
               />
             </div>
@@ -295,7 +362,6 @@ export function ProductScriptEditor({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Aspect Ratio */}
             <div className="space-y-2">
               <Label className="text-xs">Aspect Ratio</Label>
               <div className="grid grid-cols-4 gap-2">
@@ -319,7 +385,6 @@ export function ProductScriptEditor({
               </p>
             </div>
 
-            {/* Duration */}
             <div className="space-y-2">
               <Label className="text-xs">Duration</Label>
               <div className="grid grid-cols-4 gap-2">
@@ -345,12 +410,12 @@ export function ProductScriptEditor({
           </CardContent>
         </Card>
 
-        {/* Voice Over Settings */}
+        {/* Voice Over Settings (Compact) */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Mic className="h-4 w-4" />
-              Voice Over
+              Voice Over Settings
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -390,14 +455,16 @@ export function ProductScriptEditor({
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs">Voice Over Script Idea</Label>
-                  <Textarea
-                    placeholder="Describe the tone and style of the narration... e.g., 'Energetic and exciting, highlighting the product benefits'"
+                  <Label className="text-xs">Tone & Style</Label>
+                  <Input
+                    placeholder="e.g., Energetic, friendly, exciting"
                     value={voiceOverConcept}
                     onChange={(e) => onVoiceOverConceptChange(e.target.value)}
-                    className="min-h-[60px] resize-none"
-                    data-testid="input-voice-over-concept"
+                    data-testid="input-voice-over-tone"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Brief tone guide for the AI narrator
+                  </p>
                 </div>
               </>
             )}
@@ -405,7 +472,7 @@ export function ProductScriptEditor({
         </Card>
       </div>
 
-      {/* Right Column: Video Concept & Script */}
+      {/* Right Column: Video Concept, Script & Voiceover */}
       <div className="flex-1 flex flex-col gap-4 overflow-hidden">
         {/* Video Concept */}
         <Card className="flex-shrink-0">
@@ -420,7 +487,7 @@ export function ProductScriptEditor({
               placeholder="Describe your video concept... e.g., 'Show the product in action with a lifestyle setting. Start with a problem, introduce the product as the solution, and end with happy customers using it.'"
               value={videoConcept}
               onChange={(e) => onVideoConceptChange(e.target.value)}
-              className="min-h-[100px] resize-none"
+              className="min-h-[80px] resize-none"
               data-testid="input-video-concept"
             />
             <div className="flex items-center justify-between">
@@ -441,7 +508,7 @@ export function ProductScriptEditor({
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4 mr-2" />
-                    {hasGeneratedOnce ? "Regenerate Script" : "Generate Script"}
+                    {hasGeneratedScriptOnce ? "Regenerate Script" : "Generate Script"}
                   </>
                 )}
               </Button>
@@ -449,38 +516,106 @@ export function ProductScriptEditor({
           </CardContent>
         </Card>
 
-        {/* Generated Script */}
-        <Card className="flex-1 flex flex-col overflow-hidden">
-          <CardHeader className="pb-3 flex-shrink-0">
-            <CardTitle className="text-sm font-semibold">
-              Generated Script
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col overflow-hidden">
-            <Textarea
-              placeholder={hasGeneratedOnce 
-                ? "Edit your generated script here..." 
-                : "Your AI-generated marketing script will appear here after you click 'Generate Script'..."
-              }
-              value={generatedScript}
-              onChange={(e) => onScriptChange(e.target.value)}
-              className="flex-1 resize-none min-h-[200px]"
-              data-testid="input-generated-script"
-            />
-            <div className="flex items-center justify-between pt-3">
-              <span className="text-xs text-muted-foreground">
-                {generatedScript.length} characters
-              </span>
-              <Button
-                onClick={handleContinue}
-                disabled={!productDetails.title.trim() || productPhotos.length === 0}
-                data-testid="button-continue"
-              >
-                Continue to World & Cast
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Two-column layout for Script and Voiceover */}
+        <div className={`flex-1 flex gap-4 overflow-hidden ${voiceOverEnabled ? '' : ''}`}>
+          {/* Generated Script */}
+          <Card className={`flex-1 flex flex-col overflow-hidden ${voiceOverEnabled ? 'w-1/2' : 'w-full'}`}>
+            <CardHeader className="pb-3 flex-shrink-0">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Video className="h-4 w-4" />
+                Video Script
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 flex flex-col overflow-hidden">
+              <Textarea
+                placeholder={hasGeneratedScriptOnce 
+                  ? "Edit your generated script here..." 
+                  : "Your AI-generated marketing script will appear here after you click 'Generate Script'..."
+                }
+                value={generatedScript}
+                onChange={(e) => onScriptChange(e.target.value)}
+                className="flex-1 resize-none min-h-[150px]"
+                data-testid="input-generated-script"
+              />
+              <div className="flex items-center justify-between pt-3">
+                <span className="text-xs text-muted-foreground">
+                  {generatedScript.length} characters
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Voiceover Script - Only shown when voice over is enabled */}
+          {voiceOverEnabled && (
+            <Card className="flex-1 flex flex-col overflow-hidden w-1/2 border-primary/20">
+              <CardHeader className="pb-3 flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Volume2 className="h-4 w-4" />
+                    Voiceover Script
+                  </CardTitle>
+                  <Button
+                    onClick={handleGenerateVoiceOver}
+                    disabled={generateVoiceOverMutation.isPending}
+                    size="sm"
+                    variant="outline"
+                    data-testid="button-generate-voiceover"
+                  >
+                    {generateVoiceOverMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        {hasGeneratedVoiceOverOnce ? "Regenerate" : "Generate"}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col overflow-hidden">
+                <Textarea
+                  placeholder="Write or generate the exact words the narrator will speak...
+
+Example:
+'Introducing the future of audio. Premium Wireless Headphones that deliver crystal-clear sound, all-day comfort, and 40 hours of battery life. 
+
+Whether you're working, traveling, or relaxing — experience music the way it was meant to be heard.
+
+Shop now and elevate your listening experience.'"
+                  value={voiceOverScript}
+                  onChange={(e) => onVoiceOverScriptChange(e.target.value)}
+                  className="flex-1 resize-none min-h-[150px]"
+                  data-testid="input-voiceover-script"
+                />
+                <div className="flex items-center justify-between pt-3 gap-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      {wordCount} words
+                    </span>
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {estimateReadTime(voiceOverScript)}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Continue Button */}
+        <div className="flex justify-end pt-2 flex-shrink-0">
+          <Button
+            onClick={handleContinue}
+            disabled={!productDetails.title.trim() || productPhotos.length === 0}
+            data-testid="button-continue"
+          >
+            Continue to World & Cast
+          </Button>
+        </div>
       </div>
     </div>
   );

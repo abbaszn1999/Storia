@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Play,
   Download,
@@ -24,7 +25,7 @@ import {
   Loader2,
   Copy,
   Monitor,
-  Video,
+  Subtitles,
 } from "lucide-react";
 import { SiYoutube, SiTiktok, SiInstagram, SiFacebook } from "react-icons/si";
 
@@ -50,6 +51,7 @@ interface ExportVideoProps {
 
 export function ExportVideo({ onBack, onExport, sceneCount = 4, templateName = "Problem-Solution" }: ExportVideoProps) {
   const [resolution, setResolution] = useState("1080p");
+  const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [publishType, setPublishType] = useState<"instant" | "schedule">("instant");
   const [scheduleDate, setScheduleDate] = useState("");
@@ -179,6 +181,12 @@ export function ExportVideo({ onBack, onExport, sceneCount = 4, templateName = "
                     <span className="text-muted-foreground">Resolution</span>
                     <span>{resolution}</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Subtitles</span>
+                    <span className={subtitlesEnabled ? "text-emerald-500" : "text-muted-foreground"}>
+                      {subtitlesEnabled ? "Enabled" : "Disabled"}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -283,6 +291,21 @@ export function ExportVideo({ onBack, onExport, sceneCount = 4, templateName = "
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-lg border">
+                <div className="flex items-center gap-3">
+                  <Subtitles className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="text-sm font-medium">Enable Subtitles</p>
+                    <p className="text-xs text-muted-foreground">Add auto-generated captions to your video</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={subtitlesEnabled}
+                  onCheckedChange={setSubtitlesEnabled}
+                  data-testid="switch-subtitles"
+                />
               </div>
             </CardContent>
           </Card>

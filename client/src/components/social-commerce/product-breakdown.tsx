@@ -43,7 +43,9 @@ import {
   Play,
   Megaphone,
   Clock,
-  Type
+  Type,
+  Link2,
+  ArrowDown
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -68,6 +70,7 @@ interface ProductShot {
 
 interface ProductBreakdownProps {
   videoId: string;
+  narrativeMode: "image-reference" | "start-end";
   script: string;
   voiceOverScript: string;
   videoConcept: string;
@@ -103,6 +106,7 @@ const SHOT_TYPE_OPTIONS = [
 
 export function ProductBreakdown({
   videoId,
+  narrativeMode,
   script,
   voiceOverScript,
   videoConcept,
@@ -114,6 +118,7 @@ export function ProductBreakdown({
   onShotsChange,
   onNext,
 }: ProductBreakdownProps) {
+  const isStartEndMode = narrativeMode === "start-end";
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const [segmentDialogOpen, setSegmentDialogOpen] = useState(false);
@@ -590,48 +595,65 @@ export function ProductBreakdown({
                     {/* Shots List */}
                     <div className="space-y-2 pl-4 border-l-2 border-border ml-4">
                       {segmentShots.map((shot, shotIndex) => (
-                        <div
-                          key={shot.id}
-                          className="flex items-start gap-3 p-3 rounded-lg bg-background/50 hover-elevate"
-                          data-testid={`shot-${shot.id}`}
-                        >
-                          <div className="h-2 w-2 rounded-full bg-primary mt-2 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-sm font-medium">Shot {shotIndex + 1}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {SHOT_TYPE_OPTIONS.find(s => s.id === shot.shotType)?.name || shot.shotType}
-                              </Badge>
-                              <Badge variant="secondary" className="text-xs">
-                                {shot.duration}s
-                              </Badge>
-                            </div>
-                            <p className="text-sm text-muted-foreground">{shot.description}</p>
-                            {shot.voiceoverText && (
-                              <div className="flex items-start gap-1 mt-2 text-xs text-primary/80">
-                                <Type className="h-3 w-3 mt-0.5 shrink-0" />
-                                <span className="italic">"{shot.voiceoverText}"</span>
+                        <div key={shot.id}>
+                          <div
+                            className="flex items-start gap-3 p-3 rounded-lg bg-background/50 hover-elevate"
+                            data-testid={`shot-${shot.id}`}
+                          >
+                            <div className="h-2 w-2 rounded-full bg-primary mt-2 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-medium">Shot {shotIndex + 1}</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {SHOT_TYPE_OPTIONS.find(s => s.id === shot.shotType)?.name || shot.shotType}
+                                </Badge>
+                                <Badge variant="secondary" className="text-xs">
+                                  {shot.duration}s
+                                </Badge>
+                                {isStartEndMode && shotIndex < segmentShots.length - 1 && (
+                                  <Badge variant="outline" className="text-xs bg-cyan-500/10 text-cyan-500 border-cyan-500/30">
+                                    <Link2 className="h-3 w-3 mr-1" />
+                                    Connected
+                                  </Badge>
+                                )}
                               </div>
-                            )}
+                              <p className="text-sm text-muted-foreground">{shot.description}</p>
+                              {shot.voiceoverText && (
+                                <div className="flex items-start gap-1 mt-2 text-xs text-primary/80">
+                                  <Type className="h-3 w-3 mt-0.5 shrink-0" />
+                                  <span className="italic">"{shot.voiceoverText}"</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => openEditShot(shot, segment.id)}
+                                data-testid={`button-edit-shot-${shot.id}`}
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => setDeleteShotId(shot.id)}
+                                data-testid={`button-delete-shot-${shot.id}`}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => openEditShot(shot, segment.id)}
-                              data-testid={`button-edit-shot-${shot.id}`}
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => setDeleteShotId(shot.id)}
-                              data-testid={`button-delete-shot-${shot.id}`}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
+                          
+                          {/* Connection arrow between shots within segment */}
+                          {isStartEndMode && shotIndex < segmentShots.length - 1 && (
+                            <div className="flex items-center justify-center py-1 ml-6">
+                              <div className="flex flex-col items-center">
+                                <div className="w-px h-2 bg-cyan-500/50" />
+                                <ArrowDown className="h-3 w-3 text-cyan-500/70" />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                       
@@ -646,6 +668,18 @@ export function ProductBreakdown({
                         Add Shot
                       </Button>
                     </div>
+                    
+                    {/* Segment bridge connector - shows connection to next segment */}
+                    {isStartEndMode && segIndex < segments.length - 1 && segmentShots.length > 0 && (
+                      <div className="flex items-center justify-center py-3 mt-2">
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/30">
+                          <ArrowDown className="h-3 w-3 text-purple-500" />
+                          <span className="text-xs text-purple-500 font-medium">
+                            Flows to {SEGMENT_TYPES.find(s => s.id === segments[segIndex + 1]?.type)?.name || "Next Segment"}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );

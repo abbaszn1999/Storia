@@ -232,8 +232,11 @@ export function SocialCommerceWorkflow({
         title: seg.title,
         description: seg.description,
         duration: seg.duration,
+        videoModel: null,
+        imageModel: null,
+        lighting: null,
+        weather: null,
         createdAt: new Date(),
-        updatedAt: new Date(),
       } as Scene;
     });
     onScenesChange(mappedScenes);
@@ -635,6 +638,7 @@ export function SocialCommerceWorkflow({
       {activeStep === "breakdown" && (
         <ProductBreakdown
           videoId={videoId}
+          narrativeMode={narrativeMode}
           script={script}
           voiceOverScript={voiceOverScript}
           videoConcept={videoConcept}

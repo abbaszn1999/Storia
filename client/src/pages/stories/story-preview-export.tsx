@@ -28,7 +28,6 @@ import {
   CheckCircle2,
   Loader2,
   Copy,
-  Scissors,
   Monitor,
 } from "lucide-react";
 import { SiYoutube, SiTiktok, SiInstagram, SiFacebook } from "react-icons/si";
@@ -99,7 +98,6 @@ export default function StoryPreviewExport() {
   const [publishType, setPublishType] = useState<"instant" | "schedule">("instant");
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
-  const [autoGenerateShorts, setAutoGenerateShorts] = useState(false);
   
   const [youtubeTitle, setYoutubeTitle] = useState("");
   const [youtubeDescription, setYoutubeDescription] = useState("");
@@ -410,20 +408,6 @@ export default function StoryPreviewExport() {
                     </Select>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                    <div className="flex items-center gap-3">
-                      <Scissors className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <Label className="cursor-pointer">Auto-generate Shorts</Label>
-                        <p className="text-xs text-muted-foreground">Create clips for different platforms</p>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={autoGenerateShorts}
-                      onCheckedChange={setAutoGenerateShorts}
-                      data-testid="switch-auto-shorts"
-                    />
-                  </div>
                 </CardContent>
               </Card>
 

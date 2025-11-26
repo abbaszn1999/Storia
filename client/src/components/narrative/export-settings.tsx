@@ -48,6 +48,7 @@ export interface ExportData {
 
 interface ExportSettingsProps {
   onExport: (data: ExportData) => void;
+  showAutoGenerateShorts?: boolean;
 }
 
 const PLATFORMS = [
@@ -57,7 +58,7 @@ const PLATFORMS = [
   { id: "facebook", name: "Facebook", icon: SiFacebook },
 ];
 
-export function ExportSettings({ onExport }: ExportSettingsProps) {
+export function ExportSettings({ onExport, showAutoGenerateShorts = true }: ExportSettingsProps) {
   const [resolution, setResolution] = useState("1080p");
   const [autoGenerateShorts, setAutoGenerateShorts] = useState(false);
   
@@ -484,28 +485,30 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
       </Card>
 
       {/* Post-Processing Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Auto-generate Shorts</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <Scissors className="w-5 h-5 text-primary mt-0.5" />
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">
-                  Let AI find the best hooks and create short-form clips from your video.
-                </p>
+      {showAutoGenerateShorts && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Auto-generate Shorts</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Scissors className="w-5 h-5 text-primary mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">
+                    Let AI find the best hooks and create short-form clips from your video.
+                  </p>
+                </div>
               </div>
+              <Switch
+                checked={autoGenerateShorts}
+                onCheckedChange={setAutoGenerateShorts}
+                data-testid="switch-auto-generate-shorts"
+              />
             </div>
-            <Switch
-              checked={autoGenerateShorts}
-              onCheckedChange={setAutoGenerateShorts}
-              data-testid="switch-auto-generate-shorts"
-            />
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Export Button */}
       <Button onClick={handleExport} className="w-full" size="lg" data-testid="button-export">

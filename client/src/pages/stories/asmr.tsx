@@ -40,6 +40,7 @@ import {
   DURATION_OPTIONS,
   type ASMRCategory,
 } from "@/constants/asmr-presets";
+import { StoryResultPanel } from "@/components/story/story-result-panel";
 
 const getCategoryIcon = (iconName: string) => {
   switch (iconName) {
@@ -66,6 +67,7 @@ export default function ASMRGenerator() {
   const [isBinaural, setIsBinaural] = useState(false);
   const [ambientBackground, setAmbientBackground] = useState("none");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
 
   const selectedModelInfo = VIDEO_MODELS.find(m => m.value === videoModel);
   const showSoundControls = !selectedModelInfo?.generatesAudio;
@@ -97,8 +99,19 @@ export default function ASMRGenerator() {
 
   const handleGenerateVideo = async () => {
     setIsGenerating(true);
+    setGeneratedVideoUrl(null);
     await new Promise((resolve) => setTimeout(resolve, 3000));
+    setGeneratedVideoUrl("https://storia.app/v/asmr-demo-video");
     setIsGenerating(false);
+  };
+
+  const handleRegenerate = () => {
+    setGeneratedVideoUrl(null);
+    handleGenerateVideo();
+  };
+
+  const handleCloseResult = () => {
+    setGeneratedVideoUrl(null);
   };
 
   const getSoundIntensityLabel = () => {
@@ -456,99 +469,112 @@ export default function ASMRGenerator() {
             </div>
 
             <div className="space-y-4">
-              <Card className="p-4 sticky top-4">
-                <h3 className="font-semibold mb-4">Preview</h3>
-                <div 
-                  className={`mx-auto bg-muted/30 border-2 border-dashed rounded-lg flex items-center justify-center ${
-                    aspectRatio === '9:16' ? 'aspect-[9/16] max-h-[400px]' :
-                    aspectRatio === '16:9' ? 'aspect-video' :
-                    aspectRatio === '4:5' ? 'aspect-[4/5] max-h-[350px]' :
-                    'aspect-square max-h-[300px]'
-                  }`}
-                >
-                  <div className="text-center space-y-2 p-4">
-                    <Video className="h-12 w-12 text-muted-foreground mx-auto" />
-                    <p className="text-sm text-muted-foreground">Your video will appear here</p>
-                  </div>
+              {(isGenerating || generatedVideoUrl) ? (
+                <div className="sticky top-4">
+                  <StoryResultPanel
+                    videoUrl={generatedVideoUrl || undefined}
+                    videoDuration={parseInt(duration)}
+                    aspectRatio={aspectRatio}
+                    isGenerating={isGenerating}
+                    onClose={handleCloseResult}
+                    onRegenerate={handleRegenerate}
+                  />
                 </div>
+              ) : (
+                <Card className="p-4 sticky top-4">
+                  <h3 className="font-semibold mb-4">Preview</h3>
+                  <div 
+                    className={`mx-auto bg-muted/30 border-2 border-dashed rounded-lg flex items-center justify-center ${
+                      aspectRatio === '9:16' ? 'aspect-[9/16] max-h-[400px]' :
+                      aspectRatio === '16:9' ? 'aspect-video' :
+                      aspectRatio === '4:5' ? 'aspect-[4/5] max-h-[350px]' :
+                      'aspect-square max-h-[300px]'
+                    }`}
+                  >
+                    <div className="text-center space-y-2 p-4">
+                      <Video className="h-12 w-12 text-muted-foreground mx-auto" />
+                      <p className="text-sm text-muted-foreground">Your video will appear here</p>
+                    </div>
+                  </div>
 
-                {selectedCategory && (
-                  <div className="mt-4 p-3 rounded-lg bg-muted/50">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className={`w-6 h-6 rounded bg-gradient-to-br ${selectedCategory.iconColor} flex items-center justify-center`}>
-                        {(() => {
-                          const Icon = getCategoryIcon(selectedCategory.icon);
-                          return <Icon className="h-3 w-3 text-white" />;
-                        })()}
+                  {selectedCategory && (
+                    <div className="mt-4 p-3 rounded-lg bg-muted/50">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-6 h-6 rounded bg-gradient-to-br ${selectedCategory.iconColor} flex items-center justify-center`}>
+                          {(() => {
+                            const Icon = getCategoryIcon(selectedCategory.icon);
+                            return <Icon className="h-3 w-3 text-white" />;
+                          })()}
+                        </div>
+                        <span className="font-medium text-sm">{selectedCategory.name}</span>
                       </div>
-                      <span className="font-medium text-sm">{selectedCategory.name}</span>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedCategory.exampleSounds.slice(0, 3).map((sound, i) => (
+                          <Badge key={i} variant="secondary" className="text-xs">
+                            {sound}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedCategory.exampleSounds.slice(0, 3).map((sound, i) => (
-                        <Badge key={i} variant="secondary" className="text-xs">
-                          {sound}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                  )}
 
-                <div className="mt-4 space-y-2">
-                  <Button
-                    onClick={handleGenerateVideo}
-                    disabled={!visualPrompt || isGenerating}
-                    className="w-full"
-                    size="lg"
-                    data-testid="button-generate-video"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <span className="animate-spin mr-2">
-                          <Sparkles className="h-4 w-4" />
-                        </span>
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Generate ASMR Video
-                      </>
+                  <div className="mt-4 space-y-2">
+                    <Button
+                      onClick={handleGenerateVideo}
+                      disabled={!visualPrompt || isGenerating}
+                      className="w-full"
+                      size="lg"
+                      data-testid="button-generate-video"
+                    >
+                      {isGenerating ? (
+                        <>
+                          <span className="animate-spin mr-2">
+                            <Sparkles className="h-4 w-4" />
+                          </span>
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Generate ASMR Video
+                        </>
+                      )}
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      asChild
+                      data-testid="button-back-to-templates"
+                    >
+                      <Link href="/stories">Back to Templates</Link>
+                    </Button>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t space-y-2 text-xs text-muted-foreground">
+                    <div className="flex justify-between">
+                      <span>Model:</span>
+                      <span className="font-medium text-foreground">{selectedModelInfo?.label}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Format:</span>
+                      <span className="font-medium text-foreground">{aspectRatio} / {duration}s</span>
+                    </div>
+                    {isLoopable && (
+                      <div className="flex justify-between">
+                        <span>Loop:</span>
+                        <span className="font-medium text-emerald-600 dark:text-emerald-400">Enabled</span>
+                      </div>
                     )}
-                  </Button>
-                  
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    asChild
-                    data-testid="button-back-to-templates"
-                  >
-                    <Link href="/stories">Back to Templates</Link>
-                  </Button>
-                </div>
-
-                <div className="mt-4 pt-4 border-t space-y-2 text-xs text-muted-foreground">
-                  <div className="flex justify-between">
-                    <span>Model:</span>
-                    <span className="font-medium text-foreground">{selectedModelInfo?.label}</span>
+                    {showSoundControls && isBinaural && (
+                      <div className="flex justify-between">
+                        <span>Audio:</span>
+                        <span className="font-medium text-foreground">Binaural 3D</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span>Format:</span>
-                    <span className="font-medium text-foreground">{aspectRatio} / {duration}s</span>
-                  </div>
-                  {isLoopable && (
-                    <div className="flex justify-between">
-                      <span>Loop:</span>
-                      <span className="font-medium text-emerald-600 dark:text-emerald-400">Enabled</span>
-                    </div>
-                  )}
-                  {showSoundControls && isBinaural && (
-                    <div className="flex justify-between">
-                      <span>Audio:</span>
-                      <span className="font-medium text-foreground">Binaural 3D</span>
-                    </div>
-                  )}
-                </div>
-              </Card>
+                </Card>
+              )}
             </div>
           </div>
         </div>

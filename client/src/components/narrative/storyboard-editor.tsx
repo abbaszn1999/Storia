@@ -145,6 +145,7 @@ interface StoryboardEditorProps {
   continuityLocked: boolean;
   continuityGroups: { [sceneId: string]: any[] };
   isCommerceMode?: boolean;
+  isLogoMode?: boolean;
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
   onGenerateShot: (shotId: string) => void;
@@ -748,6 +749,7 @@ export function StoryboardEditor({
   continuityLocked,
   continuityGroups,
   isCommerceMode = false,
+  isLogoMode = false,
   onVoiceActorChange,
   onVoiceOverToggle,
   onGenerateShot,
@@ -1161,8 +1163,8 @@ export function StoryboardEditor({
           </div>
           
           <div className="flex items-center gap-3">
-            {/* Voice Actor and Voice Over - Hidden in Commerce Mode */}
-            {!isCommerceMode && (
+            {/* Voice Actor and Voice Over - Hidden in Commerce/Logo Mode */}
+            {!isCommerceMode && !isLogoMode && (
               <>
                 <div className="flex items-center gap-2">
                   <Label className="text-sm text-muted-foreground">Voice Actor</Label>
@@ -1341,8 +1343,8 @@ export function StoryboardEditor({
                       </Select>
                     </div>
 
-                    {/* Lighting and Weather - Hidden in Commerce Mode */}
-                    {!isCommerceMode && (
+                    {/* Lighting and Weather - Hidden in Commerce/Logo Mode */}
+                    {!isCommerceMode && !isLogoMode && (
                       <>
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Lighting</Label>

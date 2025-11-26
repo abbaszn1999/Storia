@@ -26,15 +26,20 @@ import { Textarea } from "@/components/ui/textarea";
 interface SceneBreakdownProps {
   videoId: string;
   script: string;
-  scriptModel: string;
+  scriptModel?: string;
   narrativeMode?: "image-reference" | "start-end";
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions?: { [shotId: string]: ShotVersion[] };
   continuityLocked?: boolean;
   continuityGroups?: { [sceneId: string]: ContinuityGroup[] };
-  onScenesGenerated: (scenes: Scene[], shots: { [sceneId: string]: Shot[] }, shotVersions?: { [shotId: string]: ShotVersion[] }) => void;
+  isLogoMode?: boolean;
+  isCommerceMode?: boolean;
+  onScenesGenerated?: (scenes: Scene[], shots: { [sceneId: string]: Shot[] }, shotVersions?: { [shotId: string]: ShotVersion[] }) => void;
+  onScenesChange?: (scenes: Scene[]) => void;
+  onShotsChange?: (shots: { [sceneId: string]: Shot[] }) => void;
   onContinuityLocked?: () => void;
+  onContinuityLockedChange?: (locked: boolean) => void;
   onContinuityGroupsChange?: (groups: { [sceneId: string]: ContinuityGroup[] }) => void;
   onNext: () => void;
 }
@@ -42,15 +47,20 @@ interface SceneBreakdownProps {
 export function SceneBreakdown({ 
   videoId, 
   script, 
-  scriptModel, 
+  scriptModel = "gpt-4o", 
   narrativeMode,
   scenes, 
   shots, 
   shotVersions, 
   continuityLocked = false,
   continuityGroups: propsGroups = {},
+  isLogoMode = false,
+  isCommerceMode = false,
   onScenesGenerated, 
+  onScenesChange,
+  onShotsChange,
   onContinuityLocked,
+  onContinuityLockedChange,
   onContinuityGroupsChange,
   onNext 
 }: SceneBreakdownProps) {

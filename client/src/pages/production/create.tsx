@@ -32,15 +32,15 @@ import { Step6Casting } from "@/components/production/step6-casting";
 import { Step7Scheduling } from "@/components/production/step7-scheduling";
 import { Step8Publishing } from "@/components/production/step8-publishing";
 
-const wizardSteps = [
-  { number: 1, title: "Content Type", icon: Layers, description: "Video or Story" },
-  { number: 2, title: "Video Mode", icon: Film, description: "Production style" },
-  { number: 3, title: "Narrative Mode", icon: Grid3X3, description: "Frame workflow" },
-  { number: 4, title: "Campaign Basics", icon: FileText, description: "Name & ideas" },
-  { number: 5, title: "Video Settings", icon: Settings, description: "Technical specs" },
-  { number: 6, title: "Casting", icon: Users, description: "Characters & locations" },
-  { number: 7, title: "Scheduling", icon: Calendar, description: "Timeline & automation" },
-  { number: 8, title: "Publishing", icon: Share2, description: "Platforms" },
+const allWizardSteps = [
+  { number: 1, title: "Content Type", icon: Layers, description: "Video or Story", forAmbient: true },
+  { number: 2, title: "Video Mode", icon: Film, description: "Production style", forAmbient: true },
+  { number: 3, title: "Narrative Mode", icon: Grid3X3, description: "Frame workflow", forAmbient: false },
+  { number: 4, title: "Campaign Basics", icon: FileText, description: "Name & ideas", forAmbient: true },
+  { number: 5, title: "Video Settings", icon: Settings, description: "Technical specs", forAmbient: true },
+  { number: 6, title: "Casting", icon: Users, description: "Characters & locations", forAmbient: true },
+  { number: 7, title: "Scheduling", icon: Calendar, description: "Timeline & automation", forAmbient: true },
+  { number: 8, title: "Publishing", icon: Share2, description: "Platforms", forAmbient: true },
 ];
 
 export default function ProductionCampaignCreate() {
@@ -66,6 +66,30 @@ export default function ProductionCampaignCreate() {
   // Step 4: Ambient Mode - Atmosphere
   const [ambientCategory, setAmbientCategory] = useState<string>("nature");
   const [ambientMoods, setAmbientMoods] = useState<string[]>([]);
+
+  // Computed wizard steps based on video mode
+  const isAmbientMode = videoMode === "ambient_visual";
+  const wizardSteps = allWizardSteps.filter(step => isAmbientMode ? step.forAmbient : true);
+  const totalSteps = wizardSteps.length;
+  
+  // Helper to get the actual step number for navigation
+  const getNextStep = (current: number): number => {
+    if (isAmbientMode && current === 2) return 4; // Skip step 3 for ambient
+    return current + 1;
+  };
+  
+  const getPrevStep = (current: number): number => {
+    if (isAmbientMode && current === 4) return 2; // Skip step 3 for ambient
+    return current - 1;
+  };
+  
+  const getStepIndex = (stepNumber: number): number => {
+    return wizardSteps.findIndex(s => s.number === stepNumber);
+  };
+  
+  const getMaxStep = (): number => {
+    return wizardSteps[wizardSteps.length - 1]?.number || 8;
+  };
 
   // Step 5: Video Settings
   const [aspectRatio, setAspectRatio] = useState("16:9");
@@ -190,12 +214,10 @@ export default function ProductionCampaignCreate() {
   });
 
   const handleNext = () => {
-    const isAmbient = videoMode === "ambient_visual";
-    
     if (currentStep === 4 && (!campaignName || storyIdeas.filter(idea => idea.trim() !== "").length === 0)) {
       toast({
         title: "Validation Error",
-        description: isAmbient 
+        description: isAmbientMode 
           ? "Please provide a campaign name and at least one atmosphere description."
           : "Please provide a campaign name and at least one story idea.",
         variant: "destructive",
@@ -241,14 +263,15 @@ export default function ProductionCampaignCreate() {
       }
     }
 
-    if (currentStep < 8) {
-      setCurrentStep(currentStep + 1);
+    const nextStep = getNextStep(currentStep);
+    if (nextStep <= getMaxStep()) {
+      setCurrentStep(nextStep);
     }
   };
 
   const handleBack = () => {
     if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
+      setCurrentStep(getPrevStep(currentStep));
     }
   };
 
@@ -265,8 +288,6 @@ export default function ProductionCampaignCreate() {
   };
 
   const getStepSummary = (stepNumber: number): string | null => {
-    const isAmbient = videoMode === "ambient_visual";
-    
     switch (stepNumber) {
       case 1:
         return contentType === "video" ? "Video" : "Story";
@@ -279,16 +300,16 @@ export default function ProductionCampaignCreate() {
               ? "Ambient"
               : videoMode;
       case 3:
-        return isAmbient ? "N/A" : narrativeMode === "image-reference" ? "Image Ref" : "Start-End";
+        return narrativeMode === "image-reference" ? "Image Ref" : "Start-End";
       case 4:
         const ideaCount = storyIdeas.filter(i => i.trim()).length;
-        return campaignName ? `${ideaCount} ${isAmbient ? "atmos" : "ideas"}` : null;
+        return campaignName ? `${ideaCount} ${isAmbientMode ? "atmos" : "ideas"}` : null;
       case 5:
-        return isAmbient 
+        return isAmbientMode 
           ? `${aspectRatio} • ${Math.floor(duration / 60)}min` 
           : `${aspectRatio} • ${resolution}`;
       case 6:
-        if (isAmbient) return "N/A";
+        if (isAmbientMode) return "Optional";
         const charCount = selectedCharacters.length;
         const locCount = selectedLocations.length;
         return charCount > 0 || locCount > 0 ? `${charCount} chars, ${locCount} locs` : null;
@@ -525,12 +546,12 @@ export default function ProductionCampaignCreate() {
             <div className="text-xs text-muted-foreground space-y-1">
               <div className="flex justify-between">
                 <span>Progress</span>
-                <span className="font-medium">{currentStep} of 8</span>
+                <span className="font-medium">{getStepIndex(currentStep) + 1} of {totalSteps}</span>
               </div>
               <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-full bg-primary transition-all duration-300"
-                  style={{ width: `${(currentStep / 8) * 100}%` }}
+                  style={{ width: `${((getStepIndex(currentStep) + 1) / totalSteps) * 100}%` }}
                 />
               </div>
             </div>
@@ -572,7 +593,7 @@ export default function ProductionCampaignCreate() {
                   </div>
                 </div>
 
-                {currentStep < 8 ? (
+                {currentStep < getMaxStep() ? (
                   <Button onClick={handleNext} data-testid="button-next">
                     Continue
                     <ArrowRight className="h-4 w-4 ml-2" />

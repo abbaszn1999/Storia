@@ -1,1 +1,1 @@
-export { ScriptEditor } from "@/components/narrative/script-editor";
+export { ProductScriptEditor } from "./product-script-editor";

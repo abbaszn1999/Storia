@@ -1,12 +1,19 @@
 import { Button } from "@/components/ui/button";
-import { ScriptEditor } from "@/components/social-commerce/script-editor";
-import { SceneBreakdown } from "@/components/social-commerce/scene-breakdown";
-import { WorldCast } from "@/components/social-commerce/world-cast";
-import { StoryboardEditor } from "@/components/social-commerce/storyboard-editor";
-import { AnimaticPreview } from "@/components/social-commerce/animatic-preview";
-import { ExportSettings, type ExportData } from "@/components/social-commerce/export-settings";
+import { ProductScriptEditor } from "@/components/social-commerce/product-script-editor";
+import { SceneBreakdown } from "@/components/narrative/scene-breakdown";
+import { WorldCast } from "@/components/narrative/world-cast";
+import { StoryboardEditor } from "@/components/narrative/storyboard-editor";
+import { AnimaticPreview } from "@/components/narrative/animatic-preview";
+import { ExportSettings, type ExportData } from "@/components/narrative/export-settings";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
+
+interface ProductDetails {
+  title: string;
+  price: string;
+  description: string;
+  cta: string;
+}
 
 interface SocialCommerceWorkflowProps {
   activeStep: string;
@@ -15,9 +22,13 @@ interface SocialCommerceWorkflowProps {
   narrativeMode: "image-reference" | "start-end";
   script: string;
   aspectRatio: string;
-  scriptModel: string;
+  duration: string;
   voiceActorId: string | null;
   voiceOverEnabled: boolean;
+  voiceOverConcept: string;
+  videoConcept: string;
+  productPhotos: string[];
+  productDetails: ProductDetails;
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
@@ -35,9 +46,13 @@ interface SocialCommerceWorkflowProps {
   };
   onScriptChange: (script: string) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
-  onScriptModelChange: (model: string) => void;
+  onDurationChange: (duration: string) => void;
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
+  onVoiceOverConceptChange: (concept: string) => void;
+  onVideoConceptChange: (concept: string) => void;
+  onProductPhotosChange: (photos: string[]) => void;
+  onProductDetailsChange: (details: ProductDetails) => void;
   onScenesChange: (scenes: Scene[]) => void;
   onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
   onShotVersionsChange: (shotVersions: { [shotId: string]: ShotVersion[] }) => void;
@@ -63,9 +78,13 @@ export function SocialCommerceWorkflow({
   narrativeMode,
   script,
   aspectRatio,
-  scriptModel,
+  duration,
   voiceActorId,
   voiceOverEnabled,
+  voiceOverConcept,
+  videoConcept,
+  productPhotos,
+  productDetails,
   scenes,
   shots,
   shotVersions,
@@ -76,9 +95,13 @@ export function SocialCommerceWorkflow({
   worldSettings,
   onScriptChange,
   onAspectRatioChange,
-  onScriptModelChange,
+  onDurationChange,
   onVoiceActorChange,
   onVoiceOverToggle,
+  onVoiceOverConceptChange,
+  onVideoConceptChange,
+  onProductPhotosChange,
+  onProductDetailsChange,
   onScenesChange,
   onShotsChange,
   onShotVersionsChange,
@@ -402,13 +425,25 @@ export function SocialCommerceWorkflow({
   return (
     <div>
       {activeStep === "script" && (
-        <ScriptEditor
-          initialScript={script}
+        <ProductScriptEditor
+          productPhotos={productPhotos}
+          productDetails={productDetails}
           aspectRatio={aspectRatio}
-          scriptModel={scriptModel}
-          onScriptChange={onScriptChange}
+          duration={duration}
+          voiceOverEnabled={voiceOverEnabled}
+          voiceActorId={voiceActorId}
+          voiceOverConcept={voiceOverConcept}
+          videoConcept={videoConcept}
+          generatedScript={script}
+          onProductPhotosChange={onProductPhotosChange}
+          onProductDetailsChange={onProductDetailsChange}
           onAspectRatioChange={onAspectRatioChange}
-          onScriptModelChange={onScriptModelChange}
+          onDurationChange={onDurationChange}
+          onVoiceOverToggle={onVoiceOverToggle}
+          onVoiceActorChange={onVoiceActorChange}
+          onVoiceOverConceptChange={onVoiceOverConceptChange}
+          onVideoConceptChange={onVideoConceptChange}
+          onScriptChange={onScriptChange}
           onNext={onNext}
         />
       )}
@@ -417,7 +452,7 @@ export function SocialCommerceWorkflow({
         <SceneBreakdown
           videoId={videoId}
           script={script}
-          scriptModel={scriptModel}
+          scriptModel="gpt-4o"
           narrativeMode={narrativeMode}
           scenes={scenes}
           shots={shots}

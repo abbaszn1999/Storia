@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ArrowLeft, Check, ShoppingBag } from "lucide-react";
 import { Link, useParams, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,15 @@ import { SocialCommerceWorkflow } from "@/components/social-commerce-workflow";
 import { NarrativeModeSelector } from "@/components/narrative/narrative-mode-selector";
 import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
 
+interface ProductDetails {
+  title: string;
+  price: string;
+  description: string;
+  cta: string;
+}
+
 const steps = [
-  { id: "script", label: "Script" },
+  { id: "script", label: "Product" },
   { id: "world", label: "World & Cast" },
   { id: "breakdown", label: "Breakdown" },
   { id: "storyboard", label: "Storyboard" },
@@ -29,11 +36,26 @@ export default function SocialCommerceMode() {
   
   const [videoId] = useState(params.videoId || urlParams.get("id") || `video-${Date.now()}`);
   const [workspaceId] = useState(urlParams.get("workspace") || "workspace-1");
+  
+  // Product-specific state
+  const [productPhotos, setProductPhotos] = useState<string[]>([]);
+  const [productDetails, setProductDetails] = useState<ProductDetails>({
+    title: "",
+    price: "",
+    description: "",
+    cta: "Shop Now",
+  });
+  const [videoConcept, setVideoConcept] = useState("");
+  const [voiceOverConcept, setVoiceOverConcept] = useState("");
+  
+  // Video settings
   const [script, setScript] = useState("");
   const [aspectRatio, setAspectRatio] = useState("9:16");
-  const [scriptModel, setScriptModel] = useState("gpt-4o");
+  const [duration, setDuration] = useState("30");
   const [voiceActorId, setVoiceActorId] = useState<string | null>(null);
   const [voiceOverEnabled, setVoiceOverEnabled] = useState(true);
+  
+  // Scene/shot state
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [shots, setShots] = useState<{ [sceneId: string]: Shot[] }>({});
   const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
@@ -92,14 +114,14 @@ export default function SocialCommerceMode() {
                   Social Commerce
                 </Badge>
                 <h1 className="text-sm font-semibold truncate max-w-[200px]" data-testid="text-video-title">
-                  {videoTitle}
+                  {productDetails.title || videoTitle}
                 </h1>
               </div>
             </div>
 
             {/* Center: Step Navigation */}
             <div className="flex items-center gap-3">
-              {steps.map((step, index) => (
+              {steps.map((step) => (
                 <button
                   key={step.id}
                   onClick={() => setActiveStep(step.id)}
@@ -143,9 +165,13 @@ export default function SocialCommerceMode() {
               narrativeMode={narrativeMode}
               script={script}
               aspectRatio={aspectRatio}
-              scriptModel={scriptModel}
+              duration={duration}
               voiceActorId={voiceActorId}
               voiceOverEnabled={voiceOverEnabled}
+              voiceOverConcept={voiceOverConcept}
+              videoConcept={videoConcept}
+              productPhotos={productPhotos}
+              productDetails={productDetails}
               scenes={scenes}
               shots={shots}
               shotVersions={shotVersions}
@@ -156,9 +182,13 @@ export default function SocialCommerceMode() {
               worldSettings={worldSettings}
               onScriptChange={setScript}
               onAspectRatioChange={setAspectRatio}
-              onScriptModelChange={setScriptModel}
+              onDurationChange={setDuration}
               onVoiceActorChange={setVoiceActorId}
               onVoiceOverToggle={setVoiceOverEnabled}
+              onVoiceOverConceptChange={setVoiceOverConcept}
+              onVideoConceptChange={setVideoConcept}
+              onProductPhotosChange={setProductPhotos}
+              onProductDetailsChange={setProductDetails}
               onScenesChange={setScenes}
               onShotsChange={setShots}
               onShotVersionsChange={setShotVersions}

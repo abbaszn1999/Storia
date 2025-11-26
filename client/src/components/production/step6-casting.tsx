@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus, User, MapPin, Star, AlertCircle, Check } from "lucide-react";
+import { Plus, User, MapPin, Star, AlertCircle, Check, Waves, Info } from "lucide-react";
 import { useState } from "react";
 import { CharacterSelectionDialog } from "./character-selection-dialog";
 import { LocationSelectionDialog } from "./location-selection-dialog";
@@ -56,7 +56,42 @@ export function Step6Casting({
   });
 
   const isCharacterVlog = videoMode === "character_vlog";
+  const isAmbientMode = videoMode === "ambient_visual";
   const needsMainCharacter = isCharacterVlog && selectedCharacters.length > 0 && !mainCharacterId;
+
+  if (isAmbientMode) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h2 className="text-2xl font-display font-bold">Casting</h2>
+          <p className="text-muted-foreground mt-2">
+            Configure visual elements for your ambient videos
+          </p>
+        </div>
+
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="p-4 rounded-full bg-primary/10 mb-4">
+              <Waves className="h-10 w-10 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">No Characters Needed</h3>
+            <p className="text-muted-foreground text-center max-w-md">
+              Ambient videos focus on atmospheric visuals without characters. 
+              The AI will generate seamless, mood-based imagery based on your atmosphere descriptions.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            Your ambient videos will feature nature scenes, abstract visuals, or environmental imagery 
+            based on the category and moods you selected in the previous steps.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

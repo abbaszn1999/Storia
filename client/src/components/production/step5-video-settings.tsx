@@ -5,7 +5,61 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Upload, Waves, Camera, Repeat, Sparkles } from "lucide-react";
+
+const AMBIENT_DURATIONS = [
+  { value: 300, label: "5 min" },
+  { value: 600, label: "10 min" },
+  { value: 1800, label: "30 min" },
+  { value: 3600, label: "1 hour" },
+  { value: 7200, label: "2 hours" },
+];
+
+const TRANSITION_STYLES = [
+  { id: "crossfade", label: "Crossfade" },
+  { id: "dissolve", label: "Dissolve" },
+  { id: "drift", label: "Drift" },
+  { id: "match-cut", label: "Match Cut" },
+  { id: "morph", label: "Morph" },
+  { id: "wipe", label: "Wipe" },
+];
+
+const VARIATION_TYPES = [
+  { id: "evolving", label: "Evolving" },
+  { id: "angles", label: "Angles" },
+  { id: "elements", label: "Elements" },
+  { id: "zoom", label: "Zoom" },
+];
+
+const CAMERA_MOTIONS = [
+  { id: "static", label: "Static" },
+  { id: "slow-pan", label: "Slow Pan" },
+  { id: "gentle-drift", label: "Gentle Drift" },
+  { id: "orbit", label: "Orbit" },
+  { id: "push-in", label: "Push In" },
+  { id: "pull-out", label: "Pull Out" },
+  { id: "parallax", label: "Parallax" },
+  { id: "float", label: "Float" },
+];
+
+const LOOP_MODES = [
+  { id: "seamless", label: "Seamless" },
+  { id: "one-way", label: "One Way" },
+  { id: "boomerang", label: "Boomerang" },
+  { id: "fade-loop", label: "Fade Loop" },
+];
+
+const VISUAL_RHYTHMS = [
+  { id: "constant", label: "Constant" },
+  { id: "breathing", label: "Breathing" },
+  { id: "building", label: "Building" },
+  { id: "wave", label: "Wave" },
+];
+
+const SEGMENT_COUNTS = [1, 3, 5, 7, 10];
 
 interface Step5VideoSettingsProps {
   aspectRatio: string;
@@ -51,15 +105,40 @@ interface Step5VideoSettingsProps {
   onImageCustomInstructionsChange?: (value: string) => void;
   videoCustomInstructions?: string;
   onVideoCustomInstructionsChange?: (value: string) => void;
+  ambientAnimationMode?: string;
+  onAmbientAnimationModeChange?: (value: string) => void;
+  ambientVoiceOverLanguage?: string;
+  onAmbientVoiceOverLanguageChange?: (value: string) => void;
+  ambientPacing?: number;
+  onAmbientPacingChange?: (value: number) => void;
+  ambientSegmentCount?: number;
+  onAmbientSegmentCountChange?: (value: number) => void;
+  ambientTransitionStyle?: string;
+  onAmbientTransitionStyleChange?: (value: string) => void;
+  ambientVariationType?: string;
+  onAmbientVariationTypeChange?: (value: string) => void;
+  ambientCameraMotion?: string;
+  onAmbientCameraMotionChange?: (value: string) => void;
+  ambientLoopMode?: string;
+  onAmbientLoopModeChange?: (value: string) => void;
+  ambientVisualRhythm?: string;
+  onAmbientVisualRhythmChange?: (value: string) => void;
+  ambientEnableParallax?: boolean;
+  onAmbientEnableParallaxChange?: (value: boolean) => void;
 }
 
 export function Step5VideoSettings(props: Step5VideoSettingsProps) {
+  const isAmbientMode = props.videoMode === "ambient_visual";
+  
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Video Settings</h2>
+        <h2 className="text-2xl font-bold">{isAmbientMode ? "Ambient Settings" : "Video Settings"}</h2>
         <p className="text-muted-foreground mt-2">
-          Configure the technical and creative settings for your videos
+          {isAmbientMode 
+            ? "Configure the visual style and flow design for your ambient videos"
+            : "Configure the technical and creative settings for your videos"
+          }
         </p>
       </div>
 
@@ -74,22 +153,38 @@ export function Step5VideoSettings(props: Step5VideoSettingsProps) {
               <SelectItem value="16:9">16:9 (Landscape)</SelectItem>
               <SelectItem value="9:16">9:16 (Portrait)</SelectItem>
               <SelectItem value="1:1">1:1 (Square)</SelectItem>
-              <SelectItem value="4:5">4:5 (Portrait)</SelectItem>
+              {!isAmbientMode && <SelectItem value="4:5">4:5 (Portrait)</SelectItem>}
             </SelectContent>
           </Select>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="duration">Duration (seconds)</Label>
-          <Input
-            id="duration"
-            type="number"
-            min="15"
-            max="300"
-            value={props.duration}
-            onChange={(e) => props.onDurationChange(parseInt(e.target.value) || 60)}
-            data-testid="input-duration"
-          />
+          <Label htmlFor="duration">{isAmbientMode ? "Duration" : "Duration (seconds)"}</Label>
+          {isAmbientMode ? (
+            <Select 
+              value={props.duration.toString()} 
+              onValueChange={(v) => props.onDurationChange(parseInt(v))}
+            >
+              <SelectTrigger id="duration" data-testid="select-ambient-duration">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AMBIENT_DURATIONS.map(d => (
+                  <SelectItem key={d.value} value={d.value.toString()}>{d.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              id="duration"
+              type="number"
+              min="15"
+              max="300"
+              value={props.duration}
+              onChange={(e) => props.onDurationChange(parseInt(e.target.value) || 60)}
+              data-testid="input-duration"
+            />
+          )}
         </div>
 
         <div className="space-y-2">
@@ -148,6 +243,177 @@ export function Step5VideoSettings(props: Step5VideoSettingsProps) {
         </div>
       )}
 
+      {isAmbientMode && (
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Waves className="h-4 w-4 text-primary" />
+              Flow Design
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Pacing</Label>
+                  <Badge variant="secondary">{props.ambientPacing ?? 30}%</Badge>
+                </div>
+                <Slider
+                  value={[props.ambientPacing ?? 30]}
+                  onValueChange={(v) => props.onAmbientPacingChange?.(v[0])}
+                  min={0}
+                  max={100}
+                  step={5}
+                  data-testid="slider-pacing"
+                />
+                <p className="text-xs text-muted-foreground">Controls the speed of visual changes</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Segments</Label>
+                  <div className="flex gap-2">
+                    {SEGMENT_COUNTS.map(count => (
+                      <Button
+                        key={count}
+                        type="button"
+                        variant={props.ambientSegmentCount === count ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => props.onAmbientSegmentCountChange?.(count)}
+                        data-testid={`button-segment-${count}`}
+                      >
+                        {count}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Animation Mode</Label>
+                  <Select 
+                    value={props.ambientAnimationMode || "animate"} 
+                    onValueChange={(v) => props.onAmbientAnimationModeChange?.(v)}
+                  >
+                    <SelectTrigger data-testid="select-animation-mode">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="animate">Animate (Video)</SelectItem>
+                      <SelectItem value="smooth-image">Smooth Image (Ken Burns)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Transition Style</Label>
+                  <Select 
+                    value={props.ambientTransitionStyle || "crossfade"} 
+                    onValueChange={(v) => props.onAmbientTransitionStyleChange?.(v)}
+                  >
+                    <SelectTrigger data-testid="select-transition-style">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TRANSITION_STYLES.map(t => (
+                        <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Variation Type</Label>
+                  <Select 
+                    value={props.ambientVariationType || "evolving"} 
+                    onValueChange={(v) => props.onAmbientVariationTypeChange?.(v)}
+                  >
+                    <SelectTrigger data-testid="select-variation-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VARIATION_TYPES.map(v => (
+                        <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Camera Motion</Label>
+                  <Select 
+                    value={props.ambientCameraMotion || "static"} 
+                    onValueChange={(v) => props.onAmbientCameraMotionChange?.(v)}
+                  >
+                    <SelectTrigger data-testid="select-camera-motion">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CAMERA_MOTIONS.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Loop Mode</Label>
+                  <Select 
+                    value={props.ambientLoopMode || "seamless"} 
+                    onValueChange={(v) => props.onAmbientLoopModeChange?.(v)}
+                  >
+                    <SelectTrigger data-testid="select-loop-mode">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LOOP_MODES.map(l => (
+                        <SelectItem key={l.id} value={l.id}>{l.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Visual Rhythm</Label>
+                  <Select 
+                    value={props.ambientVisualRhythm || "constant"} 
+                    onValueChange={(v) => props.onAmbientVisualRhythmChange?.(v)}
+                  >
+                    <SelectTrigger data-testid="select-visual-rhythm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VISUAL_RHYTHMS.map(r => (
+                        <SelectItem key={r.id} value={r.id}>{r.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Parallax Effect</Label>
+                  <div className="flex items-center gap-3 pt-2">
+                    <Switch
+                      checked={props.ambientEnableParallax ?? false}
+                      onCheckedChange={(v) => props.onAmbientEnableParallaxChange?.(v)}
+                      data-testid="switch-parallax"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {props.ambientEnableParallax ? "Enabled" : "Disabled"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="space-y-2">
         <Label>Visual Style</Label>
         <Tabs value={props.styleMode} onValueChange={(v) => props.onStyleModeChange(v as "preset" | "reference")}>
@@ -161,12 +427,29 @@ export function Step5VideoSettings(props: Step5VideoSettingsProps) {
                 <SelectValue placeholder="Select art style" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="none">None (Natural)</SelectItem>
                 <SelectItem value="cinematic">Cinematic</SelectItem>
+                <SelectItem value="vintage">Vintage</SelectItem>
+                <SelectItem value="storybook">Storybook</SelectItem>
+                {isAmbientMode && (
+                  <>
+                    <SelectItem value="3d-cartoon">3D Cartoon</SelectItem>
+                    <SelectItem value="pixar">Pixar</SelectItem>
+                    <SelectItem value="disney">Disney</SelectItem>
+                    <SelectItem value="ghibli">Studio Ghibli</SelectItem>
+                    <SelectItem value="clay">Claymation</SelectItem>
+                    <SelectItem value="comic">Comic</SelectItem>
+                  </>
+                )}
                 <SelectItem value="anime">Anime</SelectItem>
-                <SelectItem value="realistic">Realistic</SelectItem>
-                <SelectItem value="cartoon">Cartoon</SelectItem>
-                <SelectItem value="3d-render">3D Render</SelectItem>
-                <SelectItem value="watercolor">Watercolor</SelectItem>
+                {!isAmbientMode && (
+                  <>
+                    <SelectItem value="realistic">Realistic</SelectItem>
+                    <SelectItem value="cartoon">Cartoon</SelectItem>
+                    <SelectItem value="3d-render">3D Render</SelectItem>
+                    <SelectItem value="watercolor">Watercolor</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </TabsContent>
@@ -186,41 +469,43 @@ export function Step5VideoSettings(props: Step5VideoSettingsProps) {
         </Tabs>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
-        <div className="space-y-2">
-          <Label htmlFor="tone">Tone</Label>
-          <Select value={props.tone} onValueChange={props.onToneChange}>
-            <SelectTrigger id="tone" data-testid="select-tone">
-              <SelectValue placeholder="Select tone" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="dramatic">Dramatic</SelectItem>
-              <SelectItem value="humorous">Humorous</SelectItem>
-              <SelectItem value="inspirational">Inspirational</SelectItem>
-              <SelectItem value="educational">Educational</SelectItem>
-              <SelectItem value="mysterious">Mysterious</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      {!isAmbientMode && (
+        <div className="grid grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <Label htmlFor="tone">Tone</Label>
+            <Select value={props.tone} onValueChange={props.onToneChange}>
+              <SelectTrigger id="tone" data-testid="select-tone">
+                <SelectValue placeholder="Select tone" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="dramatic">Dramatic</SelectItem>
+                <SelectItem value="humorous">Humorous</SelectItem>
+                <SelectItem value="inspirational">Inspirational</SelectItem>
+                <SelectItem value="educational">Educational</SelectItem>
+                <SelectItem value="mysterious">Mysterious</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="genre">Genre</Label>
-          <Select value={props.genre} onValueChange={props.onGenreChange}>
-            <SelectTrigger id="genre" data-testid="select-genre">
-              <SelectValue placeholder="Select genre" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="action">Action</SelectItem>
-              <SelectItem value="adventure">Adventure</SelectItem>
-              <SelectItem value="comedy">Comedy</SelectItem>
-              <SelectItem value="documentary">Documentary</SelectItem>
-              <SelectItem value="fantasy">Fantasy</SelectItem>
-              <SelectItem value="horror">Horror</SelectItem>
-              <SelectItem value="sci-fi">Sci-Fi</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="space-y-2">
+            <Label htmlFor="genre">Genre</Label>
+            <Select value={props.genre} onValueChange={props.onGenreChange}>
+              <SelectTrigger id="genre" data-testid="select-genre">
+                <SelectValue placeholder="Select genre" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="action">Action</SelectItem>
+                <SelectItem value="adventure">Adventure</SelectItem>
+                <SelectItem value="comedy">Comedy</SelectItem>
+                <SelectItem value="documentary">Documentary</SelectItem>
+                <SelectItem value="fantasy">Fantasy</SelectItem>
+                <SelectItem value="horror">Horror</SelectItem>
+                <SelectItem value="sci-fi">Sci-Fi</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-2 gap-6">
         <div className="space-y-2">

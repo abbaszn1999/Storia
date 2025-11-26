@@ -369,6 +369,8 @@ export const productionCampaigns = pgTable("production_campaigns", {
   scripterModel: text("scripter_model"),
   imageModel: text("image_model"),
   videoModel: text("video_model"),
+  imageCustomInstructions: text("image_custom_instructions"),
+  videoCustomInstructions: text("video_custom_instructions"),
   voiceModel: text("voice_model"),
   voiceActorId: text("voice_actor_id"),
   

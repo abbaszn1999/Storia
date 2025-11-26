@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Upload } from "lucide-react";
 
 interface Step5VideoSettingsProps {
@@ -46,6 +47,10 @@ interface Step5VideoSettingsProps {
   videoMode?: string;
   narrationStyle?: "third-person" | "first-person";
   onNarrationStyleChange?: (value: "third-person" | "first-person") => void;
+  imageCustomInstructions?: string;
+  onImageCustomInstructionsChange?: (value: string) => void;
+  videoCustomInstructions?: string;
+  onVideoCustomInstructionsChange?: (value: string) => void;
 }
 
 export function Step5VideoSettings(props: Step5VideoSettingsProps) {
@@ -244,6 +249,34 @@ export function Step5VideoSettings(props: Step5VideoSettingsProps) {
               <SelectItem value="runway">Runway</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <Label htmlFor="image-instructions">Image Generation Instructions</Label>
+          <Textarea
+            id="image-instructions"
+            placeholder="e.g., Use warm color palette, soft lighting, cinematic framing..."
+            value={props.imageCustomInstructions || ""}
+            onChange={(e) => props.onImageCustomInstructionsChange?.(e.target.value)}
+            className="min-h-[80px] resize-none"
+            data-testid="textarea-image-instructions"
+          />
+          <p className="text-xs text-muted-foreground">Custom prompts to guide AI image generation</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="video-instructions">Video Generation Instructions</Label>
+          <Textarea
+            id="video-instructions"
+            placeholder="e.g., Slow camera movements, smooth transitions, 24fps cinematic feel..."
+            value={props.videoCustomInstructions || ""}
+            onChange={(e) => props.onVideoCustomInstructionsChange?.(e.target.value)}
+            className="min-h-[80px] resize-none"
+            data-testid="textarea-video-instructions"
+          />
+          <p className="text-xs text-muted-foreground">Custom prompts to guide AI video generation</p>
         </div>
       </div>
 

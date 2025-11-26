@@ -3,10 +3,26 @@ import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Sparkles, ArrowLeft, ArrowRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { 
+  Sparkles, 
+  ArrowLeft, 
+  ArrowRight, 
+  Check,
+  Layers,
+  Film,
+  Grid3X3,
+  FileText,
+  Settings,
+  Users,
+  Calendar,
+  Share2,
+  ChevronRight
+} from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { WizardProgress } from "@/components/production/wizard-progress";
 import { Step1TypeSelection } from "@/components/production/step1-type-selection";
 import { Step2VideoMode } from "@/components/production/step2-video-mode";
 import { Step3NarrativeMode } from "@/components/production/step3-narrative-mode";
@@ -17,14 +33,14 @@ import { Step7Scheduling } from "@/components/production/step7-scheduling";
 import { Step8Publishing } from "@/components/production/step8-publishing";
 
 const wizardSteps = [
-  { number: 1, title: "Type" },
-  { number: 2, title: "Video Mode" },
-  { number: 3, title: "Narrative Mode" },
-  { number: 4, title: "Basics" },
-  { number: 5, title: "Video Settings" },
-  { number: 6, title: "Casting" },
-  { number: 7, title: "Scheduling" },
-  { number: 8, title: "Publishing" },
+  { number: 1, title: "Content Type", icon: Layers, description: "Video or Story" },
+  { number: 2, title: "Video Mode", icon: Film, description: "Production style" },
+  { number: 3, title: "Narrative Mode", icon: Grid3X3, description: "Frame workflow" },
+  { number: 4, title: "Campaign Basics", icon: FileText, description: "Name & ideas" },
+  { number: 5, title: "Video Settings", icon: Settings, description: "Technical specs" },
+  { number: 6, title: "Casting", icon: Users, description: "Characters & locations" },
+  { number: 7, title: "Scheduling", icon: Calendar, description: "Timeline & automation" },
+  { number: 8, title: "Publishing", icon: Share2, description: "Platforms" },
 ];
 
 export default function ProductionCampaignCreate() {
@@ -66,6 +82,8 @@ export default function ProductionCampaignCreate() {
   const [hasBackgroundMusic, setHasBackgroundMusic] = useState(true);
   const [resolution, setResolution] = useState("1080p");
   const [targetAudience, setTargetAudience] = useState("");
+  const [imageCustomInstructions, setImageCustomInstructions] = useState("");
+  const [videoCustomInstructions, setVideoCustomInstructions] = useState("");
 
   // Step 6: Casting
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
@@ -109,6 +127,8 @@ export default function ProductionCampaignCreate() {
         scripterModel,
         imageModel,
         videoModel,
+        imageCustomInstructions: imageCustomInstructions || undefined,
+        videoCustomInstructions: videoCustomInstructions || undefined,
         voiceModel: hasVoiceOver ? voiceModel : undefined,
         voiceActorId: hasVoiceOver ? voiceActorId : undefined,
         scheduleStartDate: scheduleStartDate || undefined,
@@ -139,7 +159,6 @@ export default function ProductionCampaignCreate() {
   });
 
   const handleNext = () => {
-    // Validation for each step
     if (currentStep === 4 && (!campaignName || storyIdeas.filter(idea => idea.trim() !== "").length === 0)) {
       toast({
         title: "Validation Error",
@@ -210,6 +229,32 @@ export default function ProductionCampaignCreate() {
     createCampaign.mutate();
   };
 
+  const getStepSummary = (stepNumber: number): string | null => {
+    switch (stepNumber) {
+      case 1:
+        return contentType === "video" ? "Video" : "Story";
+      case 2:
+        return videoMode === "narrative" ? "Narrative" : videoMode === "character_vlog" ? "Character Vlog" : videoMode;
+      case 3:
+        return narrativeMode === "image-reference" ? "Image Ref" : "Start-End";
+      case 4:
+        const ideaCount = storyIdeas.filter(i => i.trim()).length;
+        return campaignName ? `${ideaCount} ideas` : null;
+      case 5:
+        return `${aspectRatio} • ${resolution}`;
+      case 6:
+        const charCount = selectedCharacters.length;
+        const locCount = selectedLocations.length;
+        return charCount > 0 || locCount > 0 ? `${charCount} chars, ${locCount} locs` : null;
+      case 7:
+        return scheduleStartDate ? `${maxVideosPerDay}/day` : null;
+      case 8:
+        return selectedPlatforms.length > 0 ? `${selectedPlatforms.length} platforms` : null;
+      default:
+        return null;
+    }
+  };
+
   const renderStep = () => {
     switch (currentStep) {
       case 1:
@@ -271,6 +316,10 @@ export default function ProductionCampaignCreate() {
             videoMode={videoMode}
             narrationStyle={narrationStyle}
             onNarrationStyleChange={setNarrationStyle}
+            imageCustomInstructions={imageCustomInstructions}
+            onImageCustomInstructionsChange={setImageCustomInstructions}
+            videoCustomInstructions={videoCustomInstructions}
+            onVideoCustomInstructionsChange={setVideoCustomInstructions}
           />
         );
       case 6:
@@ -315,50 +364,171 @@ export default function ProductionCampaignCreate() {
     }
   };
 
+  const validStoryCount = storyIdeas.filter(i => i.trim()).length;
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-display font-bold flex items-center gap-2">
-          <Sparkles className="h-8 w-8 text-primary" />
-          Create Auto Production Campaign
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          Set up an automated video production campaign powered by AI
-        </p>
-      </div>
+    <div className="h-[calc(100vh-4rem)] flex flex-col">
+      <div className="flex flex-1 overflow-hidden">
+        <aside className="w-72 border-r bg-muted/30 flex flex-col">
+          <div className="p-6 border-b">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Sparkles className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h1 className="font-display font-bold text-lg">New Campaign</h1>
+                <p className="text-xs text-muted-foreground">AI Production Wizard</p>
+              </div>
+            </div>
+          </div>
 
-      <WizardProgress currentStep={currentStep} steps={wizardSteps} />
+          <ScrollArea className="flex-1">
+            <nav className="p-4 space-y-1">
+              {wizardSteps.map((step) => {
+                const isCompleted = currentStep > step.number;
+                const isCurrent = currentStep === step.number;
+                const summary = getStepSummary(step.number);
+                const StepIcon = step.icon;
 
-      <Card>
-        <CardContent className="pt-6">
-          {renderStep()}
-        </CardContent>
-      </Card>
+                return (
+                  <button
+                    key={step.number}
+                    onClick={() => {
+                      if (isCompleted || isCurrent) {
+                        setCurrentStep(step.number);
+                      }
+                    }}
+                    disabled={!isCompleted && !isCurrent}
+                    className={`w-full flex items-start gap-3 p-3 rounded-lg text-left transition-all ${
+                      isCurrent
+                        ? "bg-primary/10 border border-primary/20"
+                        : isCompleted
+                        ? "hover:bg-muted cursor-pointer"
+                        : "opacity-50 cursor-not-allowed"
+                    }`}
+                    data-testid={`nav-step-${step.number}`}
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                        isCompleted
+                          ? "bg-primary text-primary-foreground"
+                          : isCurrent
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted-foreground/20 text-muted-foreground"
+                      }`}
+                    >
+                      {isCompleted ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <StepIcon className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-sm font-medium ${
+                            isCurrent ? "text-foreground" : isCompleted ? "text-foreground" : "text-muted-foreground"
+                          }`}
+                        >
+                          {step.title}
+                        </span>
+                        {isCurrent && (
+                          <ChevronRight className="h-3 w-3 text-primary" />
+                        )}
+                      </div>
+                      {summary && isCompleted ? (
+                        <Badge variant="secondary" className="mt-1 text-xs font-normal">
+                          {summary}
+                        </Badge>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                          {step.description}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </nav>
+          </ScrollArea>
 
-      <div className="flex justify-between">
-        <Button
-          variant="outline"
-          onClick={currentStep === 1 ? () => navigate("/production") : handleBack}
-          data-testid="button-back"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          {currentStep === 1 ? "Cancel" : "Back"}
-        </Button>
+          <div className="p-4 border-t bg-muted/50">
+            <div className="text-xs text-muted-foreground space-y-1">
+              <div className="flex justify-between">
+                <span>Progress</span>
+                <span className="font-medium">{currentStep} of 8</span>
+              </div>
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-300"
+                  style={{ width: `${(currentStep / 8) * 100}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </aside>
 
-        {currentStep < 8 ? (
-          <Button onClick={handleNext} data-testid="button-next">
-            Next
-            <ArrowRight className="h-4 w-4 ml-2" />
-          </Button>
-        ) : (
-          <Button
-            onClick={handleSubmit}
-            disabled={createCampaign.isPending}
-            data-testid="button-create-campaign"
-          >
-            {createCampaign.isPending ? "Creating..." : "Create Campaign"}
-          </Button>
-        )}
+        <main className="flex-1 flex flex-col overflow-hidden">
+          <ScrollArea className="flex-1">
+            <div className="p-8 max-w-4xl mx-auto">
+              {renderStep()}
+            </div>
+          </ScrollArea>
+
+          <footer className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <div className="px-8 py-4">
+              <div className="flex items-center justify-between max-w-4xl mx-auto">
+                <div className="flex items-center gap-6">
+                  <Button
+                    variant="ghost"
+                    onClick={currentStep === 1 ? () => navigate("/production") : handleBack}
+                    data-testid="button-back"
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    {currentStep === 1 ? "Cancel" : "Back"}
+                  </Button>
+
+                  <Separator orientation="vertical" className="h-6" />
+
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    {validStoryCount > 0 && (
+                      <span>{validStoryCount} video{validStoryCount !== 1 ? "s" : ""}</span>
+                    )}
+                    {selectedPlatforms.length > 0 && (
+                      <span>{selectedPlatforms.length} platform{selectedPlatforms.length !== 1 ? "s" : ""}</span>
+                    )}
+                    {scheduleStartDate && scheduleEndDate && (
+                      <span>{maxVideosPerDay}/day</span>
+                    )}
+                  </div>
+                </div>
+
+                {currentStep < 8 ? (
+                  <Button onClick={handleNext} data-testid="button-next">
+                    Continue
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={createCampaign.isPending}
+                    className="min-w-[160px]"
+                    data-testid="button-create-campaign"
+                  >
+                    {createCampaign.isPending ? (
+                      "Creating..."
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Create Campaign
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </footer>
+        </main>
       </div>
     </div>
   );

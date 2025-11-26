@@ -1,12 +1,32 @@
+import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ProductScriptEditor } from "@/components/social-commerce/product-script-editor";
 import { ProductWorldCast } from "@/components/social-commerce/product-world-cast";
-import { SceneBreakdown } from "@/components/narrative/scene-breakdown";
+import { ProductBreakdown } from "@/components/social-commerce/product-breakdown";
 import { StoryboardEditor } from "@/components/narrative/storyboard-editor";
 import { AnimaticPreview } from "@/components/narrative/animatic-preview";
 import { ExportSettings, type ExportData } from "@/components/narrative/export-settings";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
+
+interface ProductSegment {
+  id: string;
+  type: "hook" | "intro" | "features" | "demo" | "cta";
+  title: string;
+  description: string;
+  duration: number;
+  order: number;
+}
+
+interface ProductShot {
+  id: string;
+  segmentId: string;
+  shotNumber: number;
+  shotType: string;
+  description: string;
+  voiceoverText: string;
+  duration: number;
+}
 
 interface ProductDetails {
   title: string;
@@ -145,6 +165,136 @@ export function SocialCommerceWorkflow({
   onNext,
 }: SocialCommerceWorkflowProps) {
   const { toast } = useToast();
+  
+  const [voiceoverTextMap, setVoiceoverTextMap] = useState<{ [shotId: string]: string }>({});
+  
+  const inferSegmentType = useCallback((title: string): ProductSegment["type"] => {
+    const lowerTitle = title.toLowerCase();
+    if (lowerTitle.includes("hook") || lowerTitle.includes("attention")) return "hook";
+    if (lowerTitle.includes("intro")) return "intro";
+    if (lowerTitle.includes("feature")) return "features";
+    if (lowerTitle.includes("demo")) return "demo";
+    if (lowerTitle.includes("cta") || lowerTitle.includes("action") || lowerTitle.includes("call")) return "cta";
+    return "features";
+  }, []);
+
+  const productSegments: ProductSegment[] = useMemo(() => 
+    scenes.map(scene => ({
+      id: scene.id,
+      type: inferSegmentType(scene.title),
+      title: scene.title,
+      description: scene.description || "",
+      duration: scene.duration || 5,
+      order: scene.sceneNumber,
+    })),
+    [scenes, inferSegmentType]
+  );
+
+  const productShots: { [segmentId: string]: ProductShot[] } = useMemo(() => 
+    Object.fromEntries(
+      Object.entries(shots).map(([sceneId, sceneShots]) => [
+        sceneId,
+        sceneShots.map(shot => ({
+          id: shot.id,
+          segmentId: shot.sceneId,
+          shotNumber: shot.shotNumber,
+          shotType: shot.shotType || "hero",
+          description: shot.description || "",
+          voiceoverText: voiceoverTextMap[shot.id] || "",
+          duration: shot.duration || 3,
+        }))
+      ])
+    ),
+    [shots, voiceoverTextMap]
+  );
+
+  const handleSegmentsChange = (newSegments: ProductSegment[]) => {
+    const existingScenesMap = new Map(scenes.map(s => [s.id, s]));
+    
+    const mappedScenes: Scene[] = newSegments.map(seg => {
+      const existing = existingScenesMap.get(seg.id);
+      
+      if (existing) {
+        return {
+          ...existing,
+          sceneNumber: seg.order,
+          title: seg.title,
+          description: seg.description,
+          duration: seg.duration,
+          updatedAt: new Date(),
+        };
+      }
+      
+      return {
+        id: seg.id,
+        videoId: videoId,
+        sceneNumber: seg.order,
+        title: seg.title,
+        description: seg.description,
+        duration: seg.duration,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as Scene;
+    });
+    onScenesChange(mappedScenes);
+  };
+
+  const handleProductShotsChange = (newShots: { [segmentId: string]: ProductShot[] }) => {
+    const existingShotsMap = new Map(
+      Object.values(shots).flat().map(s => [s.id, s])
+    );
+    
+    setVoiceoverTextMap(prev => {
+      const updated = { ...prev };
+      Object.values(newShots).flat().forEach(shot => {
+        if (shot.voiceoverText) {
+          updated[shot.id] = shot.voiceoverText;
+        } else if (shot.id in updated) {
+          delete updated[shot.id];
+        }
+      });
+      return updated;
+    });
+    
+    const mappedShots: { [sceneId: string]: Shot[] } = {};
+    
+    Object.entries(newShots).forEach(([segmentId, segShots]) => {
+      mappedShots[segmentId] = segShots.map(shot => {
+        const existing = existingShotsMap.get(shot.id);
+        
+        if (existing) {
+          return {
+            ...existing,
+            sceneId: shot.segmentId,
+            shotNumber: shot.shotNumber,
+            shotType: shot.shotType,
+            description: shot.description,
+            duration: shot.duration,
+            updatedAt: new Date(),
+          };
+        }
+        
+        return {
+          id: shot.id,
+          sceneId: shot.segmentId,
+          shotNumber: shot.shotNumber,
+          shotType: shot.shotType,
+          description: shot.description,
+          duration: shot.duration,
+          cameraMovement: "static",
+          transition: "cut",
+          videoModel: null,
+          imageModel: null,
+          soundEffects: null,
+          currentVersionId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as Shot;
+      });
+    });
+    
+    onShotsChange(mappedShots);
+  };
 
   const handleExport = (data: ExportData) => {
     if (data.selectedPlatforms.length > 0) {
@@ -483,25 +633,17 @@ export function SocialCommerceWorkflow({
       )}
 
       {activeStep === "breakdown" && (
-        <SceneBreakdown
+        <ProductBreakdown
           videoId={videoId}
           script={script}
-          scriptModel="gpt-4o"
-          narrativeMode={narrativeMode}
-          scenes={scenes}
-          shots={shots}
-          shotVersions={shotVersions}
-          continuityLocked={continuityLocked}
-          continuityGroups={continuityGroups}
-          onScenesGenerated={(newScenes: Scene[], newShots: { [sceneId: string]: Shot[] }, newShotVersions?: { [shotId: string]: ShotVersion[] }) => {
-            onScenesChange(newScenes);
-            onShotsChange(newShots);
-            if (newShotVersions) {
-              onShotVersionsChange(newShotVersions);
-            }
-          }}
-          onContinuityLocked={() => onContinuityLockedChange(true)}
-          onContinuityGroupsChange={onContinuityGroupsChange}
+          voiceOverScript={voiceOverScript}
+          videoConcept={videoConcept}
+          productDisplay={commerceSettings.productDisplay}
+          productName={productDetails.title}
+          segments={productSegments}
+          shots={productShots}
+          onSegmentsChange={handleSegmentsChange}
+          onShotsChange={handleProductShotsChange}
           onNext={onNext}
         />
       )}

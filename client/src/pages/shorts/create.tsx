@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { 
   ArrowLeft, 
@@ -23,9 +23,12 @@ import {
   Calendar,
   Share2,
   Sparkles,
-  Video
+  Video,
+  FileText,
+  Send
 } from "lucide-react";
 import { SiTiktok, SiFacebook } from "react-icons/si";
+import { format, addHours } from "date-fns";
 
 interface HookMoment {
   id: string;
@@ -37,6 +40,14 @@ interface HookMoment {
   suggestedCaption: string;
   confidence: number;
   selected: boolean;
+}
+
+interface ShortClipDetails {
+  hookId: string;
+  caption: string;
+  description: string;
+  scheduledTime: Date;
+  platforms: string[];
 }
 
 const HOOK_TYPE_LABELS: Record<string, { label: string; color: string }> = {
@@ -58,6 +69,7 @@ const STEPS = [
   { id: "analysis", label: "Analysis", icon: Wand2 },
   { id: "selection", label: "Hook Selection", icon: Scissors },
   { id: "publish", label: "Publishing", icon: Share2 },
+  { id: "review", label: "Review", icon: FileText },
 ];
 
 export default function CreateShorts() {
@@ -75,6 +87,8 @@ export default function CreateShorts() {
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  const [clipDetails, setClipDetails] = useState<ShortClipDetails[]>([]);
 
   useEffect(() => {
     if (currentStep === 0) {
@@ -109,7 +123,7 @@ export default function CreateShorts() {
         endSeconds: 24,
         hookType: "dramatic",
         description: "Intense opening scene with dramatic reveal of the main character",
-        suggestedCaption: "You won't believe what happens next... 🎬",
+        suggestedCaption: "You won't believe what happens next...",
         confidence: 94,
         selected: true,
       },
@@ -120,7 +134,7 @@ export default function CreateShorts() {
         endSeconds: 58,
         hookType: "emotional",
         description: "Emotional turning point with powerful character moment",
-        suggestedCaption: "This scene hits different 💔 #storytelling",
+        suggestedCaption: "This scene hits different #storytelling",
         confidence: 89,
         selected: true,
       },
@@ -131,7 +145,7 @@ export default function CreateShorts() {
         endSeconds: 95,
         hookType: "action",
         description: "High-energy action sequence with stunning visuals",
-        suggestedCaption: "When the action kicks in 🔥 #epic",
+        suggestedCaption: "When the action kicks in #epic",
         confidence: 87,
         selected: false,
       },
@@ -142,7 +156,7 @@ export default function CreateShorts() {
         endSeconds: 138,
         hookType: "reveal",
         description: "Plot twist reveal that changes everything",
-        suggestedCaption: "Plot twist! Did you see that coming? 😱",
+        suggestedCaption: "Plot twist! Did you see that coming?",
         confidence: 92,
         selected: true,
       },
@@ -153,7 +167,7 @@ export default function CreateShorts() {
         endSeconds: 205,
         hookType: "humor",
         description: "Comedic moment that provides light relief",
-        suggestedCaption: "I can't stop laughing at this 😂",
+        suggestedCaption: "I can't stop laughing at this",
         confidence: 78,
         selected: false,
       },
@@ -181,10 +195,49 @@ export default function CreateShorts() {
   };
 
   const selectedHooks = hooks.filter((h) => h.selected);
-  const canProceed = selectedHooks.length > 0;
-  const canGenerate = selectedHooks.length > 0 && selectedPlatforms.length > 0;
+  const canProceedToPublish = selectedHooks.length > 0;
+  const canProceedToReview = selectedHooks.length > 0 && selectedPlatforms.length > 0;
 
-  const handleGenerate = async () => {
+  const generateClipDetails = () => {
+    const baseDate = publishType === "schedule" && scheduleDate 
+      ? new Date(`${scheduleDate}T${scheduleTime || "09:00"}`)
+      : new Date();
+    
+    const details: ShortClipDetails[] = selectedHooks.map((hook, index) => {
+      const scheduledTime = publishType === "instant" 
+        ? new Date() 
+        : addHours(baseDate, index * 2);
+      
+      return {
+        hookId: hook.id,
+        caption: hook.suggestedCaption,
+        description: `${hook.description}\n\n#shorts #viral #trending #${hook.hookType}`,
+        scheduledTime,
+        platforms: [...selectedPlatforms],
+      };
+    });
+    
+    setClipDetails(details);
+    setCurrentStep(3);
+  };
+
+  const updateClipCaption = (hookId: string, caption: string) => {
+    setClipDetails((prev) =>
+      prev.map((clip) =>
+        clip.hookId === hookId ? { ...clip, caption } : clip
+      )
+    );
+  };
+
+  const updateClipDescription = (hookId: string, description: string) => {
+    setClipDetails((prev) =>
+      prev.map((clip) =>
+        clip.hookId === hookId ? { ...clip, description } : clip
+      )
+    );
+  };
+
+  const handlePublish = async () => {
     setIsGenerating(true);
     await new Promise((resolve) => setTimeout(resolve, 2500));
     setIsGenerating(false);
@@ -192,7 +245,7 @@ export default function CreateShorts() {
   };
 
   const renderStepIndicator = () => (
-    <div className="flex items-center justify-center gap-2 mb-8">
+    <div className="flex items-center justify-center gap-2 mb-8 flex-wrap">
       {STEPS.map((step, index) => {
         const Icon = step.icon;
         const isActive = index === currentStep;
@@ -358,7 +411,7 @@ export default function CreateShorts() {
           </span>
           <Button
             onClick={() => setCurrentStep(2)}
-            disabled={!canProceed}
+            disabled={!canProceedToPublish}
             data-testid="button-next-publish"
           >
             Configure Publishing
@@ -388,9 +441,7 @@ export default function CreateShorts() {
                 <Clock className="w-3 h-3" />
                 {hook.timestamp}
                 <span className="mx-1">-</span>
-                <span className={HOOK_TYPE_LABELS[hook.hookType].color.replace("bg-", "").replace("/10", "").split(" ")[0]}>
-                  {HOOK_TYPE_LABELS[hook.hookType].label}
-                </span>
+                {HOOK_TYPE_LABELS[hook.hookType].label}
               </Badge>
             ))}
           </div>
@@ -487,7 +538,7 @@ export default function CreateShorts() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="schedule-time" className="text-sm">Time</Label>
+                <Label htmlFor="schedule-time" className="text-sm">Start Time</Label>
                 <Input
                   id="schedule-time"
                   type="time"
@@ -498,7 +549,7 @@ export default function CreateShorts() {
               </div>
               <div className="col-span-2">
                 <p className="text-xs text-muted-foreground">
-                  Clips will be published automatically at the specified times, spaced throughout the day
+                  Clips will be spaced 2 hours apart starting from this time
                 </p>
               </div>
             </div>
@@ -516,20 +567,155 @@ export default function CreateShorts() {
           Back to Selection
         </Button>
         <Button
-          onClick={handleGenerate}
-          disabled={!canGenerate || isGenerating}
+          onClick={generateClipDetails}
+          disabled={!canProceedToReview}
+          data-testid="button-next-review"
+        >
+          Review & Confirm
+          <ArrowRight className="w-4 h-4 ml-2" />
+        </Button>
+      </div>
+    </div>
+  );
+
+  const renderReviewStep = () => (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="w-5 h-5 text-primary" />
+            Review Your Shorts
+          </CardTitle>
+          <CardDescription>
+            Review and customize the caption and description for each short before publishing
+          </CardDescription>
+        </CardHeader>
+      </Card>
+
+      {clipDetails.map((clip, index) => {
+        const hook = hooks.find((h) => h.id === clip.hookId);
+        if (!hook) return null;
+        
+        return (
+          <Card key={clip.hookId} data-testid={`review-card-${clip.hookId}`}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-bold">
+                    {index + 1}
+                  </div>
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      {hook.timestamp}
+                      <Badge className={HOOK_TYPE_LABELS[hook.hookType].color}>
+                        {HOOK_TYPE_LABELS[hook.hookType].label}
+                      </Badge>
+                    </CardTitle>
+                    <CardDescription className="mt-1">
+                      {hook.description}
+                    </CardDescription>
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <Play className="w-4 h-4" />
+                  Preview
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    Posting Time
+                  </div>
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    <p className="text-sm font-medium">
+                      {publishType === "instant" 
+                        ? "Immediately after generation"
+                        : format(clip.scheduledTime, "MMM d, yyyy 'at' h:mm a")
+                      }
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Share2 className="w-4 h-4 text-muted-foreground" />
+                    Platforms
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {clip.platforms.map((platformId) => {
+                      const platform = PLATFORMS.find((p) => p.id === platformId);
+                      if (!platform) return null;
+                      const Icon = platform.icon;
+                      return (
+                        <Badge key={platformId} variant="secondary" className="gap-1">
+                          <Icon className="w-3 h-3" />
+                          {platform.name}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor={`caption-${clip.hookId}`} className="text-sm font-medium">
+                  Caption
+                </Label>
+                <Input
+                  id={`caption-${clip.hookId}`}
+                  value={clip.caption}
+                  onChange={(e) => updateClipCaption(clip.hookId, e.target.value)}
+                  placeholder="Enter caption..."
+                  data-testid={`input-caption-${clip.hookId}`}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor={`description-${clip.hookId}`} className="text-sm font-medium">
+                  Description
+                </Label>
+                <Textarea
+                  id={`description-${clip.hookId}`}
+                  value={clip.description}
+                  onChange={(e) => updateClipDescription(clip.hookId, e.target.value)}
+                  placeholder="Enter description..."
+                  rows={3}
+                  data-testid={`textarea-description-${clip.hookId}`}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      <div className="flex items-center justify-between">
+        <Button
+          variant="outline"
+          onClick={() => setCurrentStep(2)}
+          data-testid="button-back-publish"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Settings
+        </Button>
+        <Button
+          onClick={handlePublish}
+          disabled={isGenerating}
           size="lg"
-          data-testid="button-generate-shorts"
+          data-testid="button-complete-publishing"
         >
           {isGenerating ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Generating Clips...
+              Publishing...
             </>
           ) : (
             <>
-              <Scissors className="w-4 h-4 mr-2" />
-              Generate {selectedHooks.length} Shorts
+              <Send className="w-4 h-4 mr-2" />
+              Complete Publishing
             </>
           )}
         </Button>
@@ -566,6 +752,7 @@ export default function CreateShorts() {
         {currentStep === 0 && renderAnalysisStep()}
         {currentStep === 1 && renderSelectionStep()}
         {currentStep === 2 && renderPublishStep()}
+        {currentStep === 3 && renderReviewStep()}
       </main>
     </div>
   );

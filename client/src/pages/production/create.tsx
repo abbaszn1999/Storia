@@ -40,6 +40,7 @@ export default function ProductionCampaignCreate() {
 
   // Step 3: Narrative Mode Selection
   const [narrativeMode, setNarrativeMode] = useState<"image-reference" | "start-end-frame">("image-reference");
+  const [narrationStyle, setNarrationStyle] = useState<"third-person" | "first-person">("first-person");
 
   // Step 4: Campaign Basics
   const [campaignName, setCampaignName] = useState("");
@@ -69,6 +70,7 @@ export default function ProductionCampaignCreate() {
   // Step 6: Casting
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  const [mainCharacterId, setMainCharacterId] = useState<string | null>(null);
 
   // Step 7: Scheduling
   const [scheduleStartDate, setScheduleStartDate] = useState("");
@@ -88,6 +90,8 @@ export default function ProductionCampaignCreate() {
         storyIdeas: storyIdeas.filter(idea => idea.trim() !== ""),
         videoMode,
         narrativeMode,
+        narrationStyle: videoMode === "character_vlog" ? narrationStyle : undefined,
+        mainCharacterId: videoMode === "character_vlog" && mainCharacterId ? mainCharacterId : undefined,
         automationMode,
         aspectRatio,
         duration,
@@ -143,6 +147,25 @@ export default function ProductionCampaignCreate() {
         variant: "destructive",
       });
       return;
+    }
+
+    if (currentStep === 6 && videoMode === "character_vlog") {
+      if (selectedCharacters.length === 0) {
+        toast({
+          title: "Validation Error",
+          description: "Character Vlog mode requires at least one character. Please select characters first.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!mainCharacterId) {
+        toast({
+          title: "Validation Error",
+          description: "Please select a main character for your vlog.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     if (currentStep === 7) {
@@ -245,6 +268,9 @@ export default function ProductionCampaignCreate() {
             onResolutionChange={setResolution}
             targetAudience={targetAudience}
             onTargetAudienceChange={setTargetAudience}
+            videoMode={videoMode}
+            narrationStyle={narrationStyle}
+            onNarrationStyleChange={setNarrationStyle}
           />
         );
       case 6:
@@ -254,6 +280,9 @@ export default function ProductionCampaignCreate() {
             onSelectedCharactersChange={setSelectedCharacters}
             selectedLocations={selectedLocations}
             onSelectedLocationsChange={setSelectedLocations}
+            videoMode={videoMode}
+            mainCharacterId={mainCharacterId}
+            onMainCharacterIdChange={setMainCharacterId}
           />
         );
       case 7:

@@ -31,14 +31,16 @@ The platform follows a modular design with clear separation of concerns, support
 - **Publishing Flow**: Allows users to select platforms, handles connection status, uploads video with metadata, and supports immediate or scheduled publishing via a content calendar.
 - **Export Page**: Features final video preview at the top, displaying the latest version of the compiled video with export settings and platform metadata below.
 - **AI Production Campaign System**: Bulk video generation feature enabling users to create campaigns with story-based video production, automated scheduling, and production management:
-    - **Wizard-Style Creation**: 7-step guided workflow for campaign setup:
+    - **Wizard-Style Creation**: 8-step guided workflow for campaign setup:
         1. Type Selection (Narrative Video for MVP)
-        2. Mode Selection (Image-Reference vs Start-End Frame)
-        3. Campaign Basics (name, story ideas array, scripter model)
-        4. Video Settings (aspect ratio, duration, language, art style/reference image, tone, genre, AI models, voice settings, toggles, resolution, audience)
-        5. Casting (optional characters and locations)
-        6. Scheduling (dates, automation mode, publish hours, max videos/day with validation)
-        7. Publishing Platforms (workspace integrations)
+        2. Video Mode Selection (Narrative Video or Character Vlog)
+        3. Narrative Mode Selection (Image-Reference vs Start-End Frame)
+        4. Campaign Basics (name, story ideas array, scripter model)
+        5. Video Settings (aspect ratio, duration, language, art style/reference image, tone, genre, AI models, voice settings, toggles, resolution, audience; plus narration style for Character Vlog)
+        6. Casting (optional characters and locations; main character required for Character Vlog)
+        7. Scheduling (dates, automation mode, publish hours, max videos/day with validation)
+        8. Publishing Platforms (workspace integrations)
+    - **Character Vlog Mode**: AI character narrates content in vlog format with first-person or third-person narration style and a designated main character
     - **Story-Based Production**: Each story idea becomes one video; campaign_videos are automatically created server-side from validated story ideas array
     - **Backend Validation**: Enforces story ideas presence, scheduling constraints (date order, maxVideosPerDay > 0, capacity checks, publish hours 0-23)
     - **Automation Modes**: Manual (requires approval) or Auto (fully automated production)
@@ -61,7 +63,7 @@ The platform follows a modular design with clear separation of concerns, support
 - `reference_images`: Character/location/style references.
 - `continuity_groups`: For connected shot sequences in Start-End Frame mode.
 - `workspace_integrations`: OAuth connections for social media publishing.
-- `production_campaigns`: AI production campaigns with comprehensive settings including storyIdeas array, AI model selections (scripter, image, video, voice), narrative mode, style references, voice settings, scheduling parameters (preferredPublishHours, maxVideosPerDay), status, and progress tracking.
+- `production_campaigns`: AI production campaigns with comprehensive settings including storyIdeas array, AI model selections (scripter, image, video, voice), video mode (narrative or character_vlog), narrative mode, style references, voice settings, scheduling parameters (preferredPublishHours, maxVideosPerDay), status, progress tracking, and Character Vlog-specific fields (narrationStyle, mainCharacterId).
 - `campaign_videos`: Individual videos within campaigns with concept data (derived from story ideas) and production status.
 
 ### AI Agent System

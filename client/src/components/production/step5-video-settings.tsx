@@ -43,6 +43,9 @@ interface Step5VideoSettingsProps {
   onResolutionChange: (value: string) => void;
   targetAudience: string;
   onTargetAudienceChange: (value: string) => void;
+  videoMode?: string;
+  narrationStyle?: "third-person" | "first-person";
+  onNarrationStyleChange?: (value: "third-person" | "first-person") => void;
 }
 
 export function Step5VideoSettings(props: Step5VideoSettingsProps) {
@@ -114,6 +117,31 @@ export function Step5VideoSettings(props: Step5VideoSettingsProps) {
           </Select>
         </div>
       </div>
+
+      {props.videoMode === "character_vlog" && (
+        <div className="space-y-2 p-4 border rounded-lg bg-muted/30">
+          <Label htmlFor="narration-style">Narration Style</Label>
+          <p className="text-sm text-muted-foreground mb-2">
+            Choose how your AI character will narrate the vlog
+          </p>
+          <Select 
+            value={props.narrationStyle || "first-person"} 
+            onValueChange={(v) => props.onNarrationStyleChange?.(v as "third-person" | "first-person")}
+          >
+            <SelectTrigger id="narration-style" data-testid="select-narration-style">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="first-person">
+                First Person - "I walked through the forest..."
+              </SelectItem>
+              <SelectItem value="third-person">
+                Third Person - "Luna walked through the forest..."
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label>Visual Style</Label>

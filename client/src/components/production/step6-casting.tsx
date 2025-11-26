@@ -27,6 +27,9 @@ interface Step6CastingProps {
   onSelectedCharactersChange: (ids: string[]) => void;
   selectedLocations: string[];
   onSelectedLocationsChange: (ids: string[]) => void;
+  videoMode?: string;
+  mainCharacterId?: string | null;
+  onMainCharacterIdChange?: (id: string | null) => void;
 }
 
 export function Step6Casting({
@@ -34,6 +37,9 @@ export function Step6Casting({
   onSelectedCharactersChange,
   selectedLocations,
   onSelectedLocationsChange,
+  videoMode,
+  mainCharacterId,
+  onMainCharacterIdChange,
 }: Step6CastingProps) {
   const [characterDialogOpen, setCharacterDialogOpen] = useState(false);
   const [locationDialogOpen, setLocationDialogOpen] = useState(false);
@@ -110,6 +116,54 @@ export function Step6Casting({
             </div>
           )}
         </div>
+
+        {videoMode === "character_vlog" && selectedCharacters.length > 0 && (
+          <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+            <div>
+              <Label htmlFor="main-character">Main Character (Required)</Label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Select the primary character who will narrate and appear in your vlog
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              {selectedCharacters.map((id) => {
+                const character = characters.find(c => c.id === id);
+                const isSelected = mainCharacterId === id;
+                return (
+                  <Card 
+                    key={id} 
+                    className={`cursor-pointer transition-all ${isSelected ? 'ring-2 ring-primary' : 'hover:bg-muted/50'}`}
+                    onClick={() => onMainCharacterIdChange?.(id)}
+                    data-testid={`card-main-character-${id}`}
+                  >
+                    <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={character?.thumbnailUrl} alt={character?.name} />
+                        <AvatarFallback>
+                          <User className="h-5 w-5" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold truncate text-sm">{character?.name || 'Loading...'}</h4>
+                        {isSelected && (
+                          <span className="text-xs text-primary">Main Character</span>
+                        )}
+                      </div>
+                    </CardHeader>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {videoMode === "character_vlog" && selectedCharacters.length === 0 && (
+          <div className="p-4 border border-dashed border-amber-500 rounded-lg bg-amber-500/10">
+            <p className="text-sm text-amber-600 dark:text-amber-400">
+              <strong>Note:</strong> Character Vlog mode requires selecting at least one character above to designate as the main character.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-4">
           <div className="flex items-center justify-between">

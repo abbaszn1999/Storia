@@ -334,7 +334,9 @@ export const productionCampaigns = pgTable("production_campaigns", {
   
   // Video mode and narrative mode selection
   videoMode: text("video_mode").default("narrative").notNull(), // narrative, character_vlog, video_podcast
-  narrativeMode: text("narrative_mode").notNull(), // image-reference or start-end-frame (only for narrative mode)
+  narrativeMode: text("narrative_mode").notNull(), // image-reference or start-end-frame (for narrative and character_vlog modes)
+  narrationStyle: text("narration_style"), // third-person or first-person (for character_vlog mode)
+  mainCharacterId: text("main_character_id"), // Primary character for character_vlog mode
   
   // Video settings
   aspectRatio: text("aspect_ratio").default("16:9").notNull(),

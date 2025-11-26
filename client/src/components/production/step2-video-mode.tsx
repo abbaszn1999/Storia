@@ -19,7 +19,7 @@ const videoModes = [
     name: "Character Vlog",
     description: "AI character presenting content in a vlog format",
     icon: User,
-    available: false,
+    available: true,
   },
   {
     id: "video_podcast",

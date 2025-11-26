@@ -374,6 +374,22 @@ export const productionCampaigns = pgTable("production_campaigns", {
   voiceModel: text("voice_model"),
   voiceActorId: text("voice_actor_id"),
   
+  // Ambient Video mode settings
+  ambientCategory: text("ambient_category"), // nature, weather, urban, cozy, abstract, cosmic, underwater, seasonal
+  ambientMoods: jsonb("ambient_moods").default([]), // Array of moods (max 3): Relaxing, Meditative, etc.
+  ambientAnimationMode: text("ambient_animation_mode"), // "animate" or "smooth-image"
+  ambientVoiceOverLanguage: text("ambient_voice_over_language"), // English, Spanish, etc.
+  
+  // Ambient Flow Design settings
+  ambientPacing: integer("ambient_pacing").default(30), // 0-100
+  ambientSegmentCount: integer("ambient_segment_count").default(3), // 1, 3, 5, 7, 10
+  ambientTransitionStyle: text("ambient_transition_style"), // crossfade, dissolve, drift, match-cut, morph, wipe
+  ambientVariationType: text("ambient_variation_type"), // evolving, angles, elements, zoom
+  ambientCameraMotion: text("ambient_camera_motion"), // static, slow-pan, gentle-drift, orbit, push-in, pull-out, parallax, float
+  ambientLoopMode: text("ambient_loop_mode"), // seamless, one-way, boomerang, fade-loop
+  ambientVisualRhythm: text("ambient_visual_rhythm"), // constant, breathing, building, wave
+  ambientEnableParallax: boolean("ambient_enable_parallax").default(false),
+  
   // Progress tracking
   videosGenerated: integer("videos_generated").default(0).notNull(),
   videosPublished: integer("videos_published").default(0).notNull(),

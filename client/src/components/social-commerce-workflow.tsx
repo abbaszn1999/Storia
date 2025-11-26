@@ -517,9 +517,7 @@ export function SocialCommerceWorkflow({
           talentType={commerceSettings.talentType}
           talents={commerceSettings.talents}
           styleReference={commerceSettings.styleReference}
-          additionalInstructions={commerceSettings.additionalInstructions}
           imageModel={commerceSettings.imageModel}
-          videoModel={commerceSettings.videoModel}
           imageInstructions={commerceSettings.imageInstructions}
           videoInstructions={commerceSettings.videoInstructions}
           onVisualStyleChange={(style) => onCommerceSettingsChange({ ...commerceSettings, visualStyle: style })}
@@ -528,9 +526,7 @@ export function SocialCommerceWorkflow({
           onTalentTypeChange={(type) => onCommerceSettingsChange({ ...commerceSettings, talentType: type })}
           onTalentsChange={(talents) => onCommerceSettingsChange({ ...commerceSettings, talents })}
           onStyleReferenceChange={(ref) => onCommerceSettingsChange({ ...commerceSettings, styleReference: ref })}
-          onAdditionalInstructionsChange={(instructions) => onCommerceSettingsChange({ ...commerceSettings, additionalInstructions: instructions })}
           onImageModelChange={(model) => onCommerceSettingsChange({ ...commerceSettings, imageModel: model })}
-          onVideoModelChange={(model) => onCommerceSettingsChange({ ...commerceSettings, videoModel: model })}
           onImageInstructionsChange={(instructions) => onCommerceSettingsChange({ ...commerceSettings, imageInstructions: instructions })}
           onVideoInstructionsChange={(instructions) => onCommerceSettingsChange({ ...commerceSettings, videoInstructions: instructions })}
           onNext={onNext}

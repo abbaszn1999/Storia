@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -18,7 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   Check, 
   Plus, 
@@ -29,10 +29,7 @@ import {
   UserCircle,
   Mic,
   Pencil,
-  Trash2,
-  ChevronDown,
-  ChevronUp,
-  Settings2
+  Trash2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -46,9 +43,7 @@ interface ProductWorldCastProps {
   talentType: string;
   talents: Talent[];
   styleReference: string | null;
-  additionalInstructions: string;
   imageModel: string;
-  videoModel: string;
   imageInstructions: string;
   videoInstructions: string;
   onVisualStyleChange: (style: string) => void;
@@ -57,9 +52,7 @@ interface ProductWorldCastProps {
   onTalentTypeChange: (type: string) => void;
   onTalentsChange: (talents: Talent[]) => void;
   onStyleReferenceChange: (ref: string | null) => void;
-  onAdditionalInstructionsChange: (instructions: string) => void;
   onImageModelChange: (model: string) => void;
-  onVideoModelChange: (model: string) => void;
   onImageInstructionsChange: (instructions: string) => void;
   onVideoInstructionsChange: (instructions: string) => void;
   onNext: () => void;
@@ -105,10 +98,10 @@ const PRODUCT_DISPLAY_OPTIONS = [
 ];
 
 const TALENT_TYPES = [
-  { id: "none", name: "No Talent", icon: User },
-  { id: "hands", name: "Hands Only", icon: Hand },
-  { id: "lifestyle", name: "Lifestyle Model", icon: UserCircle },
-  { id: "spokesperson", name: "Spokesperson", icon: Mic },
+  { id: "none", name: "No Talent", icon: User, description: "Product only, no human presence" },
+  { id: "hands", name: "Hands Only", icon: Hand, description: "Show hands interacting with product" },
+  { id: "lifestyle", name: "Lifestyle Model", icon: UserCircle, description: "Model using product naturally" },
+  { id: "spokesperson", name: "Spokesperson", icon: Mic, description: "Presenter speaking to camera" },
 ];
 
 const IMAGE_MODELS = [
@@ -116,13 +109,6 @@ const IMAGE_MODELS = [
   { id: "dall-e-3", name: "DALL-E 3" },
   { id: "flux-pro", name: "Flux Pro" },
   { id: "midjourney", name: "Midjourney" },
-];
-
-const VIDEO_MODELS = [
-  { id: "kling", name: "Kling" },
-  { id: "veo", name: "Veo 2" },
-  { id: "runway", name: "Runway Gen-3" },
-  { id: "pika", name: "Pika" },
 ];
 
 export function ProductWorldCast({
@@ -135,9 +121,7 @@ export function ProductWorldCast({
   talentType,
   talents,
   styleReference,
-  additionalInstructions,
   imageModel,
-  videoModel,
   imageInstructions,
   videoInstructions,
   onVisualStyleChange,
@@ -146,9 +130,7 @@ export function ProductWorldCast({
   onTalentTypeChange,
   onTalentsChange,
   onStyleReferenceChange,
-  onAdditionalInstructionsChange,
   onImageModelChange,
-  onVideoModelChange,
   onImageInstructionsChange,
   onVideoInstructionsChange,
   onNext,
@@ -157,7 +139,6 @@ export function ProductWorldCast({
   const [editingTalent, setEditingTalent] = useState<Talent | null>(null);
   const [newTalent, setNewTalent] = useState({ name: "", description: "", type: "lifestyle" as Talent["type"] });
   const [talentImage, setTalentImage] = useState<string | null>(null);
-  const [isAiSettingsOpen, setIsAiSettingsOpen] = useState(false);
   const { toast } = useToast();
 
   const handleToggleProductDisplay = (displayId: string) => {
@@ -252,14 +233,6 @@ export function ProductWorldCast({
       });
       return;
     }
-    if (!videoModel) {
-      toast({
-        title: "Video Model Required",
-        description: "Please select an AI model for video generation.",
-        variant: "destructive",
-      });
-      return;
-    }
     if (!visualStyle) {
       toast({
         title: "Visual Style Required",
@@ -295,7 +268,7 @@ export function ProductWorldCast({
         <CardContent className="p-6">
           <h3 className="text-lg font-semibold mb-6">World Settings</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Image AI Model */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">IMAGE AI MODEL</Label>
@@ -305,23 +278,6 @@ export function ProductWorldCast({
                 </SelectTrigger>
                 <SelectContent>
                   {IMAGE_MODELS.map((model) => (
-                    <SelectItem key={model.id} value={model.id}>
-                      {model.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Video AI Model */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">VIDEO AI MODEL</Label>
-              <Select value={videoModel} onValueChange={onVideoModelChange}>
-                <SelectTrigger className="h-9" data-testid="select-video-model">
-                  <SelectValue placeholder="Select video model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {VIDEO_MODELS.map((model) => (
                     <SelectItem key={model.id} value={model.id}>
                       {model.name}
                     </SelectItem>
@@ -369,8 +325,8 @@ export function ProductWorldCast({
             </div>
           </div>
 
-          <div className="mt-6 space-y-3">
-            {/* Image Instructions */}
+          <div className="mt-6 space-y-6">
+            {/* Image Generation Instructions */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">IMAGE GENERATION INSTRUCTIONS</Label>
               <Textarea
@@ -380,6 +336,24 @@ export function ProductWorldCast({
                 rows={3}
                 data-testid="input-image-instructions"
               />
+              <p className="text-xs text-muted-foreground">
+                Style guidelines applied to all image generations
+              </p>
+            </div>
+
+            {/* Video Generation Instructions */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">VIDEO / ANIMATION INSTRUCTIONS</Label>
+              <Textarea
+                placeholder="E.g., 'Smooth camera movements, product rotation, subtle zooms, seamless transitions, professional product video feel'"
+                value={videoInstructions}
+                onChange={(e) => onVideoInstructionsChange(e.target.value)}
+                rows={3}
+                data-testid="input-video-instructions"
+              />
+              <p className="text-xs text-muted-foreground">
+                Motion and animation guidelines applied to all video generations
+              </p>
             </div>
 
             {/* Photography Style */}
@@ -420,109 +394,52 @@ export function ProductWorldCast({
                 ))}
               </div>
             </div>
-
-            {/* AI Generation Settings - Collapsible */}
-            <Collapsible
-              open={isAiSettingsOpen}
-              onOpenChange={setIsAiSettingsOpen}
-              className="mt-6"
-            >
-              <CollapsibleTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="w-full flex items-center justify-between p-3 rounded-lg border border-dashed hover:border-solid hover:bg-muted/50"
-                  data-testid="button-toggle-ai-settings"
-                >
-                  <div className="flex items-center gap-2">
-                    <Settings2 className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Video Generation Settings</span>
-                    {videoInstructions && (
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                        Configured
-                      </span>
-                    )}
-                  </div>
-                  {isAiSettingsOpen ? (
-                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-4 space-y-4">
-                <p className="text-xs text-muted-foreground">
-                  These instructions will be appended to every video generation request.
-                </p>
-
-                {/* Video Generation Instructions */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">VIDEO / ANIMATION INSTRUCTIONS</Label>
-                  <Textarea
-                    placeholder="E.g., 'Smooth camera movements, product rotation, subtle zooms, seamless transitions, professional product video feel'"
-                    value={videoInstructions}
-                    onChange={(e) => onVideoInstructionsChange(e.target.value)}
-                    rows={3}
-                    className="text-sm"
-                    data-testid="input-video-instructions"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Motion and animation guidelines applied to all video generations
-                  </p>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
           </div>
         </CardContent>
       </Card>
 
-      {/* Product Settings Section */}
+      {/* Product Settings Section - Compact inline layout */}
       <Card>
         <CardContent className="p-6">
           <h3 className="text-lg font-semibold mb-6">Product Settings</h3>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Backdrop */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">BACKDROP / ENVIRONMENT</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {BACKDROP_OPTIONS.map((option) => (
-                  <Card
-                    key={option.id}
-                    className={`cursor-pointer transition-all hover-elevate p-3 ${
-                      backdrop === option.id ? 'ring-2 ring-primary bg-primary/5' : ''
-                    }`}
-                    onClick={() => onBackdropChange(option.id)}
-                    data-testid={`backdrop-${option.id}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {backdrop === option.id && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                      <span className="text-xs font-medium">{option.name}</span>
-                    </div>
-                  </Card>
-                ))}
-              </div>
+          <div className="space-y-6">
+            {/* Backdrop - Inline select */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <Label className="text-sm font-medium shrink-0 sm:w-40">BACKDROP</Label>
+              <Select value={backdrop} onValueChange={onBackdropChange}>
+                <SelectTrigger className="max-w-xs" data-testid="select-backdrop">
+                  <SelectValue placeholder="Select backdrop" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BACKDROP_OPTIONS.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* Shot Types */}
+            {/* Shot Types - Compact badge chips */}
             <div className="space-y-3">
-              <Label className="text-sm font-medium">SHOT TYPES (Select all that apply)</Label>
+              <Label className="text-sm font-medium">SHOT TYPES</Label>
               <div className="flex flex-wrap gap-2">
                 {PRODUCT_DISPLAY_OPTIONS.map((option) => {
                   const isSelected = productDisplay.includes(option.id);
                   return (
-                    <Card
+                    <Badge
                       key={option.id}
-                      className={`cursor-pointer transition-all hover-elevate px-3 py-2 ${
-                        isSelected ? 'ring-2 ring-primary bg-primary/5' : ''
+                      variant={isSelected ? "default" : "outline"}
+                      className={`cursor-pointer px-3 py-1.5 text-sm ${
+                        isSelected ? '' : 'hover:bg-muted'
                       }`}
                       onClick={() => handleToggleProductDisplay(option.id)}
                       data-testid={`display-${option.id}`}
                     >
-                      <div className="flex items-center gap-2">
-                        {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                        <span className="text-xs font-medium">{option.name}</span>
-                      </div>
-                    </Card>
+                      {isSelected && <Check className="h-3 w-3 mr-1.5" />}
+                      {option.name}
+                    </Badge>
                   );
                 })}
               </div>
@@ -536,145 +453,132 @@ export function ProductWorldCast({
         </CardContent>
       </Card>
 
-      {/* Talent Section */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xl font-semibold">Talent / Models</h3>
-          {talentType !== "none" && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setEditingTalent(null);
-                setNewTalent({ name: "", description: "", type: talentType === "hands" ? "hands" : talentType === "spokesperson" ? "spokesperson" : "lifestyle" });
-                setTalentImage(null);
-                setIsAddTalentOpen(true);
-              }}
-              data-testid="button-add-talent"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Talent
-            </Button>
-          )}
-        </div>
-
-        {/* Talent Type Selection */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {TALENT_TYPES.map((type) => {
-            const Icon = type.icon;
-            return (
-              <Card
-                key={type.id}
-                className={`cursor-pointer transition-all hover-elevate relative group overflow-hidden ${
-                  talentType === type.id ? 'ring-2 ring-primary' : ''
-                }`}
-                onClick={() => onTalentTypeChange(type.id)}
-                data-testid={`talent-type-${type.id}`}
+      {/* Talent Section - Clean selection cards */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold">Talent / Models</h3>
+            {talentType !== "none" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditingTalent(null);
+                  setNewTalent({ name: "", description: "", type: talentType === "hands" ? "hands" : talentType === "spokesperson" ? "spokesperson" : "lifestyle" });
+                  setTalentImage(null);
+                  setIsAddTalentOpen(true);
+                }}
+                data-testid="button-add-talent"
               >
-                <CardContent className="p-0">
-                  <div className="relative">
-                    <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
-                      <Icon className={`h-10 w-10 ${talentType === type.id ? 'text-primary' : 'text-muted-foreground'}`} />
-                    </div>
-                    {talentType === type.id && (
-                      <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                        <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-                          <Check className="h-5 w-5 text-primary-foreground" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-2 text-center bg-card">
-                    <p className="text-xs font-medium leading-tight">{type.name}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Talent
+              </Button>
+            )}
+          </div>
 
-        {/* Talent List */}
-        {talentType !== "none" && (
-          <>
-            {talents.length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-center justify-center py-8">
+          {/* Talent Type Selection - Horizontal compact cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            {TALENT_TYPES.map((type) => {
+              const Icon = type.icon;
+              const isSelected = talentType === type.id;
+              return (
+                <div
+                  key={type.id}
+                  className={`relative p-4 rounded-lg border-2 cursor-pointer transition-all hover-elevate ${
+                    isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/50'
+                  }`}
+                  onClick={() => onTalentTypeChange(type.id)}
+                  data-testid={`talent-type-${type.id}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${isSelected ? 'bg-primary/10' : 'bg-muted'}`}>
+                      <Icon className={`h-5 w-5 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium ${isSelected ? 'text-primary' : ''}`}>{type.name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{type.description}</p>
+                    </div>
+                  </div>
+                  {isSelected && (
+                    <div className="absolute top-2 right-2">
+                      <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                        <Check className="h-3 w-3 text-primary-foreground" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Talent List */}
+          {talentType !== "none" && (
+            <>
+              {talents.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed rounded-lg">
                   <User className="h-10 w-10 text-muted-foreground mb-2" />
                   <p className="text-sm text-muted-foreground text-center">
-                    No talent added yet. Add models or presenters for your product video.
+                    No talent added yet. Click "Add Talent" to add models or presenters.
                   </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {talents.map((talent) => {
-                  const TalentIcon = getTalentTypeIcon(talent.type);
-                  return (
-                    <Card key={talent.id} className="relative overflow-hidden group" data-testid={`talent-${talent.id}`}>
-                      <CardContent className="p-0">
-                        <div className="aspect-[3/4] bg-muted flex items-center justify-center relative">
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {talents.map((talent) => {
+                    const TalentIcon = getTalentTypeIcon(talent.type);
+                    return (
+                      <div 
+                        key={talent.id} 
+                        className="flex items-center gap-4 p-3 rounded-lg border bg-card"
+                        data-testid={`talent-${talent.id}`}
+                      >
+                        {/* Avatar */}
+                        <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
                           {talent.imageUrl ? (
                             <img src={talent.imageUrl} alt={talent.name} className="h-full w-full object-cover" />
                           ) : (
-                            <TalentIcon className="h-16 w-16 text-muted-foreground" />
+                            <TalentIcon className="h-6 w-6 text-muted-foreground" />
                           )}
-                          
-                          {/* Action buttons */}
-                          <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button
-                              size="icon"
-                              variant="secondary"
-                              className="h-7 w-7"
-                              onClick={() => handleEditTalent(talent)}
-                              data-testid={`button-edit-talent-${talent.id}`}
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="destructive"
-                              className="h-7 w-7"
-                              onClick={() => handleDeleteTalent(talent.id)}
-                              data-testid={`button-delete-talent-${talent.id}`}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-
-                          {/* Type badge */}
-                          <div className="absolute top-2 left-2 bg-primary/90 text-primary-foreground text-xs px-2 py-1 rounded capitalize">
-                            {talent.type}
-                          </div>
                         </div>
-                        
+
                         {/* Info */}
-                        <div className="p-3 bg-gradient-to-t from-black/80 to-transparent absolute bottom-0 left-0 right-0">
-                          <p className="text-sm font-semibold text-white">{talent.name}</p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{talent.name}</p>
+                            <Badge variant="secondary" className="text-xs capitalize">
+                              {talent.type === "hands" ? "Hands" : talent.type === "spokesperson" ? "Presenter" : "Model"}
+                            </Badge>
+                          </div>
                           {talent.description && (
-                            <p className="text-xs text-white/80 line-clamp-1">{talent.description}</p>
+                            <p className="text-sm text-muted-foreground line-clamp-1">{talent.description}</p>
                           )}
                         </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        )}
-      </div>
 
-      {/* Additional Instructions */}
-      <Card>
-        <CardContent className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Additional Instructions</h3>
-          <Textarea
-            placeholder="Add any specific instructions that apply to the entire video... (e.g., 'Maintain consistent warm lighting throughout, keep brand colors prominent, use smooth transitions between shots')"
-            value={additionalInstructions}
-            onChange={(e) => onAdditionalInstructionsChange(e.target.value)}
-            rows={3}
-            data-testid="input-additional-instructions"
-          />
+                        {/* Actions */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleEditTalent(talent)}
+                            data-testid={`button-edit-talent-${talent.id}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleDeleteTalent(talent.id)}
+                            data-testid={`button-delete-talent-${talent.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -700,21 +604,21 @@ export function ProductWorldCast({
             <div className="flex justify-center">
               {talentImage ? (
                 <div className="relative group">
-                  <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-border">
+                  <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-border">
                     <img src={talentImage} alt="Talent" className="h-full w-full object-cover" />
                   </div>
                   <Button
                     size="icon"
                     variant="destructive"
-                    className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full"
+                    className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full"
                     onClick={() => setTalentImage(null)}
                     data-testid="button-remove-talent-image"
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-3 w-3" />
                   </Button>
                 </div>
               ) : (
-                <label className="flex flex-col items-center justify-center w-32 h-32 rounded-full border-2 border-dashed cursor-pointer hover:border-primary/50 transition-colors">
+                <label className="flex flex-col items-center justify-center w-24 h-24 rounded-full border-2 border-dashed cursor-pointer hover:border-primary/50 transition-colors">
                   <input
                     type="file"
                     accept="image/*"
@@ -725,7 +629,7 @@ export function ProductWorldCast({
                     }}
                     data-testid="input-upload-talent-image"
                   />
-                  <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                  <Upload className="h-5 w-5 text-muted-foreground mb-1" />
                   <span className="text-xs text-muted-foreground">Photo</span>
                 </label>
               )}

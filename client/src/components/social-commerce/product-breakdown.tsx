@@ -45,7 +45,8 @@ import {
   Clock,
   Type,
   Link2,
-  ArrowDown
+  ArrowDown,
+  Lock
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -104,6 +105,14 @@ const SHOT_TYPE_OPTIONS = [
   { id: "text-overlay", name: "Text Overlay" },
 ];
 
+interface ConnectionGroup {
+  id: string;
+  segmentId: string;
+  shotIds: string[];
+  type: "within-segment" | "bridge";
+  description: string;
+}
+
 export function ProductBreakdown({
   videoId,
   narrativeMode,
@@ -129,6 +138,10 @@ export function ProductBreakdown({
   const [deleteSegmentId, setDeleteSegmentId] = useState<string | null>(null);
   const [deleteShotId, setDeleteShotId] = useState<string | null>(null);
   
+  const [isAnalyzingConnections, setIsAnalyzingConnections] = useState(false);
+  const [connectionGroups, setConnectionGroups] = useState<ConnectionGroup[]>([]);
+  const [isConnectionsLocked, setIsConnectionsLocked] = useState(false);
+  
   const [newSegment, setNewSegment] = useState({
     type: "features" as ProductSegment["type"],
     title: "",
@@ -144,6 +157,7 @@ export function ProductBreakdown({
   });
 
   const hasBreakdown = segments.length > 0;
+  const hasConnections = connectionGroups.length > 0;
 
   useEffect(() => {
     if (!hasBreakdown && !isGenerating) {
@@ -465,6 +479,83 @@ export function ProductBreakdown({
   const totalDuration = segments.reduce((sum, seg) => sum + seg.duration, 0);
   const totalShots = Object.values(shots).flat().length;
 
+  const analyzeConnections = () => {
+    if (!isStartEndMode) return;
+    
+    setIsAnalyzingConnections(true);
+    
+    setTimeout(() => {
+      const groups: ConnectionGroup[] = [];
+      const sortedSegments = [...segments].sort((a, b) => a.order - b.order);
+      
+      sortedSegments.forEach((segment, segIndex) => {
+        const segmentShots = shots[segment.id] || [];
+        
+        if (segmentShots.length >= 2) {
+          groups.push({
+            id: `conn-${segment.id}`,
+            segmentId: segment.id,
+            shotIds: segmentShots.map(s => s.id),
+            type: "within-segment",
+            description: `Linear flow through ${SEGMENT_TYPES.find(t => t.id === segment.type)?.name || segment.title}`,
+          });
+        }
+        
+        if (segIndex < sortedSegments.length - 1) {
+          const nextSegment = sortedSegments[segIndex + 1];
+          const lastShot = segmentShots[segmentShots.length - 1];
+          const nextSegmentShots = shots[nextSegment.id] || [];
+          const firstNextShot = nextSegmentShots[0];
+          
+          if (lastShot && firstNextShot) {
+            groups.push({
+              id: `bridge-${segment.id}-${nextSegment.id}`,
+              segmentId: segment.id,
+              shotIds: [lastShot.id, firstNextShot.id],
+              type: "bridge",
+              description: `Transition from ${SEGMENT_TYPES.find(t => t.id === segment.type)?.name || segment.title} to ${SEGMENT_TYPES.find(t => t.id === nextSegment.type)?.name || nextSegment.title}`,
+            });
+          }
+        }
+      });
+      
+      setConnectionGroups(groups);
+      setIsAnalyzingConnections(false);
+      
+      const withinCount = groups.filter(g => g.type === "within-segment").length;
+      const bridgeCount = groups.filter(g => g.type === "bridge").length;
+      
+      toast({
+        title: "Connections Analyzed",
+        description: `Created ${withinCount} segment flows and ${bridgeCount} bridge connections for seamless transitions.`,
+      });
+    }, 1200);
+  };
+
+  const lockConnections = () => {
+    setIsConnectionsLocked(true);
+    toast({
+      title: "Connections Locked",
+      description: "Shot connections are now finalized. The storyboard will generate frames according to this continuity plan.",
+    });
+  };
+
+  const isConnectedToNext = (shotId: string, nextShotId: string): boolean => {
+    if (!hasConnections) return false;
+    return connectionGroups.some(g => {
+      const idx = g.shotIds.indexOf(shotId);
+      return idx >= 0 && idx < g.shotIds.length - 1 && g.shotIds[idx + 1] === nextShotId;
+    });
+  };
+
+  const hasBridgeToNextSegment = (segmentId: string, nextSegmentId: string): boolean => {
+    if (!hasConnections) return false;
+    return connectionGroups.some(g => 
+      g.type === "bridge" && 
+      g.id === `bridge-${segmentId}-${nextSegmentId}`
+    );
+  };
+
   return (
     <div className="space-y-6">
       {!hasBreakdown ? (
@@ -521,6 +612,99 @@ export function ProductBreakdown({
                 <p className="text-sm text-muted-foreground">{videoConcept}</p>
               </CardContent>
             </Card>
+          )}
+
+          {/* Start-End Mode: Connection Analysis Panel */}
+          {isStartEndMode && (
+            <div className="space-y-3">
+              {/* Initial state: Ready to analyze */}
+              {!hasConnections && !isAnalyzingConnections && !isConnectionsLocked && (
+                <div className="flex items-center justify-between p-4 bg-card/30 rounded-lg border border-dashed border-primary/30">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500">
+                      <Sparkles className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Ready to analyze shot continuity</p>
+                      <p className="text-xs text-muted-foreground">
+                        AI will create automatic linear connections across {segments.length} segment{segments.length !== 1 ? 's' : ''} for seamless transitions
+                      </p>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={analyzeConnections} 
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600" 
+                    data-testid="button-analyze-connections"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Analyze All Connections
+                  </Button>
+                </div>
+              )}
+
+              {/* Analyzing state */}
+              {isAnalyzingConnections && (
+                <div className="flex items-center justify-center p-6 bg-card/30 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="animate-spin">
+                      <Sparkles className="h-5 w-5 text-primary" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">Analyzing shot continuity...</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Connections analyzed: Status bar */}
+              {hasConnections && !isConnectionsLocked && (
+                <div className="flex items-center justify-between p-4 bg-card/30 rounded-lg border border-green-500/30">
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-green-500" />
+                      <span className="text-sm">
+                        <span className="font-medium text-green-600 dark:text-green-400">
+                          {connectionGroups.filter(g => g.type === "within-segment").length}
+                        </span> segment flows
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-purple-500" />
+                      <span className="text-sm">
+                        <span className="font-medium text-purple-600 dark:text-purple-400">
+                          {connectionGroups.filter(g => g.type === "bridge").length}
+                        </span> bridge connections
+                      </span>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={lockConnections} 
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600" 
+                    data-testid="button-lock-connections"
+                  >
+                    <Lock className="h-4 w-4 mr-2" />
+                    Lock & Continue
+                  </Button>
+                </div>
+              )}
+
+              {/* Locked state */}
+              {isConnectionsLocked && (
+                <div className="flex items-center justify-between p-4 bg-green-500/10 rounded-lg border border-green-500/30">
+                  <div className="flex items-center gap-3">
+                    <Lock className="h-5 w-5 text-green-500" />
+                    <div>
+                      <p className="text-sm font-medium text-green-700 dark:text-green-400">Continuity Locked</p>
+                      <p className="text-xs text-muted-foreground">
+                        Shot connections are finalized. The storyboard will generate frames according to this plan.
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
+                    <Link2 className="h-3 w-3 mr-1" />
+                    {connectionGroups.length} connections
+                  </Badge>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Segments List */}
@@ -610,7 +794,9 @@ export function ProductBreakdown({
                                 <Badge variant="secondary" className="text-xs">
                                   {shot.duration}s
                                 </Badge>
-                                {isStartEndMode && shotIndex < segmentShots.length - 1 && (
+                                {isStartEndMode && hasConnections && 
+                                  shotIndex < segmentShots.length - 1 && 
+                                  isConnectedToNext(shot.id, segmentShots[shotIndex + 1]?.id) && (
                                   <Badge variant="outline" className="text-xs bg-cyan-500/10 text-cyan-500 border-cyan-500/30">
                                     <Link2 className="h-3 w-3 mr-1" />
                                     Connected
@@ -646,7 +832,9 @@ export function ProductBreakdown({
                           </div>
                           
                           {/* Connection arrow between shots within segment */}
-                          {isStartEndMode && shotIndex < segmentShots.length - 1 && (
+                          {isStartEndMode && hasConnections && 
+                            shotIndex < segmentShots.length - 1 && 
+                            isConnectedToNext(shot.id, segmentShots[shotIndex + 1]?.id) && (
                             <div className="flex items-center justify-center py-1 ml-6">
                               <div className="flex flex-col items-center">
                                 <div className="w-px h-2 bg-cyan-500/50" />
@@ -670,12 +858,15 @@ export function ProductBreakdown({
                     </div>
                     
                     {/* Segment bridge connector - shows connection to next segment */}
-                    {isStartEndMode && segIndex < segments.length - 1 && segmentShots.length > 0 && (
+                    {isStartEndMode && hasConnections && 
+                      segIndex < segments.length - 1 && 
+                      segmentShots.length > 0 && 
+                      hasBridgeToNextSegment(segment.id, segments.sort((a, b) => a.order - b.order)[segIndex + 1]?.id) && (
                       <div className="flex items-center justify-center py-3 mt-2">
                         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/30">
                           <ArrowDown className="h-3 w-3 text-purple-500" />
                           <span className="text-xs text-purple-500 font-medium">
-                            Flows to {SEGMENT_TYPES.find(s => s.id === segments[segIndex + 1]?.type)?.name || "Next Segment"}
+                            Flows to {SEGMENT_TYPES.find(s => s.id === segments.sort((a, b) => a.order - b.order)[segIndex + 1]?.type)?.name || "Next Segment"}
                           </span>
                         </div>
                       </div>

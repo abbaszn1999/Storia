@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
-import { Video, Zap, Search, Calendar } from "lucide-react";
+import { Video, Zap, Search, Calendar, MoreVertical, Scissors, Edit, Copy, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { formatDistanceToNow, format, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Select,
   SelectContent,
@@ -13,12 +14,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const historyItems = [
   {
     id: "1",
     title: "Summer Product Launch",
     type: "video" as const,
+    mode: "Narrative Video",
     status: "completed",
     updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2),
     url: "/videos/narrative/1",
@@ -28,6 +37,7 @@ const historyItems = [
     id: "2",
     title: "Brand Story 2024",
     type: "video" as const,
+    mode: "Narrative Video",
     status: "processing",
     updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
     url: "/videos/narrative/2",
@@ -37,6 +47,7 @@ const historyItems = [
     id: "3",
     title: "Quick Product Demo",
     type: "story" as const,
+    mode: "Story Template",
     status: "completed",
     updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 48),
     url: "/stories/3",
@@ -46,15 +57,17 @@ const historyItems = [
     id: "4",
     title: "Customer Testimonials",
     type: "video" as const,
+    mode: "Character Vlog",
     status: "draft",
     updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 72),
-    url: "/videos/narrative/4",
+    url: "/videos/vlog/4",
     thumbnailUrl: undefined,
   },
   {
     id: "5",
     title: "Team Introduction",
     type: "story" as const,
+    mode: "Story Template",
     status: "published",
     updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 96),
     url: "/stories/5",
@@ -64,6 +77,7 @@ const historyItems = [
     id: "6",
     title: "Product Feature Highlights",
     type: "video" as const,
+    mode: "Narrative Video",
     status: "completed",
     updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 120),
     url: "/videos/narrative/6",
@@ -73,6 +87,7 @@ const historyItems = [
     id: "7",
     title: "Behind the Scenes",
     type: "story" as const,
+    mode: "Story Template",
     status: "published",
     updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 144),
     url: "/stories/7",
@@ -82,9 +97,10 @@ const historyItems = [
     id: "8",
     title: "Company Culture Video",
     type: "video" as const,
+    mode: "Character Vlog",
     status: "completed",
     updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 168),
-    url: "/videos/narrative/8",
+    url: "/videos/vlog/8",
     thumbnailUrl: undefined,
   },
 ];
@@ -97,6 +113,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function History() {
+  const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("all");
 
@@ -132,10 +149,19 @@ export default function History() {
 
   const HistoryItemCard = ({ item }: { item: typeof historyItems[0] }) => {
     const Icon = item.type === "video" ? Video : Zap;
+    const canCreateShorts = item.type === "video" && 
+      item.status === "completed" && 
+      (item.mode.toLowerCase().includes("narrative") || item.mode.toLowerCase().includes("vlog"));
+    
+    const handleCreateShorts = (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      navigate(`/shorts/create/${item.id}`);
+    };
     
     return (
       <Link href={item.url} data-testid={`link-history-item-${item.id}`}>
-        <div className="hover-elevate active-elevate-2 cursor-pointer">
+        <div className="hover-elevate active-elevate-2 cursor-pointer group">
           <Card className="overflow-hidden" data-testid={`card-history-${item.id}`}>
             <div className="aspect-video bg-muted relative overflow-hidden">
               {item.thumbnailUrl ? (
@@ -145,10 +171,46 @@ export default function History() {
                   <Icon className="h-12 w-12 text-muted-foreground" />
                 </div>
               )}
-              <div className="absolute top-2 right-2">
+              <div className="absolute top-2 right-2 flex items-center gap-2">
                 <Badge className={statusColors[item.status] || statusColors.draft}>
                   {item.status}
                 </Badge>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                    <Button 
+                      variant="secondary" 
+                      size="sm" 
+                      className="px-2 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                      data-testid={`button-history-menu-${item.id}`}
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenuItem data-testid={`menu-item-edit-${item.id}`}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </DropdownMenuItem>
+                    {canCreateShorts && (
+                      <DropdownMenuItem onClick={handleCreateShorts} data-testid={`menu-item-create-shorts-${item.id}`}>
+                        <Scissors className="h-4 w-4 mr-2" />
+                        Create Shorts
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem data-testid={`menu-item-duplicate-${item.id}`}>
+                      <Copy className="h-4 w-4 mr-2" />
+                      Duplicate
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      className="text-destructive focus:text-destructive"
+                      data-testid={`menu-item-delete-${item.id}`}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
             <CardContent className="pt-4">

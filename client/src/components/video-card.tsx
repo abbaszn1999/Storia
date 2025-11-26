@@ -60,8 +60,8 @@ export function VideoCard({ id, title, mode, status, duration, updatedAt, thumbn
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
               <Button 
                 variant="secondary" 
-                size="icon" 
-                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                size="sm" 
+                className="px-2 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity"
                 data-testid={`button-video-menu-${id}`}
               >
                 <MoreVertical className="h-4 w-4" />

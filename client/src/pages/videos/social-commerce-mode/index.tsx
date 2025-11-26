@@ -1,37 +1,73 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { ArrowLeft, Check, ShoppingBag } from "lucide-react";
 import { Link, useParams, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SocialCommerceWorkflow } from "@/components/social-commerce-workflow";
-import { ArrowLeft, Check, ShoppingBag } from "lucide-react";
+import { NarrativeModeSelector } from "@/components/narrative/narrative-mode-selector";
+import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
 
-const STEPS = [
-  { id: 0, label: "Product" },
-  { id: 1, label: "Hook & Format" },
-  { id: 2, label: "Scenes" },
-  { id: 3, label: "Visual Style" },
-  { id: 4, label: "Audio" },
-  { id: 5, label: "Export" },
+const steps = [
+  { id: "script", label: "Script" },
+  { id: "world", label: "World & Cast" },
+  { id: "breakdown", label: "Breakdown" },
+  { id: "storyboard", label: "Storyboard" },
+  { id: "animatic", label: "Animatic" },
+  { id: "export", label: "Export" },
 ];
 
-export default function SocialCommerceModePage() {
+export default function SocialCommerceMode() {
   const params = useParams<{ videoId?: string }>();
   const searchParams = useSearch();
   const urlParams = new URLSearchParams(searchParams);
   
-  const videoId = params.videoId || urlParams.get("id") || "new";
-  const workspaceId = urlParams.get("workspace") || "default";
-  const videoTitle = urlParams.get("title") || "Untitled Product Video";
+  const [videoTitle] = useState(urlParams.get("title") || "Untitled Product Video");
+  const [activeStep, setActiveStep] = useState("script");
+  const [completedSteps, setCompletedSteps] = useState<string[]>([]);
+  const [narrativeMode, setNarrativeMode] = useState<"image-reference" | "start-end" | null>(null);
   
-  const [activeStep, setActiveStep] = useState(0);
-  const [highestCompletedStep, setHighestCompletedStep] = useState(-1);
+  const [videoId] = useState(params.videoId || urlParams.get("id") || `video-${Date.now()}`);
+  const [workspaceId] = useState(urlParams.get("workspace") || "workspace-1");
+  const [script, setScript] = useState("");
+  const [aspectRatio, setAspectRatio] = useState("9:16");
+  const [scriptModel, setScriptModel] = useState("gpt-4o");
+  const [voiceActorId, setVoiceActorId] = useState<string | null>(null);
+  const [voiceOverEnabled, setVoiceOverEnabled] = useState(true);
+  const [scenes, setScenes] = useState<Scene[]>([]);
+  const [shots, setShots] = useState<{ [sceneId: string]: Shot[] }>({});
+  const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
+  const [continuityLocked, setContinuityLocked] = useState(false);
+  const [continuityGroups, setContinuityGroups] = useState<{ [sceneId: string]: any[] }>({});
+  const [worldSettings, setWorldSettings] = useState<{ 
+    artStyle: string; 
+    imageModel?: string;
+    worldDescription?: string;
+    locations?: Array<{ id: string; name: string; description: string }>;
+    imageInstructions?: string;
+    videoInstructions?: string;
+  }>({
+    artStyle: "none",
+    imageModel: "Flux",
+    worldDescription: "",
+    locations: [],
+    imageInstructions: "",
+    videoInstructions: "",
+  });
 
-  const isStepCompleted = (stepId: number) => stepId <= highestCompletedStep;
+  const isStepCompleted = (stepId: string) => completedSteps.includes(stepId);
+  const currentStepIndex = steps.findIndex((s) => s.id === activeStep);
 
-  const handleStepChange = (step: number) => {
-    if (step > highestCompletedStep + 1) return;
-    setActiveStep(step);
+  const handleNext = () => {
+    if (!completedSteps.includes(activeStep)) {
+      setCompletedSteps([...completedSteps, activeStep]);
+    }
+    const nextIndex = currentStepIndex + 1;
+    if (nextIndex < steps.length) {
+      setActiveStep(steps[nextIndex].id);
+    }
   };
 
   return (
@@ -63,18 +99,17 @@ export default function SocialCommerceModePage() {
 
             {/* Center: Step Navigation */}
             <div className="flex items-center gap-3">
-              {STEPS.map((step) => (
+              {steps.map((step, index) => (
                 <button
                   key={step.id}
-                  onClick={() => handleStepChange(step.id)}
-                  disabled={step.id > highestCompletedStep + 1}
+                  onClick={() => setActiveStep(step.id)}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all hover-elevate ${
                     activeStep === step.id
                       ? "bg-primary text-primary-foreground"
                       : isStepCompleted(step.id)
                       ? "bg-muted text-foreground"
                       : "text-muted-foreground"
-                  } ${step.id > highestCompletedStep + 1 ? "opacity-50 cursor-not-allowed" : ""}`}
+                  }`}
                   data-testid={`button-step-${step.id}`}
                 >
                   {isStepCompleted(step.id) && (
@@ -95,15 +130,46 @@ export default function SocialCommerceModePage() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
-        <div className="max-w-[1600px] mx-auto">
-          <SocialCommerceWorkflow 
-            activeStep={activeStep}
-            onStepChange={(step) => {
-              setHighestCompletedStep(prev => Math.max(prev, step - 1));
-              setActiveStep(step);
-            }}
-            projectName={videoTitle}
-          />
+        <div className="max-w-[1600px] mx-auto px-6 py-8">
+          {!narrativeMode ? (
+            <div className="flex items-center justify-center min-h-[600px]">
+              <NarrativeModeSelector onSelectMode={(mode) => setNarrativeMode(mode)} />
+            </div>
+          ) : (
+            <SocialCommerceWorkflow 
+              activeStep={activeStep}
+              videoId={videoId}
+              workspaceId={workspaceId}
+              narrativeMode={narrativeMode}
+              script={script}
+              aspectRatio={aspectRatio}
+              scriptModel={scriptModel}
+              voiceActorId={voiceActorId}
+              voiceOverEnabled={voiceOverEnabled}
+              scenes={scenes}
+              shots={shots}
+              shotVersions={shotVersions}
+              characters={characters}
+              referenceImages={referenceImages}
+              continuityLocked={continuityLocked}
+              continuityGroups={continuityGroups}
+              worldSettings={worldSettings}
+              onScriptChange={setScript}
+              onAspectRatioChange={setAspectRatio}
+              onScriptModelChange={setScriptModel}
+              onVoiceActorChange={setVoiceActorId}
+              onVoiceOverToggle={setVoiceOverEnabled}
+              onScenesChange={setScenes}
+              onShotsChange={setShots}
+              onShotVersionsChange={setShotVersions}
+              onCharactersChange={setCharacters}
+              onReferenceImagesChange={setReferenceImages}
+              onContinuityLockedChange={setContinuityLocked}
+              onContinuityGroupsChange={setContinuityGroups}
+              onWorldSettingsChange={setWorldSettings}
+              onNext={handleNext}
+            />
+          )}
         </div>
       </main>
     </div>

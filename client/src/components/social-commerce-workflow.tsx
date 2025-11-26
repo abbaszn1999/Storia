@@ -1,197 +1,506 @@
-import { useState } from "react";
-import { ProductSetupTab } from "./commerce/product-setup-tab";
-import { HookFormatTab } from "./commerce/hook-format-tab";
-import { SceneBuilderTab } from "./commerce/scene-builder-tab";
-import { VisualStyleTab } from "./commerce/visual-style-tab";
-import { AudioCaptionsTab } from "./commerce/audio-captions-tab";
-import { ExportPublishTab } from "./commerce/export-publish-tab";
+import { Button } from "@/components/ui/button";
+import { ScriptEditor } from "@/components/social-commerce/script-editor";
+import { SceneBreakdown } from "@/components/social-commerce/scene-breakdown";
+import { WorldCast } from "@/components/social-commerce/world-cast";
+import { StoryboardEditor } from "@/components/social-commerce/storyboard-editor";
+import { AnimaticPreview } from "@/components/social-commerce/animatic-preview";
+import { ExportSettings, type ExportData } from "@/components/social-commerce/export-settings";
+import { useToast } from "@/hooks/use-toast";
+import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
 
 interface SocialCommerceWorkflowProps {
-  activeStep: number;
-  onStepChange: (step: number) => void;
-  projectName: string;
-}
-
-export interface ProductData {
-  name: string;
-  price: string;
-  category: string;
-  description: string;
-  sellingPoints: string[];
-  problemSolved: string;
-  differentiator: string;
-  demographics: string[];
-  interests: string;
-  tone: string;
-}
-
-export interface HookFormatData {
-  hookStyle: string;
-  videoFormat: string;
-  duration: number;
-  ctaType: string;
-}
-
-export interface SceneData {
-  id: number;
-  type: string;
-  description: string;
-  overlay: string;
-  duration: number;
-}
-
-export interface VisualData {
-  aesthetic: string;
-  background: string;
-  lighting: string;
-  colorPalette: string;
-  motionGraphics: string[];
-}
-
-export interface AudioData {
-  audioType: string;
-  voiceStyle: string;
-  voiceScript: string;
-  voiceSpeed: number;
-  captionStyle: string;
-  soundEffects: string[];
-  volumeMix: {
-    voice: number;
-    music: number;
-    sfx: number;
-  };
-}
-
-export interface ExportData {
-  platform: string;
+  activeStep: string;
+  videoId: string;
+  workspaceId: string;
+  narrativeMode: "image-reference" | "start-end";
+  script: string;
   aspectRatio: string;
-  resolution: string;
-  productUrl: string;
-  utmTracking: boolean;
-  batchOptions: string[];
+  scriptModel: string;
+  voiceActorId: string | null;
+  voiceOverEnabled: boolean;
+  scenes: Scene[];
+  shots: { [sceneId: string]: Shot[] };
+  shotVersions: { [shotId: string]: ShotVersion[] };
+  characters: Character[];
+  referenceImages: ReferenceImage[];
+  continuityLocked: boolean;
+  continuityGroups: { [sceneId: string]: any[] };
+  worldSettings: { 
+    artStyle: string; 
+    imageModel?: string;
+    worldDescription?: string;
+    locations?: Array<{ id: string; name: string; description: string }>;
+    imageInstructions?: string;
+    videoInstructions?: string;
+  };
+  onScriptChange: (script: string) => void;
+  onAspectRatioChange: (aspectRatio: string) => void;
+  onScriptModelChange: (model: string) => void;
+  onVoiceActorChange: (voiceActorId: string) => void;
+  onVoiceOverToggle: (enabled: boolean) => void;
+  onScenesChange: (scenes: Scene[]) => void;
+  onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
+  onShotVersionsChange: (shotVersions: { [shotId: string]: ShotVersion[] }) => void;
+  onCharactersChange: (characters: Character[]) => void;
+  onReferenceImagesChange: (referenceImages: ReferenceImage[]) => void;
+  onContinuityLockedChange: (locked: boolean) => void;
+  onContinuityGroupsChange: (groups: { [sceneId: string]: any[] }) => void;
+  onWorldSettingsChange: (settings: { 
+    artStyle: string; 
+    imageModel: string;
+    worldDescription: string;
+    locations: Array<{ id: string; name: string; description: string }>;
+    imageInstructions: string;
+    videoInstructions: string;
+  }) => void;
+  onNext: () => void;
 }
 
-export function SocialCommerceWorkflow({ 
-  activeStep, 
-  onStepChange,
-  projectName 
+export function SocialCommerceWorkflow({
+  activeStep,
+  videoId,
+  workspaceId,
+  narrativeMode,
+  script,
+  aspectRatio,
+  scriptModel,
+  voiceActorId,
+  voiceOverEnabled,
+  scenes,
+  shots,
+  shotVersions,
+  characters,
+  referenceImages,
+  continuityLocked,
+  continuityGroups,
+  worldSettings,
+  onScriptChange,
+  onAspectRatioChange,
+  onScriptModelChange,
+  onVoiceActorChange,
+  onVoiceOverToggle,
+  onScenesChange,
+  onShotsChange,
+  onShotVersionsChange,
+  onCharactersChange,
+  onReferenceImagesChange,
+  onContinuityLockedChange,
+  onContinuityGroupsChange,
+  onWorldSettingsChange,
+  onNext,
 }: SocialCommerceWorkflowProps) {
-  const [productData, setProductData] = useState<ProductData>({
-    name: "",
-    price: "",
-    category: "",
-    description: "",
-    sellingPoints: ["", "", ""],
-    problemSolved: "",
-    differentiator: "",
-    demographics: [],
-    interests: "",
-    tone: ""
-  });
+  const { toast } = useToast();
 
-  const [hookFormatData, setHookFormatData] = useState<HookFormatData>({
-    hookStyle: "",
-    videoFormat: "",
-    duration: 30,
-    ctaType: ""
-  });
-
-  const [scenes, setScenes] = useState<SceneData[]>([
-    { id: 1, type: "hook", description: "", overlay: "", duration: 3 },
-    { id: 2, type: "feature", description: "", overlay: "", duration: 5 },
-    { id: 3, type: "demo", description: "", overlay: "", duration: 7 },
-    { id: 4, type: "cta", description: "", overlay: "", duration: 3 }
-  ]);
-
-  const [visualData, setVisualData] = useState<VisualData>({
-    aesthetic: "",
-    background: "",
-    lighting: "",
-    colorPalette: "",
-    motionGraphics: []
-  });
-
-  const [audioData, setAudioData] = useState<AudioData>({
-    audioType: "voiceover",
-    voiceStyle: "",
-    voiceScript: "",
-    voiceSpeed: 60,
-    captionStyle: "",
-    soundEffects: [],
-    volumeMix: {
-      voice: 80,
-      music: 40,
-      sfx: 60
+  const handleExport = (data: ExportData) => {
+    if (data.selectedPlatforms.length > 0) {
+      const missingMetadata: string[] = [];
+      
+      if (data.selectedPlatforms.includes("youtube")) {
+        const ytMeta = data.platformMetadata.youtube;
+        if (!ytMeta || !ytMeta.title || !ytMeta.description || !ytMeta.tags) {
+          missingMetadata.push("YouTube (title, description, and tags required)");
+        }
+      }
+      
+      const socialPlatforms = data.selectedPlatforms.filter((p: string) => p !== "youtube");
+      if (socialPlatforms.length > 0) {
+        const socialMeta = data.platformMetadata.social;
+        if (!socialMeta || !socialMeta.caption) {
+          missingMetadata.push("Social Media (caption required)");
+        }
+      }
+      
+      if (missingMetadata.length > 0) {
+        toast({
+          title: "Missing platform metadata",
+          description: `Please fill in the metadata for: ${missingMetadata.join(", ")}`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
-  });
 
-  const [exportData, setExportData] = useState<ExportData>({
-    platform: "",
-    aspectRatio: "9:16",
-    resolution: "1080p",
-    productUrl: "",
-    utmTracking: false,
-    batchOptions: []
-  });
+    if (data.selectedPlatforms.length > 0 && data.publishType === "schedule") {
+      if (!data.scheduleDate || !data.scheduleTime) {
+        toast({
+          title: "Missing schedule information",
+          description: "Please select both date and time for scheduled publishing.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
 
-  const goToNextStep = () => {
-    onStepChange(activeStep + 1);
+    if (data.selectedPlatforms.length === 0) {
+      toast({
+        title: "Export started!",
+        description: `Your video is being exported in ${data.resolution}. You'll be notified when it's ready.`,
+      });
+    } else if (data.publishType === "instant") {
+      const platformNames = data.selectedPlatforms.join(", ");
+      toast({
+        title: "Export & Publishing!",
+        description: `Your video is being exported and will be published to ${platformNames}.`,
+      });
+    } else {
+      const platformNames = data.selectedPlatforms.join(", ");
+      const scheduleDateTime = `${data.scheduleDate} at ${data.scheduleTime}`;
+      toast({
+        title: "Export & Scheduled!",
+        description: `Your video will be exported and published to ${platformNames} on ${scheduleDateTime}.`,
+      });
+    }
+
+    console.log("Export data:", data);
   };
 
-  const goToPrevStep = () => {
-    onStepChange(activeStep - 1);
+  const handleGenerateShot = (shotId: string) => {
+    console.log("Generating shot:", shotId);
   };
 
-  const renderActiveTab = () => {
-    switch (activeStep) {
-      case 0:
-        return (
-          <ProductSetupTab 
-            onNext={goToNextStep}
-          />
-        );
-      case 1:
-        return (
-          <HookFormatTab 
-            onNext={goToNextStep}
-            onPrev={goToPrevStep}
-          />
-        );
-      case 2:
-        return (
-          <SceneBuilderTab 
-            onNext={goToNextStep}
-            onPrev={goToPrevStep}
-          />
-        );
-      case 3:
-        return (
-          <VisualStyleTab 
-            onNext={goToNextStep}
-            onPrev={goToPrevStep}
-          />
-        );
-      case 4:
-        return (
-          <AudioCaptionsTab 
-            onNext={goToNextStep}
-            onPrev={goToPrevStep}
-          />
-        );
-      case 5:
-        return (
-          <ExportPublishTab 
-            onPrev={goToPrevStep}
-          />
-        );
-      default:
-        return null;
+  const handleRegenerateShot = (shotId: string) => {
+    console.log("Regenerating shot:", shotId);
+  };
+
+  const handleUpdateShot = (shotId: string, updates: Partial<Shot>) => {
+    onShotsChange(
+      Object.fromEntries(
+        Object.entries(shots).map(([sceneId, sceneShots]) => [
+          sceneId,
+          sceneShots.map((shot) =>
+            shot.id === shotId ? { ...shot, ...updates } : shot
+          ),
+        ])
+      )
+    );
+  };
+
+  const handleUpdateShotVersion = (shotId: string, versionId: string, updates: Partial<ShotVersion>) => {
+    onShotVersionsChange(
+      Object.fromEntries(
+        Object.entries(shotVersions).map(([sid, versions]) => [
+          sid,
+          versions.map((version) =>
+            version.id === versionId && sid === shotId
+              ? { ...version, ...updates }
+              : version
+          ),
+        ])
+      )
+    );
+  };
+
+  const handleUpdateScene = (sceneId: string, updates: Partial<Scene>) => {
+    onScenesChange(
+      scenes.map((scene) =>
+        scene.id === sceneId ? { ...scene, ...updates } : scene
+      )
+    );
+  };
+
+  const handleUploadShotReference = (shotId: string, file: File) => {
+    const tempUrl = URL.createObjectURL(file);
+    
+    const existingRef = referenceImages.find(
+      (ref) => ref.shotId === shotId && ref.type === "shot_reference"
+    );
+
+    if (existingRef) {
+      onReferenceImagesChange(
+        referenceImages.map((ref) =>
+          ref.shotId === shotId && ref.type === "shot_reference"
+            ? { ...ref, imageUrl: tempUrl }
+            : ref
+        )
+      );
+    } else {
+      const newRef: ReferenceImage = {
+        id: `ref-${Date.now()}`,
+        videoId: videoId,
+        shotId: shotId,
+        characterId: null,
+        type: "shot_reference",
+        imageUrl: tempUrl,
+        description: null,
+        createdAt: new Date(),
+      };
+      onReferenceImagesChange([...referenceImages, newRef]);
     }
+  };
+
+  const handleDeleteShotReference = (shotId: string) => {
+    onReferenceImagesChange(
+      referenceImages.filter(
+        (ref) => !(ref.shotId === shotId && ref.type === "shot_reference")
+      )
+    );
+  };
+
+  const handleReorderShots = (sceneId: string, shotIds: string[]) => {
+    const sceneShots = shots[sceneId] || [];
+    const reorderedShots = shotIds.map(id => sceneShots.find(s => s.id === id)).filter(Boolean) as Shot[];
+    
+    onShotsChange({
+      ...shots,
+      [sceneId]: reorderedShots,
+    });
+  };
+
+  const handleSelectVersion = (shotId: string, versionId: string) => {
+    handleUpdateShot(shotId, { currentVersionId: versionId });
+  };
+
+  const handleDeleteVersion = (shotId: string, versionId: string) => {
+    const versions = shotVersions[shotId] || [];
+    const filteredVersions = versions.filter(v => v.id !== versionId);
+    
+    onShotVersionsChange({
+      ...shotVersions,
+      [shotId]: filteredVersions,
+    });
+  };
+
+  const handleAddScene = (afterSceneIndex: number) => {
+    const newSceneId = `scene-${Date.now()}`;
+    const newScene: Scene = {
+      id: newSceneId,
+      videoId: videoId,
+      sceneNumber: afterSceneIndex + 2,
+      title: `New Scene ${afterSceneIndex + 2}`,
+      description: "Describe what happens in this scene",
+      lighting: null,
+      weather: null,
+      imageModel: null,
+      videoModel: null,
+      duration: null,
+      createdAt: new Date(),
+    };
+
+    const newScenes = [...scenes];
+    newScenes.splice(afterSceneIndex + 1, 0, newScene);
+    
+    const updatedScenes = newScenes.map((scene, idx) => ({
+      ...scene,
+      sceneNumber: idx + 1,
+    }));
+
+    onScenesChange(updatedScenes);
+
+    const initialShot: Shot = {
+      id: `shot-${Date.now()}`,
+      sceneId: newSceneId,
+      shotNumber: 1,
+      description: "Shot description",
+      cameraMovement: "Static",
+      shotType: "Medium",
+      soundEffects: null,
+      duration: 3,
+      transition: "cut",
+      imageModel: null,
+      videoModel: null,
+      currentVersionId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    onShotsChange({
+      ...shots,
+      [newSceneId]: [initialShot],
+    });
+  };
+
+  const handleAddShot = (sceneId: string, afterShotIndex: number) => {
+    const sceneShots = shots[sceneId] || [];
+    const newShot: Shot = {
+      id: `shot-${Date.now()}`,
+      sceneId: sceneId,
+      shotNumber: afterShotIndex + 2,
+      description: "New shot description",
+      cameraMovement: "Static",
+      shotType: "Medium",
+      soundEffects: null,
+      duration: 3,
+      transition: "cut",
+      imageModel: null,
+      videoModel: null,
+      currentVersionId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const newShots = [...sceneShots];
+    newShots.splice(afterShotIndex + 1, 0, newShot);
+
+    const updatedShots = newShots.map((shot, idx) => ({
+      ...shot,
+      shotNumber: idx + 1,
+    }));
+
+    onShotsChange({
+      ...shots,
+      [sceneId]: updatedShots,
+    });
+  };
+
+  const handleDeleteScene = (sceneId: string) => {
+    const updatedScenes = scenes
+      .filter(scene => scene.id !== sceneId)
+      .map((scene, idx) => ({
+        ...scene,
+        sceneNumber: idx + 1,
+      }));
+    
+    onScenesChange(updatedScenes);
+    
+    const updatedShots = { ...shots };
+    delete updatedShots[sceneId];
+    onShotsChange(updatedShots);
+    
+    const sceneShots = shots[sceneId] || [];
+    const updatedShotVersions = { ...shotVersions };
+    sceneShots.forEach(shot => {
+      delete updatedShotVersions[shot.id];
+    });
+    onShotVersionsChange(updatedShotVersions);
+    
+    const shotIds = sceneShots.map(s => s.id);
+    onReferenceImagesChange(
+      referenceImages.filter(ref => !shotIds.includes(ref.shotId || ''))
+    );
+  };
+
+  const handleDeleteShot = (shotId: string) => {
+    const sceneId = Object.keys(shots).find(sId => 
+      shots[sId]?.some(shot => shot.id === shotId)
+    );
+    
+    if (!sceneId) return;
+    
+    const sceneShots = shots[sceneId] || [];
+    
+    const updatedShots = sceneShots
+      .filter(shot => shot.id !== shotId)
+      .map((shot, idx) => ({
+        ...shot,
+        shotNumber: idx + 1,
+      }));
+    
+    onShotsChange({
+      ...shots,
+      [sceneId]: updatedShots,
+    });
+    
+    const updatedShotVersions = { ...shotVersions };
+    delete updatedShotVersions[shotId];
+    onShotVersionsChange(updatedShotVersions);
+    
+    onReferenceImagesChange(
+      referenceImages.filter(ref => ref.shotId !== shotId)
+    );
   };
 
   return (
-    <div className="min-h-full" data-testid="social-commerce-workflow">
-      {renderActiveTab()}
+    <div>
+      {activeStep === "script" && (
+        <ScriptEditor
+          initialScript={script}
+          aspectRatio={aspectRatio}
+          scriptModel={scriptModel}
+          onScriptChange={onScriptChange}
+          onAspectRatioChange={onAspectRatioChange}
+          onScriptModelChange={onScriptModelChange}
+          onNext={onNext}
+        />
+      )}
+
+      {activeStep === "breakdown" && (
+        <SceneBreakdown
+          videoId={videoId}
+          script={script}
+          scriptModel={scriptModel}
+          narrativeMode={narrativeMode}
+          scenes={scenes}
+          shots={shots}
+          shotVersions={shotVersions}
+          continuityLocked={continuityLocked}
+          continuityGroups={continuityGroups}
+          onScenesGenerated={(newScenes: Scene[], newShots: { [sceneId: string]: Shot[] }, newShotVersions?: { [shotId: string]: ShotVersion[] }) => {
+            onScenesChange(newScenes);
+            onShotsChange(newShots);
+            if (newShotVersions) {
+              onShotVersionsChange(newShotVersions);
+            }
+          }}
+          onContinuityLocked={() => onContinuityLockedChange(true)}
+          onContinuityGroupsChange={onContinuityGroupsChange}
+          onNext={onNext}
+        />
+      )}
+
+      {activeStep === "world" && (
+        <WorldCast
+          videoId={videoId}
+          workspaceId={workspaceId}
+          characters={characters}
+          referenceImages={referenceImages}
+          artStyle={worldSettings.artStyle}
+          imageModel={worldSettings.imageModel}
+          worldDescription={worldSettings.worldDescription}
+          locations={worldSettings.locations}
+          imageInstructions={worldSettings.imageInstructions}
+          videoInstructions={worldSettings.videoInstructions}
+          onCharactersChange={onCharactersChange}
+          onReferenceImagesChange={onReferenceImagesChange}
+          onWorldSettingsChange={onWorldSettingsChange}
+          onNext={onNext}
+        />
+      )}
+
+      {activeStep === "storyboard" && (
+        <StoryboardEditor
+          videoId={videoId}
+          narrativeMode={narrativeMode}
+          scenes={scenes}
+          shots={shots}
+          shotVersions={shotVersions}
+          referenceImages={referenceImages}
+          characters={characters}
+          voiceActorId={voiceActorId}
+          voiceOverEnabled={voiceOverEnabled}
+          continuityLocked={continuityLocked}
+          continuityGroups={continuityGroups}
+          onVoiceActorChange={onVoiceActorChange}
+          onVoiceOverToggle={onVoiceOverToggle}
+          onGenerateShot={handleGenerateShot}
+          onRegenerateShot={handleRegenerateShot}
+          onUpdateShot={handleUpdateShot}
+          onUpdateShotVersion={handleUpdateShotVersion}
+          onUpdateScene={handleUpdateScene}
+          onReorderShots={handleReorderShots}
+          onUploadShotReference={handleUploadShotReference}
+          onDeleteShotReference={handleDeleteShotReference}
+          onSelectVersion={handleSelectVersion}
+          onDeleteVersion={handleDeleteVersion}
+          onAddScene={handleAddScene}
+          onAddShot={handleAddShot}
+          onDeleteScene={handleDeleteScene}
+          onDeleteShot={handleDeleteShot}
+          onNext={onNext}
+        />
+      )}
+
+      {activeStep === "animatic" && (
+        <AnimaticPreview 
+          script={script}
+          scenes={scenes}
+          shots={shots}
+          onNext={onNext} 
+        />
+      )}
+
+      {activeStep === "export" && (
+        <ExportSettings onExport={handleExport} />
+      )}
     </div>
   );
 }

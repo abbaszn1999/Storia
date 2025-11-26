@@ -365,6 +365,16 @@ export const productionCampaigns = pgTable("production_campaigns", {
   // Publishing
   selectedPlatforms: jsonb("selected_platforms").default([]).notNull(), // Array of platform IDs
   
+  // Auto Shorts settings (for Narrative and Character Vlog modes)
+  autoShortsEnabled: boolean("auto_shorts_enabled").default(false).notNull(),
+  shortsPerVideo: integer("shorts_per_video").default(3), // 1-5 shorts per video
+  shortsHookTypes: jsonb("shorts_hook_types").default(["emotional", "action", "reveal", "dramatic"]), // emotional, action, reveal, humor, dramatic
+  shortsMinConfidence: integer("shorts_min_confidence").default(75), // 50-95%
+  autoPublishShorts: boolean("auto_publish_shorts").default(true),
+  shortsPlatforms: jsonb("shorts_platforms").default([]), // youtube_shorts, tiktok, instagram_reels, facebook_reels
+  shortsScheduleMode: text("shorts_schedule_mode").default("with_main"), // with_main or staggered
+  shortsStaggerHours: integer("shorts_stagger_hours").default(4), // Hours between shorts publications (1-24)
+  
   // AI model settings
   scripterModel: text("scripter_model"),
   imageModel: text("image_model"),

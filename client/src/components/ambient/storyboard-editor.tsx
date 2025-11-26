@@ -59,30 +59,15 @@ const VIDEO_MODEL_DURATIONS: { [key: string]: number[] } = {
   "Minimax": [6],
 };
 
-const LIGHTING_OPTIONS = [
-  "Natural Daylight",
-  "Golden Hour",
-  "Blue Hour",
-  "Overcast",
-  "Night",
-  "Studio Lighting",
-  "Soft Light",
-  "Hard Light",
-  "Backlit",
-  "Dramatic",
+const ANIMATION_MODE_OPTIONS = [
+  { value: "smooth-image", label: "Smooth Image (Ken Burns)" },
+  { value: "animate", label: "Full Animation (AI Video)" },
 ];
 
-const WEATHER_OPTIONS = [
-  "Clear",
-  "Partly Cloudy",
-  "Cloudy",
-  "Overcast",
-  "Light Rain",
-  "Heavy Rain",
-  "Foggy",
-  "Misty",
-  "Snowy",
-  "Stormy",
+const MOTION_INTENSITY_OPTIONS = [
+  { value: "subtle", label: "Subtle" },
+  { value: "moderate", label: "Moderate" },
+  { value: "dynamic", label: "Dynamic" },
 ];
 
 const SHOT_TYPES = [
@@ -144,8 +129,6 @@ interface StoryboardEditorProps {
   voiceOverEnabled: boolean;
   continuityLocked: boolean;
   continuityGroups: { [sceneId: string]: any[] };
-  isCommerceMode?: boolean;
-  isLogoMode?: boolean;
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
   onGenerateShot: (shotId: string) => void;
@@ -176,6 +159,7 @@ interface SortableShotCardProps {
   isGenerating: boolean;
   voiceOverEnabled: boolean;
   narrativeMode: "image-reference" | "start-end";
+  animationMode: "smooth-image" | "animate";
   isConnectedToNext: boolean;
   showEndFrame: boolean;
   isPartOfConnection: boolean;
@@ -202,6 +186,7 @@ function SortableShotCard({
   isGenerating,
   voiceOverEnabled,
   narrativeMode,
+  animationMode,
   isConnectedToNext,
   showEndFrame,
   isPartOfConnection,
@@ -440,13 +425,15 @@ function SortableShotCard({
 
       <CardContent className="p-4">
         <Tabs defaultValue="image" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-3">
+          <TabsList className={`grid w-full mb-3 ${animationMode === "smooth-image" ? "grid-cols-1" : "grid-cols-2"}`}>
             <TabsTrigger value="image" className="text-xs" data-testid={`tab-image-${shot.id}`}>
               Image
             </TabsTrigger>
-            <TabsTrigger value="video" className="text-xs" data-testid={`tab-video-${shot.id}`}>
-              Video
-            </TabsTrigger>
+            {animationMode === "animate" && (
+              <TabsTrigger value="video" className="text-xs" data-testid={`tab-video-${shot.id}`}>
+                Video
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="image" className="space-y-3 mt-0">
@@ -456,7 +443,7 @@ function SortableShotCard({
                 value={localPrompt}
                 onChange={(e) => setLocalPrompt(e.target.value)}
                 onBlur={handlePromptBlur}
-                placeholder="Describe the shot..."
+                placeholder="Describe the visual atmosphere (e.g., sunlight filtering through misty trees, calm water reflecting clouds...)"
                 className="min-h-20 text-xs resize-none"
                 data-testid={`input-prompt-${shot.id}`}
               />
@@ -748,8 +735,6 @@ export function StoryboardEditor({
   voiceOverEnabled,
   continuityLocked,
   continuityGroups,
-  isCommerceMode = false,
-  isLogoMode = false,
   onVoiceActorChange,
   onVoiceOverToggle,
   onGenerateShot,
@@ -774,9 +759,7 @@ export function StoryboardEditor({
   const [activeCategory, setActiveCategory] = useState<"prompt" | "clothes" | "remove" | "expression" | "figure" | "camera" | "effects" | "variations" | null>(null);
   const [selectedCharacterId, setSelectedCharacterId] = useState<string>("");
   const [localShots, setLocalShots] = useState(shots);
-  const [playingVoice, setPlayingVoice] = useState<string | null>(null);
-  const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
-  const [showEnhancementDialog, setShowEnhancementDialog] = useState(false);
+    const [showEnhancementDialog, setShowEnhancementDialog] = useState(false);
   const [dontRemindAgain, setDontRemindAgain] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [compareVersions, setCompareVersions] = useState<string[]>([]);
@@ -789,6 +772,7 @@ export function StoryboardEditor({
   const [cameraWideAngle, setCameraWideAngle] = useState(false);
   const [viewMode, setViewMode] = useState<"cards" | "timeline">("cards");
   const [timelinePlayhead, setTimelinePlayhead] = useState(0);
+  const [sceneAnimationModes, setSceneAnimationModes] = useState<Record<string, string>>({});
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
   const editReferenceInputRef = useRef<HTMLInputElement>(null);
@@ -982,7 +966,7 @@ export function StoryboardEditor({
       }
     });
     toast({
-      title: "Generating Storyboard",
+      title: "Generating Composition",
       description: `Generating images for ${totalCount - generatedCount} shots...`,
     });
   };
@@ -1076,26 +1060,6 @@ export function StoryboardEditor({
     }
   };
 
-  const handlePlayVoice = (voiceId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (playingVoice === voiceId) {
-      setPlayingVoice(null);
-    } else {
-      setPlayingVoice(voiceId);
-      const voice = VOICE_LIBRARY.find(v => v.id === voiceId);
-      if (voice?.previewUrl) {
-        const audio = new Audio(voice.previewUrl);
-        audio.play();
-        audio.onended = () => setPlayingVoice(null);
-      }
-    }
-  };
-
-  const handleSelectVoice = (voiceId: string) => {
-    onVoiceActorChange(voiceId);
-    setVoiceDropdownOpen(false);
-  };
-
   const handleEditReferenceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -1148,92 +1112,18 @@ export function StoryboardEditor({
     if (video2Ref.current) video2Ref.current.currentTime = time;
   };
 
-  const selectedVoice = VOICE_LIBRARY.find(v => v.id === voiceActorId);
-  const selectedVoiceLabel = selectedVoice?.name || "Select voice actor";
-
   return (
     <div className="space-y-6">
       <div className="sticky top-0 z-50 bg-background py-4 border-b">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h3 className="text-lg font-semibold">Storyboard</h3>
+            <h3 className="text-lg font-semibold">Composition</h3>
             <p className="text-sm text-muted-foreground">
               {generatedCount} of {totalCount} shots generated • Drag to reorder
             </p>
           </div>
           
           <div className="flex items-center gap-3">
-            {/* Voice Actor and Voice Over - Hidden in Commerce/Logo Mode */}
-            {!isCommerceMode && !isLogoMode && (
-              <>
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm text-muted-foreground">Voice Actor</Label>
-                  <Popover open={voiceDropdownOpen} onOpenChange={setVoiceDropdownOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={voiceDropdownOpen}
-                        className="w-48 h-9 justify-between"
-                        disabled={!voiceOverEnabled}
-                        data-testid="button-voice-selector"
-                      >
-                        <span className={voiceActorId ? "font-medium text-sm" : "text-muted-foreground text-sm"}>
-                          {selectedVoiceLabel}
-                        </span>
-                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                      <ScrollArea className="max-h-[300px]">
-                        <div className="p-1">
-                          {VOICE_LIBRARY.map((voice) => (
-                            <div
-                              key={voice.id}
-                              className="flex items-center gap-2 px-2 py-2 hover-elevate rounded-md cursor-pointer"
-                              onClick={() => handleSelectVoice(voice.id)}
-                              data-testid={`option-voice-${voice.id}`}
-                            >
-                              <div className="flex items-center gap-2 flex-1">
-                                {voiceActorId === voice.id && (
-                                  <Check className="h-4 w-4 text-primary" data-testid={`icon-selected-${voice.id}`} />
-                                )}
-                                <span className={`flex-1 text-sm ${voiceActorId === voice.id ? "font-medium" : ""}`}>
-                                  {voice.name}
-                                </span>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 shrink-0"
-                                onClick={(e) => handlePlayVoice(voice.id, e)}
-                                data-testid={`button-play-${voice.id}`}
-                              >
-                                {playingVoice === voice.id ? (
-                                  <Pause className="h-4 w-4" />
-                                ) : (
-                                  <Play className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm text-muted-foreground">Voice Over</Label>
-                  <Switch
-                    checked={voiceOverEnabled}
-                    onCheckedChange={onVoiceOverToggle}
-                    data-testid="toggle-voice-over"
-                  />
-                </div>
-              </>
-            )}
-
           <div className="flex items-center border rounded-md p-0.5 bg-muted/50">
             <Button
               size="sm"
@@ -1290,7 +1180,7 @@ export function StoryboardEditor({
                         variant="ghost"
                         className="h-7 w-7 text-muted-foreground hover:text-destructive"
                         onClick={() => {
-                          if (window.confirm(`Delete scene "${scene.title}"? This will also delete all ${sceneShots.length} shot(s) in this scene.`)) {
+                          if (window.confirm(`Delete segment "${scene.title}"? This will also delete all ${sceneShots.length} shot(s) in this segment.`)) {
                             onDeleteScene(scene.id);
                           }
                         }}
@@ -1325,80 +1215,78 @@ export function StoryboardEditor({
                     </div>
 
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Video Model</Label>
+                      <Label className="text-xs text-muted-foreground">Animation Mode</Label>
                       <Select
-                        value={scene.videoModel || VIDEO_MODELS[0]}
-                        onValueChange={(value) => onUpdateScene?.(scene.id, { videoModel: value })}
+                        value={sceneAnimationModes[scene.id] || "smooth-image"}
+                        onValueChange={(value) => {
+                          setSceneAnimationModes(prev => ({ ...prev, [scene.id]: value }));
+                        }}
                       >
-                        <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-video-model-${scene.id}`}>
+                        <SelectTrigger className="h-8 text-xs" data-testid={`select-animation-mode-${scene.id}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {VIDEO_MODELS.map((model) => (
-                            <SelectItem key={model} value={model}>
-                              {model}
+                          {ANIMATION_MODE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
 
-                    {/* Lighting and Weather - Hidden in Commerce/Logo Mode */}
-                    {!isCommerceMode && !isLogoMode && (
-                      <>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Lighting</Label>
-                          <Select
-                            value={scene.lighting || LIGHTING_OPTIONS[0]}
-                            onValueChange={(value) => onUpdateScene?.(scene.id, { lighting: value })}
-                          >
-                            <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-lighting-${scene.id}`}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {LIGHTING_OPTIONS.map((option) => (
-                                <SelectItem key={option} value={option}>
-                                  {option}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Weather</Label>
-                          <Select
-                            value={scene.weather || WEATHER_OPTIONS[0]}
-                            onValueChange={(value) => onUpdateScene?.(scene.id, { weather: value })}
-                          >
-                            <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-weather-${scene.id}`}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {WEATHER_OPTIONS.map((option) => (
-                                <SelectItem key={option} value={option}>
-                                  {option}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </>
+                    {(sceneAnimationModes[scene.id] || "smooth-image") === "animate" && (
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Video Model</Label>
+                        <Select
+                          value={scene.videoModel || VIDEO_MODELS[0]}
+                          onValueChange={(value) => onUpdateScene?.(scene.id, { videoModel: value })}
+                        >
+                          <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-video-model-${scene.id}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {VIDEO_MODELS.map((model) => (
+                              <SelectItem key={model} value={model}>
+                                {model}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     )}
+
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Motion Intensity</Label>
+                      <Select
+                        defaultValue="subtle"
+                      >
+                        <SelectTrigger className="h-8 text-xs" data-testid={`select-motion-intensity-${scene.id}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MOTION_INTENSITY_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
                     <Button
                       size="sm"
                       className="w-full mt-2"
                       onClick={() => {
                         toast({
-                          title: "Animate Scene",
-                          description: `Video animation for all ${sceneShots.length} shots in "${scene.title}" will be implemented in the next phase with AI video models (Kling/Veo/Runway).`,
+                          title: "Animate Segment",
+                          description: `Video animation for all ${sceneShots.length} shots in "${scene.title}" will be generated with AI video models.`,
                         });
                       }}
                       data-testid={`button-animate-scene-${scene.id}`}
                     >
                       <Play className="mr-2 h-4 w-4" />
-                      Animate Scene's Shots
+                      Animate Segment's Shots
                     </Button>
 
                     <div className="text-xs text-muted-foreground pt-2">
@@ -1445,6 +1333,7 @@ export function StoryboardEditor({
                                 isGenerating={isGenerating}
                                 voiceOverEnabled={voiceOverEnabled}
                                 narrativeMode={narrativeMode}
+                                animationMode={(sceneAnimationModes[scene.id] || "smooth-image") as "smooth-image" | "animate"}
                                 isConnectedToNext={isConnectedToNext}
                                 showEndFrame={showEndFrame}
                                 isPartOfConnection={isPartOfConnection}

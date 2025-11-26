@@ -140,155 +140,175 @@ export function ProductBreakdown({
 
   const hasBreakdown = segments.length > 0;
 
-  const generateBreakdown = () => {
-    setIsGenerating(true);
+  useEffect(() => {
+    if (!hasBreakdown && !isGenerating) {
+      generateBreakdownSilently();
+    }
+  }, []);
 
-    setTimeout(() => {
-      const generatedSegments: ProductSegment[] = [
-        {
-          id: `seg-${Date.now()}-1`,
-          type: "hook",
-          title: "Attention Grabber",
-          description: "Eye-catching opening to stop the scroll",
+  const createBreakdownData = () => {
+    const timestamp = Date.now();
+    const generatedSegments: ProductSegment[] = [
+      {
+        id: `seg-${timestamp}-1`,
+        type: "hook",
+        title: "Attention Grabber",
+        description: "Eye-catching opening to stop the scroll",
+        duration: 3,
+        order: 1,
+      },
+      {
+        id: `seg-${timestamp}-2`,
+        type: "intro",
+        title: "Product Introduction",
+        description: `Introduce ${productName || "the product"} with a compelling value proposition`,
+        duration: 5,
+        order: 2,
+      },
+      {
+        id: `seg-${timestamp}-3`,
+        type: "features",
+        title: "Key Features",
+        description: "Highlight the most important features and benefits",
+        duration: 12,
+        order: 3,
+      },
+      {
+        id: `seg-${timestamp}-4`,
+        type: "demo",
+        title: "Product Demo",
+        description: "Show the product being used in real scenarios",
+        duration: 8,
+        order: 4,
+      },
+      {
+        id: `seg-${timestamp}-5`,
+        type: "cta",
+        title: "Call to Action",
+        description: "Drive viewers to take action - buy now, learn more, etc.",
+        duration: 2,
+        order: 5,
+      },
+    ];
+
+    const generatedShots: { [segmentId: string]: ProductShot[] } = {};
+
+    generatedSegments.forEach((segment, segIndex) => {
+      const segmentShots: ProductShot[] = [];
+      
+      if (segment.type === "hook") {
+        segmentShots.push({
+          id: `shot-${timestamp}-${segIndex}-1`,
+          segmentId: segment.id,
+          shotNumber: 1,
+          shotType: productDisplay.includes("hero") ? "hero" : "closeup",
+          description: `Dynamic opening shot of ${productName || "product"} with attention-grabbing movement`,
+          voiceoverText: voiceOverScript ? voiceOverScript.split('.')[0] + '.' : "",
           duration: 3,
-          order: 1,
-        },
-        {
-          id: `seg-${Date.now()}-2`,
-          type: "intro",
-          title: "Product Introduction",
-          description: `Introduce ${productName || "the product"} with a compelling value proposition`,
+        });
+      } else if (segment.type === "intro") {
+        segmentShots.push({
+          id: `shot-${timestamp}-${segIndex}-1`,
+          segmentId: segment.id,
+          shotNumber: 1,
+          shotType: "hero",
+          description: `Clean hero shot revealing ${productName || "the product"} in full`,
+          voiceoverText: "",
           duration: 5,
-          order: 2,
-        },
-        {
-          id: `seg-${Date.now()}-3`,
-          type: "features",
-          title: "Key Features",
-          description: "Highlight the most important features and benefits",
-          duration: 12,
-          order: 3,
-        },
-        {
-          id: `seg-${Date.now()}-4`,
-          type: "demo",
-          title: "Product Demo",
-          description: "Show the product being used in real scenarios",
-          duration: 8,
-          order: 4,
-        },
-        {
-          id: `seg-${Date.now()}-5`,
-          type: "cta",
-          title: "Call to Action",
-          description: "Drive viewers to take action - buy now, learn more, etc.",
-          duration: 2,
-          order: 5,
-        },
-      ];
-
-      const generatedShots: { [segmentId: string]: ProductShot[] } = {};
-
-      generatedSegments.forEach((segment, segIndex) => {
-        const segmentShots: ProductShot[] = [];
-        
-        if (segment.type === "hook") {
+        });
+      } else if (segment.type === "features") {
+        const featureShots = productDisplay.filter(d => ["closeup", "features", "scale"].includes(d));
+        featureShots.slice(0, 3).forEach((shotType, idx) => {
           segmentShots.push({
-            id: `shot-${Date.now()}-${segIndex}-1`,
+            id: `shot-${timestamp}-${segIndex}-${idx + 1}`,
             segmentId: segment.id,
-            shotNumber: 1,
-            shotType: productDisplay.includes("hero") ? "hero" : "closeup",
-            description: `Dynamic opening shot of ${productName || "product"} with attention-grabbing movement`,
-            voiceoverText: voiceOverScript ? voiceOverScript.split('.')[0] + '.' : "",
-            duration: 3,
+            shotNumber: idx + 1,
+            shotType,
+            description: `${SHOT_TYPE_OPTIONS.find(s => s.id === shotType)?.name || shotType} highlighting key feature ${idx + 1}`,
+            voiceoverText: "",
+            duration: 4,
           });
-        } else if (segment.type === "intro") {
+        });
+        if (segmentShots.length === 0) {
           segmentShots.push({
-            id: `shot-${Date.now()}-${segIndex}-1`,
+            id: `shot-${timestamp}-${segIndex}-1`,
             segmentId: segment.id,
             shotNumber: 1,
-            shotType: "hero",
-            description: `Clean hero shot revealing ${productName || "the product"} in full`,
+            shotType: "closeup",
+            description: "Close-up shot showing product details and craftsmanship",
+            voiceoverText: "",
+            duration: 4,
+          });
+        }
+      } else if (segment.type === "demo") {
+        if (productDisplay.includes("in-use")) {
+          segmentShots.push({
+            id: `shot-${timestamp}-${segIndex}-1`,
+            segmentId: segment.id,
+            shotNumber: 1,
+            shotType: "in-use",
+            description: `Demonstration of ${productName || "product"} being used naturally`,
             voiceoverText: "",
             duration: 5,
           });
-        } else if (segment.type === "features") {
-          const featureShots = productDisplay.filter(d => ["closeup", "features", "scale"].includes(d));
-          featureShots.slice(0, 3).forEach((shotType, idx) => {
-            segmentShots.push({
-              id: `shot-${Date.now()}-${segIndex}-${idx + 1}`,
-              segmentId: segment.id,
-              shotNumber: idx + 1,
-              shotType,
-              description: `${SHOT_TYPE_OPTIONS.find(s => s.id === shotType)?.name || shotType} highlighting key feature ${idx + 1}`,
-              voiceoverText: "",
-              duration: 4,
-            });
-          });
-          if (segmentShots.length === 0) {
-            segmentShots.push({
-              id: `shot-${Date.now()}-${segIndex}-1`,
-              segmentId: segment.id,
-              shotNumber: 1,
-              shotType: "closeup",
-              description: "Close-up shot showing product details and craftsmanship",
-              voiceoverText: "",
-              duration: 4,
-            });
-          }
-        } else if (segment.type === "demo") {
-          if (productDisplay.includes("in-use")) {
-            segmentShots.push({
-              id: `shot-${Date.now()}-${segIndex}-1`,
-              segmentId: segment.id,
-              shotNumber: 1,
-              shotType: "in-use",
-              description: `Demonstration of ${productName || "product"} being used naturally`,
-              voiceoverText: "",
-              duration: 5,
-            });
-          }
-          if (productDisplay.includes("unboxing")) {
-            segmentShots.push({
-              id: `shot-${Date.now()}-${segIndex}-2`,
-              segmentId: segment.id,
-              shotNumber: segmentShots.length + 1,
-              shotType: "unboxing",
-              description: "Unboxing experience showing packaging and reveal",
-              voiceoverText: "",
-              duration: 4,
-            });
-          }
-          if (segmentShots.length === 0) {
-            segmentShots.push({
-              id: `shot-${Date.now()}-${segIndex}-1`,
-              segmentId: segment.id,
-              shotNumber: 1,
-              shotType: "lifestyle",
-              description: "Lifestyle shot showing product in everyday context",
-              voiceoverText: "",
-              duration: 8,
-            });
-          }
-        } else if (segment.type === "cta") {
+        }
+        if (productDisplay.includes("unboxing")) {
           segmentShots.push({
-            id: `shot-${Date.now()}-${segIndex}-1`,
+            id: `shot-${timestamp}-${segIndex}-2`,
             segmentId: segment.id,
-            shotNumber: 1,
-            shotType: "text-overlay",
-            description: "Final shot with product and call-to-action text overlay",
-            voiceoverText: voiceOverScript ? voiceOverScript.split('.').slice(-2).join('.').trim() : "",
-            duration: 2,
+            shotNumber: segmentShots.length + 1,
+            shotType: "unboxing",
+            description: "Unboxing experience showing packaging and reveal",
+            voiceoverText: "",
+            duration: 4,
           });
         }
+        if (segmentShots.length === 0) {
+          segmentShots.push({
+            id: `shot-${timestamp}-${segIndex}-1`,
+            segmentId: segment.id,
+            shotNumber: 1,
+            shotType: "lifestyle",
+            description: "Lifestyle shot showing product in everyday context",
+            voiceoverText: "",
+            duration: 8,
+          });
+        }
+      } else if (segment.type === "cta") {
+        segmentShots.push({
+          id: `shot-${timestamp}-${segIndex}-1`,
+          segmentId: segment.id,
+          shotNumber: 1,
+          shotType: "text-overlay",
+          description: "Final shot with product and call-to-action text overlay",
+          voiceoverText: voiceOverScript ? voiceOverScript.split('.').slice(-2).join('.').trim() : "",
+          duration: 2,
+        });
+      }
 
-        generatedShots[segment.id] = segmentShots;
-      });
+      generatedShots[segment.id] = segmentShots;
+    });
 
+    return { generatedSegments, generatedShots };
+  };
+
+  const generateBreakdownSilently = () => {
+    setIsGenerating(true);
+    setTimeout(() => {
+      const { generatedSegments, generatedShots } = createBreakdownData();
       onSegmentsChange(generatedSegments);
       onShotsChange(generatedShots);
       setIsGenerating(false);
+    }, 500);
+  };
 
+  const generateBreakdown = () => {
+    setIsGenerating(true);
+    setTimeout(() => {
+      const { generatedSegments, generatedShots } = createBreakdownData();
+      onSegmentsChange(generatedSegments);
+      onShotsChange(generatedShots);
+      setIsGenerating(false);
       toast({
         title: "Breakdown Generated",
         description: `Created ${generatedSegments.length} segments with ${Object.values(generatedShots).flat().length} shots based on your product settings.`,
@@ -790,17 +810,6 @@ export function ProductBreakdown({
                 onChange={(e) => setNewShot({ ...newShot, description: e.target.value })}
                 rows={2}
                 data-testid="input-shot-description"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Voiceover Text (optional)</Label>
-              <Textarea
-                placeholder="Text to be spoken during this shot..."
-                value={newShot.voiceoverText}
-                onChange={(e) => setNewShot({ ...newShot, voiceoverText: e.target.value })}
-                rows={2}
-                data-testid="input-shot-voiceover"
               />
             </div>
 

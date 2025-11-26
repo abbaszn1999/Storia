@@ -189,6 +189,7 @@ interface SortableShotCardProps {
   isGenerating: boolean;
   voiceOverEnabled: boolean;
   narrativeMode: "image-reference" | "start-end";
+  animationMode: "smooth-image" | "animate";
   isConnectedToNext: boolean;
   showEndFrame: boolean;
   isPartOfConnection: boolean;
@@ -215,6 +216,7 @@ function SortableShotCard({
   isGenerating,
   voiceOverEnabled,
   narrativeMode,
+  animationMode,
   isConnectedToNext,
   showEndFrame,
   isPartOfConnection,
@@ -453,13 +455,15 @@ function SortableShotCard({
 
       <CardContent className="p-4">
         <Tabs defaultValue="image" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-3">
+          <TabsList className={`grid w-full mb-3 ${animationMode === "smooth-image" ? "grid-cols-1" : "grid-cols-2"}`}>
             <TabsTrigger value="image" className="text-xs" data-testid={`tab-image-${shot.id}`}>
               Image
             </TabsTrigger>
-            <TabsTrigger value="video" className="text-xs" data-testid={`tab-video-${shot.id}`}>
-              Video
-            </TabsTrigger>
+            {animationMode === "animate" && (
+              <TabsTrigger value="video" className="text-xs" data-testid={`tab-video-${shot.id}`}>
+                Video
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="image" className="space-y-3 mt-0">
@@ -1358,8 +1362,8 @@ export function StoryboardEditor({
                       </Select>
                     </div>
 
-                    {/* Lighting and Weather - Hidden in Commerce/Logo Mode */}
-                    {!isCommerceMode && !isLogoMode && (
+                    {/* Lighting and Weather - Hidden in Commerce/Logo/Ambient Mode */}
+                    {!isCommerceMode && !isLogoMode && !isAmbientMode && (
                       <>
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Lighting</Label>
@@ -1460,6 +1464,7 @@ export function StoryboardEditor({
                                 isGenerating={isGenerating}
                                 voiceOverEnabled={voiceOverEnabled}
                                 narrativeMode={narrativeMode}
+                                animationMode={animationMode}
                                 isConnectedToNext={isConnectedToNext}
                                 showEndFrame={showEndFrame}
                                 isPartOfConnection={isPartOfConnection}

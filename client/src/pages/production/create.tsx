@@ -140,6 +140,16 @@ export default function ProductionCampaignCreate() {
   // Step 8: Publishing
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
 
+  // Step 8: Auto Shorts (only for Narrative and Character Vlog)
+  const [autoShortsEnabled, setAutoShortsEnabled] = useState(false);
+  const [shortsPerVideo, setShortsPerVideo] = useState(3);
+  const [shortsHookTypes, setShortsHookTypes] = useState<string[]>(["emotional", "action", "reveal", "dramatic"]);
+  const [shortsMinConfidence, setShortsMinConfidence] = useState(75);
+  const [autoPublishShorts, setAutoPublishShorts] = useState(true);
+  const [shortsPlatforms, setShortsPlatforms] = useState<string[]>([]);
+  const [shortsScheduleMode, setShortsScheduleMode] = useState<"with_main" | "staggered">("with_main");
+  const [shortsStaggerHours, setShortsStaggerHours] = useState(4);
+
   const createCampaign = useMutation({
     mutationFn: async () => {
       const isAmbient = videoMode === "ambient_visual";
@@ -177,6 +187,17 @@ export default function ProductionCampaignCreate() {
         preferredPublishHours: publishHoursMode === "user" ? preferredPublishHours : ["AI"],
         maxVideosPerDay,
         selectedPlatforms,
+        // Auto Shorts settings (only for Narrative and Character Vlog)
+        ...(!isAmbient && autoShortsEnabled && {
+          autoShortsEnabled,
+          shortsPerVideo,
+          shortsHookTypes,
+          shortsMinConfidence,
+          autoPublishShorts,
+          shortsPlatforms: autoPublishShorts ? shortsPlatforms : [],
+          shortsScheduleMode,
+          shortsStaggerHours: shortsScheduleMode === "staggered" ? shortsStaggerHours : undefined,
+        }),
         // Ambient mode specific fields
         ...(isAmbient && {
           ambientCategory,
@@ -447,6 +468,23 @@ export default function ProductionCampaignCreate() {
           <Step8Publishing
             selectedPlatforms={selectedPlatforms}
             onSelectedPlatformsChange={setSelectedPlatforms}
+            videoMode={videoMode}
+            autoShortsEnabled={autoShortsEnabled}
+            onAutoShortsEnabledChange={setAutoShortsEnabled}
+            shortsPerVideo={shortsPerVideo}
+            onShortsPerVideoChange={setShortsPerVideo}
+            shortsHookTypes={shortsHookTypes}
+            onShortsHookTypesChange={setShortsHookTypes}
+            shortsMinConfidence={shortsMinConfidence}
+            onShortsMinConfidenceChange={setShortsMinConfidence}
+            autoPublishShorts={autoPublishShorts}
+            onAutoPublishShortsChange={setAutoPublishShorts}
+            shortsPlatforms={shortsPlatforms}
+            onShortsPlatformsChange={setShortsPlatforms}
+            shortsScheduleMode={shortsScheduleMode}
+            onShortsScheduleModeChange={setShortsScheduleMode}
+            shortsStaggerHours={shortsStaggerHours}
+            onShortsStaggerHoursChange={setShortsStaggerHours}
           />
         );
       default:

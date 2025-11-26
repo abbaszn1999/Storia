@@ -1,0 +1,44 @@
+Uncaught TypeError: onScenesGenerated is not a function
+    at /src/components/narrative/scene-breakdown.tsx:863:5
+    at commitHookEffectListMount (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:16915:34)
+    at commitPassiveMountOnFiber (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:18156:19)
+    at commitPassiveMountEffects_complete (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:18129:17)
+    at commitPassiveMountEffects_begin (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:18119:15)
+    at commitPassiveMountEffects (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:18109:11)
+    at flushPassiveEffectsImpl (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:19490:11)
+    at flushPassiveEffects (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:19447:22)
+    at commitRootImpl (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:19416:13)
+    at commitRoot (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:19277:13)Understand this error
+ The above error occurred in the <SceneBreakdown> component:
+
+    at SceneBreakdown (https://ec8f28bb-9634-4a6d-8ee9-e7e23c56d2b8-00-1a4igt8uufyn3.janeway.replit.dev/src/components/narrative/scene-breakdown.tsx:42:3)
+    at div
+    at LogoNarrativeWorkflow (https://ec8f28bb-9634-4a6d-8ee9-e7e23c56d2b8-00-1a4igt8uufyn3.janeway.replit.dev/src/components/logo-narrative-workflow.tsx:26:3)
+    at div
+    at main
+    at div
+    at LogoAnimationMode (https://ec8f28bb-9634-4a6d-8ee9-e7e23c56d2b8-00-1a4igt8uufyn3.janeway.replit.dev/src/pages/videos/logo-animation-mode/index.tsx:35:18)
+    at Route (https://ec8f28bb-9634-4a6d-8ee9-e7e23c56d2b8-00-1a4igt8uufyn3.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=18d838fb:323:16)
+    at Switch (https://ec8f28bb-9634-4a6d-8ee9-e7e23c56d2b8-00-1a4igt8uufyn3.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=18d838fb:379:17)
+    at MainLayout (https://ec8f28bb-9634-4a6d-8ee9-e7e23c56d2b8-00-1a4igt8uufyn3.janeway.replit.dev/src/App.tsx?v=XY1A8meBzvk3q681gL3yR:56:22)
+    at Provider (https://ec8f28bb-9634-4a6d-8ee9-e7e23c56d2b8-00-1a4igt8uufyn3.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-OXZDJRWN.js?v=18d838fb:38:15)
+    at TooltipProvider (https://ec8f28bb-9634-4a6d-8ee9-e7e23c56d2b8-00-1a4igt8uufyn3.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=18d838fb:64:5)
+    at WorkspaceProvider (https://ec8f28bb-9634-4a6d-8ee9-e7e23c56d2b8-00-1a4igt8uufyn3.janeway.replit.dev/src/contexts/workspace-context.tsx:20:37)
+    at ThemeProvider (https://ec8f28bb-9634-4a6d-8ee9-e7e23c56d2b8-00-1a4igt8uufyn3.janeway.replit.dev/src/components/theme-provider.tsx:25:3)
+    at QueryClientProvider (https://ec8f28bb-9634-4a6d-8ee9-e7e23c56d2b8-00-1a4igt8uufyn3.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=18d838fb:2805:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+logCapturedError @ /@fs/home/runner/wor…js?v=18d838fb:14032Understand this error
+/@fs/home/runner/wor….js?v=18d838fb:9129 Uncaught TypeError: onScenesGenerated is not a function
+    at /src/components/narrative/scene-breakdown.tsx:863:5
+    at commitHookEffectListMount (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:16915:34)
+    at commitPassiveMountOnFiber (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:18156:19)
+    at commitPassiveMountEffects_complete (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:18129:17)
+    at commitPassiveMountEffects_begin (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:18119:15)
+    at commitPassiveMountEffects (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:18109:11)
+    at flushPassiveEffectsImpl (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:19490:11)
+    at flushPassiveEffects (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:19447:22)
+    at commitRootImpl (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:19416:13)
+    at commitRoot (/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=18d838fb:19277:13)

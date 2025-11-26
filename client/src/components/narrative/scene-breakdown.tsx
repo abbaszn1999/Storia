@@ -733,6 +733,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -748,6 +749,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -763,6 +765,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -778,6 +781,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -795,6 +799,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -810,6 +815,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -825,6 +831,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -840,6 +847,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -857,6 +865,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -872,6 +881,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -887,6 +897,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -902,6 +913,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -919,6 +931,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -934,6 +947,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -949,6 +963,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -964,6 +979,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -979,6 +995,7 @@ export function SceneBreakdown({
             videoModel: null,
             imageModel: null,
             soundEffects: null,
+            transition: "cut",
             currentVersionId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -1023,7 +1040,9 @@ export function SceneBreakdown({
       });
 
     setSynopsis("An adventurous explorer discovers a mysterious map leading to an ancient temple deep in the Amazon rainforest. Her journey takes her from a dusty attic to the heart of the jungle, where she faces both natural obstacles and the lure of forgotten civilizations. As she pushes through the dense vegetation, the temple's secrets begin to reveal themselves.");
-    onScenesGenerated(dummyScenes, dummyShots, dummyShotVersions);
+    onScenesGenerated?.(dummyScenes, dummyShots, dummyShotVersions);
+    onScenesChange?.(dummyScenes);
+    onShotsChange?.(dummyShots);
   }, []);
 
   const moveScene = async (sceneId: string, direction: 'up' | 'down') => {
@@ -1041,7 +1060,8 @@ export function SceneBreakdown({
     updatedScenes[targetIndex] = { ...targetScene, sceneNumber: currentScene.sceneNumber };
     updatedScenes.sort((a, b) => a.sceneNumber - b.sceneNumber);
 
-    onScenesGenerated(updatedScenes, shots);
+    onScenesGenerated?.(updatedScenes, shots);
+    onScenesChange?.(updatedScenes);
 
     try {
       await Promise.all([
@@ -1051,7 +1071,8 @@ export function SceneBreakdown({
 
       toast({ title: "Scene order updated" });
     } catch (error) {
-      onScenesGenerated(scenes, shots);
+      onScenesGenerated?.(scenes, shots);
+      onScenesChange?.(scenes);
       toast({
         title: "Failed to reorder scenes",
         description: "Please try again.",
@@ -1085,14 +1106,18 @@ export function SceneBreakdown({
       updatedShots[updatedShot.sceneId] = shotList;
     }
 
-    onScenesGenerated(updatedScenes, updatedShots);
+    onScenesGenerated?.(updatedScenes, updatedShots);
+    onScenesChange?.(updatedScenes);
+    onShotsChange?.(updatedShots);
   };
 
   const removeSceneData = (sceneId: string) => {
     const updatedScenes = scenes.filter(s => s.id !== sceneId);
     const updatedShots = { ...shots };
     delete updatedShots[sceneId];
-    onScenesGenerated(updatedScenes, updatedShots);
+    onScenesGenerated?.(updatedScenes, updatedShots);
+    onScenesChange?.(updatedScenes);
+    onShotsChange?.(updatedShots);
   };
 
   const removeShotData = (shotId: string, sceneId: string) => {
@@ -1100,7 +1125,8 @@ export function SceneBreakdown({
     if (updatedShots[sceneId]) {
       updatedShots[sceneId] = updatedShots[sceneId].filter(s => s.id !== shotId);
     }
-    onScenesGenerated(scenes, updatedShots);
+    onScenesGenerated?.(scenes, updatedShots);
+    onShotsChange?.(updatedShots);
   };
 
   const breakdownMutation = useMutation({
@@ -1118,7 +1144,9 @@ export function SceneBreakdown({
       return response.json() as Promise<{ scenes: Scene[]; shots: { [sceneId: string]: Shot[] } }>;
     },
     onSuccess: (data) => {
-      onScenesGenerated(data.scenes, data.shots);
+      onScenesGenerated?.(data.scenes, data.shots);
+      onScenesChange?.(data.scenes);
+      onShotsChange?.(data.shots);
       setSynopsis(script.substring(0, 200));
       toast({
         title: "Breakdown Complete",

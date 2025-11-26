@@ -63,6 +63,10 @@ export default function ProductionCampaignCreate() {
   const [storyIdeas, setStoryIdeas] = useState<string[]>([""]);
   const [scripterModel, setScripterModel] = useState("gpt-4");
 
+  // Step 4: Ambient Mode - Atmosphere
+  const [ambientCategory, setAmbientCategory] = useState<string>("nature");
+  const [ambientMoods, setAmbientMoods] = useState<string[]>([]);
+
   // Step 5: Video Settings
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [duration, setDuration] = useState(60);
@@ -85,6 +89,17 @@ export default function ProductionCampaignCreate() {
   const [imageCustomInstructions, setImageCustomInstructions] = useState("");
   const [videoCustomInstructions, setVideoCustomInstructions] = useState("");
 
+  // Step 5: Ambient Mode - Flow Design
+  const [ambientAnimationMode, setAmbientAnimationMode] = useState("animate");
+  const [ambientPacing, setAmbientPacing] = useState(30);
+  const [ambientSegmentCount, setAmbientSegmentCount] = useState(5);
+  const [ambientTransitionStyle, setAmbientTransitionStyle] = useState("crossfade");
+  const [ambientVariationType, setAmbientVariationType] = useState("evolving");
+  const [ambientCameraMotion, setAmbientCameraMotion] = useState("static");
+  const [ambientLoopMode, setAmbientLoopMode] = useState("seamless");
+  const [ambientVisualRhythm, setAmbientVisualRhythm] = useState("constant");
+  const [ambientEnableParallax, setAmbientEnableParallax] = useState(false);
+
   // Step 6: Casting
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
@@ -103,24 +118,26 @@ export default function ProductionCampaignCreate() {
 
   const createCampaign = useMutation({
     mutationFn: async () => {
+      const isAmbient = videoMode === "ambient_visual";
+      
       const data = {
         name: campaignName,
         storyIdeas: storyIdeas.filter(idea => idea.trim() !== ""),
         videoMode,
-        narrativeMode,
+        narrativeMode: isAmbient ? undefined : narrativeMode,
         narrationStyle: videoMode === "character_vlog" ? narrationStyle : undefined,
         mainCharacterId: videoMode === "character_vlog" && mainCharacterId ? mainCharacterId : undefined,
         automationMode,
         aspectRatio,
-        duration,
+        duration: isAmbient ? duration : duration,
         language,
         artStyle: styleMode === "preset" ? artStyle : undefined,
         styleReferenceImageUrl: styleMode === "reference" ? styleReferenceImageUrl : undefined,
-        tone,
-        genre,
+        tone: isAmbient ? undefined : tone,
+        genre: isAmbient ? undefined : genre,
         targetAudience: targetAudience || undefined,
         resolution,
-        animateImages,
+        animateImages: isAmbient ? ambientAnimationMode === "animate" : animateImages,
         hasVoiceOver,
         hasSoundEffects,
         hasBackgroundMusic,
@@ -136,6 +153,20 @@ export default function ProductionCampaignCreate() {
         preferredPublishHours: publishHoursMode === "user" ? preferredPublishHours : ["AI"],
         maxVideosPerDay,
         selectedPlatforms,
+        // Ambient mode specific fields
+        ...(isAmbient && {
+          ambientCategory,
+          ambientMoods,
+          ambientAnimationMode,
+          ambientPacing,
+          ambientSegmentCount,
+          ambientTransitionStyle,
+          ambientVariationType,
+          ambientCameraMotion,
+          ambientLoopMode,
+          ambientVisualRhythm,
+          ambientEnableParallax,
+        }),
       };
 
       const res = await apiRequest("POST", "/api/production-campaigns", data);
@@ -159,10 +190,14 @@ export default function ProductionCampaignCreate() {
   });
 
   const handleNext = () => {
+    const isAmbient = videoMode === "ambient_visual";
+    
     if (currentStep === 4 && (!campaignName || storyIdeas.filter(idea => idea.trim() !== "").length === 0)) {
       toast({
         title: "Validation Error",
-        description: "Please provide a campaign name and at least one story idea.",
+        description: isAmbient 
+          ? "Please provide a campaign name and at least one atmosphere description."
+          : "Please provide a campaign name and at least one story idea.",
         variant: "destructive",
       });
       return;
@@ -230,19 +265,30 @@ export default function ProductionCampaignCreate() {
   };
 
   const getStepSummary = (stepNumber: number): string | null => {
+    const isAmbient = videoMode === "ambient_visual";
+    
     switch (stepNumber) {
       case 1:
         return contentType === "video" ? "Video" : "Story";
       case 2:
-        return videoMode === "narrative" ? "Narrative" : videoMode === "character_vlog" ? "Character Vlog" : videoMode;
+        return videoMode === "narrative" 
+          ? "Narrative" 
+          : videoMode === "character_vlog" 
+            ? "Character Vlog" 
+            : videoMode === "ambient_visual"
+              ? "Ambient"
+              : videoMode;
       case 3:
-        return narrativeMode === "image-reference" ? "Image Ref" : "Start-End";
+        return isAmbient ? "N/A" : narrativeMode === "image-reference" ? "Image Ref" : "Start-End";
       case 4:
         const ideaCount = storyIdeas.filter(i => i.trim()).length;
-        return campaignName ? `${ideaCount} ideas` : null;
+        return campaignName ? `${ideaCount} ${isAmbient ? "atmos" : "ideas"}` : null;
       case 5:
-        return `${aspectRatio} • ${resolution}`;
+        return isAmbient 
+          ? `${aspectRatio} • ${Math.floor(duration / 60)}min` 
+          : `${aspectRatio} • ${resolution}`;
       case 6:
+        if (isAmbient) return "N/A";
         const charCount = selectedCharacters.length;
         const locCount = selectedLocations.length;
         return charCount > 0 || locCount > 0 ? `${charCount} chars, ${locCount} locs` : null;
@@ -272,6 +318,11 @@ export default function ProductionCampaignCreate() {
             onStoryIdeasChange={setStoryIdeas}
             scripterModel={scripterModel}
             onScripterModelChange={setScripterModel}
+            videoMode={videoMode}
+            ambientCategory={ambientCategory}
+            onAmbientCategoryChange={setAmbientCategory}
+            ambientMoods={ambientMoods}
+            onAmbientMoodsChange={setAmbientMoods}
           />
         );
       case 5:
@@ -320,6 +371,24 @@ export default function ProductionCampaignCreate() {
             onImageCustomInstructionsChange={setImageCustomInstructions}
             videoCustomInstructions={videoCustomInstructions}
             onVideoCustomInstructionsChange={setVideoCustomInstructions}
+            ambientAnimationMode={ambientAnimationMode}
+            onAmbientAnimationModeChange={setAmbientAnimationMode}
+            ambientPacing={ambientPacing}
+            onAmbientPacingChange={setAmbientPacing}
+            ambientSegmentCount={ambientSegmentCount}
+            onAmbientSegmentCountChange={setAmbientSegmentCount}
+            ambientTransitionStyle={ambientTransitionStyle}
+            onAmbientTransitionStyleChange={setAmbientTransitionStyle}
+            ambientVariationType={ambientVariationType}
+            onAmbientVariationTypeChange={setAmbientVariationType}
+            ambientCameraMotion={ambientCameraMotion}
+            onAmbientCameraMotionChange={setAmbientCameraMotion}
+            ambientLoopMode={ambientLoopMode}
+            onAmbientLoopModeChange={setAmbientLoopMode}
+            ambientVisualRhythm={ambientVisualRhythm}
+            onAmbientVisualRhythmChange={setAmbientVisualRhythm}
+            ambientEnableParallax={ambientEnableParallax}
+            onAmbientEnableParallaxChange={setAmbientEnableParallax}
           />
         );
       case 6:

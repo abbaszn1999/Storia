@@ -12,8 +12,9 @@
   --elevate-2: rgba(0,0,0, .08);
   /* Backgrounds applied on top of other backgrounds when hovered/active */
 
-  --background: 100 5% 50%
+  --background: 269 100% 62%;
 
+  --foreground: 0 0% 100%;
 
   --border: 220 13% 91%;
 
@@ -23,11 +24,11 @@
 
   --card-border: 220 10% 89%;
 
-  --sidebar: 220 80% 96%;
+  --sidebar: 0 0% 100%;
 
   --sidebar-foreground: 220 90% 20%;
 
-  --sidebar-border: 220 60% 85%;
+  --sidebar-border: 0 0% 90%;
 
   --sidebar-primary: 220 100% 50%;
 
@@ -142,7 +143,7 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  --background: 240 35% 4%;
+  --background: 269 100% 62%;
 
   --foreground: 0 0% 100%;
 
@@ -154,11 +155,11 @@
 
   --card-border: 240 24% 18%;
 
-  --sidebar: 220 60% 15%;
+  --sidebar: 0 0% 100%;
 
-  --sidebar-foreground: 0 0% 100%;
+  --sidebar-foreground: 220 90% 20%;
 
-  --sidebar-border: 220 50% 20%;
+  --sidebar-border: 0 0% 90%;
 
   --sidebar-primary: 220 100% 50%;
 

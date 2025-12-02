@@ -57,7 +57,7 @@ export default function Settings() {
             General
           </TabsTrigger>
           <TabsTrigger value="notifications" data-testid="tab-notifications">
-            <Bell className="h-4 w-4 mr-2" />
+            <Bell className="h-6 w-4 mr-2" />
             Notifications
           </TabsTrigger>
           <TabsTrigger value="integrations" data-testid="tab-integrations">

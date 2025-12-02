@@ -12,7 +12,7 @@
   --elevate-2: rgba(0,0,0, .08);
   /* Backgrounds applied on top of other backgrounds when hovered/active */
 
-  --background: 10 5% 50%;
+  --background: 100 5% 50%;
 
   --foreground: 220 15% 15%;
 

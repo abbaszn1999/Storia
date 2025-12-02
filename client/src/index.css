@@ -13,8 +13,10 @@
   /* Backgrounds applied on top of other backgrounds when hovered/active */
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
+  /* Backgrounds applied on top of other backgrounds when hovered/active */
 
   --background: 100 5% 50%;
+  /* Backgrounds applied on top of other backgrounds when hovered/active */
 
   --foreground: 220 15% 15%;
 

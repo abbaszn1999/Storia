@@ -1,13 +1,10 @@
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Play, Sparkles, Video, Wand2 } from "lucide-react";
 
 export default function Landing() {
-  const handleLogin = () => {
-    window.location.href = "/api/login";
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border">
@@ -22,12 +19,11 @@ export default function Landing() {
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <Button
-              onClick={handleLogin}
-              data-testid="button-login"
-            >
-              Sign In
-            </Button>
+            <Link href="/auth/sign-in">
+              <Button data-testid="button-login">
+                Sign In
+              </Button>
+            </Link>
           </div>
         </div>
       </header>
@@ -40,15 +36,12 @@ export default function Landing() {
           <p className="text-xl text-muted-foreground mb-8">
             Transform your ideas into stunning videos with AI. Generate scripts, create storyboards, and produce professional content in minutes.
           </p>
-          <Button
-            size="lg"
-            onClick={handleLogin}
-            className="gap-2"
-            data-testid="button-get-started"
-          >
-            <Play className="h-5 w-5" />
-            Get Started
-          </Button>
+          <Link href="/auth/sign-up">
+            <Button size="lg" className="gap-2" data-testid="button-get-started">
+              <Play className="h-5 w-5" />
+              Get Started
+            </Button>
+          </Link>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">

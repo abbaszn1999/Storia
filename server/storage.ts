@@ -59,8 +59,10 @@ function validateShotIds(shotIds: unknown): void {
 }
 
 export interface IStorage {
-  // User operations (required for Replit Auth)
+  // User operations
   getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: { email: string; passwordHash?: string; firstName?: string | null; lastName?: string | null; provider?: string; providerId?: string | null; profileImageUrl?: string | null }): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
   
   getWorkspacesByUserId(userId: string): Promise<Workspace[]>;
@@ -352,13 +354,36 @@ export class MemStorage implements IStorage {
   }
 
   async getUser(id: string): Promise<User | undefined> {
-    // First check in-memory storage
     const memUser = this.users.get(id);
     if (memUser) return memUser;
     
-    // Then check database
     const [dbUser] = await db.select().from(users).where(eq(users.id, id));
     return dbUser;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    for (const user of this.users.values()) {
+      if (user.email === email) return user;
+    }
+    const [dbUser] = await db.select().from(users).where(eq(users.email, email));
+    return dbUser;
+  }
+
+  async createUser(userData: { email: string; passwordHash?: string; firstName?: string | null; lastName?: string | null; provider?: string; providerId?: string | null; profileImageUrl?: string | null }): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values({
+        email: userData.email,
+        passwordHash: userData.passwordHash || null,
+        firstName: userData.firstName || null,
+        lastName: userData.lastName || null,
+        provider: userData.provider || "credentials",
+        providerId: userData.providerId || null,
+        profileImageUrl: userData.profileImageUrl || null,
+      })
+      .returning();
+    this.users.set(user.id, user);
+    return user;
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {

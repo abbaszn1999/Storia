@@ -13,6 +13,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 
 import Landing from "@/pages/landing";
+import SignIn from "@/pages/auth/sign-in";
+import SignUp from "@/pages/auth/sign-up";
 import Dashboard from "@/pages/dashboard";
 import Videos from "@/pages/videos";
 import NarrativeMode from "@/pages/videos/narrative-mode";
@@ -129,9 +131,18 @@ function MainLayout() {
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
+  const [location] = useLocation();
 
   if (isLoading) {
     return <LoadingScreen />;
+  }
+
+  if (location === "/auth/sign-in") {
+    return <SignIn />;
+  }
+
+  if (location === "/auth/sign-up") {
+    return <SignUp />;
   }
 
   if (!isAuthenticated) {

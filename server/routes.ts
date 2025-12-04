@@ -4,11 +4,7 @@ import { storage } from "./storage";
 import narrativeRoutes from "./modes/narrative/routes";
 import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertProductionCampaignSchema, insertCampaignVideoSchema, insertCharacterSchema, insertLocationSchema } from "@shared/schema";
 import { z } from "zod";
-import { setupAuth, isAuthenticated } from "./replitAuth";
-
-function getCurrentUserId(req: any): string {
-  return req.user?.claims?.sub;
-}
+import { setupAuth, isAuthenticated, registerAuthRoutes, getCurrentUserId } from "./auth";
 
 // Helper function to verify workspace ownership
 async function verifyWorkspaceOwnership(workspaceId: string, userId: string): Promise<boolean> {
@@ -17,20 +13,11 @@ async function verifyWorkspaceOwnership(workspaceId: string, userId: string): Pr
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Set up authentication (must be before other routes)
+  // Set up authentication session middleware (must be before other routes)
   await setupAuth(app);
-
-  // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
-    }
-  });
+  
+  // Register auth routes (login, register, logout, user)
+  registerAuthRoutes(app);
 
   app.use('/api/narrative', isAuthenticated, narrativeRoutes);
 

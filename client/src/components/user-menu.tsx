@@ -1,5 +1,5 @@
 import { User, Settings, CreditCard, LogOut } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,9 +11,11 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export function UserMenu() {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
 
   const displayName = user?.firstName && user?.lastName 
     ? `${user.firstName} ${user.lastName}` 
@@ -23,8 +25,14 @@ export function UserMenu() {
     ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
     : user?.email?.[0]?.toUpperCase() || "U";
 
-  const handleLogout = () => {
-    window.location.href = "/api/logout";
+  const handleLogout = async () => {
+    try {
+      await apiRequest("POST", "/api/auth/logout");
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      setLocation("/");
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   };
 
   return (

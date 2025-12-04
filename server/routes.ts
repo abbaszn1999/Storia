@@ -32,12 +32,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.use('/api/narrative', narrativeRoutes);
+  app.use('/api/narrative', isAuthenticated, narrativeRoutes);
 
-  // Workspace routes
-  app.get('/api/workspaces', async (req, res) => {
+  // Workspace routes (protected)
+  app.get('/api/workspaces', isAuthenticated, async (req: any, res) => {
     try {
-      // Get userId from session (currently hardcoded, will use req.session when auth is added)
       const userId = getCurrentUserId(req);
       const workspaces = await storage.getWorkspacesByUserId(userId);
       res.json(workspaces);
@@ -47,10 +46,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/workspaces', async (req, res) => {
+  app.post('/api/workspaces', isAuthenticated, async (req: any, res) => {
     try {
-      // Validate request body with Zod
-      const validatedData = insertWorkspaceSchema.parse(req.body);
+      const userId = getCurrentUserId(req);
+      const validatedData = insertWorkspaceSchema.parse({
+        ...req.body,
+        userId,
+      });
 
       const workspace = await storage.createWorkspace(validatedData);
       res.json(workspace);
@@ -63,18 +65,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/workspaces/:id', async (req, res) => {
+  app.patch('/api/workspaces/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
 
-      // Verify ownership
       const hasAccess = await verifyWorkspaceOwnership(id, userId);
       if (!hasAccess) {
         return res.status(403).json({ error: 'Access denied to this workspace' });
       }
 
-      // Validate only the fields that can be updated
       const updateSchema = z.object({
         name: z.string().min(1).optional(),
         description: z.string().optional(),
@@ -94,7 +94,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Workspace integration routes
-  app.get('/api/workspaces/:workspaceId/integrations', async (req, res) => {
+  app.get('/api/workspaces/:workspaceId/integrations', isAuthenticated, async (req: any, res) => {
     try {
       const { workspaceId } = req.params;
       const userId = getCurrentUserId(req);
@@ -113,7 +113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/workspaces/:workspaceId/integrations', async (req, res) => {
+  app.post('/api/workspaces/:workspaceId/integrations', isAuthenticated, async (req: any, res) => {
     try {
       const { workspaceId } = req.params;
       const userId = getCurrentUserId(req);
@@ -144,7 +144,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/workspaces/:workspaceId/integrations/:id', async (req, res) => {
+  app.delete('/api/workspaces/:workspaceId/integrations/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { workspaceId, id } = req.params;
       const userId = getCurrentUserId(req);
@@ -171,7 +171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Production Campaign routes
-  app.get('/api/production-campaigns', async (req, res) => {
+  app.get('/api/production-campaigns', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getCurrentUserId(req);
       const campaigns = await storage.getCampaignsByUserId(userId);
@@ -182,7 +182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/production-campaigns', async (req, res) => {
+  app.post('/api/production-campaigns', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getCurrentUserId(req);
       
@@ -251,7 +251,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/production-campaigns/:id', async (req, res) => {
+  app.get('/api/production-campaigns/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -273,7 +273,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/production-campaigns/:id', async (req, res) => {
+  app.patch('/api/production-campaigns/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -316,7 +316,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/production-campaigns/:id', async (req, res) => {
+  app.delete('/api/production-campaigns/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -338,7 +338,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/production-campaigns/:id/videos', async (req, res) => {
+  app.get('/api/production-campaigns/:id/videos', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -360,7 +360,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/production-campaigns/:id/generate-concepts', async (req, res) => {
+  app.post('/api/production-campaigns/:id/generate-concepts', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -390,7 +390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/production-campaigns/:id/videos/:videoId', async (req, res) => {
+  app.patch('/api/production-campaigns/:id/videos/:videoId', isAuthenticated, async (req: any, res) => {
     try {
       const { id, videoId } = req.params;
       const userId = getCurrentUserId(req);
@@ -424,7 +424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/production-campaigns/:id/start', async (req, res) => {
+  app.post('/api/production-campaigns/:id/start', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -446,7 +446,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/production-campaigns/:id/pause', async (req, res) => {
+  app.post('/api/production-campaigns/:id/pause', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -468,7 +468,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/production-campaigns/:id/resume', async (req, res) => {
+  app.post('/api/production-campaigns/:id/resume', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -491,7 +491,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Character routes
-  app.get('/api/characters', async (req, res) => {
+  app.get('/api/characters', isAuthenticated, async (req: any, res) => {
     try {
       const workspaceId = req.query.workspaceId as string;
       if (!workspaceId) {
@@ -505,7 +505,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/characters', async (req, res) => {
+  app.post('/api/characters', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getCurrentUserId(req);
       const validated = insertCharacterSchema.parse(req.body);
@@ -529,7 +529,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Location routes
-  app.get('/api/locations', async (req, res) => {
+  app.get('/api/locations', isAuthenticated, async (req: any, res) => {
     try {
       const workspaceId = req.query.workspaceId as string;
       if (!workspaceId) {
@@ -543,7 +543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/locations', async (req, res) => {
+  app.post('/api/locations', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getCurrentUserId(req);
       const validated = insertLocationSchema.parse(req.body);
@@ -567,7 +567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Commerce API routes (Social Commerce mode)
-  app.post('/api/commerce/script/generate', async (req, res) => {
+  app.post('/api/commerce/script/generate', isAuthenticated, async (req: any, res) => {
     try {
       const { productDetails, videoConcept, voiceOverConcept, duration, aspectRatio, voiceOverEnabled } = req.body;
       
@@ -615,7 +615,7 @@ ${voiceOverEnabled ? `Voice Over Style: ${voiceOverConcept || 'Engaging and pers
     }
   });
 
-  app.post('/api/commerce/voiceover/generate', async (req, res) => {
+  app.post('/api/commerce/voiceover/generate', isAuthenticated, async (req: any, res) => {
     try {
       const { productDetails, videoConcept, voiceOverConcept, duration, voiceActorId } = req.body;
       

@@ -1,6 +1,7 @@
 import {
+  users,
   type User,
-  type InsertUser,
+  type UpsertUser,
   type Workspace,
   type InsertWorkspace,
   type Video,
@@ -36,6 +37,8 @@ import {
   type CampaignVideo,
   type InsertCampaignVideo,
 } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -56,9 +59,9 @@ function validateShotIds(shotIds: unknown): void {
 }
 
 export interface IStorage {
+  // User operations (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  upsertUser(user: UpsertUser): Promise<User>;
   
   getWorkspacesByUserId(userId: string): Promise<Workspace[]>;
   createWorkspace(workspace: InsertWorkspace): Promise<Workspace>;
@@ -349,23 +352,27 @@ export class MemStorage implements IStorage {
   }
 
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    // First check in-memory storage
+    const memUser = this.users.get(id);
+    if (memUser) return memUser;
+    
+    // Then check database
+    const [dbUser] = await db.select().from(users).where(eq(users.id, id));
+    return dbUser;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find((user) => user.username === username);
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = {
-      ...insertUser,
-      id,
-      credits: insertUser.credits ?? 0,
-      subscriptionTier: insertUser.subscriptionTier ?? "free",
-      createdAt: new Date(),
-    };
-    this.users.set(id, user);
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
     return user;
   }
 

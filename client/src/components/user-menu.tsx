@@ -28,8 +28,12 @@ export function UserMenu() {
   const handleLogout = async () => {
     try {
       await apiRequest("POST", "/api/auth/logout");
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      setLocation("/");
+      // Clear the user data from cache immediately
+      queryClient.setQueryData(["/api/auth/user"], null);
+      // Then invalidate to ensure fresh state
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      // Force a full page reload to clear all state
+      window.location.href = "/";
     } catch (error) {
       console.error("Logout failed:", error);
     }

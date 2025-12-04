@@ -9,7 +9,10 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
+import { useAuth } from "@/hooks/useAuth";
+import { Loader2 } from "lucide-react";
 
+import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import Videos from "@/pages/videos";
 import NarrativeMode from "@/pages/videos/narrative-mode";
@@ -38,6 +41,17 @@ import ProductionCampaignReview from "@/pages/production/review";
 import ProductionCampaignDashboard from "@/pages/production/dashboard";
 import CreateShorts from "@/pages/shorts/create";
 import NotFound from "@/pages/not-found";
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    </div>
+  );
+}
 
 function MainLayout() {
   const [location] = useLocation();
@@ -113,16 +127,32 @@ function MainLayout() {
   );
 }
 
+function Router() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (!isAuthenticated) {
+    return <Landing />;
+  }
+
+  return (
+    <WorkspaceProvider>
+      <MainLayout />
+    </WorkspaceProvider>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="dark">
-        <WorkspaceProvider>
-          <TooltipProvider>
-            <MainLayout />
-            <Toaster />
-          </TooltipProvider>
-        </WorkspaceProvider>
+        <TooltipProvider>
+          <Router />
+          <Toaster />
+        </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

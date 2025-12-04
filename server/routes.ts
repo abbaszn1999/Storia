@@ -4,13 +4,10 @@ import { storage } from "./storage";
 import narrativeRoutes from "./modes/narrative/routes";
 import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertProductionCampaignSchema, insertCampaignVideoSchema, insertCharacterSchema, insertLocationSchema } from "@shared/schema";
 import { z } from "zod";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 
-// TODO: Replace with actual session-based authentication
-// This function should derive userId from req.session or req.user, not from query parameters
 function getCurrentUserId(req: any): string {
-  // TEMPORARY: Using hardcoded userId until auth is implemented
-  // When auth is added, this should be: return req.session?.userId || req.user?.id
-  return "default-user";
+  return req.user?.claims?.sub;
 }
 
 // Helper function to verify workspace ownership
@@ -20,6 +17,21 @@ async function verifyWorkspaceOwnership(workspaceId: string, userId: string): Pr
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Set up authentication (must be before other routes)
+  await setupAuth(app);
+
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
   app.use('/api/narrative', narrativeRoutes);
 
   // Workspace routes

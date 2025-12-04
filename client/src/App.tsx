@@ -15,6 +15,7 @@ import { Loader2 } from "lucide-react";
 import Landing from "@/pages/landing";
 import SignIn from "@/pages/auth/sign-in";
 import SignUp from "@/pages/auth/sign-up";
+import ForgotPassword from "@/pages/auth/forgot-password";
 import Dashboard from "@/pages/dashboard";
 import Videos from "@/pages/videos";
 import NarrativeMode from "@/pages/videos/narrative-mode";
@@ -143,6 +144,10 @@ function Router() {
 
   if (location === "/auth/sign-up") {
     return <SignUp />;
+  }
+
+  if (location === "/auth/forgot-password") {
+    return <ForgotPassword />;
   }
 
   if (!isAuthenticated) {

@@ -62,7 +62,9 @@ export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
-  createUser(user: { email: string; passwordHash?: string; firstName?: string | null; lastName?: string | null; provider?: string; providerId?: string | null; profileImageUrl?: string | null }): Promise<User>;
+  getUserByGoogleId(googleId: string): Promise<User | undefined>;
+  createUser(user: { email: string; passwordHash?: string; firstName?: string | null; lastName?: string | null; provider?: string; providerId?: string | null; profileImageUrl?: string | null; googleId?: string | null; emailVerified?: boolean }): Promise<User>;
+  updateUser(id: string, updates: Partial<User>): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
   
   getWorkspacesByUserId(userId: string): Promise<Workspace[]>;
@@ -369,7 +371,15 @@ export class MemStorage implements IStorage {
     return dbUser;
   }
 
-  async createUser(userData: { email: string; passwordHash?: string; firstName?: string | null; lastName?: string | null; provider?: string; providerId?: string | null; profileImageUrl?: string | null }): Promise<User> {
+  async getUserByGoogleId(googleId: string): Promise<User | undefined> {
+    for (const user of this.users.values()) {
+      if (user.googleId === googleId) return user;
+    }
+    const [dbUser] = await db.select().from(users).where(eq(users.googleId, googleId));
+    return dbUser;
+  }
+
+  async createUser(userData: { email: string; passwordHash?: string; firstName?: string | null; lastName?: string | null; provider?: string; providerId?: string | null; profileImageUrl?: string | null; googleId?: string | null; emailVerified?: boolean }): Promise<User> {
     const [user] = await db
       .insert(users)
       .values({
@@ -380,9 +390,23 @@ export class MemStorage implements IStorage {
         provider: userData.provider || "credentials",
         providerId: userData.providerId || null,
         profileImageUrl: userData.profileImageUrl || null,
+        googleId: userData.googleId || null,
+        emailVerified: userData.emailVerified || false,
       })
       .returning();
     this.users.set(user.id, user);
+    return user;
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    if (user) {
+      this.users.set(user.id, user);
+    }
     return user;
   }
 

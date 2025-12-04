@@ -26,6 +26,19 @@ export const users = pgTable("users", {
   providerId: varchar("provider_id"),
   credits: integer("credits").default(0).notNull(),
   subscriptionTier: text("subscription_tier").default("free").notNull(),
+  
+  // OAuth fields
+  googleId: varchar("google_id").unique(),
+  
+  // Email verification fields
+  emailVerified: boolean("email_verified").default(false).notNull(),
+  emailVerificationToken: varchar("email_verification_token"),
+  emailVerificationExpiry: timestamp("email_verification_expiry"),
+  
+  // Password reset fields
+  passwordResetToken: varchar("password_reset_token"),
+  passwordResetExpiry: timestamp("password_reset_expiry"),
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -245,7 +245,7 @@ export default function ForgotPassword() {
                               const numericValue = value.replace(/[^0-9]/g, '');
                               field.onChange(numericValue);
                             }}
-                            autoComplete="one-time-code"
+                            noAutofill
                             inputMode="numeric"
                             pattern="[0-9]*"
                             data-testid="input-reset-code"

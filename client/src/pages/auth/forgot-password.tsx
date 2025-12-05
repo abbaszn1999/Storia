@@ -241,8 +241,13 @@ export default function ForgotPassword() {
                           <InputOTP
                             maxLength={6}
                             value={field.value}
-                            onChange={field.onChange}
-                            autoFocus
+                            onChange={(value) => {
+                              const numericValue = value.replace(/[^0-9]/g, '');
+                              field.onChange(numericValue);
+                            }}
+                            autoComplete="one-time-code"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             data-testid="input-reset-code"
                           >
                             <InputOTPGroup>

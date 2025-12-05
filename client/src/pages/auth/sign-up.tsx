@@ -216,7 +216,13 @@ export default function SignUp() {
                           <InputOTP
                             maxLength={6}
                             value={field.value}
-                            onChange={field.onChange}
+                            onChange={(value) => {
+                              const numericValue = value.replace(/[^0-9]/g, '');
+                              field.onChange(numericValue);
+                            }}
+                            autoComplete="one-time-code"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             data-testid="input-verification-code"
                           >
                             <InputOTPGroup>

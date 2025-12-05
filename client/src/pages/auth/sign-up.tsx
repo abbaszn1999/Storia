@@ -13,11 +13,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Loader2, Eye, EyeOff, Mail, ArrowLeft } from "lucide-react";
 import { SiGoogle } from "react-icons/si";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
+import { CustomOTPInput } from "@/components/ui/custom-otp-input";
 
 const signUpSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -213,27 +209,12 @@ export default function SignUp() {
                     render={({ field }) => (
                       <FormItem className="flex flex-col items-center">
                         <FormControl>
-                          <InputOTP
-                            maxLength={6}
+                          <CustomOTPInput
+                            length={6}
                             value={field.value}
-                            onChange={(value) => {
-                              const numericValue = value.replace(/[^0-9]/g, '');
-                              field.onChange(numericValue);
-                            }}
-                            noAutofill
-                            inputMode="numeric"
-                            pattern="[0-9]*"
+                            onChange={field.onChange}
                             data-testid="input-verification-code"
-                          >
-                            <InputOTPGroup>
-                              <InputOTPSlot index={0} />
-                              <InputOTPSlot index={1} />
-                              <InputOTPSlot index={2} />
-                              <InputOTPSlot index={3} />
-                              <InputOTPSlot index={4} />
-                              <InputOTPSlot index={5} />
-                            </InputOTPGroup>
-                          </InputOTP>
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

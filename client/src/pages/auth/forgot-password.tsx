@@ -12,11 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Loader2, Mail, ArrowLeft, Eye, EyeOff, CheckCircle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
+import { CustomOTPInput } from "@/components/ui/custom-otp-input";
 
 const emailSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -238,27 +234,12 @@ export default function ForgotPassword() {
                       <FormItem className="flex flex-col items-center">
                         <FormLabel className="sr-only">Reset Code</FormLabel>
                         <FormControl>
-                          <InputOTP
-                            maxLength={6}
+                          <CustomOTPInput
+                            length={6}
                             value={field.value}
-                            onChange={(value) => {
-                              const numericValue = value.replace(/[^0-9]/g, '');
-                              field.onChange(numericValue);
-                            }}
-                            noAutofill
-                            inputMode="numeric"
-                            pattern="[0-9]*"
+                            onChange={field.onChange}
                             data-testid="input-reset-code"
-                          >
-                            <InputOTPGroup>
-                              <InputOTPSlot index={0} />
-                              <InputOTPSlot index={1} />
-                              <InputOTPSlot index={2} />
-                              <InputOTPSlot index={3} />
-                              <InputOTPSlot index={4} />
-                              <InputOTPSlot index={5} />
-                            </InputOTPGroup>
-                          </InputOTP>
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

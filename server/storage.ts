@@ -142,6 +142,9 @@ export interface IStorage {
   createCampaignVideo(video: InsertCampaignVideo): Promise<CampaignVideo>;
   updateCampaignVideo(id: string, video: Partial<CampaignVideo>): Promise<CampaignVideo>;
   deleteCampaignVideo(id: string): Promise<void>;
+  
+  // Account management
+  deleteUserAccount(userId: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -1073,6 +1076,98 @@ export class MemStorage implements IStorage {
 
   async deleteCampaignVideo(id: string): Promise<void> {
     this.campaignVideos.delete(id);
+  }
+
+  async deleteUserAccount(userId: string): Promise<void> {
+    // Get all workspaces for this user
+    const userWorkspaces = await this.getWorkspacesByUserId(userId);
+    
+    for (const workspace of userWorkspaces) {
+      // Delete all videos and related data in this workspace
+      const videos = await this.getVideosByWorkspaceId(workspace.id);
+      for (const video of videos) {
+        // Delete scenes and shots
+        const scenes = await this.getScenesByVideoId(video.id);
+        for (const scene of scenes) {
+          const shots = await this.getShotsBySceneId(scene.id);
+          for (const shot of shots) {
+            const versions = await this.getShotVersionsByShotId(shot.id);
+            for (const version of versions) {
+              this.shotVersions.delete(version.id);
+            }
+            this.shots.delete(shot.id);
+          }
+          await this.deleteContinuityGroupsBySceneId(scene.id);
+          this.scenes.delete(scene.id);
+        }
+        // Delete reference images for video
+        const refImages = await this.getReferenceImagesByVideoId(video.id);
+        for (const img of refImages) {
+          this.referenceImages.delete(img.id);
+        }
+        this.videos.delete(video.id);
+      }
+      
+      // Delete stories
+      const stories = Array.from(this.stories.values()).filter(s => s.workspaceId === workspace.id);
+      for (const story of stories) {
+        this.stories.delete(story.id);
+      }
+      
+      // Delete characters
+      const characters = await this.getCharactersByWorkspaceId(workspace.id);
+      for (const char of characters) {
+        this.characters.delete(char.id);
+      }
+      
+      // Delete locations
+      const locations = await this.getLocationsByWorkspaceId(workspace.id);
+      for (const loc of locations) {
+        this.locations.delete(loc.id);
+      }
+      
+      // Delete voices
+      const voices = await this.getVoicesByWorkspaceId(workspace.id);
+      for (const voice of voices) {
+        this.voices.delete(voice.id);
+      }
+      
+      // Delete brandkits
+      const brandkits = await this.getBrandkitsByWorkspaceId(workspace.id);
+      for (const kit of brandkits) {
+        this.brandkits.delete(kit.id);
+      }
+      
+      // Delete uploads
+      const uploads = await this.getUploadsByWorkspaceId(workspace.id);
+      for (const upload of uploads) {
+        this.uploads.delete(upload.id);
+      }
+      
+      // Delete content calendar items
+      const calendar = await this.getContentCalendarByWorkspaceId(workspace.id);
+      for (const item of calendar) {
+        this.contentCalendar.delete(item.id);
+      }
+      
+      // Delete workspace integrations
+      const integrations = await this.getWorkspaceIntegrations(workspace.id);
+      for (const integration of integrations) {
+        this.workspaceIntegrations.delete(integration.id);
+      }
+      
+      // Delete workspace
+      this.workspaces.delete(workspace.id);
+    }
+    
+    // Delete campaigns
+    const campaigns = await this.getCampaignsByUserId(userId);
+    for (const campaign of campaigns) {
+      await this.deleteCampaign(campaign.id);
+    }
+    
+    // Finally delete the user
+    this.users.delete(userId);
   }
 }
 

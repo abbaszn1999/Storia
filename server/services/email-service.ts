@@ -1,40 +1,18 @@
 import { Resend } from 'resend';
 
-let connectionSettings: any;
+function getCredentials() {
+  const apiKey = process.env.APP_RESEND_API_KEY;
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 
-async function getCredentials() {
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY 
-    ? 'repl ' + process.env.REPL_IDENTITY 
-    : process.env.WEB_REPL_RENEWAL 
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-    : null;
-
-  if (!xReplitToken) {
-    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
+  if (!apiKey) {
+    throw new Error('APP_RESEND_API_KEY environment secret is not configured');
   }
 
-  connectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=resend',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
-      }
-    }
-  ).then(res => res.json()).then(data => data.items?.[0]);
-
-  if (!connectionSettings || (!connectionSettings.settings.api_key)) {
-    throw new Error('Resend not connected');
-  }
-  return {
-    apiKey: connectionSettings.settings.api_key,
-    fromEmail: connectionSettings.settings.from_email || 'onboarding@resend.dev'
-  };
+  return { apiKey, fromEmail };
 }
 
-async function getResendClient() {
-  const { apiKey, fromEmail } = await getCredentials();
+function getResendClient() {
+  const { apiKey, fromEmail } = getCredentials();
   return {
     client: new Resend(apiKey),
     fromEmail
@@ -43,7 +21,7 @@ async function getResendClient() {
 
 export async function sendVerificationEmail(to: string, code: string): Promise<boolean> {
   try {
-    const { client, fromEmail } = await getResendClient();
+    const { client, fromEmail } = getResendClient();
     
     const html = `
       <!DOCTYPE html>
@@ -98,7 +76,7 @@ export async function sendVerificationEmail(to: string, code: string): Promise<b
 
 export async function sendPasswordResetEmail(to: string, code: string): Promise<boolean> {
   try {
-    const { client, fromEmail } = await getResendClient();
+    const { client, fromEmail } = getResendClient();
     
     const html = `
       <!DOCTYPE html>
@@ -153,7 +131,7 @@ export async function sendPasswordResetEmail(to: string, code: string): Promise<
 
 export async function sendWelcomeEmail(to: string, name: string): Promise<boolean> {
   try {
-    const { client, fromEmail } = await getResendClient();
+    const { client, fromEmail } = getResendClient();
     
     const html = `
       <!DOCTYPE html>

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 
 interface CustomOTPInputProps {
@@ -12,27 +12,15 @@ interface CustomOTPInputProps {
 
 export function CustomOTPInput({
   length = 6,
-  value,
+  value = "",
   onChange,
   disabled = false,
   className,
   "data-testid": testId,
 }: CustomOTPInputProps) {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const [localValues, setLocalValues] = useState<string[]>(
-    Array(length).fill("")
-  );
 
-  useEffect(() => {
-    const chars = value.split("").slice(0, length);
-    const newValues = Array(length).fill("");
-    chars.forEach((char, i) => {
-      if (/^\d$/.test(char)) {
-        newValues[i] = char;
-      }
-    });
-    setLocalValues(newValues);
-  }, [value, length]);
+  const digits = value.padEnd(length, "").slice(0, length).split("");
 
   const focusInput = useCallback((index: number) => {
     if (index >= 0 && index < length && inputRefs.current[index]) {
@@ -41,36 +29,31 @@ export function CustomOTPInput({
     }
   }, [length]);
 
-  const updateValue = useCallback((newValues: string[]) => {
-    setLocalValues(newValues);
-    onChange(newValues.join(""));
-  }, [onChange]);
-
   const handleChange = useCallback((index: number, inputValue: string) => {
     const digit = inputValue.replace(/\D/g, "").slice(-1);
     
     if (digit) {
-      const newValues = [...localValues];
-      newValues[index] = digit;
-      updateValue(newValues);
+      const newDigits = [...digits];
+      newDigits[index] = digit;
+      onChange(newDigits.join(""));
       
       if (index < length - 1) {
-        focusInput(index + 1);
+        setTimeout(() => focusInput(index + 1), 0);
       }
     }
-  }, [localValues, length, updateValue, focusInput]);
+  }, [digits, length, onChange, focusInput]);
 
   const handleKeyDown = useCallback((index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Backspace") {
       e.preventDefault();
-      const newValues = [...localValues];
+      const newDigits = [...digits];
       
-      if (localValues[index]) {
-        newValues[index] = "";
-        updateValue(newValues);
+      if (digits[index]) {
+        newDigits[index] = "";
+        onChange(newDigits.join(""));
       } else if (index > 0) {
-        newValues[index - 1] = "";
-        updateValue(newValues);
+        newDigits[index - 1] = "";
+        onChange(newDigits.join(""));
         focusInput(index - 1);
       }
     } else if (e.key === "ArrowLeft" && index > 0) {
@@ -81,35 +64,22 @@ export function CustomOTPInput({
       focusInput(index + 1);
     } else if (e.key === "Delete") {
       e.preventDefault();
-      const newValues = [...localValues];
-      newValues[index] = "";
-      updateValue(newValues);
+      const newDigits = [...digits];
+      newDigits[index] = "";
+      onChange(newDigits.join(""));
     }
-  }, [localValues, length, updateValue, focusInput]);
+  }, [digits, length, onChange, focusInput]);
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
     const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, length);
     
     if (pastedData) {
-      const newValues = Array(length).fill("");
-      pastedData.split("").forEach((char, i) => {
-        if (i < length) {
-          newValues[i] = char;
-        }
-      });
-      updateValue(newValues);
-      
-      const lastFilledIndex = Math.min(pastedData.length, length) - 1;
-      if (lastFilledIndex >= 0) {
-        focusInput(lastFilledIndex < length - 1 ? lastFilledIndex + 1 : lastFilledIndex);
-      }
+      onChange(pastedData.padEnd(length, "").slice(0, length));
+      const lastIndex = Math.min(pastedData.length, length - 1);
+      setTimeout(() => focusInput(lastIndex), 0);
     }
-  }, [length, updateValue, focusInput]);
-
-  const handleFocus = useCallback((index: number) => {
-    inputRefs.current[index]?.select();
-  }, []);
+  }, [length, onChange, focusInput]);
 
   return (
     <div 
@@ -124,18 +94,17 @@ export function CustomOTPInput({
           }}
           type="text"
           inputMode="numeric"
-          pattern="[0-9]*"
           maxLength={1}
-          value={localValues[index] || ""}
+          value={digits[index] || ""}
           onChange={(e) => handleChange(index, e.target.value)}
           onKeyDown={(e) => handleKeyDown(index, e)}
           onPaste={handlePaste}
-          onFocus={() => handleFocus(index)}
+          onFocus={() => inputRefs.current[index]?.select()}
           disabled={disabled}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
-          spellCheck="false"
+          spellCheck={false}
           data-form-type="other"
           data-lpignore="true"
           data-1p-ignore="true"

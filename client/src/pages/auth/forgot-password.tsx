@@ -226,7 +226,7 @@ export default function ForgotPassword() {
             </CardHeader>
             <CardContent>
               <Form {...resetForm}>
-                <form onSubmit={resetForm.handleSubmit(onSubmitReset)} className="space-y-6">
+                <form onSubmit={resetForm.handleSubmit(onSubmitReset)} className="space-y-6" autoComplete="off" data-form-type="other" data-lpignore="true">
                   <FormField
                     control={resetForm.control}
                     name="code"
@@ -256,6 +256,7 @@ export default function ForgotPassword() {
                             <Input
                               type={showPassword ? "text" : "password"}
                               placeholder="At least 6 characters"
+                              autoComplete="off"
                               data-testid="input-new-password"
                               {...field}
                             />
@@ -290,6 +291,7 @@ export default function ForgotPassword() {
                             <Input
                               type={showConfirmPassword ? "text" : "password"}
                               placeholder="Confirm your new password"
+                              autoComplete="off"
                               data-testid="input-confirm-new-password"
                               {...field}
                             />

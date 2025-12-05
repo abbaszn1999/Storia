@@ -300,6 +300,34 @@ export function registerAuthRoutes(app: Express): void {
     }
   });
 
+  app.post("/api/auth/verify-reset-code", async (req: Request, res: Response) => {
+    try {
+      const { email, code } = req.body;
+
+      if (!email || !code) {
+        return res.status(400).json({ message: "Email and code are required" });
+      }
+
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(400).json({ message: "Invalid or expired reset code" });
+      }
+
+      if (user.passwordResetToken !== code) {
+        return res.status(400).json({ message: "Invalid or expired reset code" });
+      }
+
+      if (user.passwordResetExpiry && new Date() > new Date(user.passwordResetExpiry)) {
+        return res.status(400).json({ message: "Reset code has expired" });
+      }
+
+      res.json({ message: "Code verified successfully" });
+    } catch (error) {
+      console.error("Verify reset code error:", error);
+      res.status(500).json({ message: "Failed to verify code" });
+    }
+  });
+
   app.post("/api/auth/reset-password", async (req: Request, res: Response) => {
     try {
       const { email, code, newPassword } = req.body;

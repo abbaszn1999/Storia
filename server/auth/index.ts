@@ -1,11 +1,26 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
 import bcrypt from "bcrypt";
+import { z } from "zod";
 import { storage } from "../storage";
 import connectPg from "connect-pg-simple";
 import { pool } from "../db";
 import { sendVerificationEmail, sendPasswordResetEmail, sendWelcomeEmail, generateVerificationCode } from "../services/email-service";
 import { generateState, verifyState, getGoogleAuthUrl, verifyGoogleToken, isGoogleOAuthConfigured } from "../services/google-oauth";
+
+const updateProfileSchema = z.object({
+  firstName: z.string().max(100).optional(),
+  lastName: z.string().max(100).optional(),
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z.string().min(6, "New password must be at least 6 characters"),
+});
+
+const deleteAccountSchema = z.object({
+  password: z.string().optional(),
+});
 
 const PostgresSessionStore = connectPg(session);
 
@@ -513,7 +528,15 @@ export function registerAuthRoutes(app: Express): void {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      const { firstName, lastName } = req.body;
+      const parseResult = updateProfileSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          message: "Invalid request data",
+          errors: parseResult.error.flatten().fieldErrors 
+        });
+      }
+
+      const { firstName, lastName } = parseResult.data;
 
       const user = await storage.getUser(userId);
       if (!user) {
@@ -545,15 +568,14 @@ export function registerAuthRoutes(app: Express): void {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      const { currentPassword, newPassword } = req.body;
-
-      if (!currentPassword || !newPassword) {
-        return res.status(400).json({ message: "Current password and new password are required" });
+      const parseResult = changePasswordSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        const errors = parseResult.error.flatten().fieldErrors;
+        const errorMessage = Object.values(errors).flat()[0] || "Invalid request data";
+        return res.status(400).json({ message: errorMessage });
       }
 
-      if (newPassword.length < 6) {
-        return res.status(400).json({ message: "New password must be at least 6 characters" });
-      }
+      const { currentPassword, newPassword } = parseResult.data;
 
       const user = await storage.getUser(userId);
       if (!user) {
@@ -586,14 +608,22 @@ export function registerAuthRoutes(app: Express): void {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      const { password } = req.body;
+      const parseResult = deleteAccountSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          message: "Invalid request data",
+          errors: parseResult.error.flatten().fieldErrors 
+        });
+      }
+
+      const { password } = parseResult.data;
 
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
 
-      // For password-based accounts, verify password
+      // For password-based accounts, verify password for re-authentication
       if (user.passwordHash) {
         if (!password) {
           return res.status(400).json({ message: "Password is required to delete account" });

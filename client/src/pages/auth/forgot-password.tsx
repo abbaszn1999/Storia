@@ -242,6 +242,7 @@ export default function ForgotPassword() {
                             maxLength={6}
                             value={field.value}
                             onChange={field.onChange}
+                            autoFocus
                             data-testid="input-reset-code"
                           >
                             <InputOTPGroup>
@@ -346,8 +347,8 @@ export default function ForgotPassword() {
               <div className="mt-6 text-center text-sm">
                 <span className="text-muted-foreground">Didn't receive the code? </span>
                 <Button
-                  variant="link"
-                  className="p-0 h-auto font-normal"
+                  variant="ghost"
+                  className="p-0 h-auto font-normal text-primary hover:text-primary/80 hover:bg-transparent"
                   disabled={resendTimer > 0 || resendMutation.isPending}
                   onClick={() => resendMutation.mutate()}
                   data-testid="button-resend-reset-code"

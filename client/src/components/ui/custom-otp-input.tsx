@@ -1,4 +1,4 @@
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useId } from "react";
 import { cn } from "@/lib/utils";
 
 interface CustomOTPInputProps {
@@ -19,6 +19,7 @@ export function CustomOTPInput({
   "data-testid": testId,
 }: CustomOTPInputProps) {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const uniqueId = useId();
 
   const digits = value.padEnd(length, "").slice(0, length).split("");
 
@@ -92,8 +93,11 @@ export function CustomOTPInput({
           ref={(el) => {
             inputRefs.current[index] = el;
           }}
+          id={`${uniqueId}-otp-${index}`}
+          name={`otp_digit_${uniqueId}_${index}_${Date.now()}`}
           type="text"
           inputMode="numeric"
+          pattern="[0-9]*"
           maxLength={1}
           value={digits[index] || ""}
           onChange={(e) => handleChange(index, e.target.value)}
@@ -108,6 +112,7 @@ export function CustomOTPInput({
           data-form-type="other"
           data-lpignore="true"
           data-1p-ignore="true"
+          data-bwignore="true"
           aria-label={`Digit ${index + 1} of ${length}`}
           className={cn(
             "w-10 h-12 text-center text-lg font-semibold",
@@ -115,7 +120,8 @@ export function CustomOTPInput({
             "bg-background text-foreground",
             "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            "transition-all duration-150"
+            "transition-all duration-150",
+            "[&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           )}
           data-testid={testId ? `${testId}-slot-${index}` : undefined}
         />

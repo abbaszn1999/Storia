@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { User, Lock, Trash2, AlertTriangle, Shield, Eye, EyeOff, Loader2 } from "lucide-react";
+import { User, Lock, Trash2, AlertTriangle, Shield, Eye, EyeOff, Loader2, Mail } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,7 @@ export default function Profile() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [confirmText, setConfirmText] = useState("");
+  const [resetEmailSent, setResetEmailSent] = useState(false);
   
   const { data: profile, isLoading: profileLoading, error: profileError } = useQuery<UserProfile>({
     queryKey: ["/api/account/profile"],
@@ -125,6 +126,30 @@ export default function Profile() {
     onError: (error: Error) => {
       toast({
         title: "Deletion failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resetEmailMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const response = await apiRequest("POST", "/api/auth/forgot-password", { email });
+      return response.json();
+    },
+    onSuccess: () => {
+      setResetEmailSent(true);
+      toast({
+        title: "Reset email sent",
+        description: "Check your inbox for the password reset code.",
+      });
+      setTimeout(() => {
+        setLocation("/auth/forgot-password?step=verify&email=" + encodeURIComponent(profile?.email || ""));
+      }, 2000);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to send reset email",
         description: error.message,
         variant: "destructive",
       });
@@ -205,6 +230,12 @@ export default function Profile() {
     }
     
     deleteAccountMutation.mutate(profile.hasPassword ? deletePassword : undefined);
+  };
+
+  const handleSendResetEmail = () => {
+    if (profile.email) {
+      resetEmailMutation.mutate(profile.email);
+    }
   };
 
   const isGoogleOnlyAccount = profile.googleId && !profile.hasPassword;
@@ -460,6 +491,42 @@ export default function Profile() {
               )}
             </CardContent>
           </Card>
+
+          {profile.hasPassword && (
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Mail className="h-5 w-5" />
+                  Reset Password by Email
+                </CardTitle>
+                <CardDescription>
+                  Forgot your current password? We'll send a reset code to your email.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Send reset code to:</p>
+                    <p className="text-sm text-muted-foreground">{profile.email}</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={handleSendResetEmail}
+                    disabled={resetEmailMutation.isPending || resetEmailSent}
+                    data-testid="button-send-reset-email"
+                  >
+                    {resetEmailMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    {resetEmailSent ? "Email Sent" : "Send Reset Email"}
+                  </Button>
+                </div>
+                {resetEmailSent && (
+                  <p className="text-sm text-muted-foreground mt-3">
+                    Check your inbox for the reset code. You'll be redirected to complete the reset.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="account" className="mt-6">

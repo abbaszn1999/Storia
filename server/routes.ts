@@ -21,6 +21,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.use('/api/narrative', isAuthenticated, narrativeRoutes);
 
+  // Onboarding route
+  app.post('/api/onboarding/complete', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      const { workspaceName, onboardingData } = req.body;
+      
+      if (!workspaceName || typeof workspaceName !== 'string') {
+        return res.status(400).json({ error: 'Workspace name is required' });
+      }
+      
+      // Create first workspace
+      const workspace = await storage.createWorkspace({
+        userId,
+        name: workspaceName.trim(),
+        description: 'Your first workspace',
+      });
+      
+      // Mark onboarding as complete and store onboarding data
+      await storage.updateUser(userId, {
+        hasCompletedOnboarding: true,
+        onboardingData: onboardingData || {},
+      });
+      
+      res.json({ 
+        success: true, 
+        workspace,
+        message: 'Onboarding completed successfully' 
+      });
+    } catch (error) {
+      console.error('Error completing onboarding:', error);
+      res.status(500).json({ error: 'Failed to complete onboarding' });
+    }
+  });
+
   // Workspace routes (protected)
   app.get('/api/workspaces', isAuthenticated, async (req: any, res) => {
     try {

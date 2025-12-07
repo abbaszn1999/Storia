@@ -43,6 +43,7 @@ import ProductionCampaignCreate from "@/pages/production/create";
 import ProductionCampaignReview from "@/pages/production/review";
 import ProductionCampaignDashboard from "@/pages/production/dashboard";
 import CreateShorts from "@/pages/shorts/create";
+import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
 
 function LoadingScreen() {
@@ -131,8 +132,8 @@ function MainLayout() {
 }
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
-  const [location] = useLocation();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const [location, setLocation] = useLocation();
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -152,6 +153,20 @@ function Router() {
 
   if (!isAuthenticated) {
     return <Landing />;
+  }
+
+  // Check if user needs to complete onboarding
+  if (user && !user.hasCompletedOnboarding) {
+    if (location !== "/onboarding") {
+      return <Onboarding />;
+    }
+    return <Onboarding />;
+  }
+
+  // If user completed onboarding but is still on onboarding page, redirect to home
+  if (location === "/onboarding" && user?.hasCompletedOnboarding) {
+    setLocation("/");
+    return <LoadingScreen />;
   }
 
   return (

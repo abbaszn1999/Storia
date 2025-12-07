@@ -35,6 +35,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Workspace name is required' });
       }
       
+      // Check workspace limit (safety check for edge cases)
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+      
+      const currentCount = await storage.countUserWorkspaces(userId);
+      if (currentCount >= user.workspaceLimit) {
+        // User already has workspaces, just mark onboarding complete
+        await storage.updateUser(userId, {
+          hasCompletedOnboarding: true,
+          onboardingData: onboardingData || {},
+        });
+        
+        const existingWorkspaces = await storage.getWorkspacesByUserId(userId);
+        return res.json({ 
+          success: true, 
+          workspace: existingWorkspaces[0],
+          message: 'Onboarding completed successfully' 
+        });
+      }
+      
       // Create first workspace
       const workspace = await storage.createWorkspace({
         userId,

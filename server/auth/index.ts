@@ -169,6 +169,16 @@ export function registerAuthRoutes(app: Express): void {
 
       req.session.userId = user.id;
 
+      // Create default workspace for new user
+      const existingWorkspaces = await storage.getWorkspacesByUserId(user.id);
+      if (existingWorkspaces.length === 0) {
+        await storage.createWorkspace({
+          userId: user.id,
+          name: "My Workspace",
+          description: "Your default workspace",
+        });
+      }
+
       const displayName = user.firstName || user.email.split('@')[0];
       await sendWelcomeEmail(email, displayName);
 
@@ -445,6 +455,16 @@ export function registerAuthRoutes(app: Express): void {
 
       if (user) {
         req.session.userId = user.id;
+        
+        // Create default workspace if user doesn't have any
+        const existingWorkspaces = await storage.getWorkspacesByUserId(user.id);
+        if (existingWorkspaces.length === 0) {
+          await storage.createWorkspace({
+            userId: user.id,
+            name: "My Workspace",
+            description: "Your default workspace",
+          });
+        }
       }
 
       res.redirect("/");

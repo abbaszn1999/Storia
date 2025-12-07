@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import narrativeRoutes from "./modes/narrative/routes";
-import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertProductionCampaignSchema, insertCampaignVideoSchema, insertCharacterSchema, insertLocationSchema } from "@shared/schema";
+import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertProductionCampaignSchema, insertCampaignVideoSchema, insertCharacterSchema, insertLocationSchema, insertProjectSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupAuth, isAuthenticated, registerAuthRoutes, getCurrentUserId } from "./auth";
 
@@ -36,6 +36,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/workspaces', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getCurrentUserId(req);
+      
+      // Check workspace limit
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+      
+      const currentCount = await storage.countUserWorkspaces(userId);
+      if (currentCount >= user.workspaceLimit) {
+        return res.status(403).json({ 
+          error: 'Workspace limit reached', 
+          message: `You can have a maximum of ${user.workspaceLimit} workspaces. Upgrade your plan for more.` 
+        });
+      }
+      
       const validatedData = insertWorkspaceSchema.parse({
         ...req.body,
         userId,
@@ -49,6 +64,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error('Error creating workspace:', error);
       res.status(500).json({ error: 'Failed to create workspace' });
+    }
+  });
+
+  app.get('/api/workspaces/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = getCurrentUserId(req);
+
+      const workspace = await storage.getWorkspace(id);
+      if (!workspace) {
+        return res.status(404).json({ error: 'Workspace not found' });
+      }
+      
+      if (workspace.userId !== userId) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
+      }
+
+      res.json(workspace);
+    } catch (error) {
+      console.error('Error fetching workspace:', error);
+      res.status(500).json({ error: 'Failed to fetch workspace' });
     }
   });
 
@@ -77,6 +113,155 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error('Error updating workspace:', error);
       res.status(500).json({ error: 'Failed to update workspace' });
+    }
+  });
+
+  app.delete('/api/workspaces/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = getCurrentUserId(req);
+
+      const hasAccess = await verifyWorkspaceOwnership(id, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
+      }
+
+      // Check if this is the user's only workspace
+      const workspaceCount = await storage.countUserWorkspaces(userId);
+      if (workspaceCount <= 1) {
+        return res.status(400).json({ error: 'Cannot delete your only workspace' });
+      }
+
+      await storage.deleteWorkspace(id);
+      res.json({ success: true, message: 'Workspace deleted' });
+    } catch (error) {
+      console.error('Error deleting workspace:', error);
+      res.status(500).json({ error: 'Failed to delete workspace' });
+    }
+  });
+
+  // Project routes
+  app.get('/api/workspaces/:workspaceId/projects', isAuthenticated, async (req: any, res) => {
+    try {
+      const { workspaceId } = req.params;
+      const userId = getCurrentUserId(req);
+
+      const hasAccess = await verifyWorkspaceOwnership(workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
+      }
+
+      const projects = await storage.getProjectsByWorkspaceId(workspaceId);
+      res.json(projects);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      res.status(500).json({ error: 'Failed to fetch projects' });
+    }
+  });
+
+  app.post('/api/workspaces/:workspaceId/projects', isAuthenticated, async (req: any, res) => {
+    try {
+      const { workspaceId } = req.params;
+      const userId = getCurrentUserId(req);
+
+      const hasAccess = await verifyWorkspaceOwnership(workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
+      }
+
+      const validatedData = insertProjectSchema.parse({
+        ...req.body,
+        workspaceId,
+      });
+
+      const project = await storage.createProject(validatedData);
+      res.json(project);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation error', details: error.errors });
+      }
+      console.error('Error creating project:', error);
+      res.status(500).json({ error: 'Failed to create project' });
+    }
+  });
+
+  app.get('/api/projects/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = getCurrentUserId(req);
+
+      const project = await storage.getProject(id);
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      const hasAccess = await verifyWorkspaceOwnership(project.workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this project' });
+      }
+
+      res.json(project);
+    } catch (error) {
+      console.error('Error fetching project:', error);
+      res.status(500).json({ error: 'Failed to fetch project' });
+    }
+  });
+
+  app.patch('/api/projects/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = getCurrentUserId(req);
+
+      const project = await storage.getProject(id);
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      const hasAccess = await verifyWorkspaceOwnership(project.workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this project' });
+      }
+
+      const updateSchema = z.object({
+        name: z.string().min(1).optional(),
+        description: z.string().optional(),
+        settings: z.any().optional(),
+        thumbnailUrl: z.string().optional(),
+        status: z.enum(['active', 'archived']).optional(),
+      });
+
+      const validatedData = updateSchema.parse(req.body);
+      const updated = await storage.updateProject(id, validatedData);
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation error', details: error.errors });
+      }
+      console.error('Error updating project:', error);
+      res.status(500).json({ error: 'Failed to update project' });
+    }
+  });
+
+  app.delete('/api/projects/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = getCurrentUserId(req);
+
+      const project = await storage.getProject(id);
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      const hasAccess = await verifyWorkspaceOwnership(project.workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this project' });
+      }
+
+      await storage.deleteProject(id);
+      res.json({ success: true, message: 'Project deleted' });
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      res.status(500).json({ error: 'Failed to delete project' });
     }
   });
 

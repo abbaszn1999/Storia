@@ -1,9 +1,13 @@
 import {
   users,
+  workspaces,
+  projects,
   type User,
   type UpsertUser,
   type Workspace,
   type InsertWorkspace,
+  type Project,
+  type InsertProject,
   type Video,
   type InsertVideo,
   type Story,
@@ -68,8 +72,17 @@ export interface IStorage {
   upsertUser(user: UpsertUser): Promise<User>;
   
   getWorkspacesByUserId(userId: string): Promise<Workspace[]>;
+  getWorkspace(id: string): Promise<Workspace | undefined>;
   createWorkspace(workspace: InsertWorkspace): Promise<Workspace>;
   updateWorkspace(id: string, workspace: Partial<Workspace>): Promise<Workspace>;
+  deleteWorkspace(id: string): Promise<void>;
+  countUserWorkspaces(userId: string): Promise<number>;
+  
+  getProjectsByWorkspaceId(workspaceId: string): Promise<Project[]>;
+  getProject(id: string): Promise<Project | undefined>;
+  createProject(project: InsertProject): Promise<Project>;
+  updateProject(id: string, project: Partial<Project>): Promise<Project>;
+  deleteProject(id: string): Promise<void>;
   
   getVideosByWorkspaceId(workspaceId: string): Promise<Video[]>;
   getVideo(id: string): Promise<Video | undefined>;
@@ -149,7 +162,8 @@ export interface IStorage {
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
-  private workspaces: Map<string, Workspace>;
+  private workspacesMap: Map<string, Workspace>;
+  private projectsMap: Map<string, Project>;
   private videos: Map<string, Video>;
   private stories: Map<string, Story>;
   private characters: Map<string, Character>;
@@ -169,7 +183,8 @@ export class MemStorage implements IStorage {
 
   constructor() {
     this.users = new Map();
-    this.workspaces = new Map();
+    this.workspacesMap = new Map();
+    this.projectsMap = new Map();
     this.videos = new Map();
     this.stories = new Map();
     this.characters = new Map();
@@ -429,37 +444,74 @@ export class MemStorage implements IStorage {
   }
 
   async getWorkspacesByUserId(userId: string): Promise<Workspace[]> {
-    return Array.from(this.workspaces.values()).filter((ws) => ws.userId === userId);
+    return db.select().from(workspaces).where(eq(workspaces.userId, userId));
+  }
+
+  async getWorkspace(id: string): Promise<Workspace | undefined> {
+    const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, id));
+    return workspace;
   }
 
   async createWorkspace(insertWorkspace: InsertWorkspace): Promise<Workspace> {
-    const id = randomUUID();
-    const workspace: Workspace = {
-      ...insertWorkspace,
-      id,
-      description: insertWorkspace.description ?? null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.workspaces.set(id, workspace);
+    const [workspace] = await db
+      .insert(workspaces)
+      .values(insertWorkspace)
+      .returning();
     return workspace;
   }
 
   async updateWorkspace(id: string, updates: Partial<Workspace>): Promise<Workspace> {
-    const workspace = this.workspaces.get(id);
+    const [workspace] = await db
+      .update(workspaces)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(workspaces.id, id))
+      .returning();
     if (!workspace) {
       throw new Error(`Workspace with id ${id} not found`);
     }
-    const updated: Workspace = {
-      ...workspace,
-      ...updates,
-      id: workspace.id,
-      userId: workspace.userId,
-      createdAt: workspace.createdAt,
-      updatedAt: new Date(),
-    };
-    this.workspaces.set(id, updated);
-    return updated;
+    return workspace;
+  }
+
+  async deleteWorkspace(id: string): Promise<void> {
+    await db.delete(workspaces).where(eq(workspaces.id, id));
+  }
+
+  async countUserWorkspaces(userId: string): Promise<number> {
+    const result = await db.select().from(workspaces).where(eq(workspaces.userId, userId));
+    return result.length;
+  }
+
+  async getProjectsByWorkspaceId(workspaceId: string): Promise<Project[]> {
+    return db.select().from(projects).where(eq(projects.workspaceId, workspaceId));
+  }
+
+  async getProject(id: string): Promise<Project | undefined> {
+    const [project] = await db.select().from(projects).where(eq(projects.id, id));
+    return project;
+  }
+
+  async createProject(insertProject: InsertProject): Promise<Project> {
+    const [project] = await db
+      .insert(projects)
+      .values(insertProject)
+      .returning();
+    return project;
+  }
+
+  async updateProject(id: string, updates: Partial<Project>): Promise<Project> {
+    const [project] = await db
+      .update(projects)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(projects.id, id))
+      .returning();
+    if (!project) {
+      throw new Error(`Project with id ${id} not found`);
+    }
+    return project;
+  }
+
+  async deleteProject(id: string): Promise<void> {
+    await db.delete(projects).where(eq(projects.id, id));
   }
 
   async getVideosByWorkspaceId(workspaceId: string): Promise<Video[]> {
@@ -1156,8 +1208,14 @@ export class MemStorage implements IStorage {
         this.workspaceIntegrations.delete(integration.id);
       }
       
-      // Delete workspace
-      this.workspaces.delete(workspace.id);
+      // Delete projects
+      const projectsList = await this.getProjectsByWorkspaceId(workspace.id);
+      for (const project of projectsList) {
+        await this.deleteProject(project.id);
+      }
+      
+      // Delete workspace (uses database)
+      await this.deleteWorkspace(workspace.id);
     }
     
     // Delete campaigns

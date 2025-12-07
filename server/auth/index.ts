@@ -169,16 +169,6 @@ export function registerAuthRoutes(app: Express): void {
 
       req.session.userId = user.id;
 
-      // Create default workspace for new user
-      const existingWorkspaces = await storage.getWorkspacesByUserId(user.id);
-      if (existingWorkspaces.length === 0) {
-        await storage.createWorkspace({
-          userId: user.id,
-          name: "My Workspace",
-          description: "Your default workspace",
-        });
-      }
-
       const displayName = user.firstName || user.email.split('@')[0];
       await sendWelcomeEmail(email, displayName);
 
@@ -455,19 +445,15 @@ export function registerAuthRoutes(app: Express): void {
 
       if (user) {
         req.session.userId = user.id;
-        
-        // Create default workspace if user doesn't have any
-        const existingWorkspaces = await storage.getWorkspacesByUserId(user.id);
-        if (existingWorkspaces.length === 0) {
-          await storage.createWorkspace({
-            userId: user.id,
-            name: "My Workspace",
-            description: "Your default workspace",
-          });
-        }
       }
 
-      res.redirect("/");
+      // Redirect to onboarding if user hasn't completed it
+      const hasCompletedOnboarding = user?.hasCompletedOnboarding ?? false;
+      if (!hasCompletedOnboarding) {
+        res.redirect("/onboarding");
+      } else {
+        res.redirect("/");
+      }
     } catch (error) {
       console.error("Google OAuth callback error:", error);
       res.redirect("/auth/sign-in?error=oauth_failed");
@@ -503,6 +489,7 @@ export function registerAuthRoutes(app: Express): void {
         firstName: user.firstName,
         lastName: user.lastName,
         profileImageUrl: user.profileImageUrl,
+        hasCompletedOnboarding: user.hasCompletedOnboarding,
       });
     } catch (error) {
       console.error("Error fetching user:", error);

@@ -42,6 +42,10 @@ export const users = pgTable("users", {
   // Workspace limit (for future subscription integration)
   workspaceLimit: integer("workspace_limit").default(3).notNull(),
   
+  // Onboarding
+  hasCompletedOnboarding: boolean("has_completed_onboarding").default(false).notNull(),
+  onboardingData: jsonb("onboarding_data"), // Stores answers from onboarding questions
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

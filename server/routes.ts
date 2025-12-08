@@ -91,6 +91,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/workspaces', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
       const workspaces = await storage.getWorkspacesByUserId(userId);
       res.json(workspaces);
     } catch (error) {
@@ -102,6 +105,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/workspaces', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
       
       // Check workspace limit
       const user = await storage.getUser(userId);
@@ -133,10 +139,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/workspaces/:id', async (req, res) => {
+  app.patch('/api/workspaces/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       // Verify ownership
       const hasAccess = await verifyWorkspaceOwnership(id, userId);
@@ -166,6 +175,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       const hasAccess = await verifyWorkspaceOwnership(id, userId);
       if (!hasAccess) {
@@ -191,6 +203,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { workspaceId } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       const hasAccess = await verifyWorkspaceOwnership(workspaceId, userId);
       if (!hasAccess) {
@@ -209,6 +224,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { workspaceId } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       const hasAccess = await verifyWorkspaceOwnership(workspaceId, userId);
       if (!hasAccess) {
@@ -235,6 +253,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       const project = await storage.getProject(id);
       if (!project) {
@@ -257,6 +278,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       const project = await storage.getProject(id);
       if (!project) {
@@ -292,6 +316,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       const project = await storage.getProject(id);
       if (!project) {
@@ -316,6 +343,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { workspaceId } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       // Verify ownership
       const hasAccess = await verifyWorkspaceOwnership(workspaceId, userId);
@@ -335,6 +365,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { workspaceId } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       // Verify ownership
       const hasAccess = await verifyWorkspaceOwnership(workspaceId, userId);
@@ -366,6 +399,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { workspaceId, id } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       // Verify ownership
       const hasAccess = await verifyWorkspaceOwnership(workspaceId, userId);
@@ -392,6 +428,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/production-campaigns', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
       const campaigns = await storage.getCampaignsByUserId(userId);
       res.json(campaigns);
     } catch (error) {
@@ -403,6 +442,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/production-campaigns', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
       
       // Additional validation beyond schema
       const storyIdeas = req.body.storyIdeas;
@@ -473,6 +515,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       const campaign = await storage.getCampaign(id);
       if (!campaign) {
@@ -495,6 +540,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       const campaign = await storage.getCampaign(id);
       if (!campaign) {
@@ -538,6 +586,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       const campaign = await storage.getCampaign(id);
       if (!campaign) {
@@ -560,6 +611,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       const campaign = await storage.getCampaign(id);
       if (!campaign) {
@@ -582,6 +636,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       const campaign = await storage.getCampaign(id);
       if (!campaign) {
@@ -612,6 +669,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id, videoId } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       const campaign = await storage.getCampaign(id);
       if (!campaign) {
@@ -646,6 +706,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       const campaign = await storage.getCampaign(id);
       if (!campaign) {
@@ -668,6 +731,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       const campaign = await storage.getCampaign(id);
       if (!campaign) {
@@ -690,6 +756,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
       const campaign = await storage.getCampaign(id);
       if (!campaign) {
@@ -726,6 +795,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/characters', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
       const validated = insertCharacterSchema.parse(req.body);
       
       // Verify workspace belongs to user
@@ -764,6 +836,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/locations', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
       const validated = insertLocationSchema.parse(req.body);
       
       // Verify workspace belongs to user
@@ -892,10 +967,15 @@ Estimated Duration: ~${duration}s`;
   });
 
   // Upload a file to Bunny Storage
-  app.post('/api/storage/upload', upload.single('file'), async (req: any, res) => {
+  app.post('/api/storage/upload', isAuthenticated, upload.single('file'), async (req: any, res) => {
     try {
       if (!bunnyStorage.isBunnyConfigured()) {
         return res.status(503).json({ error: 'Bunny Storage is not configured' });
+      }
+
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
       }
 
       if (!req.file) {
@@ -907,11 +987,12 @@ Estimated Duration: ~${duration}s`;
         return res.status(400).json({ error: 'File path is required' });
       }
 
-      // Sanitize the path to prevent directory traversal
+      // Sanitize the path to prevent directory traversal and scope to user
       const sanitizedPath = filePath.replace(/\.\./g, '').replace(/^\/+/, '');
+      const scopedPath = `${userId}/${sanitizedPath}`;
 
       const cdnUrl = await bunnyStorage.uploadFile(
-        sanitizedPath,
+        scopedPath,
         req.file.buffer,
         req.file.mimetype
       );
@@ -919,7 +1000,7 @@ Estimated Duration: ~${duration}s`;
       res.json({
         success: true,
         url: cdnUrl,
-        path: sanitizedPath,
+        path: scopedPath,
         size: req.file.size,
         contentType: req.file.mimetype,
       });
@@ -930,16 +1011,22 @@ Estimated Duration: ~${duration}s`;
   });
 
   // List files in a directory
-  app.get('/api/storage/files', async (req, res) => {
+  app.get('/api/storage/files', isAuthenticated, async (req: any, res) => {
     try {
       if (!bunnyStorage.isBunnyConfigured()) {
         return res.status(503).json({ error: 'Bunny Storage is not configured' });
       }
 
-      const folderPath = (req.query.path as string) || '';
-      const sanitizedPath = folderPath.replace(/\.\./g, '');
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
-      const files = await bunnyStorage.listFiles(sanitizedPath);
+      const folderPath = (req.query.path as string) || '';
+      const sanitizedPath = folderPath.replace(/\.\./g, '').replace(/^\/+/, '');
+      const scopedPath = sanitizedPath ? `${userId}/${sanitizedPath}` : `${userId}`;
+
+      const files = await bunnyStorage.listFiles(scopedPath);
       
       // Transform to a cleaner response format
       const formattedFiles = files.map(file => ({
@@ -953,7 +1040,7 @@ Estimated Duration: ~${duration}s`;
       }));
 
       res.json({
-        path: sanitizedPath,
+        path: scopedPath,
         files: formattedFiles,
       });
     } catch (error) {
@@ -963,10 +1050,15 @@ Estimated Duration: ~${duration}s`;
   });
 
   // Get file info
-  app.get('/api/storage/file-info', async (req, res) => {
+  app.get('/api/storage/file-info', isAuthenticated, async (req: any, res) => {
     try {
       if (!bunnyStorage.isBunnyConfigured()) {
         return res.status(503).json({ error: 'Bunny Storage is not configured' });
+      }
+
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
       }
 
       const filePath = req.query.path as string;
@@ -975,15 +1067,16 @@ Estimated Duration: ~${duration}s`;
       }
 
       const sanitizedPath = filePath.replace(/\.\./g, '').replace(/^\/+/, '');
-      const info = await bunnyStorage.getFileInfo(sanitizedPath);
+      const scopedPath = `${userId}/${sanitizedPath}`;
+      const info = await bunnyStorage.getFileInfo(scopedPath);
 
       if (!info) {
         return res.status(404).json({ error: 'File not found' });
       }
 
       res.json({
-        path: sanitizedPath,
-        url: bunnyStorage.getPublicUrl(sanitizedPath),
+        path: scopedPath,
+        url: bunnyStorage.getPublicUrl(scopedPath),
         ...info,
       });
     } catch (error) {
@@ -993,10 +1086,15 @@ Estimated Duration: ~${duration}s`;
   });
 
   // Get CDN URL for a file
-  app.get('/api/storage/url', async (req, res) => {
+  app.get('/api/storage/url', isAuthenticated, async (req: any, res) => {
     try {
       if (!bunnyStorage.isBunnyConfigured()) {
         return res.status(503).json({ error: 'Bunny Storage is not configured' });
+      }
+
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
       }
 
       const filePath = req.query.path as string;
@@ -1005,9 +1103,10 @@ Estimated Duration: ~${duration}s`;
       }
 
       const sanitizedPath = filePath.replace(/\.\./g, '').replace(/^\/+/, '');
-      const url = bunnyStorage.getPublicUrl(sanitizedPath);
+      const scopedPath = `${userId}/${sanitizedPath}`;
+      const url = bunnyStorage.getPublicUrl(scopedPath);
 
-      res.json({ url, path: sanitizedPath });
+      res.json({ url, path: scopedPath });
     } catch (error) {
       console.error('Error getting file URL:', error);
       res.status(500).json({ error: 'Failed to get file URL' });
@@ -1015,10 +1114,15 @@ Estimated Duration: ~${duration}s`;
   });
 
   // Check if a file exists
-  app.get('/api/storage/exists', async (req, res) => {
+  app.get('/api/storage/exists', isAuthenticated, async (req: any, res) => {
     try {
       if (!bunnyStorage.isBunnyConfigured()) {
         return res.status(503).json({ error: 'Bunny Storage is not configured' });
+      }
+
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
       }
 
       const filePath = req.query.path as string;
@@ -1027,9 +1131,10 @@ Estimated Duration: ~${duration}s`;
       }
 
       const sanitizedPath = filePath.replace(/\.\./g, '').replace(/^\/+/, '');
-      const exists = await bunnyStorage.fileExists(sanitizedPath);
+      const scopedPath = `${userId}/${sanitizedPath}`;
+      const exists = await bunnyStorage.fileExists(scopedPath);
 
-      res.json({ exists, path: sanitizedPath });
+      res.json({ exists, path: scopedPath });
     } catch (error) {
       console.error('Error checking file existence:', error);
       res.status(500).json({ error: 'Failed to check file existence' });
@@ -1037,10 +1142,15 @@ Estimated Duration: ~${duration}s`;
   });
 
   // Delete a file
-  app.delete('/api/storage/file', async (req, res) => {
+  app.delete('/api/storage/file', isAuthenticated, async (req: any, res) => {
     try {
       if (!bunnyStorage.isBunnyConfigured()) {
         return res.status(503).json({ error: 'Bunny Storage is not configured' });
+      }
+
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
       }
 
       const filePath = req.query.path as string;
@@ -1049,9 +1159,10 @@ Estimated Duration: ~${duration}s`;
       }
 
       const sanitizedPath = filePath.replace(/\.\./g, '').replace(/^\/+/, '');
-      await bunnyStorage.deleteFile(sanitizedPath);
+      const scopedPath = `${userId}/${sanitizedPath}`;
+      await bunnyStorage.deleteFile(scopedPath);
 
-      res.json({ success: true, path: sanitizedPath });
+      res.json({ success: true, path: scopedPath });
     } catch (error) {
       console.error('Error deleting file:', error);
       res.status(500).json({ error: 'Failed to delete file' });
@@ -1059,10 +1170,15 @@ Estimated Duration: ~${duration}s`;
   });
 
   // Download a file (proxy through server)
-  app.get('/api/storage/download', async (req, res) => {
+  app.get('/api/storage/download', isAuthenticated, async (req: any, res) => {
     try {
       if (!bunnyStorage.isBunnyConfigured()) {
         return res.status(503).json({ error: 'Bunny Storage is not configured' });
+      }
+
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
       }
 
       const filePath = req.query.path as string;
@@ -1071,10 +1187,11 @@ Estimated Duration: ~${duration}s`;
       }
 
       const sanitizedPath = filePath.replace(/\.\./g, '').replace(/^\/+/, '');
-      const fileBuffer = await bunnyStorage.downloadFile(sanitizedPath);
+      const scopedPath = `${userId}/${sanitizedPath}`;
+      const fileBuffer = await bunnyStorage.downloadFile(scopedPath);
 
       // Get filename from path
-      const filename = sanitizedPath.split('/').pop() || 'download';
+      const filename = scopedPath.split('/').pop() || 'download';
 
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.setHeader('Content-Length', fileBuffer.length);

@@ -2,10 +2,11 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import narrativeRoutes from "./modes/narrative/routes";
-import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertProductionCampaignSchema, insertCampaignVideoSchema, insertCharacterSchema, insertLocationSchema } from "@shared/schema";
+import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertProductionCampaignSchema, insertCampaignVideoSchema, insertCharacterSchema, insertLocationSchema, insertProjectSchema } from "@shared/schema";
 import { z } from "zod";
 import multer from "multer";
 import { bunnyStorage } from "./storage/bunny-storage";
+import { setupAuth, isAuthenticated, registerAuthRoutes, getCurrentUserId } from "./auth";
 
 // Configure multer for memory storage (files stored in buffer)
 const upload = multer({
@@ -15,14 +16,6 @@ const upload = multer({
   },
 });
 
-// TODO: Replace with actual session-based authentication
-// This function should derive userId from req.session or req.user, not from query parameters
-function getCurrentUserId(req: any): string {
-  // TEMPORARY: Using hardcoded userId until auth is implemented
-  // When auth is added, this should be: return req.session?.userId || req.user?.id
-  return "default-user";
-}
-
 // Helper function to verify workspace ownership
 async function verifyWorkspaceOwnership(workspaceId: string, userId: string): Promise<boolean> {
   const workspaces = await storage.getWorkspacesByUserId(userId);
@@ -30,12 +23,77 @@ async function verifyWorkspaceOwnership(workspaceId: string, userId: string): Pr
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  app.use('/api/narrative', narrativeRoutes);
+  // Set up authentication session middleware (must be before other routes)
+  await setupAuth(app);
+  
+  // Register auth routes (login, register, logout, user)
+  registerAuthRoutes(app);
 
-  // Workspace routes
-  app.get('/api/workspaces', async (req, res) => {
+  app.use('/api/narrative', isAuthenticated, narrativeRoutes);
+
+  // Onboarding route
+  app.post('/api/onboarding/complete', isAuthenticated, async (req: any, res) => {
     try {
-      // Get userId from session (currently hardcoded, will use req.session when auth is added)
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      const { workspaceName, onboardingData } = req.body;
+      
+      if (!workspaceName || typeof workspaceName !== 'string') {
+        return res.status(400).json({ error: 'Workspace name is required' });
+      }
+      
+      // Check workspace limit (safety check for edge cases)
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+      
+      const currentCount = await storage.countUserWorkspaces(userId);
+      if (currentCount >= user.workspaceLimit) {
+        // User already has workspaces, just mark onboarding complete
+        await storage.updateUser(userId, {
+          hasCompletedOnboarding: true,
+          onboardingData: onboardingData || {},
+        });
+        
+        const existingWorkspaces = await storage.getWorkspacesByUserId(userId);
+        return res.json({ 
+          success: true, 
+          workspace: existingWorkspaces[0],
+          message: 'Onboarding completed successfully' 
+        });
+      }
+      
+      // Create first workspace
+      const workspace = await storage.createWorkspace({
+        userId,
+        name: workspaceName.trim(),
+        description: 'Your first workspace',
+      });
+      
+      // Mark onboarding as complete and store onboarding data
+      await storage.updateUser(userId, {
+        hasCompletedOnboarding: true,
+        onboardingData: onboardingData || {},
+      });
+      
+      res.json({ 
+        success: true, 
+        workspace,
+        message: 'Onboarding completed successfully' 
+      });
+    } catch (error) {
+      console.error('Error completing onboarding:', error);
+      res.status(500).json({ error: 'Failed to complete onboarding' });
+    }
+  });
+
+  // Workspace routes (protected)
+  app.get('/api/workspaces', isAuthenticated, async (req: any, res) => {
+    try {
       const userId = getCurrentUserId(req);
       const workspaces = await storage.getWorkspacesByUserId(userId);
       res.json(workspaces);
@@ -45,10 +103,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/workspaces', async (req, res) => {
+  app.post('/api/workspaces', isAuthenticated, async (req: any, res) => {
     try {
-      // Validate request body with Zod
-      const validatedData = insertWorkspaceSchema.parse(req.body);
+      const userId = getCurrentUserId(req);
+      
+      // Check workspace limit
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+      
+      const currentCount = await storage.countUserWorkspaces(userId);
+      if (currentCount >= user.workspaceLimit) {
+        return res.status(403).json({ 
+          error: 'Workspace limit reached', 
+          message: `You can have a maximum of ${user.workspaceLimit} workspaces. Upgrade your plan for more.` 
+        });
+      }
+      
+      const validatedData = insertWorkspaceSchema.parse({
+        ...req.body,
+        userId,
+      });
 
       const workspace = await storage.createWorkspace(validatedData);
       res.json(workspace);
@@ -61,18 +137,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/workspaces/:id', async (req, res) => {
+  app.get('/api/workspaces/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
 
-      // Verify ownership
+      const workspace = await storage.getWorkspace(id);
+      if (!workspace) {
+        return res.status(404).json({ error: 'Workspace not found' });
+      }
+      
+      if (workspace.userId !== userId) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
+      }
+
+      res.json(workspace);
+    } catch (error) {
+      console.error('Error fetching workspace:', error);
+      res.status(500).json({ error: 'Failed to fetch workspace' });
+    }
+  });
+
+  app.patch('/api/workspaces/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = getCurrentUserId(req);
+
       const hasAccess = await verifyWorkspaceOwnership(id, userId);
       if (!hasAccess) {
         return res.status(403).json({ error: 'Access denied to this workspace' });
       }
 
-      // Validate only the fields that can be updated
       const updateSchema = z.object({
         name: z.string().min(1).optional(),
         description: z.string().optional(),
@@ -91,8 +186,157 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete('/api/workspaces/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = getCurrentUserId(req);
+
+      const hasAccess = await verifyWorkspaceOwnership(id, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
+      }
+
+      // Check if this is the user's only workspace
+      const workspaceCount = await storage.countUserWorkspaces(userId);
+      if (workspaceCount <= 1) {
+        return res.status(400).json({ error: 'Cannot delete your only workspace' });
+      }
+
+      await storage.deleteWorkspace(id);
+      res.json({ success: true, message: 'Workspace deleted' });
+    } catch (error) {
+      console.error('Error deleting workspace:', error);
+      res.status(500).json({ error: 'Failed to delete workspace' });
+    }
+  });
+
+  // Project routes
+  app.get('/api/workspaces/:workspaceId/projects', isAuthenticated, async (req: any, res) => {
+    try {
+      const { workspaceId } = req.params;
+      const userId = getCurrentUserId(req);
+
+      const hasAccess = await verifyWorkspaceOwnership(workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
+      }
+
+      const projects = await storage.getProjectsByWorkspaceId(workspaceId);
+      res.json(projects);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      res.status(500).json({ error: 'Failed to fetch projects' });
+    }
+  });
+
+  app.post('/api/workspaces/:workspaceId/projects', isAuthenticated, async (req: any, res) => {
+    try {
+      const { workspaceId } = req.params;
+      const userId = getCurrentUserId(req);
+
+      const hasAccess = await verifyWorkspaceOwnership(workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
+      }
+
+      const validatedData = insertProjectSchema.parse({
+        ...req.body,
+        workspaceId,
+      });
+
+      const project = await storage.createProject(validatedData);
+      res.json(project);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation error', details: error.errors });
+      }
+      console.error('Error creating project:', error);
+      res.status(500).json({ error: 'Failed to create project' });
+    }
+  });
+
+  app.get('/api/projects/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = getCurrentUserId(req);
+
+      const project = await storage.getProject(id);
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      const hasAccess = await verifyWorkspaceOwnership(project.workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this project' });
+      }
+
+      res.json(project);
+    } catch (error) {
+      console.error('Error fetching project:', error);
+      res.status(500).json({ error: 'Failed to fetch project' });
+    }
+  });
+
+  app.patch('/api/projects/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = getCurrentUserId(req);
+
+      const project = await storage.getProject(id);
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      const hasAccess = await verifyWorkspaceOwnership(project.workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this project' });
+      }
+
+      const updateSchema = z.object({
+        name: z.string().min(1).optional(),
+        description: z.string().optional(),
+        settings: z.any().optional(),
+        thumbnailUrl: z.string().optional(),
+        status: z.enum(['active', 'archived']).optional(),
+      });
+
+      const validatedData = updateSchema.parse(req.body);
+      const updated = await storage.updateProject(id, validatedData);
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation error', details: error.errors });
+      }
+      console.error('Error updating project:', error);
+      res.status(500).json({ error: 'Failed to update project' });
+    }
+  });
+
+  app.delete('/api/projects/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = getCurrentUserId(req);
+
+      const project = await storage.getProject(id);
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      const hasAccess = await verifyWorkspaceOwnership(project.workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this project' });
+      }
+
+      await storage.deleteProject(id);
+      res.json({ success: true, message: 'Project deleted' });
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      res.status(500).json({ error: 'Failed to delete project' });
+    }
+  });
+
   // Workspace integration routes
-  app.get('/api/workspaces/:workspaceId/integrations', async (req, res) => {
+  app.get('/api/workspaces/:workspaceId/integrations', isAuthenticated, async (req: any, res) => {
     try {
       const { workspaceId } = req.params;
       const userId = getCurrentUserId(req);
@@ -111,7 +355,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/workspaces/:workspaceId/integrations', async (req, res) => {
+  app.post('/api/workspaces/:workspaceId/integrations', isAuthenticated, async (req: any, res) => {
     try {
       const { workspaceId } = req.params;
       const userId = getCurrentUserId(req);
@@ -142,7 +386,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/workspaces/:workspaceId/integrations/:id', async (req, res) => {
+  app.delete('/api/workspaces/:workspaceId/integrations/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { workspaceId, id } = req.params;
       const userId = getCurrentUserId(req);
@@ -169,7 +413,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Production Campaign routes
-  app.get('/api/production-campaigns', async (req, res) => {
+  app.get('/api/production-campaigns', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getCurrentUserId(req);
       const campaigns = await storage.getCampaignsByUserId(userId);
@@ -180,7 +424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/production-campaigns', async (req, res) => {
+  app.post('/api/production-campaigns', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getCurrentUserId(req);
       
@@ -249,7 +493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/production-campaigns/:id', async (req, res) => {
+  app.get('/api/production-campaigns/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -271,7 +515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/production-campaigns/:id', async (req, res) => {
+  app.patch('/api/production-campaigns/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -314,7 +558,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/production-campaigns/:id', async (req, res) => {
+  app.delete('/api/production-campaigns/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -336,7 +580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/production-campaigns/:id/videos', async (req, res) => {
+  app.get('/api/production-campaigns/:id/videos', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -358,7 +602,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/production-campaigns/:id/generate-concepts', async (req, res) => {
+  app.post('/api/production-campaigns/:id/generate-concepts', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -388,7 +632,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/production-campaigns/:id/videos/:videoId', async (req, res) => {
+  app.patch('/api/production-campaigns/:id/videos/:videoId', isAuthenticated, async (req: any, res) => {
     try {
       const { id, videoId } = req.params;
       const userId = getCurrentUserId(req);
@@ -422,7 +666,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/production-campaigns/:id/start', async (req, res) => {
+  app.post('/api/production-campaigns/:id/start', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -444,7 +688,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/production-campaigns/:id/pause', async (req, res) => {
+  app.post('/api/production-campaigns/:id/pause', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -466,7 +710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/production-campaigns/:id/resume', async (req, res) => {
+  app.post('/api/production-campaigns/:id/resume', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
@@ -489,7 +733,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Character routes
-  app.get('/api/characters', async (req, res) => {
+  app.get('/api/characters', isAuthenticated, async (req: any, res) => {
     try {
       const workspaceId = req.query.workspaceId as string;
       if (!workspaceId) {
@@ -503,7 +747,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/characters', async (req, res) => {
+  app.post('/api/characters', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getCurrentUserId(req);
       const validated = insertCharacterSchema.parse(req.body);
@@ -527,7 +771,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Location routes
-  app.get('/api/locations', async (req, res) => {
+  app.get('/api/locations', isAuthenticated, async (req: any, res) => {
     try {
       const workspaceId = req.query.workspaceId as string;
       if (!workspaceId) {
@@ -541,7 +785,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/locations', async (req, res) => {
+  app.post('/api/locations', isAuthenticated, async (req: any, res) => {
     try {
       const userId = getCurrentUserId(req);
       const validated = insertLocationSchema.parse(req.body);
@@ -565,7 +809,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Commerce API routes (Social Commerce mode)
-  app.post('/api/commerce/script/generate', async (req, res) => {
+  app.post('/api/commerce/script/generate', isAuthenticated, async (req: any, res) => {
     try {
       const { productDetails, videoConcept, voiceOverConcept, duration, aspectRatio, voiceOverEnabled } = req.body;
       
@@ -613,7 +857,7 @@ ${voiceOverEnabled ? `Voice Over Style: ${voiceOverConcept || 'Engaging and pers
     }
   });
 
-  app.post('/api/commerce/voiceover/generate', async (req, res) => {
+  app.post('/api/commerce/voiceover/generate', isAuthenticated, async (req: any, res) => {
     try {
       const { productDetails, videoConcept, voiceOverConcept, duration, voiceActorId } = req.body;
       

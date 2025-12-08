@@ -9,7 +9,13 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
+import { useAuth } from "@/hooks/useAuth";
+import { Loader2 } from "lucide-react";
 
+import Landing from "@/pages/landing";
+import SignIn from "@/pages/auth/sign-in";
+import SignUp from "@/pages/auth/sign-up";
+import ForgotPassword from "@/pages/auth/forgot-password";
 import Dashboard from "@/pages/dashboard";
 import Videos from "@/pages/videos";
 import NarrativeMode from "@/pages/videos/narrative-mode";
@@ -37,7 +43,19 @@ import ProductionCampaignCreate from "@/pages/production/create";
 import ProductionCampaignReview from "@/pages/production/review";
 import ProductionCampaignDashboard from "@/pages/production/dashboard";
 import CreateShorts from "@/pages/shorts/create";
+import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    </div>
+  );
+}
 
 function MainLayout() {
   const [location] = useLocation();
@@ -113,16 +131,59 @@ function MainLayout() {
   );
 }
 
+function Router() {
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const [location, setLocation] = useLocation();
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (location === "/auth/sign-in") {
+    return <SignIn />;
+  }
+
+  if (location === "/auth/sign-up") {
+    return <SignUp />;
+  }
+
+  if (location === "/auth/forgot-password") {
+    return <ForgotPassword />;
+  }
+
+  if (!isAuthenticated) {
+    return <Landing />;
+  }
+
+  // Check if user needs to complete onboarding
+  if (user && !user.hasCompletedOnboarding) {
+    if (location !== "/onboarding") {
+      return <Onboarding />;
+    }
+    return <Onboarding />;
+  }
+
+  // If user completed onboarding but is still on onboarding page, redirect to home
+  if (location === "/onboarding" && user?.hasCompletedOnboarding) {
+    setLocation("/");
+    return <LoadingScreen />;
+  }
+
+  return (
+    <WorkspaceProvider>
+      <MainLayout />
+    </WorkspaceProvider>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="dark">
-        <WorkspaceProvider>
-          <TooltipProvider>
-            <MainLayout />
-            <Toaster />
-          </TooltipProvider>
-        </WorkspaceProvider>
+        <TooltipProvider>
+          <Router />
+          <Toaster />
+        </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

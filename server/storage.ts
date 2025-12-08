@@ -1,8 +1,13 @@
 import {
+  users,
+  workspaces,
+  projects,
   type User,
-  type InsertUser,
+  type UpsertUser,
   type Workspace,
   type InsertWorkspace,
+  type Project,
+  type InsertProject,
   type Video,
   type InsertVideo,
   type Story,
@@ -36,6 +41,8 @@ import {
   type CampaignVideo,
   type InsertCampaignVideo,
 } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -56,13 +63,26 @@ function validateShotIds(shotIds: unknown): void {
 }
 
 export interface IStorage {
+  // User operations
   getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByGoogleId(googleId: string): Promise<User | undefined>;
+  createUser(user: { email: string; passwordHash?: string; firstName?: string | null; lastName?: string | null; provider?: string; providerId?: string | null; profileImageUrl?: string | null; googleId?: string | null; emailVerified?: boolean }): Promise<User>;
+  updateUser(id: string, updates: Partial<User>): Promise<User>;
+  upsertUser(user: UpsertUser): Promise<User>;
   
   getWorkspacesByUserId(userId: string): Promise<Workspace[]>;
+  getWorkspace(id: string): Promise<Workspace | undefined>;
   createWorkspace(workspace: InsertWorkspace): Promise<Workspace>;
   updateWorkspace(id: string, workspace: Partial<Workspace>): Promise<Workspace>;
+  deleteWorkspace(id: string): Promise<void>;
+  countUserWorkspaces(userId: string): Promise<number>;
+  
+  getProjectsByWorkspaceId(workspaceId: string): Promise<Project[]>;
+  getProject(id: string): Promise<Project | undefined>;
+  createProject(project: InsertProject): Promise<Project>;
+  updateProject(id: string, project: Partial<Project>): Promise<Project>;
+  deleteProject(id: string): Promise<void>;
   
   getVideosByWorkspaceId(workspaceId: string): Promise<Video[]>;
   getVideo(id: string): Promise<Video | undefined>;
@@ -135,11 +155,15 @@ export interface IStorage {
   createCampaignVideo(video: InsertCampaignVideo): Promise<CampaignVideo>;
   updateCampaignVideo(id: string, video: Partial<CampaignVideo>): Promise<CampaignVideo>;
   deleteCampaignVideo(id: string): Promise<void>;
+  
+  // Account management
+  deleteUserAccount(userId: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
-  private workspaces: Map<string, Workspace>;
+  private workspacesMap: Map<string, Workspace>;
+  private projectsMap: Map<string, Project>;
   private videos: Map<string, Video>;
   private stories: Map<string, Story>;
   private characters: Map<string, Character>;
@@ -159,7 +183,8 @@ export class MemStorage implements IStorage {
 
   constructor() {
     this.users = new Map();
-    this.workspaces = new Map();
+    this.workspacesMap = new Map();
+    this.projectsMap = new Map();
     this.videos = new Map();
     this.stories = new Map();
     this.characters = new Map();
@@ -349,58 +374,144 @@ export class MemStorage implements IStorage {
   }
 
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const memUser = this.users.get(id);
+    if (memUser) return memUser;
+    
+    const [dbUser] = await db.select().from(users).where(eq(users.id, id));
+    return dbUser;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find((user) => user.username === username);
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    for (const user of this.users.values()) {
+      if (user.email === email) return user;
+    }
+    const [dbUser] = await db.select().from(users).where(eq(users.email, email));
+    return dbUser;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = {
-      ...insertUser,
-      id,
-      credits: insertUser.credits ?? 0,
-      subscriptionTier: insertUser.subscriptionTier ?? "free",
-      createdAt: new Date(),
-    };
-    this.users.set(id, user);
+  async getUserByGoogleId(googleId: string): Promise<User | undefined> {
+    for (const user of this.users.values()) {
+      if (user.googleId === googleId) return user;
+    }
+    const [dbUser] = await db.select().from(users).where(eq(users.googleId, googleId));
+    return dbUser;
+  }
+
+  async createUser(userData: { email: string; passwordHash?: string; firstName?: string | null; lastName?: string | null; provider?: string; providerId?: string | null; profileImageUrl?: string | null; googleId?: string | null; emailVerified?: boolean }): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values({
+        email: userData.email,
+        passwordHash: userData.passwordHash || null,
+        firstName: userData.firstName || null,
+        lastName: userData.lastName || null,
+        provider: userData.provider || "credentials",
+        providerId: userData.providerId || null,
+        profileImageUrl: userData.profileImageUrl || null,
+        googleId: userData.googleId || null,
+        emailVerified: userData.emailVerified || false,
+      })
+      .returning();
+    this.users.set(user.id, user);
+    return user;
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    if (user) {
+      this.users.set(user.id, user);
+    }
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
     return user;
   }
 
   async getWorkspacesByUserId(userId: string): Promise<Workspace[]> {
-    return Array.from(this.workspaces.values()).filter((ws) => ws.userId === userId);
+    return db.select().from(workspaces).where(eq(workspaces.userId, userId));
+  }
+
+  async getWorkspace(id: string): Promise<Workspace | undefined> {
+    const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, id));
+    return workspace;
   }
 
   async createWorkspace(insertWorkspace: InsertWorkspace): Promise<Workspace> {
-    const id = randomUUID();
-    const workspace: Workspace = {
-      ...insertWorkspace,
-      id,
-      description: insertWorkspace.description ?? null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.workspaces.set(id, workspace);
+    const [workspace] = await db
+      .insert(workspaces)
+      .values(insertWorkspace)
+      .returning();
     return workspace;
   }
 
   async updateWorkspace(id: string, updates: Partial<Workspace>): Promise<Workspace> {
-    const workspace = this.workspaces.get(id);
+    const [workspace] = await db
+      .update(workspaces)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(workspaces.id, id))
+      .returning();
     if (!workspace) {
       throw new Error(`Workspace with id ${id} not found`);
     }
-    const updated: Workspace = {
-      ...workspace,
-      ...updates,
-      id: workspace.id,
-      userId: workspace.userId,
-      createdAt: workspace.createdAt,
-      updatedAt: new Date(),
-    };
-    this.workspaces.set(id, updated);
-    return updated;
+    return workspace;
+  }
+
+  async deleteWorkspace(id: string): Promise<void> {
+    await db.delete(workspaces).where(eq(workspaces.id, id));
+  }
+
+  async countUserWorkspaces(userId: string): Promise<number> {
+    const result = await db.select().from(workspaces).where(eq(workspaces.userId, userId));
+    return result.length;
+  }
+
+  async getProjectsByWorkspaceId(workspaceId: string): Promise<Project[]> {
+    return db.select().from(projects).where(eq(projects.workspaceId, workspaceId));
+  }
+
+  async getProject(id: string): Promise<Project | undefined> {
+    const [project] = await db.select().from(projects).where(eq(projects.id, id));
+    return project;
+  }
+
+  async createProject(insertProject: InsertProject): Promise<Project> {
+    const [project] = await db
+      .insert(projects)
+      .values(insertProject)
+      .returning();
+    return project;
+  }
+
+  async updateProject(id: string, updates: Partial<Project>): Promise<Project> {
+    const [project] = await db
+      .update(projects)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(projects.id, id))
+      .returning();
+    if (!project) {
+      throw new Error(`Project with id ${id} not found`);
+    }
+    return project;
+  }
+
+  async deleteProject(id: string): Promise<void> {
+    await db.delete(projects).where(eq(projects.id, id));
   }
 
   async getVideosByWorkspaceId(workspaceId: string): Promise<Video[]> {
@@ -1017,6 +1128,104 @@ export class MemStorage implements IStorage {
 
   async deleteCampaignVideo(id: string): Promise<void> {
     this.campaignVideos.delete(id);
+  }
+
+  async deleteUserAccount(userId: string): Promise<void> {
+    // Get all workspaces for this user
+    const userWorkspaces = await this.getWorkspacesByUserId(userId);
+    
+    for (const workspace of userWorkspaces) {
+      // Delete all videos and related data in this workspace
+      const videos = await this.getVideosByWorkspaceId(workspace.id);
+      for (const video of videos) {
+        // Delete scenes and shots
+        const scenes = await this.getScenesByVideoId(video.id);
+        for (const scene of scenes) {
+          const shots = await this.getShotsBySceneId(scene.id);
+          for (const shot of shots) {
+            const versions = await this.getShotVersionsByShotId(shot.id);
+            for (const version of versions) {
+              this.shotVersions.delete(version.id);
+            }
+            this.shots.delete(shot.id);
+          }
+          await this.deleteContinuityGroupsBySceneId(scene.id);
+          this.scenes.delete(scene.id);
+        }
+        // Delete reference images for video
+        const refImages = await this.getReferenceImagesByVideoId(video.id);
+        for (const img of refImages) {
+          this.referenceImages.delete(img.id);
+        }
+        this.videos.delete(video.id);
+      }
+      
+      // Delete stories
+      const stories = Array.from(this.stories.values()).filter(s => s.workspaceId === workspace.id);
+      for (const story of stories) {
+        this.stories.delete(story.id);
+      }
+      
+      // Delete characters
+      const characters = await this.getCharactersByWorkspaceId(workspace.id);
+      for (const char of characters) {
+        this.characters.delete(char.id);
+      }
+      
+      // Delete locations
+      const locations = await this.getLocationsByWorkspaceId(workspace.id);
+      for (const loc of locations) {
+        this.locations.delete(loc.id);
+      }
+      
+      // Delete voices
+      const voices = await this.getVoicesByWorkspaceId(workspace.id);
+      for (const voice of voices) {
+        this.voices.delete(voice.id);
+      }
+      
+      // Delete brandkits
+      const brandkits = await this.getBrandkitsByWorkspaceId(workspace.id);
+      for (const kit of brandkits) {
+        this.brandkits.delete(kit.id);
+      }
+      
+      // Delete uploads
+      const uploads = await this.getUploadsByWorkspaceId(workspace.id);
+      for (const upload of uploads) {
+        this.uploads.delete(upload.id);
+      }
+      
+      // Delete content calendar items
+      const calendar = await this.getContentCalendarByWorkspaceId(workspace.id);
+      for (const item of calendar) {
+        this.contentCalendar.delete(item.id);
+      }
+      
+      // Delete workspace integrations
+      const integrations = await this.getWorkspaceIntegrations(workspace.id);
+      for (const integration of integrations) {
+        this.workspaceIntegrations.delete(integration.id);
+      }
+      
+      // Delete projects
+      const projectsList = await this.getProjectsByWorkspaceId(workspace.id);
+      for (const project of projectsList) {
+        await this.deleteProject(project.id);
+      }
+      
+      // Delete workspace (uses database)
+      await this.deleteWorkspace(workspace.id);
+    }
+    
+    // Delete campaigns
+    const campaigns = await this.getCampaignsByUserId(userId);
+    for (const campaign of campaigns) {
+      await this.deleteCampaign(campaign.id);
+    }
+    
+    // Finally delete the user
+    this.users.delete(userId);
   }
 }
 

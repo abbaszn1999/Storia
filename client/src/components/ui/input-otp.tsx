@@ -6,18 +6,50 @@ import { cn } from "@/lib/utils"
 
 const InputOTP = React.forwardRef<
   React.ElementRef<typeof OTPInput>,
-  React.ComponentPropsWithoutRef<typeof OTPInput>
->(({ className, containerClassName, ...props }, ref) => (
-  <OTPInput
-    ref={ref}
-    containerClassName={cn(
-      "flex items-center gap-2 has-[:disabled]:opacity-50",
-      containerClassName
-    )}
-    className={cn("disabled:cursor-not-allowed", className)}
-    {...props}
-  />
-))
+  React.ComponentPropsWithoutRef<typeof OTPInput> & { noAutofill?: boolean }
+>(({ className, containerClassName, noAutofill, ...props }, ref) => {
+  const [isReadOnly, setIsReadOnly] = React.useState(noAutofill ?? false);
+  
+  return (
+    <div className="relative">
+      {noAutofill && (
+        <>
+          <input
+            type="text"
+            name={`decoy_user_${Date.now()}`}
+            autoComplete="username"
+            style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
+            tabIndex={-1}
+            aria-hidden="true"
+          />
+          <input
+            type="password"
+            name={`decoy_pass_${Date.now()}`}
+            autoComplete="new-password"
+            style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
+            tabIndex={-1}
+            aria-hidden="true"
+          />
+        </>
+      )}
+      <OTPInput
+        ref={ref}
+        containerClassName={cn(
+          "flex items-center gap-2 has-[:disabled]:opacity-50",
+          containerClassName
+        )}
+        className={cn("disabled:cursor-not-allowed", className)}
+        autoComplete={noAutofill ? "off" : props.autoComplete}
+        data-form-type="other"
+        data-lpignore="true"
+        data-1p-ignore="true"
+        readOnly={isReadOnly}
+        onFocus={() => noAutofill && setIsReadOnly(false)}
+        {...props}
+      />
+    </div>
+  );
+})
 InputOTP.displayName = "InputOTP"
 
 const InputOTPGroup = React.forwardRef<

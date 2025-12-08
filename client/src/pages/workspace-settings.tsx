@@ -11,7 +11,7 @@ import { SiTiktok, SiFacebook } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { WorkspaceIntegration } from "@shared/schema";
+import type { WorkspaceIntegration, Workspace } from "@shared/schema";
 import { useState, useEffect } from "react";
 
 const PLATFORMS = [
@@ -46,13 +46,13 @@ const PLATFORMS = [
 ];
 
 export default function WorkspaceSettings() {
-  const { currentWorkspace, setCurrentWorkspace, setWorkspaces } = useWorkspace();
+  const { currentWorkspace, setCurrentWorkspace, updateWorkspace, refetch } = useWorkspace();
   const { toast } = useToast();
   const [workspaceName, setWorkspaceName] = useState(currentWorkspace?.name || "");
   const [workspaceDescription, setWorkspaceDescription] = useState(currentWorkspace?.description || "");
   const [deletingIntegrationId, setDeletingIntegrationId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Sync form inputs when currentWorkspace changes
   useEffect(() => {
     if (currentWorkspace) {
       setWorkspaceName(currentWorkspace.name);
@@ -60,7 +60,6 @@ export default function WorkspaceSettings() {
     }
   }, [currentWorkspace]);
 
-  // Fetch workspace integrations (userId is handled server-side via session)
   const { data: integrations = [], isLoading: integrationsLoading } = useQuery<WorkspaceIntegration[]>({
     queryKey: ['/api/workspaces', currentWorkspace?.id, 'integrations'],
     queryFn: async () => {
@@ -71,48 +70,43 @@ export default function WorkspaceSettings() {
     enabled: !!currentWorkspace?.id,
   });
 
-  // Mutation for updating workspace
-  const updateWorkspaceMutation = useMutation({
-    mutationFn: async (data: { name: string; description: string }) => {
-      return apiRequest(`/api/workspaces/${currentWorkspace?.id}`, {
-        method: "PATCH",
-        body: JSON.stringify(data),
+  const handleSaveWorkspaceSettings = async () => {
+    if (!currentWorkspace || !workspaceName.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Workspace name is required.",
+        variant: "destructive",
       });
-    },
-    onSuccess: (updatedWorkspace) => {
-      setCurrentWorkspace(updatedWorkspace);
-      
-      // Update the workspaces array to keep it in sync
-      queryClient.setQueryData(['/api/workspaces'], (oldData: any) => {
-        if (!oldData) return [updatedWorkspace];
-        return oldData.map((ws: any) => ws.id === updatedWorkspace.id ? updatedWorkspace : ws);
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const updated = await updateWorkspace(currentWorkspace.id, {
+        name: workspaceName.trim(),
+        description: workspaceDescription.trim() || undefined,
       });
-      
-      setWorkspaces((prev) => 
-        prev.map((ws) => ws.id === updatedWorkspace.id ? updatedWorkspace : ws)
-      );
-      
+      setCurrentWorkspace(updated);
       toast({
         title: "Workspace Updated",
         description: "Your workspace settings have been saved successfully.",
       });
-    },
-    onError: () => {
+    } catch (error) {
       toast({
         title: "Error",
         description: "Failed to update workspace. Please try again.",
         variant: "destructive",
       });
-    },
-  });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-  // Mutation for deleting integration
   const deleteIntegrationMutation = useMutation({
     mutationFn: async (integrationId: string) => {
       setDeletingIntegrationId(integrationId);
-      return apiRequest(`/api/workspaces/${currentWorkspace?.id}/integrations/${integrationId}`, {
-        method: "DELETE",
-      });
+      const response = await apiRequest("DELETE", `/api/workspaces/${currentWorkspace?.id}/integrations/${integrationId}`);
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/workspaces', currentWorkspace?.id, 'integrations'] });
@@ -132,20 +126,6 @@ export default function WorkspaceSettings() {
     },
   });
 
-  const handleSaveWorkspace = () => {
-    if (!workspaceName.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Workspace name is required.",
-        variant: "destructive",
-      });
-      return;
-    }
-    updateWorkspaceMutation.mutate({
-      name: workspaceName,
-      description: workspaceDescription,
-    });
-  };
 
   const handleConnect = (platformId: string) => {
     toast({
@@ -222,11 +202,11 @@ export default function WorkspaceSettings() {
                 />
               </div>
               <Button 
-                onClick={handleSaveWorkspace}
-                disabled={updateWorkspaceMutation.isPending}
+                onClick={handleSaveWorkspaceSettings}
+                disabled={isSaving}
                 data-testid="button-save-workspace"
               >
-                {updateWorkspaceMutation.isPending && (
+                {isSaving && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Save Changes

@@ -1,91 +1,111 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Workspace } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
 
 interface WorkspaceContextType {
   currentWorkspace: Workspace | null;
   setCurrentWorkspace: (workspace: Workspace | null) => void;
   workspaces: Workspace[];
-  setWorkspaces: (workspaces: Workspace[] | ((prev: Workspace[]) => Workspace[])) => void;
   isLoading: boolean;
   error: Error | null;
-  refetch: () => Promise<void>;
+  refetch: () => void;
+  createWorkspace: (data: { name: string; description?: string }) => Promise<Workspace>;
+  updateWorkspace: (id: string, data: { name?: string; description?: string }) => Promise<Workspace>;
+  deleteWorkspace: (id: string) => Promise<void>;
+  isCreating: boolean;
+  isDeleting: boolean;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const [currentWorkspace, setCurrentWorkspaceState] = useState<Workspace | null>(null);
+  const queryClient = useQueryClient();
 
-  // Load workspaces from API
-  const loadWorkspaces = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Fetch workspaces from API (userId is handled server-side via session)
-      const response = await fetch(`/api/workspaces`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch workspaces");
-      }
-      
-      let fetchedWorkspaces: Workspace[] = await response.json();
-      
-      // If no workspaces exist, create a default one
-      if (fetchedWorkspaces.length === 0) {
-        const createResponse = await fetch("/api/workspaces", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: "default-user", // Temporarily hardcoded, will be removed when auth is added
-            name: "My Workspace",
-            description: "Default workspace",
-          }),
-        });
-        
-        if (!createResponse.ok) {
-          throw new Error("Failed to create default workspace");
-        }
-        
-        const newWorkspace = await createResponse.json();
-        fetchedWorkspaces = [newWorkspace];
-      }
-      
-      setWorkspaces(fetchedWorkspaces);
-      
-      // Check localStorage for saved workspace preference
-      const savedWorkspaceId = localStorage.getItem("currentWorkspaceId");
-      const savedWorkspace = fetchedWorkspaces.find((ws) => ws.id === savedWorkspaceId);
-      
-      if (savedWorkspace) {
-        setCurrentWorkspace(savedWorkspace);
-      } else {
-        // Default to first workspace
-        setCurrentWorkspace(fetchedWorkspaces[0]);
-        localStorage.setItem("currentWorkspaceId", fetchedWorkspaces[0].id);
-      }
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error("Unknown error");
-      setError(error);
-      console.error("Failed to load workspaces:", error);
-    } finally {
-      setIsLoading(false);
+  const { data: workspaces = [], isLoading, error, refetch } = useQuery<Workspace[]>({
+    queryKey: ["/api/workspaces"],
+    retry: false,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: { name: string; description?: string }) => {
+      const response = await apiRequest("POST", "/api/workspaces", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/workspaces"] });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: { name?: string; description?: string } }) => {
+      const response = await apiRequest("PATCH", `/api/workspaces/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/workspaces"] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/workspaces/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/workspaces"] });
+    },
+  });
+
+  const setCurrentWorkspace = (workspace: Workspace | null) => {
+    setCurrentWorkspaceState(workspace);
+    if (workspace) {
+      localStorage.setItem("currentWorkspaceId", workspace.id);
+    } else {
+      localStorage.removeItem("currentWorkspaceId");
     }
   };
 
-  // Load workspaces on mount
   useEffect(() => {
-    loadWorkspaces();
-  }, []);
-
-  // Save workspace preference when it changes
-  useEffect(() => {
-    if (currentWorkspace) {
-      localStorage.setItem("currentWorkspaceId", currentWorkspace.id);
+    if (workspaces.length > 0 && !currentWorkspace) {
+      const savedWorkspaceId = localStorage.getItem("currentWorkspaceId");
+      const savedWorkspace = workspaces.find((ws) => ws.id === savedWorkspaceId);
+      
+      if (savedWorkspace) {
+        setCurrentWorkspaceState(savedWorkspace);
+      } else {
+        setCurrentWorkspaceState(workspaces[0]);
+        localStorage.setItem("currentWorkspaceId", workspaces[0].id);
+      }
     }
-  }, [currentWorkspace]);
+  }, [workspaces, currentWorkspace]);
+
+  useEffect(() => {
+    if (currentWorkspace && workspaces.length > 0) {
+      const updated = workspaces.find((ws) => ws.id === currentWorkspace.id);
+      if (updated && JSON.stringify(updated) !== JSON.stringify(currentWorkspace)) {
+        setCurrentWorkspaceState(updated);
+      }
+    }
+  }, [workspaces, currentWorkspace]);
+
+  const createWorkspace = async (data: { name: string; description?: string }) => {
+    return createMutation.mutateAsync(data);
+  };
+
+  const updateWorkspace = async (id: string, data: { name?: string; description?: string }) => {
+    return updateMutation.mutateAsync({ id, data });
+  };
+
+  const deleteWorkspace = async (id: string) => {
+    await deleteMutation.mutateAsync(id);
+    if (currentWorkspace?.id === id) {
+      const remaining = workspaces.filter((ws) => ws.id !== id);
+      if (remaining.length > 0) {
+        setCurrentWorkspace(remaining[0]);
+      }
+    }
+  };
 
   return (
     <WorkspaceContext.Provider
@@ -93,10 +113,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         currentWorkspace,
         setCurrentWorkspace,
         workspaces,
-        setWorkspaces,
         isLoading,
-        error,
-        refetch: loadWorkspaces,
+        error: error as Error | null,
+        refetch,
+        createWorkspace,
+        updateWorkspace,
+        deleteWorkspace,
+        isCreating: createMutation.isPending,
+        isDeleting: deleteMutation.isPending,
       }}
     >
       {children}

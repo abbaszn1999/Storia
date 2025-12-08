@@ -2,6 +2,7 @@ import {
   users,
   workspaces,
   projects,
+  stories,
   type User,
   type UpsertUser,
   type Workspace,
@@ -559,16 +560,10 @@ export class MemStorage implements IStorage {
   }
 
   async createStory(insertStory: InsertStory): Promise<Story> {
-    const id = randomUUID();
-    const story: Story = {
-      ...insertStory,
-      id,
-      duration: insertStory.duration ?? null,
-      exportUrl: insertStory.exportUrl ?? null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.stories.set(id, story);
+    const [story] = await db
+      .insert(stories)
+      .values(insertStory)
+      .returning();
     return story;
   }
 

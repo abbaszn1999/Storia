@@ -46,6 +46,7 @@ import type {
 } from "../types";
 import { buildStoryModePath, bunnyStorage } from "../../../storage/bunny-storage";
 import { storage } from "../../../storage";
+import { isAuthenticated, getCurrentUserId } from "../../../auth";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -273,8 +274,14 @@ asmrRouter.post("/generate-image", async (req: Request, res: Response) => {
  * 3. Agent 3 (Video Generator) generates the video via Runware
  * 4. Agent 5 (Sound Generator) generates audio if model doesn't support it natively
  */
-asmrRouter.post("/generate", async (req: Request, res: Response) => {
+asmrRouter.post("/generate", isAuthenticated, async (req: Request, res: Response) => {
   try {
+    // Get authenticated user ID
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     const body = req.body as ASMRGenerateRequest;
 
     // Validate required fields
@@ -290,10 +297,8 @@ asmrRouter.post("/generate", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "workspaceId is required" });
     }
 
-    // Get user context
-    const userId = req.headers["x-user-id"] as string | undefined;
-    const workspaceIdHeader = req.headers["x-workspace-id"] as string | undefined;
-    const effectiveWorkspaceId = workspaceIdHeader || workspaceId;
+    // Use workspaceId from body (already validated)
+    const effectiveWorkspaceId = workspaceId;
 
     // Set defaults
     const modelId = body.modelId || getDefaultVideoModel().id;
@@ -450,19 +455,17 @@ asmrRouter.post("/generate", async (req: Request, res: Response) => {
 
     // Derive workspace name for path (best-effort)
     let workspaceName = String(effectiveWorkspaceId || "workspace");
-    if (userId && effectiveWorkspaceId) {
-      try {
-        const workspaces = await storage.getWorkspacesByUserId(userId);
-        const ws = workspaces.find(w => w.id === effectiveWorkspaceId);
-        if (ws?.name) workspaceName = ws.name;
-      } catch (e) {
-        console.warn("[asmr-routes] Unable to resolve workspace name, using id");
-      }
+    try {
+      const workspaces = await storage.getWorkspacesByUserId(userId);
+      const ws = workspaces.find(w => w.id === effectiveWorkspaceId);
+      if (ws?.name) workspaceName = ws.name;
+    } catch (e) {
+      console.warn("[asmr-routes] Unable to resolve workspace name, using id");
     }
 
     const filename = `${Date.now()}.mp4`;
     const bunnyPath = buildStoryModePath({
-      userId: userId || "public",
+      userId,
       workspaceName,
       toolMode: "asmr",
       projectName: title,

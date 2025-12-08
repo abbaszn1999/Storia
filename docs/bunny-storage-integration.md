@@ -104,6 +104,9 @@ const buffer = await bunnyStorage.downloadFile(path);
 // Delete a file
 await bunnyStorage.deleteFile(path);
 
+// Delete a folder and all contents recursively
+await bunnyStorage.deleteFolder(folderPath);
+
 // List files in a folder
 const files = await bunnyStorage.listFiles(folderPath);
 
@@ -268,6 +271,58 @@ router.post("/upload-asset", isAuthenticated, async (req, res) => {
 });
 ```
 
+### Pattern 3: Delete Story with Full Cleanup
+
+```typescript
+import { bunnyStorage } from "../../../storage/bunny-storage";
+import { storage } from "../../../storage";
+
+router.delete("/stories/:storyId", isAuthenticated, async (req, res) => {
+  const userId = getCurrentUserId(req);
+  const { storyId } = req.params;
+  
+  // Get story to verify ownership
+  const story = await storage.getStory(storyId);
+  if (!story) {
+    return res.status(404).json({ error: 'Story not found' });
+  }
+  
+  // Verify workspace ownership
+  const workspaces = await storage.getWorkspacesByUserId(userId);
+  const workspace = workspaces.find(w => w.id === story.workspaceId);
+  if (!workspace) {
+    return res.status(403).json({ error: 'Access denied to this story' });
+  }
+
+  // Delete entire project folder from Bunny CDN
+  if (story.exportUrl) {
+    try {
+      // Extract path from CDN URL
+      // Example: https://storia.b-cdn.net/{userId}/{workspace}/Story_Mode/asmr/{Project_Name_createDate}/Rendered/video.mp4
+      const cdnUrl = new URL(story.exportUrl);
+      const fullPath = cdnUrl.pathname.replace(/^\//, '');
+      
+      // Extract project folder path (everything before /Rendered/)
+      const projectFolderMatch = fullPath.match(/^(.+\/Story_Mode\/[^/]+\/[^/]+)\//);
+      if (projectFolderMatch) {
+        const projectFolderPath = projectFolderMatch[1];
+        console.log(`Deleting project folder: ${projectFolderPath}`);
+        
+        // This deletes the entire folder: {Project_Name_createDate}/Rendered/, temp/, etc.
+        await bunnyStorage.deleteFolder(projectFolderPath);
+      }
+    } catch (error) {
+      console.warn('Failed to delete files from Bunny:', error);
+      // Continue with database deletion even if Bunny delete fails
+    }
+  }
+
+  // Delete from database
+  await storage.deleteStory(storyId);
+  res.json({ success: true, message: 'Story and all associated files deleted' });
+});
+```
+
 ---
 
 ## Database Persistence
@@ -283,7 +338,8 @@ export const stories = pgTable("stories", {
   template: text("template").notNull(),      // e.g., "asmr-sensory"
   aspectRatio: text("aspect_ratio").notNull(),
   duration: integer("duration"),
-  exportUrl: text("export_url"),             // Bunny CDN URL
+  exportUrl: text("export_url"),             // Bunny CDN URL for video
+  thumbnailUrl: text("thumbnail_url"),       // Bunny CDN URL for thumbnail
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -301,7 +357,50 @@ const story = await storage.createStory({
   aspectRatio: "16:9",
   duration: 10,
   exportUrl: "https://your-zone.b-cdn.net/user/workspace/Story_Mode/asmr/...",
+  thumbnailUrl: "https://your-zone.b-cdn.net/user/workspace/Story_Mode/asmr/.../thumbnail.jpg",
 });
+```
+
+### Generating and Uploading Thumbnails
+
+```typescript
+import ffmpeg from "fluent-ffmpeg";
+import fs from "fs";
+import path from "path";
+
+// Generate first-frame thumbnail using FFmpeg
+const thumbnailFilename = `thumbnail_${Date.now()}.jpg`;
+const tempDir = path.join(process.cwd(), "temp");
+
+await new Promise((resolve, reject) => {
+  ffmpeg(localVideoPath)
+    .screenshots({
+      timestamps: ['00:00:00'],
+      filename: thumbnailFilename,
+      folder: tempDir,
+    })
+    .on('end', resolve)
+    .on('error', reject);
+});
+
+// Upload thumbnail to Bunny
+const thumbnailPath = buildStoryModePath({
+  userId,
+  workspaceName,
+  toolMode: "asmr",
+  projectName: title,
+  filename: thumbnailFilename,
+});
+
+const thumbnailBuffer = fs.readFileSync(path.join(tempDir, thumbnailFilename));
+const thumbnailCdnUrl = await bunnyStorage.uploadFile(
+  thumbnailPath,
+  thumbnailBuffer,
+  'image/jpeg'
+);
+
+// Clean up local thumbnail
+fs.unlinkSync(path.join(tempDir, thumbnailFilename));
 ```
 
 ---
@@ -469,6 +568,57 @@ POST /api/stories/asmr/generate
 }
 ```
 
+**Complete Upload Flow with Thumbnail:**
+```typescript
+// 1. Generate video
+const videoBuffer = await generateVideo();
+
+// 2. Upload video to Bunny
+const videoFilename = `${Date.now()}.mp4`;
+const videoPath = buildStoryModePath({
+  userId,
+  workspaceName,
+  toolMode: "asmr",
+  projectName: title,
+  filename: videoFilename,
+});
+const videoCdnUrl = await bunnyStorage.uploadFile(videoPath, videoBuffer, "video/mp4");
+
+// 3. Generate and upload thumbnail
+const thumbnailFilename = `thumbnail_${Date.now()}.jpg`;
+const thumbnailPath = buildStoryModePath({
+  userId,
+  workspaceName,
+  toolMode: "asmr",
+  projectName: title,
+  filename: thumbnailFilename,
+});
+
+// Generate first frame thumbnail
+await generateThumbnail(localVideoPath, tempDir, thumbnailFilename);
+const thumbnailBuffer = fs.readFileSync(path.join(tempDir, thumbnailFilename));
+const thumbnailCdnUrl = await bunnyStorage.uploadFile(
+  thumbnailPath,
+  thumbnailBuffer,
+  'image/jpeg'
+);
+
+// 4. Save to database
+const story = await storage.createStory({
+  workspaceId,
+  title,
+  template: "asmr-sensory",
+  aspectRatio,
+  duration,
+  exportUrl: videoCdnUrl,
+  thumbnailUrl: thumbnailCdnUrl,
+});
+
+// 5. Clean up temp files
+fs.unlinkSync(localVideoPath);
+fs.unlinkSync(path.join(tempDir, thumbnailFilename));
+```
+
 ### Example 2: User Asset Upload (To Be Implemented)
 
 **Path:** `{userId}/{workspaceName}/Assets/Characters/{filename}`
@@ -503,6 +653,8 @@ assetType: "Characters"
 | 401 Unauthorized | Missing auth middleware | Add `isAuthenticated` to route |
 | File not found | Wrong path format | Use path builder helpers |
 | Database record not created | Using MemStorage | Ensure method uses `db.insert()` |
+| Files not deleted completely | Only deleting individual files | Use `deleteFolder()` for entire project cleanup |
+| Thumbnail not generated | FFmpeg not configured | Ensure FFmpeg is installed and in PATH |
 
 ### Debugging Tips
 
@@ -544,4 +696,9 @@ assetType: "Characters"
 | 2024-12-08 | ASMR Story Mode integration completed |
 | 2024-12-08 | Fixed userId authentication for Bunny paths |
 | 2024-12-08 | Fixed `createStory` to persist to database |
+| 2024-12-08 | Added `deleteFolder()` method for recursive folder deletion |
+| 2024-12-08 | Added thumbnail generation and upload workflow |
+| 2024-12-08 | Updated delete pattern to remove entire project folders |
+| 2024-12-08 | Added Pattern 3: Delete Story with Full Cleanup |
+| 2024-12-08 | Enhanced ASMR example with complete upload flow |
 

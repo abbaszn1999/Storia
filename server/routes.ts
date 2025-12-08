@@ -6,7 +6,6 @@ import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertProducti
 import { z } from "zod";
 import multer from "multer";
 import { bunnyStorage } from "./storage/bunny-storage";
-import { setupAuth, isAuthenticated, registerAuthRoutes, getCurrentUserId } from "./auth";
 
 // Configure multer for memory storage (files stored in buffer)
 const upload = multer({
@@ -15,6 +14,14 @@ const upload = multer({
     fileSize: 500 * 1024 * 1024, // 500MB max file size
   },
 });
+
+// TODO: Replace with actual session-based authentication
+// This function should derive userId from req.session or req.user, not from query parameters
+function getCurrentUserId(req: any): string {
+  // TEMPORARY: Using hardcoded userId until auth is implemented
+  // When auth is added, this should be: return req.session?.userId || req.user?.id
+  return "default-user";
+}
 
 // Helper function to verify workspace ownership
 async function verifyWorkspaceOwnership(workspaceId: string, userId: string): Promise<boolean> {
@@ -137,32 +144,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/workspaces/:id', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/workspaces/:id', async (req, res) => {
     try {
       const { id } = req.params;
       const userId = getCurrentUserId(req);
 
-      const workspace = await storage.getWorkspace(id);
-      if (!workspace) {
-        return res.status(404).json({ error: 'Workspace not found' });
-      }
-      
-      if (workspace.userId !== userId) {
-        return res.status(403).json({ error: 'Access denied to this workspace' });
-      }
-
-      res.json(workspace);
-    } catch (error) {
-      console.error('Error fetching workspace:', error);
-      res.status(500).json({ error: 'Failed to fetch workspace' });
-    }
-  });
-
-  app.patch('/api/workspaces/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const { id } = req.params;
-      const userId = getCurrentUserId(req);
-
+      // Verify ownership
       const hasAccess = await verifyWorkspaceOwnership(id, userId);
       if (!hasAccess) {
         return res.status(403).json({ error: 'Access denied to this workspace' });

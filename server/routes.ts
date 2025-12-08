@@ -4,6 +4,16 @@ import { storage } from "./storage";
 import narrativeRoutes from "./modes/narrative/routes";
 import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertProductionCampaignSchema, insertCampaignVideoSchema, insertCharacterSchema, insertLocationSchema } from "@shared/schema";
 import { z } from "zod";
+import multer from "multer";
+import { bunnyStorage } from "./storage/bunny-storage";
+
+// Configure multer for memory storage (files stored in buffer)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 500 * 1024 * 1024, // 500MB max file size
+  },
+});
 
 // TODO: Replace with actual session-based authentication
 // This function should derive userId from req.session or req.user, not from query parameters
@@ -640,6 +650,221 @@ Estimated Duration: ~${duration}s`;
     } catch (error) {
       console.error('Error generating voiceover script:', error);
       res.status(500).json({ error: 'Failed to generate voiceover script' });
+    }
+  });
+
+  // =============================================================================
+  // BUNNY STORAGE API ROUTES
+  // =============================================================================
+
+  // Check if Bunny Storage is configured
+  app.get('/api/storage/status', async (req, res) => {
+    try {
+      const config = bunnyStorage.getBunnyConfig();
+      res.json({
+        configured: config.isConfigured,
+        cdnUrl: config.isConfigured ? config.cdnUrl : null,
+      });
+    } catch (error) {
+      console.error('Error checking storage status:', error);
+      res.status(500).json({ error: 'Failed to check storage status' });
+    }
+  });
+
+  // Upload a file to Bunny Storage
+  app.post('/api/storage/upload', upload.single('file'), async (req, res) => {
+    try {
+      if (!bunnyStorage.isBunnyConfigured()) {
+        return res.status(503).json({ error: 'Bunny Storage is not configured' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file provided' });
+      }
+
+      const { path: filePath } = req.body;
+      if (!filePath || typeof filePath !== 'string') {
+        return res.status(400).json({ error: 'File path is required' });
+      }
+
+      // Sanitize the path to prevent directory traversal
+      const sanitizedPath = filePath.replace(/\.\./g, '').replace(/^\/+/, '');
+
+      const cdnUrl = await bunnyStorage.uploadFile(
+        sanitizedPath,
+        req.file.buffer,
+        req.file.mimetype
+      );
+
+      res.json({
+        success: true,
+        url: cdnUrl,
+        path: sanitizedPath,
+        size: req.file.size,
+        contentType: req.file.mimetype,
+      });
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      res.status(500).json({ error: 'Failed to upload file' });
+    }
+  });
+
+  // List files in a directory
+  app.get('/api/storage/files', async (req, res) => {
+    try {
+      if (!bunnyStorage.isBunnyConfigured()) {
+        return res.status(503).json({ error: 'Bunny Storage is not configured' });
+      }
+
+      const folderPath = (req.query.path as string) || '';
+      const sanitizedPath = folderPath.replace(/\.\./g, '');
+
+      const files = await bunnyStorage.listFiles(sanitizedPath);
+      
+      // Transform to a cleaner response format
+      const formattedFiles = files.map(file => ({
+        name: file.ObjectName,
+        path: file.Path + file.ObjectName,
+        size: file.Length,
+        isDirectory: file.IsDirectory,
+        lastModified: file.LastChanged,
+        contentType: file.ContentType,
+        url: file.IsDirectory ? null : bunnyStorage.getPublicUrl(file.Path + file.ObjectName),
+      }));
+
+      res.json({
+        path: sanitizedPath,
+        files: formattedFiles,
+      });
+    } catch (error) {
+      console.error('Error listing files:', error);
+      res.status(500).json({ error: 'Failed to list files' });
+    }
+  });
+
+  // Get file info
+  app.get('/api/storage/file-info', async (req, res) => {
+    try {
+      if (!bunnyStorage.isBunnyConfigured()) {
+        return res.status(503).json({ error: 'Bunny Storage is not configured' });
+      }
+
+      const filePath = req.query.path as string;
+      if (!filePath) {
+        return res.status(400).json({ error: 'File path is required' });
+      }
+
+      const sanitizedPath = filePath.replace(/\.\./g, '').replace(/^\/+/, '');
+      const info = await bunnyStorage.getFileInfo(sanitizedPath);
+
+      if (!info) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+
+      res.json({
+        path: sanitizedPath,
+        url: bunnyStorage.getPublicUrl(sanitizedPath),
+        ...info,
+      });
+    } catch (error) {
+      console.error('Error getting file info:', error);
+      res.status(500).json({ error: 'Failed to get file info' });
+    }
+  });
+
+  // Get CDN URL for a file
+  app.get('/api/storage/url', async (req, res) => {
+    try {
+      if (!bunnyStorage.isBunnyConfigured()) {
+        return res.status(503).json({ error: 'Bunny Storage is not configured' });
+      }
+
+      const filePath = req.query.path as string;
+      if (!filePath) {
+        return res.status(400).json({ error: 'File path is required' });
+      }
+
+      const sanitizedPath = filePath.replace(/\.\./g, '').replace(/^\/+/, '');
+      const url = bunnyStorage.getPublicUrl(sanitizedPath);
+
+      res.json({ url, path: sanitizedPath });
+    } catch (error) {
+      console.error('Error getting file URL:', error);
+      res.status(500).json({ error: 'Failed to get file URL' });
+    }
+  });
+
+  // Check if a file exists
+  app.get('/api/storage/exists', async (req, res) => {
+    try {
+      if (!bunnyStorage.isBunnyConfigured()) {
+        return res.status(503).json({ error: 'Bunny Storage is not configured' });
+      }
+
+      const filePath = req.query.path as string;
+      if (!filePath) {
+        return res.status(400).json({ error: 'File path is required' });
+      }
+
+      const sanitizedPath = filePath.replace(/\.\./g, '').replace(/^\/+/, '');
+      const exists = await bunnyStorage.fileExists(sanitizedPath);
+
+      res.json({ exists, path: sanitizedPath });
+    } catch (error) {
+      console.error('Error checking file existence:', error);
+      res.status(500).json({ error: 'Failed to check file existence' });
+    }
+  });
+
+  // Delete a file
+  app.delete('/api/storage/file', async (req, res) => {
+    try {
+      if (!bunnyStorage.isBunnyConfigured()) {
+        return res.status(503).json({ error: 'Bunny Storage is not configured' });
+      }
+
+      const filePath = req.query.path as string;
+      if (!filePath) {
+        return res.status(400).json({ error: 'File path is required' });
+      }
+
+      const sanitizedPath = filePath.replace(/\.\./g, '').replace(/^\/+/, '');
+      await bunnyStorage.deleteFile(sanitizedPath);
+
+      res.json({ success: true, path: sanitizedPath });
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      res.status(500).json({ error: 'Failed to delete file' });
+    }
+  });
+
+  // Download a file (proxy through server)
+  app.get('/api/storage/download', async (req, res) => {
+    try {
+      if (!bunnyStorage.isBunnyConfigured()) {
+        return res.status(503).json({ error: 'Bunny Storage is not configured' });
+      }
+
+      const filePath = req.query.path as string;
+      if (!filePath) {
+        return res.status(400).json({ error: 'File path is required' });
+      }
+
+      const sanitizedPath = filePath.replace(/\.\./g, '').replace(/^\/+/, '');
+      const fileBuffer = await bunnyStorage.downloadFile(sanitizedPath);
+
+      // Get filename from path
+      const filename = sanitizedPath.split('/').pop() || 'download';
+
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', fileBuffer.length);
+      res.send(fileBuffer);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      if (error instanceof Error && error.message.includes('not found')) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      res.status(500).json({ error: 'Failed to download file' });
     }
   });
 

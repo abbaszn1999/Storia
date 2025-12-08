@@ -81,6 +81,30 @@ export interface BunnyStorageConfig {
 }
 
 /**
+ * Build a Story_Mode path for Bunny storage.
+ * Example: {userId}/{workspaceName}/Story_Mode/asmr/{projectName}_{date}/Rendered/{filename}
+ */
+export function buildStoryModePath(params: {
+  userId: string;
+  workspaceName: string;
+  toolMode: string; // e.g., "asmr"
+  projectName: string;
+  filename: string;
+  dateLabel?: string; // optional, default: today YYYYMMDD
+}): string {
+  const { userId, workspaceName, toolMode, projectName, filename, dateLabel } = params;
+  const safeDate = dateLabel || new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  // Clean inputs for path safety
+  const clean = (str: string) => str.replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "_");
+  const user = clean(userId);
+  const workspace = clean(workspaceName);
+  const tool = clean(toolMode);
+  const project = clean(projectName);
+  const file = filename.replace(/[^a-zA-Z0-9-_.]/g, "_");
+  return `${user}/${workspace}/Story_Mode/${tool}/${project}_${safeDate}/Rendered/${file}`;
+}
+
+/**
  * Check if Bunny Storage is properly configured
  */
 export function isBunnyConfigured(): boolean {

@@ -4,9 +4,11 @@ import { motion } from "framer-motion";
 import { Sparkles, Loader2, ArrowLeft, ImagePlus, Upload, X, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRef } from "react";
+import { useWorkspace } from "@/contexts/workspace-context";
 
 import { CategorySelector } from "./CategorySelector";
 import { ModelSelector } from "./ModelSelector";
@@ -22,6 +24,7 @@ interface ControlPanelProps {
 export function ControlPanel({ state, actions }: ControlPanelProps) {
   const showSoundControls = !state.selectedModelInfo.generatesAudio;
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { currentWorkspace } = useWorkspace();
 
   // Handle file upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,6 +71,19 @@ export function ControlPanel({ state, actions }: ControlPanelProps) {
       {/* Scrollable Content */}
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
+          {/* Project Name */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Project Name <span className="text-red-400">*</span>
+            </label>
+            <Input
+              value={state.title}
+              onChange={(e) => actions.setTitle(e.target.value)}
+              placeholder="Enter project name..."
+              className="h-9 bg-white/5 border-white/10 focus:border-primary/50"
+            />
+          </div>
+
           {/* Category Selector */}
           <CategorySelector
             selectedCategory={state.selectedCategory}
@@ -256,8 +272,8 @@ export function ControlPanel({ state, actions }: ControlPanelProps) {
 
         {/* Generate Button */}
         <Button
-          onClick={actions.generateVideo}
-          disabled={!state.visualPrompt.trim() || state.isGenerating}
+          onClick={() => currentWorkspace?.id && actions.generateVideo(currentWorkspace.id)}
+          disabled={!state.title.trim() || !state.visualPrompt.trim() || state.isGenerating || !currentWorkspace?.id}
           className={cn(
             "w-full h-12",
             "bg-gradient-to-r from-primary to-purple-500",
@@ -271,6 +287,11 @@ export function ControlPanel({ state, actions }: ControlPanelProps) {
             <>
               <Loader2 className="h-5 w-5 mr-2 animate-spin" />
               {state.generationStatus || "Generating..."}
+            </>
+          ) : !currentWorkspace?.id ? (
+            <>
+              <Sparkles className="h-5 w-5 mr-2" />
+              Select a Workspace
             </>
           ) : (
             <>

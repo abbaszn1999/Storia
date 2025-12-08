@@ -7,6 +7,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Router, type Request, type Response } from "express";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs/promises";
 import {
   // Agent 1: Idea Generator
   generateIdea,
@@ -41,6 +44,32 @@ import type {
   AudioSource,
   LoopMultiplier,
 } from "../types";
+import { buildStoryModePath, bunnyStorage } from "../../../storage/bunny-storage";
+import { storage } from "../../../storage";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const TEMP_DIR = path.join(__dirname, "../../../../temp");
+
+async function bufferFromUrlOrPath(url: string): Promise<Buffer> {
+  // Local temp path (e.g., /temp/uuid_file.mp4)
+  if (url.startsWith("/temp/")) {
+    const filePath = path.join(TEMP_DIR, path.basename(url));
+    return fs.readFile(filePath);
+  }
+  // Absolute or relative local path
+  if (url.startsWith("file://")) {
+    return fs.readFile(url.replace("file://", ""));
+  }
+  if (url.startsWith("/") || url.startsWith("./") || url.startsWith("../")) {
+    return fs.readFile(path.resolve(url));
+  }
+  // Remote fetch
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Failed to download: ${resp.status} ${resp.statusText}`);
+  const arr = await resp.arrayBuffer();
+  return Buffer.from(arr);
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ROUTER SETUP
@@ -252,10 +281,19 @@ asmrRouter.post("/generate", async (req: Request, res: Response) => {
     if (!body.visualPrompt || body.visualPrompt.trim().length === 0) {
       return res.status(400).json({ error: "Visual prompt is required" });
     }
+    const title = (req.body.title || "").trim();
+    if (!title) {
+      return res.status(400).json({ error: "Title (project name) is required" });
+    }
+    const workspaceId = req.body.workspaceId as string | undefined;
+    if (!workspaceId) {
+      return res.status(400).json({ error: "workspaceId is required" });
+    }
 
     // Get user context
     const userId = req.headers["x-user-id"] as string | undefined;
-    const workspaceId = req.headers["x-workspace-id"] as string | undefined;
+    const workspaceIdHeader = req.headers["x-workspace-id"] as string | undefined;
+    const effectiveWorkspaceId = workspaceIdHeader || workspaceId;
 
     // Set defaults
     const modelId = body.modelId || getDefaultVideoModel().id;
@@ -405,9 +443,55 @@ asmrRouter.post("/generate", async (req: Request, res: Response) => {
     // Calculate total cost
     const totalCost = (videoResult.cost || 0) + (engineeredResult.cost || 0) + audioCost;
 
-    // Include all results in response
+    // Final upload to Bunny (only final artifact)
+    if (!videoResult.videoUrl) {
+      return res.status(500).json({ error: "No final video URL to upload" });
+    }
+
+    // Derive workspace name for path (best-effort)
+    let workspaceName = String(effectiveWorkspaceId || "workspace");
+    if (userId && effectiveWorkspaceId) {
+      try {
+        const workspaces = await storage.getWorkspacesByUserId(userId);
+        const ws = workspaces.find(w => w.id === effectiveWorkspaceId);
+        if (ws?.name) workspaceName = ws.name;
+      } catch (e) {
+        console.warn("[asmr-routes] Unable to resolve workspace name, using id");
+      }
+    }
+
+    const filename = `${Date.now()}.mp4`;
+    const bunnyPath = buildStoryModePath({
+      userId: userId || "public",
+      workspaceName,
+      toolMode: "asmr",
+      projectName: title,
+      filename,
+    });
+
+    const finalBuffer = await bufferFromUrlOrPath(videoResult.videoUrl);
+    const cdnUrl = await bunnyStorage.uploadFile(bunnyPath, finalBuffer, "video/mp4");
+
+    // Persist story record
+    const story = await storage.createStory({
+      workspaceId: effectiveWorkspaceId!,
+      title,
+      template: "asmr-sensory",
+      aspectRatio,
+      duration,
+      exportUrl: cdnUrl,
+    });
+
+    // Cleanup local temp if applicable
+    if (videoResult.videoUrl.startsWith("/temp/")) {
+      const filePath = path.join(TEMP_DIR, path.basename(videoResult.videoUrl));
+      fs.unlink(filePath).catch(() => {});
+    }
+
+    // Include all results in response (with Bunny URL)
     res.json({
       ...videoResult,
+      videoUrl: cdnUrl,
       audioUrl,
       audioSource,
       cost: totalCost,
@@ -415,6 +499,7 @@ asmrRouter.post("/generate", async (req: Request, res: Response) => {
       audioCost,
       engineeredPrompt: engineeredResult.visualPrompt,
       engineeredSoundPrompt: engineeredResult.soundPrompt,
+      storyId: story.id,
     });
   } catch (error) {
     console.error("[asmr-routes] generate error:", error);

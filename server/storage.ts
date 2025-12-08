@@ -563,13 +563,7 @@ export class MemStorage implements IStorage {
     const story: Story = {
       ...insertStory,
       id,
-      script: insertStory.script ?? null,
-      aspectRatio: insertStory.aspectRatio ?? "9:16",
       duration: insertStory.duration ?? null,
-      imageModel: insertStory.imageModel ?? null,
-      voiceProfileId: insertStory.voiceProfileId ?? null,
-      voiceoverUrl: insertStory.voiceoverUrl ?? null,
-      status: insertStory.status ?? "draft",
       exportUrl: insertStory.exportUrl ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),

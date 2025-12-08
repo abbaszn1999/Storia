@@ -338,6 +338,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Stories routes
+  app.get('/api/workspaces/:workspaceId/stories', isAuthenticated, async (req: any, res) => {
+    try {
+      const { workspaceId } = req.params;
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Verify workspace ownership
+      const workspaces = await storage.getWorkspacesByUserId(userId);
+      const workspace = workspaces.find(w => w.id === workspaceId);
+      if (!workspace) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
+      }
+
+      const stories = await storage.getStoriesByWorkspaceId(workspaceId);
+      res.json(stories);
+    } catch (error) {
+      console.error('Error fetching stories:', error);
+      res.status(500).json({ error: 'Failed to fetch stories' });
+    }
+  });
+
+  app.delete('/api/stories/:storyId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { storyId } = req.params;
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Get story to verify ownership
+      const story = await storage.getStory(storyId);
+      if (!story) {
+        return res.status(404).json({ error: 'Story not found' });
+      }
+
+      // Verify workspace ownership
+      const workspaces = await storage.getWorkspacesByUserId(userId);
+      const workspace = workspaces.find(w => w.id === story.workspaceId);
+      if (!workspace) {
+        return res.status(403).json({ error: 'Access denied to this story' });
+      }
+
+      // Delete entire project folder from Bunny CDN
+      if (story.exportUrl) {
+        try {
+          // Extract path from CDN URL
+          // Example URL: https://storia.b-cdn.net/{userId}/{workspace}/Story_Mode/asmr/{Project_Name_createDate}/Rendered/video.mp4
+          // We want to delete: {userId}/{workspace}/Story_Mode/asmr/{Project_Name_createDate}/
+          const cdnUrl = new URL(story.exportUrl);
+          const fullPath = cdnUrl.pathname.replace(/^\//, ''); // Remove leading slash
+          
+          // Extract project folder path (everything before /Rendered/)
+          const projectFolderMatch = fullPath.match(/^(.+\/Story_Mode\/[^/]+\/[^/]+)\//);
+          if (projectFolderMatch) {
+            const projectFolderPath = projectFolderMatch[1];
+            console.log(`Deleting project folder: ${projectFolderPath}`);
+            await bunnyStorage.deleteFolder(projectFolderPath);
+          } else {
+            // Fallback: delete individual files if pattern doesn't match
+            console.warn('Could not extract project folder path, deleting individual files');
+            await bunnyStorage.deleteFile(fullPath);
+            if (story.thumbnailUrl) {
+              const thumbnailPath = new URL(story.thumbnailUrl).pathname.replace(/^\//, '');
+              await bunnyStorage.deleteFile(thumbnailPath);
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to delete files from Bunny:', error);
+          // Continue with database deletion even if Bunny delete fails
+        }
+      }
+
+      // Delete from database
+      await storage.deleteStory(storyId);
+      res.json({ success: true, message: 'Story and all associated files deleted' });
+    } catch (error) {
+      console.error('Error deleting story:', error);
+      res.status(500).json({ error: 'Failed to delete story' });
+    }
+  });
+
   // Workspace integration routes
   app.get('/api/workspaces/:workspaceId/integrations', isAuthenticated, async (req: any, res) => {
     try {

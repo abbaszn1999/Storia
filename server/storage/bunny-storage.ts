@@ -234,6 +234,60 @@ export async function deleteFile(filePath: string): Promise<void> {
 }
 
 /**
+ * Delete a folder and all its contents recursively from Bunny Storage
+ * 
+ * @param folderPath - The path to the folder to delete
+ */
+export async function deleteFolder(folderPath: string): Promise<void> {
+  if (!isBunnyConfigured()) {
+    throw new Error("Bunny Storage is not configured.");
+  }
+
+  let normalizedPath = normalizePath(folderPath);
+  // Ensure folder path ends with /
+  if (normalizedPath && !normalizedPath.endsWith("/")) {
+    normalizedPath += "/";
+  }
+
+  try {
+    // List all files and folders in this directory
+    const items = await listFiles(normalizedPath);
+
+    // Recursively delete all items
+    for (const item of items) {
+      const itemPath = `${normalizedPath}${item.ObjectName}`;
+      if (item.IsDirectory) {
+        // Recursively delete subdirectory
+        await deleteFolder(itemPath);
+      } else {
+        // Delete file
+        await deleteFile(itemPath);
+      }
+    }
+
+    // After all contents are deleted, delete the folder itself
+    const url = `${BUNNY_STORAGE_API_URL}/${BUNNY_STORAGE_ZONE}/${normalizedPath}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        "AccessKey": BUNNY_STORAGE_API_KEY,
+      },
+    });
+
+    if (!response.ok && response.status !== 404) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete folder from Bunny Storage: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+  } catch (error) {
+    // If folder doesn't exist (404), it's fine
+    if (error instanceof Error && error.message.includes('404')) {
+      return;
+    }
+    throw error;
+  }
+}
+
+/**
  * List files in a directory in Bunny Storage
  * 
  * @param folderPath - The folder path to list (e.g., "user/workspace/Assets/")
@@ -349,6 +403,7 @@ export const bunnyStorage = {
   uploadFile,
   downloadFile,
   deleteFile,
+  deleteFolder,
   listFiles,
   fileExists,
   getPublicUrl,

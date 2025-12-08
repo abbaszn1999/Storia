@@ -556,7 +556,7 @@ export class MemStorage implements IStorage {
   }
 
   async getStoriesByWorkspaceId(workspaceId: string): Promise<Story[]> {
-    return Array.from(this.stories.values()).filter((s) => s.workspaceId === workspaceId);
+    return db.select().from(stories).where(eq(stories.workspaceId, workspaceId));
   }
 
   async createStory(insertStory: InsertStory): Promise<Story> {
@@ -565,6 +565,15 @@ export class MemStorage implements IStorage {
       .values(insertStory)
       .returning();
     return story;
+  }
+
+  async getStory(id: string): Promise<Story | undefined> {
+    const [story] = await db.select().from(stories).where(eq(stories.id, id));
+    return story;
+  }
+
+  async deleteStory(id: string): Promise<void> {
+    await db.delete(stories).where(eq(stories.id, id));
   }
 
   async getCharactersByWorkspaceId(workspaceId: string): Promise<Character[]> {

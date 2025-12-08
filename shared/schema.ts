@@ -112,6 +112,7 @@ export const stories = pgTable("stories", {
   aspectRatio: text("aspect_ratio").notNull(), // required, no default
   duration: integer("duration"),
   exportUrl: text("export_url"),
+  thumbnailUrl: text("thumbnail_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

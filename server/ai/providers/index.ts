@@ -5,6 +5,7 @@
 import "./openai";
 import "./gemini";
 import "./runware";
+import "./elevenlabs";
 
 export { getProviderAdapter, listRegisteredProviders } from "./base-provider";
 

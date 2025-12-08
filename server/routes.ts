@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import narrativeRoutes from "./modes/narrative/routes";
+import storiesRouter from "./stories";
 import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertProductionCampaignSchema, insertCampaignVideoSchema, insertCharacterSchema, insertLocationSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -21,6 +22,7 @@ async function verifyWorkspaceOwnership(workspaceId: string, userId: string): Pr
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/narrative', narrativeRoutes);
+  app.use('/api/stories', storiesRouter);
 
   // Workspace routes
   app.get('/api/workspaces', async (req, res) => {

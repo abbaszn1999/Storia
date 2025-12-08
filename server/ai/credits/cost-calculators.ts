@@ -123,6 +123,11 @@ export function estimateRequestCost({
   }
 
   const { pricing } = modelConfig;
+  // If no pricing info (e.g., Runware models use includeCost), return 0
+  if (!pricing) {
+    return 0;
+  }
+
   const inputCost = costPerTokens(
     expectedInputTokens,
     pricing.inputCostPer1KTokens,
@@ -143,10 +148,17 @@ export function calculateCostFromUsage({
   usage,
 }: CostFromUsageInput): number {
   if (!usage) return 0;
+  // If actual cost provided (e.g., from Runware includeCost), use it
   if (usage.totalCostUsd !== undefined) {
     return usage.totalCostUsd;
   }
+
   const { pricing } = modelConfig;
+  // If no pricing info, return 0 (cost should come from provider)
+  if (!pricing) {
+    return 0;
+  }
+
   const inputCost = costPerTokens(
     usage.inputTokens,
     pricing.inputCostPer1KTokens,

@@ -1,13 +1,34 @@
+// ASMR Export Page - Professional Glassmorphism Design
+// Matches the ASMR Generator page aesthetic
+
 import { useState, useEffect } from "react";
-import { useLocation, useRoute } from "wouter";
+import { useLocation } from "wouter";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  ArrowLeft, 
+  Download, 
+  Share2, 
+  Copy, 
+  Check,
+  Play,
+  Pause,
+  Sparkles,
+  Loader2,
+  ExternalLink,
+  Clock,
+  Calendar,
+  Monitor,
+  CheckCircle2,
+  Video
+} from "lucide-react";
+import { SiYoutube, SiTiktok, SiInstagram, SiFacebook } from "react-icons/si";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
@@ -16,597 +37,609 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Play,
-  Download,
-  Share2,
-  Calendar,
-  Clock,
-  ArrowLeft,
-  Settings2,
-  Sparkles,
-  CheckCircle2,
-  Loader2,
-  Copy,
-  Monitor,
-} from "lucide-react";
-import { SiYoutube, SiTiktok, SiInstagram, SiFacebook } from "react-icons/si";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { PageTransition, StaggerContainer, StaggerItem } from "@/components/ui/page-transition";
+import { downloadMergedVideo } from "@/lib/api/asmr";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPES & CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
 
 const PLATFORMS = [
-  { id: "youtube", name: "YouTube Shorts", icon: SiYoutube, color: "bg-red-600", specs: "9:16, up to 60s" },
-  { id: "tiktok", name: "TikTok", icon: SiTiktok, color: "bg-black", specs: "9:16, 15-60s" },
-  { id: "instagram", name: "Instagram Reels", icon: SiInstagram, color: "bg-gradient-to-br from-purple-600 to-pink-500", specs: "9:16, 15-90s" },
-  { id: "facebook", name: "Facebook Reels", icon: SiFacebook, color: "bg-blue-600", specs: "9:16, 15-90s" },
+  { id: "youtube", name: "YouTube Shorts", icon: SiYoutube, color: "bg-red-600", gradient: "from-red-600 to-red-700" },
+  { id: "tiktok", name: "TikTok", icon: SiTiktok, color: "bg-black", gradient: "from-gray-800 to-black" },
+  { id: "instagram", name: "Instagram Reels", icon: SiInstagram, gradient: "from-purple-600 via-pink-500 to-orange-400" },
+  { id: "facebook", name: "Facebook Reels", icon: SiFacebook, color: "bg-blue-600", gradient: "from-blue-600 to-blue-700" },
 ];
 
 const RESOLUTIONS = [
-  { value: "720p", label: "720p HD", description: "Faster export, smaller file" },
-  { value: "1080p", label: "1080p Full HD", description: "Recommended for most platforms" },
-  { value: "2160p", label: "4K Ultra HD", description: "Maximum quality" },
+  { value: "720p", label: "720p HD", desc: "Faster export" },
+  { value: "1080p", label: "1080p Full HD", desc: "Recommended" },
+  { value: "2160p", label: "4K Ultra HD", desc: "Maximum quality" },
 ];
 
 interface StoryExportData {
   videoUrl: string;
+  audioUrl?: string;
+  audioSource?: "model" | "elevenlabs" | "merged";
   duration: number;
   aspectRatio: string;
+  resolution?: string;
   storyType: string;
   category?: string;
   visualPrompt?: string;
   soundPrompt?: string;
-  material?: string;
-  isLoopable?: boolean;
-  isBinaural?: boolean;
-  ambientBackground?: string;
   videoModel?: string;
+  modelLabel?: string;
+  cost?: number;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
 
 export default function StoryPreviewExport() {
   const [, navigate] = useLocation();
-  const [, params] = useRoute("/stories/:storyType/export");
   
+  // Load export data from localStorage
   const [exportData, setExportData] = useState<StoryExportData | null>(() => {
     const storedData = localStorage.getItem("storia_story_export_data");
     if (storedData) {
       try {
         return JSON.parse(storedData);
-      } catch (e) {
-        console.error("Failed to parse export data", e);
+      } catch {
         return null;
       }
     }
     return null;
   });
   
+  // Redirect if no data
   useEffect(() => {
     if (!exportData) {
-      const storyTypeParam = params?.storyType || "asmr";
-      navigate(`/stories/${storyTypeParam}`);
+      navigate("/stories/asmr");
     }
-  }, [exportData, navigate, params?.storyType]);
-  
-  const storyType = exportData?.storyType || params?.storyType || "asmr";
-  const videoUrl = exportData?.videoUrl || "https://storia.app/v/demo";
-  const duration = exportData?.duration || 15;
-  const aspectRatio = exportData?.aspectRatio || "9:16";
-  const category = exportData?.category || "ASMR";
-  const visualPrompt = exportData?.visualPrompt || "";
-  const soundPrompt = exportData?.soundPrompt || "";
-  const material = exportData?.material || "";
-  
-  const [resolution, setResolution] = useState("1080p");
+  }, [exportData, navigate]);
+
+  // State
+  const [resolution, setResolution] = useState(exportData?.resolution || "1080p");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [publishType, setPublishType] = useState<"instant" | "schedule">("instant");
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
-  
-  const [youtubeTitle, setYoutubeTitle] = useState("");
-  const [youtubeDescription, setYoutubeDescription] = useState("");
-  const [youtubeTags, setYoutubeTags] = useState("");
-  const [socialCaption, setSocialCaption] = useState("");
-  
+  const [isPlaying, setIsPlaying] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  
+  // Metadata
+  const [youtubeTitle, setYoutubeTitle] = useState("");
+  const [youtubeDescription, setYoutubeDescription] = useState("");
+  const [socialCaption, setSocialCaption] = useState("");
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
+  if (!exportData) return null;
+
+  const { videoUrl, audioUrl, audioSource, duration, aspectRatio, category, visualPrompt } = exportData;
+  const hasSeparateAudio = !!audioUrl && audioSource === "elevenlabs";
+
+  // Handlers
+  const handleBack = () => {
+    navigate("/stories/asmr");
+  };
+
   const handlePlatformToggle = (platformId: string) => {
-    setSelectedPlatforms((prev) =>
+    setSelectedPlatforms(prev =>
       prev.includes(platformId)
-        ? prev.filter((id) => id !== platformId)
+        ? prev.filter(id => id !== platformId)
         : [...prev, platformId]
     );
   };
 
   const handleDownload = async () => {
     setIsDownloading(true);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setIsDownloading(false);
+    try {
+      const filename = `storia-${category?.toLowerCase() || "asmr"}-${Date.now()}.mp4`;
+      
+      // If there's separate audio (ElevenLabs), merge before download
+      if (hasSeparateAudio && audioUrl) {
+        console.log("[Export] Merging video and audio before download...");
+        await downloadMergedVideo(videoUrl, audioUrl, filename);
+      } else {
+        // No separate audio, download video directly
+        const response = await fetch(videoUrl);
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        URL.revokeObjectURL(blobUrl);
+      }
+    } catch (error) {
+      console.error("Download failed:", error);
+    } finally {
+      setTimeout(() => setIsDownloading(false), 2000);
+    }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(videoUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleExport = async () => {
     setIsExporting(true);
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise(resolve => setTimeout(resolve, 3000));
     setIsExporting(false);
   };
 
-  const handleAIRecommendation = async () => {
+  const handleAIMetadata = async () => {
     setIsGeneratingAI(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
-    const categoryName = exportData?.category || "ASMR";
-    const material = exportData?.material || "";
+    const categoryName = category || "ASMR";
     
     if (selectedPlatforms.includes("youtube")) {
       setYoutubeTitle(`Satisfying ${categoryName} Experience - Ultimate Relaxation`);
-      setYoutubeDescription(`Experience pure relaxation with this calming ${categoryName.toLowerCase()} video${material ? ` featuring ${material}` : ""}. Perfect for sleep, study, or unwinding after a long day. Created with Storia AI.`);
-      setYoutubeTags(`ASMR, ${categoryName.toLowerCase()}, relaxation, satisfying, calming, sleep, study, triggers${material ? `, ${material}` : ""}`);
+      setYoutubeDescription(`Experience pure relaxation with this calming ${categoryName.toLowerCase()} video. Perfect for sleep, study, or unwinding. Created with Storia AI.`);
     }
     
     if (selectedPlatforms.some(p => ["tiktok", "instagram", "facebook"].includes(p))) {
-      setSocialCaption(`Pure ${categoryName.toLowerCase()} relaxation vibes\n\nLet these satisfying sounds wash over you\n\n#ASMR #${categoryName.replace(/\s+/g, "")} #Satisfying #Relaxing #Tingles #SleepSounds`);
+      setSocialCaption(`Pure ${categoryName.toLowerCase()} relaxation vibes ✨\n\nLet these satisfying sounds wash over you\n\n#ASMR #${categoryName.replace(/\s+/g, "")} #Satisfying #Relaxing`);
     }
     
     setIsGeneratingAI(false);
   };
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(videoUrl);
-  };
-
-  const handleBack = () => {
-    localStorage.removeItem("storia_story_export_data");
-    navigate(`/stories/${storyType}`);
-  };
-
   const hasYouTube = selectedPlatforms.includes("youtube");
   const hasSocialPlatforms = selectedPlatforms.some(p => ["tiktok", "instagram", "facebook"].includes(p));
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════════════════════════
+
   return (
-    <div className="h-screen flex flex-col bg-background">
-      <header className="border-b border-border bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
-        <div className="px-6 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleBack}
-                data-testid="button-back"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
+    <PageTransition className="h-screen flex bg-[#0a0a0a]">
+      {/* Background Effects */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[150px]" />
+        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-[120px]" />
+      </div>
+
+      {/* Left Panel - Control Panel */}
+      <div className={cn(
+        "w-[40%] min-w-[400px] max-w-[550px] flex-shrink-0 h-full",
+        "bg-black/40 backdrop-blur-xl",
+        "border-r border-white/[0.06]",
+        "flex flex-col relative z-10"
+      )}>
+        {/* Header */}
+        <div className="flex-shrink-0 p-4 border-b border-white/[0.06]">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={handleBack}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                <div>
-                  <h1 className="text-lg font-semibold">Preview & Export</h1>
-                  <p className="text-xs text-muted-foreground">Your video is ready to publish</p>
-                </div>
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                <h1 className="text-base font-semibold">Export & Publish</h1>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={handleBack}
-                className="gap-2"
-                data-testid="button-edit-settings"
-              >
-                <Settings2 className="h-4 w-4" />
-                Edit Settings
-              </Button>
+              <p className="text-xs text-muted-foreground">Your video is ready</p>
             </div>
           </div>
         </div>
-      </header>
 
-      <main className="flex-1 overflow-auto">
-        <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base font-medium flex items-center gap-2">
-                <Play className="h-4 w-4 text-primary" />
-                Video Preview
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                  <div
-                    className={`mx-auto bg-gradient-to-br from-gray-900 to-purple-900 rounded-lg overflow-hidden relative ${
-                      aspectRatio === "9:16"
-                        ? "aspect-[9/16] max-h-[500px]"
-                        : aspectRatio === "16:9"
-                        ? "aspect-video max-h-[400px]"
-                        : aspectRatio === "4:5"
-                        ? "aspect-[4/5] max-h-[450px]"
-                        : "aspect-square max-h-[400px]"
-                    }`}
-                    data-testid="video-preview"
-                  >
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(139,63,255,0.3),transparent_50%)]" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Button
-                        variant="secondary"
-                        size="lg"
-                        className="gap-2"
-                        data-testid="button-play"
-                      >
-                        <Play className="h-5 w-5" />
-                        Play Preview
-                      </Button>
-                    </div>
-                    <div className="absolute top-3 left-3">
-                      <Badge variant="secondary" className="text-xs">{duration}s</Badge>
-                    </div>
-                    <div className="absolute top-3 right-3">
-                      <Badge variant="outline" className="text-xs bg-background/80">{aspectRatio}</Badge>
-                    </div>
-                  </div>
+        {/* Scrollable Content */}
+        <ScrollArea className="flex-1">
+          <StaggerContainer className="p-4 space-y-5">
+            {/* Video Summary */}
+            <StaggerItem>
+              <div className={cn(
+                "p-4 rounded-xl",
+                "bg-white/[0.02] border border-white/[0.06]"
+              )}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Video className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Video Summary</span>
                 </div>
-
-                <div className="space-y-4">
-                  <div className="p-4 rounded-lg bg-muted/50 space-y-3">
-                    <h4 className="font-medium text-sm">Video Summary</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Category</span>
-                        <span>{category}</span>
-                      </div>
-                      {material && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Material</span>
-                          <span>{material}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Duration</span>
-                        <span>{duration} seconds</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Aspect Ratio</span>
-                        <span>{aspectRatio}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Resolution</span>
-                        <span>{resolution}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Type</span>
-                        <span className="capitalize">{storyType.toUpperCase()}</span>
-                      </div>
-                      {exportData?.isLoopable && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Loop</span>
-                          <span className="text-emerald-500">Enabled</span>
-                        </div>
-                      )}
-                      {exportData?.isBinaural && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Audio</span>
-                          <span>Binaural 3D</span>
-                        </div>
-                      )}
-                    </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Category</span>
+                    <span>{category || "ASMR"}</span>
                   </div>
-                  
-                  {(visualPrompt || soundPrompt) && (
-                    <div className="p-4 rounded-lg bg-muted/50 space-y-3">
-                      <h4 className="font-medium text-sm">Generation Prompts</h4>
-                      {visualPrompt && (
-                        <div className="space-y-1">
-                          <span className="text-xs text-muted-foreground">Visual</span>
-                          <p className="text-sm line-clamp-2">{visualPrompt}</p>
-                        </div>
-                      )}
-                      {soundPrompt && (
-                        <div className="space-y-1">
-                          <span className="text-xs text-muted-foreground">Sound</span>
-                          <p className="text-sm line-clamp-2">{soundPrompt}</p>
-                        </div>
-                      )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Duration</span>
+                    <span>{duration}s</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Aspect Ratio</span>
+                    <span>{aspectRatio}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Model</span>
+                    <span>{exportData.modelLabel || "AI Video"}</span>
+                  </div>
+                  {exportData.cost && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Cost</span>
+                      <span className="text-emerald-400">${exportData.cost.toFixed(4)}</span>
                     </div>
                   )}
-
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className="flex-1 gap-2"
-                      onClick={handleDownload}
-                      disabled={isDownloading}
-                      data-testid="button-download"
-                    >
-                      {isDownloading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Download className="h-4 w-4" />
-                      )}
-                      {isDownloading ? "Downloading..." : "Download"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handleCopyLink}
-                      data-testid="button-copy-link"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </StaggerItem>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader className="pb-4">
-                <CardTitle className="text-base font-medium flex items-center gap-2">
+            {/* Resolution */}
+            <StaggerItem>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Monitor className="h-4 w-4 text-primary" />
+                  <Label className="text-sm font-medium">Export Resolution</Label>
+                </div>
+                <Select value={resolution} onValueChange={setResolution}>
+                  <SelectTrigger className="h-10 bg-white/[0.03] border-white/[0.08]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1a1a1a] border-white/10">
+                    {RESOLUTIONS.map(res => (
+                      <SelectItem key={res.value} value={res.value}>
+                        <div className="flex items-center justify-between w-full">
+                          <span>{res.label}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{res.desc}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </StaggerItem>
+
+            {/* Divider */}
+            <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+            {/* Platforms */}
+            <StaggerItem>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
                   <Share2 className="h-4 w-4 text-primary" />
-                  Select Platforms
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  {PLATFORMS.map((platform) => {
+                  <span className="text-sm font-medium">Publish To</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {PLATFORMS.map(platform => {
                     const Icon = platform.icon;
                     const isSelected = selectedPlatforms.includes(platform.id);
                     return (
-                      <div
+                      <motion.button
                         key={platform.id}
-                        className={`flex items-center justify-between p-3 rounded-lg border-2 transition-colors cursor-pointer ${
-                          isSelected
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover-elevate"
-                        }`}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
                         onClick={() => handlePlatformToggle(platform.id)}
-                        data-testid={`platform-${platform.id}`}
+                        className={cn(
+                          "p-3 rounded-xl transition-all duration-200",
+                          "flex items-center gap-2",
+                          "border",
+                          isSelected
+                            ? "bg-white/[0.08] border-primary/50"
+                            : "bg-white/[0.02] border-white/[0.06] hover:border-white/[0.12]"
+                        )}
                       >
-                        <div className="flex items-center gap-3">
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => handlePlatformToggle(platform.id)}
-                            data-testid={`checkbox-${platform.id}`}
-                          />
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${platform.color}`}>
-                            <Icon className="h-5 w-5 text-white" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">{platform.name}</p>
-                            <p className="text-xs text-muted-foreground">{platform.specs}</p>
-                          </div>
+                        <div className={cn(
+                          "w-8 h-8 rounded-lg flex items-center justify-center",
+                          "bg-gradient-to-br",
+                          platform.gradient || platform.color
+                        )}>
+                          <Icon className="h-4 w-4 text-white" />
                         </div>
-                        <Badge variant="outline" className="text-xs">Connect</Badge>
-                      </div>
+                        <span className="text-xs font-medium">{platform.name}</span>
+                        {isSelected && (
+                          <Check className="h-3 w-3 text-primary ml-auto" />
+                        )}
+                      </motion.button>
                     );
                   })}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </StaggerItem>
 
-            <div className="space-y-6">
-              <Card>
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-base font-medium flex items-center gap-2">
-                    <Monitor className="h-4 w-4 text-primary" />
-                    Export Settings
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Resolution</Label>
-                    <Select value={resolution} onValueChange={setResolution}>
-                      <SelectTrigger data-testid="select-resolution">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {RESOLUTIONS.map((res) => (
-                          <SelectItem key={res.value} value={res.value}>
-                            <div className="flex flex-col">
-                              <span>{res.label}</span>
-                              <span className="text-xs text-muted-foreground">{res.description}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+            {/* Publishing Options */}
+            <StaggerItem>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Publishing</span>
+                </div>
+                <RadioGroup value={publishType} onValueChange={(v: "instant" | "schedule") => setPublishType(v)}>
+                  <div className={cn(
+                    "flex items-center gap-3 p-3 rounded-xl cursor-pointer",
+                    "bg-white/[0.02] border border-white/[0.06]",
+                    publishType === "instant" && "border-primary/50 bg-white/[0.05]"
+                  )}
+                  onClick={() => setPublishType("instant")}
+                  >
+                    <RadioGroupItem value="instant" id="instant" />
+                    <Label htmlFor="instant" className="cursor-pointer flex items-center gap-2">
+                      <Share2 className="h-4 w-4 text-emerald-400" />
+                      <span>Publish Instantly</span>
+                    </Label>
                   </div>
+                  <div className={cn(
+                    "flex items-center gap-3 p-3 rounded-xl cursor-pointer",
+                    "bg-white/[0.02] border border-white/[0.06]",
+                    publishType === "schedule" && "border-primary/50 bg-white/[0.05]"
+                  )}
+                  onClick={() => setPublishType("schedule")}
+                  >
+                    <RadioGroupItem value="schedule" id="schedule" />
+                    <Label htmlFor="schedule" className="cursor-pointer flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-orange-400" />
+                      <span>Schedule for Later</span>
+                    </Label>
+                  </div>
+                </RadioGroup>
 
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-base font-medium flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-primary" />
-                    Publishing
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <RadioGroup value={publishType} onValueChange={(v: "instant" | "schedule") => setPublishType(v)}>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="instant" id="instant" data-testid="radio-instant" />
-                      <Label htmlFor="instant" className="font-normal cursor-pointer flex items-center gap-2">
-                        <Share2 className="w-4 h-4 text-primary" />
-                        Publish Instantly
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="schedule" id="schedule" data-testid="radio-schedule" />
-                      <Label htmlFor="schedule" className="font-normal cursor-pointer flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-primary" />
-                        Schedule for Later
-                      </Label>
-                    </div>
-                  </RadioGroup>
-
+                <AnimatePresence>
                   {publishType === "schedule" && (
-                    <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg border">
-                      <div className="space-y-2">
-                        <Label htmlFor="schedule-date" className="text-sm">Date</Label>
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="grid grid-cols-2 gap-3 overflow-hidden"
+                    >
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Date</Label>
                         <Input
-                          id="schedule-date"
                           type="date"
                           value={scheduleDate}
-                          onChange={(e) => setScheduleDate(e.target.value)}
-                          data-testid="input-schedule-date"
+                          onChange={e => setScheduleDate(e.target.value)}
+                          className="h-9 bg-white/[0.03] border-white/[0.08]"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="schedule-time" className="text-sm">Time</Label>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Time</Label>
                         <Input
-                          id="schedule-time"
                           type="time"
                           value={scheduleTime}
-                          onChange={(e) => setScheduleTime(e.target.value)}
-                          data-testid="input-schedule-time"
+                          onChange={e => setScheduleTime(e.target.value)}
+                          className="h-9 bg-white/[0.03] border-white/[0.08]"
                         />
                       </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </StaggerItem>
+
+            {/* Platform Metadata */}
+            <AnimatePresence>
+              {selectedPlatforms.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-3 overflow-hidden"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium">Metadata</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleAIMetadata}
+                      disabled={isGeneratingAI}
+                      className="h-7 text-xs"
+                    >
+                      {isGeneratingAI ? (
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3 w-3 mr-1" />
+                      )}
+                      AI Generate
+                    </Button>
+                  </div>
+
+                  {hasYouTube && (
+                    <div className={cn(
+                      "p-3 rounded-xl space-y-3",
+                      "bg-white/[0.02] border border-white/[0.06]"
+                    )}>
+                      <div className="flex items-center gap-2">
+                        <SiYoutube className="h-4 w-4 text-red-500" />
+                        <span className="text-xs font-medium">YouTube</span>
+                      </div>
+                      <Input
+                        placeholder="Video title"
+                        value={youtubeTitle}
+                        onChange={e => setYoutubeTitle(e.target.value)}
+                        className="h-9 bg-white/[0.03] border-white/[0.08] text-sm"
+                      />
+                      <Textarea
+                        placeholder="Description"
+                        value={youtubeDescription}
+                        onChange={e => setYoutubeDescription(e.target.value)}
+                        className="min-h-[80px] bg-white/[0.03] border-white/[0.08] text-sm resize-none"
+                      />
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            </div>
-          </div>
 
-          {selectedPlatforms.length > 0 && (
-            <Card>
-              <CardHeader className="pb-4">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base font-medium flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    Platform Metadata
-                  </CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAIRecommendation}
-                    disabled={isGeneratingAI}
-                    className="gap-2"
-                    data-testid="button-ai-metadata"
-                  >
-                    {isGeneratingAI ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4" />
-                    )}
-                    AI Suggestions
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {hasYouTube && (
-                  <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-                    <div className="flex items-center gap-2 mb-2">
-                      <SiYoutube className="w-4 h-4 text-red-600" />
-                      <h4 className="font-semibold text-sm">YouTube Details</h4>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="youtube-title">Title</Label>
-                      <Input
-                        id="youtube-title"
-                        placeholder="Enter video title"
-                        value={youtubeTitle}
-                        onChange={(e) => setYoutubeTitle(e.target.value)}
-                        data-testid="input-youtube-title"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="youtube-description">Description</Label>
-                      <Textarea
-                        id="youtube-description"
-                        placeholder="Write a description for your video..."
-                        value={youtubeDescription}
-                        onChange={(e) => setYoutubeDescription(e.target.value)}
-                        className="min-h-[100px]"
-                        data-testid="textarea-youtube-description"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="youtube-tags">Tags</Label>
-                      <Input
-                        id="youtube-tags"
-                        placeholder="Enter tags separated by commas"
-                        value={youtubeTags}
-                        onChange={(e) => setYoutubeTags(e.target.value)}
-                        data-testid="input-youtube-tags"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {hasSocialPlatforms && (
-                  <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="flex -space-x-1">
-                        {selectedPlatforms.includes("tiktok") && (
-                          <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center ring-2 ring-background">
-                            <SiTiktok className="w-3 h-3 text-white" />
-                          </div>
-                        )}
-                        {selectedPlatforms.includes("instagram") && (
-                          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center ring-2 ring-background">
-                            <SiInstagram className="w-3 h-3 text-white" />
-                          </div>
-                        )}
-                        {selectedPlatforms.includes("facebook") && (
-                          <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center ring-2 ring-background">
-                            <SiFacebook className="w-3 h-3 text-white" />
-                          </div>
-                        )}
+                  {hasSocialPlatforms && (
+                    <div className={cn(
+                      "p-3 rounded-xl space-y-3",
+                      "bg-white/[0.02] border border-white/[0.06]"
+                    )}>
+                      <div className="flex items-center gap-2">
+                        <div className="flex -space-x-1">
+                          {selectedPlatforms.includes("tiktok") && (
+                            <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center ring-2 ring-[#0a0a0a]">
+                              <SiTiktok className="w-2.5 h-2.5 text-white" />
+                            </div>
+                          )}
+                          {selectedPlatforms.includes("instagram") && (
+                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center ring-2 ring-[#0a0a0a]">
+                              <SiInstagram className="w-2.5 h-2.5 text-white" />
+                            </div>
+                          )}
+                          {selectedPlatforms.includes("facebook") && (
+                            <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center ring-2 ring-[#0a0a0a]">
+                              <SiFacebook className="w-2.5 h-2.5 text-white" />
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-xs font-medium">Social Caption</span>
                       </div>
-                      <h4 className="font-semibold text-sm">Social Media Caption</h4>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="social-caption">Caption</Label>
                       <Textarea
-                        id="social-caption"
-                        placeholder="Write a caption for your social media posts..."
+                        placeholder="Write a caption..."
                         value={socialCaption}
-                        onChange={(e) => setSocialCaption(e.target.value)}
-                        className="min-h-[120px]"
-                        data-testid="textarea-social-caption"
+                        onChange={e => setSocialCaption(e.target.value)}
+                        className="min-h-[100px] bg-white/[0.03] border-white/[0.08] text-sm resize-none"
                       />
-                      <p className="text-xs text-muted-foreground">
-                        This caption will be used for TikTok, Instagram, and Facebook
-                      </p>
                     </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="flex gap-4 justify-end pb-6">
-            <Button
-              variant="outline"
-              onClick={handleBack}
-              data-testid="button-cancel"
-            >
-              Back to Editor
-            </Button>
-            <Button
-              size="lg"
-              onClick={handleExport}
-              disabled={isExporting}
-              className="gap-2 min-w-[200px]"
-              data-testid="button-export"
-            >
-              {isExporting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {publishType === "schedule" ? "Scheduling..." : "Publishing..."}
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4" />
-                  {selectedPlatforms.length > 0
-                    ? publishType === "schedule"
-                      ? "Export & Schedule"
-                      : "Export & Publish"
-                    : "Export Video"}
-                </>
+                  )}
+                </motion.div>
               )}
-            </Button>
-          </div>
+            </AnimatePresence>
+          </StaggerContainer>
+        </ScrollArea>
+
+        {/* Footer - Export Button */}
+        <div className="flex-shrink-0 p-4 border-t border-white/[0.06]">
+          <Button
+            onClick={handleExport}
+            disabled={isExporting}
+            className={cn(
+              "w-full h-12",
+              "bg-gradient-to-r from-primary to-purple-500",
+              "hover:from-primary/90 hover:to-purple-500/90",
+              "border-0 shadow-lg shadow-primary/25",
+              "transition-all duration-300"
+            )}
+          >
+            {isExporting ? (
+              <>
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                {publishType === "schedule" ? "Scheduling..." : "Exporting..."}
+              </>
+            ) : (
+              <>
+                <Download className="h-5 w-5 mr-2" />
+                {selectedPlatforms.length > 0
+                  ? publishType === "schedule" ? "Export & Schedule" : "Export & Publish"
+                  : "Export Video"
+                }
+              </>
+            )}
+          </Button>
         </div>
-      </main>
-    </div>
+      </div>
+
+      {/* Right Panel - Video Preview */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8 relative">
+        {/* Video Container */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+          className={cn(
+            "relative w-full max-w-2xl mx-auto",
+            aspectRatio === "9:16" ? "aspect-[9/16] max-h-[600px]" :
+            aspectRatio === "1:1" ? "aspect-square max-h-[500px]" :
+            "aspect-video max-h-[450px]",
+            "rounded-2xl overflow-hidden",
+            "bg-black/60",
+            "border border-white/[0.08]",
+            "shadow-2xl shadow-black/50"
+          )}
+        >
+          <video
+            src={videoUrl}
+            controls
+            autoPlay
+            loop
+            muted={!isPlaying}
+            className="w-full h-full object-contain"
+          />
+
+          {/* Badges */}
+          <div className="absolute top-3 left-3 flex gap-2">
+            <Badge className="bg-black/60 backdrop-blur-sm border-white/10 text-xs">
+              {duration}s
+            </Badge>
+          </div>
+          <div className="absolute top-3 right-3">
+            <Badge variant="outline" className="bg-black/60 backdrop-blur-sm border-white/10 text-xs">
+              {aspectRatio}
+            </Badge>
+          </div>
+
+          {/* Corner Decorations */}
+          <div className="absolute top-3 left-3 w-4 h-4 border-l-2 border-t-2 border-white/10 rounded-tl pointer-events-none" />
+          <div className="absolute top-3 right-3 w-4 h-4 border-r-2 border-t-2 border-white/10 rounded-tr pointer-events-none" />
+          <div className="absolute bottom-3 left-3 w-4 h-4 border-l-2 border-b-2 border-white/10 rounded-bl pointer-events-none" />
+          <div className="absolute bottom-3 right-3 w-4 h-4 border-r-2 border-b-2 border-white/10 rounded-br pointer-events-none" />
+        </motion.div>
+
+        {/* Action Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.4 }}
+          className="mt-6 flex items-center gap-3"
+        >
+          <Button
+            variant="outline"
+            onClick={handleDownload}
+            disabled={isDownloading}
+            className="gap-2 bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.08]"
+          >
+            {isDownloading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            Download
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleCopyLink}
+            className="gap-2 bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.08]"
+          >
+            {copied ? (
+              <Check className="h-4 w-4 text-emerald-400" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
+            {copied ? "Copied!" : "Copy Link"}
+          </Button>
+        </motion.div>
+
+        {/* Prompt Preview */}
+        {visualPrompt && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className={cn(
+              "mt-6 p-4 rounded-xl max-w-lg",
+              "bg-white/[0.02] border border-white/[0.06]"
+            )}
+          >
+            <p className="text-xs text-muted-foreground mb-1">Generated from:</p>
+            <p className="text-sm text-foreground/70 line-clamp-2">{visualPrompt}</p>
+          </motion.div>
+        )}
+      </div>
+    </PageTransition>
   );
 }

@@ -2,7 +2,7 @@
  * Shared type definitions used across the AI calling layer.
  */
 
-export type AiProviderName = "openai" | "gemini" | "runware";
+export type AiProviderName = "openai" | "gemini" | "runware" | "elevenlabs";
 
 export type AiTask =
   | "text-generation"
@@ -14,7 +14,8 @@ export type AiTask =
   | "image-to-image"
   | "image-to-video"
   | "video-to-video"
-  | "inpainting";
+  | "inpainting"
+  | "sound-effects";
 
 export interface AiModelMetadata {
   label: string;
@@ -67,7 +68,8 @@ export interface AiModelConfig {
   name: string;
   provider: AiProviderName;
   default?: boolean;
-  pricing: AiModelPricing;
+  /** Pricing info. Optional for Runware models (use includeCost: true instead) */
+  pricing?: AiModelPricing;
   metadata: AiModelMetadata;
 }
 

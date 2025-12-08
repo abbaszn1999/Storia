@@ -214,7 +214,6 @@ const runwareImageModels: AiModelConfig[] = [
       defaultSteps: 28,
       defaultResolution: "1024x1024",
     },
-    pricing: { currency: "usd", pricePerImage: 0.0134 },
   },
   {
     name: "flux-2-pro",
@@ -225,7 +224,6 @@ const runwareImageModels: AiModelConfig[] = [
       supports: ["image-generation"],
       defaultResolution: "1024x1024",
     },
-    pricing: { currency: "usd", pricePerImage: 0.05 },
   },
   {
     name: "flux-2-flex",
@@ -237,7 +235,6 @@ const runwareImageModels: AiModelConfig[] = [
       defaultSteps: 50,
       defaultResolution: "1024x1024",
     },
-    pricing: { currency: "usd", pricePerImage: 0.0134 },
   },
   // ─────────────────────────────────────────────────────────────────────────────
   // Google Imagen (AIR: google:1@1, google:2@2)
@@ -251,7 +248,6 @@ const runwareImageModels: AiModelConfig[] = [
       supports: ["image-generation"],
       defaultResolution: "1024x1024",
     },
-    pricing: { currency: "usd", pricePerImage: 0.04 },
   },
   {
     name: "imagen-4-ultra",
@@ -262,7 +258,6 @@ const runwareImageModels: AiModelConfig[] = [
       supports: ["image-generation"],
       defaultResolution: "1024x1024",
     },
-    pricing: { currency: "usd", pricePerImage: 0.06 },
   },
   // ─────────────────────────────────────────────────────────────────────────────
   // Gemini Image / Nano Banana (AIR: google:4@1, google:4@2)
@@ -276,7 +271,6 @@ const runwareImageModels: AiModelConfig[] = [
       supports: ["image-generation", "image-to-image"],
       defaultResolution: "1024x1024",
     },
-    pricing: { currency: "usd", pricePerImage: 0.039 },
   },
   {
     name: "nano-banana-2-pro",
@@ -286,15 +280,6 @@ const runwareImageModels: AiModelConfig[] = [
       description: "Professional-grade with advanced text rendering, up to 4K. Supports 14 reference images. Includes SynthID watermark",
       supports: ["image-generation", "image-to-image"],
       defaultResolution: "1024x1024",
-    },
-    pricing: {
-      currency: "usd",
-      pricePerImage: 0.134, // Default fallback
-      pricePerImageByResolution: {
-        "1k": 0.134, // 1024x1024
-        "2k": 0.134, // 2048x2048
-        "4k": 0.24, // 4096x4096
-      },
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
@@ -309,7 +294,6 @@ const runwareImageModels: AiModelConfig[] = [
       supports: ["image-generation", "image-to-image"],
       defaultResolution: "1024x1024",
     },
-    pricing: { currency: "usd", pricePerImage: 0.025 },
   },
   // ─────────────────────────────────────────────────────────────────────────────
   // OpenAI GPT Image (AIR: openai:1@1)
@@ -323,7 +307,6 @@ const runwareImageModels: AiModelConfig[] = [
       supports: ["image-generation", "image-to-image", "inpainting"],
       defaultResolution: "1024x1024",
     },
-    pricing: { currency: "usd", pricePerImage: 0.04 },
   },
   // ─────────────────────────────────────────────────────────────────────────────
   // Seedream / ByteDance (AIR: bytedance:5@0, bytedance:seedream@4.5)
@@ -337,7 +320,6 @@ const runwareImageModels: AiModelConfig[] = [
       supports: ["image-generation", "image-to-image"],
       defaultResolution: "1024x1024",
     },
-    pricing: { currency: "usd", pricePerImage: 0.03 },
   },
   {
     name: "seedream-4.5",
@@ -348,7 +330,6 @@ const runwareImageModels: AiModelConfig[] = [
       supports: ["image-generation", "image-to-image"],
       defaultResolution: "2048x2048",
     },
-    pricing: { currency: "usd", pricePerImage: 0.03 },
   },
 ];
 
@@ -369,13 +350,6 @@ const runwareVideoModels: AiModelConfig[] = [
       defaultResolution: "720p",
       defaultDuration: 8,
     },
-    pricing: {
-      currency: "usd",
-      pricePerVideo: 0.8, // Default: 720p, 8s → $0.10/s
-      pricePerVideoByConfig: {
-        "720p": { 8: 0.8 },
-      },
-    },
   },
   {
     name: "sora-2-pro",
@@ -386,14 +360,6 @@ const runwareVideoModels: AiModelConfig[] = [
       supports: ["video-generation", "image-to-video"],
       defaultResolution: "720p",
       defaultDuration: 8,
-    },
-    pricing: {
-      currency: "usd",
-      pricePerVideo: 2.4, // Default: 720p, 8s → $0.30/s
-      pricePerVideoByConfig: {
-        "720p": { 8: 2.4 },
-        "1080p": { 8: 4.0 }, // $0.50/s
-      },
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
@@ -409,7 +375,6 @@ const runwareVideoModels: AiModelConfig[] = [
       defaultResolution: "720p",
       defaultDuration: 10,
     },
-    pricing: { currency: "usd", pricePerVideo: 0.5 },
   },
   {
     name: "runway-aleph",
@@ -421,7 +386,6 @@ const runwareVideoModels: AiModelConfig[] = [
       defaultResolution: "720p",
       defaultDuration: 8,
     },
-    pricing: { currency: "usd", pricePerVideo: 0.8 },
   },
   // ─────────────────────────────────────────────────────────────────────────────
   // Vidu (AIR: vidu:3@1)
@@ -436,13 +400,6 @@ const runwareVideoModels: AiModelConfig[] = [
       defaultResolution: "1080p",
       defaultDuration: 8,
     },
-    pricing: {
-      currency: "usd",
-      pricePerVideo: 0.55, // Default: 1080p, 8s → $0.069/s
-      pricePerVideoByConfig: {
-        "1080p": { 8: 0.55 },
-      },
-    },
   },
   // ─────────────────────────────────────────────────────────────────────────────
   // Riverflow (AIR: sourceful:2@3)
@@ -456,7 +413,6 @@ const runwareVideoModels: AiModelConfig[] = [
       supports: ["image-generation", "image-to-image"],
       defaultResolution: "1024x1024",
     },
-    pricing: { currency: "usd", pricePerImage: 0.06358 },
   },
   // ─────────────────────────────────────────────────────────────────────────────
   // PixVerse (AIR: pixverse:1@6)
@@ -470,13 +426,6 @@ const runwareVideoModels: AiModelConfig[] = [
       supports: ["video-generation", "image-to-video"],
       defaultResolution: "1080p",
       defaultDuration: 5,
-    },
-    pricing: {
-      currency: "usd",
-      pricePerVideo: 0.299, // Default: 1080p, 5s → $0.06/s
-      pricePerVideoByConfig: {
-        "1080p": { 5: 0.299 },
-      },
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
@@ -492,14 +441,6 @@ const runwareVideoModels: AiModelConfig[] = [
       defaultResolution: "768p",
       defaultDuration: 6,
     },
-    pricing: {
-      currency: "usd",
-      pricePerVideo: 0.28, // Default: 768p, 6s → $0.047/s
-      pricePerVideoByConfig: {
-        "768p": { 6: 0.28 },
-        "1080p": { 6: 0.49 }, // $0.082/s
-      },
-    },
   },
   // ─────────────────────────────────────────────────────────────────────────────
   // KlingAI (AIR: klingai:5@3, klingai:6@1)
@@ -514,14 +455,6 @@ const runwareVideoModels: AiModelConfig[] = [
       defaultResolution: "1080p",
       defaultDuration: 5,
     },
-    pricing: {
-      currency: "usd",
-      pricePerVideo: 0.35, // Default: 1080p, 5s → $0.07/s
-      pricePerVideoByConfig: {
-        "720p": { 5: 0.21 }, // Turbo Standard price
-        "1080p": { 5: 0.35 },
-      },
-    },
   },
   {
     name: "klingai-2.1-master",
@@ -532,13 +465,6 @@ const runwareVideoModels: AiModelConfig[] = [
       supports: ["video-generation", "image-to-video"],
       defaultResolution: "1080p",
       defaultDuration: 5,
-    },
-    pricing: {
-      currency: "usd",
-      pricePerVideo: 0.924, // Default: 1080p, 5s → $0.185/s
-      pricePerVideoByConfig: {
-        "1080p": { 5: 0.924 },
-      },
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
@@ -554,14 +480,6 @@ const runwareVideoModels: AiModelConfig[] = [
       defaultResolution: "720p",
       defaultDuration: 8,
     },
-    pricing: {
-      currency: "usd",
-      pricePerVideo: 1.6, // Default: 720p, 8s → $0.20/s
-      pricePerVideoByConfig: {
-        "720p": { 8: 1.6 },
-        "1080p": { 8: 0.8 }, // Fast version
-      },
-    },
   },
   {
     name: "veo-3.1",
@@ -573,13 +491,33 @@ const runwareVideoModels: AiModelConfig[] = [
       defaultResolution: "720p",
       defaultDuration: 8,
     },
-    pricing: {
-      currency: "usd",
-      pricePerVideo: 1.6, // Default: 720p, 8s → $0.20/s
-      pricePerVideoByConfig: {
-        "720p": { 8: 1.6 },
-        "1080p": { 8: 0.8 }, // Fast version
-      },
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ByteDance Seedance (AIR: bytedance:2@1)
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    name: "seedance-1.0-pro",
+    provider: "runware",
+    metadata: {
+      label: "Seedance 1.0 Pro",
+      description: "ByteDance flagship video with cinematic storytelling, multi-shot support, up to 1080p. First/last frame control. 24 FPS, 1.2-12s duration",
+      supports: ["video-generation", "image-to-video"],
+      defaultResolution: "1080p",
+      defaultDuration: 5,
+    },
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Lightricks LTX-2 Pro (AIR: lightricks:2@0)
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    name: "ltx-2-pro",
+    provider: "runware",
+    metadata: {
+      label: "LTX-2 Pro",
+      description: "Professional cinematic video with realistic motion, precise lighting control. Native audio. 1080p-4K, 25/50 FPS, 6-10s duration",
+      supports: ["video-generation", "image-to-video"],
+      defaultResolution: "1080p",
+      defaultDuration: 6,
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
@@ -594,12 +532,31 @@ const runwareVideoModels: AiModelConfig[] = [
       supports: ["image-generation"],
       defaultResolution: "1024x1024",
     },
-    pricing: { currency: "usd", pricePerImage: 0.04 },
   },
 ];
 
 // Combine all Runware models
 const runwareModels: AiModelConfig[] = [...runwareImageModels, ...runwareVideoModels];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ELEVENLABS MODELS
+// ═══════════════════════════════════════════════════════════════════════════════
+const elevenlabsModels: AiModelConfig[] = [
+  {
+    name: "sound-effects",
+    provider: "elevenlabs",
+    default: true,
+    metadata: {
+      label: "Sound Effects",
+      description: "Generate sound effects from text descriptions using ElevenLabs AI",
+      supports: ["sound-effects"],
+    },
+    pricing: {
+      currency: "usd",
+      flatCostPerCall: 0.05, // Pro tier: $0.05 per generation
+    },
+  },
+];
 
 /**
  * Maps friendly model names to their Runware API model identifiers.
@@ -629,13 +586,16 @@ export const runwareModelIdMap: Record<string, string> = {
   // OpenAI GPT Image
   "gpt-image-1": "openai:1@1",
 
-  // Seedream (ByteDance)
+  // Seedream (ByteDance) - Image
   "seedream-4.0": "bytedance:5@0",
   "seedream-4.5": "bytedance:seedream@4.5",
 
   // ═══════════════════════════════════════════════════════════════════════════
   // VIDEO MODELS
   // ═══════════════════════════════════════════════════════════════════════════
+  // ByteDance Seedance - Video
+  "seedance-1.0-pro": "bytedance:2@1",
+
   // OpenAI Sora 2
   "sora-2": "openai:3@1",
   "sora-2-pro": "openai:3@2",
@@ -656,6 +616,8 @@ export const runwareModelIdMap: Record<string, string> = {
   // Google Veo
   "veo-3.0": "google:3@0",
   "veo-3.1": "google:3@2",
+  // LTX (Lightricks)
+  "ltx-2-pro": "lightricks:2@0",
   // Ideogram (Image)
   "ideogram-3.0": "ideogram:4@1",
 };
@@ -707,6 +669,14 @@ export const aiProviders: Record<AiProviderName, AiProviderConfig> = {
       process.env.RUNWARE_BASE_URL ?? "https://api.runware.ai/v1",
     enabled: Boolean(process.env.RUNWARE_API_KEY),
     models: buildModelRecord(runwareModels),
+  },
+  elevenlabs: {
+    name: "elevenlabs",
+    apiKey: process.env.ELEVENLABS_API_KEY,
+    baseUrl:
+      process.env.ELEVENLABS_BASE_URL ?? "https://api.elevenlabs.io/v1",
+    enabled: Boolean(process.env.ELEVENLABS_API_KEY),
+    models: buildModelRecord(elevenlabsModels),
   },
 };
 

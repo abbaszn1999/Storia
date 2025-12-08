@@ -1,20 +1,33 @@
 import express, { type Request, Response, NextFunction } from "express";
+import path from "path";
+import { fileURLToPath } from "url";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+
+// Serve merged video files from /temp folder
+app.use("/temp", express.static(path.join(__dirname, "../temp"), {
+  maxAge: "1h", // Cache for 1 hour
+  setHeaders: (res) => {
+    res.setHeader("Content-Type", "video/mp4");
+  },
+}));
 
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
   }
 }
+// Increase body size limit for large audio data (base64)
 app.use(express.json({
+  limit: '50mb',
   verify: (req, _res, buf) => {
     req.rawBody = buf;
   }
 }));
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
 app.use((req, res, next) => {
   const start = Date.now();

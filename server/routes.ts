@@ -1,12 +1,13 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import narrativeRoutes from "./modes/narrative/routes";
 import storiesRouter from "./stories";
-import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertProductionCampaignSchema, insertCampaignVideoSchema, insertCharacterSchema, insertLocationSchema } from "@shared/schema";
+import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertProductionCampaignSchema, insertCampaignVideoSchema, insertCharacterSchema, insertLocationSchema, insertProjectSchema } from "@shared/schema";
 import { z } from "zod";
 import multer from "multer";
 import { bunnyStorage } from "./storage/bunny-storage";
+import { isAuthenticated, getCurrentUserId } from "./auth";
 
 // Configure multer for memory storage (files stored in buffer)
 const upload = multer({
@@ -15,14 +16,6 @@ const upload = multer({
     fileSize: 500 * 1024 * 1024, // 500MB max file size
   },
 });
-
-// TODO: Replace with actual session-based authentication
-// This function should derive userId from req.session or req.user, not from query parameters
-function getCurrentUserId(req: any): string {
-  // TEMPORARY: Using hardcoded userId until auth is implemented
-  // When auth is added, this should be: return req.session?.userId || req.user?.id
-  return "default-user";
-}
 
 // Helper function to verify workspace ownership
 async function verifyWorkspaceOwnership(workspaceId: string, userId: string): Promise<boolean> {
@@ -899,7 +892,7 @@ Estimated Duration: ~${duration}s`;
   });
 
   // Upload a file to Bunny Storage
-  app.post('/api/storage/upload', upload.single('file'), async (req, res) => {
+  app.post('/api/storage/upload', upload.single('file'), async (req: any, res) => {
     try {
       if (!bunnyStorage.isBunnyConfigured()) {
         return res.status(503).json({ error: 'Bunny Storage is not configured' });

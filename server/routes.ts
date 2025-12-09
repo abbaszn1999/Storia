@@ -6,7 +6,12 @@ import storiesRouter from "./stories";
 import problemSolutionRouter from "./stories/problem-solution/routes";
 import { storageRoutes } from "./storage/index";
 import { authRoutes, isAuthenticated, getCurrentUserId } from "./auth";
-import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertCharacterSchema, insertLocationSchema, insertProjectSchema } from "@shared/schema";
+import characterRoutes from "./assets/characters/routes";
+import locationRoutes from "./assets/locations/routes";
+import voiceRoutes from "./assets/voices/routes";
+import brandkitRoutes from "./assets/brandkits/routes";
+import uploadRoutes from "./assets/uploads/routes";
+import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertCharacterSchema, insertLocationSchema, insertVoiceSchema, insertUploadSchema, insertProjectSchema } from "@shared/schema";
 import { z } from "zod";
 import { bunnyStorage } from "./storage/bunny-storage";
 
@@ -26,6 +31,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/stories', storiesRouter);
   app.use('/api/problem-solution', problemSolutionRouter);
   app.use('/api/storage', storageRoutes);
+  app.use('/api/characters', characterRoutes);
+  app.use('/api/locations', locationRoutes);
+  app.use('/api/voices', voiceRoutes);
+  app.use('/api/brandkits', brandkitRoutes);
+  app.use('/api/uploads', uploadRoutes);
 
   // Onboarding route
   app.post('/api/onboarding/complete', isAuthenticated, async (req: any, res) => {
@@ -508,87 +518,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Character routes
-  app.get('/api/characters', isAuthenticated, async (req: any, res) => {
-    try {
-      const workspaceId = req.query.workspaceId as string;
-      if (!workspaceId) {
-        return res.status(400).json({ error: 'workspaceId is required' });
-      }
-      const characters = await storage.getCharactersByWorkspaceId(workspaceId);
-      res.json(characters);
-    } catch (error) {
-      console.error('Error fetching characters:', error);
-      res.status(500).json({ error: 'Failed to fetch characters' });
-    }
-  });
-
-  app.post('/api/characters', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = getCurrentUserId(req);
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-      const validated = insertCharacterSchema.parse(req.body);
-      
-      // Verify workspace belongs to user
-      const workspaces = await storage.getWorkspacesByUserId(userId);
-      const workspace = workspaces.find(w => w.id === validated.workspaceId);
-      if (!workspace) {
-        return res.status(403).json({ error: 'Access denied to this workspace' });
-      }
-
-      const character = await storage.createCharacter(validated);
-      res.json(character);
-    } catch (error) {
-      console.error('Error creating character:', error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Validation error', details: error.errors });
-      }
-      res.status(500).json({ error: 'Failed to create character' });
-    }
-  });
-
-  // Location routes
-  app.get('/api/locations', isAuthenticated, async (req: any, res) => {
-    try {
-      const workspaceId = req.query.workspaceId as string;
-      if (!workspaceId) {
-        return res.status(400).json({ error: 'workspaceId is required' });
-      }
-      const locations = await storage.getLocationsByWorkspaceId(workspaceId);
-      res.json(locations);
-    } catch (error) {
-      console.error('Error fetching locations:', error);
-      res.status(500).json({ error: 'Failed to fetch locations' });
-    }
-  });
-
-  app.post('/api/locations', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = getCurrentUserId(req);
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-      const validated = insertLocationSchema.parse(req.body);
-      
-      // Verify workspace belongs to user
-      const workspaces = await storage.getWorkspacesByUserId(userId);
-      const workspace = workspaces.find(w => w.id === validated.workspaceId);
-      if (!workspace) {
-        return res.status(403).json({ error: 'Access denied to this workspace' });
-      }
-
-      const location = await storage.createLocation(validated);
-      res.json(location);
-    } catch (error) {
-      console.error('Error creating location:', error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Validation error', details: error.errors });
-      }
-      res.status(500).json({ error: 'Failed to create location' });
-    }
-  });
 
   // Commerce API routes (Social Commerce mode)
   app.post('/api/commerce/script/generate', isAuthenticated, async (req: any, res) => {

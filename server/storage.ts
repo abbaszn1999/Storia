@@ -3,6 +3,11 @@ import {
   workspaces,
   projects,
   stories,
+  characters,
+  locations,
+  voices,
+  brandkits,
+  uploads,
   type User,
   type UpsertUser,
   type Workspace,
@@ -90,19 +95,34 @@ export interface IStorage {
   createStory(story: InsertStory): Promise<Story>;
   
   getCharactersByWorkspaceId(workspaceId: string): Promise<Character[]>;
+  getCharacter(id: string): Promise<Character | undefined>;
   createCharacter(character: InsertCharacter): Promise<Character>;
+  updateCharacter(id: string, updates: Partial<Character>): Promise<Character>;
+  deleteCharacter(id: string): Promise<void>;
   
   getLocationsByWorkspaceId(workspaceId: string): Promise<Location[]>;
+  getLocation(id: string): Promise<Location | undefined>;
   createLocation(location: InsertLocation): Promise<Location>;
+  updateLocation(id: string, updates: Partial<Location>): Promise<Location>;
+  deleteLocation(id: string): Promise<void>;
   
   getVoicesByWorkspaceId(workspaceId: string): Promise<Voice[]>;
+  getVoice(id: string): Promise<Voice | undefined>;
   createVoice(voice: InsertVoice): Promise<Voice>;
+  updateVoice(id: string, updates: Partial<Voice>): Promise<Voice>;
+  deleteVoice(id: string): Promise<void>;
   
   getBrandkitsByWorkspaceId(workspaceId: string): Promise<Brandkit[]>;
+  getBrandkit(id: string): Promise<Brandkit | undefined>;
   createBrandkit(brandkit: InsertBrandkit): Promise<Brandkit>;
+  updateBrandkit(id: string, updates: Partial<Brandkit>): Promise<Brandkit>;
+  deleteBrandkit(id: string): Promise<void>;
   
   getUploadsByWorkspaceId(workspaceId: string): Promise<Upload[]>;
+  getUpload(id: string): Promise<Upload | undefined>;
   createUpload(upload: InsertUpload): Promise<Upload>;
+  updateUpload(id: string, updates: Partial<Upload>): Promise<Upload>;
+  deleteUpload(id: string): Promise<void>;
   
   getContentCalendarByWorkspaceId(workspaceId: string): Promise<ContentCalendarItem[]>;
   createContentCalendarItem(item: InsertContentCalendar): Promise<ContentCalendarItem>;
@@ -155,7 +175,6 @@ export class MemStorage implements IStorage {
   private characters: Map<string, Character>;
   private locations: Map<string, Location>;
   private voices: Map<string, Voice>;
-  private brandkits: Map<string, Brandkit>;
   private uploads: Map<string, Upload>;
   private contentCalendar: Map<string, ContentCalendarItem>;
   private scenes: Map<string, Scene>;
@@ -174,7 +193,6 @@ export class MemStorage implements IStorage {
     this.characters = new Map();
     this.locations = new Map();
     this.voices = new Map();
-    this.brandkits = new Map();
     this.uploads = new Map();
     this.contentCalendar = new Map();
     this.scenes = new Map();
@@ -388,93 +406,180 @@ export class MemStorage implements IStorage {
   }
 
   async getCharactersByWorkspaceId(workspaceId: string): Promise<Character[]> {
-    return Array.from(this.characters.values()).filter((c) => c.workspaceId === workspaceId);
+    return db.select().from(characters).where(eq(characters.workspaceId, workspaceId));
   }
 
-  async createCharacter(insertCharacter: InsertCharacter): Promise<Character> {
-    const id = randomUUID();
-    const character: Character = {
-      ...insertCharacter,
-      id,
-      description: insertCharacter.description ?? null,
-      personality: insertCharacter.personality ?? null,
-      appearance: insertCharacter.appearance ?? null,
-      voiceSettings: insertCharacter.voiceSettings ?? null,
-      thumbnailUrl: insertCharacter.thumbnailUrl ?? null,
-      createdAt: new Date(),
-    };
-    this.characters.set(id, character);
+  async getCharacter(id: string): Promise<Character | undefined> {
+    const [character] = await db.select().from(characters).where(eq(characters.id, id));
     return character;
   }
 
-  async getLocationsByWorkspaceId(workspaceId: string): Promise<Location[]> {
-    return Array.from(this.locations.values()).filter((l) => l.workspaceId === workspaceId);
+  async createCharacter(insertCharacter: InsertCharacter): Promise<Character> {
+    const [character] = await db
+      .insert(characters)
+      .values(insertCharacter)
+      .returning();
+    return character;
   }
 
-  async createLocation(insertLocation: InsertLocation): Promise<Location> {
-    const id = randomUUID();
-    const location: Location = {
-      ...insertLocation,
-      id,
-      description: insertLocation.description ?? null,
-      details: insertLocation.details ?? null,
-      thumbnailUrl: insertLocation.thumbnailUrl ?? null,
-      referenceImages: insertLocation.referenceImages ?? null,
-      createdAt: new Date(),
-    };
-    this.locations.set(id, location);
+  async updateCharacter(id: string, updates: Partial<Character>): Promise<Character> {
+    const [character] = await db
+      .update(characters)
+      .set(updates)
+      .where(eq(characters.id, id))
+      .returning();
+    if (!character) {
+      throw new Error(`Character with id ${id} not found`);
+    }
+    return character;
+  }
+
+  async deleteCharacter(id: string): Promise<void> {
+    await db.delete(characters).where(eq(characters.id, id));
+  }
+
+  async getLocationsByWorkspaceId(workspaceId: string): Promise<Location[]> {
+    return db
+      .select()
+      .from(locations)
+      .where(eq(locations.workspaceId, workspaceId));
+  }
+
+  async getLocation(id: string): Promise<Location | undefined> {
+    const [location] = await db
+      .select()
+      .from(locations)
+      .where(eq(locations.id, id));
     return location;
   }
 
-  async getVoicesByWorkspaceId(workspaceId: string): Promise<Voice[]> {
-    return Array.from(this.voices.values()).filter((v) => v.workspaceId === workspaceId);
+  async createLocation(insertLocation: InsertLocation): Promise<Location> {
+    const [location] = await db
+      .insert(locations)
+      .values(insertLocation)
+      .returning();
+    return location;
   }
 
-  async createVoice(insertVoice: InsertVoice): Promise<Voice> {
-    const id = randomUUID();
-    const voice: Voice = {
-      ...insertVoice,
-      id,
-      settings: insertVoice.settings ?? null,
-      sampleUrl: insertVoice.sampleUrl ?? null,
-      createdAt: new Date(),
-    };
-    this.voices.set(id, voice);
+  async updateLocation(id: string, updates: Partial<Location>): Promise<Location> {
+    const [location] = await db
+      .update(locations)
+      .set(updates)
+      .where(eq(locations.id, id))
+      .returning();
+    return location;
+  }
+
+  async deleteLocation(id: string): Promise<void> {
+    await db.delete(locations).where(eq(locations.id, id));
+  }
+
+  async getVoicesByWorkspaceId(workspaceId: string): Promise<Voice[]> {
+    return db
+      .select()
+      .from(voices)
+      .where(eq(voices.workspaceId, workspaceId));
+  }
+
+  async getVoice(id: string): Promise<Voice | undefined> {
+    const [voice] = await db
+      .select()
+      .from(voices)
+      .where(eq(voices.id, id));
     return voice;
   }
 
-  async getBrandkitsByWorkspaceId(workspaceId: string): Promise<Brandkit[]> {
-    return Array.from(this.brandkits.values()).filter((b) => b.workspaceId === workspaceId);
+  async createVoice(insertVoice: InsertVoice): Promise<Voice> {
+    const [voice] = await db
+      .insert(voices)
+      .values(insertVoice)
+      .returning();
+    return voice;
   }
 
-  async createBrandkit(insertBrandkit: InsertBrandkit): Promise<Brandkit> {
-    const id = randomUUID();
-    const brandkit: Brandkit = {
-      ...insertBrandkit,
-      id,
-      colors: insertBrandkit.colors ?? null,
-      fonts: insertBrandkit.fonts ?? null,
-      logos: insertBrandkit.logos ?? null,
-      guidelines: insertBrandkit.guidelines ?? null,
-      createdAt: new Date(),
-    };
-    this.brandkits.set(id, brandkit);
+  async updateVoice(id: string, updates: Partial<Voice>): Promise<Voice> {
+    const [voice] = await db
+      .update(voices)
+      .set(updates)
+      .where(eq(voices.id, id))
+      .returning();
+    return voice;
+  }
+
+  async deleteVoice(id: string): Promise<void> {
+    await db.delete(voices).where(eq(voices.id, id));
+  }
+
+  async getBrandkitsByWorkspaceId(workspaceId: string): Promise<Brandkit[]> {
+    return db
+      .select()
+      .from(brandkits)
+      .where(eq(brandkits.workspaceId, workspaceId));
+  }
+
+  async getBrandkit(id: string): Promise<Brandkit | undefined> {
+    const [brandkit] = await db
+      .select()
+      .from(brandkits)
+      .where(eq(brandkits.id, id));
     return brandkit;
   }
 
+  async createBrandkit(insertBrandkit: InsertBrandkit): Promise<Brandkit> {
+    const [brandkit] = await db
+      .insert(brandkits)
+      .values(insertBrandkit)
+      .returning();
+    return brandkit;
+  }
+
+  async updateBrandkit(id: string, updates: Partial<Brandkit>): Promise<Brandkit> {
+    const [brandkit] = await db
+      .update(brandkits)
+      .set(updates)
+      .where(eq(brandkits.id, id))
+      .returning();
+    return brandkit;
+  }
+
+  async deleteBrandkit(id: string): Promise<void> {
+    await db.delete(brandkits).where(eq(brandkits.id, id));
+  }
+
   async getUploadsByWorkspaceId(workspaceId: string): Promise<Upload[]> {
-    return Array.from(this.uploads.values()).filter((u) => u.workspaceId === workspaceId);
+    return db
+      .select()
+      .from(uploads)
+      .where(eq(uploads.workspaceId, workspaceId));
+  }
+
+  async getUpload(id: string): Promise<Upload | undefined> {
+    const [upload] = await db
+      .select()
+      .from(uploads)
+      .where(eq(uploads.id, id));
+    return upload;
   }
 
   async createUpload(insertUpload: InsertUpload): Promise<Upload> {
-    const id = randomUUID();
-    const upload: Upload = {
-      ...insertUpload,
-      id,
-      createdAt: new Date(),
-    };
-    this.uploads.set(id, upload);
+    const [upload] = await db
+      .insert(uploads)
+      .values(insertUpload)
+      .returning();
     return upload;
+  }
+
+  async updateUpload(id: string, updates: Partial<Upload>): Promise<Upload> {
+    const [upload] = await db
+      .update(uploads)
+      .set(updates)
+      .where(eq(uploads.id, id))
+      .returning();
+    return upload;
+  }
+
+  async deleteUpload(id: string): Promise<void> {
+    await db.delete(uploads).where(eq(uploads.id, id));
   }
 
   async getContentCalendarByWorkspaceId(workspaceId: string): Promise<ContentCalendarItem[]> {
@@ -862,7 +967,7 @@ export class MemStorage implements IStorage {
       // Delete brandkits
       const brandkits = await this.getBrandkitsByWorkspaceId(workspace.id);
       for (const kit of brandkits) {
-        this.brandkits.delete(kit.id);
+        await this.deleteBrandkit(kit.id);
       }
       
       // Delete uploads

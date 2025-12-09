@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Search, User, Upload, X, Loader2, Sparkles, Pencil } from "lucide-react";
+import { Plus, Search, User, Upload, X, Loader2, Sparkles, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,80 +7,184 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useWorkspace } from "@/contexts/workspace-context";
+import {
+  listCharacters,
+  createCharacter,
+  updateCharacter,
+  deleteCharacter,
+  uploadMainImage,
+  type CharacterResponse,
+} from "@/assets/characters";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-const MAX_CHARACTER_REFERENCES = 4;
-
-interface Character {
-  id: string;
-  name: string;
-  description: string;
-  personality?: string;
-  appearance: string;
-  thumbnailUrl?: string;
-  referenceImages: string[];
-}
+const MAX_CHARACTER_REFERENCES = 2;
 
 export default function Characters() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
-  const [newCharacter, setNewCharacter] = useState({ name: "", description: "", personality: "", appearance: "" });
-  const [characterReferenceImages, setCharacterReferenceImages] = useState<string[]>([]);
-  const [generatedCharacterImage, setGeneratedCharacterImage] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [editingCharacter, setEditingCharacter] = useState<CharacterResponse | null>(null);
+  const [newCharacter, setNewCharacter] = useState({
+    name: "",
+    description: "",
+    personality: "",
+    appearance: "",
+  });
+  const [mainImageFile, setMainImageFile] = useState<File | null>(null);
+  const [mainImagePreview, setMainImagePreview] = useState<string | null>(null);
+  const [referenceImageFiles, setReferenceImageFiles] = useState<File[]>([]);
+  const [referenceImagePreviews, setReferenceImagePreviews] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
+  const { currentWorkspace } = useWorkspace();
+  const queryClient = useQueryClient();
 
-  const [characters, setCharacters] = useState<Character[]>([
-    { 
-      id: "1", 
-      name: "Alex Morgan", 
-      description: "A young entrepreneur with a passion for technology", 
-      appearance: "Young adult, casual business attire, confident demeanor",
-      thumbnailUrl: "https://i.pravatar.cc/300?u=alex",
-      referenceImages: []
+  // Fetch characters
+  const { data: characters = [], isLoading } = useQuery<CharacterResponse[]>({
+    queryKey: ["/api/characters", currentWorkspace?.id],
+    queryFn: () => {
+      if (!currentWorkspace?.id) throw new Error("No workspace selected");
+      return listCharacters(currentWorkspace.id);
     },
-    { 
-      id: "2", 
-      name: "Sarah Chen", 
-      description: "Creative director and visual storyteller", 
-      appearance: "Mid-30s, stylish creative wear, artistic personality",
-      thumbnailUrl: "https://i.pravatar.cc/300?u=sarah",
-      referenceImages: []
-    },
-    { 
-      id: "3", 
-      name: "Marcus Williams", 
-      description: "Professional narrator with warm tone", 
-      appearance: "Distinguished gentleman, professional suit, friendly face",
-      thumbnailUrl: "https://i.pravatar.cc/300?u=marcus",
-      referenceImages: []
-    },
-  ]);
+    enabled: !!currentWorkspace?.id,
+  });
 
-  const filteredCharacters = characters.filter(char =>
-    char.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    char.description.toLowerCase().includes(searchQuery.toLowerCase())
+  // Create character mutation
+  const createMutation = useMutation({
+    mutationFn: createCharacter,
+    onSuccess: async (newChar) => {
+      // Upload main image if provided
+      if (mainImageFile && newChar.id) {
+        try {
+          setIsUploading(true);
+          const result = await uploadMainImage(newChar.id, mainImageFile);
+          await updateCharacter(newChar.id, { imageUrl: result.imageUrl });
+        } catch (error) {
+          console.error("Failed to upload main image:", error);
+          toast({
+            title: "Image upload failed",
+            description: error instanceof Error ? error.message : "Failed to upload image",
+            variant: "destructive",
+          });
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["/api/characters"] });
+      toast({
+        title: "Character Created",
+        description: `${newChar.name} has been added to your library.`,
+      });
+      handleCloseDialog();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create character",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update character mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof updateCharacter>[1] }) =>
+      updateCharacter(id, data),
+    onSuccess: async (updatedChar) => {
+      // Upload main image if changed
+      if (mainImageFile && updatedChar.id) {
+        try {
+          setIsUploading(true);
+          const result = await uploadMainImage(updatedChar.id, mainImageFile);
+          await updateCharacter(updatedChar.id, { imageUrl: result.imageUrl });
+        } catch (error) {
+          console.error("Failed to upload main image:", error);
+          toast({
+            title: "Image upload failed",
+            description: error instanceof Error ? error.message : "Failed to upload image",
+            variant: "destructive",
+          });
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["/api/characters"] });
+      toast({
+        title: "Character Updated",
+        description: `${updatedChar.name} has been updated.`,
+      });
+      handleCloseDialog();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update character",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete character mutation
+  const deleteMutation = useMutation({
+    mutationFn: deleteCharacter,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/characters"] });
+      toast({
+        title: "Character Deleted",
+        description: "Character has been deleted.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete character",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const filteredCharacters = characters.filter(
+    (char) =>
+      char.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      char.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleCreateNew = () => {
     setEditingCharacter(null);
     setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
-    setCharacterReferenceImages([]);
-    setGeneratedCharacterImage(null);
+    setMainImageFile(null);
+    setMainImagePreview(null);
+    setReferenceImageFiles([]);
+    setReferenceImagePreviews([]);
     setIsDialogOpen(true);
   };
 
-  const handleEditCharacter = (character: Character) => {
+  const handleEditCharacter = (character: CharacterResponse) => {
     setEditingCharacter(character);
     setNewCharacter({
       name: character.name,
-      description: character.description,
+      description: character.description || "",
       personality: character.personality || "",
-      appearance: character.appearance,
+      appearance: character.appearance || "",
     });
-    setCharacterReferenceImages(character.referenceImages || []);
-    setGeneratedCharacterImage(character.thumbnailUrl || null);
+    setMainImagePreview(character.imageUrl || null);
+    setMainImageFile(null);
+    setReferenceImagePreviews(character.referenceImages || []);
+    setReferenceImageFiles([]);
     setIsDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false);
+    setEditingCharacter(null);
+    setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
+    setMainImageFile(null);
+    setMainImagePreview(null);
+    setReferenceImageFiles([]);
+    setReferenceImagePreviews([]);
   };
 
   const handleSaveCharacter = () => {
@@ -93,69 +197,70 @@ export default function Characters() {
       return;
     }
 
-    if (editingCharacter) {
-      // Update existing character
-      setCharacters(characters.map(char =>
-        char.id === editingCharacter.id
-          ? {
-              ...char,
-              name: newCharacter.name,
-              description: newCharacter.description,
-              personality: newCharacter.personality,
-              appearance: newCharacter.appearance,
-              thumbnailUrl: generatedCharacterImage || char.thumbnailUrl,
-              referenceImages: characterReferenceImages,
-            }
-          : char
-      ));
+    if (!currentWorkspace?.id) {
       toast({
-        title: "Character Updated",
-        description: `${newCharacter.name} has been updated.`,
+        title: "Workspace required",
+        description: "Please select a workspace.",
+        variant: "destructive",
       });
-    } else {
-      // Create new character
-      const characterId = `char-${Date.now()}`;
-      const character: Character = {
-        id: characterId,
-        name: newCharacter.name,
-        description: newCharacter.description,
-        personality: newCharacter.personality,
-        appearance: newCharacter.appearance,
-        thumbnailUrl: generatedCharacterImage || undefined,
-        referenceImages: characterReferenceImages,
-      };
-      setCharacters([...characters, character]);
-      toast({
-        title: "Character Created",
-        description: `${newCharacter.name} has been added to your library.`,
-      });
+      return;
     }
 
-    setIsDialogOpen(false);
-    setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
-    setCharacterReferenceImages([]);
-    setGeneratedCharacterImage(null);
+    if (editingCharacter) {
+      updateMutation.mutate({
+        id: editingCharacter.id,
+        data: {
+          name: newCharacter.name,
+          description: newCharacter.description,
+          personality: newCharacter.personality,
+          appearance: newCharacter.appearance,
+        },
+      });
+    } else {
+      createMutation.mutate({
+        workspaceId: currentWorkspace.id,
+        name: newCharacter.name,
+        description: newCharacter.description || undefined,
+        personality: newCharacter.personality || undefined,
+        appearance: newCharacter.appearance || undefined,
+      });
+    }
   };
 
   const handleGenerateCharacter = () => {
-    setIsGenerating(true);
-    setTimeout(() => {
-      setGeneratedCharacterImage(`https://i.pravatar.cc/400?u=${Date.now()}`);
-      setIsGenerating(false);
-      toast({
-        title: "Character Generated",
-        description: "AI has generated a character image based on your description.",
-      });
-    }, 2000);
+    toast({
+      title: "Coming Soon",
+      description: "AI image generation will be available soon.",
+    });
   };
 
-  const handleUploadCharacterReference = (file: File) => {
-    const url = URL.createObjectURL(file);
-    setCharacterReferenceImages([...characterReferenceImages, url]);
+  const handleMainImageUpload = (file: File) => {
+    setMainImageFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setMainImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
-  const handleRemoveCharacterReference = (index: number) => {
-    setCharacterReferenceImages(characterReferenceImages.filter((_, i) => i !== index));
+  const handleReferenceImageUpload = (_file: File) => {
+    // Reference image upload is disabled - UI only for now
+    toast({
+      title: "Coming Soon",
+      description: "Reference image upload will be available in a future update.",
+    });
+  };
+
+  const handleRemoveReferenceImage = (index: number) => {
+    setReferenceImagePreviews(referenceImagePreviews.filter((_, i) => i !== index));
+    setReferenceImageFiles(referenceImageFiles.filter((_, i) => i !== index));
+  };
+
+  const handleDeleteCharacter = (character: CharacterResponse, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm(`Are you sure you want to delete ${character.name}?`)) {
+      deleteMutation.mutate(character.id);
+    }
   };
 
   return (
@@ -163,11 +268,14 @@ export default function Characters() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Characters</h1>
-          <p className="text-muted-foreground mt-1">
-            Create and manage AI characters for your videos
-          </p>
+          <p className="text-muted-foreground mt-1">Create and manage AI characters for your videos</p>
         </div>
-        <Button size="lg" className="gap-2" onClick={handleCreateNew} data-testid="button-create-character">
+        <Button
+          size="lg"
+          className="gap-2"
+          onClick={handleCreateNew}
+          data-testid="button-create-character"
+        >
           <Plus className="h-4 w-4" />
           New Character
         </Button>
@@ -184,59 +292,87 @@ export default function Characters() {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {filteredCharacters.map((character) => (
-          <Card 
-            key={character.id} 
-            className="relative aspect-[3/4] overflow-hidden group cursor-pointer hover-elevate" 
-            onClick={() => handleEditCharacter(character)}
-            data-testid={`character-card-${character.id}`}
-          >
-            <CardContent className="p-0 h-full">
-              <div className="h-full bg-muted flex items-center justify-center relative">
-                {character.thumbnailUrl ? (
-                  <img src={character.thumbnailUrl} alt={character.name} className="h-full w-full object-cover" />
-                ) : (
-                  <User className="h-16 w-16 text-muted-foreground" />
-                )}
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleEditCharacter(character);
-                  }}
-                  data-testid={`button-edit-character-${character.id}`}
-                >
-                  <Pencil className="h-3 w-3 mr-1" />
-                  Edit
-                </Button>
-              </div>
-              
-              <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
-                <p className="text-sm font-semibold text-white">{character.name}</p>
-                {character.description && (
-                  <p className="text-xs text-white/70 line-clamp-1">{character.description}</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {filteredCharacters.length === 0 && (
+      {isLoading ? (
         <div className="text-center py-12">
-          <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">No characters found</h3>
-          <p className="text-muted-foreground">
-            Try adjusting your search or create a new character
-          </p>
+          <Loader2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-spin" />
+          <p className="text-muted-foreground">Loading characters...</p>
         </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredCharacters.map((character) => (
+              <Card
+                key={character.id}
+                className="relative aspect-[3/4] overflow-hidden group cursor-pointer hover-elevate"
+                onClick={() => handleEditCharacter(character)}
+                data-testid={`character-card-${character.id}`}
+              >
+                <CardContent className="p-0 h-full relative">
+                  <div className="h-full bg-muted flex items-center justify-center">
+                    {character.imageUrl ? (
+                      <img
+                        src={character.imageUrl}
+                        alt={character.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <User className="h-16 w-16 text-muted-foreground" />
+                    )}
+                  </div>
+
+                  <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditCharacter(character);
+                      }}
+                      data-testid={`button-edit-character-${character.id}`}
+                    >
+                      <Pencil className="h-3 w-3 mr-1" />
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={(e) => handleDeleteCharacter(character, e)}
+                      disabled={deleteMutation.isPending}
+                      data-testid={`button-delete-character-${character.id}`}
+                    >
+                      {deleteMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </div>
+
+                  <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent pointer-events-none">
+                    <p className="text-sm font-semibold text-white">{character.name}</p>
+                    {character.description && (
+                      <p className="text-xs text-white/70 line-clamp-1">{character.description}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {filteredCharacters.length === 0 && (
+            <div className="text-center py-12">
+              <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No characters found</h3>
+              <p className="text-muted-foreground">
+                Try adjusting your search or create a new character
+              </p>
+            </div>
+          )}
+        </>
       )}
 
       {/* Character Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingCharacter ? "Edit Character" : "Create New Character"}</DialogTitle>
@@ -263,7 +399,9 @@ export default function Characters() {
                     id="char-description"
                     placeholder="Brief description of the character's role..."
                     value={newCharacter.description}
-                    onChange={(e) => setNewCharacter({ ...newCharacter, description: e.target.value })}
+                    onChange={(e) =>
+                      setNewCharacter({ ...newCharacter, description: e.target.value })
+                    }
                     rows={2}
                     data-testid="input-character-description"
                   />
@@ -274,7 +412,9 @@ export default function Characters() {
                     id="char-personality"
                     placeholder="Character traits, behavior, mannerisms..."
                     value={newCharacter.personality}
-                    onChange={(e) => setNewCharacter({ ...newCharacter, personality: e.target.value })}
+                    onChange={(e) =>
+                      setNewCharacter({ ...newCharacter, personality: e.target.value })
+                    }
                     rows={2}
                     data-testid="input-character-personality"
                   />
@@ -285,37 +425,43 @@ export default function Characters() {
                     id="char-appearance"
                     placeholder="Physical appearance, clothing, distinctive features..."
                     value={newCharacter.appearance}
-                    onChange={(e) => setNewCharacter({ ...newCharacter, appearance: e.target.value })}
+                    onChange={(e) =>
+                      setNewCharacter({ ...newCharacter, appearance: e.target.value })
+                    }
                     rows={2}
                     data-testid="input-character-appearance"
                   />
                 </div>
-                <Button 
-                  onClick={handleGenerateCharacter} 
-                  className="w-full"
-                  disabled={isGenerating || !newCharacter.appearance.trim()}
-                  data-testid="button-generate-character"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Generate Character Image
-                    </>
-                  )}
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <Button
+                          onClick={handleGenerateCharacter}
+                          className="w-full"
+                          disabled={true}
+                          data-testid="button-generate-character"
+                        >
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Generate Character Image
+                        </Button>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Coming soon</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Reference Images ({characterReferenceImages.length}/{MAX_CHARACTER_REFERENCES})</Label>
-                  {characterReferenceImages.length > 0 ? (
+                  <Label>
+                    Reference Images ({referenceImagePreviews.length}/{MAX_CHARACTER_REFERENCES})
+                  </Label>
+                  {referenceImagePreviews.length > 0 ? (
                     <div className="grid grid-cols-2 gap-2">
-                      {characterReferenceImages.map((url, index) => (
+                      {referenceImagePreviews.map((url, index) => (
                         <div key={index} className="relative aspect-square rounded-lg border bg-muted">
                           <div className="absolute inset-0 rounded-lg overflow-hidden">
                             <img src={url} alt={`Reference ${index + 1}`} className="h-full w-full object-cover" />
@@ -327,7 +473,7 @@ export default function Characters() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              handleRemoveCharacterReference(index);
+                              handleRemoveReferenceImage(index);
                             }}
                             data-testid={`button-remove-ref-${index}`}
                           >
@@ -337,9 +483,11 @@ export default function Characters() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">No reference images uploaded yet</p>
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No reference images uploaded yet
+                    </p>
                   )}
-                  {characterReferenceImages.length < MAX_CHARACTER_REFERENCES && (
+                  {referenceImagePreviews.length < MAX_CHARACTER_REFERENCES && (
                     <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed rounded-lg cursor-pointer hover-elevate">
                       <input
                         type="file"
@@ -347,7 +495,7 @@ export default function Characters() {
                         className="hidden"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
-                          if (file) handleUploadCharacterReference(file);
+                          if (file) handleReferenceImageUpload(file);
                         }}
                         data-testid="input-upload-character-ref"
                       />
@@ -358,18 +506,42 @@ export default function Characters() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Generated Character Image</Label>
-                  <div className="aspect-[3/4] rounded-lg border overflow-hidden bg-muted flex items-center justify-center">
-                    {generatedCharacterImage ? (
-                      <img 
-                        src={generatedCharacterImage} 
-                        alt="Generated character" 
-                        className="h-full w-full object-cover" 
-                      />
+                  <Label>Main Character Image</Label>
+                  <div className="relative aspect-[3/4] rounded-lg border overflow-hidden bg-muted">
+                    {mainImagePreview ? (
+                      <>
+                        <img
+                          src={mainImagePreview}
+                          alt="Character"
+                          className="h-full w-full object-cover"
+                        />
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          className="absolute top-2 right-2 h-8 w-8 z-10"
+                          onClick={() => {
+                            setMainImagePreview(null);
+                            setMainImageFile(null);
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </>
                     ) : (
-                      <div className="text-center p-4">
-                        <User className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">Generated image will appear here</p>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <label className="flex flex-col items-center justify-center cursor-pointer">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleMainImageUpload(file);
+                            }}
+                          />
+                          <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                          <span className="text-sm text-muted-foreground">Upload Main Image</span>
+                        </label>
                       </div>
                     )}
                   </div>
@@ -377,8 +549,22 @@ export default function Characters() {
               </div>
             </div>
 
-            <Button onClick={handleSaveCharacter} className="w-full" data-testid="button-save-character">
-              {editingCharacter ? "Update Character" : "Add Character"}
+            <Button
+              onClick={handleSaveCharacter}
+              className="w-full"
+              disabled={createMutation.isPending || updateMutation.isPending || isUploading}
+              data-testid="button-save-character"
+            >
+              {(createMutation.isPending || updateMutation.isPending || isUploading) ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {isUploading ? "Uploading images..." : "Saving..."}
+                </>
+              ) : editingCharacter ? (
+                "Update Character"
+              ) : (
+                "Add Character"
+              )}
             </Button>
           </div>
         </DialogContent>

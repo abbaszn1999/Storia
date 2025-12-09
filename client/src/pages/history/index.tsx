@@ -210,14 +210,13 @@ export default function History() {
     });
   }, [searchQuery, selectedMonth, historyItems]);
 
-  const videos = filteredItems.filter(item => item.type === "video");
-  const stories = filteredItems.filter(item => item.type === "story");
+  // Currently only showing stories (videos would need to be fetched separately)
+  const videos: typeof historyItems = []; // No videos yet, only stories
+  const stories = filteredItems;
 
-  const HistoryItemCard = ({ item }: { item: typeof historyItems[0] }) => {
-    const Icon = item.type === "video" ? Video : Zap;
-    const canCreateShorts = item.type === "video" && 
-      item.status === "completed" && 
-      (item.mode.toLowerCase().includes("narrative") || item.mode.toLowerCase().includes("vlog"));
+  const HistoryItemCard = ({ item }: { item: (typeof historyItems)[0] }) => {
+    const Icon = Zap; // Currently only showing stories
+    const canCreateShorts = false; // Shorts creation only available for videos
     
     const handleCreateShorts = (e: React.MouseEvent) => {
       e.preventDefault();
@@ -245,8 +244,36 @@ export default function History() {
     return (
       <div className="hover-elevate active-elevate-2 cursor-pointer group" onClick={handlePreview}>
           <Card className="overflow-hidden" data-testid={`card-history-${item.id}`}>
-            <div className="aspect-video bg-muted relative overflow-hidden">
-              {item.thumbnailUrl ? (
+            <div className="aspect-video bg-muted relative overflow-hidden group/video">
+              {item.exportUrl ? (
+                <div className="relative w-full h-full">
+                  <video
+                    src={item.exportUrl}
+                    className="w-full h-full object-cover"
+                    preload="metadata"
+                    muted
+                    onMouseEnter={(e) => {
+                      e.currentTarget.play().catch(() => {});
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.pause();
+                      e.currentTarget.currentTime = 0;
+                    }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      const container = e.currentTarget.parentElement;
+                      if (container) {
+                        container.innerHTML = '<div class="flex items-center justify-center w-full h-full"><svg class="h-12 w-12 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg></div>';
+                      }
+                    }}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/video:opacity-100 transition-opacity pointer-events-none">
+                    <div className="bg-black/50 rounded-full p-3">
+                      <Play className="h-6 w-6 text-white" />
+                    </div>
+                  </div>
+                </div>
+              ) : item.thumbnailUrl ? (
                 <img src={item.thumbnailUrl} alt={item.title} className="object-cover w-full h-full" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
@@ -292,19 +319,6 @@ export default function History() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              {item.exportUrl && (
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <Button
-                    size="lg"
-                    variant="secondary"
-                    onClick={handlePreview}
-                    className="gap-2"
-                  >
-                    <Play className="h-5 w-5" />
-                    Preview
-                  </Button>
-                </div>
-              )}
             </div>
             <CardContent className="pt-4">
               <h3 className="font-semibold text-base line-clamp-2 mb-2" data-testid={`text-history-title-${item.id}`}>

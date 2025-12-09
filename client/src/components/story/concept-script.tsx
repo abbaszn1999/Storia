@@ -21,6 +21,7 @@ import {
   FileText,
   Wand2,
 } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 
 const ASPECT_RATIOS = [
   { value: "9:16", label: "9:16", description: "Vertical (TikTok, Reels)" },
@@ -69,22 +70,48 @@ export function ConceptScript({
 
   const handleGenerateScript = async () => {
     setIsGenerating(true);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    
-    const structure = templateStructure || ['Hook', 'Problem', 'Solution', 'Call-to-Action'];
-    const sceneCount = structure.length;
-    const sceneDuration = Math.floor(duration / sceneCount);
-    
-    let mockScript = "";
-    structure.forEach((scene, index) => {
-      mockScript += `Scene ${index + 1}: ${scene}\n`;
-      mockScript += `[Visual: ${getVisualPrompt(scene, topic, index)}]\n`;
-      mockScript += `Narrator: "${getSceneNarration(scene, topic, index)}"\n`;
-      mockScript += `Duration: ${sceneDuration}s\n\n`;
-    });
-    
-    setGeneratedScript(mockScript);
-    setIsGenerating(false);
+    try {
+      const res = await apiRequest("POST", "/api/problem-solution/idea", {
+        ideaText: topic,
+        durationSeconds: duration,
+        aspectRatio,
+      });
+      const data = await res.json();
+
+      const structure = templateStructure || ["Hook", "Problem", "Solution", "Call-to-Action"];
+      const sceneCount = structure.length;
+      const sceneDuration = Math.max(5, Math.floor(duration / sceneCount));
+
+      const angles: string[] = data?.angles || [];
+      const hook: string = data?.hook || topic;
+      const idea: string = data?.idea || topic;
+      const cta: string = data?.cta || "Try it now.";
+
+      let script = "";
+      script += `Scene 1: Hook\n${hook}\nDuration: ${sceneDuration}s\n\n`;
+      angles.forEach((angle, i) => {
+        script += `Scene ${i + 2}: ${structure[i + 1] || "Detail"}\n${angle}\nDuration: ${sceneDuration}s\n\n`;
+      });
+      script += `CTA: ${cta}\nIdea: ${idea}\n`;
+
+      setGeneratedScript(script);
+    } catch (error) {
+      console.error("Generate script failed, falling back:", error);
+      const structure = templateStructure || ["Hook", "Problem", "Solution", "Call-to-Action"];
+      const sceneCount = structure.length;
+      const sceneDuration = Math.floor(duration / sceneCount);
+
+      let mockScript = "";
+      structure.forEach((scene, index) => {
+        mockScript += `Scene ${index + 1}: ${scene}\n`;
+        mockScript += `[Visual: ${getVisualPrompt(scene, topic, index)}]\n`;
+        mockScript += `Narrator: "${getSceneNarration(scene, topic, index)}"\n`;
+        mockScript += `Duration: ${sceneDuration}s\n\n`;
+      });
+      setGeneratedScript(mockScript);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const getVisualPrompt = (scene: string, topic: string, index: number): string => {

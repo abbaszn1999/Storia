@@ -1,5 +1,5 @@
-// Problem-Solution Template Configuration
-// Structure: Hook → Problem → Solution → Call-to-Action
-// Duration: 30-60s
-
-
+export const PROBLEM_SOLUTION_DEFAULTS = {
+  aspectRatios: ["vertical", "horizontal", "square", "portrait"],
+  defaultAspectRatio: "vertical",
+  defaultDurationSeconds: 45,
+};

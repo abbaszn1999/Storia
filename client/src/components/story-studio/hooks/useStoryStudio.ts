@@ -3,6 +3,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { StepId, STEPS, StoryStudioState, StoryScene, StoryTemplate } from "../types";
+import { apiRequest } from "@/lib/queryClient";
 
 const STORAGE_KEY = "storia-studio-state";
 
@@ -122,38 +123,55 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
     
     try {
-      // TODO: Call API to generate script
-      // Simulated for now
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const mockScript = `Scene 1: Hook
-Opening shot that grabs attention. "${state.topic}" displayed boldly.
+      const res = await apiRequest("POST", "/api/problem-solution/idea", {
+        ideaText: state.topic,
+        durationSeconds: state.duration,
+        aspectRatio: state.aspectRatio,
+      });
+      const data = await res.json();
 
-Scene 2: The Problem/Setup
-Introduce the main challenge or mystery. Build tension.
+      const structure = ['Hook', 'Problem', 'Solution', 'Call-to-Action'];
+      const sceneCount = structure.length;
+      const sceneDuration = Math.max(5, Math.floor(state.duration / sceneCount));
 
-Scene 3: Development
-Expand on the concept. Show the journey or transformation.
+      const angles: string[] = data?.angles || [];
+      const hook: string = data?.hook || state.topic;
+      const idea: string = data?.idea || state.topic;
+      const cta: string = data?.cta || "Try it now.";
 
-Scene 4: Reveal/Solution
-The payoff moment. Show the result or answer.
-
-Scene 5: Call to Action
-Engage the viewer. Follow for more, like, comment prompt.`;
+      let script = "";
+      script += `Scene 1: Hook\n${hook}\nDuration: ${sceneDuration}s\n\n`;
+      angles.forEach((angle, i) => {
+        script += `Scene ${i + 2}: ${structure[i + 1] || "Detail"}\n${angle}\nDuration: ${sceneDuration}s\n\n`;
+      });
+      script += `CTA: ${cta}\nIdea: ${idea}\n`;
       
       setState(prev => ({ 
         ...prev, 
-        generatedScript: mockScript,
+        generatedScript: script,
         isGenerating: false 
       }));
     } catch (error) {
+      console.error("Failed to generate script:", error);
+      const structure = ['Hook', 'Problem', 'Solution', 'Call-to-Action'];
+      const sceneCount = structure.length;
+      const sceneDuration = Math.floor(state.duration / sceneCount);
+
+      let mockScript = "";
+      structure.forEach((scene, index) => {
+        mockScript += `Scene ${index + 1}: ${scene}\n`;
+        mockScript += `Narrator: "${state.topic}"\n`;
+        mockScript += `Duration: ${sceneDuration}s\n\n`;
+      });
+
       setState(prev => ({ 
         ...prev, 
-        error: 'Failed to generate script',
+        generatedScript: mockScript,
+        error: 'Failed to generate script (fallback)',
         isGenerating: false 
       }));
     }
-  }, [state.topic]);
+  }, [state.topic, state.duration, state.aspectRatio]);
 
   // Step 2: Storyboard
   const setScenes = useCallback((scenes: StoryScene[]) => {

@@ -22,6 +22,10 @@ export interface EnhancePromptResponse {
 export type LoopMultiplier = 1 | 2 | 4 | 6;
 
 export interface ASMRGenerateRequest {
+  /** Project name (required for saving to Bunny/DB) */
+  title: string;
+  /** Workspace ID (required) */
+  workspaceId: string;
   categoryId?: string;
   visualPrompt: string;
   soundPrompt?: string;
@@ -55,6 +59,8 @@ export interface ASMRGenerateResponse {
   engineeredPrompt?: string;
   /** Engineered sound prompt */
   engineeredSoundPrompt?: string;
+  /** Story ID from database */
+  storyId?: string;
 }
 
 export interface ASMRConfigResponse {

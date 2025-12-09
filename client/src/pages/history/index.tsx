@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { Video, Zap, Search, Calendar, MoreVertical, Scissors, Edit, Copy, Trash2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Video, Zap, Search, Calendar, MoreVertical, Scissors, Edit, Copy, Trash2, Loader2, Play } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { formatDistanceToNow, format, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { Link, useLocation } from "wouter";
+import { useWorkspace } from "@/contexts/workspace-context";
+import { apiRequest } from "@/lib/queryClient";
+import type { Story } from "@shared/schema";
 import {
   Select,
   SelectContent,
@@ -21,8 +25,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 
-const historyItems = [
+const mockHistoryItems = [
   {
     id: "1",
     title: "Summer Product Launch",
@@ -116,6 +127,61 @@ export default function History() {
   const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("all");
+  const [previewStory, setPreviewStory] = useState<Story | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const { currentWorkspace, isLoading: isLoadingWorkspace } = useWorkspace();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  // Fetch stories from API
+  const { data: storiesData = [], isLoading: isLoadingStories } = useQuery<Story[]>({
+    queryKey: currentWorkspace ? [`/api/workspaces/${currentWorkspace.id}/stories`] : [],
+    enabled: !!currentWorkspace,
+    refetchOnMount: 'always',  // Force fresh data on every mount
+    staleTime: 0,              // Treat data as always stale
+  });
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (storyId: string) => {
+      const response = await apiRequest("DELETE", `/api/stories/${storyId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      if (currentWorkspace) {
+        queryClient.invalidateQueries({ queryKey: [`/api/workspaces/${currentWorkspace.id}/stories`] });
+      }
+      toast({
+        title: "Story deleted",
+        description: "The story has been deleted successfully.",
+      });
+      setPreviewStory(null);
+    },
+    onError: () => {
+      toast({
+        title: "Delete failed",
+        description: "Failed to delete the story. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Map stories to history items format
+  const historyItems = useMemo(() => {
+    return storiesData.map(story => ({
+      id: story.id,
+      title: story.title,
+      type: "story" as const,
+      mode: story.template.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase()), // "asmr-sensory" -> "Asmr Sensory"
+      status: "completed" as const, // Stories are always completed when saved
+      updatedAt: new Date(story.updatedAt),
+      url: `/stories/${story.id}`,
+      thumbnailUrl: story.thumbnailUrl || undefined,
+      exportUrl: story.exportUrl || undefined,
+      duration: story.duration,
+      aspectRatio: story.aspectRatio,
+    }));
+  }, [storiesData]);
 
   // Generate available months from history data
   const availableMonths = useMemo(() => {
@@ -125,7 +191,7 @@ export default function History() {
       months.add(monthKey);
     });
     return Array.from(months).sort().reverse();
-  }, []);
+  }, [historyItems]);
 
   const filteredItems = useMemo(() => {
     return historyItems.filter(item => {
@@ -142,7 +208,7 @@ export default function History() {
       
       return matchesSearch && matchesMonth;
     });
-  }, [searchQuery, selectedMonth]);
+  }, [searchQuery, selectedMonth, historyItems]);
 
   const videos = filteredItems.filter(item => item.type === "video");
   const stories = filteredItems.filter(item => item.type === "story");
@@ -158,10 +224,26 @@ export default function History() {
       e.stopPropagation();
       navigate(`/shorts/create/${item.id}`);
     };
+
+    const handlePreview = (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const story = storiesData.find(s => s.id === item.id);
+      if (story) {
+        setPreviewStory(story);
+      }
+    };
+
+    const handleDelete = (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (confirm(`Are you sure you want to delete "${item.title}"? This action cannot be undone.`)) {
+        deleteMutation.mutate(item.id);
+      }
+    };
     
     return (
-      <Link href={item.url} data-testid={`link-history-item-${item.id}`}>
-        <div className="hover-elevate active-elevate-2 cursor-pointer group">
+      <div className="hover-elevate active-elevate-2 cursor-pointer group" onClick={handlePreview}>
           <Card className="overflow-hidden" data-testid={`card-history-${item.id}`}>
             <div className="aspect-video bg-muted relative overflow-hidden">
               {item.thumbnailUrl ? (
@@ -187,9 +269,9 @@ export default function History() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenuItem data-testid={`menu-item-edit-${item.id}`}>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
+                    <DropdownMenuItem onClick={handlePreview} data-testid={`menu-item-preview-${item.id}`}>
+                      <Play className="h-4 w-4 mr-2" />
+                      Preview
                     </DropdownMenuItem>
                     {canCreateShorts && (
                       <DropdownMenuItem onClick={handleCreateShorts} data-testid={`menu-item-create-shorts-${item.id}`}>
@@ -197,21 +279,32 @@ export default function History() {
                         Create Shorts
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem data-testid={`menu-item-duplicate-${item.id}`}>
-                      <Copy className="h-4 w-4 mr-2" />
-                      Duplicate
-                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem 
+                      onClick={handleDelete}
                       className="text-destructive focus:text-destructive"
                       data-testid={`menu-item-delete-${item.id}`}
+                      disabled={deleteMutation.isPending}
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
+                      {deleteMutation.isPending ? "Deleting..." : "Delete"}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
+              {item.exportUrl && (
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    onClick={handlePreview}
+                    className="gap-2"
+                  >
+                    <Play className="h-5 w-5" />
+                    Preview
+                  </Button>
+                </div>
+              )}
             </div>
             <CardContent className="pt-4">
               <h3 className="font-semibold text-base line-clamp-2 mb-2" data-testid={`text-history-title-${item.id}`}>
@@ -224,9 +317,25 @@ export default function History() {
             </CardContent>
           </Card>
         </div>
-      </Link>
     );
   };
+
+  // Show loading state until BOTH workspace and stories are ready
+  if (isLoadingWorkspace || (currentWorkspace && isLoadingStories)) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!currentWorkspace) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Please select a workspace to view history.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -328,6 +437,100 @@ export default function History() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Preview Modal */}
+      <Dialog open={!!previewStory} onOpenChange={(open) => !open && setPreviewStory(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{previewStory?.title}</DialogTitle>
+          </DialogHeader>
+          {previewStory && (
+            <div className="space-y-4">
+              {previewStory.exportUrl && (
+                <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                  <video
+                    src={previewStory.exportUrl}
+                    controls
+                    className="w-full h-full"
+                    autoPlay
+                  />
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Template:</span>
+                  <p className="font-medium">{previewStory.template.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Aspect Ratio:</span>
+                  <p className="font-medium">{previewStory.aspectRatio}</p>
+                </div>
+                {previewStory.duration && (
+                  <div>
+                    <span className="text-muted-foreground">Duration:</span>
+                    <p className="font-medium">{previewStory.duration}s</p>
+                  </div>
+                )}
+                <div>
+                  <span className="text-muted-foreground">Created:</span>
+                  <p className="font-medium">{formatDistanceToNow(new Date(previewStory.createdAt), { addSuffix: true })}</p>
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                {previewStory.exportUrl && (
+                  <Button
+                    variant="outline"
+                    disabled={isDownloading}
+                    onClick={async () => {
+                      try {
+                        setIsDownloading(true);
+                        
+                        // Fetch video as blob
+                        const response = await fetch(previewStory.exportUrl!);
+                        const blob = await response.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        
+                        // Create download link
+                        const link = document.createElement("a");
+                        link.href = blobUrl;
+                        link.download = `${previewStory.title}.mp4`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        // Clean up blob URL
+                        URL.revokeObjectURL(blobUrl);
+                      } catch (error) {
+                        console.error("Download failed:", error);
+                        toast({
+                          title: "Download failed",
+                          description: "Failed to download the video. Please try again.",
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setIsDownloading(false);
+                      }
+                    }}
+                  >
+                    {isDownloading ? "Downloading..." : "Download"}
+                  </Button>
+                )}
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (confirm(`Are you sure you want to delete "${previewStory.title}"? This action cannot be undone.`)) {
+                      deleteMutation.mutate(previewStory.id);
+                    }
+                  }}
+                  disabled={deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

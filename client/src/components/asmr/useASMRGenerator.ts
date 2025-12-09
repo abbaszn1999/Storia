@@ -20,6 +20,9 @@ import {
 } from "@/lib/api/asmr";
 
 export interface ASMRGeneratorState {
+  // Project
+  title: string;
+  
   // Category
   selectedCategory: ASMRCategory | null;
   
@@ -56,10 +59,13 @@ export interface ASMRGeneratorState {
   generatedAudioUrl: string | null;
   /** Audio source: "model" (native), "elevenlabs" (separate), or "merged" (combined with video) */
   audioSource: "model" | "elevenlabs" | "merged" | null;
+  /** Story ID from database after successful generation */
+  storyId: string | null;
   error: string | null;
 }
 
 export interface ASMRGeneratorActions {
+  setTitle: (title: string) => void;
   setCategory: (category: ASMRCategory | null) => void;
   setVideoModel: (modelId: string) => void;
   setDuration: (duration: number) => void;
@@ -83,6 +89,9 @@ export interface ASMRGeneratorActions {
 
 export function useASMRGenerator(): [ASMRGeneratorState, ASMRGeneratorActions] {
   const defaultModel = getDefaultVideoModel();
+  
+  // Project
+  const [title, setTitle] = useState("");
   
   // Category
   const [selectedCategory, setSelectedCategory] = useState<ASMRCategory | null>(null);
@@ -117,6 +126,7 @@ export function useASMRGenerator(): [ASMRGeneratorState, ASMRGeneratorActions] {
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
   const [audioSource, setAudioSource] = useState<"model" | "elevenlabs" | "merged" | null>(null);
+  const [storyId, setStoryId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Get current model info
@@ -240,9 +250,17 @@ export function useASMRGenerator(): [ASMRGeneratorState, ASMRGeneratorActions] {
     }
   }, [visualPrompt, aspectRatio]);
 
-  const generateVideo = useCallback(async () => {
+  const generateVideo = useCallback(async (workspaceId: string) => {
+    if (!title.trim()) {
+      setError("Please enter a project name");
+      return;
+    }
     if (!visualPrompt.trim()) {
       setError("Please enter a visual prompt");
+      return;
+    }
+    if (!workspaceId) {
+      setError("No workspace selected");
       return;
     }
     
@@ -253,6 +271,7 @@ export function useASMRGenerator(): [ASMRGeneratorState, ASMRGeneratorActions] {
     setGeneratedVideoUrl(null);
     setGeneratedAudioUrl(null);
     setAudioSource(null);
+    setStoryId(null);
     
     try {
       // Simulate progress while waiting
@@ -261,6 +280,8 @@ export function useASMRGenerator(): [ASMRGeneratorState, ASMRGeneratorActions] {
       }, 3000);
 
       const response = await apiGenerateVideo({
+        title: title.trim(),
+        workspaceId,
         categoryId: selectedCategory?.id,
         visualPrompt,
         soundPrompt: showSoundControls ? soundPrompt : undefined,
@@ -293,12 +314,17 @@ export function useASMRGenerator(): [ASMRGeneratorState, ASMRGeneratorActions] {
         if (response.audioSource) {
           setAudioSource(response.audioSource);
         }
+        if (response.storyId) {
+          setStoryId(response.storyId);
+        }
         
         // Save to localStorage for export page
         const videoData = {
           videoUrl: response.videoUrl,
           audioUrl: response.audioUrl,
           audioSource: response.audioSource,
+          storyId: response.storyId,
+          title,
           duration,
           aspectRatio,
           resolution,
@@ -340,11 +366,16 @@ export function useASMRGenerator(): [ASMRGeneratorState, ASMRGeneratorActions] {
           if (finalResult.audioSource) {
             setAudioSource(finalResult.audioSource);
           }
+          if (finalResult.storyId) {
+            setStoryId(finalResult.storyId);
+          }
           
           const videoData = {
             videoUrl: finalResult.videoUrl,
             audioUrl: finalResult.audioUrl,
             audioSource: finalResult.audioSource,
+            storyId: finalResult.storyId,
+            title,
             duration,
             aspectRatio,
             resolution,
@@ -375,12 +406,13 @@ export function useASMRGenerator(): [ASMRGeneratorState, ASMRGeneratorActions] {
       setIsGenerating(false);
     }
   }, [
-    visualPrompt, soundPrompt, soundIntensity, selectedCategory, selectedMaterial,
+    title, visualPrompt, soundPrompt, soundIntensity, selectedCategory, selectedMaterial,
     videoModel, aspectRatio, resolution, duration, referenceImage,
     showSoundControls, loopMultiplier, isBinaural, ambientBackground, selectedModelInfo
   ]);
 
   const reset = useCallback(() => {
+    setTitle("");
     setSelectedCategory(null);
     setVisualPrompt("");
     setSoundPrompt("");
@@ -389,12 +421,14 @@ export function useASMRGenerator(): [ASMRGeneratorState, ASMRGeneratorActions] {
     setGeneratedVideoUrl(null);
     setGeneratedAudioUrl(null);
     setAudioSource(null);
+    setStoryId(null);
     setError(null);
     setGenerationStatus("");
     setGenerationProgress(0);
   }, []);
 
   const state: ASMRGeneratorState = {
+    title,
     selectedCategory,
     videoModel,
     selectedModelInfo,
@@ -418,10 +452,12 @@ export function useASMRGenerator(): [ASMRGeneratorState, ASMRGeneratorActions] {
     generatedVideoUrl,
     generatedAudioUrl,
     audioSource,
+    storyId,
     error,
   };
 
   const actions: ASMRGeneratorActions = {
+    setTitle,
     setCategory: handleSetCategory,
     setVideoModel: handleSetVideoModel,
     setDuration,

@@ -108,16 +108,11 @@ export const stories = pgTable("stories", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
   title: text("title").notNull(),
-  template: text("template").notNull(),
-  templateType: text("template_type").notNull(),
-  script: text("script"),
-  aspectRatio: text("aspect_ratio").default("9:16").notNull(),
+  template: text("template").notNull(), // e.g., asmr-sensory, problem-solution
+  aspectRatio: text("aspect_ratio").notNull(), // required, no default
   duration: integer("duration"),
-  imageModel: text("image_model"),
-  voiceProfileId: varchar("voice_profile_id").references(() => voices.id),
-  voiceoverUrl: text("voiceover_url"),
-  status: text("status").default("draft").notNull(),
   exportUrl: text("export_url"),
+  thumbnailUrl: text("thumbnail_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

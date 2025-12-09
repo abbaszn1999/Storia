@@ -7,6 +7,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Router, type Request, type Response } from "express";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs/promises";
 import {
   // Agent 1: Idea Generator
   generateIdea,
@@ -35,12 +38,66 @@ import {
 } from "../config";
 import { mergeVideoAudio, cleanupMergedFile, mergeAndUploadVideo } from "../services/video-merger";
 import { loopAndServeVideo } from "../services/video-looper";
-import { createReadStream, statSync } from "fs";
+import { createReadStream, statSync, writeFileSync, unlinkSync, existsSync } from "fs";
+import ffmpeg from "fluent-ffmpeg";
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import type {
   ASMRGenerateRequest,
   AudioSource,
   LoopMultiplier,
 } from "../types";
+import { buildStoryModePath, bunnyStorage } from "../../../storage/bunny-storage";
+import { storage } from "../../../storage";
+import { isAuthenticated, getCurrentUserId } from "../../../auth";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const TEMP_DIR = path.join(__dirname, "../../../../temp");
+
+// Set FFmpeg path
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+
+// Ensure temp directory exists
+if (!existsSync(TEMP_DIR)) {
+  fs.mkdir(TEMP_DIR, { recursive: true }).catch(() => {});
+}
+
+/**
+ * Extract first frame from video as thumbnail
+ */
+async function extractThumbnail(videoPath: string, outputPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    ffmpeg(videoPath)
+      .screenshots({
+        timestamps: ['00:00:00.000'],
+        filename: path.basename(outputPath),
+        folder: path.dirname(outputPath),
+        size: '640x360', // 16:9 aspect ratio
+      })
+      .on('end', () => resolve())
+      .on('error', (err) => reject(err));
+  });
+}
+
+async function bufferFromUrlOrPath(url: string): Promise<Buffer> {
+  // Local temp path (e.g., /temp/uuid_file.mp4)
+  if (url.startsWith("/temp/")) {
+    const filePath = path.join(TEMP_DIR, path.basename(url));
+    return fs.readFile(filePath);
+  }
+  // Absolute or relative local path
+  if (url.startsWith("file://")) {
+    return fs.readFile(url.replace("file://", ""));
+  }
+  if (url.startsWith("/") || url.startsWith("./") || url.startsWith("../")) {
+    return fs.readFile(path.resolve(url));
+  }
+  // Remote fetch
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Failed to download: ${resp.status} ${resp.statusText}`);
+  const arr = await resp.arrayBuffer();
+  return Buffer.from(arr);
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ROUTER SETUP
@@ -244,18 +301,31 @@ asmrRouter.post("/generate-image", async (req: Request, res: Response) => {
  * 3. Agent 3 (Video Generator) generates the video via Runware
  * 4. Agent 5 (Sound Generator) generates audio if model doesn't support it natively
  */
-asmrRouter.post("/generate", async (req: Request, res: Response) => {
+asmrRouter.post("/generate", isAuthenticated, async (req: Request, res: Response) => {
   try {
+    // Get authenticated user ID
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     const body = req.body as ASMRGenerateRequest;
 
     // Validate required fields
     if (!body.visualPrompt || body.visualPrompt.trim().length === 0) {
       return res.status(400).json({ error: "Visual prompt is required" });
     }
+    const title = (req.body.title || "").trim();
+    if (!title) {
+      return res.status(400).json({ error: "Title (project name) is required" });
+    }
+    const workspaceId = req.body.workspaceId as string | undefined;
+    if (!workspaceId) {
+      return res.status(400).json({ error: "workspaceId is required" });
+    }
 
-    // Get user context
-    const userId = req.headers["x-user-id"] as string | undefined;
-    const workspaceId = req.headers["x-workspace-id"] as string | undefined;
+    // Use workspaceId from body (already validated)
+    const effectiveWorkspaceId = workspaceId;
 
     // Set defaults
     const modelId = body.modelId || getDefaultVideoModel().id;
@@ -405,9 +475,87 @@ asmrRouter.post("/generate", async (req: Request, res: Response) => {
     // Calculate total cost
     const totalCost = (videoResult.cost || 0) + (engineeredResult.cost || 0) + audioCost;
 
-    // Include all results in response
+    // Final upload to Bunny (only final artifact)
+    if (!videoResult.videoUrl) {
+      return res.status(500).json({ error: "No final video URL to upload" });
+    }
+
+    // Derive workspace name for path (best-effort)
+    let workspaceName = String(effectiveWorkspaceId || "workspace");
+    try {
+      const workspaces = await storage.getWorkspacesByUserId(userId);
+      const ws = workspaces.find(w => w.id === effectiveWorkspaceId);
+      if (ws?.name) workspaceName = ws.name;
+    } catch (e) {
+      console.warn("[asmr-routes] Unable to resolve workspace name, using id");
+    }
+
+    const filename = `${Date.now()}.mp4`;
+    const bunnyPath = buildStoryModePath({
+      userId,
+      workspaceName,
+      toolMode: "asmr",
+      projectName: title,
+      filename,
+    });
+
+    const finalBuffer = await bufferFromUrlOrPath(videoResult.videoUrl);
+    const cdnUrl = await bunnyStorage.uploadFile(bunnyPath, finalBuffer, "video/mp4");
+
+    // Generate and upload thumbnail
+    let thumbnailUrl: string | undefined;
+    try {
+      // Download video to temp for thumbnail extraction
+      const tempVideoPath = path.join(TEMP_DIR, `${Date.now()}_thumb_source.mp4`);
+      await fs.writeFile(tempVideoPath, finalBuffer);
+
+      // Extract first frame
+      const tempThumbPath = path.join(TEMP_DIR, `${Date.now()}_thumb.jpg`);
+      await extractThumbnail(tempVideoPath, tempThumbPath);
+
+      // Read thumbnail buffer
+      const thumbBuffer = await fs.readFile(tempThumbPath);
+
+      // Upload thumbnail to Bunny (same path as video but with .jpg extension)
+      const thumbFilename = filename.replace(/\.mp4$/, ".jpg");
+      const thumbBunnyPath = buildStoryModePath({
+        userId,
+        workspaceName,
+        toolMode: "asmr",
+        projectName: title,
+        filename: thumbFilename,
+      });
+      thumbnailUrl = await bunnyStorage.uploadFile(thumbBunnyPath, thumbBuffer, "image/jpeg");
+
+      // Cleanup temp files
+      fs.unlink(tempVideoPath).catch(() => {});
+      fs.unlink(tempThumbPath).catch(() => {});
+    } catch (error) {
+      console.warn("[asmr-routes] Failed to generate thumbnail:", error);
+      // Continue without thumbnail if generation fails
+    }
+
+    // Persist story record
+    const story = await storage.createStory({
+      workspaceId: effectiveWorkspaceId!,
+      title,
+      template: "asmr-sensory",
+      aspectRatio,
+      duration,
+      exportUrl: cdnUrl,
+      thumbnailUrl: thumbnailUrl || undefined,
+    });
+
+    // Cleanup local temp if applicable
+    if (videoResult.videoUrl.startsWith("/temp/")) {
+      const filePath = path.join(TEMP_DIR, path.basename(videoResult.videoUrl));
+      fs.unlink(filePath).catch(() => {});
+    }
+
+    // Include all results in response (with Bunny URL)
     res.json({
       ...videoResult,
+      videoUrl: cdnUrl,
       audioUrl,
       audioSource,
       cost: totalCost,
@@ -415,6 +563,7 @@ asmrRouter.post("/generate", async (req: Request, res: Response) => {
       audioCost,
       engineeredPrompt: engineeredResult.visualPrompt,
       engineeredSoundPrompt: engineeredResult.soundPrompt,
+      storyId: story.id,
     });
   } catch (error) {
     console.error("[asmr-routes] generate error:", error);

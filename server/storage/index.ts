@@ -17,5 +17,6 @@ export {
   getBunnyConfig,
   type BunnyFile,
   type BunnyStorageConfig,
+  buildStoryModePath,
 } from "./bunny-storage";
 

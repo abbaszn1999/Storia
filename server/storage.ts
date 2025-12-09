@@ -2,6 +2,7 @@ import {
   users,
   workspaces,
   projects,
+  stories,
   type User,
   type UpsertUser,
   type Workspace,
@@ -555,27 +556,24 @@ export class MemStorage implements IStorage {
   }
 
   async getStoriesByWorkspaceId(workspaceId: string): Promise<Story[]> {
-    return Array.from(this.stories.values()).filter((s) => s.workspaceId === workspaceId);
+    return db.select().from(stories).where(eq(stories.workspaceId, workspaceId));
   }
 
   async createStory(insertStory: InsertStory): Promise<Story> {
-    const id = randomUUID();
-    const story: Story = {
-      ...insertStory,
-      id,
-      script: insertStory.script ?? null,
-      aspectRatio: insertStory.aspectRatio ?? "9:16",
-      duration: insertStory.duration ?? null,
-      imageModel: insertStory.imageModel ?? null,
-      voiceProfileId: insertStory.voiceProfileId ?? null,
-      voiceoverUrl: insertStory.voiceoverUrl ?? null,
-      status: insertStory.status ?? "draft",
-      exportUrl: insertStory.exportUrl ?? null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.stories.set(id, story);
+    const [story] = await db
+      .insert(stories)
+      .values(insertStory)
+      .returning();
     return story;
+  }
+
+  async getStory(id: string): Promise<Story | undefined> {
+    const [story] = await db.select().from(stories).where(eq(stories.id, id));
+    return story;
+  }
+
+  async deleteStory(id: string): Promise<void> {
+    await db.delete(stories).where(eq(stories.id, id));
   }
 
   async getCharactersByWorkspaceId(workspaceId: string): Promise<Character[]> {

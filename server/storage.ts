@@ -37,10 +37,6 @@ import {
   type InsertContinuityGroup,
   type WorkspaceIntegration,
   type InsertWorkspaceIntegration,
-  type ProductionCampaign,
-  type InsertProductionCampaign,
-  type CampaignVideo,
-  type InsertCampaignVideo,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -146,17 +142,6 @@ export interface IStorage {
   updateWorkspaceIntegration(id: string, integration: Partial<WorkspaceIntegration>): Promise<WorkspaceIntegration>;
   deleteWorkspaceIntegration(id: string): Promise<void>;
   
-  getCampaignsByUserId(userId: string): Promise<ProductionCampaign[]>;
-  getCampaign(id: string): Promise<ProductionCampaign | undefined>;
-  createCampaign(campaign: InsertProductionCampaign): Promise<ProductionCampaign>;
-  updateCampaign(id: string, campaign: Partial<ProductionCampaign>): Promise<ProductionCampaign>;
-  deleteCampaign(id: string): Promise<void>;
-  getCampaignVideos(campaignId: string): Promise<CampaignVideo[]>;
-  getCampaignVideo(id: string): Promise<CampaignVideo | undefined>;
-  createCampaignVideo(video: InsertCampaignVideo): Promise<CampaignVideo>;
-  updateCampaignVideo(id: string, video: Partial<CampaignVideo>): Promise<CampaignVideo>;
-  deleteCampaignVideo(id: string): Promise<void>;
-  
   // Account management
   deleteUserAccount(userId: string): Promise<void>;
 }
@@ -179,8 +164,6 @@ export class MemStorage implements IStorage {
   private referenceImages: Map<string, ReferenceImage>;
   private continuityGroups: Map<string, ContinuityGroup>;
   private workspaceIntegrations: Map<string, WorkspaceIntegration>;
-  private productionCampaigns: Map<string, ProductionCampaign>;
-  private campaignVideos: Map<string, CampaignVideo>;
 
   constructor() {
     this.users = new Map();
@@ -200,178 +183,6 @@ export class MemStorage implements IStorage {
     this.referenceImages = new Map();
     this.continuityGroups = new Map();
     this.workspaceIntegrations = new Map();
-    this.productionCampaigns = new Map();
-    this.campaignVideos = new Map();
-    
-    this.initializeSampleCampaign();
-  }
-  
-  private initializeSampleCampaign(): void {
-    const campaignId = "sample-campaign-1";
-    const sampleCampaign: ProductionCampaign = {
-      id: campaignId,
-      userId: "default-user",
-      name: "Tech Explainer Series - Q1 2025",
-      storyIdeas: [
-        "The Future of AI in Healthcare: How Machine Learning is Revolutionizing Patient Care",
-        "Quantum Computing Explained: Breaking Down the Technology That Will Change Everything",
-        "5G Networks and the Internet of Things: Building the Connected World",
-        "Blockchain Beyond Cryptocurrency: Real-World Applications Transforming Industries",
-        "Sustainable Tech: Green Innovations Leading the Fight Against Climate Change"
-      ],
-      status: "in_progress",
-      automationMode: "auto",
-      videoMode: "narrative",
-      narrativeMode: "start-end-frame",
-      aspectRatio: "9:16",
-      duration: 60,
-      language: "en",
-      artStyle: "Modern Tech Aesthetic",
-      styleReferenceImageUrl: null,
-      tone: "Educational yet engaging",
-      genre: "Technology Explainer",
-      targetAudience: "Tech-savvy millennials and Gen Z",
-      resolution: "1080p",
-      animateImages: true,
-      hasVoiceOver: true,
-      hasSoundEffects: true,
-      hasBackgroundMusic: true,
-      scheduleStartDate: new Date("2025-01-15"),
-      scheduleEndDate: new Date("2025-03-31"),
-      preferredPublishHours: [9, 12, 15, 18],
-      maxVideosPerDay: 1,
-      distributionPattern: "even",
-      selectedPlatforms: [],
-      scripterModel: "gpt-4",
-      imageModel: "imagen-4",
-      videoModel: "kling",
-      imageCustomInstructions: null,
-      videoCustomInstructions: null,
-      voiceModel: "elevenlabs",
-      voiceActorId: null,
-      narrationStyle: null,
-      mainCharacterId: null,
-      // Auto Shorts settings
-      autoShortsEnabled: false,
-      shortsPerVideo: 3,
-      shortsHookTypes: ["emotional", "action", "reveal", "dramatic"],
-      shortsMinConfidence: 75,
-      autoPublishShorts: true,
-      shortsPlatforms: [],
-      shortsScheduleMode: "with_main",
-      shortsStaggerHours: 4,
-      // Ambient mode settings (not used in this sample)
-      ambientCategory: null,
-      ambientMoods: [],
-      ambientAnimationMode: null,
-      ambientVoiceOverLanguage: null,
-      ambientPacing: 30,
-      ambientSegmentCount: 3,
-      ambientTransitionStyle: null,
-      ambientVariationType: null,
-      ambientCameraMotion: null,
-      ambientLoopMode: null,
-      ambientVisualRhythm: null,
-      ambientEnableParallax: false,
-      videosGenerated: 2,
-      videosPublished: 1,
-      createdAt: new Date("2025-01-10"),
-      updatedAt: new Date("2025-01-20"),
-    };
-    
-    this.productionCampaigns.set(campaignId, sampleCampaign);
-    
-    const sampleVideos: CampaignVideo[] = [
-      {
-        id: "sample-video-1",
-        campaignId,
-        videoId: null,
-        title: "The Future of AI in Healthcare",
-        conceptDescription: "An engaging explainer video showcasing how artificial intelligence and machine learning algorithms are revolutionizing patient care, from early disease detection to personalized treatment plans. Features real-world examples and expert insights.",
-        script: null,
-        orderIndex: 0,
-        status: "completed",
-        generationProgress: 100,
-        scheduledPublishDate: new Date("2025-01-15T09:00:00"),
-        actualPublishDate: new Date("2025-01-15T09:00:00"),
-        metadata: null,
-        errorMessage: null,
-        createdAt: new Date("2025-01-10"),
-        updatedAt: new Date("2025-01-15"),
-      },
-      {
-        id: "sample-video-2",
-        campaignId,
-        videoId: null,
-        title: "Quantum Computing Explained",
-        conceptDescription: "A visually stunning breakdown of quantum computing technology, demystifying qubits, superposition, and entanglement. Shows practical applications and why this technology will fundamentally change computation.",
-        script: null,
-        orderIndex: 1,
-        status: "in_production",
-        generationProgress: 65,
-        scheduledPublishDate: new Date("2025-01-22T12:00:00"),
-        actualPublishDate: null,
-        metadata: null,
-        errorMessage: null,
-        createdAt: new Date("2025-01-10"),
-        updatedAt: new Date("2025-01-20"),
-      },
-      {
-        id: "sample-video-3",
-        campaignId,
-        videoId: null,
-        title: "5G Networks and IoT",
-        conceptDescription: "An exploration of how 5G networks are enabling the Internet of Things revolution, from smart cities to autonomous vehicles. Includes compelling visualizations of network architecture and real-time data flow.",
-        script: null,
-        orderIndex: 2,
-        status: "approved",
-        generationProgress: 0,
-        scheduledPublishDate: new Date("2025-01-29T15:00:00"),
-        actualPublishDate: null,
-        metadata: null,
-        errorMessage: null,
-        createdAt: new Date("2025-01-10"),
-        updatedAt: new Date("2025-01-18"),
-      },
-      {
-        id: "sample-video-4",
-        campaignId,
-        videoId: null,
-        title: "Blockchain Beyond Cryptocurrency",
-        conceptDescription: "Going beyond Bitcoin and Ethereum to explore real-world blockchain applications: supply chain transparency, digital identity verification, smart contracts in real estate, and decentralized healthcare records.",
-        script: null,
-        orderIndex: 3,
-        status: "review_required",
-        generationProgress: 0,
-        scheduledPublishDate: new Date("2025-02-05T18:00:00"),
-        actualPublishDate: null,
-        metadata: null,
-        errorMessage: null,
-        createdAt: new Date("2025-01-10"),
-        updatedAt: new Date("2025-01-17"),
-      },
-      {
-        id: "sample-video-5",
-        campaignId,
-        videoId: null,
-        title: "Sustainable Tech Innovations",
-        conceptDescription: "Showcasing cutting-edge green technology: carbon capture systems, renewable energy breakthroughs, sustainable materials in electronics, and AI-powered environmental monitoring. Inspiring yet scientifically grounded.",
-        script: null,
-        orderIndex: 4,
-        status: "pending",
-        generationProgress: 0,
-        scheduledPublishDate: new Date("2025-02-12T09:00:00"),
-        actualPublishDate: null,
-        metadata: null,
-        errorMessage: null,
-        createdAt: new Date("2025-01-10"),
-        updatedAt: new Date("2025-01-10"),
-      },
-    ];
-    
-    sampleVideos.forEach((video) => {
-      this.campaignVideos.set(video.id, video);
-    });
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -994,140 +805,6 @@ export class MemStorage implements IStorage {
     this.workspaceIntegrations.delete(id);
   }
 
-  async getCampaignsByUserId(userId: string): Promise<ProductionCampaign[]> {
-    return Array.from(this.productionCampaigns.values()).filter(
-      (campaign) => campaign.userId === userId
-    );
-  }
-
-  async getCampaign(id: string): Promise<ProductionCampaign | undefined> {
-    return this.productionCampaigns.get(id);
-  }
-
-  async createCampaign(insertCampaign: InsertProductionCampaign): Promise<ProductionCampaign> {
-    const id = randomUUID();
-    const campaign: ProductionCampaign = {
-      ...insertCampaign,
-      id,
-      status: insertCampaign.status ?? "draft",
-      automationMode: insertCampaign.automationMode ?? "manual",
-      videoMode: insertCampaign.videoMode ?? "narrative",
-      aspectRatio: insertCampaign.aspectRatio ?? "16:9",
-      duration: insertCampaign.duration ?? 60,
-      language: insertCampaign.language ?? "en",
-      resolution: insertCampaign.resolution ?? "1080p",
-      animateImages: insertCampaign.animateImages ?? true,
-      hasVoiceOver: insertCampaign.hasVoiceOver ?? true,
-      hasSoundEffects: insertCampaign.hasSoundEffects ?? true,
-      hasBackgroundMusic: insertCampaign.hasBackgroundMusic ?? true,
-      distributionPattern: insertCampaign.distributionPattern ?? "even",
-      selectedPlatforms: insertCampaign.selectedPlatforms ?? [],
-      preferredPublishHours: insertCampaign.preferredPublishHours ?? [],
-      maxVideosPerDay: insertCampaign.maxVideosPerDay ?? 1,
-      artStyle: insertCampaign.artStyle ?? null,
-      styleReferenceImageUrl: insertCampaign.styleReferenceImageUrl ?? null,
-      targetAudience: insertCampaign.targetAudience ?? null,
-      scheduleStartDate: insertCampaign.scheduleStartDate ?? null,
-      scheduleEndDate: insertCampaign.scheduleEndDate ?? null,
-      scripterModel: insertCampaign.scripterModel ?? null,
-      imageModel: insertCampaign.imageModel ?? null,
-      videoModel: insertCampaign.videoModel ?? null,
-      imageCustomInstructions: insertCampaign.imageCustomInstructions ?? null,
-      videoCustomInstructions: insertCampaign.videoCustomInstructions ?? null,
-      voiceModel: insertCampaign.voiceModel ?? null,
-      voiceActorId: insertCampaign.voiceActorId ?? null,
-      narrationStyle: insertCampaign.narrationStyle ?? null,
-      mainCharacterId: insertCampaign.mainCharacterId ?? null,
-      // Ambient Video mode settings
-      ambientCategory: insertCampaign.ambientCategory ?? null,
-      ambientMoods: insertCampaign.ambientMoods ?? [],
-      ambientAnimationMode: insertCampaign.ambientAnimationMode ?? null,
-      ambientVoiceOverLanguage: insertCampaign.ambientVoiceOverLanguage ?? null,
-      // Ambient Flow Design settings
-      ambientPacing: insertCampaign.ambientPacing ?? 30,
-      ambientSegmentCount: insertCampaign.ambientSegmentCount ?? 3,
-      ambientTransitionStyle: insertCampaign.ambientTransitionStyle ?? null,
-      ambientVariationType: insertCampaign.ambientVariationType ?? null,
-      ambientCameraMotion: insertCampaign.ambientCameraMotion ?? null,
-      ambientLoopMode: insertCampaign.ambientLoopMode ?? null,
-      ambientVisualRhythm: insertCampaign.ambientVisualRhythm ?? null,
-      ambientEnableParallax: insertCampaign.ambientEnableParallax ?? false,
-      // Auto Shorts settings
-      autoShortsEnabled: insertCampaign.autoShortsEnabled ?? false,
-      shortsPerVideo: insertCampaign.shortsPerVideo ?? 3,
-      shortsHookTypes: insertCampaign.shortsHookTypes ?? ["emotional", "action", "reveal", "dramatic"],
-      shortsMinConfidence: insertCampaign.shortsMinConfidence ?? 75,
-      autoPublishShorts: insertCampaign.autoPublishShorts ?? true,
-      shortsPlatforms: insertCampaign.shortsPlatforms ?? [],
-      shortsScheduleMode: insertCampaign.shortsScheduleMode ?? "with_main",
-      shortsStaggerHours: insertCampaign.shortsStaggerHours ?? 4,
-      videosGenerated: 0,
-      videosPublished: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.productionCampaigns.set(id, campaign);
-    return campaign;
-  }
-
-  async updateCampaign(id: string, updates: Partial<ProductionCampaign>): Promise<ProductionCampaign> {
-    const campaign = this.productionCampaigns.get(id);
-    if (!campaign) throw new Error('Production campaign not found');
-    const updated = { ...campaign, ...updates, updatedAt: new Date() };
-    this.productionCampaigns.set(id, updated);
-    return updated;
-  }
-
-  async deleteCampaign(id: string): Promise<void> {
-    this.productionCampaigns.delete(id);
-    const videos = await this.getCampaignVideos(id);
-    for (const video of videos) {
-      this.campaignVideos.delete(video.id);
-    }
-  }
-
-  async getCampaignVideos(campaignId: string): Promise<CampaignVideo[]> {
-    return Array.from(this.campaignVideos.values()).filter(
-      (video) => video.campaignId === campaignId
-    );
-  }
-
-  async getCampaignVideo(id: string): Promise<CampaignVideo | undefined> {
-    return this.campaignVideos.get(id);
-  }
-
-  async createCampaignVideo(insertVideo: InsertCampaignVideo): Promise<CampaignVideo> {
-    const id = randomUUID();
-    const video: CampaignVideo = {
-      ...insertVideo,
-      id,
-      videoId: insertVideo.videoId ?? null,
-      script: insertVideo.script ?? null,
-      status: insertVideo.status ?? "pending",
-      generationProgress: insertVideo.generationProgress ?? 0,
-      scheduledPublishDate: insertVideo.scheduledPublishDate ?? null,
-      actualPublishDate: insertVideo.actualPublishDate ?? null,
-      metadata: insertVideo.metadata ?? null,
-      errorMessage: insertVideo.errorMessage ?? null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.campaignVideos.set(id, video);
-    return video;
-  }
-
-  async updateCampaignVideo(id: string, updates: Partial<CampaignVideo>): Promise<CampaignVideo> {
-    const video = this.campaignVideos.get(id);
-    if (!video) throw new Error('Campaign video not found');
-    const updated = { ...video, ...updates, updatedAt: new Date() };
-    this.campaignVideos.set(id, updated);
-    return updated;
-  }
-
-  async deleteCampaignVideo(id: string): Promise<void> {
-    this.campaignVideos.delete(id);
-  }
-
   async deleteUserAccount(userId: string): Promise<void> {
     // Get all workspaces for this user
     const userWorkspaces = await this.getWorkspacesByUserId(userId);
@@ -1214,12 +891,6 @@ export class MemStorage implements IStorage {
       
       // Delete workspace (uses database)
       await this.deleteWorkspace(workspace.id);
-    }
-    
-    // Delete campaigns
-    const campaigns = await this.getCampaignsByUserId(userId);
-    for (const campaign of campaigns) {
-      await this.deleteCampaign(campaign.id);
     }
     
     // Finally delete the user

@@ -1,7 +1,7 @@
 /**
  * Storage Services Index
  * 
- * Exports all storage-related services for the application.
+ * Exports all storage-related services and routes for the application.
  */
 
 export {
@@ -20,3 +20,4 @@ export {
   buildStoryModePath,
 } from "./bunny-storage";
 
+export { default as storageRoutes } from "./routes";

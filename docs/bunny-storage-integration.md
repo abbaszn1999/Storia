@@ -86,6 +86,38 @@ BUNNY_STORAGE_REGION=ny  # Optional: ny, la, sg, syd (default: ny)
 
 ---
 
+## Architecture Overview
+
+Storia uses a **modular routing architecture** for better organization and maintainability:
+
+```
+server/
+├── storage/
+│   ├── bunny-storage.ts    # Core Bunny CDN service
+│   ├── routes.ts           # Storage API routes (8 endpoints)
+│   └── index.ts            # Exports
+├── auth/
+│   ├── middleware.ts       # Auth middleware & utilities
+│   ├── routes.ts           # Auth & account routes (15 endpoints)
+│   └── index.ts            # Session setup & exports
+├── stories/
+│   ├── asmr-sensory/routes/   # ASMR tool routes
+│   ├── problem-solution/routes/
+│   └── ...                 # Other story mode tools
+└── routes.ts               # Main registration (685 lines)
+```
+
+**Storage routes are now organized in** `server/storage/routes.ts` **and include:**
+- File upload (`POST /api/storage/upload`)
+- File download (`GET /api/storage/download`)
+- File deletion (`DELETE /api/storage/file`)
+- Folder operations (list, info, exists)
+- Storage status check
+
+All storage routes are automatically registered via `app.use('/api/storage', storageRoutes)` in the main routes file.
+
+---
+
 ## Core Storage Service
 
 The Bunny storage service is located at `server/storage/bunny-storage.ts`.
@@ -680,9 +712,13 @@ assetType: "Characters"
 | File | Purpose |
 |------|---------|
 | `server/storage/bunny-storage.ts` | Core Bunny storage service |
+| `server/storage/routes.ts` | Storage API routes (upload, download, delete) |
 | `server/storage/index.ts` | Storage exports |
 | `server/storage.ts` | Database storage methods |
-| `server/auth/index.ts` | Authentication helpers |
+| `server/auth/index.ts` | Authentication setup |
+| `server/auth/middleware.ts` | Authentication middleware |
+| `server/auth/routes.ts` | Authentication API routes |
+| `server/routes.ts` | Main routes registration |
 | `shared/schema.ts` | Database schemas |
 | `.env` | Environment variables |
 
@@ -701,4 +737,3 @@ assetType: "Characters"
 | 2024-12-08 | Updated delete pattern to remove entire project folders |
 | 2024-12-08 | Added Pattern 3: Delete Story with Full Cleanup |
 | 2024-12-08 | Enhanced ASMR example with complete upload flow |
-

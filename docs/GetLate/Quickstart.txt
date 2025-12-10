@@ -1,0 +1,194 @@
+# Quickstart
+
+A complete walkthrough to schedule your first social media post with Late
+
+This guide walks you through everything you need to schedule your first post. By the end, you'll have:
+- Created a profile to organize your accounts
+- Connected a social media account
+- Scheduled a post to publish
+
+**Prerequisites:** Make sure you have your [API key](/auth) ready.
+
+## Step 1: Create a Profile
+
+Profiles group your social accounts together. For example, you might have a "Personal Brand" profile with your Twitter and LinkedIn, and a "Company" profile with your business accounts.
+
+```bash
+curl -X POST https://getlate.dev/api/v1/profiles \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My First Profile",
+    "description": "Testing the Late API"
+  }'
+```
+
+**Response:**
+```json
+{
+  "_id": "prof_abc123",
+  "name": "My First Profile",
+  "description": "Testing the Late API",
+  "createdAt": "2024-01-15T10:00:00.000Z"
+}
+```
+
+Save the `_id` value — you'll need it for the next steps.
+
+## Step 2: Connect a Social Account
+
+Now connect a social media account to your profile. This uses OAuth, so it will redirect to the platform for authorization.
+
+```bash
+curl "https://getlate.dev/api/v1/connect/twitter?profileId=prof_abc123" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+This returns a URL. Open it in a browser to authorize Late to access your Twitter account. After authorization, you'll be redirected back and the account will be connected.
+
+### Available Platforms
+
+Replace `twitter` with any of these:
+- `twitter` — Twitter/X
+- `instagram` — Instagram (requires Facebook Business)
+- `facebook` — Facebook Pages
+- `linkedin` — LinkedIn (personal or company)
+- `tiktok` — TikTok
+- `youtube` — YouTube
+- `pinterest` — Pinterest
+- `reddit` — Reddit
+- `bluesky` — Bluesky
+- `threads` — Threads
+- `google_business` — Google Business
+
+## Step 3: Get Your Connected Accounts
+
+After connecting, list your accounts to get the account ID:
+
+```bash
+curl "https://getlate.dev/api/v1/accounts" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+**Response:**
+```json
+{
+  "accounts": [
+    {
+      "_id": "acc_xyz789",
+      "platform": "twitter",
+      "username": "yourhandle",
+      "profileId": "prof_abc123"
+    }
+  ]
+}
+```
+
+Save the account `_id` — you need it to create posts.
+
+## Step 4: Schedule Your First Post
+
+Now you can schedule a post! Here's how to schedule a tweet for tomorrow at noon:
+
+```bash
+curl -X POST https://getlate.dev/api/v1/posts \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Hello world! This is my first post from the Late API 🚀",
+    "scheduledFor": "2024-01-16T12:00:00",
+    "timezone": "America/New_York",
+    "platforms": [
+      {
+        "platform": "twitter",
+        "accountId": "acc_xyz789"
+      }
+    ]
+  }'
+```
+
+**Response:**
+```json
+{
+  "_id": "post_123abc",
+  "content": "Hello world! This is my first post from the Late API 🚀",
+  "status": "scheduled",
+  "scheduledFor": "2024-01-16T17:00:00.000Z",
+  "platforms": [
+    {
+      "platform": "twitter",
+      "accountId": "acc_xyz789",
+      "status": "pending"
+    }
+  ]
+}
+```
+
+Your post is now scheduled and will publish automatically at the specified time.
+
+## Posting to Multiple Platforms
+
+You can post to multiple platforms at once. Just add more entries to the `platforms` array:
+
+```bash
+curl -X POST https://getlate.dev/api/v1/posts \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Cross-posting to all my accounts!",
+    "scheduledFor": "2024-01-16T12:00:00",
+    "timezone": "America/New_York",
+    "platforms": [
+      {"platform": "twitter", "accountId": "acc_twitter123"},
+      {"platform": "linkedin", "accountId": "acc_linkedin456"},
+      {"platform": "bluesky", "accountId": "acc_bluesky789"}
+    ]
+  }'
+```
+
+## Publishing Immediately
+
+To publish right now instead of scheduling, omit `scheduledFor` and set `status` to `published`:
+
+```bash
+curl -X POST https://getlate.dev/api/v1/posts \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "This posts immediately!",
+    "status": "published",
+    "platforms": [
+      {"platform": "twitter", "accountId": "acc_xyz789"}
+    ]
+  }'
+```
+
+## Creating a Draft
+
+To save a post without publishing or scheduling:
+
+```bash
+curl -X POST https://getlate.dev/api/v1/posts \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "I will finish this later...",
+    "status": "draft",
+    "platforms": [
+      {"platform": "twitter", "accountId": "acc_xyz789"}
+    ]
+  }'
+```
+
+## What's Next?
+
+Now that you've scheduled your first post, explore more features:
+
+- **[Upload media](/utilities/media)** — Add images and videos to your posts
+- **[Set up a queue](/utilities/queue)** — Create recurring posting schedules
+- **[View analytics](/core/analytics)** — Track how your posts perform
+- **[Invite team members](/management/invites)** — Collaborate with your team
+
+## Need Help?
+
+Questions? Contact us at [miki@getlate.dev](mailto:miki@getlate.dev)

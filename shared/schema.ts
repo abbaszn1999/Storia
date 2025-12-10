@@ -55,6 +55,7 @@ export const workspaces = pgTable("workspaces", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
+  lateProfileId: text("late_profile_id"), // Late.dev profile ID for social media integrations
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -268,9 +269,11 @@ export const workspaceIntegrations = pgTable("workspace_integrations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
   platform: text("platform").notNull(), // 'youtube' | 'tiktok' | 'instagram' | 'facebook'
-  accessToken: text("access_token"), // Encrypted OAuth access token
-  refreshToken: text("refresh_token"), // Encrypted OAuth refresh token
-  tokenExpiresAt: timestamp("token_expires_at"), // Token expiration timestamp
+  source: text("source").default("late").notNull(), // 'late' | 'direct' - Integration source
+  lateAccountId: text("late_account_id"), // Late.dev account ID (when source='late')
+  accessToken: text("access_token"), // Encrypted OAuth access token (when source='direct')
+  refreshToken: text("refresh_token"), // Encrypted OAuth refresh token (when source='direct')
+  tokenExpiresAt: timestamp("token_expires_at"), // Token expiration timestamp (when source='direct')
   platformUserId: text("platform_user_id"), // e.g., YouTube channel ID
   platformUsername: text("platform_username"), // Display name for UI
   platformProfileImage: text("platform_profile_image"), // Avatar URL

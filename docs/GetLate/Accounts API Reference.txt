@@ -1,0 +1,661 @@
+# Accounts API Reference
+
+
+
+## GET /v1/account-groups
+
+**List account groups for the authenticated user**
+
+### Responses
+
+#### 200: Groups
+
+**Response Body:**
+
+- **groups** `array[object]`: 
+  - **_id** `string`: No description
+  - **name** `string`: No description
+  - **accountIds** `array[string]`: 
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+---
+
+## POST /v1/account-groups
+
+**Create a new account group**
+
+### Request Body
+
+- **name** (required) `string`: No description
+- **accountIds** (required) `array`: No description
+
+### Responses
+
+#### 201: Created
+
+**Response Body:**
+
+- **message** `string`: No description
+- **group** `object`: 
+  - **_id** `string`: No description
+  - **name** `string`: No description
+  - **accountIds** `array[string]`: 
+
+#### 400: Invalid request
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 409: Group name already exists
+
+---
+
+## PUT /v1/account-groups/{groupId}
+
+**Update an account group**
+
+### Parameters
+
+- **groupId** (required) in path: No description
+
+### Request Body
+
+- **name** `string`: No description
+- **accountIds** `array`: No description
+
+### Responses
+
+#### 200: Updated
+
+**Response Body:**
+
+- **message** `string`: No description
+- **group** `object`: No description
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Resource not found
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Not found")
+
+#### 409: Group name already exists
+
+---
+
+## DELETE /v1/account-groups/{groupId}
+
+**Delete an account group**
+
+### Parameters
+
+- **groupId** (required) in path: No description
+
+### Responses
+
+#### 200: Deleted
+
+**Response Body:**
+
+- **message** `string`: No description
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Resource not found
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Not found")
+
+---
+
+## GET /v1/accounts
+
+**List connected social accounts**
+
+Returns list of connected social accounts. 
+Follower count data (followersCount, followersLastUpdated) is only included if user has analytics add-on.
+
+
+### Parameters
+
+- **profileId** (optional) in query: No description
+
+### Responses
+
+#### 200: Accounts
+
+**Response Body:**
+
+- **accounts** `array[SocialAccount]`: 
+- **hasAnalyticsAccess** `boolean`: Whether user has analytics add-on access
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+---
+
+## GET /v1/accounts/follower-stats
+
+**Get follower stats and growth metrics**
+
+Returns follower count history and growth metrics for connected social accounts.
+**Requires analytics add-on subscription.**
+
+
+### Parameters
+
+- **accountIds** (optional) in query: Comma-separated list of account IDs (optional, defaults to all user's accounts)
+- **profileId** (optional) in query: Filter by profile ID
+- **fromDate** (optional) in query: Start date in YYYY-MM-DD format (defaults to 30 days ago)
+- **toDate** (optional) in query: End date in YYYY-MM-DD format (defaults to today)
+- **granularity** (optional) in query: Data aggregation level
+
+### Responses
+
+#### 200: Follower stats
+
+**Response Body:**
+
+- **accounts** `array[AccountWithFollowerStats]`: 
+- **stats** `object`: No description
+- **dateRange** `object`: 
+  - **from** `string` (date-time): No description
+  - **to** `string` (date-time): No description
+- **granularity** `string`: No description
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 403: Analytics add-on required
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Analytics add-on required")
+- **message** `string`: No description (example: "Follower stats tracking requires the Analytics add-on. Please upgrade to access this feature.")
+- **requiresAddon** `boolean`: No description (example: true)
+
+---
+
+## PUT /v1/accounts/{accountId}
+
+**Update a social account**
+
+### Parameters
+
+- **accountId** (required) in path: No description
+
+### Request Body
+
+- **username** `string`: No description
+- **displayName** `string`: No description
+
+### Responses
+
+#### 200: Updated
+
+**Response Body:**
+
+- **message** `string`: No description
+- **account**: `SocialAccount` - See schema definition
+
+#### 400: Invalid request
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Resource not found
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Not found")
+
+---
+
+## DELETE /v1/accounts/{accountId}
+
+**Disconnect a social account**
+
+### Parameters
+
+- **accountId** (required) in path: No description
+
+### Responses
+
+#### 200: Disconnected
+
+**Response Body:**
+
+- **message** `string`: No description
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Resource not found
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Not found")
+
+---
+
+## GET /v1/accounts/{accountId}/gmb-reviews
+
+**Get Google Business Profile reviews**
+
+Fetches reviews for a connected Google Business Profile account.
+
+Returns all reviews for the business location, including:
+- Reviewer information (name, profile photo)
+- Star rating (1-5)
+- Review comment/text
+- Business owner's reply (if any)
+- Review timestamps
+
+Use pagination via `nextPageToken` to fetch all reviews for locations with many reviews.
+
+
+### Parameters
+
+- **accountId** (required) in path: The Late account ID (from /v1/accounts)
+- **pageSize** (optional) in query: Number of reviews to fetch per page (max 50)
+- **pageToken** (optional) in query: Pagination token from previous response
+
+### Responses
+
+#### 200: Reviews fetched successfully
+
+**Response Body:**
+
+- **success** `boolean`: No description
+- **accountId** `string`: No description
+- **locationId** `string`: No description
+- **reviews** `array[object]`: 
+  - **id** `string`: Review ID
+  - **name** `string`: Full resource name
+  - **reviewer** `object`: 
+    - **displayName** `string`: No description
+    - **profilePhotoUrl** `string`: No description
+    - **isAnonymous** `boolean`: No description
+  - **rating** `integer`: Numeric star rating
+  - **starRating** `string`: Google's string rating - one of: ONE, TWO, THREE, FOUR, FIVE
+  - **comment** `string`: Review text
+  - **createTime** `string` (date-time): No description
+  - **updateTime** `string` (date-time): No description
+  - **reviewReply** `object`: 
+    - **comment** `string`: Business owner reply
+    - **updateTime** `string` (date-time): No description
+- **averageRating** `number`: Overall average rating
+- **totalReviewCount** `integer`: Total number of reviews
+- **nextPageToken** `string`: Token for next page
+
+#### 400: Invalid request - not a Google Business account or missing location
+
+**Response Body:**
+
+- **error** `string`: No description
+- **details** `object`: No description
+
+#### 401: Unauthorized or token expired
+
+**Response Body:**
+
+- **error** `string`: No description
+- **details** `object`: No description
+
+#### 403: Permission denied for this location
+
+**Response Body:**
+
+- **error** `string`: No description
+- **details** `object`: No description
+
+#### 404: Resource not found
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Not found")
+
+#### 500: Failed to fetch reviews
+
+**Response Body:**
+
+- **error** `string`: No description
+- **details** `object`: No description
+
+---
+
+## PUT /v1/accounts/{accountId}/facebook-page
+
+**Update selected Facebook page for a connected account**
+
+### Parameters
+
+- **accountId** (required) in path: No description
+
+### Request Body
+
+- **selectedPageId** (required) `string`: No description
+
+### Responses
+
+#### 200: Page updated
+
+**Response Body:**
+
+- **message** `string`: No description
+- **account**: `SocialAccount` - See schema definition
+
+#### 400: Page not in available pages
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Account not found
+
+---
+
+## GET /v1/accounts/{accountId}/linkedin-organizations
+
+**Get available LinkedIn organizations for a connected account**
+
+### Parameters
+
+- **accountId** (required) in path: No description
+
+### Responses
+
+#### 200: Organizations list
+
+**Response Body:**
+
+- **organizations** `array[object]`: 
+  - **id** `string`: No description
+  - **name** `string`: No description
+  - **vanityName** `string`: No description
+  - **localizedName** `string`: No description
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Account not found
+
+---
+
+## PUT /v1/accounts/{accountId}/linkedin-organization
+
+**Switch LinkedIn account type (personal/organization)**
+
+### Parameters
+
+- **accountId** (required) in path: No description
+
+### Request Body
+
+- **accountType** (required) `string`: No description - one of: personal, organization
+- **selectedOrganization** `object`: No description
+
+### Responses
+
+#### 200: Account updated
+
+**Response Body:**
+
+- **message** `string`: No description
+- **account**: `SocialAccount` - See schema definition
+
+#### 400: Invalid request
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Account not found
+
+---
+
+## GET /v1/accounts/{accountId}/linkedin-mentions
+
+**Resolve a LinkedIn username or URL to a member URN for @mentions**
+
+Converts a LinkedIn username or profile URL to a member URN that can be used to @mention them in posts.
+
+Accepts either:
+- Just the username: `miquelpalet`
+- Full URL: `linkedin.com/in/miquelpalet`
+
+**Mention Format:**
+Use the returned `mentionFormat` value directly in your post content:
+```
+Great insights from @[Miquel Palet](urn:li:person:4qj5ox-agD) on this topic!
+```
+
+
+### Parameters
+
+- **accountId** (required) in path: The LinkedIn account ID
+- **url** (required) in query: LinkedIn profile URL or vanity name (e.g., "miquelpalet" or "https://www.linkedin.com/in/miquelpalet")
+
+### Responses
+
+#### 200: Member URN resolved successfully
+
+**Response Body:**
+
+- **urn** `string`: The LinkedIn member URN (example: "urn:li:person:4qj5ox-agD")
+- **displayName** `string`: Display name derived from the vanity URL (example: "Miquel Palet")
+- **mentionFormat** `string`: Ready-to-use mention format for post content (example: "@[Miquel Palet](urn:li:person:4qj5ox-agD)")
+
+#### 400: Invalid request or no organization found
+
+**Response Body:**
+
+- **error** `string`: No description
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Member not found
+
+**Response Body:**
+
+- **error** `string`: No description
+
+---
+
+## GET /v1/accounts/{accountId}/pinterest-boards
+
+**List Pinterest boards for a connected account**
+
+### Parameters
+
+- **accountId** (required) in path: No description
+
+### Responses
+
+#### 200: Boards list
+
+**Response Body:**
+
+- **boards** `array[object]`: 
+  - **id** `string`: No description
+  - **name** `string`: No description
+  - **description** `string`: No description
+  - **privacy** `string`: No description
+
+#### 400: Not a Pinterest account
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Account not found
+
+---
+
+## PUT /v1/accounts/{accountId}/pinterest-boards
+
+**Set default Pinterest board on the connection**
+
+### Parameters
+
+- **accountId** (required) in path: No description
+
+### Request Body
+
+- **defaultBoardId** (required) `string`: No description
+- **defaultBoardName** `string`: No description
+
+### Responses
+
+#### 200: Default board set
+
+**Response Body:**
+
+- **message** `string`: No description
+- **account**: `SocialAccount` - See schema definition
+
+#### 400: Invalid request
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Account not found
+
+---
+
+## GET /v1/accounts/{accountId}/reddit-subreddits
+
+**List Reddit subreddits for a connected account**
+
+### Parameters
+
+- **accountId** (required) in path: No description
+
+### Responses
+
+#### 200: Subreddits list
+
+**Response Body:**
+
+- **subreddits** `array[object]`: 
+  - **name** `string`: No description
+  - **displayName** `string`: No description
+  - **subscribers** `integer`: No description
+  - **public_description** `string`: No description
+
+#### 400: Not a Reddit account
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Account not found
+
+---
+
+## PUT /v1/accounts/{accountId}/reddit-subreddits
+
+**Set default subreddit on the connection**
+
+### Parameters
+
+- **accountId** (required) in path: No description
+
+### Request Body
+
+- **defaultSubreddit** (required) `string`: No description
+
+### Responses
+
+#### 200: Default subreddit set
+
+**Response Body:**
+
+- **message** `string`: No description
+- **account**: `SocialAccount` - See schema definition
+
+#### 400: Invalid request
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Account not found
+
+---
+
+
+# Related Schema Definitions
+
+## SocialAccount
+
+### Properties
+
+- **_id** `string`: No description
+- **platform** `string`: No description
+- **profileId** `string`: No description
+- **username** `string`: No description
+- **displayName** `string`: No description
+- **isActive** `boolean`: No description
+- **followersCount** `number`: Follower count (only included if user has analytics add-on)
+- **followersLastUpdated** `string`: Last time follower count was updated (only included if user has analytics add-on)
+
+## AccountWithFollowerStats
+
+
+## ErrorResponse
+
+### Properties
+
+- **error** `string`: No description
+- **details** `object`: No description

@@ -1,0 +1,522 @@
+# Connect API Reference
+
+
+
+## GET /v1/connect/{platform}
+
+**Start OAuth connection for a platform**
+
+Initiate an OAuth connection flow for any supported social media platform.
+
+**Standard Flow (Hosted UI):**
+For Facebook connections, Late hosts the page selection UI:
+
+1. Call this endpoint with your API key and `redirect_url` (optional)
+2. Redirect your user to the returned `authUrl`
+3. After OAuth, the user is redirected to Late’s hosted page selector at  
+   `/connect/facebook/select-page?profileId=X&tempToken=Y&userProfile=Z&redirect_url=YOUR_URL&connect_token=CT`
+4. After they pick a page, Late saves the connection and finally redirects to your `redirect_url` (if provided)
+
+**Headless/Whitelabel Mode (Facebook, LinkedIn & Google Business Profile):**
+Build your own fully branded selection UI while Late handles OAuth:
+
+**Facebook:**
+1. Call this endpoint with your API key and add `&headless=true`, e.g.  
+   `GET /v1/connect/facebook?profileId=PROFILE_ID&redirect_url=https://yourapp.com/callback&headless=true`
+2. Redirect your user to the returned `authUrl`
+3. After OAuth, the user is redirected directly to **your** `redirect_url` with:
+   - `profileId` – your Late profile ID  
+   - `tempToken` – temporary Facebook access token  
+   - `userProfile` – URL‑encoded JSON user profile  
+   - `connect_token` – short‑lived connect token (for API auth)  
+   - `platform=facebook`  
+   - `step=select_page`
+4. Use `tempToken`, `userProfile`, and the `X-Connect-Token` header with:
+   - `GET /v1/connect/facebook/select-page` to fetch pages
+   - `POST /v1/connect/facebook/select-page` to save the selected page
+5. In this mode, users never see Late's hosted page selector – only your UI.
+
+**LinkedIn:**
+1. Call this endpoint with `&headless=true`, e.g.  
+   `GET /v1/connect/linkedin?profileId=PROFILE_ID&redirect_url=https://yourapp.com/callback&headless=true`
+2. Redirect your user to the returned `authUrl`
+3. After OAuth, the user is redirected directly to **your** `redirect_url` with:
+   - `profileId` – your Late profile ID  
+   - `tempToken` – temporary LinkedIn access token  
+   - `userProfile` – URL‑encoded JSON user profile  
+   - `organizations` – URL‑encoded JSON array of available organizations (if any)
+   - `connect_token` – short‑lived connect token (for API auth)  
+   - `platform=linkedin`  
+   - `step=select_organization`
+4. The `organizations` array in the redirect contains all available organizations. Use it to build your UI.
+5. Call `POST /v1/connect/linkedin/select-organization` with the `X-Connect-Token` header to save the selection.
+6. In this mode, users never see Late's hosted organization selector – only your UI.
+7. Note: If the user has no organization admin access, `step=select_organization` will NOT be present,
+   and the account will be connected directly as a personal account.
+
+**Google Business Profile:**
+1. Call this endpoint with `&headless=true`, e.g.  
+   `GET /v1/connect/googlebusiness?profileId=PROFILE_ID&redirect_url=https://yourapp.com/callback&headless=true`
+2. Redirect your user to the returned `authUrl`
+3. After OAuth, the user is redirected directly to **your** `redirect_url` with:
+   - `profileId` – your Late profile ID  
+   - `tempToken` – temporary Google access token  
+   - `userProfile` – URL‑encoded JSON user profile (includes refresh token info)  
+   - `connect_token` – short‑lived connect token (for API auth)  
+   - `platform=googlebusiness`  
+   - `step=select_location`
+4. Use `tempToken`, `userProfile`, and the `X-Connect-Token` header with:
+   - `GET /v1/connect/googlebusiness/locations` to fetch business locations
+   - `POST /v1/connect/googlebusiness/select-location` to save the selected location
+5. In this mode, users never see Late's hosted location selector – only your UI.
+
+**Supported platforms:** facebook, instagram, linkedin, twitter, tiktok, youtube, threads, reddit, pinterest, bluesky
+
+
+### Parameters
+
+- **platform** (required) in path: Social media platform to connect
+- **profileId** (required) in query: Your Late profile ID (get from /v1/profiles)
+- **redirect_url** (optional) in query: Optional: Your custom redirect URL after connection completes.
+
+**Standard Mode:** Omit `headless=true` to use our hosted page selection UI.  
+After the user selects a Facebook Page, Late redirects here with:  
+`?connected=facebook&profileId=X&username=Y`
+
+**Headless Mode (Facebook, LinkedIn & Google Business Profile):**  
+Pass `headless=true` as a query parameter on this endpoint (not inside `redirect_url`), e.g.:  
+`GET /v1/connect/facebook?profileId=PROFILE_ID&redirect_url=https://yourapp.com/callback&headless=true`
+`GET /v1/connect/linkedin?profileId=PROFILE_ID&redirect_url=https://yourapp.com/callback&headless=true`
+`GET /v1/connect/googlebusiness?profileId=PROFILE_ID&redirect_url=https://yourapp.com/callback&headless=true`
+
+After OAuth, the user is redirected directly to your `redirect_url` with OAuth data:  
+- **Facebook:** `?profileId=X&tempToken=Y&userProfile=Z&connect_token=CT&platform=facebook&step=select_page`
+- **LinkedIn:** `?profileId=X&tempToken=Y&userProfile=Z&organizations=ORGS&connect_token=CT&platform=linkedin&step=select_organization`
+- **Google Business:** `?profileId=X&tempToken=Y&userProfile=Z&connect_token=CT&platform=googlebusiness&step=select_location`
+
+Then use the respective endpoints to build your custom UI:
+- Facebook: `/v1/connect/facebook/select-page` (GET to fetch, POST to save)
+- LinkedIn: `/v1/connect/linkedin/select-organization` (POST only - orgs are in redirect params)
+- Google Business: `/v1/connect/googlebusiness/locations` (GET) and `/v1/connect/googlebusiness/select-location` (POST)
+
+Example: `https://yourdomain.com/integrations/callback`
+
+
+### Responses
+
+#### 200: OAuth authorization URL to redirect user to
+
+**Response Body:**
+
+- **authUrl** `string` (uri): URL to redirect your user to for OAuth authorization
+- **state** `string`: State parameter for security (handled automatically)
+
+#### 400: Missing/invalid parameters (e.g., invalid profileId format)
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 403: No access to profile, or BYOK required for AppSumo Twitter
+
+#### 404: Profile not found
+
+---
+
+## POST /v1/connect/{platform}
+
+**Complete OAuth token exchange manually (for server-side flows)**
+
+### Parameters
+
+- **platform** (required) in path: No description
+
+### Request Body
+
+- **code** (required) `string`: No description
+- **state** (required) `string`: No description
+- **profileId** (required) `string`: No description
+
+### Responses
+
+#### 200: Account connected
+
+#### 400: Invalid params
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 403: BYOK required for AppSumo Twitter
+
+#### 500: Failed to connect account
+
+---
+
+## GET /v1/connect/facebook/select-page
+
+**List Facebook Pages after OAuth (Headless Mode)**
+
+**Headless Mode for Custom UI**
+
+After initiating Facebook OAuth via `/v1/connect/facebook`, you'll be redirected to 
+`/connect/facebook/select-page` with query params including `tempToken` and `userProfile`.
+
+For a **headless/whitelabeled flow**, extract these params from the URL and call this 
+endpoint to retrieve the list of Facebook Pages the user can manage. Then build your 
+own UI to let users select a page.
+
+**Note:** Use the `X-Connect-Token` header if you initiated the connection via API key 
+(rather than a browser session).
+
+
+### Parameters
+
+- **profileId** (required) in query: Profile ID from your connection flow
+- **tempToken** (required) in query: Temporary Facebook access token from the OAuth callback redirect
+
+### Responses
+
+#### 200: List of Facebook Pages available for connection
+
+**Response Body:**
+
+- **pages** `array[object]`: 
+  - **id** `string`: Facebook Page ID
+  - **name** `string`: Page name
+  - **username** `string`: Page username/handle (may be null)
+  - **access_token** `string`: Page-specific access token
+  - **category** `string`: Page category
+  - **tasks** `array[string]`: User permissions for this page
+
+#### 400: Missing required parameters (profileId or tempToken)
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 500: Failed to fetch pages (e.g., invalid token, insufficient permissions)
+
+**Response Body:**
+
+- **error** `string`: No description
+
+---
+
+## POST /v1/connect/facebook/select-page
+
+**Select a Facebook Page to complete the connection (Headless Mode)**
+
+**Complete the Headless Flow**
+
+After displaying your custom UI with the list of pages from the GET endpoint, call this 
+endpoint to finalize the connection with the user's selected page.
+
+The `userProfile` should be the decoded JSON object from the `userProfile` query param 
+in the OAuth callback redirect URL.
+
+**Note:** Use the `X-Connect-Token` header if you initiated the connection via API key.
+
+
+### Request Body
+
+- **profileId** (required) `string`: Profile ID from your connection flow
+- **pageId** (required) `string`: The Facebook Page ID selected by the user
+- **tempToken** (required) `string`: Temporary Facebook access token from OAuth
+- **userProfile** `object`: Decoded user profile object from the OAuth callback
+- **redirect_url** `string`: Optional custom redirect URL to return to after selection
+
+### Responses
+
+#### 200: Facebook Page connected successfully
+
+**Response Body:**
+
+- **message** `string`: No description
+- **redirect_url** `string`: Redirect URL if custom redirect_url was provided
+- **account** `object`: 
+  - **platform** `string`: No description - one of: facebook
+  - **username** `string`: No description
+  - **displayName** `string`: No description
+  - **profilePicture** `string`: No description
+  - **isActive** `boolean`: No description
+  - **selectedPageName** `string`: No description
+
+#### 400: Missing required fields (profileId, pageId, or tempToken)
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 403: User does not have access to the specified profile
+
+#### 404: Selected page not found in available pages
+
+#### 500: Failed to save Facebook connection
+
+---
+
+## GET /v1/connect/googlebusiness/locations
+
+**List Google Business Locations after OAuth (Headless Mode)**
+
+**Headless Mode for Custom UI**
+
+After initiating Google Business OAuth via `/v1/connect/googlebusiness?headless=true`, you'll be redirected 
+to your `redirect_url` with query params including `tempToken` and `userProfile`.
+
+For a **headless/whitelabeled flow**, extract these params from the URL and call this 
+endpoint to retrieve the list of Google Business locations the user can manage. Then build your 
+own UI to let users select a location.
+
+**Note:** Use the `X-Connect-Token` header if you initiated the connection via API key 
+(rather than a browser session).
+
+
+### Parameters
+
+- **profileId** (required) in query: Profile ID from your connection flow
+- **tempToken** (required) in query: Temporary Google access token from the OAuth callback redirect
+
+### Responses
+
+#### 200: List of Google Business locations available for connection
+
+**Response Body:**
+
+- **locations** `array[object]`: 
+  - **id** `string`: Location ID
+  - **name** `string`: Business name
+  - **accountId** `string`: Google Business Account ID
+  - **accountName** `string`: Account name
+  - **address** `string`: Business address
+  - **category** `string`: Business category
+
+#### 400: Missing required parameters (profileId or tempToken)
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 500: Failed to fetch locations (e.g., invalid token, insufficient permissions)
+
+**Response Body:**
+
+- **error** `string`: No description
+
+---
+
+## POST /v1/connect/googlebusiness/select-location
+
+**Select a Google Business location to complete the connection (Headless Mode)**
+
+**Complete the Headless Flow**
+
+After displaying your custom UI with the list of locations from the GET `/v1/connect/googlebusiness/locations` 
+endpoint, call this endpoint to finalize the connection with the user's selected location.
+
+The `userProfile` should be the decoded JSON object from the `userProfile` query param 
+in the OAuth callback redirect URL. It contains important token information (including refresh token).
+
+**Note:** Use the `X-Connect-Token` header if you initiated the connection via API key.
+
+
+### Request Body
+
+- **profileId** (required) `string`: Profile ID from your connection flow
+- **locationId** (required) `string`: The Google Business location ID selected by the user
+- **tempToken** (required) `string`: Temporary Google access token from OAuth
+- **userProfile** `object`: Decoded user profile object from the OAuth callback. **Important:** This contains 
+the refresh token needed for token refresh. Always include this field.
+
+- **redirect_url** `string`: Optional custom redirect URL to return to after selection
+
+### Responses
+
+#### 200: Google Business location connected successfully
+
+**Response Body:**
+
+- **message** `string`: No description
+- **redirect_url** `string`: Redirect URL if custom redirect_url was provided
+- **account** `object`: 
+  - **platform** `string`: No description - one of: googlebusiness
+  - **username** `string`: No description
+  - **displayName** `string`: No description
+  - **isActive** `boolean`: No description
+  - **selectedLocationName** `string`: No description
+  - **selectedLocationId** `string`: No description
+
+#### 400: Missing required fields (profileId, locationId, or tempToken)
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 403: User does not have access to the specified profile
+
+#### 404: Selected location not found in available locations
+
+#### 500: Failed to save Google Business connection
+
+---
+
+## POST /v1/connect/linkedin/select-organization
+
+**Select LinkedIn organization or personal account after OAuth**
+
+**Complete the LinkedIn Connection Flow**
+
+After OAuth, the user is redirected with `organizations` in the URL params (if they have org admin access).
+Use this data to build your UI, then call this endpoint to save the selection.
+
+Set `accountType` to `personal` to connect as the user's personal LinkedIn profile, or 
+`organization` to connect as a company page (requires `selectedOrganization` object).
+
+**Headless Mode:** Use the `X-Connect-Token` header if you initiated the connection via API key.
+
+
+### Request Body
+
+- **profileId** (required) `string`: No description
+- **tempToken** (required) `string`: No description
+- **userProfile** (required) `object`: No description
+- **accountType** (required) `string`: No description - one of: personal, organization
+- **selectedOrganization** `object`: No description
+- **redirect_url** `string`: No description
+
+### Responses
+
+#### 200: LinkedIn account connected
+
+**Response Body:**
+
+- **message** `string`: No description
+- **account**: `SocialAccount` - See schema definition
+
+#### 400: Missing required fields
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 500: Failed to connect LinkedIn account
+
+---
+
+## POST /v1/connect/bluesky/credentials
+
+**Connect Bluesky using app password**
+
+Connect a Bluesky account using identifier (handle or email) and an app password.
+
+To get your userId for the state parameter, call `GET /v1/users` - the response includes a `currentUserId` field.
+
+
+### Request Body
+
+- **identifier** (required) `string`: Your Bluesky handle (e.g. user.bsky.social) or email address
+- **appPassword** (required) `string`: App password generated from Bluesky Settings > App Passwords
+- **state** (required) `string`: Required state parameter formatted as `{userId}-{profileId}`.
+- `userId`: Your Late user ID (get from `GET /v1/users` → `currentUserId`)
+- `profileId`: The profile ID to connect the account to (get from `GET /v1/profiles`)
+
+- **redirectUri** `string`: Optional URL to redirect to after successful connection
+
+### Responses
+
+#### 200: Bluesky connected successfully
+
+**Response Body:**
+
+- **message** `string`: No description
+- **account**: `SocialAccount` - See schema definition
+
+#### 400: Invalid request - missing fields or invalid state format
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 500: Internal error
+
+---
+
+## POST /v1/profiles/{profileId}/clone-connection
+
+**Clone an existing connection to this profile with optional targeting**
+
+Reuse an existing OAuth connection from another profile in this profile, 
+optionally targeting different pages (Facebook) or organizations (LinkedIn).
+Perfect for managing multiple brands with the same underlying social media account.
+
+
+### Parameters
+
+- **profileId** (required) in path: No description
+
+### Request Body
+
+- **sourceAccountId** (required) `string`: ID of existing connection to clone
+- **targetPageId** `string`: Facebook page ID to target (optional, for Facebook)
+- **targetPageName** `string`: Facebook page name (optional, for Facebook)
+- **targetPageAccessToken** `string`: Facebook page access token (optional, for Facebook)
+- **targetOrganizationId** `string`: LinkedIn organization ID (optional, for LinkedIn)
+- **targetOrganizationUrn** `string`: LinkedIn organization URN (optional, for LinkedIn)
+- **targetOrganizationName** `string`: LinkedIn organization name (optional, for LinkedIn)
+- **targetAccountType** `string`: LinkedIn account type (optional, for LinkedIn) - one of: personal, organization
+
+### Responses
+
+#### 200: Connection cloned successfully
+
+**Response Body:**
+
+- **message** `string`: No description
+- **connection**: `SocialAccount` - See schema definition
+
+#### 400: Invalid request or source account
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Source account not found
+
+#### 500: Failed to clone connection
+
+---
+
+
+# Related Schema Definitions
+
+## SocialAccount
+
+### Properties
+
+- **_id** `string`: No description
+- **platform** `string`: No description
+- **profileId** `string`: No description
+- **username** `string`: No description
+- **displayName** `string`: No description
+- **isActive** `boolean`: No description
+- **followersCount** `number`: Follower count (only included if user has analytics add-on)
+- **followersLastUpdated** `string`: Last time follower count was updated (only included if user has analytics add-on)

@@ -11,6 +11,7 @@ import locationRoutes from "./assets/locations/routes";
 import voiceRoutes from "./assets/voices/routes";
 import brandkitRoutes from "./assets/brandkits/routes";
 import uploadRoutes from "./assets/uploads/routes";
+import { registerLateRoutes } from "./integrations/late/routes";
 import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertCharacterSchema, insertLocationSchema, insertVoiceSchema, insertUploadSchema, insertProjectSchema } from "@shared/schema";
 import { z } from "zod";
 import { bunnyStorage } from "./storage/bunny-storage";
@@ -36,6 +37,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/voices', voiceRoutes);
   app.use('/api/brandkits', brandkitRoutes);
   app.use('/api/uploads', uploadRoutes);
+  
+  // Late.dev integration routes
+  registerLateRoutes(app, storage, isAuthenticated, getCurrentUserId, verifyWorkspaceOwnership);
 
   // Onboarding route
   app.post('/api/onboarding/complete', isAuthenticated, async (req: any, res) => {

@@ -162,6 +162,19 @@ export interface IStorage {
   updateWorkspaceIntegration(id: string, integration: Partial<WorkspaceIntegration>): Promise<WorkspaceIntegration>;
   deleteWorkspaceIntegration(id: string): Promise<void>;
   
+  // Late.dev integration methods
+  updateWorkspaceLateProfile(workspaceId: string, lateProfileId: string): Promise<void>;
+  upsertLateIntegration(data: {
+    workspaceId: string;
+    platform: string;
+    lateAccountId: string;
+    platformUserId: string;
+    platformUsername: string;
+    platformProfileImage: string;
+  }): Promise<WorkspaceIntegration>;
+  getIntegrationByLateAccountId(lateAccountId: string): Promise<WorkspaceIntegration | undefined>;
+  getLateIntegrations(workspaceId: string): Promise<WorkspaceIntegration[]>;
+  
   // Account management
   deleteUserAccount(userId: string): Promise<void>;
 }
@@ -908,6 +921,69 @@ export class MemStorage implements IStorage {
 
   async deleteWorkspaceIntegration(id: string): Promise<void> {
     this.workspaceIntegrations.delete(id);
+  }
+
+  // Late.dev integration methods
+  async updateWorkspaceLateProfile(workspaceId: string, lateProfileId: string): Promise<void> {
+    await db.update(workspaces).set({ lateProfileId }).where(eq(workspaces.id, workspaceId));
+  }
+
+  async upsertLateIntegration(data: {
+    workspaceId: string;
+    platform: string;
+    lateAccountId: string;
+    platformUserId: string;
+    platformUsername: string;
+    platformProfileImage: string;
+  }): Promise<WorkspaceIntegration> {
+    // Check if integration already exists
+    const existing = await this.getWorkspaceIntegration(data.workspaceId, data.platform);
+    
+    if (existing) {
+      // Update existing
+      return this.updateWorkspaceIntegration(existing.id, {
+        source: 'late' as any,
+        lateAccountId: data.lateAccountId,
+        platformUserId: data.platformUserId,
+        platformUsername: data.platformUsername,
+        platformProfileImage: data.platformProfileImage,
+        isActive: true,
+        lastSyncedAt: new Date(),
+      });
+    }
+
+    // Create new integration
+    const id = randomUUID();
+    const integration: WorkspaceIntegration = {
+      id,
+      workspaceId: data.workspaceId,
+      platform: data.platform,
+      source: 'late' as any,
+      lateAccountId: data.lateAccountId,
+      accessToken: null,
+      refreshToken: null,
+      tokenExpiresAt: null,
+      platformUserId: data.platformUserId,
+      platformUsername: data.platformUsername,
+      platformProfileImage: data.platformProfileImage,
+      isActive: true,
+      lastSyncedAt: new Date(),
+      createdAt: new Date(),
+    };
+    this.workspaceIntegrations.set(id, integration);
+    return integration;
+  }
+
+  async getIntegrationByLateAccountId(lateAccountId: string): Promise<WorkspaceIntegration | undefined> {
+    return Array.from(this.workspaceIntegrations.values()).find(
+      (integration) => (integration as any).lateAccountId === lateAccountId
+    );
+  }
+
+  async getLateIntegrations(workspaceId: string): Promise<WorkspaceIntegration[]> {
+    return Array.from(this.workspaceIntegrations.values()).filter(
+      (integration) => integration.workspaceId === workspaceId && (integration as any).source === 'late'
+    );
   }
 
   async deleteUserAccount(userId: string): Promise<void> {

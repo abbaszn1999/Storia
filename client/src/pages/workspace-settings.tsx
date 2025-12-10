@@ -6,13 +6,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useWorkspace } from "@/contexts/workspace-context";
-import { Youtube, Instagram, Check, Link2, Settings2, Loader2 } from "lucide-react";
+import { Youtube, Instagram, Check, Link2, Loader2 } from "lucide-react";
 import { SiTiktok, SiFacebook } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { lateApi } from "@/lib/api/late";
 import type { WorkspaceIntegration, Workspace } from "@shared/schema";
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 
 const PLATFORMS = [
   { 
@@ -46,12 +48,22 @@ const PLATFORMS = [
 ];
 
 export default function WorkspaceSettings() {
-  const { currentWorkspace, setCurrentWorkspace, updateWorkspace, refetch } = useWorkspace();
+  const [location, setLocation] = useLocation();
+  const { currentWorkspace, setCurrentWorkspace, updateWorkspace, refetch, isLoading: workspacesLoading } = useWorkspace();
   const { toast } = useToast();
+  
+  // Fix: If we're at /workspace/undefined, redirect to correct route
+  useEffect(() => {
+    if (location.includes('/workspace/undefined')) {
+      console.log('[DEBUG] Detected /workspace/undefined, redirecting to /workspace/settings');
+      setLocation('/workspace/settings');
+    }
+  }, [location, setLocation]);
   const [workspaceName, setWorkspaceName] = useState(currentWorkspace?.name || "");
   const [workspaceDescription, setWorkspaceDescription] = useState(currentWorkspace?.description || "");
   const [deletingIntegrationId, setDeletingIntegrationId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentWorkspace) {
@@ -59,6 +71,63 @@ export default function WorkspaceSettings() {
       setWorkspaceDescription(currentWorkspace.description || "");
     }
   }, [currentWorkspace]);
+
+  // Check if user just returned from OAuth connection (success or error)
+  useEffect(() => {
+    const urlString = window.location.search;
+    const params = new URLSearchParams(window.location.search);
+    const connectedPlatform = params.get('connected');
+    
+    // Check for error in URL (Late.dev may append ?error=connection_failed with malformed URL)
+    const hasError = urlString.includes('error=connection_failed');
+    
+    // Get platform from either the error params or connected param (handle malformed URLs)
+    const errorPlatform = params.get('platform') || connectedPlatform?.split('?')[0];
+    
+    if (hasError && errorPlatform) {
+      const platformName = PLATFORMS.find(p => p.id === errorPlatform)?.name || 'Account';
+      
+      // Build helpful error message based on platform
+      let errorMessage = `Failed to connect ${platformName}.`;
+      if (errorPlatform === 'youtube') {
+        errorMessage += ' Make sure you have a YouTube channel created on this Google account.';
+      } else if (errorPlatform === 'instagram') {
+        errorMessage += ' Make sure you have a Business or Creator Instagram account connected to a Facebook Page.';
+      } else if (errorPlatform === 'facebook') {
+        errorMessage += ' Make sure you have admin access to a Facebook Page.';
+      }
+      
+      toast({
+        title: 'Connection Failed',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      
+      // Clean up URL
+      window.history.replaceState({}, '', '/workspace/settings');
+      return;
+    }
+    
+    if (connectedPlatform && !hasError) {
+      // Extract just the platform name (in case Late.dev appended extra params with ?)
+      const cleanPlatform = connectedPlatform.split('?')[0];
+      const platformName = PLATFORMS.find(p => p.id === cleanPlatform)?.name || 'Account';
+      
+      // Show success message
+      toast({
+        title: 'Account Connected',
+        description: `Your ${platformName} account has been connected successfully!`,
+      });
+      
+      // Refresh integrations list
+      if (currentWorkspace?.id) {
+        queryClient.invalidateQueries({ queryKey: ['/api/workspaces', currentWorkspace.id, 'integrations'] });
+      }
+      
+      // Clean up URL
+      window.history.replaceState({}, '', '/workspace/settings');
+    }
+  }, [currentWorkspace, queryClient, toast]);
 
   const { data: integrations = [], isLoading: integrationsLoading } = useQuery<WorkspaceIntegration[]>({
     queryKey: ['/api/workspaces', currentWorkspace?.id, 'integrations'],
@@ -69,6 +138,19 @@ export default function WorkspaceSettings() {
     },
     enabled: !!currentWorkspace?.id,
   });
+
+  // Auto-sync accounts from Late.dev when component mounts
+  // This triggers the backend to fetch from Late.dev and sync to our database
+  useEffect(() => {
+    if (currentWorkspace?.id) {
+      lateApi.getConnectedAccounts(currentWorkspace.id)
+        .then(() => {
+          // Refresh our integrations after sync
+          queryClient.invalidateQueries({ queryKey: ['/api/workspaces', currentWorkspace.id, 'integrations'] });
+        })
+        .catch(err => console.error('Failed to sync accounts:', err));
+    }
+  }, [currentWorkspace?.id]);
 
   const handleSaveWorkspaceSettings = async () => {
     if (!currentWorkspace || !workspaceName.trim()) {
@@ -127,21 +209,62 @@ export default function WorkspaceSettings() {
   });
 
 
-  const handleConnect = (platformId: string) => {
-    toast({
-      title: "Platform Integration",
-      description: `${platformId} integration will be set up in the next phase. OAuth flow coming soon!`,
-    });
+  const handleConnect = async (platformId: string) => {
+    if (!currentWorkspace) {
+      toast({
+        title: 'Error',
+        description: 'No workspace selected. Please select or create a workspace first.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setConnectingPlatform(platformId);
+      
+      // Build redirect URL back to this page with success indicator
+      const redirectUrl = `${window.location.origin}/workspace/settings?connected=${platformId}`;
+      
+      // Get Late.dev connection URL with pre-selected platform and redirect
+      const { connectUrl } = await lateApi.getConnectUrl(currentWorkspace.id, platformId, redirectUrl);
+      
+      if (!connectUrl) {
+        throw new Error('Failed to get connection URL');
+      }
+      
+      // Navigate in the same tab - user will be redirected back after OAuth
+      window.location.href = connectUrl;
+      
+    } catch (error) {
+      setConnectingPlatform(null);
+      console.error('Connection error:', error);
+      toast({
+        title: 'Connection Failed',
+        description: error instanceof Error ? error.message : 'Failed to connect account. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleDisconnect = (integrationId: string) => {
     deleteIntegrationMutation.mutate(integrationId);
   };
 
-  if (!currentWorkspace) {
+  // Show loading while workspaces are being fetched
+  if (workspacesLoading) {
     return (
       <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Show message if no workspace is available
+  if (!currentWorkspace) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4">
         <p className="text-muted-foreground">No workspace selected</p>
+        <p className="text-sm text-muted-foreground">Please create or select a workspace from the sidebar</p>
       </div>
     );
   }
@@ -160,13 +283,13 @@ export default function WorkspaceSettings() {
         </p>
       </div>
 
-      <Tabs defaultValue="general" className="w-full">
+      <Tabs defaultValue="integrations" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="general" data-testid="tab-general">
-            General
-          </TabsTrigger>
           <TabsTrigger value="integrations" data-testid="tab-integrations">
             Integrations
+          </TabsTrigger>
+          <TabsTrigger value="general" data-testid="tab-general">
+            General
           </TabsTrigger>
           <TabsTrigger value="team" data-testid="tab-team" disabled>
             Team
@@ -277,37 +400,28 @@ export default function WorkspaceSettings() {
                       </div>
                       <div className="flex flex-col gap-2">
                         {isConnected && integration ? (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleConnect(platform.id)}
-                              data-testid={`button-settings-${platform.id}`}
-                            >
-                              <Settings2 className="mr-2 h-4 w-4" />
-                              Settings
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDisconnect(integration.id)}
-                              disabled={deletingIntegrationId === integration.id}
-                              data-testid={`button-remove-${platform.id}`}
-                            >
-                              {deletingIntegrationId === integration.id && (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              )}
-                              Disconnect
-                            </Button>
-                          </>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDisconnect(integration.id)}
+                            disabled={deletingIntegrationId === integration.id}
+                            data-testid={`button-remove-${platform.id}`}
+                          >
+                            {deletingIntegrationId === integration.id && (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            )}
+                            Disconnect
+                          </Button>
                         ) : (
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleConnect(platform.id)}
+                            disabled={connectingPlatform === platform.id}
                             data-testid={`button-connect-${platform.id}`}
                           >
-                            <Link2 className="mr-2 h-4 w-4" />
+                            {connectingPlatform === platform.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {connectingPlatform !== platform.id && <Link2 className="mr-2 h-4 w-4" />}
                             Connect
                           </Button>
                         )}

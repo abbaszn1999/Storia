@@ -97,9 +97,7 @@ export const voices = pgTable("voices", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
   name: text("name").notNull(),
-  provider: text("provider").notNull(),
-  voiceId: text("voice_id").notNull(),
-  settings: jsonb("settings"),
+  description: text("description"),
   sampleUrl: text("sample_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -137,9 +135,10 @@ export const characters = pgTable("characters", {
   name: text("name").notNull(),
   description: text("description"),
   personality: text("personality"),
-  appearance: jsonb("appearance"),
+  appearance: text("appearance"),
+  imageUrl: text("image_url"),
+  referenceImages: jsonb("reference_images"),
   voiceSettings: jsonb("voice_settings"),
-  thumbnailUrl: text("thumbnail_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -147,9 +146,10 @@ export const brandkits = pgTable("brandkits", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
   name: text("name").notNull(),
+  description: text("description"),
   colors: jsonb("colors"),
   fonts: jsonb("fonts"),
-  logos: jsonb("logos"),
+  logoUrl: text("logo_url"),
   guidelines: text("guidelines"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -157,6 +157,8 @@ export const brandkits = pgTable("brandkits", {
 export const uploads = pgTable("uploads", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
+  name: text("name").notNull(),
+  description: text("description"),
   fileName: text("file_name").notNull(),
   fileType: text("file_type").notNull(),
   fileSize: integer("file_size").notNull(),
@@ -170,8 +172,8 @@ export const locations = pgTable("locations", {
   name: text("name").notNull(),
   description: text("description"),
   details: text("details"),
-  thumbnailUrl: text("thumbnail_url"),
-  referenceImages: jsonb("reference_images"),
+  imageUrl: text("image_url"),              // Main location image (Bunny CDN)
+  referenceImages: jsonb("reference_images"), // Array of max 2 reference URLs (disabled for now)
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

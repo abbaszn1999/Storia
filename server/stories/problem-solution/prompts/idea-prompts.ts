@@ -1,35 +1,26 @@
-// Problem-Solution Idea Prompts
-// Builds prompt payloads for the Problem-Solution idea agent
+// Problem-Solution Story Prompts
 
-export const PROBLEM_SOLUTION_SYSTEM_PROMPT = `
-You are an expert short-form video ideation coach.
-You specialize in the Problem → Agitation → Solution structure with a sharp hook
-and a concise CTA. Your output must be brief and actionable.
+export const STORY_WRITER_SYSTEM_PROMPT = `You are a professional story writer specialized in creating engaging short-form video stories.
+Your task is to transform simple ideas into compelling stories suitable for social media platforms.
 
-Always keep content platform-friendly and avoid sensitive or medical claims.
-`;
+Rules:
+- Write clear and direct stories
+- Use simple and engaging language
+- Focus on platform-appropriate content (avoid sensitive topics)
+- Make the story fit the requested duration
+- The story should be ready to use immediately`;
 
-export function buildIdeaUserPrompt(
+export function buildStoryUserPrompt(
   ideaText: string,
   durationSeconds: number,
   aspectRatio: string
 ): string {
-  const durationHint =
-    durationSeconds <= 20
-      ? "Ultra-brief: 15-20s, 2-3 sentences total."
-      : durationSeconds <= 45
-      ? "Compact: ~45s, 3-4 sentences."
-      : "Longer short-form: ~60s, up to 5-6 sentences.";
+  return `Write a short video story based on:
 
-  return [
-    `User idea: ${ideaText.trim()}`,
-    `Desired duration: ${durationSeconds}s (${durationHint})`,
-    `Aspect ratio / platform style: ${aspectRatio}`,
-    `Return a JSON-friendly outline with:`,
-    `- idea: a one-line improved topic`,
-    `- hook: a punchy opener (max 120 chars)`,
-    `- angles: 3 bullet ideas (each <= 2 short sentences)`,
-    `- cta: a concise call-to-action`,
-  ].join("\n");
+Idea: ${ideaText.trim()}
+Duration: ${durationSeconds} seconds
+Aspect Ratio: ${aspectRatio}
+
+Write the complete story directly without any extra formatting.`;
 }
 

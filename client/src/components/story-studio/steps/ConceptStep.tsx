@@ -24,11 +24,16 @@ interface ConceptStepProps {
   generatedScript: string;
   aspectRatio: string;
   duration: number;
+  imageMode: 'none' | 'transition' | 'image' | 'image-to-video';
+  voiceoverEnabled: boolean;
   isGenerating: boolean;
   onTopicChange: (topic: string) => void;
   onScriptChange: (script: string) => void;
   onAspectRatioChange: (ratio: string) => void;
   onDurationChange: (duration: number) => void;
+  onImageModeChange: (mode: 'none' | 'transition' | 'image' | 'image-to-video') => void;
+  onVoiceoverChange: (enabled: boolean) => void;
+  onGenerateIdea: () => void;
   onGenerateScript: () => void;
   accentColor?: string;
 }
@@ -71,11 +76,16 @@ export function ConceptStep({
   generatedScript,
   aspectRatio,
   duration,
+  imageMode,
+  voiceoverEnabled,
   isGenerating,
   onTopicChange,
   onScriptChange,
   onAspectRatioChange,
   onDurationChange,
+  onImageModeChange,
+  onVoiceoverChange,
+  onGenerateIdea,
   onGenerateScript,
   accentColor = "primary"
 }: ConceptStepProps) {
@@ -90,65 +100,11 @@ export function ConceptStep({
   }[accentColor] || "from-primary to-violet-500";
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-6">
-      {/* Left Column - Topic & Settings */}
-      <div className="space-y-5">
-        {/* Topic Input */}
-        <GlassPanel>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className={cn(
-                  "p-2 rounded-lg bg-gradient-to-br",
-                  accentClasses
-                )}>
-                  <Lightbulb className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold">Your Idea</h3>
-                  <p className="text-xs text-white/50">What's your video about?</p>
-                </div>
-              </div>
-            </div>
-
-            <Textarea
-              value={topic}
-              onChange={(e) => onTopicChange(e.target.value)}
-              placeholder={`e.g., "${suggestions[0]}"`}
-              className={cn(
-                "min-h-[120px] bg-white/5 border-white/10",
-                "focus:border-white/20 resize-none",
-                "placeholder:text-white/30"
-              )}
-            />
-
-            {/* Suggestions */}
-            <div className="space-y-2">
-              <span className="text-xs text-white/40 font-medium">Try these:</span>
-              <div className="flex flex-wrap gap-2">
-                {suggestions.map((suggestion, i) => (
-                  <motion.button
-                    key={i}
-                    onClick={() => onTopicChange(suggestion)}
-                    className={cn(
-                      "px-3 py-1.5 text-xs rounded-lg",
-                      "bg-white/5 hover:bg-white/10",
-                      "border border-white/10 hover:border-white/20",
-                      "transition-all duration-200"
-                    )}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    {suggestion}
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </GlassPanel>
-
-        {/* Settings */}
-        <GlassPanel>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-6 items-start">
+      {/* Left Column - Settings */}
+      <div className="flex flex-col h-full">
+        {/* Format & Duration Settings */}
+        <GlassPanel className="flex-1">
           <div className="space-y-5">
             <div className="flex items-center gap-2">
               <Ratio className="w-4 h-4 text-white/60" />
@@ -212,98 +168,141 @@ export function ConceptStep({
                 ))}
               </div>
             </div>
+
+            {/* Voiceover Toggle */}
+            <div className="space-y-2">
+              <label className="text-xs text-white/50">Voiceover</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => onVoiceoverChange(true)}
+                  className={cn(
+                    "py-2 rounded-lg text-sm font-medium border transition-all duration-200",
+                    voiceoverEnabled
+                      ? cn("bg-gradient-to-br border-white/20", accentClasses)
+                      : "bg-white/5 border-white/10 hover:bg-white/10"
+                  )}
+                >
+                  On
+                </button>
+                <button
+                  onClick={() => onVoiceoverChange(false)}
+                  className={cn(
+                    "py-2 rounded-lg text-sm font-medium border transition-all duration-200",
+                    !voiceoverEnabled
+                      ? cn("bg-gradient-to-br border-white/20", accentClasses)
+                      : "bg-white/5 border-white/10 hover:bg-white/10"
+                  )}
+                >
+                  Off
+                </button>
+              </div>
+            </div>
+
+            {/* Image Mode */}
+            <div className="space-y-2">
+              <label className="text-xs text-white/50">Image Mode</label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: 'none', label: 'None' },
+                  { value: 'transition', label: 'Transition' },
+                  { value: 'image', label: 'Image' },
+                  { value: 'image-to-video', label: 'Image to Video' },
+                ].map(mode => (
+                  <button
+                    key={mode.value}
+                    onClick={() => onImageModeChange(mode.value as any)}
+                    className={cn(
+                      "py-2 rounded-lg text-sm font-medium border transition-all duration-200",
+                      imageMode === mode.value
+                        ? cn("bg-gradient-to-br border-white/20", accentClasses)
+                        : "bg-white/5 border-white/10 hover:bg-white/10"
+                    )}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </GlassPanel>
-
-        {/* Generate Button */}
-        <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-          <Button
-            onClick={onGenerateScript}
-            disabled={!topic.trim() || isGenerating}
-            className={cn(
-              "w-full h-14 text-base font-semibold gap-2",
-              "bg-gradient-to-r shadow-lg",
-              accentClasses
-            )}
-          >
-            {isGenerating ? (
-              <>
-                <RefreshCw className="w-5 h-5 animate-spin" />
-                Crafting Your Script...
-              </>
-            ) : (
-              <>
-                <Wand2 className="w-5 h-5" />
-                Generate Script with AI
-              </>
-            )}
-          </Button>
-        </motion.div>
       </div>
 
-      {/* Right Column - Script Preview */}
-      <GlassPanel className="h-fit">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
+      {/* Right Column - Idea Input Only */}
+      <GlassPanel className="h-full flex flex-col">
+        <div className="space-y-4 flex-1 flex flex-col">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <div className={cn(
                 "p-2 rounded-lg bg-gradient-to-br",
                 accentClasses
               )}>
-                <FileText className="w-4 h-4 text-white" />
+                <Lightbulb className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold">Generated Script</h3>
-                <p className="text-xs text-white/50">Edit as needed</p>
+                <h3 className="font-semibold">Your Idea</h3>
+                <p className="text-xs text-white/50">What's your video about?</p>
               </div>
             </div>
-            
-            {generatedScript && (
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={onGenerateScript}
-                disabled={isGenerating}
-                className="gap-1 text-white/60 hover:text-white"
-              >
-                <RefreshCw className={cn("w-3 h-3", isGenerating && "animate-spin")} />
-                Regenerate
-              </Button>
-            )}
+            <Button
+              size="sm"
+              disabled={!topic.trim() || isGenerating}
+              onClick={onGenerateIdea}
+              className={cn(
+                "gap-2",
+                isGenerating && "opacity-50 cursor-not-allowed"
+              )}
+            >
+              {isGenerating ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-4 h-4" />
+                  IDS AI
+                </>
+              )}
+            </Button>
           </div>
 
-          {generatedScript ? (
-            <Textarea
-              value={generatedScript}
-              onChange={(e) => onScriptChange(e.target.value)}
-              className={cn(
-                "min-h-[400px] bg-white/5 border-white/10",
-                "focus:border-white/20 resize-none",
-                "font-mono text-sm leading-relaxed"
-              )}
-            />
-          ) : (
-            <div className={cn(
-              "min-h-[400px] flex flex-col items-center justify-center",
-              "border-2 border-dashed border-white/10 rounded-xl",
-              "text-white/30"
-            )}>
-              <Sparkles className="w-12 h-12 mb-4 opacity-50" />
-              <p className="text-sm font-medium">Your script will appear here</p>
-              <p className="text-xs mt-1">Enter a topic and click Generate</p>
-            </div>
-          )}
+          <Textarea
+            value={topic}
+            onChange={(e) => onTopicChange(e.target.value)}
+            placeholder={`e.g., "${suggestions[0]}"`}
+            disabled={isGenerating}
+            className={cn(
+              "flex-1 min-h-[480px] bg-white/5 border-white/10",
+              "focus:border-white/20 resize-none",
+              "placeholder:text-white/30",
+              "text-sm leading-relaxed"
+            )}
+          />
 
-          {generatedScript && (
-            <div className="flex items-center justify-between text-xs text-white/40 pt-2 border-t border-white/10">
-              <span>
-                {generatedScript.split(/\n/).filter(Boolean).length} lines
-              </span>
-              <span>
-                ~{Math.ceil(generatedScript.length / 150)} scenes estimated
-              </span>
+          {/* Suggestions */}
+          <div className="space-y-2">
+            <span className="text-xs text-white/40 font-medium">Try these:</span>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.map((suggestion, i) => (
+                <motion.button
+                  key={i}
+                  onClick={() => onTopicChange(suggestion)}
+                  disabled={isGenerating}
+                  className={cn(
+                    "px-3 py-1.5 text-xs rounded-lg",
+                    "bg-white/5 hover:bg-white/10",
+                    "border border-white/10 hover:border-white/20",
+                    "transition-all duration-200",
+                    "disabled:opacity-50 disabled:cursor-not-allowed"
+                  )}
+                  whileHover={{ scale: isGenerating ? 1 : 1.02 }}
+                  whileTap={{ scale: isGenerating ? 1 : 0.98 }}
+                >
+                  {suggestion}
+                </motion.button>
+              ))}
             </div>
-          )}
+          </div>
         </div>
       </GlassPanel>
     </div>

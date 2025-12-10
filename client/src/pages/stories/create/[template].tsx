@@ -6,7 +6,8 @@ import { useParams, useLocation } from "wouter";
 import { STORY_TEMPLATES } from "@/constants/story-templates";
 import { 
   StudioLayout, 
-  ConceptStep, 
+  ConceptStep,
+  ScriptStep,
   StoryboardStep, 
   AudioStep, 
   ExportStep,
@@ -57,7 +58,9 @@ export default function StoryCreate() {
   const getNextLabel = () => {
     switch (studio.state.currentStep) {
       case 'concept':
-        return studio.state.generatedScript ? 'Continue to Storyboard' : 'Generate Script First';
+        return 'Go to Script';
+      case 'script':
+        return studio.state.scenes.length > 0 ? 'Continue to Storyboard' : 'Generate Scenes First';
       case 'storyboard':
         return studio.state.scenes.length > 0 ? 'Continue to Audio' : 'Add Scenes First';
       case 'audio':
@@ -131,12 +134,34 @@ export default function StoryCreate() {
           generatedScript={studio.state.generatedScript}
           aspectRatio={studio.state.aspectRatio}
           duration={studio.state.duration}
+          imageMode={studio.state.imageMode}
+          voiceoverEnabled={studio.state.voiceoverEnabled}
           isGenerating={studio.state.isGenerating}
           onTopicChange={studio.setTopic}
           onScriptChange={studio.setGeneratedScript}
           onAspectRatioChange={studio.setAspectRatio}
           onDurationChange={studio.setDuration}
+          onImageModeChange={studio.setImageMode}
+          onVoiceoverChange={studio.setVoiceoverEnabled}
+          onGenerateIdea={studio.generateIdeaStory}
           onGenerateScript={studio.generateScript}
+          accentColor={accentColor}
+        />
+      )}
+
+      {studio.state.currentStep === 'script' && (
+        <ScriptStep
+          template={template}
+          storyText={studio.state.topic}
+          scenes={studio.state.scenes}
+          duration={studio.state.duration}
+          aspectRatio={studio.state.aspectRatio}
+          imageMode={studio.state.imageMode}
+          voiceoverEnabled={studio.state.voiceoverEnabled}
+          isGenerating={studio.state.isGenerating}
+          onStoryChange={studio.setTopic}
+          onSceneUpdate={studio.updateScene}
+          onGenerateScenes={studio.generateScenes}
           accentColor={accentColor}
         />
       )}

@@ -1,7 +1,7 @@
 // Story Studio Types
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type StepId = 'concept' | 'storyboard' | 'audio' | 'export';
+export type StepId = 'concept' | 'script' | 'storyboard' | 'audio' | 'export';
 
 export interface Step {
   id: StepId;
@@ -12,6 +12,7 @@ export interface Step {
 
 export const STEPS: Step[] = [
   { id: 'concept', label: 'Concept & Script', shortLabel: 'Concept', icon: '💡' },
+  { id: 'script', label: 'Script Review', shortLabel: 'Script', icon: '📝' },
   { id: 'storyboard', label: 'Storyboard', shortLabel: 'Scenes', icon: '🎬' },
   { id: 'audio', label: 'Audio', shortLabel: 'Audio', icon: '🎵' },
   { id: 'export', label: 'Preview & Export', shortLabel: 'Export', icon: '🚀' },
@@ -51,10 +52,11 @@ export interface StoryStudioState {
   generatedScript: string;
   aspectRatio: string;
   duration: number;
+  imageMode: 'none' | 'transition' | 'image' | 'image-to-video';
+  voiceoverEnabled: boolean;
   
   // Step 2: Storyboard
   scenes: StoryScene[];
-  voiceoverEnabled: boolean;
   
   // Step 3: Audio
   selectedVoice: string;
@@ -83,12 +85,14 @@ export interface StoryStudioActions {
   setGeneratedScript: (script: string) => void;
   setAspectRatio: (ratio: string) => void;
   setDuration: (duration: number) => void;
+  setImageMode: (mode: 'none' | 'transition' | 'image' | 'image-to-video') => void;
+  setVoiceoverEnabled: (enabled: boolean) => void;
   generateScript: () => Promise<void>;
+  generateIdeaStory: () => Promise<void>;
   
   // Step 2
   setScenes: (scenes: StoryScene[]) => void;
   updateScene: (id: string, updates: Partial<StoryScene>) => void;
-  setVoiceoverEnabled: (enabled: boolean) => void;
   
   // Step 3
   setSelectedVoice: (voice: string) => void;

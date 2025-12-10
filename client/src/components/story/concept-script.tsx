@@ -98,19 +98,19 @@ export function ConceptScript({
     } catch (error) {
       console.error("Generate script failed, falling back:", error);
       const structure = templateStructure || ["Hook", "Problem", "Solution", "Call-to-Action"];
-      const sceneCount = structure.length;
-      const sceneDuration = Math.floor(duration / sceneCount);
-
-      let mockScript = "";
-      structure.forEach((scene, index) => {
-        mockScript += `Scene ${index + 1}: ${scene}\n`;
-        mockScript += `[Visual: ${getVisualPrompt(scene, topic, index)}]\n`;
-        mockScript += `Narrator: "${getSceneNarration(scene, topic, index)}"\n`;
-        mockScript += `Duration: ${sceneDuration}s\n\n`;
-      });
-      setGeneratedScript(mockScript);
+    const sceneCount = structure.length;
+    const sceneDuration = Math.floor(duration / sceneCount);
+    
+    let mockScript = "";
+    structure.forEach((scene, index) => {
+      mockScript += `Scene ${index + 1}: ${scene}\n`;
+      mockScript += `[Visual: ${getVisualPrompt(scene, topic, index)}]\n`;
+      mockScript += `Narrator: "${getSceneNarration(scene, topic, index)}"\n`;
+      mockScript += `Duration: ${sceneDuration}s\n\n`;
+    });
+    setGeneratedScript(mockScript);
     } finally {
-      setIsGenerating(false);
+    setIsGenerating(false);
     }
   };
 

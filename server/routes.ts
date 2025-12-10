@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import narrativeRoutes from "./modes/narrative/routes";
 import storiesRouter from "./stories";
-import problemSolutionRouter from "./stories/problem-solution/routes";
+import { psRouter as problemSolutionRouter } from "./stories/problem-solution/routes";
 import { storageRoutes } from "./storage/index";
 import { authRoutes, isAuthenticated, getCurrentUserId } from "./auth";
 import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertCharacterSchema, insertLocationSchema, insertProjectSchema } from "@shared/schema";

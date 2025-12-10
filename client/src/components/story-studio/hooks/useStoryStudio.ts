@@ -4,6 +4,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { StepId, STEPS, StoryStudioState, StoryScene, StoryTemplate } from "../types";
 import { apiRequest } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 
 const STORAGE_KEY = "storia-studio-state";
 
@@ -18,10 +19,11 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
   generatedScript: '',
   aspectRatio: '9:16',
   duration: 30,
+  imageMode: 'none',
+  voiceoverEnabled: true,
   
   // Step 2
   scenes: [],
-  voiceoverEnabled: true,
   
   // Step 3
   selectedVoice: 'alloy',
@@ -117,11 +119,19 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setState(prev => ({ ...prev, duration }));
   }, []);
 
-  const generateScript = useCallback(async () => {
+  const setImageMode = useCallback((imageMode: 'none' | 'transition' | 'image' | 'image-to-video') => {
+    setState(prev => ({ ...prev, imageMode }));
+  }, []);
+
+  const setVoiceoverEnabled = useCallback((voiceoverEnabled: boolean) => {
+    setState(prev => ({ ...prev, voiceoverEnabled }));
+  }, []);
+
+  // Idea agent: generate story text and write to topic field
+  const generateIdeaStory = useCallback(async () => {
     if (!state.topic.trim()) return;
-    
+
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
-    
     try {
       const res = await apiRequest("POST", "/api/problem-solution/idea", {
         ideaText: state.topic,
@@ -130,48 +140,79 @@ export function useStoryStudio(template: StoryTemplate | null) {
       });
       const data = await res.json();
 
-      const structure = ['Hook', 'Problem', 'Solution', 'Call-to-Action'];
-      const sceneCount = structure.length;
-      const sceneDuration = Math.max(5, Math.floor(state.duration / sceneCount));
+      // Simply use the story text directly
+      const story = data?.story || state.topic;
 
-      const angles: string[] = data?.angles || [];
-      const hook: string = data?.hook || state.topic;
-      const idea: string = data?.idea || state.topic;
-      const cta: string = data?.cta || "Try it now.";
-
-      let script = "";
-      script += `Scene 1: Hook\n${hook}\nDuration: ${sceneDuration}s\n\n`;
-      angles.forEach((angle, i) => {
-        script += `Scene ${i + 2}: ${structure[i + 1] || "Detail"}\n${angle}\nDuration: ${sceneDuration}s\n\n`;
-      });
-      script += `CTA: ${cta}\nIdea: ${idea}\n`;
-      
-      setState(prev => ({ 
-        ...prev, 
-        generatedScript: script,
-        isGenerating: false 
+      // Write result to topic field (same field)
+      setState(prev => ({
+        ...prev,
+        topic: story,
+        isGenerating: false,
       }));
     } catch (error) {
-      console.error("Failed to generate script:", error);
-      const structure = ['Hook', 'Problem', 'Solution', 'Call-to-Action'];
-      const sceneCount = structure.length;
-      const sceneDuration = Math.floor(state.duration / sceneCount);
-
-      let mockScript = "";
-      structure.forEach((scene, index) => {
-        mockScript += `Scene ${index + 1}: ${scene}\n`;
-        mockScript += `Narrator: "${state.topic}"\n`;
-        mockScript += `Duration: ${sceneDuration}s\n\n`;
-      });
-
-      setState(prev => ({ 
-        ...prev, 
-        generatedScript: mockScript,
-        error: 'Failed to generate script (fallback)',
-        isGenerating: false 
+      console.error("Failed to generate story:", error);
+      setState(prev => ({
+        ...prev,
+        error: 'Failed to generate story',
+        isGenerating: false,
       }));
     }
   }, [state.topic, state.duration, state.aspectRatio]);
+
+  // Generate Script button: navigates to Script step and generates scenes
+  const generateScript = useCallback(async () => {
+    if (!state.topic.trim()) return;
+    
+    // First, navigate to Script step
+    setState(prev => ({
+      ...prev,
+      currentStep: 'script',
+      direction: 1,
+      completedSteps: prev.completedSteps.includes('concept')
+        ? prev.completedSteps
+        : [...prev.completedSteps, 'concept'],
+      isGenerating: true,
+      error: null,
+    }));
+
+    // Then, automatically generate scenes
+    try {
+      const res = await apiRequest("POST", "/api/problem-solution/scenes", {
+        storyText: state.topic,
+        duration: state.duration,
+        aspectRatio: state.aspectRatio,
+        voiceoverEnabled: state.voiceoverEnabled,
+        imageMode: state.imageMode,
+      });
+      
+      const data = await res.json();
+      
+      // Map backend scenes to frontend StoryScene format
+      const generatedScenes: StoryScene[] = data.scenes.map((s: any) => ({
+        id: `scene-${s.sceneNumber}`,
+        sceneNumber: s.sceneNumber,
+        narration: s.narration,
+        visualPrompt: s.visualDescription,
+        isAnimated: true,
+        transition: s.sceneNumber === 1 ? 'fade' : 'slide',
+        duration: s.duration,
+        voiceoverEnabled: state.voiceoverEnabled,
+      }));
+      
+      setState(prev => ({ 
+        ...prev, 
+        scenes: generatedScenes,
+        isGenerating: false 
+      }));
+    } catch (error) {
+      console.error("Failed to generate scenes:", error);
+      setState(prev => ({ 
+        ...prev, 
+        error: 'Failed to generate scenes',
+        isGenerating: false 
+      }));
+    }
+  }, [state.topic, state.duration, state.aspectRatio, state.voiceoverEnabled, state.imageMode]);
 
   // Step 2: Storyboard
   const setScenes = useCallback((scenes: StoryScene[]) => {
@@ -187,26 +228,31 @@ export function useStoryStudio(template: StoryTemplate | null) {
     }));
   }, []);
 
-  const setVoiceoverEnabled = useCallback((voiceoverEnabled: boolean) => {
-    setState(prev => ({ ...prev, voiceoverEnabled }));
-  }, []);
-
   const generateScenes = useCallback(async () => {
-    if (!state.generatedScript.trim()) return;
+    if (!state.topic.trim()) return;
     
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
     
     try {
-      // Parse script into scenes
-      const sceneBlocks = state.generatedScript.split(/Scene \d+:/i).filter(Boolean);
-      const generatedScenes: StoryScene[] = sceneBlocks.map((block, index) => ({
-        id: `scene-${index + 1}`,
-        sceneNumber: index + 1,
-        narration: block.trim().split('\n')[0] || '',
-        visualPrompt: block.trim(),
+      const res = await apiRequest("POST", "/api/problem-solution/scenes", {
+        storyText: state.topic,
+        duration: state.duration,
+        aspectRatio: state.aspectRatio,
+        voiceoverEnabled: state.voiceoverEnabled,
+        imageMode: state.imageMode,
+      });
+      
+      const data = await res.json();
+      
+      // Map backend scenes to frontend StoryScene format
+      const generatedScenes: StoryScene[] = data.scenes.map((s: any) => ({
+        id: `scene-${s.sceneNumber}`,
+        sceneNumber: s.sceneNumber,
+        narration: s.narration,
+        visualPrompt: s.visualDescription,
         isAnimated: true,
-        transition: index === 0 ? 'fade' : 'slide',
-        duration: Math.ceil(state.duration / sceneBlocks.length),
+        transition: s.sceneNumber === 1 ? 'fade' : 'slide',
+        duration: s.duration,
         voiceoverEnabled: state.voiceoverEnabled,
       }));
       
@@ -216,13 +262,14 @@ export function useStoryStudio(template: StoryTemplate | null) {
         isGenerating: false 
       }));
     } catch (error) {
+      console.error("Failed to generate scenes:", error);
       setState(prev => ({ 
         ...prev, 
         error: 'Failed to generate scenes',
         isGenerating: false 
       }));
     }
-  }, [state.generatedScript, state.duration, state.voiceoverEnabled]);
+  }, [state.topic, state.duration, state.aspectRatio, state.voiceoverEnabled, state.imageMode]);
 
   // Step 3: Audio
   const setSelectedVoice = useCallback((selectedVoice: string) => {
@@ -279,20 +326,22 @@ export function useStoryStudio(template: StoryTemplate | null) {
   }, [template]);
 
   // Completion check helpers
-  const isStep1Complete = state.topic.trim().length > 0 && state.generatedScript.trim().length > 0;
+  const isStep1Complete = state.topic.trim().length > 0;
+  const isStepScriptComplete = state.topic.trim().length > 0;
   const isStep2Complete = state.scenes.length > 0;
   const isStep3Complete = state.selectedVoice.length > 0;
-  const isStep4Ready = isStep1Complete && isStep2Complete && isStep3Complete;
+  const isStep4Ready = isStep1Complete && isStepScriptComplete && isStep2Complete && isStep3Complete;
 
   const canProceed = useCallback((step: StepId): boolean => {
     switch (step) {
       case 'concept': return isStep1Complete;
+      case 'script': return isStepScriptComplete;
       case 'storyboard': return isStep2Complete;
       case 'audio': return isStep3Complete;
       case 'export': return isStep4Ready;
       default: return false;
     }
-  }, [isStep1Complete, isStep2Complete, isStep3Complete, isStep4Ready]);
+  }, [isStep1Complete, isStepScriptComplete, isStep2Complete, isStep3Complete, isStep4Ready]);
 
   return {
     state,
@@ -307,12 +356,14 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setGeneratedScript,
     setAspectRatio,
     setDuration,
+    setImageMode,
+    setVoiceoverEnabled,
+    generateIdeaStory,
     generateScript,
     
     // Step 2
     setScenes,
     updateScene,
-    setVoiceoverEnabled,
     generateScenes,
     
     // Step 3

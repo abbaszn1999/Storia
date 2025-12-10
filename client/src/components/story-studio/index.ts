@@ -14,6 +14,7 @@ export { TimelineNavigation } from './shared/TimelineNavigation';
 
 // Step Components
 export { ConceptStep } from './steps/ConceptStep';
+export { ScriptStep } from './steps/ScriptStep';
 export { StoryboardStep } from './steps/StoryboardStep';
 export { AudioStep } from './steps/AudioStep';
 export { ExportStep } from './steps/ExportStep';

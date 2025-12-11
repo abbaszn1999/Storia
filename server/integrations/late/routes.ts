@@ -146,16 +146,13 @@ export function registerLateRoutes(app: Express, storage: IStorage, isAuthentica
         }
       }
 
-      // Also mark any accounts no longer in Late.dev as inactive
+      // Delete any accounts no longer in Late.dev (user disconnected them)
       const existingIntegrations = await storage.getLateIntegrations(workspaceId);
       const lateAccountIds = new Set(accounts.map(a => a._id));
       
       for (const integration of existingIntegrations) {
-        if (integration.lateAccountId && !lateAccountIds.has(integration.lateAccountId) && integration.isActive) {
-          await storage.updateWorkspaceIntegration(integration.id, {
-            isActive: false,
-            lastSyncedAt: new Date(),
-          });
+        if (integration.lateAccountId && !lateAccountIds.has(integration.lateAccountId)) {
+          await storage.deleteWorkspaceIntegration(integration.id);
         }
       }
 
@@ -193,11 +190,8 @@ export function registerLateRoutes(app: Express, storage: IStorage, isAuthentica
       // Disconnect account via Late API
       await lateService.disconnectAccount(accountId);
 
-      // Mark as inactive in database
-      await storage.updateWorkspaceIntegration(integration.id, {
-        isActive: false,
-        lastSyncedAt: new Date(),
-      });
+      // Delete the integration from database
+      await storage.deleteWorkspaceIntegration(integration.id);
 
       res.json({ success: true });
     } catch (error) {

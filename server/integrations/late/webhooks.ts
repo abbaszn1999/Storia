@@ -90,29 +90,15 @@ export class LateWebhookHandler {
         return;
       }
 
-      // Check if integration already exists
-      const existing = await this.storage.getIntegrationByLateAccountId(accountId);
-
-      if (existing) {
-        // Update existing integration
-        await this.storage.updateWorkspaceIntegration(existing.id, {
-          isActive: true,
-          platformUserId: platformAccountId || existing.platformUserId,
-          platformUsername: platformUsername || platformName || existing.platformUsername,
-          platformProfileImage: platformProfileImage || existing.platformProfileImage,
-          lastSyncedAt: new Date(),
-        });
-      } else {
-        // Create new integration
-        await this.storage.upsertLateIntegration({
-          workspaceId: workspace.id,
-          platform: platform as any,
-          lateAccountId: accountId,
-          platformUserId: platformAccountId || '',
-          platformUsername: platformUsername || platformName || '',
-          platformProfileImage: platformProfileImage || '',
-        });
-      }
+      // Upsert integration (create or update)
+      await this.storage.upsertLateIntegration({
+        workspaceId: workspace.id,
+        platform: platform as any,
+        lateAccountId: accountId,
+        platformUserId: platformAccountId || '',
+        platformUsername: platformUsername || platformName || '',
+        platformProfileImage: platformProfileImage || '',
+      });
 
       console.log('Successfully processed account.connected event for', platform);
     } catch (error) {
@@ -135,11 +121,9 @@ export class LateWebhookHandler {
       const integration = await this.storage.getIntegrationByLateAccountId(accountId);
 
       if (integration) {
-        await this.storage.updateWorkspaceIntegration(integration.id, {
-          isActive: false,
-          lastSyncedAt: new Date(),
-        });
-        console.log('Successfully marked account as disconnected:', accountId);
+        // Delete the integration from database
+        await this.storage.deleteWorkspaceIntegration(integration.id);
+        console.log('Successfully deleted disconnected account:', accountId);
       }
     } catch (error) {
       console.error('Error processing account.disconnected event:', error);
@@ -159,11 +143,9 @@ export class LateWebhookHandler {
         const integration = await this.storage.getIntegrationByLateAccountId(accountId);
 
         if (integration) {
-          // Mark as inactive due to error
-          await this.storage.updateWorkspaceIntegration(integration.id, {
-            isActive: false,
-            lastSyncedAt: new Date(),
-          });
+          // Delete the integration due to error (account no longer valid)
+          await this.storage.deleteWorkspaceIntegration(integration.id);
+          console.log('Deleted integration due to error:', accountId);
         }
       } catch (err) {
         console.error('Error processing account.error event:', err);

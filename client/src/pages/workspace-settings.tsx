@@ -246,8 +246,34 @@ export default function WorkspaceSettings() {
     }
   };
 
-  const handleDisconnect = (integrationId: string) => {
-    deleteIntegrationMutation.mutate(integrationId);
+  const handleDisconnect = async (integration: WorkspaceIntegration) => {
+    if (!currentWorkspace) return;
+
+    // For Late.dev integrations, use the Late.dev API
+    if (integration.source === 'late' && integration.lateAccountId) {
+      try {
+        setDeletingIntegrationId(integration.id);
+        await lateApi.disconnectAccount(currentWorkspace.id, integration.lateAccountId);
+        
+        queryClient.invalidateQueries({ queryKey: ['/api/workspaces', currentWorkspace.id, 'integrations'] });
+        setDeletingIntegrationId(null);
+        
+        toast({
+          title: "Account Disconnected",
+          description: "Your account has been disconnected successfully.",
+        });
+      } catch (error) {
+        setDeletingIntegrationId(null);
+        toast({
+          title: "Error",
+          description: "Failed to disconnect account. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } else {
+      // For direct OAuth integrations (future)
+      deleteIntegrationMutation.mutate(integration.id);
+    }
   };
 
   // Show loading while workspaces are being fetched
@@ -403,7 +429,7 @@ export default function WorkspaceSettings() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDisconnect(integration.id)}
+                            onClick={() => handleDisconnect(integration)}
                             disabled={deletingIntegrationId === integration.id}
                             data-testid={`button-remove-${platform.id}`}
                           >

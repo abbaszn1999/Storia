@@ -8,6 +8,7 @@ import {
   voices,
   brandkits,
   uploads,
+  workspaceIntegrations,
   type User,
   type UpsertUser,
   type Workspace,
@@ -44,7 +45,7 @@ import {
   type InsertWorkspaceIntegration,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -195,7 +196,7 @@ export class MemStorage implements IStorage {
   private shotVersions: Map<string, ShotVersion>;
   private referenceImages: Map<string, ReferenceImage>;
   private continuityGroups: Map<string, ContinuityGroup>;
-  private workspaceIntegrations: Map<string, WorkspaceIntegration>;
+  // workspaceIntegrations now uses PostgreSQL directly (not in-memory)
 
   constructor() {
     this.users = new Map();
@@ -213,7 +214,7 @@ export class MemStorage implements IStorage {
     this.shotVersions = new Map();
     this.referenceImages = new Map();
     this.continuityGroups = new Map();
-    this.workspaceIntegrations = new Map();
+    // workspaceIntegrations uses PostgreSQL directly
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -225,7 +226,8 @@ export class MemStorage implements IStorage {
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    for (const user of this.users.values()) {
+    const userArray = Array.from(this.users.values());
+    for (const user of userArray) {
       if (user.email === email) return user;
     }
     const [dbUser] = await db.select().from(users).where(eq(users.email, email));
@@ -233,7 +235,8 @@ export class MemStorage implements IStorage {
   }
 
   async getUserByGoogleId(googleId: string): Promise<User | undefined> {
-    for (const user of this.users.values()) {
+    const userArray = Array.from(this.users.values());
+    for (const user of userArray) {
       if (user.googleId === googleId) return user;
     }
     const [dbUser] = await db.select().from(users).where(eq(users.googleId, googleId));
@@ -624,9 +627,7 @@ export class MemStorage implements IStorage {
       ...insertScene,
       id,
       description: insertScene.description ?? null,
-      location: insertScene.location ?? null,
-      timeOfDay: insertScene.timeOfDay ?? null,
-      duration: insertScene.duration ?? null,
+      duration: null, // Duration is calculated from shot durations
       videoModel: insertScene.videoModel ?? null,
       imageModel: insertScene.imageModel ?? null,
       lighting: insertScene.lighting ?? null,
@@ -663,6 +664,7 @@ export class MemStorage implements IStorage {
       ...insertShot,
       id,
       cameraMovement: insertShot.cameraMovement ?? "static",
+      transition: insertShot.transition ?? "cut",
       description: insertShot.description ?? null,
       videoModel: insertShot.videoModel ?? null,
       imageModel: insertShot.imageModel ?? null,
@@ -841,6 +843,10 @@ export class MemStorage implements IStorage {
       id,
       description: insertGroup.description ?? null,
       transitionType: insertGroup.transitionType ?? null,
+      status: insertGroup.status ?? "proposed",
+      editedBy: insertGroup.editedBy ?? null,
+      editedAt: insertGroup.editedAt ?? null,
+      approvedAt: insertGroup.approvedAt ?? null,
       createdAt: new Date(),
     };
     this.continuityGroups.set(id, group);
@@ -871,16 +877,20 @@ export class MemStorage implements IStorage {
     }
   }
 
+  // ========== WORKSPACE INTEGRATIONS - PostgreSQL Storage ==========
+  
   async getWorkspaceIntegrations(workspaceId: string): Promise<WorkspaceIntegration[]> {
-    return Array.from(this.workspaceIntegrations.values()).filter(
-      (integration) => integration.workspaceId === workspaceId
-    );
+    return db.select().from(workspaceIntegrations).where(eq(workspaceIntegrations.workspaceId, workspaceId));
   }
 
   async getWorkspaceIntegration(workspaceId: string, platform: string): Promise<WorkspaceIntegration | undefined> {
-    return Array.from(this.workspaceIntegrations.values()).find(
-      (integration) => integration.workspaceId === workspaceId && integration.platform === platform
+    const [integration] = await db.select().from(workspaceIntegrations).where(
+      and(
+        eq(workspaceIntegrations.workspaceId, workspaceId),
+        eq(workspaceIntegrations.platform, platform)
+      )
     );
+    return integration;
   }
 
   async createWorkspaceIntegration(insertIntegration: InsertWorkspaceIntegration): Promise<WorkspaceIntegration> {
@@ -893,34 +903,26 @@ export class MemStorage implements IStorage {
       throw new Error(`Integration for ${insertIntegration.platform} already exists in this workspace`);
     }
 
-    const id = randomUUID();
-    const integration: WorkspaceIntegration = {
+    const [integration] = await db.insert(workspaceIntegrations).values({
       ...insertIntegration,
-      id,
-      accessToken: insertIntegration.accessToken ?? null,
-      refreshToken: insertIntegration.refreshToken ?? null,
-      tokenExpiresAt: insertIntegration.tokenExpiresAt ?? null,
-      platformUserId: insertIntegration.platformUserId ?? null,
-      platformUsername: insertIntegration.platformUsername ?? null,
-      platformProfileImage: insertIntegration.platformProfileImage ?? null,
       isActive: insertIntegration.isActive ?? true,
-      lastSyncedAt: insertIntegration.lastSyncedAt ?? null,
-      createdAt: new Date(),
-    };
-    this.workspaceIntegrations.set(id, integration);
+    }).returning();
+    
     return integration;
   }
 
   async updateWorkspaceIntegration(id: string, updates: Partial<WorkspaceIntegration>): Promise<WorkspaceIntegration> {
-    const integration = this.workspaceIntegrations.get(id);
-    if (!integration) throw new Error('Workspace integration not found');
-    const updated = { ...integration, ...updates };
-    this.workspaceIntegrations.set(id, updated);
+    const [updated] = await db.update(workspaceIntegrations)
+      .set(updates)
+      .where(eq(workspaceIntegrations.id, id))
+      .returning();
+    
+    if (!updated) throw new Error('Workspace integration not found');
     return updated;
   }
 
   async deleteWorkspaceIntegration(id: string): Promise<void> {
-    this.workspaceIntegrations.delete(id);
+    await db.delete(workspaceIntegrations).where(eq(workspaceIntegrations.id, id));
   }
 
   // Late.dev integration methods
@@ -940,49 +942,52 @@ export class MemStorage implements IStorage {
     const existing = await this.getWorkspaceIntegration(data.workspaceId, data.platform);
     
     if (existing) {
-      // Update existing
-      return this.updateWorkspaceIntegration(existing.id, {
-        source: 'late' as any,
-        lateAccountId: data.lateAccountId,
-        platformUserId: data.platformUserId,
-        platformUsername: data.platformUsername,
-        platformProfileImage: data.platformProfileImage,
-        isActive: true,
-        lastSyncedAt: new Date(),
-      });
+      // Update existing in PostgreSQL
+      const [updated] = await db.update(workspaceIntegrations)
+        .set({
+          source: 'late',
+          lateAccountId: data.lateAccountId,
+          platformUserId: data.platformUserId,
+          platformUsername: data.platformUsername,
+          platformProfileImage: data.platformProfileImage,
+          isActive: true,
+          lastSyncedAt: new Date(),
+        })
+        .where(eq(workspaceIntegrations.id, existing.id))
+        .returning();
+      
+      return updated;
     }
 
-    // Create new integration
-    const id = randomUUID();
-    const integration: WorkspaceIntegration = {
-      id,
+    // Create new integration in PostgreSQL
+    const [integration] = await db.insert(workspaceIntegrations).values({
       workspaceId: data.workspaceId,
       platform: data.platform,
-      source: 'late' as any,
+      source: 'late',
       lateAccountId: data.lateAccountId,
-      accessToken: null,
-      refreshToken: null,
-      tokenExpiresAt: null,
       platformUserId: data.platformUserId,
       platformUsername: data.platformUsername,
       platformProfileImage: data.platformProfileImage,
       isActive: true,
       lastSyncedAt: new Date(),
-      createdAt: new Date(),
-    };
-    this.workspaceIntegrations.set(id, integration);
+    }).returning();
+    
     return integration;
   }
 
   async getIntegrationByLateAccountId(lateAccountId: string): Promise<WorkspaceIntegration | undefined> {
-    return Array.from(this.workspaceIntegrations.values()).find(
-      (integration) => (integration as any).lateAccountId === lateAccountId
+    const [integration] = await db.select().from(workspaceIntegrations).where(
+      eq(workspaceIntegrations.lateAccountId, lateAccountId)
     );
+    return integration;
   }
 
   async getLateIntegrations(workspaceId: string): Promise<WorkspaceIntegration[]> {
-    return Array.from(this.workspaceIntegrations.values()).filter(
-      (integration) => integration.workspaceId === workspaceId && (integration as any).source === 'late'
+    return db.select().from(workspaceIntegrations).where(
+      and(
+        eq(workspaceIntegrations.workspaceId, workspaceId),
+        eq(workspaceIntegrations.source, 'late')
+      )
     );
   }
 
@@ -1058,10 +1063,10 @@ export class MemStorage implements IStorage {
         this.contentCalendar.delete(item.id);
       }
       
-      // Delete workspace integrations
+      // Delete workspace integrations from PostgreSQL
       const integrations = await this.getWorkspaceIntegrations(workspace.id);
       for (const integration of integrations) {
-        this.workspaceIntegrations.delete(integration.id);
+        await this.deleteWorkspaceIntegration(integration.id);
       }
       
       // Delete projects

@@ -269,11 +269,8 @@ export const workspaceIntegrations = pgTable("workspace_integrations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
   platform: text("platform").notNull(), // 'youtube' | 'tiktok' | 'instagram' | 'facebook'
-  source: text("source").default("late").notNull(), // 'late' | 'direct' - Integration source
-  lateAccountId: text("late_account_id"), // Late.dev account ID (when source='late')
-  accessToken: text("access_token"), // Encrypted OAuth access token (when source='direct')
-  refreshToken: text("refresh_token"), // Encrypted OAuth refresh token (when source='direct')
-  tokenExpiresAt: timestamp("token_expires_at"), // Token expiration timestamp (when source='direct')
+  source: text("source").default("late").notNull(), // 'late' - Integration source (Late.dev)
+  lateAccountId: text("late_account_id"), // Late.dev account ID
   platformUserId: text("platform_user_id"), // e.g., YouTube channel ID
   platformUsername: text("platform_username"), // Display name for UI
   platformProfileImage: text("platform_profile_image"), // Avatar URL

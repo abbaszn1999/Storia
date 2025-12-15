@@ -11,6 +11,7 @@ export { StudioLayout } from './layout/StudioLayout';
 export { AmbientBackground } from './shared/AmbientBackground';
 export { GlassPanel } from './shared/GlassPanel';
 export { TimelineNavigation } from './shared/TimelineNavigation';
+export { FullScreenLoading } from './shared/FullScreenLoading';
 
 // Step Components
 export { ConceptStep } from './steps/ConceptStep';

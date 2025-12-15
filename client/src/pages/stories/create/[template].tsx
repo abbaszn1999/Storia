@@ -14,6 +14,7 @@ import {
   useStoryStudio,
   type StoryTemplate as StudioTemplate
 } from "@/components/story-studio";
+import { FullScreenLoading } from "@/components/story-studio/shared/FullScreenLoading";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 
@@ -115,34 +116,69 @@ export default function StoryCreate() {
   }
 
   return (
-    <StudioLayout
-      template={template}
-      currentStep={studio.state.currentStep}
-      completedSteps={studio.state.completedSteps}
-      direction={studio.state.direction}
-      onStepClick={handleStepClick}
-      onNext={handleNext}
-      onBack={handleBack}
-      isNextDisabled={!canProceedFromCurrentStep && studio.state.currentStep !== 'export'}
-      nextLabel={getNextLabel()}
-    >
+    <>
+      {/* Full Screen Loading Overlay */}
+      <FullScreenLoading
+        isVisible={studio.isTransitioningToExport}
+        title="Generating Voiceover..."
+        description="Creating audio for your scenes"
+        progress={studio.voiceoverProgress}
+        currentStep={Math.ceil(studio.voiceoverProgress / 33).toString()}
+        totalSteps={studio.state.scenes.length}
+        icon="mic"
+        accentColor={accentColor}
+      />
+
+      <StudioLayout
+        template={template}
+        currentStep={studio.state.currentStep}
+        completedSteps={studio.state.completedSteps}
+        direction={studio.state.direction}
+        onStepClick={handleStepClick}
+        onNext={handleNext}
+        onBack={handleBack}
+        isNextDisabled={!canProceedFromCurrentStep && studio.state.currentStep !== 'export'}
+        nextLabel={getNextLabel()}
+      >
       {/* Step 1: Concept & Script */}
       {studio.state.currentStep === 'concept' && (
         <ConceptStep
           template={template}
           topic={studio.state.topic}
-          generatedScript={studio.state.generatedScript}
+          aiPrompt={studio.state.aiPrompt}
           aspectRatio={studio.state.aspectRatio}
           duration={studio.state.duration}
-          imageMode={studio.state.imageMode}
           voiceoverEnabled={studio.state.voiceoverEnabled}
+          language={studio.state.language}
+          textOverlayEnabled={studio.state.textOverlayEnabled}
+          textOverlay={studio.state.textOverlay}
+          textOverlayStyle={studio.state.textOverlayStyle}
+          pacing={studio.state.pacing}
+          hookStyle={studio.state.hookStyle}
+          imageModel={studio.state.imageModel}
+          imageResolution={studio.state.imageResolution}
+          animationMode={studio.state.animationMode}
+          videoModel={studio.state.videoModel}
+          videoResolution={studio.state.videoResolution}
           isGenerating={studio.state.isGenerating}
+          
           onTopicChange={studio.setTopic}
-          onScriptChange={studio.setGeneratedScript}
+          onAiPromptChange={studio.setAiPrompt}
           onAspectRatioChange={studio.setAspectRatio}
           onDurationChange={studio.setDuration}
-          onImageModeChange={studio.setImageMode}
           onVoiceoverChange={studio.setVoiceoverEnabled}
+          onLanguageChange={studio.setLanguage}
+          onPacingChange={studio.setPacing}
+          onHookStyleChange={studio.setHookStyle}
+          onTextOverlayEnabledChange={studio.setTextOverlayEnabled}
+          onTextOverlayChange={studio.setTextOverlay}
+          onTextOverlayStyleChange={studio.setTextOverlayStyle}
+          onImageModelChange={studio.setImageModel}
+          onImageResolutionChange={studio.setImageResolution}
+          onAnimationModeChange={studio.setAnimationMode}
+          onVideoModelChange={studio.setVideoModel}
+          onVideoResolutionChange={studio.setVideoResolution}
+          
           onGenerateIdea={studio.generateIdeaStory}
           onGenerateScript={studio.generateScript}
           accentColor={accentColor}
@@ -159,8 +195,11 @@ export default function StoryCreate() {
           imageMode={studio.state.imageMode}
           voiceoverEnabled={studio.state.voiceoverEnabled}
           isGenerating={studio.state.isGenerating}
+          error={studio.state.error}
           onStoryChange={studio.setTopic}
           onSceneUpdate={studio.updateScene}
+          onSceneAdd={studio.addScene}
+          onSceneDelete={studio.deleteScene}
           onGenerateScenes={studio.generateScenes}
           accentColor={accentColor}
         />
@@ -172,11 +211,17 @@ export default function StoryCreate() {
           template={template}
           scenes={studio.state.scenes}
           voiceoverEnabled={studio.state.voiceoverEnabled}
+          imageMode={studio.state.imageMode}
           isGenerating={studio.state.isGenerating}
           onScenesChange={studio.setScenes}
           onSceneUpdate={studio.updateScene}
           onVoiceoverToggle={studio.setVoiceoverEnabled}
           onGenerateScenes={studio.generateScenes}
+          onRegenerateEnhancement={studio.generateStoryboardEnhancement}
+          onGenerateImages={studio.generateImages}
+          onRegenerateSceneImage={studio.regenerateSceneImage}
+          onGenerateVideos={studio.generateVideos}
+          onRegenerateVideo={studio.regenerateSceneVideo}
           accentColor={accentColor}
         />
       )}
@@ -191,10 +236,12 @@ export default function StoryCreate() {
           voiceVolume={studio.state.voiceVolume}
           musicVolume={studio.state.musicVolume}
           isGenerating={studio.state.isGenerating}
+          voiceoverEnabled={studio.state.voiceoverEnabled}
           onVoiceChange={studio.setSelectedVoice}
           onMusicChange={studio.setBackgroundMusic}
           onVoiceVolumeChange={studio.setVoiceVolume}
           onMusicVolumeChange={studio.setMusicVolume}
+          onGenerateVoiceover={studio.generateVoiceover}
           accentColor={accentColor}
         />
       )}
@@ -214,12 +261,15 @@ export default function StoryCreate() {
           exportQuality={studio.state.exportQuality}
           isGenerating={studio.state.isGenerating}
           generationProgress={studio.state.generationProgress}
+          voiceoverEnabled={studio.state.voiceoverEnabled}
           onFormatChange={studio.setExportFormat}
           onQualityChange={studio.setExportQuality}
           onExport={studio.exportVideo}
+          onGenerateVoiceover={studio.generateVoiceover}
           accentColor={accentColor}
         />
       )}
-    </StudioLayout>
+      </StudioLayout>
+    </>
   );
 }

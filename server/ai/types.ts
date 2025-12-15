@@ -9,6 +9,7 @@ export type AiTask =
   | "function-calling"
   | "vision"
   | "audio"
+  | "text-to-speech"
   | "image-generation"
   | "video-generation"
   | "image-to-image"

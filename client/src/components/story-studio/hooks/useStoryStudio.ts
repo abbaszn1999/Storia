@@ -4,7 +4,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { StepId, STEPS, StoryStudioState, StoryScene, StoryTemplate } from "../types";
 import { apiRequest } from "@/lib/queryClient";
-import { apiRequest } from "@/lib/queryClient";
+import { getImageModelConfig } from "@/constants/image-models";
+import { getVideoModelConfig } from "@/constants/video-models";
 
 const STORAGE_KEY = "storia-studio-state";
 
@@ -19,14 +20,28 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
   generatedScript: '',
   aspectRatio: '9:16',
   duration: 30,
-  imageMode: 'none',
+  imageMode: 'none', // Legacy
   voiceoverEnabled: true,
+  pacing: 'medium',
+  hookStyle: 'question',
+  textOverlayEnabled: true, // New: Simple ON/OFF toggle
+  textOverlay: 'key-points', // Auto-set to key-points
+  
+  // New State Fields
+  aiPrompt: '',
+  language: 'en',
+  textOverlayStyle: 'modern',
+  imageModel: 'nano-banana', // Default image model
+  imageResolution: '1k', // Default image resolution
+  animationMode: 'off',
+  videoModel: 'seedance-1.0-pro', // Default video model
+  videoResolution: '720p', // Default video resolution
   
   // Step 2
   scenes: [],
   
   // Step 3
-  selectedVoice: 'alloy',
+  selectedVoice: '21m00Tcm4TlvDq8ikWAM', // Rachel (English) - default
   backgroundMusic: 'none',
   voiceVolume: 80,
   musicVolume: 30,
@@ -42,13 +57,39 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
 });
 
 export function useStoryStudio(template: StoryTemplate | null) {
+  const [isTransitioningToExport, setIsTransitioningToExport] = useState(false);
+  const [voiceoverProgress, setVoiceoverProgress] = useState(0);
+  
   const [state, setState] = useState<StoryStudioState>(() => {
-    // Try to restore from localStorage
-    if (template) {
+    // Check if this is a new project (from template selection)
+    const searchParams = new URLSearchParams(window.location.search);
+    const isNewProject = searchParams.get('new') === 'true';
+    
+    // If new project, clear localStorage for this template
+    if (isNewProject && template) {
+      localStorage.removeItem(`${STORAGE_KEY}-${template.id}`);
+      // Clear the URL parameter to avoid clearing on refresh
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    
+    // Try to restore from localStorage (only if not a new project)
+    if (template && !isNewProject) {
       const stored = localStorage.getItem(`${STORAGE_KEY}-${template.id}`);
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
+          
+          // Sync imageMode with animationMode for backward compatibility
+          if (parsed.animationMode) {
+            let imageMode: 'none' | 'transition' | 'image-to-video' = 'none';
+            if (parsed.animationMode === 'transition') {
+              imageMode = 'transition';
+            } else if (parsed.animationMode === 'video') {
+              imageMode = 'image-to-video';
+            }
+            parsed.imageMode = imageMode;
+          }
+          
           return { ...createInitialState(template), ...parsed, template };
         } catch {
           // Ignore parse errors
@@ -65,6 +106,328 @@ export function useStoryStudio(template: StoryTemplate | null) {
     }
   }, [state, template]);
 
+  // Generate Images: for Storyboard step
+  const generateImages = useCallback(async () => {
+    if (state.scenes.length === 0) return;
+
+    // Check if scenes have imagePrompts
+    const hasPrompts = state.scenes.some(s => s.imagePrompt);
+    if (!hasPrompts) {
+      console.warn('[image-generation] No image prompts found, skipping...');
+      return;
+    }
+
+    console.log('[image-generation] Starting automatic image generation...');
+    setState(prev => ({ ...prev, isGenerating: true, error: null }));
+
+    try {
+      const res = await apiRequest("POST", "/api/problem-solution/images", {
+        storyId: state.template?.id || 'temp-story',
+        scenes: state.scenes.map(s => ({
+          id: s.id,
+          sceneNumber: s.sceneNumber,
+          imagePrompt: s.imagePrompt || s.narration,
+          duration: s.duration,
+        })),
+        aspectRatio: state.aspectRatio,
+        imageModel: state.imageModel,
+        imageResolution: state.imageResolution,
+        projectName: state.topic || 'Untitled',
+        workspaceId: template?.id || 'default',
+      });
+
+      const data = await res.json();
+
+      console.log('[image-generation] Images generated successfully:', {
+        total: data.scenes.length,
+        successful: data.scenes.filter((s: any) => s.status === 'generated').length,
+      });
+
+      // Update scenes with imageUrls
+      setState(prev => ({
+        ...prev,
+        scenes: prev.scenes.map(scene => {
+          const generated = data.scenes.find(
+            (g: any) => g.sceneNumber === scene.sceneNumber
+          );
+          return generated && generated.status === 'generated'
+            ? { ...scene, imageUrl: generated.imageUrl }
+            : scene;
+        }),
+        isGenerating: false,
+      }));
+
+      // Show errors if any
+      if (data.errors && data.errors.length > 0) {
+        console.warn('[image-generation] Some scenes failed:', data.errors);
+      }
+    } catch (error) {
+      console.error("[image-generation] Failed to generate images:", error);
+      setState(prev => ({
+        ...prev,
+        error: 'Failed to generate images',
+        isGenerating: false,
+      }));
+    }
+  }, [state.scenes, state.aspectRatio, state.topic, template]);
+
+  // Generate Videos: converts images to videos using I2V
+  const generateVideos = useCallback(async () => {
+    if (state.scenes.length === 0) return;
+
+    // Check if scenes have imageUrls
+    const hasImages = state.scenes.every(s => s.imageUrl);
+    if (!hasImages) {
+      console.warn('[video-generation] Not all scenes have images');
+      return;
+    }
+
+    console.log('[video-generation] Starting video generation...');
+    setState(prev => ({ ...prev, isGenerating: true, error: null }));
+
+    try {
+      const res = await apiRequest("POST", "/api/problem-solution/videos", {
+        storyId: state.template?.id || 'temp-story',
+        scenes: state.scenes.map(s => ({
+          id: s.id,
+          sceneNumber: s.sceneNumber,
+          imageUrl: s.imageUrl!,
+          videoPrompt: s.videoPrompt || s.narration,
+          duration: s.duration,
+        })),
+        videoModel: state.videoModel,
+        videoResolution: state.videoResolution,
+        aspectRatio: state.aspectRatio,
+        projectName: state.topic || 'Untitled',
+        workspaceId: template?.id || 'default',
+      });
+
+      const data = await res.json();
+
+      console.log('[video-generation] Videos generated successfully:', {
+        total: data.scenes.length,
+        successful: data.scenes.filter((s: any) => s.status === 'generated').length,
+      });
+
+      // Update scenes with videoUrls
+      setState(prev => ({
+        ...prev,
+        scenes: prev.scenes.map(scene => {
+          const generated = data.scenes.find(
+            (g: any) => g.sceneNumber === scene.sceneNumber
+          );
+          return generated && generated.status === 'generated'
+            ? { ...scene, videoUrl: generated.videoUrl }
+            : scene;
+        }),
+        isGenerating: false,
+      }));
+
+      if (data.errors && data.errors.length > 0) {
+        console.warn('[video-generation] Some scenes failed:', data.errors);
+      }
+    } catch (error) {
+      console.error("[video-generation] Failed to generate videos:", error);
+      setState(prev => ({
+        ...prev,
+        error: 'Failed to generate videos',
+        isGenerating: false,
+      }));
+    }
+  }, [state.scenes, state.videoModel, state.videoResolution, state.aspectRatio, state.topic, template]);
+
+  // Regenerate Scene Video: regenerates video for a single scene
+  const regenerateSceneVideo = useCallback(async (scene: StoryScene) => {
+    if (!scene.imageUrl) {
+      console.warn('[video-regenerate] Scene has no image');
+      return;
+    }
+
+    console.log(`[video-regenerate] Regenerating video for scene ${scene.sceneNumber}...`);
+    setState(prev => ({ ...prev, isGenerating: true }));
+
+    try {
+      const res = await apiRequest("POST", "/api/problem-solution/videos/regenerate", {
+        sceneNumber: scene.sceneNumber,
+        sceneId: scene.id,
+        imageUrl: scene.imageUrl,
+        videoPrompt: scene.videoPrompt || scene.narration,
+        duration: scene.duration,
+        videoModel: state.videoModel,
+        videoResolution: state.videoResolution,
+        aspectRatio: state.aspectRatio,
+        projectName: state.topic || 'Untitled',
+        workspaceId: template?.id || 'default',
+        storyId: template?.id || 'temp-story',
+      });
+
+      const data = await res.json();
+
+      if (data.videoUrl) {
+        console.log(`[video-regenerate] Scene ${scene.sceneNumber} video regenerated successfully`);
+        setState(prev => ({
+          ...prev,
+          scenes: prev.scenes.map(s =>
+            s.id === scene.id ? { ...s, videoUrl: data.videoUrl } : s
+          ),
+          isGenerating: false,
+        }));
+      } else {
+        throw new Error(data.error || 'Failed to regenerate video');
+      }
+    } catch (error) {
+      console.error("[video-regenerate] Failed:", error);
+      setState(prev => ({
+        ...prev,
+        error: 'Failed to regenerate video',
+        isGenerating: false,
+      }));
+    }
+  }, [state.videoModel, state.videoResolution, state.aspectRatio, state.topic, template]);
+
+  // Generate Storyboard Enhancement: auto-triggered when entering storyboard step
+  const generateStoryboardEnhancement = useCallback(async () => {
+    if (state.scenes.length === 0) return;
+
+    console.log('[storyboard] Starting storyboard enhancement...');
+    setState(prev => ({ ...prev, isGenerating: true, error: null }));
+
+    try {
+      // Determine animation type based on animationMode
+      let animationType: 'transition' | 'image-to-video' | undefined;
+      const isAnimationOn = state.animationMode !== 'off';
+      
+      if (isAnimationOn) {
+        if (state.animationMode === 'transition') {
+          animationType = 'transition';
+        } else if (state.animationMode === 'video') {
+          animationType = 'image-to-video';
+        }
+      }
+
+      const res = await apiRequest("POST", "/api/problem-solution/storyboard", {
+        scenes: state.scenes.map(s => ({
+          sceneNumber: s.sceneNumber,
+          duration: s.duration,
+          narration: s.narration,
+        })),
+        aspectRatio: state.aspectRatio,
+        voiceoverEnabled: state.voiceoverEnabled,
+        language: state.voiceoverEnabled ? state.language : undefined,
+        textOverlay: state.voiceoverEnabled ? state.textOverlay : undefined,
+        animationMode: isAnimationOn,
+        animationType: animationType,
+      });
+
+      const data = await res.json();
+
+      console.log('[storyboard] Enhancement complete, updating scenes...');
+      console.log('[storyboard] Voiceover enabled:', state.voiceoverEnabled);
+      console.log('[storyboard] Enhanced data:', data);
+
+      // Merge enhanced data with existing scenes
+      const enhancedScenes = state.scenes.map(scene => {
+        const enhanced = data.scenes.find((e: any) => e.sceneNumber === scene.sceneNumber);
+        if (enhanced) {
+          const updates: any = {
+            ...scene,
+            imagePrompt: enhanced.imagePrompt,
+            videoPrompt: enhanced.videoPrompt,
+            imageAnimation: enhanced.animationName,
+            imageEffect: enhanced.effectName, // Visual effect from AI
+            voiceMood: enhanced.voiceMood, // Emotional mood for voice (ElevenLabs v3)
+          };
+          
+          // Update narration ONLY if voiceover is enabled
+          if (state.voiceoverEnabled) {
+            // Use voiceText from agent, or empty string if not provided
+            updates.narration = enhanced.voiceText || '';
+            console.log(`[storyboard] Scene ${scene.sceneNumber} voiceText:`, enhanced.voiceText);
+          } else {
+            // Keep original narration if voiceover is disabled
+            updates.narration = scene.narration;
+          }
+          
+          return updates;
+        }
+        return scene;
+      });
+
+      setState(prev => ({
+        ...prev,
+        scenes: enhancedScenes,
+        isGenerating: false,
+      }));
+
+      // ✅ AUTO-TRIGGER: Generate images immediately after enhancement
+      console.log('[storyboard] Enhancement complete, auto-triggering image generation...');
+      
+      // Check if scenes have imagePrompts
+      const hasPrompts = enhancedScenes.some(s => s.imagePrompt);
+      if (!hasPrompts) {
+        console.warn('[storyboard] No image prompts found after enhancement, skipping image generation...');
+        return;
+      }
+
+      // Trigger image generation with enhanced scenes
+      console.log('[storyboard] Starting automatic image generation...');
+      setState(prev => ({ ...prev, isGenerating: true, error: null }));
+
+      try {
+        const res = await apiRequest("POST", "/api/problem-solution/images", {
+          storyId: state.template?.id || 'temp-story',
+          scenes: enhancedScenes.map(s => ({
+            id: s.id,
+            sceneNumber: s.sceneNumber,
+            imagePrompt: s.imagePrompt || s.narration,
+            duration: s.duration,
+          })),
+          aspectRatio: state.aspectRatio,
+          imageModel: state.imageModel,
+          imageResolution: state.imageResolution,
+          projectName: state.topic || 'Untitled',
+          workspaceId: template?.id || 'default',
+        });
+
+        const imageData = await res.json();
+
+        console.log('[storyboard] Images generated successfully:', {
+          total: imageData.scenes.length,
+          successful: imageData.scenes.filter((s: any) => s.status === 'generated').length,
+        });
+
+        // Update scenes with imageUrls
+        setState(prev => ({
+          ...prev,
+          scenes: prev.scenes.map(scene => {
+            const generated = imageData.scenes.find(
+              (g: any) => g.sceneNumber === scene.sceneNumber
+            );
+            return generated && generated.status === 'generated'
+              ? { ...scene, imageUrl: generated.imageUrl }
+              : scene;
+          }),
+          isGenerating: false,
+        }));
+      } catch (error) {
+        console.error("[storyboard] Failed to generate images:", error);
+        setState(prev => ({
+          ...prev,
+          error: 'Failed to generate images',
+          isGenerating: false,
+        }));
+      }
+
+    } catch (error) {
+      console.error("[storyboard] Failed to enhance storyboard:", error);
+      setState(prev => ({
+        ...prev,
+        error: 'Failed to enhance storyboard',
+        isGenerating: false,
+      }));
+    }
+  }, [state.scenes, state.aspectRatio, state.voiceoverEnabled, state.imageMode, generateImages]);
+
   // Navigation
   const goToStep = useCallback((step: StepId) => {
     const currentIndex = STEPS.findIndex(s => s.id === state.currentStep);
@@ -76,10 +439,12 @@ export function useStoryStudio(template: StoryTemplate | null) {
     }));
   }, [state.currentStep]);
 
-  const nextStep = useCallback(() => {
+  const nextStep = useCallback(async () => {
     const currentIndex = STEPS.findIndex(s => s.id === state.currentStep);
     if (currentIndex < STEPS.length - 1) {
       const nextStepId = STEPS[currentIndex + 1].id;
+      
+      // Navigate first
       setState(prev => ({
         ...prev,
         currentStep: nextStepId,
@@ -88,8 +453,54 @@ export function useStoryStudio(template: StoryTemplate | null) {
           ? prev.completedSteps
           : [...prev.completedSteps, prev.currentStep],
       }));
+
+      // Auto-trigger scene generation when entering script step
+      if (state.currentStep === 'concept' && nextStepId === 'script') {
+        console.log('[nextStep] Auto-triggering scene generation...');
+        
+        if (!state.topic.trim()) return;
+        
+        setState(prev => ({ ...prev, isGenerating: true, error: null }));
+        
+        try {
+          const res = await apiRequest("POST", "/api/problem-solution/scenes", {
+            storyText: state.topic,
+            duration: state.duration,
+            pacing: state.pacing,
+          });
+          
+          const data = await res.json();
+          
+          // Map backend scenes to frontend StoryScene format
+          const generatedScenes: StoryScene[] = data.scenes.map((s: any) => ({
+            id: `scene-${s.sceneNumber}`,
+            sceneNumber: s.sceneNumber,
+            duration: s.duration,
+            narration: s.narration,
+          }));
+          
+          setState(prev => ({ 
+            ...prev, 
+            scenes: generatedScenes,
+            isGenerating: false 
+          }));
+        } catch (error) {
+          console.error("[nextStep] Failed to generate scenes:", error);
+          setState(prev => ({ 
+            ...prev, 
+            error: 'Failed to generate scenes',
+            isGenerating: false 
+          }));
+        }
+      }
+
+      // Auto-trigger storyboard enhancement when entering storyboard step
+      if (state.currentStep === 'script' && nextStepId === 'storyboard') {
+        console.log('[nextStep] Auto-triggering storyboard enhancement...');
+        await generateStoryboardEnhancement();
+      }
     }
-  }, [state.currentStep]);
+  }, [state.currentStep, state.topic, state.duration, state.pacing, generateStoryboardEnhancement]);
 
   const prevStep = useCallback(() => {
     const currentIndex = STEPS.findIndex(s => s.id === state.currentStep);
@@ -119,7 +530,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setState(prev => ({ ...prev, duration }));
   }, []);
 
-  const setImageMode = useCallback((imageMode: 'none' | 'transition' | 'image' | 'image-to-video') => {
+  const setImageMode = useCallback((imageMode: 'none' | 'transition' | 'image-to-video') => {
     setState(prev => ({ ...prev, imageMode }));
   }, []);
 
@@ -127,23 +538,118 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setState(prev => ({ ...prev, voiceoverEnabled }));
   }, []);
 
-  // Idea agent: generate story text and write to topic field
+  const setPacing = useCallback((pacing: 'slow' | 'medium' | 'fast') => {
+    setState(prev => ({ ...prev, pacing }));
+  }, []);
+
+  const setHookStyle = useCallback((hookStyle: 'question' | 'statement' | 'statistic') => {
+    setState(prev => ({ ...prev, hookStyle }));
+  }, []);
+
+  const setTextOverlay = useCallback((textOverlay: 'minimal' | 'key-points' | 'full') => {
+    setState(prev => ({ ...prev, textOverlay }));
+  }, []);
+
+  const setAiPrompt = useCallback((aiPrompt: string) => {
+    setState(prev => ({ ...prev, aiPrompt }));
+  }, []);
+
+  const setLanguage = useCallback((language: 'ar' | 'en') => {
+    setState(prev => ({ ...prev, language }));
+  }, []);
+
+  const setTextOverlayEnabled = useCallback((textOverlayEnabled: boolean) => {
+    setState(prev => ({ ...prev, textOverlayEnabled }));
+  }, []);
+
+  const setTextOverlayStyle = useCallback((textOverlayStyle: 'modern' | 'cinematic' | 'bold') => {
+    setState(prev => ({ ...prev, textOverlayStyle }));
+  }, []);
+
+  const setImageModel = useCallback((imageModel: string) => {
+    setState(prev => {
+      const modelConfig = getImageModelConfig(imageModel);
+      
+      // If current resolution is not supported by new model, reset to first available
+      const newResolution = modelConfig?.resolutions.includes(prev.imageResolution)
+        ? prev.imageResolution
+        : modelConfig?.resolutions[0] || '1k';
+      
+      return { 
+        ...prev, 
+        imageModel,
+        imageResolution: newResolution
+      };
+    });
+  }, []);
+
+  const setImageResolution = useCallback((imageResolution: string) => {
+    setState(prev => ({ ...prev, imageResolution }));
+  }, []);
+
+  const setAnimationMode = useCallback((animationMode: 'off' | 'transition' | 'video') => {
+    setState(prev => {
+      // Map animationMode to imageMode for backward compatibility
+      let imageMode: 'none' | 'transition' | 'image-to-video' = 'none';
+      
+      if (animationMode === 'transition') {
+        imageMode = 'transition';
+      } else if (animationMode === 'video') {
+        imageMode = 'image-to-video';
+      }
+      
+      console.log('[setAnimationMode] Updating:', { animationMode, imageMode });
+      
+      return { 
+        ...prev, 
+        animationMode,
+        imageMode  // Update legacy field for StoryboardStep
+      };
+    });
+  }, []);
+
+  const setVideoModel = useCallback((videoModel: string) => {
+    setState(prev => {
+      const modelConfig = getVideoModelConfig(videoModel);
+      
+      // If current resolution is not supported by new model, reset to first available
+      const newResolution = modelConfig?.resolutions.includes(prev.videoResolution)
+        ? prev.videoResolution
+        : modelConfig?.resolutions[0] || '720p';
+      
+      return { 
+        ...prev, 
+        videoModel,
+        videoResolution: newResolution
+      };
+    });
+  }, []);
+
+  const setVideoResolution = useCallback((videoResolution: string) => {
+    setState(prev => ({ ...prev, videoResolution }));
+  }, []);
+
+  // Idea agent: generate story text using aiPrompt and write to topic field
   const generateIdeaStory = useCallback(async () => {
-    if (!state.topic.trim()) return;
+    // If aiPrompt is empty, do nothing
+    if (!state.aiPrompt.trim()) return;
 
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
     try {
+      // We send aiPrompt as the main input
       const res = await apiRequest("POST", "/api/problem-solution/idea", {
-        ideaText: state.topic,
+        ideaText: state.aiPrompt,
         durationSeconds: state.duration,
-        aspectRatio: state.aspectRatio,
+        pacing: state.pacing,
+        hookStyle: state.hookStyle,
+        textOverlay: state.textOverlay,
       });
       const data = await res.json();
 
       // Simply use the story text directly
-      const story = data?.story || state.topic;
+      const story = data?.story || "";
 
-      // Write result to topic field (same field)
+      // Write result to topic field (overwriting or appending? Plan said "Fills", assuming overwrite for now)
       setState(prev => ({
         ...prev,
         topic: story,
@@ -157,7 +663,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         isGenerating: false,
       }));
     }
-  }, [state.topic, state.duration, state.aspectRatio]);
+  }, [state.aiPrompt, state.duration, state.pacing, state.hookStyle, state.textOverlay]);
 
   // Generate Script button: navigates to Script step and generates scenes
   const generateScript = useCallback(async () => {
@@ -177,38 +683,47 @@ export function useStoryStudio(template: StoryTemplate | null) {
 
     // Then, automatically generate scenes
     try {
+      console.log('[generateScript] Sending request to generate scenes...');
       const res = await apiRequest("POST", "/api/problem-solution/scenes", {
         storyText: state.topic,
         duration: state.duration,
-        aspectRatio: state.aspectRatio,
-        voiceoverEnabled: state.voiceoverEnabled,
-        imageMode: state.imageMode,
+        pacing: state.pacing,
       });
       
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${res.status}`);
+      }
+      
       const data = await res.json();
+      console.log('[generateScript] Scenes generated:', data);
+      
+      if (!data.scenes || !Array.isArray(data.scenes) || data.scenes.length === 0) {
+        throw new Error('No scenes returned from API');
+      }
       
       // Map backend scenes to frontend StoryScene format
       const generatedScenes: StoryScene[] = data.scenes.map((s: any) => ({
         id: `scene-${s.sceneNumber}`,
         sceneNumber: s.sceneNumber,
-        narration: s.narration,
-        visualPrompt: s.visualDescription,
-        isAnimated: true,
-        transition: s.sceneNumber === 1 ? 'fade' : 'slide',
         duration: s.duration,
-        voiceoverEnabled: state.voiceoverEnabled,
+        narration: s.narration,
       }));
+      
+      console.log('[generateScript] Mapped scenes:', generatedScenes);
       
       setState(prev => ({ 
         ...prev, 
         scenes: generatedScenes,
-        isGenerating: false 
+        isGenerating: false,
+        error: null
       }));
     } catch (error) {
-      console.error("Failed to generate scenes:", error);
+      console.error("[generateScript] Failed to generate scenes:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate scenes';
       setState(prev => ({ 
         ...prev, 
-        error: 'Failed to generate scenes',
+        error: errorMessage,
         isGenerating: false 
       }));
     }
@@ -228,6 +743,37 @@ export function useStoryStudio(template: StoryTemplate | null) {
     }));
   }, []);
 
+  const addScene = useCallback(() => {
+    setState(prev => {
+      const newSceneNumber = prev.scenes.length + 1;
+      const newScene: StoryScene = {
+        id: `scene-${newSceneNumber}-${Date.now()}`,
+        sceneNumber: newSceneNumber,
+        duration: 5, // Default 5s (within 10s max limit)
+        narration: '',
+      };
+      return {
+        ...prev,
+        scenes: [...prev.scenes, newScene]
+      };
+    });
+  }, []);
+
+  const deleteScene = useCallback((id: string) => {
+    setState(prev => {
+      const filteredScenes = prev.scenes.filter(scene => scene.id !== id);
+      // Renumber scenes after deletion
+      const renumberedScenes = filteredScenes.map((scene, index) => ({
+        ...scene,
+        sceneNumber: index + 1
+      }));
+      return {
+        ...prev,
+        scenes: renumberedScenes
+      };
+    });
+  }, []);
+
   const generateScenes = useCallback(async () => {
     if (!state.topic.trim()) return;
     
@@ -237,9 +783,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
       const res = await apiRequest("POST", "/api/problem-solution/scenes", {
         storyText: state.topic,
         duration: state.duration,
-        aspectRatio: state.aspectRatio,
-        voiceoverEnabled: state.voiceoverEnabled,
-        imageMode: state.imageMode,
+        pacing: state.pacing,
       });
       
       const data = await res.json();
@@ -248,12 +792,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
       const generatedScenes: StoryScene[] = data.scenes.map((s: any) => ({
         id: `scene-${s.sceneNumber}`,
         sceneNumber: s.sceneNumber,
-        narration: s.narration,
-        visualPrompt: s.visualDescription,
-        isAnimated: true,
-        transition: s.sceneNumber === 1 ? 'fade' : 'slide',
         duration: s.duration,
-        voiceoverEnabled: state.voiceoverEnabled,
+        narration: s.narration,
       }));
       
       setState(prev => ({ 
@@ -270,6 +810,137 @@ export function useStoryStudio(template: StoryTemplate | null) {
       }));
     }
   }, [state.topic, state.duration, state.aspectRatio, state.voiceoverEnabled, state.imageMode]);
+
+  // Regenerate single scene image
+  const regenerateSceneImage = useCallback(async (sceneId: string) => {
+    const scene = state.scenes.find(s => s.id === sceneId);
+    if (!scene) return;
+
+    setState(prev => ({ ...prev, isGenerating: true, error: null }));
+
+    try {
+      console.log('[regenerate] Regenerating image for scene', scene.sceneNumber);
+      
+      const res = await apiRequest("POST", "/api/problem-solution/images/regenerate", {
+        sceneNumber: scene.sceneNumber,
+        sceneId: scene.id,
+        imagePrompt: scene.imagePrompt || scene.narration,
+        aspectRatio: state.aspectRatio,
+        imageModel: state.imageModel,
+        imageResolution: state.imageResolution,
+        projectName: state.topic || 'Untitled',
+        workspaceId: template?.id || 'default',
+        storyId: template?.id || 'temp-story',
+      });
+
+      const data = await res.json();
+
+      if (data.success && data.imageUrl) {
+        console.log('[regenerate] Image regenerated successfully:', data.imageUrl);
+        
+        // Add cache-busting timestamp to force image reload
+        const cacheBustedUrl = `${data.imageUrl}?t=${Date.now()}`;
+        
+        console.log('[regenerate] Updating scene', sceneId, 'with new URL:', cacheBustedUrl);
+        
+        // Update only this scene's imageUrl
+        setState(prev => {
+          const updatedScenes = prev.scenes.map(s => 
+            s.id === sceneId 
+              ? { ...s, imageUrl: cacheBustedUrl }
+              : s
+          );
+          
+          console.log('[regenerate] Updated scenes:', updatedScenes.map(s => ({ 
+            id: s.id, 
+            sceneNumber: s.sceneNumber, 
+            imageUrl: s.imageUrl?.substring(0, 80) + '...' 
+          })));
+          
+          return {
+            ...prev,
+            scenes: updatedScenes,
+            isGenerating: false,
+          };
+        });
+      } else {
+        throw new Error(data.error || 'Failed to regenerate');
+      }
+    } catch (error) {
+      console.error("[regenerate] Failed to regenerate scene image:", error);
+      setState(prev => ({
+        ...prev,
+        error: 'Failed to regenerate image',
+        isGenerating: false,
+      }));
+    }
+  }, [state.scenes, state.aspectRatio, state.topic, template]);
+
+  // Generate Voiceover: for Audio step
+  const generateVoiceover = useCallback(async () => {
+    if (state.scenes.length === 0) return;
+    if (!state.voiceoverEnabled) return;
+    if (!state.selectedVoice) return;
+
+    console.log('[voiceover] Starting voiceover generation...');
+    setState(prev => ({ ...prev, isGenerating: true, error: null }));
+
+    try {
+      const res = await apiRequest("POST", "/api/problem-solution/voiceover", {
+        storyId: template?.id || 'temp-story',
+        scenes: state.scenes.map(s => ({
+          id: s.id,
+          sceneNumber: s.sceneNumber,
+          narration: s.narration,
+          voiceInstructions: s.voiceInstructions,
+          voiceMood: s.voiceMood, // ElevenLabs v3 audio tags
+          duration: s.duration,
+        })),
+        voiceId: state.selectedVoice,
+        projectName: state.topic || 'Untitled',
+        workspaceId: template?.id || 'default',
+      });
+
+      const data = await res.json();
+
+      console.log('[voiceover] Voiceover generated successfully:', {
+        total: data.scenes.length,
+        successful: data.scenes.filter((s: any) => s.status === 'generated').length,
+      });
+
+      // Update scenes with audioUrls AND actual durations from audio
+      setState(prev => ({
+        ...prev,
+        scenes: prev.scenes.map(scene => {
+          const generated = data.scenes.find(
+            (g: any) => g.sceneNumber === scene.sceneNumber
+          );
+          if (generated && generated.status === 'generated') {
+            console.log(`[voiceover] Scene ${scene.sceneNumber}: Duration updated from ${scene.duration}s to ${generated.duration}s`);
+            return { 
+              ...scene, 
+              audioUrl: generated.audioUrl,
+              duration: generated.duration  // Use actual audio duration!
+            };
+          }
+          return scene;
+        }),
+        isGenerating: false,
+      }));
+
+      // Show errors if any
+      if (data.errors && data.errors.length > 0) {
+        console.warn('[voiceover] Some scenes failed:', data.errors);
+      }
+    } catch (error) {
+      console.error("[voiceover] Failed to generate voiceover:", error);
+      setState(prev => ({
+        ...prev,
+        error: 'Failed to generate voiceover',
+        isGenerating: false,
+      }));
+    }
+  }, [state.scenes, state.voiceoverEnabled, state.selectedVoice, state.topic, template]);
 
   // Step 3: Audio
   const setSelectedVoice = useCallback((selectedVoice: string) => {
@@ -298,24 +969,98 @@ export function useStoryStudio(template: StoryTemplate | null) {
   }, []);
 
   const exportVideo = useCallback(async () => {
+    if (state.scenes.length === 0) {
+      console.warn('[export] No scenes to export');
+      return null;
+    }
+
+    console.log('[export] ═══════════════════════════════════════════════');
+    console.log('[export] Starting video export...');
+    console.log('[export] Animation mode:', state.animationMode);
+    console.log('[export] Voiceover enabled:', state.voiceoverEnabled);
+    console.log('[export] Background music:', state.backgroundMusic);
+    console.log('[export] Text overlay:', state.textOverlay);
+    console.log('[export] ═══════════════════════════════════════════════');
+    
     setState(prev => ({ ...prev, isGenerating: true, generationProgress: 0, error: null }));
     
     try {
-      // Simulate export progress
-      for (let i = 0; i <= 100; i += 10) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        setState(prev => ({ ...prev, generationProgress: i }));
+      // Map frontend animationMode to backend format
+      let backendAnimationMode: 'off' | 'transition' | 'video' = 'off';
+      
+      if (state.animationMode === 'off') {
+        backendAnimationMode = 'off';
+      } else if (state.animationMode === 'transition') {
+        backendAnimationMode = 'transition';
+      } else if (state.animationMode === 'video') {
+        backendAnimationMode = 'video';
       }
       
-      setState(prev => ({ ...prev, isGenerating: false }));
+      // Legacy support
+      if (state.imageMode === 'none') {
+        backendAnimationMode = 'off';
+      } else if (state.imageMode === 'transition') {
+        backendAnimationMode = 'transition';
+      } else if (state.imageMode === 'image-to-video') {
+        backendAnimationMode = 'video';
+      }
+
+      console.log('[export] Backend animation mode:', backendAnimationMode);
+
+      const res = await apiRequest("POST", "/api/problem-solution/export", {
+        storyId: template?.id || 'temp-story',
+        scenes: state.scenes.map(s => ({
+          sceneNumber: s.sceneNumber,
+          imageUrl: s.imageUrl,
+          videoUrl: s.videoUrl,
+          audioUrl: s.audioUrl,
+          narration: s.narration,
+          duration: s.duration,
+          imageAnimation: s.imageAnimation, // Pass CSS animation type for transition mode
+          imageEffect: s.imageEffect, // Pass visual effect for transition mode
+        })),
+        animationMode: backendAnimationMode,
+        backgroundMusic: state.backgroundMusic !== 'none' ? state.backgroundMusic : null,
+        voiceVolume: state.voiceVolume,
+        musicVolume: state.musicVolume,
+        aspectRatio: state.aspectRatio,
+        exportFormat: state.exportFormat,
+        exportQuality: state.exportQuality,
+        textOverlay: state.voiceoverEnabled && state.textOverlayEnabled, // Text overlay ONLY when both voiceover and textOverlay are enabled
+        projectName: state.topic || 'Untitled',
+        workspaceId: template?.id || 'default',
+      });
+
+      const data = await res.json();
+
+      if (!data.videoUrl) {
+        throw new Error('No video URL returned from export');
+      }
+
+      console.log('[export] Video exported successfully:', {
+        videoUrl: data.videoUrl,
+        duration: data.duration,
+        size: data.size ? `${(data.size / 1024 / 1024).toFixed(2)}MB` : 'Unknown',
+      });
+
+      setState(prev => ({
+        ...prev,
+        isGenerating: false,
+        generationProgress: 100,
+      }));
+
+      return data.videoUrl;
     } catch (error) {
+      console.error("[export] Failed to export video:", error);
       setState(prev => ({ 
         ...prev, 
         error: 'Failed to export video',
-        isGenerating: false 
+        isGenerating: false,
+        generationProgress: 0,
       }));
+      return null;
     }
-  }, []);
+  }, [state.scenes, state.animationMode, state.backgroundMusic, state.voiceVolume, state.musicVolume, state.aspectRatio, state.exportFormat, state.exportQuality, state.topic, template]);
 
   // Reset
   const reset = useCallback(() => {
@@ -327,7 +1072,11 @@ export function useStoryStudio(template: StoryTemplate | null) {
 
   // Completion check helpers
   const isStep1Complete = state.topic.trim().length > 0;
-  const isStepScriptComplete = state.topic.trim().length > 0;
+  
+  // Script step is complete only if scenes exist AND total duration matches target
+  const totalSceneDuration = state.scenes.reduce((sum, scene) => sum + scene.duration, 0);
+  const isStepScriptComplete = state.scenes.length > 0 && totalSceneDuration === state.duration;
+  
   const isStep2Complete = state.scenes.length > 0;
   const isStep3Complete = state.selectedVoice.length > 0;
   const isStep4Ready = isStep1Complete && isStepScriptComplete && isStep2Complete && isStep3Complete;
@@ -337,14 +1086,23 @@ export function useStoryStudio(template: StoryTemplate | null) {
       case 'concept': return isStep1Complete;
       case 'script': return isStepScriptComplete;
       case 'storyboard': return isStep2Complete;
-      case 'audio': return isStep3Complete;
-      case 'export': return isStep4Ready;
+      case 'audio': 
+        // في Audio step، نحتاج فقط اختيار الصوت
+        // الـ voiceover سيتم توليده تلقائياً في Export step
+        return isStep3Complete;
+      case 'export': 
+        // لا حاجة لشرط إضافي - الـ voiceover يتم توليده تلقائياً
+        return isStep4Ready;
       default: return false;
     }
   }, [isStep1Complete, isStepScriptComplete, isStep2Complete, isStep3Complete, isStep4Ready]);
 
   return {
     state,
+    
+    // Transition states
+    isTransitioningToExport,
+    voiceoverProgress,
     
     // Navigation
     goToStep,
@@ -358,13 +1116,33 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setDuration,
     setImageMode,
     setVoiceoverEnabled,
+    setPacing,
+    setHookStyle,
+    setTextOverlay,
+    setAiPrompt,
+    setLanguage,
+    setTextOverlayEnabled,
+    setTextOverlayStyle,
+    setImageModel,
+    setImageResolution,
+    setAnimationMode,
+    setVideoModel,
+    setVideoResolution,
     generateIdeaStory,
     generateScript,
     
     // Step 2
     setScenes,
     updateScene,
+    addScene,
+    deleteScene,
     generateScenes,
+    generateStoryboardEnhancement,
+    generateImages,
+    regenerateSceneImage,
+    generateVideos,
+    regenerateSceneVideo,
+    generateVoiceover,
     
     // Step 3
     setSelectedVoice,

@@ -1,16 +1,6 @@
 import { callTextModel } from "../../../ai/service";
 import { STORY_WRITER_SYSTEM_PROMPT, buildStoryUserPrompt } from "../prompts/idea-prompts";
-
-export interface StoryGeneratorInput {
-  ideaText: string;
-  durationSeconds: number;
-  aspectRatio: string;
-}
-
-export interface StoryGeneratorOutput {
-  story: string;
-  cost?: number;
-}
+import type { StoryGeneratorInput, StoryGeneratorOutput } from "../types";
 
 const STORY_CONFIG = {
   provider: "openai" as const,
@@ -22,9 +12,11 @@ export async function generateStory(
   userId?: string,
   workspaceId?: string
 ): Promise<StoryGeneratorOutput> {
-  const { ideaText, durationSeconds, aspectRatio } = input;
+  // Extract only necessary inputs
+  const { ideaText, durationSeconds } = input;
 
-  const userPrompt = buildStoryUserPrompt(ideaText, durationSeconds, aspectRatio);
+  // Build prompts
+  const userPrompt = buildStoryUserPrompt(ideaText, durationSeconds);
 
   try {
     const response = await callTextModel(
@@ -32,7 +24,6 @@ export async function generateStory(
         provider: STORY_CONFIG.provider,
         model: STORY_CONFIG.model,
         payload: {
-          reasoning: { effort: "low" },
           input: [
             { role: "system", content: STORY_WRITER_SYSTEM_PROMPT },
             { role: "user", content: userPrompt },
@@ -42,7 +33,7 @@ export async function generateStory(
         workspaceId,
       },
       {
-        expectedOutputTokens: 400,
+        expectedOutputTokens: 1500, // Increased for richer, more detailed stories
       }
     );
 
@@ -57,4 +48,3 @@ export async function generateStory(
     throw new Error("Failed to generate story");
   }
 }
-

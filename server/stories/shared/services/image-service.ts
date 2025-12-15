@@ -1,3 +1,0 @@
-// Shared Image Generation Service
-
-

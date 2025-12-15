@@ -21,14 +21,20 @@ export const STEPS: Step[] = [
 export interface StoryScene {
   id: string;
   sceneNumber: number;
+  duration: number;
   narration: string;
-  visualPrompt: string;
   imageUrl?: string;
   videoUrl?: string;
-  isAnimated: boolean;
-  transition: 'fade' | 'slide' | 'zoom' | 'none';
-  duration: number;
-  voiceoverEnabled: boolean;
+  audioUrl?: string;
+  imagePrompt?: string;
+  videoPrompt?: string;
+  imageAnimation?: 'zoom-in' | 'zoom-out' | 'pan-right' | 'pan-left' | 'pan-up' | 'pan-down' | 'ken-burns' | 'rotate-cw' | 'rotate-ccw' | 'slide-left' | 'slide-right';
+  imageEffect?: 'none' | 'vignette' | 'sepia' | 'black-white' | 'warm' | 'cool' | 'grain' | 'dramatic' | 'cinematic' | 'dreamy' | 'glow';
+  voiceMood?: 'neutral' | 'happy' | 'sad' | 'excited' | 'angry' | 'whisper' | 'dramatic' | 'curious' | 'thoughtful' | 'surprised' | 'sarcastic' | 'nervous';
+  transition?: 'fade' | 'slide' | 'zoom' | 'none';
+  isAnimated?: boolean;
+  voiceoverEnabled?: boolean;
+  voiceInstructions?: string;
 }
 
 export interface StoryTemplate {
@@ -49,11 +55,27 @@ export interface StoryStudioState {
   
   // Step 1: Concept
   topic: string;
+  aiPrompt: string; // New: For AI Assistant input
   generatedScript: string;
   aspectRatio: string;
   duration: number;
-  imageMode: 'none' | 'transition' | 'image' | 'image-to-video';
   voiceoverEnabled: boolean;
+  language: 'ar' | 'en'; // New
+  textOverlayEnabled: boolean; // New: Simple ON/OFF toggle
+  textOverlay: 'minimal' | 'key-points' | 'full'; // Legacy (auto-set to 'key-points')
+  textOverlayStyle: 'modern' | 'cinematic' | 'bold'; // New: 3 simple styles
+  pacing: 'slow' | 'medium' | 'fast';
+  hookStyle: 'question' | 'statement' | 'statistic';
+  
+  // Image & Video Settings
+  imageModel: string; // Image model ID (e.g., "nano-banana", "flux-2-pro")
+  imageResolution: string; // Resolution (e.g., "1k", "2k", "4k", "custom")
+  animationMode: 'off' | 'transition' | 'video'; // New (Replacing old imageMode)
+  videoModel: string; // Video model ID (e.g., "seedance-1.0-pro", "veo-3.0")
+  videoResolution: string; // Video resolution (e.g., "720p", "1080p", "2160p")
+  
+  // Legacy (to be deprecated or mapped)
+  imageMode: 'none' | 'transition' | 'image-to-video';
   
   // Step 2: Storyboard
   scenes: StoryScene[];
@@ -82,17 +104,34 @@ export interface StoryStudioActions {
   
   // Step 1
   setTopic: (topic: string) => void;
+  setAiPrompt: (prompt: string) => void;
   setGeneratedScript: (script: string) => void;
   setAspectRatio: (ratio: string) => void;
   setDuration: (duration: number) => void;
-  setImageMode: (mode: 'none' | 'transition' | 'image' | 'image-to-video') => void;
   setVoiceoverEnabled: (enabled: boolean) => void;
+  setLanguage: (lang: 'ar' | 'en') => void;
+  setPacing: (pacing: 'slow' | 'medium' | 'fast') => void;
+  setHookStyle: (style: 'question' | 'statement' | 'statistic') => void;
+  setTextOverlay: (overlay: 'minimal' | 'key-points' | 'full') => void;
+  setTextOverlayStyle: (style: 'modern' | 'cinematic' | 'bold') => void;
+  setImageModel: (model: string) => void;
+  setImageResolution: (res: string) => void;
+  setAnimationMode: (mode: 'off' | 'transition' | 'video') => void;
+  setVideoModel: (model: string) => void;
+  setVideoResolution: (res: string) => void;
+  // Legacy
+  setImageMode: (mode: 'none' | 'transition' | 'image-to-video') => void;
+  
   generateScript: () => Promise<void>;
   generateIdeaStory: () => Promise<void>;
   
   // Step 2
   setScenes: (scenes: StoryScene[]) => void;
   updateScene: (id: string, updates: Partial<StoryScene>) => void;
+  addScene: () => void;
+  deleteScene: (id: string) => void;
+  regenerateSceneImage: (sceneId: string) => Promise<void>;
+  generateVoiceover: () => Promise<void>;
   
   // Step 3
   setSelectedVoice: (voice: string) => void;

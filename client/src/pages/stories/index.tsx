@@ -309,7 +309,7 @@ export default function Stories() {
                     )} />
                     
                     <Link 
-                      href={template.id === 'asmr-sensory' ? '/stories/asmr' : `/stories/create/${template.id}`} 
+                      href={template.id === 'asmr-sensory' ? '/stories/asmr' : `/stories/create/${template.id}?new=true`} 
                       data-testid={`link-template-${template.id}`}
                     >
                       <div 

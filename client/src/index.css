@@ -501,4 +501,107 @@
   .text-glow {
     text-shadow: 0 0 20px currentColor;
   }
+
+  /* Scene Animation Keyframes for Transition Mode */
+  @keyframes scene-zoom-in {
+    from { transform: scale(1); }
+    to { transform: scale(1.2); }
+  }
+
+  @keyframes scene-zoom-out {
+    from { transform: scale(1.2); }
+    to { transform: scale(1); }
+  }
+
+  @keyframes scene-pan-right {
+    from { transform: translateX(-10%) scale(1.1); }
+    to { transform: translateX(10%) scale(1.1); }
+  }
+
+  @keyframes scene-pan-left {
+    from { transform: translateX(10%) scale(1.1); }
+    to { transform: translateX(-10%) scale(1.1); }
+  }
+
+  @keyframes scene-pan-up {
+    from { transform: translateY(10%) scale(1.1); }
+    to { transform: translateY(-10%) scale(1.1); }
+  }
+
+  @keyframes scene-pan-down {
+    from { transform: translateY(-10%) scale(1.1); }
+    to { transform: translateY(10%) scale(1.1); }
+  }
+
+  @keyframes scene-ken-burns {
+    0% { transform: scale(1) translate(0, 0); }
+    50% { transform: scale(1.15) translate(-3%, -3%); }
+    100% { transform: scale(1.2) translate(-5%, -5%); }
+  }
+
+  /* Additional Animation Keyframes */
+  @keyframes scene-rotate-cw {
+    from { transform: rotate(0deg) scale(1.1); }
+    to { transform: rotate(15deg) scale(1.1); }
+  }
+
+  @keyframes scene-rotate-ccw {
+    from { transform: rotate(0deg) scale(1.1); }
+    to { transform: rotate(-15deg) scale(1.1); }
+  }
+
+  @keyframes scene-slide-left {
+    from { transform: translateX(0); }
+    to { transform: translateX(-20%); }
+  }
+
+  @keyframes scene-slide-right {
+    from { transform: translateX(0); }
+    to { transform: translateX(20%); }
+  }
+
+  /* Animation Classes - Infinite Loop */
+  .animate-scene-zoom-in {
+    animation: scene-zoom-in 3s ease-in-out infinite alternate;
+  }
+
+  .animate-scene-zoom-out {
+    animation: scene-zoom-out 3s ease-in-out infinite alternate;
+  }
+
+  .animate-scene-pan-right {
+    animation: scene-pan-right 3s ease-in-out infinite alternate;
+  }
+
+  .animate-scene-pan-left {
+    animation: scene-pan-left 3s ease-in-out infinite alternate;
+  }
+
+  .animate-scene-pan-up {
+    animation: scene-pan-up 3s ease-in-out infinite alternate;
+  }
+
+  .animate-scene-pan-down {
+    animation: scene-pan-down 3s ease-in-out infinite alternate;
+  }
+
+  .animate-scene-ken-burns {
+    animation: scene-ken-burns 3s ease-in-out infinite alternate;
+  }
+
+  .animate-scene-rotate-cw {
+    animation: scene-rotate-cw 3s ease-in-out infinite alternate;
+  }
+
+  .animate-scene-rotate-ccw {
+    animation: scene-rotate-ccw 3s ease-in-out infinite alternate;
+  }
+
+  .animate-scene-slide-left {
+    animation: scene-slide-left 3s ease-in-out infinite alternate;
+  }
+
+  .animate-scene-slide-right {
+    animation: scene-slide-right 3s ease-in-out infinite alternate;
+  }
 }

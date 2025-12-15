@@ -27,7 +27,8 @@ import {
   ExternalLink,
   Copy,
   CheckCircle2,
-  Video
+  Video,
+  Mic
 } from "lucide-react";
 import { SiYoutube, SiTiktok, SiInstagram, SiFacebook } from "react-icons/si";
 import { StoryScene, StoryTemplate } from "../types";
@@ -46,9 +47,11 @@ interface ExportStepProps {
   exportQuality: string;
   isGenerating: boolean;
   generationProgress: number;
+  voiceoverEnabled: boolean;
   onFormatChange: (format: string) => void;
   onQualityChange: (quality: string) => void;
-  onExport: () => void;
+  onExport: () => Promise<string | null>;
+  onGenerateVoiceover: () => Promise<void>;
   accentColor?: string;
 }
 
@@ -84,16 +87,160 @@ export function ExportStep({
   exportQuality,
   isGenerating,
   generationProgress,
+  voiceoverEnabled,
   onFormatChange,
   onQualityChange,
   onExport,
+  onGenerateVoiceover,
   accentColor = "primary"
 }: ExportStepProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentSceneIndex, setCurrentSceneIndex] = useState(0);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [voiceoverGenerated, setVoiceoverGenerated] = useState(false);
+  const [exportedVideoUrl, setExportedVideoUrl] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  // Dynamic export steps based on scenario
+  const getExportSteps = () => {
+    const steps = [
+      { text: 'Downloading assets', status: 'pending' as const },
+      { text: 'Creating video timeline', status: 'pending' as const },
+    ];
+    
+    // Add voiceover step if enabled
+    if (voiceoverEnabled && scenes.some(s => s.audioUrl)) {
+      steps.push({ text: 'Merging voiceover', status: 'pending' as const });
+    }
+    
+    // Add music step if enabled
+    if (backgroundMusic && backgroundMusic !== 'none') {
+      steps.push({ text: 'Mixing background music', status: 'pending' as const });
+    }
+    
+    // Add subtitles step if voiceover enabled AND text overlay enabled
+    if (voiceoverEnabled && scenes.some(s => s.audioUrl)) {
+      steps.push({ text: 'Burning subtitles', status: 'pending' as const });
+    }
+    
+    steps.push({ text: 'Uploading to CDN', status: 'pending' as const });
+    
+    return steps;
+  };
+  
+  const [exportSteps, setExportSteps] = useState<Array<{text: string; status: 'pending' | 'active' | 'complete'}>>(getExportSteps());
+  const hasAttemptedGeneration = useRef(false);
+  const hasAttemptedExport = useRef(false);
+
+  // Check if all scenes have audio
+  const allScenesHaveAudio = scenes.every(s => s.audioUrl);
+
+  // Auto-generate voiceover on mount if enabled
+  useEffect(() => {
+    if (voiceoverEnabled && 
+        !voiceoverGenerated && 
+        !hasAttemptedGeneration.current && 
+        scenes.length > 0 &&
+        !allScenesHaveAudio) {
+      
+      hasAttemptedGeneration.current = true; // Prevent multiple calls
+      setIsGeneratingVoiceover(true);
+      
+      console.log('[ExportStep] Auto-generating voiceover...');
+      onGenerateVoiceover()
+        .then(() => {
+          setVoiceoverGenerated(true);
+          setIsGeneratingVoiceover(false);
+          console.log('[ExportStep] Voiceover generation complete');
+        })
+        .catch(error => {
+          console.error('[ExportStep] Voiceover generation failed:', error);
+          hasAttemptedGeneration.current = false; // Allow retry on failure
+          setIsGeneratingVoiceover(false);
+        });
+    } else if (allScenesHaveAudio) {
+      // If all scenes already have audio, mark as generated
+      setVoiceoverGenerated(true);
+    } else if (!voiceoverEnabled) {
+      // If voiceover is disabled, skip generation and mark as ready
+      console.log('[ExportStep] Voiceover disabled - skipping generation');
+      setVoiceoverGenerated(true);
+    }
+  }, [voiceoverEnabled, voiceoverGenerated, scenes.length, onGenerateVoiceover, allScenesHaveAudio]);
+
+  // Auto-export on mount (after voiceover is ready)
+  useEffect(() => {
+    if (!isGeneratingVoiceover && 
+        voiceoverGenerated && 
+        !hasAttemptedExport.current && 
+        !exportedVideoUrl &&
+        scenes.length > 0) {
+      
+      hasAttemptedExport.current = true;
+      handleAutoExport();
+    }
+  }, [isGeneratingVoiceover, voiceoverGenerated, exportedVideoUrl, scenes.length]);
+
+  // Handle auto export with progress simulation
+  const handleAutoExport = async () => {
+    console.log('[ExportStep] Starting auto-export...');
+    
+    // Reset export steps based on current scenario
+    const dynamicSteps = getExportSteps();
+    setExportSteps(dynamicSteps);
+    setIsExporting(true);
+    setExportProgress(0);
+
+    // Calculate progress increments based on number of steps
+    const stepCount = dynamicSteps.length;
+    const progressIncrement = 100 / stepCount;
+    
+    let currentStepIndex = 0;
+
+    const updateProgress = () => {
+      if (currentStepIndex < stepCount) {
+        const progress = Math.min((currentStepIndex + 1) * progressIncrement, 95);
+        
+        setExportProgress(progress);
+        setExportSteps(prev => prev.map((s, i) => ({
+          ...s,
+          status: i < currentStepIndex ? 'complete' : i === currentStepIndex ? 'active' : 'pending'
+        })));
+        
+        currentStepIndex++;
+      }
+    };
+
+    // Start progress simulation (update every 2 seconds)
+    const progressInterval = setInterval(updateProgress, 2000);
+
+    try {
+      const videoUrl = await onExport();
+      
+      clearInterval(progressInterval);
+      setExportProgress(100);
+      setExportSteps(prev => prev.map(s => ({ ...s, status: 'complete' as const })));
+      
+      if (videoUrl) {
+        // Small delay to show 100% before showing video
+        setTimeout(() => {
+          setExportedVideoUrl(videoUrl);
+          setIsExporting(false);
+        }, 500);
+      } else {
+        setIsExporting(false);
+      }
+    } catch (error) {
+      console.error('[ExportStep] Export failed:', error);
+      clearInterval(progressInterval);
+      setIsExporting(false);
+    }
+  };
+
+  // Handle manual export (if needed)
+  const handleExport = async () => {
+    await handleAutoExport();
+  };
 
   const accentClasses = {
     primary: "from-primary to-violet-500",
@@ -104,17 +251,6 @@ export function ExportStep({
   }[accentColor] || "from-primary to-violet-500";
 
   const totalDuration = scenes.reduce((sum, s) => sum + s.duration, 0);
-  const currentScene = scenes[currentSceneIndex];
-
-  // Simulate scene preview playback
-  useEffect(() => {
-    if (isPlaying && scenes.length > 0) {
-      const timer = setInterval(() => {
-        setCurrentSceneIndex(prev => (prev + 1) % scenes.length);
-      }, (currentScene?.duration || 5) * 1000);
-      return () => clearInterval(timer);
-    }
-  }, [isPlaying, currentScene, scenes.length]);
 
   const handlePlatformToggle = (platformId: string) => {
     setSelectedPlatforms(prev =>
@@ -124,30 +260,54 @@ export function ExportStep({
     );
   };
 
-  const handleCopyLink = () => {
-    // Mock copy functionality
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
-  };
-
-  const getAspectRatioClass = () => {
-    switch (aspectRatio) {
-      case '9:16': return 'aspect-[9/16]';
-      case '16:9': return 'aspect-video';
-      case '1:1': return 'aspect-square';
-      case '4:5': return 'aspect-[4/5]';
-      default: return 'aspect-video';
-    }
-  };
-
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-6">
-      {/* Left Column - Export Options */}
-      <div className="space-y-5">
+    <div className="flex flex-col lg:flex-row gap-6 h-full">
+      {/* Left Column - Export Settings (Scrollable) */}
+      <div className="w-full lg:w-2/5 space-y-5 overflow-y-auto max-h-[calc(100vh-12rem)] pb-6">
+        {/* Voiceover Generation Loading */}
+        {isGeneratingVoiceover && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <GlassPanel className="border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-pink-500/10">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
+                  <RefreshCw className="w-6 h-6 text-purple-400 animate-spin" />
+                </div>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+                  <Mic className="w-5 h-5" />
+                  Generating Voiceover...
+                </h3>
+                <p className="text-sm text-white/60">
+                  Creating audio for {scenes.length} scene{scenes.length > 1 ? 's' : ''}. This may take a moment.
+                </p>
+              </div>
+            </div>
+            
+            <div className="mt-4">
+              <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+                  initial={{ width: "0%" }}
+                  animate={{ width: "100%" }}
+                  transition={{ duration: scenes.length * 5, ease: "linear" }}
+                />
+              </div>
+              <p className="text-xs text-white/40 mt-2 text-center">
+                Please wait, do not navigate away...
+              </p>
+            </div>
+          </GlassPanel>
+        </motion.div>
+      )}
+
+      {/* Hide settings during voiceover generation */}
+      {!isGeneratingVoiceover && (
+        <>
         {/* Video Summary */}
         <GlassPanel>
           <div className="space-y-4">
@@ -325,247 +485,178 @@ export function ExportStep({
             </div>
           </div>
         </GlassPanel>
+        </>
+      )}
       </div>
 
-      {/* Right Column - Video Preview */}
-      <div className="space-y-5">
-        <GlassPanel className="p-0 overflow-hidden">
-          {/* Video Preview */}
-          <div className={cn(
-            "relative w-full flex items-center justify-center bg-black/60",
-            getAspectRatioClass(),
-            "max-h-[500px]"
-          )}>
-            {currentScene?.imageUrl ? (
-              <motion.img
-                key={currentSceneIndex}
-                src={currentScene.imageUrl}
-                alt={`Scene ${currentScene.sceneNumber}`}
-                className="w-full h-full object-cover"
-                initial={{ opacity: 0, scale: 1.05 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5 }}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center text-white/30">
-                <Film className="w-16 h-16 mb-4" />
-                <p className="text-sm">Preview not available</p>
-                <p className="text-xs mt-1">Generate images in Storyboard</p>
-              </div>
-            )}
+      {/* Right Column - Video Preview (Sticky) */}
+      <div className="w-full lg:w-3/5 lg:sticky lg:top-6 lg:h-[calc(100vh-8rem)]">
+        <GlassPanel className="h-full flex flex-col">
+          {/* Loading State - Exporting */}
+          {isExporting && !exportedVideoUrl && (
+            <div className="flex-1 flex items-center justify-center p-8">
+              <div className="text-center space-y-6 max-w-md">
+                {/* Animated Icon */}
+                <motion.div
+                  animate={{ 
+                    scale: [1, 1.1, 1],
+                    rotate: [0, 5, -5, 0]
+                  }}
+                  transition={{ 
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                  className={cn(
+                    "w-20 h-20 mx-auto rounded-full",
+                    "bg-gradient-to-br flex items-center justify-center",
+                    "shadow-2xl",
+                    accentClasses
+                  )}
+                >
+                  <Film className="w-10 h-10 text-white" />
+                </motion.div>
 
-            {/* Overlay gradient */}
-            {currentScene?.imageUrl && (
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-            )}
+                {/* Status */}
+                <div>
+                  <h3 className="text-2xl font-bold text-white mb-2">
+                    Exporting Video...
+                  </h3>
+                  <p className="text-white/60">
+                    Creating your masterpiece
+                  </p>
+                </div>
 
-            {/* Scene indicator */}
-            <div className="absolute bottom-4 left-4 right-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-white/70">
-                  Scene {currentSceneIndex + 1} of {scenes.length}
-                </span>
-                <span className="text-xs text-white/50">
-                  {currentScene?.duration || 0}s
-                </span>
-              </div>
-              
-              {/* Progress bar */}
-              <div className="mt-2 flex gap-1">
-                {scenes.map((_, idx) => (
-                  <div
-                    key={idx}
-                    className={cn(
-                      "flex-1 h-1 rounded-full transition-all duration-300",
-                      idx === currentSceneIndex 
-                        ? cn("bg-gradient-to-r", accentClasses)
-                        : idx < currentSceneIndex
-                        ? "bg-white/40"
-                        : "bg-white/20"
-                    )}
-                  />
-                ))}
+                {/* Steps */}
+                <div className="space-y-2 text-left">
+                  {exportSteps.map((step, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.1 }}
+                      className="flex items-center gap-3"
+                    >
+                      {step.status === 'complete' && (
+                        <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
+                      )}
+                      {step.status === 'active' && (
+                        <RefreshCw className="w-5 h-5 text-orange-400 animate-spin flex-shrink-0" />
+                      )}
+                      {step.status === 'pending' && (
+                        <Clock className="w-5 h-5 text-white/30 flex-shrink-0" />
+                      )}
+                      <span className={cn(
+                        "text-sm",
+                        step.status === 'complete' && "text-white/70",
+                        step.status === 'active' && "text-white font-medium",
+                        step.status === 'pending' && "text-white/40"
+                      )}>
+                        {step.text}
+                      </span>
+                    </motion.div>
+                  ))}
+                </div>
+
+                {/* Progress */}
+                <div className="space-y-2">
+                  <Progress value={exportProgress} className="h-2" />
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-white/40">
+                      {exportProgress}% complete
+                    </span>
+                    <motion.span
+                      animate={{ opacity: [0.4, 1, 0.4] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                      className="text-white/60"
+                    >
+                      Please wait...
+                    </motion.span>
+                  </div>
+                </div>
               </div>
             </div>
+          )}
 
-            {/* Play/Pause overlay */}
-            <motion.button
-              onClick={handlePlayPause}
-              className={cn(
-                "absolute inset-0 flex items-center justify-center",
-                "bg-black/0 hover:bg-black/30 transition-colors"
-              )}
-              whileHover={{ scale: 1 }}
-            >
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className={cn(
-                  "w-16 h-16 rounded-full",
-                  "bg-white/10 backdrop-blur-sm",
-                  "flex items-center justify-center",
-                  "opacity-0 hover:opacity-100 transition-opacity"
-                )}
-              >
-                {isPlaying ? (
-                  <Pause className="w-6 h-6 text-white" />
-                ) : (
-                  <Play className="w-6 h-6 text-white ml-1" />
-                )}
-              </motion.div>
-            </motion.button>
+          {/* Video Player State */}
+          {!isExporting && exportedVideoUrl && (
+            <div className="flex-1 flex flex-col">
+              {/* Success Header */}
+              <div className="flex items-center gap-3 p-4 border-b border-white/10">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">
+                    Video Ready!
+                  </h3>
+                  <p className="text-sm text-white/60">
+                    Your video has been exported successfully
+                  </p>
+                </div>
+              </div>
 
-            {/* Aspect ratio badge */}
-            <div className="absolute top-4 right-4">
-              <span className={cn(
-                "px-2 py-1 rounded text-xs font-medium",
-                "bg-black/60 backdrop-blur-sm text-white/70"
-              )}>
-                {aspectRatio}
-              </span>
-            </div>
-          </div>
+              {/* Video Player */}
+              <div className="flex-1 bg-black flex items-center justify-center">
+                <video
+                  src={exportedVideoUrl}
+                  controls
+                  autoPlay
+                  className="max-w-full max-h-full"
+                />
+              </div>
 
-          {/* Preview Controls */}
-          <div className="p-4 border-t border-white/10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              {/* Actions */}
+              <div className="p-4 border-t border-white/10 flex gap-3">
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handlePlayPause}
+                  onClick={() => window.open(exportedVideoUrl, '_blank')}
+                  className={cn(
+                    "flex-1 gap-2 bg-gradient-to-r",
+                    accentClasses
+                  )}
+                >
+                  <Download className="w-5 h-5" />
+                  Download Video
+                </Button>
+                <Button
+                  onClick={() => {
+                    navigator.clipboard.writeText(exportedVideoUrl);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  variant="outline"
                   className="gap-2"
                 >
-                  {isPlaying ? (
-                    <>
-                      <Pause className="w-4 h-4" />
-                      Pause
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4" />
-                      Preview
-                    </>
-                  )}
+                  {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                  {copied ? 'Copied!' : 'Copy Link'}
                 </Button>
               </div>
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCopyLink}
-                className="gap-2"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4" />
-                    Copy Link
-                  </>
-                )}
-              </Button>
             </div>
-          </div>
-        </GlassPanel>
-
-        {/* Export Progress / Button */}
-        <AnimatePresence mode="wait">
-          {isGenerating ? (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-            >
-              <GlassPanel>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "w-10 h-10 rounded-full",
-                      "bg-gradient-to-br flex items-center justify-center",
-                      accentClasses
-                    )}>
-                      <RefreshCw className="w-5 h-5 text-white animate-spin" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold">Exporting Video...</p>
-                      <p className="text-xs text-white/50">
-                        {generationProgress < 30 && "Rendering scenes..."}
-                        {generationProgress >= 30 && generationProgress < 60 && "Adding audio..."}
-                        {generationProgress >= 60 && generationProgress < 90 && "Applying effects..."}
-                        {generationProgress >= 90 && "Finalizing..."}
-                      </p>
-                    </div>
-                    <span className="text-lg font-bold">{generationProgress}%</span>
-                  </div>
-                  
-                  <Progress value={generationProgress} className="h-2" />
-                </div>
-              </GlassPanel>
-            </motion.div>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-            >
-              <Button
-                onClick={onExport}
-                disabled={scenes.length === 0}
-                className={cn(
-                  "w-full h-16 text-lg font-semibold gap-3",
-                  "bg-gradient-to-r shadow-lg",
-                  accentClasses
-                )}
-              >
-                <Download className="w-6 h-6" />
-                Export Video
-                {selectedPlatforms.length > 0 && (
-                  <span className="text-sm font-normal opacity-80">
-                    & Share to {selectedPlatforms.length} platform{selectedPlatforms.length > 1 ? 's' : ''}
-                  </span>
-                )}
-              </Button>
-            </motion.div>
           )}
-        </AnimatePresence>
 
-        {/* Export Complete State */}
-        {generationProgress === 100 && !isGenerating && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-          >
-            <GlassPanel className="text-center">
-              <div className={cn(
-                "w-16 h-16 mx-auto mb-4 rounded-full",
-                "bg-gradient-to-br flex items-center justify-center",
-                "from-emerald-500 to-green-500"
-              )}>
-                <CheckCircle2 className="w-8 h-8 text-white" />
+          {/* Initial State - Waiting */}
+          {!isExporting && !exportedVideoUrl && !isGeneratingVoiceover && (
+            <div className="flex-1 flex items-center justify-center p-8">
+              <div className="text-center space-y-4">
+                <div className={cn(
+                  "w-16 h-16 mx-auto rounded-full",
+                  "bg-gradient-to-br flex items-center justify-center",
+                  accentClasses
+                )}>
+                  <Film className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-1">
+                    Preparing Export
+                  </h3>
+                  <p className="text-sm text-white/60">
+                    Your video will appear here shortly
+                  </p>
+                </div>
               </div>
-              <h3 className="text-lg font-semibold mb-1">Export Complete!</h3>
-              <p className="text-sm text-white/50 mb-4">
-                Your video is ready to download
-              </p>
-              <div className="flex gap-3">
-                <Button variant="outline" className="flex-1 gap-2">
-                  <Download className="w-4 h-4" />
-                  Download
-                </Button>
-                <Button variant="outline" className="flex-1 gap-2">
-                  <ExternalLink className="w-4 h-4" />
-                  Open
-                </Button>
-              </div>
-            </GlassPanel>
-          </motion.div>
-        )}
+            </div>
+          )}
+        </GlassPanel>
       </div>
     </div>
   );

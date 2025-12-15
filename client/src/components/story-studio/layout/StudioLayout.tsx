@@ -126,7 +126,7 @@ export function StudioLayout({
 
       {/* Main Content Area */}
       <main className="relative z-10 px-6 pb-32">
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full h-full">
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
               key={currentStep}

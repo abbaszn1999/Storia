@@ -1,3 +1,0 @@
-// Shared Video Generation Service
-
-

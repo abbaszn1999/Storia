@@ -26,6 +26,18 @@ interface SoundEffectsResponse {
   // The API returns audio stream, we'll convert to base64
 }
 
+interface TTSPayload {
+  text: string;
+  voice_id: string;
+  model_id?: string;
+  voice_settings?: {
+    stability?: number;
+    similarity_boost?: number;
+    style?: number;
+    use_speaker_boost?: boolean;
+  };
+}
+
 const elevenlabsAdapter: AiProviderAdapter = {
   name: "elevenlabs",
   supports(model: string) {
@@ -38,9 +50,85 @@ const elevenlabsAdapter: AiProviderAdapter = {
     }
 
     const baseUrl = providerConfig.baseUrl || ELEVENLABS_BASE_URL;
-    const endpoint = `${baseUrl}/sound-generation`;
 
-    // Extract payload
+    // Handle Text-to-Speech
+    if (request.task === "text-to-speech") {
+      const payload = request.payload as TTSPayload;
+      
+      if (!payload.text) {
+        throw new ProviderRequestError("elevenlabs", "Missing 'text' parameter for TTS");
+      }
+      if (!payload.voice_id) {
+        throw new ProviderRequestError("elevenlabs", "Missing 'voice_id' parameter for TTS");
+      }
+
+      const endpoint = `${baseUrl}/text-to-speech/${payload.voice_id}`;
+      
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "xi-api-key": providerConfig.apiKey,
+      };
+
+      const body: Record<string, unknown> = {
+        text: payload.text,
+        model_id: payload.model_id || "eleven_multilingual_v2",
+        voice_settings: payload.voice_settings || {
+          stability: 0.5,
+          similarity_boost: 0.75,
+          style: 0,
+          use_speaker_boost: true,
+        },
+      };
+
+      console.log("[elevenlabs] Generating TTS:", {
+        voice_id: payload.voice_id,
+        text_length: payload.text.length,
+        model: body.model_id,
+      });
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[elevenlabs] TTS API error:", errorText);
+        throw new ProviderRequestError("elevenlabs", errorText);
+      }
+
+      // ElevenLabs returns audio data as binary stream
+      const audioBuffer = await response.arrayBuffer();
+      const audioBufferNode = Buffer.from(audioBuffer);
+
+      console.log("[elevenlabs] TTS generated successfully:", {
+        size: audioBuffer.byteLength,
+        format: "mp3",
+      });
+
+      // Calculate cost based on character count
+      const characterCount = payload.text.length;
+      const costPer1KChars = modelConfig.pricing?.inputCostPer1KTokens || 0.30;
+      const totalCost = (characterCount / 1000) * costPer1KChars;
+
+      return {
+        provider: "elevenlabs",
+        model: modelConfig.name,
+        output: audioBufferNode,
+        usage: {
+          totalCostUsd: totalCost,
+        },
+        rawResponse: {
+          status: response.status,
+          contentType: "audio/mpeg",
+          size: audioBuffer.byteLength,
+        },
+      };
+    }
+
+    // Handle Sound Effects (existing code)
+    const endpoint = `${baseUrl}/sound-generation`;
     const payload = request.payload as SoundEffectsPayload;
     
     if (!payload.text) {

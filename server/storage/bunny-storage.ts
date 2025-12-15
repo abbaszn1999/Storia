@@ -152,6 +152,12 @@ export async function uploadFile(
   const normalizedPath = normalizePath(filePath);
   const url = `${BUNNY_STORAGE_API_URL}/${BUNNY_STORAGE_ZONE}/${normalizedPath}`;
 
+  // Log upload details
+  console.log(`[bunny-storage] Uploading file:`);
+  console.log(`[bunny-storage]   Path: ${normalizedPath}`);
+  console.log(`[bunny-storage]   Size: ${(file.length / 1024).toFixed(2)}KB`);
+  console.log(`[bunny-storage]   Type: ${contentType || 'unknown'}`);
+
   const headers: Record<string, string> = {
     "AccessKey": BUNNY_STORAGE_API_KEY,
   };
@@ -168,9 +174,12 @@ export async function uploadFile(
 
   if (!response.ok) {
     const errorText = await response.text();
+    console.error(`[bunny-storage] Upload failed: ${response.status} ${response.statusText}`);
     throw new Error(`Failed to upload file to Bunny Storage: ${response.status} ${response.statusText} - ${errorText}`);
   }
 
+  console.log(`[bunny-storage] ✓ Upload successful`);
+  
   return getPublicUrl(normalizedPath);
 }
 

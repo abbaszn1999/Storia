@@ -259,6 +259,36 @@ const runwareImageModels: AiModelConfig[] = [
       defaultResolution: "1024x1024",
     },
   },
+  {
+    name: "imagen-4.0-preview",
+    provider: "runware",
+    metadata: {
+      label: "Google Imagen 4.0 Preview",
+      description: "Improved textures, lighting, and typography—especially useful for design-heavy or detail-focused work",
+      supports: ["image-generation"],
+      defaultResolution: "1024x1024",
+    },
+  },
+  {
+    name: "imagen-4.0-ultra",
+    provider: "runware",
+    metadata: {
+      label: "Google Imagen 4.0 Ultra",
+      description: "Google's most advanced image model. Exceptional detail, color accuracy, and prompt adherence",
+      supports: ["image-generation"],
+      defaultResolution: "1024x1024",
+    },
+  },
+  {
+    name: "imagen-4.0-fast",
+    provider: "runware",
+    metadata: {
+      label: "Google Imagen 4.0 Fast",
+      description: "Speed and quality optimized for quicker inference with minimal quality loss",
+      supports: ["image-generation"],
+      defaultResolution: "1024x1024",
+    },
+  },
   // ─────────────────────────────────────────────────────────────────────────────
   // Gemini Image / Nano Banana (AIR: google:4@1, google:4@2)
   // ─────────────────────────────────────────────────────────────────────────────
@@ -292,6 +322,19 @@ const runwareImageModels: AiModelConfig[] = [
       label: "Midjourney V7",
       description: "Next-gen Midjourney with cinematic imagery, fluid brushwork, atmospheric tone. Improvements in realism, texture, lighting, and photographic quality",
       supports: ["image-generation", "image-to-image"],
+      defaultResolution: "1024x1024",
+    },
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Ideogram (AIR: ideogram:4@1)
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    name: "ideogram-3.0",
+    provider: "runware",
+    metadata: {
+      label: "Ideogram 3.0",
+      description: "Design-level generation with sharper text rendering and better composition. Perfect for graphic-driven content",
+      supports: ["image-generation"],
       defaultResolution: "1024x1024",
     },
   },
@@ -543,9 +586,48 @@ const runwareModels: AiModelConfig[] = [...runwareImageModels, ...runwareVideoMo
 // ═══════════════════════════════════════════════════════════════════════════════
 const elevenlabsModels: AiModelConfig[] = [
   {
-    name: "sound-effects",
+    name: "eleven-v3",
     provider: "elevenlabs",
     default: true,
+    metadata: {
+      label: "Eleven v3 (Latest)",
+      description: "Most emotionally rich and expressive speech synthesis. 70+ languages, dramatic delivery, natural multi-speaker dialogue",
+      supports: ["text-to-speech"],
+    },
+    pricing: {
+      currency: "usd",
+      inputCostPer1KTokens: 0.30, // ~$0.30 per 1000 characters
+    },
+  },
+  {
+    name: "tts-multilingual-v2",
+    provider: "elevenlabs",
+    metadata: {
+      label: "Text-to-Speech Multilingual V2",
+      description: "Lifelike, consistent quality. 29 languages, most stable for long-form",
+      supports: ["text-to-speech"],
+    },
+    pricing: {
+      currency: "usd",
+      inputCostPer1KTokens: 0.30, // ~$0.30 per 1000 characters
+    },
+  },
+  {
+    name: "tts-flash-v2.5",
+    provider: "elevenlabs",
+    metadata: {
+      label: "Flash v2.5 (Ultra-Fast)",
+      description: "Ultra-low latency ~75ms. 32 languages, 50% lower price",
+      supports: ["text-to-speech"],
+    },
+    pricing: {
+      currency: "usd",
+      inputCostPer1KTokens: 0.15, // 50% lower than v2
+    },
+  },
+  {
+    name: "sound-effects",
+    provider: "elevenlabs",
     metadata: {
       label: "Sound Effects",
       description: "Generate sound effects from text descriptions using ElevenLabs AI",
@@ -574,7 +656,10 @@ export const runwareModelIdMap: Record<string, string> = {
 
   // Google Imagen
   "imagen-3.0": "google:1@1",
-  "imagen-4-ultra": "google:2@2",
+  "imagen-4.0-preview": "google:2@1",  // ✅ Added
+  "imagen-4.0-ultra": "google:2@2",
+  "imagen-4-ultra": "google:2@2",      // Alias for backwards compatibility
+  "imagen-4.0-fast": "google:2@3",     // ✅ Added
 
   // Gemini Image (Nano Banana)
   "nano-banana": "google:4@1",
@@ -582,6 +667,9 @@ export const runwareModelIdMap: Record<string, string> = {
 
   // Midjourney
   "midjourney-v7": "midjourney:3@1",
+
+  // Ideogram
+  "ideogram-3.0": "ideogram:4@1",      // ✅ Added
 
   // OpenAI GPT Image
   "gpt-image-1": "openai:1@1",
@@ -618,8 +706,6 @@ export const runwareModelIdMap: Record<string, string> = {
   "veo-3.1": "google:3@2",
   // LTX (Lightricks)
   "ltx-2-pro": "lightricks:2@0",
-  // Ideogram (Image)
-  "ideogram-3.0": "ideogram:4@1",
 };
 
 /**

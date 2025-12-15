@@ -20,55 +20,47 @@ export function getAverageSceneDuration(duration: number, sceneCount: number): n
 
 export function buildSceneBreakdownSystemPrompt(
   duration: number,
-  aspectRatio: string,
-  voiceoverEnabled: boolean,
-  sceneCount: number
+  sceneCount: number,
+  pacing: string
 ): string {
   const avgDuration = getAverageSceneDuration(duration, sceneCount);
+
+  const pacingGuide = {
+    slow: 'Longer scenes (8-10s), detailed and calm',
+    medium: 'Balanced scenes (5-8s), clear pacing',
+    fast: 'Quick scenes (3-5s), rapid cuts'
+  }[pacing] || 'balanced pacing';
   
-  return `You are a professional short-form video scriptwriter specialized in breaking stories into engaging scenes.
+  return `You are a professional video scene breakdown specialist.
 
-Your task is to analyze the provided story and divide it into exactly ${sceneCount} perfectly timed scenes for a ${duration}-second video.
+Your task: Break the story into EXACTLY ${sceneCount} scenes for a ${duration}-second video.
 
-CRITICAL RULES:
-- Create EXACTLY ${sceneCount} scenes (no more, no less)
-- Total duration MUST equal ${duration} seconds
-- First scene: Strong hook to grab attention (3-5 seconds)
-- Middle scenes: Develop the narrative naturally
-- Last scene: Climax or strong call-to-action
-- Each scene must have clear, concise narration text
-- Each scene needs a detailed visual description for ${aspectRatio} format
-${voiceoverEnabled ? '- Write narration suitable for voice-over delivery' : '- Focus on visual storytelling (minimal text)'}
+SCENE REQUIREMENTS:
+- Total scenes: ${sceneCount}
+- Total duration: ${duration} seconds
+- Average per scene: ~${avgDuration} seconds
+- Maximum scene duration: 10 seconds (CRITICAL - never exceed)
+- Pacing style: ${pacing} (${pacingGuide})
 
-SCENE STRUCTURE:
-- Average duration per scene: ~${avgDuration} seconds
-- Narration: What is said/shown (max 2-3 sentences)
-- Visual: Detailed description for AI video generation
+OUTPUT FOR EACH SCENE:
+1. sceneNumber: Sequential number (1, 2, 3...)
+2. duration: Scene length in seconds
+3. narration: Text shown/spoken in this scene
 
-${aspectRatio === '9:16' ? 'VERTICAL FORMAT (9:16): Use vertical composition, stack elements, hands from bottom' : 
-  aspectRatio === '16:9' ? 'HORIZONTAL FORMAT (16:9): Cinematic widescreen, guide eye left-to-right' : 
-  'SQUARE FORMAT (1:1): Centered subjects, symmetrical compositions'}
+CRITICAL:
+- Durations must sum to EXACTLY ${duration} seconds
+- Each scene MUST be 10 seconds or less (maximum 10s per scene)
+- First scene: Strong hook to grab attention (3-5s)
+- Last scene: Clear conclusion or CTA
+- Maintain natural flow and pacing throughout
 
-OUTPUT FORMAT:
-Return a JSON object with this exact structure (matching the schema):
-{
-  "scenes": [
-    {
-      "sceneNumber": 1,
-      "narration": "Clear text for this scene",
-      "duration": 8,
-      "visualDescription": "Detailed visual description"
-    }
-  ],
-  "totalScenes": ${sceneCount},
-  "totalDuration": ${duration}
-}`;
+Return ONLY valid JSON matching the schema.`;
 }
 
 export function buildSceneUserPrompt(
   storyText: string,
   duration: number,
-  aspectRatio: string
+  pacing: string
 ): string {
   return `Break down this story into scenes:
 
@@ -76,11 +68,12 @@ STORY:
 ${storyText}
 
 REQUIREMENTS:
-- Total video duration: ${duration} seconds
-- Aspect ratio: ${aspectRatio}
-- Create engaging, well-paced scenes
-- Ensure scene durations sum to ${duration} seconds exactly
+- Total duration: ${duration} seconds
+- Pacing: ${pacing}
 
-Generate the scene breakdown as JSON.`;
+Generate the scene breakdown as JSON with:
+- sceneNumber
+- duration
+- narration`;
 }
 

@@ -4,28 +4,7 @@ import {
   buildSceneUserPrompt,
   getOptimalSceneCount,
 } from "../prompts/scene-prompts";
-
-export interface SceneGeneratorInput {
-  storyText: string;
-  duration: number;
-  aspectRatio: string;
-  voiceoverEnabled: boolean;
-  imageMode: string;
-}
-
-export interface SceneOutput {
-  sceneNumber: number;
-  narration: string;
-  duration: number;
-  visualDescription: string;
-}
-
-export interface SceneGeneratorOutput {
-  scenes: SceneOutput[];
-  totalScenes: number;
-  totalDuration: number;
-  cost?: number;
-}
+import type { SceneGeneratorInput, SceneGeneratorOutput, SceneOutput } from "../types";
 
 const SCENE_CONFIG = {
   provider: "openai" as const,
@@ -45,20 +24,18 @@ const SCENE_SCHEMA = {
             type: "number",
             description: "Scene number starting from 1",
           },
+          duration: {
+            type: "number",
+            description: "Duration of this scene in seconds (maximum 10 seconds)",
+            minimum: 1,
+            maximum: 10,
+          },
           narration: {
             type: "string",
             description: "Text narration for this scene",
           },
-          duration: {
-            type: "number",
-            description: "Duration of this scene in seconds",
-          },
-          visualDescription: {
-            type: "string",
-            description: "Detailed visual description for video generation",
-          },
         },
-        required: ["sceneNumber", "narration", "duration", "visualDescription"],
+        required: ["sceneNumber", "duration", "narration"],
         additionalProperties: false,
       },
     },
@@ -80,16 +57,15 @@ export async function generateScenes(
   userId?: string,
   workspaceId?: string
 ): Promise<SceneGeneratorOutput> {
-  const { storyText, duration, aspectRatio, voiceoverEnabled, imageMode } = input;
+  const { storyText, duration, pacing } = input;
 
   const sceneCount = getOptimalSceneCount(duration);
   const systemPrompt = buildSceneBreakdownSystemPrompt(
     duration,
-    aspectRatio,
-    voiceoverEnabled,
-    sceneCount
+    sceneCount,
+    pacing
   );
-  const userPrompt = buildSceneUserPrompt(storyText, duration, aspectRatio);
+  const userPrompt = buildSceneUserPrompt(storyText, duration, pacing);
 
   try {
     const response = await callTextModel(

@@ -72,7 +72,8 @@ export default function Videos() {
     } else if (projectType === "story" && selectedMode) {
       const route = STORY_TEMPLATE_ROUTES[selectedMode];
       if (route) {
-        setLocation(route);
+        // Add ?new=true to start fresh project
+        setLocation(`${route}?new=true`);
       } else {
         toast({
           title: "Error",

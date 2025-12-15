@@ -1,0 +1,326 @@
+# Platform Settings
+
+Platform-specific configuration options for your posts
+
+When creating posts, you can provide platform-specific settings in the `platformSpecificData` field of each `PlatformTarget`. This allows you to customize how your content appears and behaves on each social network.
+
+---
+
+## Twitter/X
+
+Create multi-tweet threads with Twitter's `threadItems` array.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `threadItems` | array | Sequence of tweets in a thread. First item is the root tweet. |
+| `threadItems[].content` | string | Tweet text content |
+| `threadItems[].mediaItems` | array | Media attachments for this tweet |
+
+```json
+{
+  "threadItems": [
+    { "content": "🧵 Here's everything you need to know about our API..." },
+    { "content": "1/ First, authentication is simple..." },
+    { "content": "2/ Next, create your first post..." }
+  ]
+}
+```
+
+---
+
+## Threads (by Meta)
+
+Similar to Twitter, create multi-post threads on Threads.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `threadItems` | array | Sequence of posts (root then replies in order) |
+| `threadItems[].content` | string | Post text content |
+| `threadItems[].mediaItems` | array | Media attachments for this post |
+
+---
+
+## Facebook
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `contentType` | `"story"` | Publish as a Facebook Page Story (24-hour ephemeral) |
+| `firstComment` | string | Auto-post a first comment (feed posts only, not stories) |
+| `pageId` | string | Target Page ID (uses default page if omitted) |
+
+**Constraints:**
+- ❌ Cannot mix videos and images in the same post
+- ✅ Up to 10 images for feed posts
+- ✅ Stories require media (single image or video)
+- ⚠️ Story text captions are not displayed
+- ⏱️ Stories disappear after 24 hours
+
+```json
+{
+  "contentType": "story",
+  "pageId": "123456789"
+}
+```
+
+---
+
+## Instagram
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `contentType` | `"story"` | Publish as an Instagram Story |
+| `shareToFeed` | boolean | For Reels only. When `true` (default), the Reel appears on both the Reels tab and profile feed. Set to `false` for Reels tab only. |
+| `collaborators` | string[] | Up to 3 usernames to invite as collaborators (feed/Reels only) |
+| `firstComment` | string | Auto-post a first comment (not applied to Stories) |
+| `userTags` | array | Tag users in photos by username and position coordinates |
+| `userTags[].username` | string | Instagram username (@ symbol optional, auto-removed) |
+| `userTags[].x` | number | X coordinate from left edge (0.0–1.0) |
+| `userTags[].y` | number | Y coordinate from top edge (0.0–1.0) |
+
+**Constraints:**
+- 📐 Feed posts require aspect ratio between **0.8** (4:5) and **1.91** (1.91:1)
+- 📱 9:16 images must use `contentType: "story"`
+- 🎠 Carousels support up to 10 media items
+- 🗜️ Images > 8MB auto-compressed
+- 📹 Story videos > 100MB auto-compressed
+- 🎬 Reel videos > 300MB auto-compressed
+- 🏷️ User tags: only for single images or first image of carousels (not stories/videos)
+
+```json
+{
+  "firstComment": "Link in bio! 🔗",
+  "collaborators": ["brandpartner", "creator123"],
+  "userTags": [
+    { "username": "friend_username", "x": 0.5, "y": 0.5 }
+  ]
+}
+```
+
+---
+
+## LinkedIn
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `firstComment` | string | Auto-post a first comment |
+| `disableLinkPreview` | boolean | Set `true` to disable URL previews (default: `false`) |
+
+**Constraints:**
+- ✅ Up to 20 images per post
+- ❌ Multi-video posts not supported
+- 📄 Single PDF document posts supported
+- 🔗 Link previews auto-generated when no media attached
+
+```json
+{
+  "firstComment": "What do you think? Drop a comment below! 👇",
+  "disableLinkPreview": false
+}
+```
+
+---
+
+## Pinterest
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `title` | string | Pin title (max 100 chars, defaults to first line of content) |
+| `boardId` | string | Target board ID (uses first available if omitted) |
+| `link` | string (URI) | Destination link for the pin |
+| `coverImageUrl` | string (URI) | Cover image for video pins |
+| `coverImageKeyFrameTime` | integer | Key frame time in seconds for video cover |
+
+```json
+{
+  "title": "10 Tips for Better Photography",
+  "boardId": "board-123",
+  "link": "https://example.com/photography-tips"
+}
+```
+
+---
+
+## YouTube
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `title` | string | Video title (max 100 chars, defaults to first line of content) |
+| `visibility` | `"public"` \| `"private"` \| `"unlisted"` | Video visibility (default: `public`) |
+| `firstComment` | string | Auto-post a first comment (max 10,000 chars) |
+| `tags` | string[] | Tags/keywords for the video (see constraints below) |
+
+**Tag Constraints:**
+- ✅ No count limit; duplicates are automatically removed
+- 📏 Each tag must be ≤ 100 characters
+- 📊 Combined total across all tags ≤ 500 characters (YouTube's limit)
+
+**Automatic Detection:**
+- ⏱️ Videos ≤ 3 minutes → **YouTube Shorts**
+- 🎬 Videos > 3 minutes → **Regular videos**
+- 🖼️ Custom thumbnails supported for regular videos only
+- ❌ Custom thumbnails NOT supported for Shorts via API
+
+```json
+{
+  "title": "How to Use Our API in 5 Minutes",
+  "visibility": "public",
+  "firstComment": "Thanks for watching! 🙏 Subscribe for more tutorials!"
+}
+```
+
+---
+
+## TikTok
+
+> ⚠️ **Required Consent**: TikTok posts will fail without `content_preview_confirmed: true` and `express_consent_given: true`.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `privacy_level` | string | **Required.** Must be one from your account's available options |
+| `allow_comment` | boolean | **Required.** Allow comments on the post |
+| `allow_duet` | boolean | Required for video posts |
+| `allow_stitch` | boolean | Required for video posts |
+| `content_preview_confirmed` | boolean | **Required.** Must be `true` |
+| `express_consent_given` | boolean | **Required.** Must be `true` |
+| `draft` | boolean | Send to Creator Inbox as draft instead of publishing |
+| `description` | string | Long-form description for photo posts (max 4000 chars) |
+| `video_cover_timestamp_ms` | integer | Thumbnail frame timestamp in ms (default: 1000) |
+| `photo_cover_index` | integer | Cover image index for carousels (0-based, default: 0) |
+| `auto_add_music` | boolean | Let TikTok add recommended music (photos only) |
+| `video_made_with_ai` | boolean | Disclose AI-generated content |
+| `commercial_content_type` | `"none"` \| `"brand_organic"` \| `"brand_content"` | Commercial disclosure |
+| `brand_partner_promote` | boolean | Brand partner promotion flag |
+| `is_brand_organic_post` | boolean | Brand organic post flag |
+| `media_type` | `"video"` \| `"photo"` | Optional override (defaults based on media items) |
+
+**Constraints:**
+- 📸 Photo carousels support up to 35 images
+- 📝 Video titles: up to 2200 characters
+- 📝 Photo titles: auto-truncated to 90 chars (use `description` for longer text)
+- 🔒 `privacy_level` must match your account's available options (no defaults)
+
+```json
+{
+  "privacy_level": "PUBLIC_TO_EVERYONE",
+  "allow_comment": true,
+  "allow_duet": true,
+  "allow_stitch": true,
+  "content_preview_confirmed": true,
+  "express_consent_given": true,
+  "description": "Full description here since photo titles are limited to 90 chars..."
+}
+```
+
+---
+
+## Google Business Profile
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `callToAction.type` | enum | `LEARN_MORE`, `BOOK`, `ORDER`, `SHOP`, `SIGN_UP`, `CALL` |
+| `callToAction.url` | string (URI) | Destination URL for the CTA button |
+
+**Constraints:**
+- ✅ Text content + single image only
+- ❌ Videos not supported
+- 🔗 CTA button drives user engagement
+- 📍 Posts appear on Google Search/Maps
+
+```json
+{
+  "callToAction": {
+    "type": "SHOP",
+    "url": "https://example.com/store"
+  }
+}
+```
+
+---
+
+## Bluesky
+
+Bluesky doesn't require `platformSpecificData` but has important constraints:
+
+**Constraints:**
+- 🖼️ Up to 4 images per post
+- 🗜️ Images > ~1MB are automatically recompressed to meet Bluesky's blob size limit
+- 🔗 Link previews auto-generated when no media is attached
+
+```json
+{
+  "content": "Just posted this via the Late API! 🦋",
+  "platforms": [
+    {
+      "platform": "bluesky",
+      "accountId": "bluesky-123"
+    }
+  ]
+}
+```
+
+---
+
+## Complete Example
+
+Here's a real-world example posting to multiple platforms with platform-specific settings:
+
+```json
+{
+  "content": "Excited to announce our new product! 🎉",
+  "mediaItems": [
+    { "url": "https://example.com/product.jpg", "type": "image" }
+  ],
+  "platforms": [
+    {
+      "accountId": "twitter-123",
+      "platformSpecificData": {
+        "threadItems": [
+          { "content": "Excited to announce our new product! 🎉" },
+          { "content": "Here's what makes it special... 🧵" }
+        ]
+      }
+    },
+    {
+      "accountId": "instagram-456",
+      "platformSpecificData": {
+        "firstComment": "Link in bio! 🔗",
+        "collaborators": ["brandpartner"]
+      }
+    },
+    {
+      "accountId": "linkedin-789",
+      "platformSpecificData": {
+        "firstComment": "What features would you like to see next? 👇"
+      }
+    },
+    {
+      "accountId": "tiktok-012",
+      "platformSpecificData": {
+        "privacy_level": "PUBLIC_TO_EVERYONE",
+        "allow_comment": true,
+        "allow_duet": false,
+        "allow_stitch": false,
+        "content_preview_confirmed": true,
+        "express_consent_given": true
+      }
+    },
+    {
+      "accountId": "youtube-345",
+      "platformSpecificData": {
+        "title": "New Product Announcement",
+        "visibility": "public",
+        "firstComment": "Thanks for watching! Subscribe for updates! 🔔"
+      }
+    },
+    {
+      "accountId": "gbp-678",
+      "platformSpecificData": {
+        "callToAction": {
+          "type": "SHOP",
+          "url": "https://example.com/product"
+        }
+      }
+    }
+  ]
+}
+```

@@ -43,6 +43,7 @@ import ProductionCampaignCreate from "@/pages/production/create";
 import ProductionCampaignReview from "@/pages/production/review";
 import ProductionCampaignDashboard from "@/pages/production/dashboard";
 import CreateShorts from "@/pages/shorts/create";
+import UsagePage from "@/pages/usage";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
 
@@ -100,6 +101,7 @@ function MainLayout() {
               <Route path="/videos" component={Videos} />
               <Route path="/stories" component={Stories} />
               <Route path="/history" component={History} />
+              <Route path="/usage" component={UsagePage} />
               <Route path="/calendar" component={Calendar} />
               
               {/* Production Campaigns */}

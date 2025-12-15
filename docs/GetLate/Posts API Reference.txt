@@ -1,0 +1,381 @@
+# Posts API Reference
+
+
+
+## GET /v1/posts
+
+**List posts visible to the authenticated user**
+
+Notes and constraints by platform when interpreting the response:
+- YouTube: posts always include at least one video in mediaItems.
+- Instagram/TikTok: posts always include media; drafts may omit media until finalized in client.
+- TikTok: mediaItems will not mix photos and videos in the same post.
+
+
+### Parameters
+
+- **undefined** (optional): No description
+- **undefined** (optional): No description
+- **status** (optional) in query: No description
+- **platform** (optional) in query: No description
+- **profileId** (optional) in query: No description
+- **createdBy** (optional) in query: No description
+- **dateFrom** (optional) in query: No description
+- **dateTo** (optional) in query: No description
+- **includeHidden** (optional) in query: No description
+
+### Responses
+
+#### 200: Paginated posts
+
+**Response Body:**
+
+- **posts** `array[Post]`: 
+- **pagination**: `Pagination` - See schema definition
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+---
+
+## POST /v1/posts
+
+**Create a draft, scheduled, or immediate post**
+
+Platform constraints:
+- YouTube requires a video in mediaItems; optional custom thumbnail via MediaItem.thumbnail.
+- Instagram and TikTok require media; do not mix videos and images for TikTok.
+- Instagram carousels support up to 10 items; Stories publish as 'story'.
+- Facebook Stories require media (single image or video); set contentType to 'story' in platformSpecificData.
+- LinkedIn multi-image supports up to 20 images; single PDF documents supported.
+- Pinterest supports single image via image_url or a single video per Pin; boardId is required.
+- Bluesky supports up to 4 images per post. Images may be automatically recompressed to ≤ ~1MB to satisfy Bluesky's blob limit. When no media is attached, a link preview may be generated for URLs in the text.
+
+
+### Request Body
+
+- **title** `string`: No description
+- **content** `string`: No description
+- **mediaItems** `array`: No description
+- **platforms** `array`: No description
+- **scheduledFor** `string`: No description
+- **publishNow** `boolean`: No description
+- **isDraft** `boolean`: No description
+- **timezone** `string`: No description
+- **tags** `array`: Tags/keywords for the post. YouTube-specific constraints:
+- No count limit; duplicates are automatically removed
+- Each tag must be ≤ 100 characters
+- Combined total across all tags ≤ 500 characters (YouTube's limit)
+
+- **hashtags** `array`: No description
+- **mentions** `array`: No description
+- **crosspostingEnabled** `boolean`: No description
+- **metadata** `object`: No description
+- **tiktokSettings**: No description
+- **queuedFromProfile** `string`: Profile ID if creating via queue
+
+### Responses
+
+#### 201: Post created
+
+**Response Body:**
+
+- **post**: `Post` - See schema definition
+- **message** `string`: No description
+
+#### 400: Validation error
+
+**Response Body:**
+
+- **error** `string`: No description
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 403: Forbidden
+
+**Response Body:**
+
+- **error** `string`: No description
+
+#### 429: Rate limit exceeded
+
+**Response Body:**
+
+- **error** `string`: No description
+
+---
+
+## GET /v1/posts/{postId}
+
+**Get a single post**
+
+### Parameters
+
+- **postId** (required) in path: No description
+
+### Responses
+
+#### 200: Post
+
+**Response Body:**
+
+- **post**: `Post` - See schema definition
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 403: Forbidden
+
+#### 404: Resource not found
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Not found")
+
+---
+
+## PUT /v1/posts/{postId}
+
+**Update a post**
+
+Update an existing post. Only draft, scheduled, failed, and partial posts can be edited.
+Published, publishing, and cancelled posts cannot be modified.
+
+
+### Parameters
+
+- **postId** (required) in path: No description
+
+### Request Body
+
+Type: `object`
+
+### Responses
+
+#### 200: Post updated
+
+**Response Body:**
+
+- **message** `string`: No description
+- **post**: `Post` - See schema definition
+
+#### 207: Partial publish success
+
+#### 400: Invalid request
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 403: Forbidden
+
+#### 404: Resource not found
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Not found")
+
+---
+
+## DELETE /v1/posts/{postId}
+
+**Delete a post**
+
+Delete a post. Published posts cannot be deleted. 
+When deleting a scheduled or draft post that consumed upload quota, the quota will be automatically refunded.
+
+
+### Parameters
+
+- **postId** (required) in path: No description
+
+### Responses
+
+#### 200: Deleted
+
+**Response Body:**
+
+- **message** `string`: No description
+
+#### 400: Cannot delete published posts
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 403: Forbidden
+
+#### 404: Resource not found
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Not found")
+
+---
+
+## POST /v1/posts/bulk-upload
+
+**Validate and schedule multiple posts from CSV**
+
+### Parameters
+
+- **dryRun** (optional) in query: No description
+
+### Request Body
+
+
+### Responses
+
+#### 200: Bulk upload results
+
+**Response Body:**
+
+- **success** `boolean`: No description
+- **totalRows** `integer`: No description
+- **created** `integer`: No description
+- **failed** `integer`: No description
+- **errors** `array[object]`: 
+  - **row** `integer`: No description
+  - **error** `string`: No description
+- **posts** `array[Post]`: 
+
+#### 207: Partial success
+
+#### 400: Invalid CSV or validation errors
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+---
+
+## POST /v1/posts/{postId}/retry
+
+**Retry publishing a failed or partial post**
+
+### Parameters
+
+- **postId** (required) in path: No description
+
+### Responses
+
+#### 200: Retry successful
+
+**Response Body:**
+
+- **message** `string`: No description
+- **post**: `Post` - See schema definition
+
+#### 207: Partial success
+
+#### 400: Invalid state
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 403: Forbidden
+
+#### 404: Resource not found
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Not found")
+
+#### 409: Post is currently publishing
+
+---
+
+
+# Related Schema Definitions
+
+## Post
+
+### Properties
+
+- **_id** `string`: No description
+- **userId** `string`: No description
+- **title** `string`: YouTube: title must be ≤ 100 characters.
+
+- **content** `string`: No description
+- **mediaItems** `array`: No description
+- **platforms** `array`: No description
+- **scheduledFor** `string`: No description
+- **timezone** `string`: No description
+- **status** `string`: No description - one of: draft, scheduled, publishing, published, failed, partial
+- **tags** `array`: YouTube tag constraints when targeting YouTube:
+- No count cap; duplicates removed.
+- Each tag must be ≤ 100 chars.
+- Combined characters across all tags ≤ 500.
+
+- **hashtags** `array`: No description
+- **mentions** `array`: No description
+- **visibility** `string`: No description - one of: public, private, unlisted
+- **metadata** `object`: No description
+- **tiktokSettings**: No description
+- **queuedFromProfile** `string`: Profile ID if the post was scheduled via the queue
+- **createdAt** `string`: No description
+- **updatedAt** `string`: No description
+
+## Pagination
+
+### Properties
+
+- **page** `integer`: No description
+- **limit** `integer`: No description
+- **total** `integer`: No description
+- **pages** `integer`: No description
+
+## TikTokSettings
+
+Required when posting to TikTok. Enforces TikTok Direct Post UX requirements.
+
+Constraints:
+- Photo carousels support up to 35 images.
+- **Title length limits**: 
+  - Videos: up to 2200 chars (full content used as title)
+  - Photos: content is automatically truncated to 90 chars for title (hashtags/URLs stripped). Use 'description' field for longer text (up to 4000 chars).
+- privacy_level must be chosen from creator_info.privacy_level_options (no defaulting).
+- allow_duet and allow_stitch required for videos; allow_comment for all.
+- content_preview_confirmed and express_consent_given must be true before posting.
+
+
+### Properties
+
+- **draft** `boolean`: When true, Late sends the post to the TikTok Creator Inbox as a draft instead of publishing it immediately. When omitted or false, TikTok uses direct posting (live publish) as usual.
+
+- **privacy_level** `string`: One of the values returned by the TikTok creator info API for the account
+- **allow_comment** `boolean`: No description
+- **allow_duet** `boolean`: Required for video posts
+- **allow_stitch** `boolean`: Required for video posts
+- **commercial_content_type** `string`: No description - one of: none, brand_organic, brand_content
+- **brand_partner_promote** `boolean`: No description
+- **is_brand_organic_post** `boolean`: No description
+- **content_preview_confirmed** `boolean`: No description
+- **express_consent_given** `boolean`: No description
+- **media_type** `string`: Optional override. Defaults based on provided media items. - one of: video, photo
+- **video_cover_timestamp_ms** `integer`: Optional for video posts. Timestamp in milliseconds to select which frame to use as thumbnail (defaults to 1000ms/1 second). (min: 0)
+- **photo_cover_index** `integer`: Optional for photo carousels. Index of image to use as cover, 0-based (defaults to 0/first image). (min: 0)
+- **auto_add_music** `boolean`: When true, TikTok may add recommended music (photos only)
+- **video_made_with_ai** `boolean`: Set true to disclose AI-generated content
+- **description** `string`: Optional long-form description for photo posts (max 4000 chars).
+Recommended for photo posts when content exceeds 90 characters, as photo titles are automatically truncated to 90 chars (after stripping hashtags/URLs).
+ (max: 4000)

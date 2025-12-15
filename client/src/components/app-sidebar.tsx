@@ -1,4 +1,4 @@
-import { Home, Video, Zap, Calendar, Settings, History, User, MapPin, Mic, LayoutTemplate, FolderOpen, ChevronDown, Sparkles, Plus, TrendingUp, Archive } from "lucide-react";
+import { Home, Video, Zap, Calendar, Settings, History, User, MapPin, Mic, LayoutTemplate, FolderOpen, ChevronDown, Sparkles, Plus, TrendingUp, Archive, BarChart } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -22,6 +22,7 @@ const mainNavItems = [
   { title: "Videos", url: "/videos", icon: Video },
   { title: "Stories", url: "/stories", icon: Zap },
   { title: "History", url: "/history", icon: History },
+  { title: "Usage", url: "/usage", icon: BarChart },
   { title: "Content Calendar", url: "/calendar", icon: Calendar },
 ];
 

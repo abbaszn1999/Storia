@@ -1,0 +1,231 @@
+# Profiles API Reference
+
+
+
+## GET /v1/profiles
+
+**List profiles visible to the authenticated user**
+
+### Responses
+
+#### 200: Profiles
+
+**Response Body:**
+
+- **profiles** `array[Profile]`: 
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+---
+
+## POST /v1/profiles
+
+**Create a new profile**
+
+### Request Body
+
+- **name** (required) `string`: No description
+- **description** `string`: No description
+- **color** `string`: No description
+
+### Responses
+
+#### 201: Created
+
+**Response Body:**
+
+- **message** `string`: No description
+- **profile**: `Profile` - See schema definition
+
+#### 400: Invalid request
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 403: Profile limit exceeded
+
+---
+
+## GET /v1/profiles/{profileId}
+
+**Get a profile by id**
+
+### Parameters
+
+- **profileId** (required) in path: No description
+
+### Responses
+
+#### 200: Profile
+
+**Response Body:**
+
+- **profile**: `Profile` - See schema definition
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Resource not found
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Not found")
+
+---
+
+## PUT /v1/profiles/{profileId}
+
+**Update a profile**
+
+### Parameters
+
+- **profileId** (required) in path: No description
+
+### Request Body
+
+- **name** `string`: No description
+- **description** `string`: No description
+- **color** `string`: No description
+- **isDefault** `boolean`: No description
+
+### Responses
+
+#### 200: Updated
+
+**Response Body:**
+
+- **message** `string`: No description
+- **profile**: `Profile` - See schema definition
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Resource not found
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Not found")
+
+---
+
+## DELETE /v1/profiles/{profileId}
+
+**Delete a profile (must have no connected accounts)**
+
+### Parameters
+
+- **profileId** (required) in path: No description
+
+### Responses
+
+#### 200: Deleted
+
+**Response Body:**
+
+- **message** `string`: No description
+
+#### 400: Has connected accounts
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 403: Forbidden
+
+#### 404: Resource not found
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Not found")
+
+---
+
+## POST /v1/profiles/{profileId}/clone-connection
+
+**Clone an existing connection to this profile with optional targeting**
+
+Reuse an existing OAuth connection from another profile in this profile, 
+optionally targeting different pages (Facebook) or organizations (LinkedIn).
+Perfect for managing multiple brands with the same underlying social media account.
+
+
+### Parameters
+
+- **profileId** (required) in path: No description
+
+### Request Body
+
+- **sourceAccountId** (required) `string`: ID of existing connection to clone
+- **targetPageId** `string`: Facebook page ID to target (optional, for Facebook)
+- **targetPageName** `string`: Facebook page name (optional, for Facebook)
+- **targetPageAccessToken** `string`: Facebook page access token (optional, for Facebook)
+- **targetOrganizationId** `string`: LinkedIn organization ID (optional, for LinkedIn)
+- **targetOrganizationUrn** `string`: LinkedIn organization URN (optional, for LinkedIn)
+- **targetOrganizationName** `string`: LinkedIn organization name (optional, for LinkedIn)
+- **targetAccountType** `string`: LinkedIn account type (optional, for LinkedIn) - one of: personal, organization
+
+### Responses
+
+#### 200: Connection cloned successfully
+
+**Response Body:**
+
+- **message** `string`: No description
+- **connection**: `SocialAccount` - See schema definition
+
+#### 400: Invalid request or source account
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 404: Source account not found
+
+#### 500: Failed to clone connection
+
+---
+
+
+# Related Schema Definitions
+
+## Profile
+
+### Properties
+
+- **_id** `string`: No description
+- **userId** `string`: No description
+- **name** `string`: No description
+- **description** `string`: No description
+- **color** `string`: No description
+- **isDefault** `boolean`: No description
+- **createdAt** `string`: No description
+
+## SocialAccount
+
+### Properties
+
+- **_id** `string`: No description
+- **platform** `string`: No description
+- **profileId** `string`: No description
+- **username** `string`: No description
+- **displayName** `string`: No description
+- **isActive** `boolean`: No description
+- **followersCount** `number`: Follower count (only included if user has analytics add-on)
+- **followersLastUpdated** `string`: Last time follower count was updated (only included if user has analytics add-on)

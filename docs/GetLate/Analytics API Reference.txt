@@ -1,0 +1,114 @@
+# Analytics API Reference
+
+
+
+## GET /v1/analytics
+
+**Unified analytics for posts**
+
+Returns analytics for posts. If postId is provided, returns analytics for a single post.
+Otherwise returns a paginated list of posts with overview stats.
+
+**Note:** For follower count history and growth metrics, use the dedicated `/v1/accounts/follower-stats` endpoint.
+
+**Rate Limit:** 150 requests per hour per user.
+Note: The rate limit only applies to refresh operations (pulling fresh data from platforms).
+Reading cached analytics data does not count against the rate limit.
+Rate limit headers are included in responses:
+- X-RateLimit-Limit: Maximum requests allowed
+- X-RateLimit-Remaining: Requests remaining in current window
+- X-RateLimit-Reset: ISO timestamp when the limit resets
+
+
+### Parameters
+
+- **postId** (optional) in query: When provided, returns analytics for a single post
+- **platform** (optional) in query: Filter by platform (default "all")
+- **profileId** (optional) in query: Filter by profile ID (default "all")
+- **fromDate** (optional) in query: Inclusive lower bound
+- **toDate** (optional) in query: Inclusive upper bound
+- **limit** (optional) in query: Page size (default 50)
+- **page** (optional) in query: Page number (default 1)
+- **sortBy** (optional) in query: Sort by date or engagement
+- **order** (optional) in query: Sort order
+
+### Responses
+
+#### 200: Analytics result
+
+**Response Body:**
+
+*One of the following:*
+- `AnalyticsSinglePostResponse`
+- `AnalyticsListResponse`
+
+#### 401: Unauthorized
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Unauthorized")
+
+#### 402: Analytics add-on required
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Analytics add-on required")
+- **code** `string`: No description (example: "analytics_addon_required")
+
+#### 404: Resource not found
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Not found")
+
+#### 429: Rate limit exceeded
+
+**Response Body:**
+
+- **error** `string`: No description (example: "Rate limit exceeded")
+- **message** `string`: No description (example: "Analytics endpoint allows 150 requests per hour. Please try again later.")
+- **resetTime** `string` (date-time): No description (example: "2025-10-29T19:24:33.707Z")
+
+#### 500: Internal server error
+
+**Response Body:**
+
+- **error** `string`: No description
+- **details** `object`: No description
+
+---
+
+
+# Related Schema Definitions
+
+## AnalyticsSinglePostResponse
+
+### Properties
+
+- **postId** `string`: No description
+- **status** `string`: No description
+- **content** `string`: No description
+- **scheduledFor** `string`: No description
+- **publishedAt** `string`: No description
+- **analytics**: No description
+- **platformAnalytics** `array`: No description
+- **platform** `string`: No description
+- **platformPostUrl** `string`: No description
+- **isExternal** `boolean`: No description
+
+## AnalyticsListResponse
+
+### Properties
+
+- **overview**: No description
+- **posts** `array`: No description
+- **pagination**: No description
+- **accounts** `array`: Connected social accounts (followerCount and followersLastUpdated only included if user has analytics add-on)
+- **hasAnalyticsAccess** `boolean`: Whether user has analytics add-on access
+
+## ErrorResponse
+
+### Properties
+
+- **error** `string`: No description
+- **details** `object`: No description

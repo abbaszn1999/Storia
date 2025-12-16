@@ -63,8 +63,77 @@ export interface StoryboardEnhancerInput {
 // Image Effect type for visual filters
 export type ImageEffect = 'none' | 'vignette' | 'sepia' | 'black-white' | 'warm' | 'cool' | 'grain' | 'dramatic' | 'cinematic' | 'dreamy' | 'glow';
 
-// Image Animation type for camera movements
+// Image Animation type for camera movements (Ken Burns effects)
 export type ImageAnimation = 'zoom-in' | 'zoom-out' | 'pan-right' | 'pan-left' | 'pan-up' | 'pan-down' | 'ken-burns' | 'rotate-cw' | 'rotate-ccw' | 'slide-left' | 'slide-right';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCENE TRANSITIONS - 2025 Trending
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Scene-to-scene transition types (applied between scenes)
+export type SceneTransition =
+  // Motion-based (viral on TikTok/Reels)
+  | 'whip-pan'           // Fast horizontal swipe with blur
+  | 'zoom-punch'         // Quick zoom in/out impact
+  | 'snap-zoom'          // Sharp quick zoom
+  | 'motion-blur-left'   // Directional blur left
+  | 'motion-blur-right'  // Directional blur right
+  | 'motion-blur-up'     // Directional blur up
+  | 'motion-blur-down'   // Directional blur down
+  // Light & Glow (cinematic)
+  | 'flash-white'        // White flash between scenes
+  | 'flash-black'        // Black flash (dramatic)
+  | 'light-leak'         // Warm light leak effect
+  | 'lens-flare'         // Lens flare transition
+  | 'luma-fade'          // Brightness-based fade
+  // Digital / Glitch (modern/tech)
+  | 'glitch'             // Digital distortion
+  | 'rgb-split'          // RGB channel separation
+  | 'pixelate'           // Pixelation transition
+  | 'vhs-noise'          // Retro VHS noise
+  // Shape Reveals (TikTok favorites)
+  | 'circle-open'        // Circle expanding reveal
+  | 'circle-close'       // Circle contracting
+  | 'heart-reveal'       // Heart shape reveal
+  | 'diamond-wipe'       // Diamond pattern
+  | 'star-wipe'          // Star pattern
+  | 'diagonal-tl'        // Diagonal from top-left
+  | 'diagonal-br'        // Diagonal from bottom-right
+  // 3D Effects
+  | 'cube-rotate-left'   // 3D cube rotation left
+  | 'cube-rotate-right'  // 3D cube rotation right
+  | 'page-flip'          // Page flip effect
+  | 'parallax-slide'     // Multi-layer depth slide
+  // Smooth & Elegant
+  | 'smooth-blur'        // Gentle blur dissolve
+  | 'cross-dissolve'     // Classic cross dissolve
+  | 'wave-ripple'        // Water ripple effect
+  | 'zoom-blur'          // Radial zoom blur
+  // Classic (still useful)
+  | 'fade'               // Simple fade
+  | 'wipe-left'          // Wipe from right to left
+  | 'wipe-right'         // Wipe from left to right
+  | 'wipe-up'            // Wipe upward
+  | 'wipe-down'          // Wipe downward
+  | 'none';              // No transition (hard cut)
+
+// Transition category for grouping
+export type TransitionCategory = 
+  | 'motion'      // Fast, dynamic transitions
+  | 'light'       // Glows, flashes, lens effects
+  | 'digital'     // Glitch, tech effects
+  | 'shape'       // Geometric reveals
+  | '3d'          // Perspective, depth effects
+  | 'smooth'      // Elegant, soft transitions
+  | 'classic';    // Traditional transitions
+
+// Transition configuration for a scene
+export interface SceneTransitionConfig {
+  name: SceneTransition;
+  duration: number;        // 0.2 - 1.5 seconds
+  easing?: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';
+  intensity?: number;      // 0-100 for variable effects (glitch, blur)
+}
 
 // Voice mood for ElevenLabs v3 audio tags
 export type VoiceMood = 'neutral' | 'happy' | 'sad' | 'excited' | 'angry' | 'whisper' | 'dramatic' | 'curious' | 'thoughtful' | 'surprised' | 'sarcastic' | 'nervous';
@@ -77,6 +146,8 @@ export interface EnhancedSceneOutput {
   videoPrompt?: string;
   animationName?: ImageAnimation;
   effectName?: ImageEffect;  // Visual effect to apply
+  transitionToNext?: SceneTransition;  // Transition to the next scene
+  transitionDuration?: number;         // Transition duration (0.2-1.5s)
 }
 
 export interface StoryboardEnhancerOutput {
@@ -204,9 +275,12 @@ export interface VideoExportInput {
     audioUrl?: string;      // Voiceover audio (optional if voiceover disabled)
     narration: string;      // Text for subtitles
     duration: number;
-    imageAnimation?: ImageAnimation; // For 'transition' mode
-    imageEffect?: ImageEffect;       // Visual effect for 'transition' mode
-    wordTimestamps?: WordTimestamp[]; // NEW: Word-level sync for karaoke subtitles
+    imageAnimation?: ImageAnimation;   // For 'transition' mode (Ken Burns)
+    imageEffect?: ImageEffect;         // Visual effect for 'transition' mode
+    wordTimestamps?: WordTimestamp[];  // Word-level sync for karaoke subtitles
+    // Scene-to-scene transitions (2025 trending)
+    transitionToNext?: SceneTransition;  // Transition to next scene
+    transitionDuration?: number;         // Duration (0.2-1.5s), default 0.5
   }>;
   animationMode: 'off' | 'transition' | 'video';
   backgroundMusic?: string;     // Legacy: Direct URL to music file
@@ -248,4 +322,27 @@ export interface VideoRemixOutput {
   videoUrl: string;
   duration: number;
   size: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SOCIAL MEDIA METADATA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type SocialPlatform = 'youtube' | 'tiktok' | 'instagram' | 'facebook';
+
+export interface SocialMetadataInput {
+  platform: SocialPlatform;
+  scriptText: string;        // The video script/narration text
+  duration: number;          // Video duration in seconds
+}
+
+export interface SocialMetadataOutput {
+  platform: SocialPlatform;
+  // YouTube specific
+  title?: string;
+  description?: string;
+  // TikTok, Instagram, Facebook
+  caption?: string;
+  // Cost tracking
+  cost?: number;
 }

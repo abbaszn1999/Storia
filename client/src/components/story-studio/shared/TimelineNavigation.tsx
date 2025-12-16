@@ -4,7 +4,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { STEPS, StepId } from "../types";
-import { Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface TimelineNavigationProps {
@@ -14,6 +14,7 @@ interface TimelineNavigationProps {
   onNext: () => void;
   onBack: () => void;
   isNextDisabled?: boolean;
+  isLoading?: boolean;  // Loading state for export button
   nextLabel?: string;
   /** Template accent color */
   accentColor?: string;
@@ -26,6 +27,7 @@ export function TimelineNavigation({
   onNext,
   onBack,
   isNextDisabled = false,
+  isLoading = false,
   nextLabel,
   accentColor = "primary"
 }: TimelineNavigationProps) {
@@ -238,13 +240,13 @@ export function TimelineNavigation({
           </div>
 
           {/* Next/Complete Button */}
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <motion.div whileHover={{ scale: isLoading ? 1 : 1.02 }} whileTap={{ scale: isLoading ? 1 : 0.98 }}>
             <Button
               onClick={onNext}
-              disabled={isNextDisabled}
+              disabled={isNextDisabled || isLoading}
               size="lg"
               className={cn(
-                "min-w-[140px] gap-2 font-semibold",
+                "min-w-[160px] gap-2 font-semibold",
                 "bg-gradient-to-r",
                 accentClasses.gradient,
                 "hover:opacity-90 transition-opacity",
@@ -252,8 +254,22 @@ export function TimelineNavigation({
                 accentClasses.glow
               )}
             >
-              {nextLabel || (isLastStep ? "Export Video" : "Continue")}
-              {!isLastStep && <ChevronRight className="w-4 h-4" />}
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Exporting...
+                </>
+              ) : isLastStep ? (
+                <>
+                  <Download className="w-4 h-4" />
+                  {nextLabel || "Export Video"}
+                </>
+              ) : (
+                <>
+                  {nextLabel || "Continue"}
+                  <ChevronRight className="w-4 h-4" />
+                </>
+              )}
             </Button>
           </motion.div>
         </div>

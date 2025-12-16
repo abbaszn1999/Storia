@@ -7,6 +7,7 @@ import { GlassPanel } from "../shared/GlassPanel";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Download, 
   Share2, 
@@ -28,11 +29,20 @@ import {
   Copy,
   CheckCircle2,
   Video,
-  Mic
+  Mic,
+  ChevronDown,
+  ChevronRight,
+  Wand2,
+  Send,
+  CheckSquare,
+  SquareIcon
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { SiYoutube, SiTiktok, SiInstagram, SiFacebook } from "react-icons/si";
 import { StoryScene, StoryTemplate } from "../types";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Slider } from "@/components/ui/slider";
 
 // Export result with separated audio assets
@@ -48,48 +58,75 @@ interface ExportResult {
 interface ExportStepProps {
   template: StoryTemplate;
   scenes: StoryScene[];
+  scriptText: string;       // The story script/topic for AI metadata generation
   aspectRatio: string;
   duration: number;
   selectedVoice: string;
   backgroundMusic: string;
-  musicStyle: string;       // NEW: Music style for volume control check
+  musicStyle: string;       // Music style for volume control check
   voiceVolume: number;
   musicVolume: number;
-  exportFormat: string;
-  exportQuality: string;
   isGenerating: boolean;
   generationProgress: number;
   voiceoverEnabled: boolean;
-  onFormatChange: (format: string) => void;
-  onQualityChange: (quality: string) => void;
+  imageModel: string;       // Image model used for generation
+  isFinalExporting?: boolean;  // Is final export in progress
   onExport: () => Promise<ExportResult | null>;
   onRemix: (videoBaseUrl: string, voiceoverUrl: string, musicUrl: string, voiceVolume: number, musicVolume: number) => Promise<string | null>;
+  onFinalExport: (audioAssets: { videoBaseUrl?: string; voiceoverUrl?: string; musicUrl?: string } | null, voiceVolume: number, musicVolume: number) => Promise<void>;  // Called by Export Video button
   onGenerateVoiceover: () => Promise<void>;
+  onVoiceVolumeChange: (volume: number) => void;  // Update parent state
+  onMusicVolumeChange: (volume: number) => void;  // Update parent state
   accentColor?: string;
 }
 
-const EXPORT_FORMATS = [
-  { id: 'mp4', name: 'MP4', desc: 'Universal compatibility', icon: Film },
-  { id: 'webm', name: 'WebM', desc: 'Web optimized', icon: Monitor },
-  { id: 'gif', name: 'GIF', desc: 'Animated preview', icon: Image },
-];
-
-const QUALITY_OPTIONS = [
-  { id: '720p', name: '720p HD', desc: 'Fast export', size: '~15MB' },
-  { id: '1080p', name: '1080p Full HD', desc: 'Recommended', size: '~40MB' },
-  { id: '4k', name: '4K Ultra HD', desc: 'Maximum quality', size: '~150MB' },
-];
-
+// Platform configuration with metadata fields
 const PLATFORMS = [
-  { id: 'youtube', name: 'YouTube Shorts', icon: SiYoutube, gradient: 'from-red-600 to-red-700' },
-  { id: 'tiktok', name: 'TikTok', icon: SiTiktok, gradient: 'from-gray-800 to-black' },
-  { id: 'instagram', name: 'Instagram Reels', icon: SiInstagram, gradient: 'from-purple-600 via-pink-500 to-orange-400' },
-  { id: 'facebook', name: 'Facebook Reels', icon: SiFacebook, gradient: 'from-blue-600 to-blue-700' },
+  { 
+    id: 'youtube', 
+    name: 'YouTube', 
+    icon: SiYoutube, 
+    gradient: 'from-red-600 to-red-700',
+    iconBg: 'bg-red-600',
+    fields: ['title', 'description'] as const,
+  },
+  { 
+    id: 'tiktok', 
+    name: 'TikTok', 
+    icon: SiTiktok, 
+    gradient: 'from-gray-800 to-black',
+    iconBg: 'bg-black',
+    fields: ['caption'] as const,
+  },
+  { 
+    id: 'instagram', 
+    name: 'Instagram Reels', 
+    icon: SiInstagram, 
+    gradient: 'from-purple-600 via-pink-500 to-orange-400',
+    iconBg: 'bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400',
+    fields: ['caption'] as const,
+  },
+  { 
+    id: 'facebook', 
+    name: 'Facebook Reels', 
+    icon: SiFacebook, 
+    gradient: 'from-blue-600 to-blue-700',
+    iconBg: 'bg-blue-600',
+    fields: ['caption'] as const,
+  },
 ];
+
+// Type for platform metadata
+interface PlatformMetadata {
+  title?: string;
+  description?: string;
+  caption?: string;
+}
 
 export function ExportStep({
   template,
   scenes,
+  scriptText,
   aspectRatio,
   duration,
   selectedVoice,
@@ -97,19 +134,29 @@ export function ExportStep({
   musicStyle,
   voiceVolume,
   musicVolume,
-  exportFormat,
-  exportQuality,
   isGenerating,
   generationProgress,
   voiceoverEnabled,
-  onFormatChange,
-  onQualityChange,
+  imageModel,
+  isFinalExporting = false,
   onExport,
   onRemix,
+  onFinalExport,
   onGenerateVoiceover,
+  onVoiceVolumeChange,
+  onMusicVolumeChange,
   accentColor = "primary"
 }: ExportStepProps) {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
+  const [platformMetadata, setPlatformMetadata] = useState<Record<string, PlatformMetadata>>({
+    youtube: { title: '', description: '' },
+    tiktok: { caption: '' },
+    instagram: { caption: '' },
+    facebook: { caption: '' },
+  });
+  const [isGeneratingMetadata, setIsGeneratingMetadata] = useState<string | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [voiceoverGenerated, setVoiceoverGenerated] = useState(false);
   const [exportedVideoUrl, setExportedVideoUrl] = useState<string | null>(null);
@@ -133,9 +180,57 @@ export function ExportStep({
   const voiceAudioRef = useRef<HTMLAudioElement>(null);
   const musicAudioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DIRECT DOWNLOAD FUNCTION
+  // ═══════════════════════════════════════════════════════════════════════════
+  const handleDirectDownload = useCallback(async (url: string, filename: string) => {
+    setIsDownloading(true);
+    try {
+      console.log('[ExportStep] Starting direct download:', filename);
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      console.log('[ExportStep] Download complete');
+    } catch (error) {
+      console.error('[ExportStep] Download failed:', error);
+      // Fallback: open in new tab
+      window.open(url, '_blank');
+    } finally {
+      setIsDownloading(false);
+    }
+  }, []);
+  
+  // Get formatted filename for download (always 1080p MP4)
+  const getDownloadFilename = useCallback(() => {
+    const timestamp = new Date().toISOString().slice(0, 10);
+    return `storia-video-${timestamp}-1080p.mp4`;
+  }, []);
   
   // Check if real-time volume control mode should be enabled
   const hasAudioAssets = audioAssets?.videoBaseUrl && audioAssets?.voiceoverUrl && audioAssets?.musicUrl;
+  
+  // Track if onFinalExport was called this render
+  const hasFinalExportTriggered = useRef(false);
+  
+  // When isFinalExporting changes to true, call onFinalExport
+  useEffect(() => {
+    if (isFinalExporting && !hasFinalExportTriggered.current && exportedVideoUrl) {
+      hasFinalExportTriggered.current = true;
+      console.log('[ExportStep] Final export triggered, calling onFinalExport');
+      onFinalExport(audioAssets, localVoiceVolume, localMusicVolume);
+    } else if (!isFinalExporting) {
+      hasFinalExportTriggered.current = false;
+    }
+  }, [isFinalExporting, exportedVideoUrl, audioAssets, localVoiceVolume, localMusicVolume, onFinalExport]);
   const showVolumeControls = voiceoverEnabled && musicStyle !== 'none' && 
     exportedVideoUrl && hasAudioAssets;
   // Dynamic export steps based on scenario
@@ -369,26 +464,32 @@ export function ExportStep({
     return () => clearInterval(syncInterval);
   }, [isPlaying, hasAudioAssets]);
 
-  // Handle volume change - REAL-TIME (no re-export needed for preview)
+  // Handle volume change - REAL-TIME preview + update parent state
   const handleVoiceVolumeChange = useCallback((value: number) => {
     setLocalVoiceVolume(value);
     setVolumeChanged(true);
     
-    // Apply immediately to audio element
+    // Apply immediately to audio element for preview
     if (voiceAudioRef.current) {
       voiceAudioRef.current.volume = value / 100;
     }
-  }, []);
+    
+    // Update parent state for final export
+    onVoiceVolumeChange(value);
+  }, [onVoiceVolumeChange]);
 
   const handleMusicVolumeChange = useCallback((value: number) => {
     setLocalMusicVolume(value);
     setVolumeChanged(true);
     
-    // Apply immediately to audio element
+    // Apply immediately to audio element for preview
     if (musicAudioRef.current) {
       musicAudioRef.current.volume = value / 100;
     }
-  }, []);
+    
+    // Update parent state for final export
+    onMusicVolumeChange(value);
+  }, [onMusicVolumeChange]);
 
   // Handle remix (re-export with new volumes)
   const handleRemix = useCallback(async () => {
@@ -434,7 +535,103 @@ export function ExportStep({
 
   const totalDuration = scenes.reduce((sum, s) => sum + s.duration, 0);
 
-  const handlePlatformToggle = (platformId: string) => {
+  // Toggle platform expansion (accordion behavior)
+  const handlePlatformExpand = (platformId: string) => {
+    setExpandedPlatform(prev => prev === platformId ? null : platformId);
+    // Auto-select platform when expanded
+    if (!selectedPlatforms.includes(platformId)) {
+      setSelectedPlatforms(prev => [...prev, platformId]);
+    }
+  };
+
+  // Update platform metadata
+  const handleMetadataChange = (platformId: string, field: keyof PlatformMetadata, value: string) => {
+    setPlatformMetadata(prev => ({
+      ...prev,
+      [platformId]: {
+        ...prev[platformId],
+        [field]: value,
+      },
+    }));
+  };
+
+  // Generate AI metadata for a platform using the backend API
+  const handleGenerateMetadata = useCallback(async (platformId: string) => {
+    if (!scriptText?.trim()) {
+      console.warn('[ExportStep] No script text available for metadata generation');
+      return;
+    }
+
+    setIsGeneratingMetadata(platformId);
+    
+    try {
+      console.log('[ExportStep] Generating metadata for:', platformId);
+      
+      const response = await fetch('/api/problem-solution/social-metadata', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          platform: platformId,
+          scriptText: scriptText.trim(),
+          duration: totalDuration,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('[ExportStep] Generated metadata:', data);
+
+      // Update metadata based on platform
+      if (platformId === 'youtube') {
+        setPlatformMetadata(prev => ({
+          ...prev,
+          youtube: {
+            title: data.title || '',
+            description: data.description || '',
+          },
+        }));
+      } else {
+        setPlatformMetadata(prev => ({
+          ...prev,
+          [platformId]: {
+            caption: data.caption || '',
+          },
+        }));
+      }
+    } catch (error) {
+      console.error('[ExportStep] Failed to generate metadata:', error);
+      // Fallback to placeholder on error
+      if (platformId === 'youtube') {
+        setPlatformMetadata(prev => ({
+          ...prev,
+          youtube: {
+            title: `Amazing ${template?.name || 'Video'} - Must Watch! 🔥`,
+            description: `Check out this incredible video!\n\n#shorts #viral #trending`,
+          },
+        }));
+      } else {
+        setPlatformMetadata(prev => ({
+          ...prev,
+          [platformId]: {
+            caption: `This is amazing! 🔥✨ Watch till the end!\n\n#viral #trending #fyp`,
+          },
+        }));
+      }
+    } finally {
+      setIsGeneratingMetadata(null);
+    }
+  }, [scriptText, totalDuration, template]);
+
+  // Toggle platform selection for publishing
+  const handlePlatformToggle = (platformId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation(); // Prevent expanding when clicking checkbox
+    }
     setSelectedPlatforms(prev =>
       prev.includes(platformId)
         ? prev.filter(id => id !== platformId)
@@ -442,238 +639,510 @@ export function ExportStep({
     );
   };
 
+  // Check if platform metadata is valid (required fields filled)
+  const isPlatformMetadataValid = useCallback((platformId: string): boolean => {
+    const metadata = platformMetadata[platformId];
+    if (!metadata) return false;
+    
+    if (platformId === 'youtube') {
+      // YouTube requires title and description
+      return Boolean(metadata.title?.trim() && metadata.description?.trim());
+    } else {
+      // Other platforms require caption
+      return Boolean(metadata.caption?.trim());
+    }
+  }, [platformMetadata]);
+
+  // Get platforms with missing metadata
+  const platformsWithMissingMetadata = useMemo(() => {
+    return selectedPlatforms.filter(id => !isPlatformMetadataValid(id));
+  }, [selectedPlatforms, isPlatformMetadataValid]);
+
+  // Check if all selected platforms have valid metadata
+  const canPublish = selectedPlatforms.length > 0 && 
+    platformsWithMissingMetadata.length === 0 && 
+    exportedVideoUrl;
+
+  // Handle publish to selected platforms
+  const handlePublishToSocial = useCallback(async () => {
+    if (!canPublish) return;
+    
+    setIsPublishing(true);
+    console.log('[ExportStep] Publishing to platforms:', selectedPlatforms);
+    
+    try {
+      // Step 1: If audio assets exist, remix with current volume settings first
+      let finalVideoUrl = exportedVideoUrl;
+      
+      if (audioAssets?.videoBaseUrl && audioAssets?.voiceoverUrl && audioAssets?.musicUrl) {
+        console.log('[ExportStep] Remixing video with current volume settings before publish...');
+        console.log('[ExportStep] Voice volume:', localVoiceVolume, 'Music volume:', localMusicVolume);
+        
+        const remixedUrl = await onRemix(
+          audioAssets.videoBaseUrl,
+          audioAssets.voiceoverUrl,
+          audioAssets.musicUrl,
+          localVoiceVolume,
+          localMusicVolume
+        );
+        
+        if (remixedUrl) {
+          finalVideoUrl = remixedUrl;
+          console.log('[ExportStep] Remix complete, using:', finalVideoUrl);
+        }
+      }
+      
+      // Step 2: Publish to selected platforms with metadata
+      // TODO: Implement actual publishing via API
+      console.log('[ExportStep] Publishing video:', finalVideoUrl);
+      console.log('[ExportStep] Platform metadata:', platformMetadata);
+      
+      // Simulate publishing delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Show success (placeholder)
+      alert(`Video published to: ${selectedPlatforms.map(id => 
+        PLATFORMS.find(p => p.id === id)?.name
+      ).join(', ')}`);
+      
+    } catch (error) {
+      console.error('[ExportStep] Publishing failed:', error);
+      alert('Publishing failed. Please try again.');
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [canPublish, selectedPlatforms, exportedVideoUrl, audioAssets, localVoiceVolume, localMusicVolume, onRemix, platformMetadata]);
+
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-full">
-      {/* Left Column - Export Settings (Scrollable) */}
-      <div className="w-full lg:w-2/5 space-y-5 overflow-y-auto max-h-[calc(100vh-12rem)] pb-6">
-        {/* Voiceover Generation Loading */}
-        {isGeneratingVoiceover && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <GlassPanel className="border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-pink-500/10">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
-                  <RefreshCw className="w-6 h-6 text-purple-400 animate-spin" />
-                </div>
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
-                  <Mic className="w-5 h-5" />
-                  Generating Voiceover...
-                </h3>
-                <p className="text-sm text-white/60">
-                  Creating audio for {scenes.length} scene{scenes.length > 1 ? 's' : ''}. This may take a moment.
-                </p>
-              </div>
-            </div>
-            
-            <div className="mt-4">
-              <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
-                  initial={{ width: "0%" }}
-                  animate={{ width: "100%" }}
-                  transition={{ duration: scenes.length * 5, ease: "linear" }}
-                />
-              </div>
-              <p className="text-xs text-white/40 mt-2 text-center">
-                Please wait, do not navigate away...
-              </p>
-            </div>
-          </GlassPanel>
-        </motion.div>
-      )}
-
-      {/* Hide settings during voiceover generation */}
-      {!isGeneratingVoiceover && (
-        <>
-        {/* Video Summary */}
-        <GlassPanel>
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className={cn("p-2 rounded-lg bg-gradient-to-br", accentClasses)}>
-                <Video className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <h3 className="font-semibold">Video Summary</h3>
-                <p className="text-xs text-white/50">Ready to export</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                <div className="flex items-center gap-2 mb-1">
-                  <Layers className="w-3 h-3 text-white/40" />
-                  <span className="text-xs text-white/40">Scenes</span>
-                </div>
-                <p className="text-lg font-semibold">{scenes.length}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                <div className="flex items-center gap-2 mb-1">
-                  <Clock className="w-3 h-3 text-white/40" />
-                  <span className="text-xs text-white/40">Duration</span>
-                </div>
-                <p className="text-lg font-semibold">{totalDuration}s</p>
-              </div>
-              <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                <div className="flex items-center gap-2 mb-1">
-                  <Volume2 className="w-3 h-3 text-white/40" />
-                  <span className="text-xs text-white/40">Voice</span>
-                </div>
-                <p className="text-sm font-semibold capitalize">{selectedVoice}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                <div className="flex items-center gap-2 mb-1">
-                  <Music className="w-3 h-3 text-white/40" />
-                  <span className="text-xs text-white/40">Music</span>
-                </div>
-                <p className="text-sm font-semibold capitalize">
-                  {backgroundMusic === 'none' ? 'None' : backgroundMusic}
-                </p>
-              </div>
-            </div>
-          </div>
-        </GlassPanel>
-
-        {/* Export Quality */}
-        <GlassPanel>
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Monitor className="w-4 h-4 text-white/60" />
-              <span className="font-medium text-sm">Export Quality</span>
-            </div>
-
-            <div className="space-y-2">
-              {QUALITY_OPTIONS.map(quality => (
-                <motion.button
-                  key={quality.id}
-                  onClick={() => onQualityChange(quality.id)}
-                  className={cn(
-                    "w-full p-4 rounded-xl text-left",
-                    "border transition-all duration-200",
-                    "flex items-center justify-between",
-                    exportQuality === quality.id
-                      ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                      : "bg-white/5 border-white/10 hover:bg-white/10"
-                  )}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
-                >
-                  <div>
-                    <span className="text-sm font-semibold">{quality.name}</span>
-                    <p className="text-xs text-white/50">{quality.desc}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-white/40">{quality.size}</span>
-                    {exportQuality === quality.id && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className={cn(
-                          "w-5 h-5 rounded-full",
-                          "bg-gradient-to-br flex items-center justify-center",
-                          accentClasses
-                        )}
-                      >
-                        <Check className="w-3 h-3 text-white" />
-                      </motion.div>
-                    )}
-                  </div>
-                </motion.button>
-              ))}
-            </div>
-          </div>
-        </GlassPanel>
-
-        {/* Format Selection */}
-        <GlassPanel>
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Film className="w-4 h-4 text-white/60" />
-              <span className="font-medium text-sm">Export Format</span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              {EXPORT_FORMATS.map(format => {
-                const Icon = format.icon;
-                return (
-                  <motion.button
-                    key={format.id}
-                    onClick={() => onFormatChange(format.id)}
-                    className={cn(
-                      "p-4 rounded-xl text-center",
-                      "border transition-all duration-200",
-                      exportFormat === format.id
-                        ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                        : "bg-white/5 border-white/10 hover:bg-white/10"
-                    )}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <Icon className="w-6 h-6 mx-auto mb-2 text-white/60" />
-                    <span className="text-sm font-semibold block">{format.name}</span>
-                    <span className="text-[10px] text-white/40">{format.desc}</span>
-                  </motion.button>
-                );
-              })}
-            </div>
-          </div>
-        </GlassPanel>
-
-        {/* Share to Platforms */}
-        <GlassPanel>
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Share2 className="w-4 h-4 text-white/60" />
-              <span className="font-medium text-sm">Share To (Optional)</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {PLATFORMS.map(platform => {
-                const Icon = platform.icon;
-                const isSelected = selectedPlatforms.includes(platform.id);
-                return (
-                  <motion.button
-                    key={platform.id}
-                    onClick={() => handlePlatformToggle(platform.id)}
-                    className={cn(
-                      "p-3 rounded-xl",
-                      "border transition-all duration-200",
-                      "flex items-center gap-3",
-                      isSelected
-                        ? "bg-white/10 border-white/20"
-                        : "bg-white/5 border-white/10 hover:bg-white/10"
-                    )}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <div className={cn(
-                      "w-8 h-8 rounded-lg flex items-center justify-center",
-                      "bg-gradient-to-br",
-                      platform.gradient
-                    )}>
-                      <Icon className="w-4 h-4 text-white" />
+    <div className="flex w-full h-[calc(100vh-12rem)] gap-0 overflow-hidden">
+      {/* Left Column - Export Settings (Scrollable with modern sidebar style) */}
+      <div className={cn(
+        "w-[40%] min-w-[400px] max-w-[600px] flex-shrink-0 h-full",
+        "bg-black/40 backdrop-blur-xl",
+        "border-r border-white/[0.06]",
+        "flex flex-col overflow-hidden"
+      )}>
+        <ScrollArea className="flex-1 h-full">
+          <div className="p-6 space-y-6 pb-12">
+            {/* Voiceover Generation Loading */}
+            {isGeneratingVoiceover && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <GlassPanel className="border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-pink-500/10">
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
+                        <RefreshCw className="w-6 h-6 text-purple-400 animate-spin" />
+                      </div>
                     </div>
-                    <span className="text-xs font-medium">{platform.name}</span>
-                    {isSelected && (
-                      <Check className="w-3 h-3 text-white/60 ml-auto" />
-                    )}
-                  </motion.button>
-                );
-              })}
-            </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+                        <Mic className="w-5 h-5" />
+                        Generating Voiceover...
+                      </h3>
+                      <p className="text-sm text-white/60">
+                        Creating audio for {scenes.length} scene{scenes.length > 1 ? 's' : ''}. This may take a moment.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4">
+                    <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+                        initial={{ width: "0%" }}
+                        animate={{ width: "100%" }}
+                        transition={{ duration: scenes.length * 5, ease: "linear" }}
+                      />
+                    </div>
+                    <p className="text-xs text-white/40 mt-2 text-center">
+                      Please wait, do not navigate away...
+                    </p>
+                  </div>
+                </GlassPanel>
+              </motion.div>
+            )}
+
+            {/* Hide settings during voiceover generation */}
+            {!isGeneratingVoiceover && (
+              <>
+                {/* Video Summary */}
+                <GlassPanel>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <div className={cn("p-2 rounded-lg bg-gradient-to-br", accentClasses)}>
+                        <Video className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">Video Summary</h3>
+                        <p className="text-xs text-white/50">Ready to export</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Scenes Count */}
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Layers className="w-3 h-3 text-white/40" />
+                          <span className="text-xs text-white/40">Scenes</span>
+                        </div>
+                        <p className="text-lg font-semibold">{scenes.length}</p>
+                      </div>
+                      
+                      {/* Duration */}
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Clock className="w-3 h-3 text-white/40" />
+                          <span className="text-xs text-white/40">Duration</span>
+                        </div>
+                        <p className="text-lg font-semibold">{totalDuration}s</p>
+                      </div>
+                      
+                      {/* Image Model */}
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Image className="w-3 h-3 text-white/40" />
+                          <span className="text-xs text-white/40">Image Model</span>
+                        </div>
+                        <p className="text-sm font-semibold truncate" title={imageModel}>
+                          {imageModel || 'Default'}
+                        </p>
+                      </div>
+                      
+                      {/* Voice Over Status */}
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Mic className="w-3 h-3 text-white/40" />
+                          <span className="text-xs text-white/40">Voice Over</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className={cn(
+                            "w-2 h-2 rounded-full",
+                            voiceoverEnabled ? "bg-green-400" : "bg-white/30"
+                          )} />
+                          <p className={cn(
+                            "text-sm font-semibold",
+                            voiceoverEnabled ? "text-green-400" : "text-white/50"
+                          )}>
+                            {voiceoverEnabled ? 'ON' : 'OFF'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </GlassPanel>
+
+                {/* Export Info - Fixed settings */}
+                <GlassPanel>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Film className="w-5 h-5 text-purple-400" />
+                      <h3 className="font-semibold text-white">Export Settings</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Quality */}
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Monitor className="w-3 h-3 text-white/40" />
+                          <span className="text-xs text-white/40">Quality</span>
+                        </div>
+                        <p className="text-sm font-semibold text-white">1080p Full HD</p>
+                      </div>
+                      
+                      {/* Format */}
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Film className="w-3 h-3 text-white/40" />
+                          <span className="text-xs text-white/40">Format</span>
+                        </div>
+                        <p className="text-sm font-semibold text-white">MP4</p>
+                      </div>
+                    </div>
+                  </div>
+                </GlassPanel>
+
+                {/* Share to Platforms - Accordion Style */}
+                <GlassPanel>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Share2 className="w-5 h-5 text-purple-400" />
+                      <h3 className="font-semibold text-white">Share To</h3>
+                      <span className="text-xs text-white/40">(Optional)</span>
+                      {selectedPlatforms.length > 0 && (
+                        <span className="ml-auto text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">
+                          {selectedPlatforms.length} selected
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Platform Accordion List */}
+                    <div className="space-y-2">
+                      {PLATFORMS.map(platform => {
+                        const Icon = platform.icon;
+                        const isExpanded = expandedPlatform === platform.id;
+                        const isGenerating = isGeneratingMetadata === platform.id;
+                        const isSelected = selectedPlatforms.includes(platform.id);
+                        const metadata = platformMetadata[platform.id];
+
+                        return (
+                          <div key={platform.id} className={cn(
+                            "overflow-hidden rounded-xl border transition-all duration-200",
+                            isSelected 
+                              ? "border-purple-500/40 bg-purple-500/5" 
+                              : "border-white/10"
+                          )}>
+                            {/* Platform Header Row */}
+                            <div className={cn(
+                              "w-full p-3 flex items-center gap-3",
+                              "transition-all duration-200",
+                              isExpanded
+                                ? "bg-white/10"
+                                : "bg-white/[0.03]"
+                            )}>
+                              {/* Checkbox for selection */}
+                              <button
+                                onClick={(e) => handlePlatformToggle(platform.id, e)}
+                                className={cn(
+                                  "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all",
+                                  isSelected
+                                    ? "bg-purple-500 border-purple-500"
+                                    : "border-white/30 hover:border-white/50"
+                                )}
+                              >
+                                {isSelected && <Check className="w-3 h-3 text-white" />}
+                              </button>
+
+                              {/* Platform Icon */}
+                              <div className={cn(
+                                "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                                platform.iconBg
+                              )}>
+                                <Icon className="w-4 h-4 text-white" />
+                              </div>
+                              
+                              {/* Platform Name - Clickable to expand */}
+                              <button
+                                onClick={() => handlePlatformExpand(platform.id)}
+                                className="flex-1 text-left flex items-center gap-2 hover:opacity-80 transition-opacity"
+                              >
+                                <span className="text-sm font-medium text-white">
+                                  {platform.name}
+                                </span>
+                              </button>
+                              
+                              {/* Expand Arrow */}
+                              <button
+                                onClick={() => handlePlatformExpand(platform.id)}
+                                className="p-1 hover:bg-white/10 rounded transition-colors"
+                              >
+                                <motion.div
+                                  animate={{ rotate: isExpanded ? 180 : 0 }}
+                                  transition={{ duration: 0.2 }}
+                                >
+                                  <ChevronDown className="w-4 h-4 text-white/40" />
+                                </motion.div>
+                              </button>
+                            </div>
+
+                            {/* Expanded Content */}
+                            <AnimatePresence>
+                              {isExpanded && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="p-4 pt-2 space-y-4 bg-white/[0.02] border-t border-white/[0.06]">
+                                    {/* Header with AI Generate */}
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <Sparkles className="w-4 h-4 text-purple-400" />
+                                        <span className="text-xs font-medium text-white/70">Metadata</span>
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleGenerateMetadata(platform.id);
+                                        }}
+                                        disabled={isGenerating}
+                                        className={cn(
+                                          "h-7 px-3 text-xs gap-1.5",
+                                          "bg-gradient-to-r from-purple-500/20 to-pink-500/20",
+                                          "hover:from-purple-500/30 hover:to-pink-500/30",
+                                          "border border-purple-500/30 text-purple-300",
+                                          "transition-all duration-200"
+                                        )}
+                                      >
+                                        {isGenerating ? (
+                                          <RefreshCw className="w-3 h-3 animate-spin" />
+                                        ) : (
+                                          <Wand2 className="w-3 h-3" />
+                                        )}
+                                        AI Generate
+                                      </Button>
+                                    </div>
+
+                                    {/* YouTube: Title + Description */}
+                                    {platform.id === 'youtube' && (
+                                      <>
+                                        <div className="space-y-2">
+                                          <Input
+                                            value={metadata?.title || ''}
+                                            onChange={(e) => handleMetadataChange('youtube', 'title', e.target.value)}
+                                            placeholder="Video title"
+                                            className={cn(
+                                              "bg-black/40 border-white/10 text-white text-sm",
+                                              "placeholder:text-white/30",
+                                              "focus:border-white/20 focus:ring-0"
+                                            )}
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Textarea
+                                            value={metadata?.description || ''}
+                                            onChange={(e) => handleMetadataChange('youtube', 'description', e.target.value)}
+                                            placeholder="Description"
+                                            rows={3}
+                                            className={cn(
+                                              "bg-black/40 border-white/10 text-white text-sm resize-none",
+                                              "placeholder:text-white/30",
+                                              "focus:border-white/20 focus:ring-0"
+                                            )}
+                                          />
+                                        </div>
+                                      </>
+                                    )}
+
+                                    {/* TikTok, Instagram, Facebook: Caption only */}
+                                    {platform.id !== 'youtube' && (
+                                      <div className="space-y-2">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <Icon className="w-3.5 h-3.5 text-white/40" />
+                                          <span className="text-xs text-white/50">Social Caption</span>
+                                        </div>
+                                        <Textarea
+                                          value={metadata?.caption || ''}
+                                          onChange={(e) => handleMetadataChange(platform.id, 'caption', e.target.value)}
+                                          placeholder="Write a caption..."
+                                          rows={3}
+                                          className={cn(
+                                            "bg-black/40 border-white/10 text-white text-sm resize-none",
+                                            "placeholder:text-white/30",
+                                            "focus:border-white/20 focus:ring-0"
+                                          )}
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Publish Button */}
+                    <AnimatePresence>
+                      {selectedPlatforms.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 10 }}
+                          transition={{ duration: 0.2 }}
+                          className="space-y-3"
+                        >
+                          {/* Warning for missing metadata */}
+                          {platformsWithMissingMetadata.length > 0 && (
+                            <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/30">
+                              <p className="text-xs text-orange-300 flex items-center gap-2">
+                                <span className="text-base">⚠️</span>
+                                <span>
+                                  Fill in metadata for: {platformsWithMissingMetadata.map(id => 
+                                    PLATFORMS.find(p => p.id === id)?.name
+                                  ).join(', ')}
+                                </span>
+                              </p>
+                            </div>
+                          )}
+                          
+                          <Button
+                            onClick={handlePublishToSocial}
+                            disabled={!canPublish || isPublishing}
+                            className={cn(
+                              "w-full h-12 text-sm font-semibold",
+                              "bg-gradient-to-r from-purple-600 to-pink-600",
+                              "hover:from-purple-500 hover:to-pink-500",
+                              "border-0 shadow-lg shadow-purple-500/25",
+                              "transition-all duration-300",
+                              "disabled:opacity-50 disabled:cursor-not-allowed"
+                            )}
+                          >
+                            {isPublishing ? (
+                              <div className="flex items-center gap-2">
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                Publishing...
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Send className="w-4 h-4" />
+                                Publish to {selectedPlatforms.length} Platform{selectedPlatforms.length > 1 ? 's' : ''}
+                              </div>
+                            )}
+                          </Button>
+                          
+                          {/* Selected platforms preview with validation status */}
+                          <div className="flex items-center justify-center gap-2">
+                            {selectedPlatforms.map(platformId => {
+                              const platform = PLATFORMS.find(p => p.id === platformId);
+                              if (!platform) return null;
+                              const Icon = platform.icon;
+                              const isValid = isPlatformMetadataValid(platformId);
+                              return (
+                                <div
+                                  key={platformId}
+                                  className={cn(
+                                    "w-7 h-7 rounded-lg flex items-center justify-center relative",
+                                    platform.iconBg
+                                  )}
+                                  title={`${platform.name}${isValid ? ' ✓' : ' - Missing metadata'}`}
+                                >
+                                  <Icon className="w-3.5 h-3.5 text-white" />
+                                  {!isValid && (
+                                    <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-orange-500 rounded-full flex items-center justify-center border border-black/50">
+                                      <span className="text-[8px] text-white font-bold">!</span>
+                                    </div>
+                                  )}
+                                  {isValid && (
+                                    <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-green-500 rounded-full flex items-center justify-center border border-black/50">
+                                      <Check className="w-2 h-2 text-white" />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </GlassPanel>
+              </>
+            )}
           </div>
-        </GlassPanel>
-        </>
-      )}
+        </ScrollArea>
       </div>
 
-      {/* Right Column - Video Preview (Sticky) */}
-      <div className="w-full lg:w-3/5 lg:sticky lg:top-6 lg:h-[calc(100vh-8rem)]">
-        <GlassPanel className="h-full flex flex-col">
+      {/* Right Column - Video Preview */}
+      <div className="flex-1 relative flex flex-col overflow-hidden h-full">
+        <GlassPanel className="h-full flex flex-col m-6 ml-0">
           {/* Loading State - Exporting */}
           {isExporting && !exportedVideoUrl && (
             <div className="flex-1 flex items-center justify-center p-8">
@@ -763,17 +1232,17 @@ export function ExportStep({
           {/* Video Player State */}
           {!isExporting && exportedVideoUrl && (
             <div className="flex-1 flex flex-col overflow-auto">
-              {/* Success Header */}
+              {/* Success Header - Preview Ready */}
               <div className="flex items-center gap-3 p-4 border-b border-white/10 shrink-0">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
                   <CheckCircle2 className="w-5 h-5 text-white" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <h3 className="text-lg font-semibold text-white">
-                    Video Ready!
+                    Preview Ready
                   </h3>
                   <p className="text-sm text-white/60">
-                    Your video has been exported successfully
+                    Adjust settings below, then click "Export Video" to download
                   </p>
                 </div>
               </div>
@@ -871,64 +1340,8 @@ export function ExportStep({
                     />
                   </div>
                   
-                  {/* Apply Changes Button - For final export with new volumes */}
-                  {volumeChanged && (
-                    <div className="space-y-2">
-                      <p className="text-xs text-white/50 text-center">
-                        ✓ Preview is real-time. Click below to save final video.
-                      </p>
-                      <Button
-                        onClick={handleRemix}
-                        disabled={isRemixing}
-                        className={cn(
-                          "w-full gap-2",
-                          isRemixing 
-                            ? "bg-white/10" 
-                            : "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600"
-                        )}
-                      >
-                        {isRemixing ? (
-                          <>
-                            <RefreshCw className="w-4 h-4 animate-spin" />
-                            Exporting with new volumes...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="w-4 h-4" />
-                            Save with These Volumes
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                  </div>
               )}
-
-              {/* Actions */}
-              <div className="p-4 border-t border-white/10 flex gap-3 shrink-0">
-                <Button
-                  onClick={() => window.open(exportedVideoUrl, '_blank')}
-                  className={cn(
-                    "flex-1 gap-2 bg-gradient-to-r",
-                    accentClasses
-                  )}
-                >
-                  <Download className="w-5 h-5" />
-                  Download Video
-                </Button>
-                <Button
-                  onClick={() => {
-                    navigator.clipboard.writeText(exportedVideoUrl);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                  variant="outline"
-                  className="gap-2"
-                >
-                  {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-                  {copied ? 'Copied!' : 'Copy Link'}
-                </Button>
-              </div>
             </div>
           )}
 

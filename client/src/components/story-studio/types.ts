@@ -121,6 +121,12 @@ export interface StoryStudioState {
   // Step 4: Export
   exportFormat: string;
   exportQuality: string;
+  lastExportResult?: {
+    videoUrl: string;
+    videoBaseUrl?: string;
+    voiceoverUrl?: string;
+    musicUrl?: string;
+  };
   
   // UI State
   isGenerating: boolean;

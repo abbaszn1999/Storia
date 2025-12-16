@@ -26,6 +26,7 @@ export interface SceneGeneratorInput {
   storyText: string;
   duration: number;
   pacing: 'slow' | 'medium' | 'fast';
+  videoModel?: string;  // Optional: Video model ID for duration constraints
 }
 
 export interface SceneOutput {
@@ -41,6 +42,9 @@ export interface SceneGeneratorOutput {
   cost?: number;
 }
 
+// Image style for visual generation
+export type ImageStyle = 'photorealistic' | 'cinematic' | '3d-render' | 'digital-art' | 'anime' | 'illustration' | 'watercolor' | 'minimalist';
+
 export interface StoryboardEnhancerInput {
   scenes: Array<{
     sceneNumber: number;
@@ -48,6 +52,7 @@ export interface StoryboardEnhancerInput {
     narration: string;
   }>;
   aspectRatio: string;
+  imageStyle: ImageStyle;         // Visual style for image generation
   voiceoverEnabled: boolean;
   language?: string;              // Only if voiceoverEnabled = true
   textOverlay?: string;           // Only if voiceoverEnabled = true
@@ -89,6 +94,7 @@ export interface ImageGeneratorInput {
     duration: number;
   }>;
   aspectRatio: string;
+  imageStyle: ImageStyle;       // Visual style (e.g., "photorealistic", "anime")
   imageModel: string;           // Image model ID (e.g., "nano-banana", "flux-2-pro")
   imageResolution: string;      // Resolution tier (e.g., "1k", "2k", "4k")
   projectName: string;
@@ -127,6 +133,16 @@ export interface VoiceoverGeneratorInput {
   workspaceId: string;
 }
 
+/**
+ * Word-level timestamp from ElevenLabs alignment
+ * Used for synchronized subtitles (karaoke-style)
+ */
+export interface WordTimestamp {
+  word: string;
+  startTime: number;  // Start time in seconds
+  endTime: number;    // End time in seconds
+}
+
 export interface VoiceoverGenerationResult {
   sceneNumber: number;
   audioUrl: string;
@@ -134,6 +150,7 @@ export interface VoiceoverGenerationResult {
   status: 'generated' | 'failed';
   error?: string;
   cost?: number;
+  wordTimestamps?: WordTimestamp[];  // Word-level sync data for subtitles
 }
 
 export interface VoiceoverGeneratorOutput {
@@ -149,12 +166,15 @@ export interface VideoGeneratorInput {
     id: string;
     sceneNumber: number;
     imageUrl: string;        // Source image for I2V
-    videoPrompt: string;     // Motion description
+    videoPrompt?: string;    // Motion description (from storyboard)
+    narration?: string;      // Original narration for context
+    voiceMood?: string;      // Mood for motion matching
     duration: number;        // Target duration
   }>;
   videoModel: string;        // e.g., "seedance-1.0-pro"
   videoResolution: string;   // e.g., "720p"
   aspectRatio: string;       // e.g., "9:16"
+  imageStyle?: ImageStyle;   // For style-aware fallback prompts
   projectName: string;
   workspaceId: string;
 }
@@ -186,9 +206,12 @@ export interface VideoExportInput {
     duration: number;
     imageAnimation?: ImageAnimation; // For 'transition' mode
     imageEffect?: ImageEffect;       // Visual effect for 'transition' mode
+    wordTimestamps?: WordTimestamp[]; // NEW: Word-level sync for karaoke subtitles
   }>;
   animationMode: 'off' | 'transition' | 'video';
-  backgroundMusic?: string;
+  backgroundMusic?: string;     // Legacy: Direct URL to music file
+  musicStyle?: string;          // NEW: AI music style (e.g., "cinematic", "upbeat")
+  storyTopic?: string;          // Topic for context-aware music generation
   voiceVolume: number;
   musicVolume: number;
   aspectRatio: string;
@@ -200,9 +223,29 @@ export interface VideoExportInput {
 }
 
 export interface VideoExportOutput {
-  videoUrl: string;
+  videoUrl: string;           // Final mixed video
+  videoBaseUrl?: string;      // Video without final audio mix (for Web Audio preview)
+  voiceoverUrl?: string;      // Merged voiceover audio file
+  musicUrl?: string;          // Background music audio file
   duration: number;
   format: string;
   size: number;
   thumbnailUrl?: string;
+}
+
+// Input for re-mixing audio with new volume levels
+export interface VideoRemixInput {
+  videoBaseUrl: string;       // MUTED video (no audio at all) for remixing
+  voiceoverUrl: string;       // Voiceover audio file
+  musicUrl: string;           // Music audio file
+  voiceVolume: number;        // 0-100
+  musicVolume: number;        // 0-100
+  projectName: string;
+  workspaceId: string;
+}
+
+export interface VideoRemixOutput {
+  videoUrl: string;
+  duration: number;
+  size: number;
 }

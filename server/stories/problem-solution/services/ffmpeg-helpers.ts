@@ -969,3 +969,35 @@ export function cleanupFiles(filePaths: string[]): void {
   });
 }
 
+/**
+ * Create a muted copy of a video (remove all audio streams)
+ * Used for real-time volume control preview
+ */
+export async function createMutedVideo(inputPath: string): Promise<string> {
+  const outputPath = path.join(TEMP_DIR, `${randomUUID()}_muted.mp4`);
+  
+  console.log('[ffmpeg-helpers] Creating muted video...');
+  console.log('[ffmpeg-helpers]   Input:', inputPath);
+  
+  return new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .outputOptions([
+        '-c:v', 'copy',  // Copy video stream without re-encoding
+        '-an',           // Remove all audio streams
+      ])
+      .output(outputPath)
+      .on('start', (cmd: string) => {
+        console.log('[ffmpeg-helpers] FFmpeg mute command:', cmd.substring(0, 100) + '...');
+      })
+      .on('end', () => {
+        console.log('[ffmpeg-helpers] ✓ Muted video created:', outputPath);
+        resolve(outputPath);
+      })
+      .on('error', (err: Error) => {
+        console.error('[ffmpeg-helpers] Muted video creation failed:', err.message);
+        reject(err);
+      })
+      .run();
+  });
+}
+

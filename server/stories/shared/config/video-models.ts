@@ -168,6 +168,61 @@ export function getAvailableVideoModels(): VideoModelConfig[] {
   return Object.values(VIDEO_MODEL_CONFIGS);
 }
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * VIDEO MODEL CONSTRAINTS
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * Returns the constraints for a specific video model.
+ * Used by scene-generator to ensure scene durations match model capabilities.
+ */
+export interface VideoModelConstraints {
+  id: string;
+  label: string;
+  supportedDurations: number[];  // e.g., [5, 10] for KlingAI
+  minDuration: number;          // Minimum scene duration
+  maxDuration: number;          // Maximum scene duration
+  hasAudio: boolean;            // Does model generate native audio?
+  aspectRatios: string[];       // Supported aspect ratios
+}
+
+/**
+ * Get constraints for a specific video model
+ * Returns null if model not found
+ */
+export function getVideoModelConstraints(modelId: string): VideoModelConstraints | null {
+  const config = VIDEO_MODEL_CONFIGS[modelId];
+  if (!config) return null;
+  
+  return {
+    id: config.id,
+    label: config.label,
+    supportedDurations: config.durations,
+    minDuration: Math.min(...config.durations),
+    maxDuration: Math.max(...config.durations),
+    hasAudio: config.hasAudio,
+    aspectRatios: config.aspectRatios,
+  };
+}
+
+/**
+ * Find the closest supported duration for a model
+ * Useful for snapping arbitrary durations to model-supported values
+ */
+export function getClosestSupportedDuration(modelId: string, targetDuration: number): number {
+  const config = VIDEO_MODEL_CONFIGS[modelId];
+  if (!config) return targetDuration;
+  
+  const durations = config.durations;
+  
+  // Find closest supported duration
+  return durations.reduce((closest, current) => {
+    return Math.abs(current - targetDuration) < Math.abs(closest - targetDuration)
+      ? current
+      : closest;
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DIMENSION MAPPINGS
 // ═══════════════════════════════════════════════════════════════════════════

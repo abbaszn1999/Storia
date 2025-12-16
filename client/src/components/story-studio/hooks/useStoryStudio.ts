@@ -2,7 +2,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useState, useCallback, useEffect } from "react";
-import { StepId, STEPS, StoryStudioState, StoryScene, StoryTemplate } from "../types";
+import { StepId, STEPS, StoryStudioState, StoryScene, StoryTemplate, MusicStyle } from "../types";
 import { apiRequest } from "@/lib/queryClient";
 import { getImageModelConfig } from "@/constants/image-models";
 import { getVideoModelConfig } from "@/constants/video-models";
@@ -23,7 +23,6 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
   imageMode: 'none', // Legacy
   voiceoverEnabled: true,
   pacing: 'medium',
-  hookStyle: 'question',
   textOverlayEnabled: true, // New: Simple ON/OFF toggle
   textOverlay: 'key-points', // Auto-set to key-points
   
@@ -32,6 +31,7 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
   language: 'en',
   textOverlayStyle: 'modern',
   imageModel: 'nano-banana', // Default image model
+  imageStyle: 'photorealistic', // Default image style
   imageResolution: '1k', // Default image resolution
   animationMode: 'off',
   videoModel: 'seedance-1.0-pro', // Default video model
@@ -42,7 +42,8 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
   
   // Step 3
   selectedVoice: '21m00Tcm4TlvDq8ikWAM', // Rachel (English) - default
-  backgroundMusic: 'none',
+  musicStyle: 'none' as MusicStyle, // AI music style
+  backgroundMusic: 'none', // Legacy
   voiceVolume: 80,
   musicVolume: 30,
   
@@ -130,6 +131,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
           duration: s.duration,
         })),
         aspectRatio: state.aspectRatio,
+        imageStyle: state.imageStyle,
         imageModel: state.imageModel,
         imageResolution: state.imageResolution,
         projectName: state.topic || 'Untitled',
@@ -192,12 +194,15 @@ export function useStoryStudio(template: StoryTemplate | null) {
           id: s.id,
           sceneNumber: s.sceneNumber,
           imageUrl: s.imageUrl!,
-          videoPrompt: s.videoPrompt || s.narration,
+          videoPrompt: s.videoPrompt,
+          narration: s.narration,
+          voiceMood: s.voiceMood,
           duration: s.duration,
         })),
         videoModel: state.videoModel,
         videoResolution: state.videoResolution,
         aspectRatio: state.aspectRatio,
+        imageStyle: state.imageStyle,
         projectName: state.topic || 'Untitled',
         workspaceId: template?.id || 'default',
       });
@@ -251,11 +256,14 @@ export function useStoryStudio(template: StoryTemplate | null) {
         sceneNumber: scene.sceneNumber,
         sceneId: scene.id,
         imageUrl: scene.imageUrl,
-        videoPrompt: scene.videoPrompt || scene.narration,
+        videoPrompt: scene.videoPrompt,
+        narration: scene.narration,
+        voiceMood: scene.voiceMood,
         duration: scene.duration,
         videoModel: state.videoModel,
         videoResolution: state.videoResolution,
         aspectRatio: state.aspectRatio,
+        imageStyle: state.imageStyle,
         projectName: state.topic || 'Untitled',
         workspaceId: template?.id || 'default',
         storyId: template?.id || 'temp-story',
@@ -312,6 +320,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
           narration: s.narration,
         })),
         aspectRatio: state.aspectRatio,
+        imageStyle: state.imageStyle,
         voiceoverEnabled: state.voiceoverEnabled,
         language: state.voiceoverEnabled ? state.language : undefined,
         textOverlay: state.voiceoverEnabled ? state.textOverlay : undefined,
@@ -383,6 +392,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
             duration: s.duration,
           })),
           aspectRatio: state.aspectRatio,
+          imageStyle: state.imageStyle,
           imageModel: state.imageModel,
           imageResolution: state.imageResolution,
           projectName: state.topic || 'Untitled',
@@ -467,6 +477,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
             storyText: state.topic,
             duration: state.duration,
             pacing: state.pacing,
+            videoModel: state.videoModel, // Pass video model for duration constraints
           });
           
           const data = await res.json();
@@ -542,10 +553,6 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setState(prev => ({ ...prev, pacing }));
   }, []);
 
-  const setHookStyle = useCallback((hookStyle: 'question' | 'statement' | 'statistic') => {
-    setState(prev => ({ ...prev, hookStyle }));
-  }, []);
-
   const setTextOverlay = useCallback((textOverlay: 'minimal' | 'key-points' | 'full') => {
     setState(prev => ({ ...prev, textOverlay }));
   }, []);
@@ -581,6 +588,10 @@ export function useStoryStudio(template: StoryTemplate | null) {
         imageResolution: newResolution
       };
     });
+  }, []);
+
+  const setImageStyle = useCallback((imageStyle: 'photorealistic' | 'cinematic' | '3d-render' | 'digital-art' | 'anime' | 'illustration' | 'watercolor' | 'minimalist') => {
+    setState(prev => ({ ...prev, imageStyle }));
   }, []);
 
   const setImageResolution = useCallback((imageResolution: string) => {
@@ -640,9 +651,6 @@ export function useStoryStudio(template: StoryTemplate | null) {
       const res = await apiRequest("POST", "/api/problem-solution/idea", {
         ideaText: state.aiPrompt,
         durationSeconds: state.duration,
-        pacing: state.pacing,
-        hookStyle: state.hookStyle,
-        textOverlay: state.textOverlay,
       });
       const data = await res.json();
 
@@ -663,7 +671,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         isGenerating: false,
       }));
     }
-  }, [state.aiPrompt, state.duration, state.pacing, state.hookStyle, state.textOverlay]);
+  }, [state.aiPrompt, state.duration]);
 
   // Generate Script button: navigates to Script step and generates scenes
   const generateScript = useCallback(async () => {
@@ -688,6 +696,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         storyText: state.topic,
         duration: state.duration,
         pacing: state.pacing,
+        videoModel: state.videoModel, // Pass video model for duration constraints
       });
       
       if (!res.ok) {
@@ -784,6 +793,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         storyText: state.topic,
         duration: state.duration,
         pacing: state.pacing,
+        videoModel: state.videoModel, // Pass video model for duration constraints
       });
       
       const data = await res.json();
@@ -826,6 +836,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         sceneId: scene.id,
         imagePrompt: scene.imagePrompt || scene.narration,
         aspectRatio: state.aspectRatio,
+        imageStyle: state.imageStyle,
         imageModel: state.imageModel,
         imageResolution: state.imageResolution,
         projectName: state.topic || 'Untitled',
@@ -908,7 +919,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         successful: data.scenes.filter((s: any) => s.status === 'generated').length,
       });
 
-      // Update scenes with audioUrls AND actual durations from audio
+      // Update scenes with audioUrls, durations, AND word timestamps for synchronized subtitles
       setState(prev => ({
         ...prev,
         scenes: prev.scenes.map(scene => {
@@ -916,11 +927,13 @@ export function useStoryStudio(template: StoryTemplate | null) {
             (g: any) => g.sceneNumber === scene.sceneNumber
           );
           if (generated && generated.status === 'generated') {
-            console.log(`[voiceover] Scene ${scene.sceneNumber}: Duration updated from ${scene.duration}s to ${generated.duration}s`);
+            const hasTimestamps = generated.wordTimestamps && generated.wordTimestamps.length > 0;
+            console.log(`[voiceover] Scene ${scene.sceneNumber}: Duration ${scene.duration}s → ${generated.duration}s, Words: ${hasTimestamps ? generated.wordTimestamps.length : 'none'}`);
             return { 
               ...scene, 
               audioUrl: generated.audioUrl,
-              duration: generated.duration  // Use actual audio duration!
+              duration: generated.duration,       // Use actual audio duration!
+              wordTimestamps: generated.wordTimestamps,  // NEW: Word-level sync for subtitles!
             };
           }
           return scene;
@@ -945,6 +958,10 @@ export function useStoryStudio(template: StoryTemplate | null) {
   // Step 3: Audio
   const setSelectedVoice = useCallback((selectedVoice: string) => {
     setState(prev => ({ ...prev, selectedVoice }));
+  }, []);
+
+  const setMusicStyle = useCallback((musicStyle: MusicStyle) => {
+    setState(prev => ({ ...prev, musicStyle }));
   }, []);
 
   const setBackgroundMusic = useCallback((backgroundMusic: string) => {
@@ -1007,6 +1024,10 @@ export function useStoryStudio(template: StoryTemplate | null) {
 
       console.log('[export] Backend animation mode:', backendAnimationMode);
 
+      // Check if we have word-level timestamps for synchronized subtitles
+      const hasWordTimestamps = state.scenes.some(s => s.wordTimestamps && s.wordTimestamps.length > 0);
+      console.log('[export] Word-level sync:', hasWordTimestamps ? '✓ Enabled (precise subtitles)' : '✗ Fallback mode');
+
       const res = await apiRequest("POST", "/api/problem-solution/export", {
         storyId: template?.id || 'temp-story',
         scenes: state.scenes.map(s => ({
@@ -1018,9 +1039,12 @@ export function useStoryStudio(template: StoryTemplate | null) {
           duration: s.duration,
           imageAnimation: s.imageAnimation, // Pass CSS animation type for transition mode
           imageEffect: s.imageEffect, // Pass visual effect for transition mode
+          wordTimestamps: s.wordTimestamps, // NEW: Word-level sync for karaoke subtitles!
         })),
         animationMode: backendAnimationMode,
-        backgroundMusic: state.backgroundMusic !== 'none' ? state.backgroundMusic : null,
+        musicStyle: state.musicStyle, // AI music style
+        storyTopic: state.topic, // For context-aware music generation
+        backgroundMusic: state.backgroundMusic !== 'none' ? state.backgroundMusic : null, // Legacy
         voiceVolume: state.voiceVolume,
         musicVolume: state.musicVolume,
         aspectRatio: state.aspectRatio,
@@ -1039,6 +1063,9 @@ export function useStoryStudio(template: StoryTemplate | null) {
 
       console.log('[export] Video exported successfully:', {
         videoUrl: data.videoUrl,
+        videoBaseUrl: data.videoBaseUrl,
+        voiceoverUrl: data.voiceoverUrl,
+        musicUrl: data.musicUrl,
         duration: data.duration,
         size: data.size ? `${(data.size / 1024 / 1024).toFixed(2)}MB` : 'Unknown',
       });
@@ -1049,7 +1076,15 @@ export function useStoryStudio(template: StoryTemplate | null) {
         generationProgress: 100,
       }));
 
-      return data.videoUrl;
+      // Return full result for volume control
+      return {
+        videoUrl: data.videoUrl,
+        videoBaseUrl: data.videoBaseUrl,
+        voiceoverUrl: data.voiceoverUrl,
+        musicUrl: data.musicUrl,
+        duration: data.duration,
+        size: data.size,
+      };
     } catch (error) {
       console.error("[export] Failed to export video:", error);
       setState(prev => ({ 
@@ -1061,6 +1096,45 @@ export function useStoryStudio(template: StoryTemplate | null) {
       return null;
     }
   }, [state.scenes, state.animationMode, state.backgroundMusic, state.voiceVolume, state.musicVolume, state.aspectRatio, state.exportFormat, state.exportQuality, state.topic, template]);
+
+  // Remix video with new volume levels
+  const remixVideo = useCallback(async (
+    videoBaseUrl: string,
+    voiceoverUrl: string,
+    musicUrl: string,
+    voiceVolume: number,
+    musicVolume: number
+  ): Promise<string | null> => {
+    console.log('[remix] Starting remix with volumes:', { voiceVolume, musicVolume });
+    
+    try {
+      const res = await apiRequest("POST", "/api/problem-solution/remix", {
+        videoBaseUrl,
+        voiceoverUrl,
+        musicUrl,
+        voiceVolume,
+        musicVolume,
+        projectName: state.topic || 'Untitled',
+        workspaceId: template?.id || 'default',
+      });
+
+      const data = await res.json();
+
+      if (!data.videoUrl) {
+        throw new Error('No video URL returned from remix');
+      }
+
+      console.log('[remix] Video remixed successfully:', {
+        videoUrl: data.videoUrl,
+        duration: data.duration,
+      });
+
+      return data.videoUrl;
+    } catch (error) {
+      console.error("[remix] Failed to remix video:", error);
+      return null;
+    }
+  }, [state.topic, template]);
 
   // Reset
   const reset = useCallback(() => {
@@ -1117,13 +1191,13 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setImageMode,
     setVoiceoverEnabled,
     setPacing,
-    setHookStyle,
     setTextOverlay,
     setAiPrompt,
     setLanguage,
     setTextOverlayEnabled,
     setTextOverlayStyle,
     setImageModel,
+    setImageStyle,
     setImageResolution,
     setAnimationMode,
     setVideoModel,
@@ -1146,6 +1220,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
     
     // Step 3
     setSelectedVoice,
+    setMusicStyle,
     setBackgroundMusic,
     setVoiceVolume,
     setMusicVolume,
@@ -1154,6 +1229,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setExportFormat,
     setExportQuality,
     exportVideo,
+    remixVideo,
     
     // Utilities
     reset,

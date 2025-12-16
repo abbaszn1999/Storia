@@ -32,7 +32,18 @@ import {
 } from "lucide-react";
 import { SiYoutube, SiTiktok, SiInstagram, SiFacebook } from "react-icons/si";
 import { StoryScene, StoryTemplate } from "../types";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Slider } from "@/components/ui/slider";
+
+// Export result with separated audio assets
+interface ExportResult {
+  videoUrl: string;
+  videoBaseUrl?: string;    // Video with voiceover, no music (for remix)
+  voiceoverUrl?: string;    // Voiceover audio file
+  musicUrl?: string;        // Music audio file
+  duration: number;
+  size: number;
+}
 
 interface ExportStepProps {
   template: StoryTemplate;
@@ -41,6 +52,7 @@ interface ExportStepProps {
   duration: number;
   selectedVoice: string;
   backgroundMusic: string;
+  musicStyle: string;       // NEW: Music style for volume control check
   voiceVolume: number;
   musicVolume: number;
   exportFormat: string;
@@ -50,7 +62,8 @@ interface ExportStepProps {
   voiceoverEnabled: boolean;
   onFormatChange: (format: string) => void;
   onQualityChange: (quality: string) => void;
-  onExport: () => Promise<string | null>;
+  onExport: () => Promise<ExportResult | null>;
+  onRemix: (videoBaseUrl: string, voiceoverUrl: string, musicUrl: string, voiceVolume: number, musicVolume: number) => Promise<string | null>;
   onGenerateVoiceover: () => Promise<void>;
   accentColor?: string;
 }
@@ -81,6 +94,7 @@ export function ExportStep({
   duration,
   selectedVoice,
   backgroundMusic,
+  musicStyle,
   voiceVolume,
   musicVolume,
   exportFormat,
@@ -91,6 +105,7 @@ export function ExportStep({
   onFormatChange,
   onQualityChange,
   onExport,
+  onRemix,
   onGenerateVoiceover,
   accentColor = "primary"
 }: ExportStepProps) {
@@ -101,6 +116,28 @@ export function ExportStep({
   const [isExporting, setIsExporting] = useState(false);
   const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  
+  // Volume control state
+  const [audioAssets, setAudioAssets] = useState<{
+    videoBaseUrl?: string;
+    voiceoverUrl?: string;
+    musicUrl?: string;
+  } | null>(null);
+  const [localVoiceVolume, setLocalVoiceVolume] = useState(voiceVolume);
+  const [localMusicVolume, setLocalMusicVolume] = useState(musicVolume);
+  const [volumeChanged, setVolumeChanged] = useState(false);
+  const [isRemixing, setIsRemixing] = useState(false);
+  
+  // Refs for real-time audio preview
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const voiceAudioRef = useRef<HTMLAudioElement>(null);
+  const musicAudioRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  
+  // Check if real-time volume control mode should be enabled
+  const hasAudioAssets = audioAssets?.videoBaseUrl && audioAssets?.voiceoverUrl && audioAssets?.musicUrl;
+  const showVolumeControls = voiceoverEnabled && musicStyle !== 'none' && 
+    exportedVideoUrl && hasAudioAssets;
   // Dynamic export steps based on scenario
   const getExportSteps = () => {
     const steps = [
@@ -215,13 +252,20 @@ export function ExportStep({
     const progressInterval = setInterval(updateProgress, 2000);
 
     try {
-      const videoUrl = await onExport();
+      const result = await onExport();
       
       clearInterval(progressInterval);
       setExportProgress(100);
       setExportSteps(prev => prev.map(s => ({ ...s, status: 'complete' as const })));
       
-      if (videoUrl) {
+      if (result) {
+        const { videoUrl, videoBaseUrl, voiceoverUrl, musicUrl } = result;
+        
+        // Save audio assets for volume control
+        if (videoBaseUrl && musicUrl) {
+          setAudioAssets({ videoBaseUrl, voiceoverUrl, musicUrl });
+          console.log('[ExportStep] Audio assets saved for volume control');
+        }
         // Small delay to show 100% before showing video
         setTimeout(() => {
           setExportedVideoUrl(videoUrl);
@@ -241,6 +285,144 @@ export function ExportStep({
   const handleExport = async () => {
     await handleAutoExport();
   };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REAL-TIME AUDIO SYNCHRONIZATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  // Initialize audio volumes when assets are loaded
+  useEffect(() => {
+    if (hasAudioAssets) {
+      if (voiceAudioRef.current) {
+        voiceAudioRef.current.volume = localVoiceVolume / 100;
+      }
+      if (musicAudioRef.current) {
+        musicAudioRef.current.volume = localMusicVolume / 100;
+      }
+    }
+  }, [hasAudioAssets, localVoiceVolume, localMusicVolume]);
+
+  // Handle video play - sync all audio
+  const handleVideoPlay = useCallback(() => {
+    if (!hasAudioAssets) return;
+    
+    const video = videoRef.current;
+    const voiceAudio = voiceAudioRef.current;
+    const musicAudio = musicAudioRef.current;
+    
+    if (video && voiceAudio && musicAudio) {
+      // Sync times
+      voiceAudio.currentTime = video.currentTime;
+      musicAudio.currentTime = video.currentTime;
+      
+      // Play both audio elements
+      voiceAudio.play().catch(console.error);
+      musicAudio.play().catch(console.error);
+      setIsPlaying(true);
+    }
+  }, [hasAudioAssets]);
+
+  // Handle video pause - pause all audio
+  const handleVideoPause = useCallback(() => {
+    if (!hasAudioAssets) return;
+    
+    const voiceAudio = voiceAudioRef.current;
+    const musicAudio = musicAudioRef.current;
+    
+    if (voiceAudio) voiceAudio.pause();
+    if (musicAudio) musicAudio.pause();
+    setIsPlaying(false);
+  }, [hasAudioAssets]);
+
+  // Handle video seek - sync audio positions
+  const handleVideoSeeked = useCallback(() => {
+    if (!hasAudioAssets) return;
+    
+    const video = videoRef.current;
+    const voiceAudio = voiceAudioRef.current;
+    const musicAudio = musicAudioRef.current;
+    
+    if (video && voiceAudio && musicAudio) {
+      voiceAudio.currentTime = video.currentTime;
+      musicAudio.currentTime = video.currentTime;
+    }
+  }, [hasAudioAssets]);
+
+  // Periodic sync to prevent drift
+  useEffect(() => {
+    if (!isPlaying || !hasAudioAssets) return;
+    
+    const syncInterval = setInterval(() => {
+      const video = videoRef.current;
+      const voiceAudio = voiceAudioRef.current;
+      const musicAudio = musicAudioRef.current;
+      
+      if (video && voiceAudio && musicAudio) {
+        const drift = Math.abs(video.currentTime - voiceAudio.currentTime);
+        if (drift > 0.1) {
+          voiceAudio.currentTime = video.currentTime;
+          musicAudio.currentTime = video.currentTime;
+        }
+      }
+    }, 500);
+    
+    return () => clearInterval(syncInterval);
+  }, [isPlaying, hasAudioAssets]);
+
+  // Handle volume change - REAL-TIME (no re-export needed for preview)
+  const handleVoiceVolumeChange = useCallback((value: number) => {
+    setLocalVoiceVolume(value);
+    setVolumeChanged(true);
+    
+    // Apply immediately to audio element
+    if (voiceAudioRef.current) {
+      voiceAudioRef.current.volume = value / 100;
+    }
+  }, []);
+
+  const handleMusicVolumeChange = useCallback((value: number) => {
+    setLocalMusicVolume(value);
+    setVolumeChanged(true);
+    
+    // Apply immediately to audio element
+    if (musicAudioRef.current) {
+      musicAudioRef.current.volume = value / 100;
+    }
+  }, []);
+
+  // Handle remix (re-export with new volumes)
+  const handleRemix = useCallback(async () => {
+    if (!audioAssets?.videoBaseUrl || !audioAssets?.voiceoverUrl || !audioAssets?.musicUrl) return;
+    
+    setIsRemixing(true);
+    console.log('[ExportStep] Starting remix with volumes:', {
+      voice: localVoiceVolume,
+      music: localMusicVolume,
+      videoBaseUrl: audioAssets.videoBaseUrl,
+      voiceoverUrl: audioAssets.voiceoverUrl,
+      musicUrl: audioAssets.musicUrl,
+    });
+    
+    try {
+      const newVideoUrl = await onRemix(
+        audioAssets.videoBaseUrl,
+        audioAssets.voiceoverUrl,
+        audioAssets.musicUrl,
+        localVoiceVolume,
+        localMusicVolume
+      );
+      
+      if (newVideoUrl) {
+        setExportedVideoUrl(newVideoUrl);
+        setVolumeChanged(false);
+        console.log('[ExportStep] Remix complete:', newVideoUrl);
+      }
+    } catch (error) {
+      console.error('[ExportStep] Remix failed:', error);
+    } finally {
+      setIsRemixing(false);
+    }
+  }, [audioAssets, localVoiceVolume, localMusicVolume, onRemix]);
 
   const accentClasses = {
     primary: "from-primary to-violet-500",
@@ -580,9 +762,9 @@ export function ExportStep({
 
           {/* Video Player State */}
           {!isExporting && exportedVideoUrl && (
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col overflow-auto">
               {/* Success Header */}
-              <div className="flex items-center gap-3 p-4 border-b border-white/10">
+              <div className="flex items-center gap-3 p-4 border-b border-white/10 shrink-0">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
                   <CheckCircle2 className="w-5 h-5 text-white" />
                 </div>
@@ -596,18 +778,134 @@ export function ExportStep({
                 </div>
               </div>
 
-              {/* Video Player */}
-              <div className="flex-1 bg-black flex items-center justify-center">
-                <video
-                  src={exportedVideoUrl}
-                  controls
-                  autoPlay
-                  className="max-w-full max-h-full"
-                />
+              {/* Video Player - Fill available space */}
+              <div className="flex-1 flex items-center justify-center p-4 min-h-0">
+                {/* When we have separate audio assets, use muted video + audio elements */}
+                {hasAudioAssets ? (
+                  <>
+                    <video
+                      ref={videoRef}
+                      src={audioAssets.videoBaseUrl}
+                      controls
+                      autoPlay
+                      muted
+                      onPlay={handleVideoPlay}
+                      onPause={handleVideoPause}
+                      onSeeked={handleVideoSeeked}
+                      onEnded={handleVideoPause}
+                      className="max-w-full max-h-full rounded-xl"
+                    />
+                    {/* Hidden audio elements for voiceover and music */}
+                    <audio
+                      ref={voiceAudioRef}
+                      src={audioAssets.voiceoverUrl}
+                      preload="auto"
+                    />
+                    <audio
+                      ref={musicAudioRef}
+                      src={audioAssets.musicUrl}
+                      preload="auto"
+                      loop
+                    />
+                  </>
+                ) : (
+                  /* Fallback: regular video with built-in audio */
+                  <video
+                    ref={videoRef}
+                    src={exportedVideoUrl}
+                    controls
+                    autoPlay
+                    className="max-w-full max-h-full rounded-xl"
+                  />
+                )}
               </div>
 
+              {/* Volume Controls - Only when both voiceover AND music */}
+              {showVolumeControls && (
+                <div className="px-4 py-3 border-t border-white/10 space-y-4 shrink-0">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium text-white/80 flex items-center gap-2">
+                      <Volume2 className="w-4 h-4" />
+                      Audio Mix
+                    </h4>
+                    {volumeChanged && (
+                      <span className="text-xs text-orange-400">Changes pending</span>
+                    )}
+                  </div>
+                  
+                  {/* Voice Volume Slider */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs text-white/60 flex items-center gap-1.5">
+                        <Mic className="w-3.5 h-3.5" />
+                        Voice
+                      </label>
+                      <span className="text-xs text-white/60 font-mono">{localVoiceVolume}%</span>
+                    </div>
+                    <Slider
+                      value={[localVoiceVolume]}
+                      onValueChange={([value]) => handleVoiceVolumeChange(value)}
+                      max={100}
+                      min={0}
+                      step={1}
+                      className="w-full"
+                    />
+                  </div>
+                  
+                  {/* Music Volume Slider */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs text-white/60 flex items-center gap-1.5">
+                        <Music className="w-3.5 h-3.5" />
+                        Music
+                      </label>
+                      <span className="text-xs text-white/60 font-mono">{localMusicVolume}%</span>
+                    </div>
+                    <Slider
+                      value={[localMusicVolume]}
+                      onValueChange={([value]) => handleMusicVolumeChange(value)}
+                      max={100}
+                      min={0}
+                      step={1}
+                      className="w-full"
+                    />
+                  </div>
+                  
+                  {/* Apply Changes Button - For final export with new volumes */}
+                  {volumeChanged && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-white/50 text-center">
+                        ✓ Preview is real-time. Click below to save final video.
+                      </p>
+                      <Button
+                        onClick={handleRemix}
+                        disabled={isRemixing}
+                        className={cn(
+                          "w-full gap-2",
+                          isRemixing 
+                            ? "bg-white/10" 
+                            : "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600"
+                        )}
+                      >
+                        {isRemixing ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            Exporting with new volumes...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-4 h-4" />
+                            Save with These Volumes
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Actions */}
-              <div className="p-4 border-t border-white/10 flex gap-3">
+              <div className="p-4 border-t border-white/10 flex gap-3 shrink-0">
                 <Button
                   onClick={() => window.open(exportedVideoUrl, '_blank')}
                   className={cn(

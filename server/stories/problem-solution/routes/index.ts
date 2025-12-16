@@ -5,9 +5,11 @@ import { generateScenes } from "../agents/scene-generator";
 import { enhanceStoryboard } from "../agents/storyboard-enhancer";
 import { generateImages } from "../agents/image-generator";
 import { generateVoiceover } from "../agents/voiceover-generator";
+import { generateMusic } from "../agents/music-generator";
 import { generateVideos } from "../agents/video-generator";
-import { exportFinalVideo } from "../agents/video-exporter";
+import { exportFinalVideo, remixVideo } from "../agents/video-exporter";
 import { storage } from "../../../storage";
+import { isValidMusicStyle, type MusicStyle } from "../prompts/music-prompts";
 
 const psRouter = Router();
 
@@ -65,12 +67,13 @@ psRouter.post(
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const { storyText, duration, pacing } = req.body || {};
+      const { storyText, duration, pacing, videoModel } = req.body || {};
 
       console.log('[problem-solution:routes] Generating scenes with:', {
         storyTextLength: storyText?.length,
         duration,
-        pacing
+        pacing,
+        videoModel: videoModel || 'default'
       });
 
       if (!storyText || !storyText.trim()) {
@@ -82,6 +85,7 @@ psRouter.post(
           storyText: storyText.trim(),
           duration: duration || 30,
           pacing: pacing || 'medium',
+          videoModel: videoModel, // Pass video model for duration constraints
         },
         userId,
         req.headers["x-workspace-id"] as string | undefined
@@ -116,7 +120,8 @@ psRouter.post(
 
       const { 
         scenes, 
-        aspectRatio, 
+        aspectRatio,
+        imageStyle,
         voiceoverEnabled, 
         language,
         textOverlay,
@@ -132,6 +137,7 @@ psRouter.post(
         {
           scenes,
           aspectRatio: aspectRatio || '9:16',
+          imageStyle: imageStyle || 'photorealistic',
           voiceoverEnabled: voiceoverEnabled !== false,
           language: voiceoverEnabled ? language : undefined,
           textOverlay: voiceoverEnabled ? textOverlay : undefined,
@@ -164,7 +170,7 @@ psRouter.post(
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const { storyId, scenes, aspectRatio, imageModel, imageResolution, projectName, workspaceId } = req.body || {};
+      const { storyId, scenes, aspectRatio, imageStyle, imageModel, imageResolution, projectName, workspaceId } = req.body || {};
 
       if (!scenes || !Array.isArray(scenes) || scenes.length === 0) {
         return res.status(400).json({ error: "scenes array is required" });
@@ -177,6 +183,7 @@ psRouter.post(
       console.log('[problem-solution:routes] Image generation request:', {
         sceneCount: scenes.length,
         aspectRatio: aspectRatio || "9:16",
+        imageStyle: imageStyle || "photorealistic",
         imageModel: imageModel || "nano-banana",
         imageResolution: imageResolution || "1k",
       });
@@ -191,6 +198,7 @@ psRouter.post(
           storyId,
           scenes,
           aspectRatio: aspectRatio || "9:16",
+          imageStyle: imageStyle || "photorealistic",
           imageModel: imageModel || "nano-banana",
           imageResolution: imageResolution || "1k",
           projectName: projectName || "Untitled",
@@ -230,6 +238,7 @@ psRouter.post(
         sceneId,
         imagePrompt, 
         aspectRatio,
+        imageStyle,
         imageModel,
         imageResolution,
         projectName, 
@@ -263,6 +272,7 @@ psRouter.post(
             duration: 5,
           }],
           aspectRatio: aspectRatio || "9:16",
+          imageStyle: imageStyle || "photorealistic",
           imageModel: imageModel || "nano-banana",
           imageResolution: imageResolution || "1k",
           projectName: projectName || "Untitled",
@@ -470,6 +480,82 @@ psRouter.post(
 );
 
 /**
+ * POST /api/problem-solution/music
+ * Generates AI background music using ElevenLabs Music API
+ */
+psRouter.post(
+  "/music",
+  isAuthenticated,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { musicStyle, durationMs, storyTopic, projectName, workspaceId } = req.body || {};
+
+      // Validate music style
+      if (!musicStyle) {
+        return res.status(400).json({ error: "musicStyle is required" });
+      }
+
+      if (!isValidMusicStyle(musicStyle)) {
+        return res.status(400).json({ error: `Invalid music style: ${musicStyle}` });
+      }
+
+      // Skip if no music
+      if (musicStyle === 'none') {
+        return res.json({
+          musicUrl: '',
+          durationMs: 0,
+          cost: 0,
+          style: 'none',
+        });
+      }
+
+      if (!durationMs || durationMs < 10000) {
+        return res.status(400).json({ error: "durationMs must be at least 10000 (10 seconds)" });
+      }
+
+      console.log('[problem-solution:routes] Music generation request:', {
+        musicStyle,
+        durationMs,
+        storyTopic: storyTopic?.substring(0, 50),
+      });
+
+      // Get workspace name
+      const workspaces = await storage.getWorkspacesByUserId(userId);
+      const workspace = workspaces.find((w) => w.id === workspaceId);
+      const workspaceName = workspace?.name || workspaceId;
+
+      const result = await generateMusic(
+        {
+          musicStyle: musicStyle as MusicStyle,
+          durationMs,
+          storyTopic,
+          projectName: projectName || "Untitled",
+          workspaceId: workspaceId || "",
+        },
+        userId,
+        workspaceName
+      );
+
+      console.log('[problem-solution:routes] Music generation complete:', {
+        style: result.style,
+        durationMs: result.durationMs,
+        cost: result.cost,
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("[problem-solution:routes] music generation error:", error);
+      res.status(500).json({ error: "Failed to generate music" });
+    }
+  }
+);
+
+/**
  * POST /api/problem-solution/videos
  * Generates videos for all scenes using Image-to-Video
  */
@@ -483,7 +569,7 @@ psRouter.post(
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const { storyId, scenes, videoModel, videoResolution, aspectRatio, projectName, workspaceId } = req.body || {};
+      const { storyId, scenes, videoModel, videoResolution, aspectRatio, imageStyle, projectName, workspaceId } = req.body || {};
 
       if (!scenes || !Array.isArray(scenes) || scenes.length === 0) {
         return res.status(400).json({ error: "scenes array is required" });
@@ -502,6 +588,7 @@ psRouter.post(
         videoModel,
         videoResolution: videoResolution || "720p",
         aspectRatio: aspectRatio || "9:16",
+        imageStyle: imageStyle || "photorealistic",
       });
 
       // Get workspace name
@@ -516,6 +603,7 @@ psRouter.post(
           videoModel,
           videoResolution: videoResolution || "720p",
           aspectRatio: aspectRatio || "9:16",
+          imageStyle: imageStyle || "photorealistic",
           projectName: projectName || "Untitled",
           workspaceId: workspaceId || "",
         },
@@ -555,11 +643,14 @@ psRouter.post(
         sceneNumber, 
         sceneId,
         imageUrl,
-        videoPrompt, 
+        videoPrompt,
+        narration,
+        voiceMood,
         duration,
         videoModel,
         videoResolution,
         aspectRatio,
+        imageStyle,
         projectName, 
         workspaceId,
         storyId,
@@ -577,14 +668,16 @@ psRouter.post(
         return res.status(400).json({ error: "videoModel is required" });
       }
 
-      console.log("[problem-solution:routes] Regenerating video for scene", sceneNumber);
+      console.log("[problem-solution:routes] Regenerating video for scene", sceneNumber, {
+        imageStyle: imageStyle || "photorealistic",
+      });
 
       // Get workspace name
       const workspaces = await storage.getWorkspacesByUserId(userId);
       const workspace = workspaces.find((w) => w.id === workspaceId);
       const workspaceName = workspace?.name || workspaceId;
 
-      // Generate single video
+      // Generate single video with full context
       const result = await generateVideos(
         {
           storyId: storyId || 'temp',
@@ -592,12 +685,15 @@ psRouter.post(
             id: sceneId || `scene-${sceneNumber}`,
             sceneNumber: sceneNumber,
             imageUrl: imageUrl,
-            videoPrompt: videoPrompt || "Smooth camera movement, cinematic motion",
+            videoPrompt: videoPrompt,
+            narration: narration,
+            voiceMood: voiceMood,
             duration: duration || 5,
           }],
           videoModel,
           videoResolution: videoResolution || "720p",
           aspectRatio: aspectRatio || "9:16",
+          imageStyle: imageStyle || "photorealistic",
           projectName: projectName || "Untitled",
           workspaceId: workspaceId || "",
         },
@@ -642,6 +738,8 @@ psRouter.post(
         scenes,
         animationMode,
         backgroundMusic,
+        musicStyle,          // AI music style (e.g., "cinematic", "upbeat")
+        storyTopic,          // Topic for context-aware music generation
         voiceVolume,
         musicVolume,
         aspectRatio,
@@ -692,6 +790,8 @@ psRouter.post(
       console.log("[problem-solution:routes] Starting video export:");
       console.log("[problem-solution:routes]   Scene count:", scenes.length);
       console.log("[problem-solution:routes]   Animation mode:", animationMode);
+      console.log("[problem-solution:routes]   Music style:", musicStyle || 'none');
+      console.log("[problem-solution:routes]   Story topic:", storyTopic?.substring(0, 50) || 'N/A');
       console.log("[problem-solution:routes]   Format:", exportFormat);
       console.log("[problem-solution:routes]   Quality:", exportQuality);
       console.log("[problem-solution:routes]   Text overlay:", textOverlay);
@@ -709,6 +809,8 @@ psRouter.post(
           scenes,
           animationMode,
           backgroundMusic,
+          musicStyle: musicStyle || 'none',       // AI music style
+          storyTopic: storyTopic || '',           // For context-aware music generation
           voiceVolume: voiceVolume || 100,
           musicVolume: musicVolume || 50,
           aspectRatio: aspectRatio || '16:9',
@@ -733,6 +835,85 @@ psRouter.post(
       console.error("[problem-solution:routes] Export failed:", error);
       res.status(500).json({ 
         error: "Failed to export video",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/problem-solution/remix
+ * Re-mixes audio with new volume levels
+ * Used for real-time volume adjustment after initial export
+ */
+psRouter.post(
+  "/remix",
+  isAuthenticated,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const workspaceName = (req.headers["x-workspace-id"] as string) || "default";
+      
+      const {
+        videoBaseUrl,
+        voiceoverUrl,
+        musicUrl,
+        voiceVolume,
+        musicVolume,
+        projectName,
+        workspaceId,
+      } = req.body || {};
+
+      console.log('[problem-solution:routes] Remix request:', {
+        hasVideoBase: !!videoBaseUrl,
+        hasVoiceover: !!voiceoverUrl,
+        hasMusic: !!musicUrl,
+        voiceVolume,
+        musicVolume,
+      });
+
+      // Validate required fields
+      if (!videoBaseUrl || !voiceoverUrl || !musicUrl) {
+        return res.status(400).json({ 
+          error: "videoBaseUrl, voiceoverUrl, and musicUrl are required for remix" 
+        });
+      }
+
+      if (typeof voiceVolume !== 'number' || typeof musicVolume !== 'number') {
+        return res.status(400).json({ 
+          error: "voiceVolume and musicVolume must be numbers" 
+        });
+      }
+
+      const result = await remixVideo(
+        {
+          videoBaseUrl,
+          voiceoverUrl,
+          musicUrl,
+          voiceVolume: Math.max(0, Math.min(100, voiceVolume)),
+          musicVolume: Math.max(0, Math.min(100, musicVolume)),
+          projectName: projectName || 'Untitled',
+          workspaceId: workspaceId || 'default',
+        },
+        userId,
+        workspaceName
+      );
+
+      console.log('[problem-solution:routes] Remix complete:', {
+        videoUrl: result.videoUrl,
+        duration: result.duration,
+        size: result.size,
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("[problem-solution:routes] Remix failed:", error);
+      res.status(500).json({ 
+        error: "Failed to remix video",
         details: error instanceof Error ? error.message : String(error)
       });
     }

@@ -638,6 +638,21 @@ const elevenlabsModels: AiModelConfig[] = [
       flatCostPerCall: 0.05, // Pro tier: $0.05 per generation
     },
   },
+  {
+    name: "music-v1",
+    provider: "elevenlabs",
+    metadata: {
+      label: "Music Generation",
+      description: "AI-generated instrumental music from text prompts. 10s-5min duration, commercial use licensed.",
+      supports: ["music-generation"],
+    },
+    pricing: {
+      currency: "usd",
+      // ElevenLabs Music pricing: based on duration
+      // Approximately $0.50 per 1000ms (1 second) of audio
+      inputCostPer1KTokens: 0.50,
+    },
+  },
 ];
 
 /**

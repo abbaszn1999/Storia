@@ -10,6 +10,7 @@ export type AiTask =
   | "vision"
   | "audio"
   | "text-to-speech"
+  | "music-generation"
   | "image-generation"
   | "video-generation"
   | "image-to-image"

@@ -143,7 +143,8 @@ export async function enhanceStoryboard(
 ): Promise<StoryboardEnhancerOutput> {
   const { 
     scenes, 
-    aspectRatio, 
+    aspectRatio,
+    imageStyle,
     voiceoverEnabled, 
     language,
     textOverlay,
@@ -151,8 +152,17 @@ export async function enhanceStoryboard(
     animationType 
   } = input;
 
+  console.log('[storyboard-enhancer] Enhancing storyboard:', {
+    sceneCount: scenes.length,
+    aspectRatio,
+    imageStyle,
+    voiceoverEnabled,
+    animationMode,
+  });
+
   const systemPrompt = buildStoryboardEnhancerSystemPrompt(
     aspectRatio,
+    imageStyle,
     voiceoverEnabled,
     language,
     textOverlay,
@@ -162,6 +172,7 @@ export async function enhanceStoryboard(
   const userPrompt = buildStoryboardUserPrompt(
     scenes,
     aspectRatio,
+    imageStyle,
     voiceoverEnabled,
     language,
     textOverlay,
@@ -207,32 +218,41 @@ export async function enhanceStoryboard(
     console.log('[storyboard-enhancer] Voiceover enabled:', voiceoverEnabled);
     console.log('[storyboard-enhancer] Enhanced scenes:', JSON.stringify(parsed.scenes, null, 2));
 
-    // Validate voiceText timing if voiceover is enabled
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CRITICAL FIX: Use original narration as voiceText to ensure timing match
+    // ═══════════════════════════════════════════════════════════════════════════
     if (voiceoverEnabled) {
       const wordsPerSecond = language === 'Arabic' || language === 'ar' ? 2 : 2.5;
       console.log('[storyboard-enhancer] ═══════════════════════════════════════════════');
-      console.log('[storyboard-enhancer] Voiceover Timing Validation:');
+      console.log('[storyboard-enhancer] Voiceover Timing Validation & Fix:');
       
       parsed.scenes.forEach((scene: any, index: number) => {
-        if (scene.voiceText) {
-          const wordCount = scene.voiceText.split(/\s+/).filter((w: string) => w.length > 0).length;
-          const originalDuration = scenes[index]?.duration || 0;
-          const expectedWords = Math.round(originalDuration * wordsPerSecond);
-          const actualDuration = wordCount / wordsPerSecond;
-          const difference = Math.abs(actualDuration - originalDuration);
-          
-          console.log(`[storyboard-enhancer] Scene ${scene.sceneNumber}:`);
-          console.log(`[storyboard-enhancer]   Target duration: ${originalDuration}s`);
-          console.log(`[storyboard-enhancer]   Expected words: ~${expectedWords}`);
-          console.log(`[storyboard-enhancer]   Actual words: ${wordCount}`);
-          console.log(`[storyboard-enhancer]   Estimated duration: ${actualDuration.toFixed(1)}s`);
-          console.log(`[storyboard-enhancer]   Difference: ${difference > 0 ? '+' : ''}${difference.toFixed(1)}s`);
-          
-          if (difference > 2) {
-            console.warn(`[storyboard-enhancer]   ⚠️ WARNING: Duration mismatch > 2s!`);
-          } else {
-            console.log(`[storyboard-enhancer]   ✓ Timing looks good`);
-          }
+        const originalScene = scenes[index];
+        const originalDuration = originalScene?.duration || 0;
+        const originalNarration = originalScene?.narration || '';
+        
+        // ALWAYS use original narration as voiceText for timing accuracy
+        // The AI-generated voiceText may be too long or too short
+        if (originalNarration) {
+          scene.voiceText = originalNarration;
+        }
+        
+        const wordCount = scene.voiceText?.split(/\s+/).filter((w: string) => w.length > 0).length || 0;
+        const expectedWords = Math.round(originalDuration * wordsPerSecond);
+        const actualDuration = wordCount / wordsPerSecond;
+        const difference = Math.abs(actualDuration - originalDuration);
+        
+        console.log(`[storyboard-enhancer] Scene ${scene.sceneNumber}:`);
+        console.log(`[storyboard-enhancer]   Target duration: ${originalDuration}s`);
+        console.log(`[storyboard-enhancer]   Expected words: ~${expectedWords}`);
+        console.log(`[storyboard-enhancer]   Actual words: ${wordCount}`);
+        console.log(`[storyboard-enhancer]   Estimated voiceover: ${actualDuration.toFixed(1)}s`);
+        console.log(`[storyboard-enhancer]   Difference: ${difference > 0 ? '+' : ''}${difference.toFixed(1)}s`);
+        
+        if (difference > 2) {
+          console.warn(`[storyboard-enhancer]   ⚠️ WARNING: Duration mismatch > 2s - video sync will adjust`);
+        } else {
+          console.log(`[storyboard-enhancer]   ✓ Timing looks good`);
         }
       });
       console.log('[storyboard-enhancer] ═══════════════════════════════════════════════');

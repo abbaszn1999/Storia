@@ -10,8 +10,12 @@ export {
   getDefaultVideoModel,
   getAvailableVideoModels,
   getDimensions,
+  // Video Model Constraints (for scene-generator)
+  getVideoModelConstraints,
+  getClosestSupportedDuration,
   type VideoModelConfig,
   type VideoDimensions,
+  type VideoModelConstraints,
 } from './video-models';
 
 // Image Models

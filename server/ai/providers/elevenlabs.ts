@@ -1,11 +1,12 @@
 /**
- * ElevenLabs Sound Effects Provider
+ * ElevenLabs Provider
  * 
- * API: POST https://api.elevenlabs.io/v1/sound-generation
- * Docs: https://elevenlabs.io/docs/api-reference/text-to-sound-effects/convert
+ * Supports:
+ * - Text-to-Speech (TTS): POST /v1/text-to-speech/{voice_id}
+ * - Sound Effects: POST /v1/sound-generation
+ * - Music Generation: POST /v1/music/compose (NEW)
  * 
- * Generates sound effects from text descriptions.
- * Returns audio data (MP3/WAV).
+ * Docs: https://elevenlabs.io/docs/api-reference
  */
 
 import { ProviderRequestError, MissingApiKeyError } from "../errors";
@@ -30,12 +31,43 @@ interface TTSPayload {
   text: string;
   voice_id: string;
   model_id?: string;
+  with_timestamps?: boolean;  // Request word-level timestamps
   voice_settings?: {
     stability?: number;
     similarity_boost?: number;
     style?: number;
     use_speaker_boost?: boolean;
   };
+}
+
+/**
+ * Alignment data from ElevenLabs (character-level timestamps)
+ */
+interface AlignmentData {
+  characters: string[];
+  character_start_times_seconds: number[];
+  character_end_times_seconds: number[];
+}
+
+/**
+ * TTS response with timestamps
+ */
+interface TTSWithTimestampsResponse {
+  audio_base64: string;
+  alignment: AlignmentData;
+}
+
+/**
+ * Music Generation Payload
+ * API: POST /v1/music/compose
+ * Docs: https://elevenlabs.io/docs/api-reference/music/compose
+ */
+interface MusicPayload {
+  prompt: string;                    // Text description of the music
+  music_length_ms?: number;          // Duration: 10000-300000 (10s-5min)
+  force_instrumental?: boolean;      // true = no vocals
+  output_format?: string;            // e.g., "mp3_44100_128"
+  model_id?: string;                 // Default: "music_v1"
 }
 
 const elevenlabsAdapter: AiProviderAdapter = {
@@ -62,6 +94,89 @@ const elevenlabsAdapter: AiProviderAdapter = {
         throw new ProviderRequestError("elevenlabs", "Missing 'voice_id' parameter for TTS");
       }
 
+      // ═══════════════════════════════════════════════════════════════════════════
+      // OPTION A: TTS with timestamps (for synchronized subtitles)
+      // Uses /v1/text-to-speech/{voice_id}/with-timestamps endpoint
+      // ═══════════════════════════════════════════════════════════════════════════
+      if (payload.with_timestamps) {
+        const endpoint = `${baseUrl}/text-to-speech/${payload.voice_id}/with-timestamps`;
+        
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          "xi-api-key": providerConfig.apiKey,
+        };
+
+        const body: Record<string, unknown> = {
+          text: payload.text,
+          model_id: payload.model_id || "eleven_multilingual_v2",
+          voice_settings: payload.voice_settings || {
+            stability: 0.5,
+            similarity_boost: 0.75,
+            style: 0,
+            use_speaker_boost: true,
+          },
+        };
+
+        console.log("[elevenlabs] Generating TTS with timestamps:", {
+          voice_id: payload.voice_id,
+          text_length: payload.text.length,
+          model: body.model_id,
+        });
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("[elevenlabs] TTS with timestamps API error:", errorText);
+          throw new ProviderRequestError("elevenlabs", errorText);
+        }
+
+        // Response is JSON with audio_base64 and alignment data
+        const jsonResponse = await response.json() as TTSWithTimestampsResponse;
+        
+        if (!jsonResponse.audio_base64) {
+          throw new ProviderRequestError("elevenlabs", "No audio_base64 in response");
+        }
+
+        const audioBuffer = Buffer.from(jsonResponse.audio_base64, 'base64');
+
+        console.log("[elevenlabs] TTS with timestamps generated:", {
+          size: audioBuffer.byteLength,
+          format: "mp3",
+          hasAlignment: !!jsonResponse.alignment,
+          characterCount: jsonResponse.alignment?.characters?.length || 0,
+        });
+
+        // Calculate cost
+        const characterCount = payload.text.length;
+        const costPer1KChars = modelConfig.pricing?.inputCostPer1KTokens || 0.30;
+        const totalCost = (characterCount / 1000) * costPer1KChars;
+
+        return {
+          provider: "elevenlabs",
+          model: modelConfig.name,
+          output: {
+            audio: audioBuffer,
+            alignment: jsonResponse.alignment,
+          },
+          usage: {
+            totalCostUsd: totalCost,
+          },
+          rawResponse: {
+            status: response.status,
+            contentType: "audio/mpeg",
+            size: audioBuffer.byteLength,
+          },
+        };
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════════
+      // OPTION B: Standard TTS (without timestamps)
+      // ═══════════════════════════════════════════════════════════════════════════
       const endpoint = `${baseUrl}/text-to-speech/${payload.voice_id}`;
       
       const headers: Record<string, string> = {
@@ -123,6 +238,92 @@ const elevenlabsAdapter: AiProviderAdapter = {
           status: response.status,
           contentType: "audio/mpeg",
           size: audioBuffer.byteLength,
+        },
+      };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Handle Music Generation
+    // API: POST /v1/music/compose
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (request.task === "music-generation") {
+      const payload = request.payload as MusicPayload;
+      
+      if (!payload.prompt) {
+        throw new ProviderRequestError("elevenlabs", "Missing 'prompt' parameter for music generation");
+      }
+
+      const endpoint = `${baseUrl}/music/compose`;
+      
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "xi-api-key": providerConfig.apiKey,
+      };
+
+      // Build request body
+      const body: Record<string, unknown> = {
+        prompt: payload.prompt,
+        model_id: payload.model_id || "music_v1",
+        force_instrumental: payload.force_instrumental ?? true, // Default: no vocals
+        output_format: payload.output_format || "mp3_44100_128",
+      };
+
+      // Add duration if specified (10s - 5min)
+      if (payload.music_length_ms !== undefined) {
+        // Clamp to valid range: 10000ms (10s) to 300000ms (5min)
+        const clampedDuration = Math.max(10000, Math.min(300000, payload.music_length_ms));
+        body.music_length_ms = clampedDuration;
+      }
+
+      console.log("[elevenlabs] Generating music:", {
+        prompt: payload.prompt.substring(0, 80) + (payload.prompt.length > 80 ? "..." : ""),
+        duration_ms: body.music_length_ms,
+        force_instrumental: body.force_instrumental,
+      });
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[elevenlabs] Music API error:", errorText);
+        throw new ProviderRequestError("elevenlabs", `Music generation failed: ${errorText}`);
+      }
+
+      // ElevenLabs Music returns audio data as binary stream
+      const audioBuffer = await response.arrayBuffer();
+      const audioBufferNode = Buffer.from(audioBuffer);
+
+      // Calculate actual duration from response or use requested
+      const actualDurationMs = (body.music_length_ms as number) || 30000;
+
+      console.log("[elevenlabs] Music generated successfully:", {
+        size: audioBuffer.byteLength,
+        format: "mp3",
+        duration_ms: actualDurationMs,
+      });
+
+      // Calculate cost based on duration
+      // Pricing: ~$0.50 per 1000ms (1 second)
+      const costPerSecond = modelConfig.pricing?.inputCostPer1KTokens || 0.50;
+      const durationSeconds = actualDurationMs / 1000;
+      const totalCost = durationSeconds * (costPerSecond / 1000) * 1000;
+
+      return {
+        provider: "elevenlabs",
+        model: modelConfig.name,
+        output: audioBufferNode,
+        usage: {
+          totalCostUsd: totalCost,
+        },
+        rawResponse: {
+          status: response.status,
+          contentType: "audio/mpeg",
+          size: audioBuffer.byteLength,
+          duration_ms: actualDurationMs,
         },
       };
     }

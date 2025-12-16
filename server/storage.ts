@@ -8,6 +8,8 @@ import {
   voices,
   brandkits,
   uploads,
+  videos,
+  contentCalendar,
   workspaceIntegrations,
   type User,
   type UpsertUser,
@@ -319,6 +321,19 @@ export class MemStorage implements IStorage {
   }
 
   async deleteWorkspace(id: string): Promise<void> {
+    // Delete all related records first (no cascade delete in schema for most tables)
+    await db.delete(brandkits).where(eq(brandkits.workspaceId, id));
+    await db.delete(characters).where(eq(characters.workspaceId, id));
+    await db.delete(locations).where(eq(locations.workspaceId, id));
+    await db.delete(voices).where(eq(voices.workspaceId, id));
+    await db.delete(uploads).where(eq(uploads.workspaceId, id));
+    await db.delete(contentCalendar).where(eq(contentCalendar.workspaceId, id));
+    await db.delete(workspaceIntegrations).where(eq(workspaceIntegrations.workspaceId, id));
+    await db.delete(stories).where(eq(stories.workspaceId, id));
+    await db.delete(videos).where(eq(videos.workspaceId, id));
+    // projects has cascade delete but let's be explicit
+    await db.delete(projects).where(eq(projects.workspaceId, id));
+    // Finally delete the workspace itself
     await db.delete(workspaces).where(eq(workspaces.id, id));
   }
 

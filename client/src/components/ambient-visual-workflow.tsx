@@ -5,6 +5,7 @@ import { FlowDesignTab } from "./ambient/flow-design-tab";
 import { CompositionTab } from "./ambient/composition-tab";
 import { PreviewTab } from "./ambient/preview-tab";
 import { ExportTab } from "./ambient/export-tab";
+import type { Scene, Shot, ShotVersion, ContinuityGroup } from "@shared/schema";
 
 interface Segment {
   id: string;
@@ -84,20 +85,46 @@ export function AmbientVisualWorkflow({
   const [lightingMood, setLightingMood] = useState("golden-hour");
   const [texture, setTexture] = useState("clean");
   const [visualElements, setVisualElements] = useState<string[]>([]);
-  const [atmosphericLayers, setAtmosphericLayers] = useState<string[]>([]);
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
 
   // Flow Design State
   const [transitionStyle, setTransitionStyle] = useState("crossfade");
-  const [variationType, setVariationType] = useState("evolving");
   const [cameraMotion, setCameraMotion] = useState("slow-pan");
   const [visualRhythm, setVisualRhythm] = useState("breathing");
+  
+  // Scene/Shot State for Flow Design
+  const [scenes, setScenes] = useState<Scene[]>([]);
+  const [shots, setShots] = useState<{ [sceneId: string]: Shot[] }>({});
+  const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
+  const [continuityLocked, setContinuityLocked] = useState(false);
+  const [continuityGroups, setContinuityGroups] = useState<{ [sceneId: string]: ContinuityGroup[] }>({});
 
   // Composition State
   const [segments, setSegments] = useState<Segment[]>([]);
 
   const goToNextStep = () => {
     onStepChange(activeStep + 1);
+  };
+
+  // Handler for scene generation in Flow Design
+  const handleScenesGenerated = (
+    newScenes: Scene[], 
+    newShots: { [sceneId: string]: Shot[] }, 
+    newShotVersions?: { [shotId: string]: ShotVersion[] }
+  ) => {
+    setScenes(newScenes);
+    setShots(newShots);
+    if (newShotVersions) {
+      setShotVersions(newShotVersions);
+    }
+  };
+
+  const handleContinuityLocked = () => {
+    setContinuityLocked(true);
+  };
+
+  const handleContinuityGroupsChange = (groups: { [sceneId: string]: ContinuityGroup[] }) => {
+    setContinuityGroups(groups);
   };
 
   // Calculate total duration from segments
@@ -180,14 +207,14 @@ export function AmbientVisualWorkflow({
             lightingMood={lightingMood}
             texture={texture}
             visualElements={visualElements}
-            atmosphericLayers={atmosphericLayers}
+            visualRhythm={visualRhythm}
             referenceImages={referenceImages}
             onArtStyleChange={setArtStyle}
             onColorPaletteChange={setColorPalette}
             onLightingMoodChange={setLightingMood}
             onTextureChange={setTexture}
             onVisualElementsChange={setVisualElements}
-            onAtmosphericLayersChange={setAtmosphericLayers}
+            onVisualRhythmChange={setVisualRhythm}
             onReferenceImagesChange={setReferenceImages}
             onNext={goToNextStep}
           />
@@ -195,11 +222,19 @@ export function AmbientVisualWorkflow({
       case 2:
         return (
           <FlowDesignTab
+            videoId={`ambient-${Date.now()}`}
+            script={moodDescription}
+            scriptModel="gemini-flash"
+            narrativeMode={videoGenerationMode}
+            scenes={scenes}
+            shots={shots}
+            shotVersions={shotVersions}
+            continuityLocked={continuityLocked}
+            continuityGroups={continuityGroups}
             animationMode={animationMode}
-            variationType={variationType}
-            visualRhythm={visualRhythm}
-            onVariationTypeChange={setVariationType}
-            onVisualRhythmChange={setVisualRhythm}
+            onScenesGenerated={handleScenesGenerated}
+            onContinuityLocked={handleContinuityLocked}
+            onContinuityGroupsChange={handleContinuityGroupsChange}
             onNext={goToNextStep}
           />
         );
@@ -209,7 +244,7 @@ export function AmbientVisualWorkflow({
             segments={segments}
             onSegmentsChange={setSegments}
             onNext={goToNextStep}
-            segmentCount={segmentCount}
+            segmentCount={typeof segmentCount === 'number' ? segmentCount : 4}
           />
         );
       case 4:

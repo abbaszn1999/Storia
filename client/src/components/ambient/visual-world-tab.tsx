@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Upload, X, Sparkles, Film, Palette } from "lucide-react";
+import { ArrowRight, Upload, X, Sparkles, Film, Palette, Play } from "lucide-react";
 
 const ART_STYLES = [
   { id: "cinematic", label: "Cinematic", description: "Film-quality realism" },
@@ -53,17 +53,11 @@ const VISUAL_ELEMENTS = [
   "Flowers", "Desert", "Lake", "Waterfall", "Sunset Sky", "Neon Signs"
 ];
 
-const ATMOSPHERIC_LAYERS = [
-  { id: "fog", label: "Fog/Mist" },
-  { id: "particles", label: "Floating Particles" },
-  { id: "light-rays", label: "Light Rays" },
-  { id: "bokeh", label: "Bokeh Lights" },
-  { id: "snow", label: "Falling Snow" },
-  { id: "rain", label: "Rain Drops" },
-  { id: "leaves", label: "Falling Leaves" },
-  { id: "dust", label: "Dust Motes" },
-  { id: "fireflies", label: "Fireflies" },
-  { id: "sparkles", label: "Sparkles" },
+const VISUAL_RHYTHMS = [
+  { id: "constant", label: "Constant Calm", description: "Steady, unchanging pace" },
+  { id: "breathing", label: "Breathing", description: "Subtle rhythmic pulse" },
+  { id: "building", label: "Building", description: "Gradually intensifying" },
+  { id: "wave", label: "Wave", description: "Rising and falling" },
 ];
 
 interface VisualWorldTabProps {
@@ -72,14 +66,14 @@ interface VisualWorldTabProps {
   lightingMood: string;
   texture: string;
   visualElements: string[];
-  atmosphericLayers: string[];
+  visualRhythm: string;
   referenceImages: string[];
   onArtStyleChange: (style: string) => void;
   onColorPaletteChange: (palette: string) => void;
   onLightingMoodChange: (mood: string) => void;
   onTextureChange: (texture: string) => void;
   onVisualElementsChange: (elements: string[]) => void;
-  onAtmosphericLayersChange: (layers: string[]) => void;
+  onVisualRhythmChange: (rhythm: string) => void;
   onReferenceImagesChange: (images: string[]) => void;
   onNext: () => void;
 }
@@ -90,14 +84,14 @@ export function VisualWorldTab({
   lightingMood,
   texture,
   visualElements,
-  atmosphericLayers,
+  visualRhythm,
   referenceImages,
   onArtStyleChange,
   onColorPaletteChange,
   onLightingMoodChange,
   onTextureChange,
   onVisualElementsChange,
-  onAtmosphericLayersChange,
+  onVisualRhythmChange,
   onReferenceImagesChange,
   onNext,
 }: VisualWorldTabProps) {
@@ -106,14 +100,6 @@ export function VisualWorldTab({
       onVisualElementsChange(visualElements.filter(e => e !== element));
     } else if (visualElements.length < 5) {
       onVisualElementsChange([...visualElements, element]);
-    }
-  };
-
-  const toggleAtmosphericLayer = (layer: string) => {
-    if (atmosphericLayers.includes(layer)) {
-      onAtmosphericLayersChange(atmosphericLayers.filter(l => l !== layer));
-    } else if (atmosphericLayers.length < 3) {
-      onAtmosphericLayersChange([...atmosphericLayers, layer]);
     }
   };
 
@@ -230,32 +216,30 @@ export function VisualWorldTab({
             </CardContent>
           </Card>
 
-          {/* Atmospheric Layers */}
+          {/* Visual Rhythm */}
           <Card>
             <CardContent className="p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                  <Label className="text-lg font-semibold">Atmospheric Layers</Label>
-                </div>
-                <Badge variant="secondary">{atmosphericLayers.length}/3</Badge>
+              <div className="flex items-center gap-2">
+                <Play className="h-5 w-5 text-primary" />
+                <Label className="text-lg font-semibold">Visual Rhythm</Label>
               </div>
               <p className="text-sm text-muted-foreground">
-                Add up to 3 overlay effects
+                How does the experience unfold over time?
               </p>
-              <div className="grid grid-cols-2 gap-2">
-                {ATMOSPHERIC_LAYERS.map((layer) => (
+              <div className="grid grid-cols-2 gap-3">
+                {VISUAL_RHYTHMS.map((rhythm) => (
                   <button
-                    key={layer.id}
-                    onClick={() => toggleAtmosphericLayer(layer.id)}
-                    className={`px-3 py-2 rounded-lg border text-sm transition-all hover-elevate ${
-                      atmosphericLayers.includes(layer.id)
+                    key={rhythm.id}
+                    onClick={() => onVisualRhythmChange(rhythm.id)}
+                    className={`p-3 rounded-lg border text-left transition-all hover-elevate ${
+                      visualRhythm === rhythm.id
                         ? "border-primary bg-primary/10"
                         : "border-border bg-muted/30"
                     }`}
-                    data-testid={`button-layer-${layer.id}`}
+                    data-testid={`button-rhythm-${rhythm.id}`}
                   >
-                    {layer.label}
+                    <div className="font-medium text-sm">{rhythm.label}</div>
+                    <div className="text-xs text-muted-foreground">{rhythm.description}</div>
                   </button>
                 ))}
               </div>

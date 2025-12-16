@@ -46,24 +46,144 @@ import {
 
 const IMAGE_MODELS = [
   // Google Models
-  { value: "nano-banana", label: "Nano Banana", provider: "Google", description: "Gemini Flash 2.5 - Fast, interactive workflows", badge: "Fast", default: true },
-  { value: "nano-banana-2-pro", label: "Nano Banana 2 Pro", provider: "Google", description: "Gemini 3 Pro - Professional-grade, up to 4K", badge: "Pro" },
-  { value: "imagen-4.0-preview", label: "Imagen 4.0 Preview", provider: "Google", description: "Improved textures, lighting, and typography" },
-  { value: "imagen-4.0-ultra", label: "Imagen 4.0 Ultra", provider: "Google", description: "Exceptional detail, color accuracy, best quality", badge: "Ultra" },
-  { value: "imagen-4.0-fast", label: "Imagen 4.0 Fast", provider: "Google", description: "Speed optimized with minimal quality loss", badge: "Fast" },
+  { 
+    value: "nano-banana", 
+    label: "Nano Banana", 
+    provider: "Google", 
+    description: "Gemini Flash 2.5 - Fast, interactive workflows", 
+    badge: "Fast", 
+    default: true,
+    aspectRatios: ["1:1", "3:2", "2:3", "4:3", "3:4", "5:4", "4:5", "16:9", "9:16", "21:9"],
+    resolutions: ["1k"],
+    maxPromptLength: 3000,
+    supportsNegativePrompt: false,
+  },
+  { 
+    value: "nano-banana-2-pro", 
+    label: "Nano Banana 2 Pro", 
+    provider: "Google", 
+    description: "Gemini 3 Pro - Professional-grade, up to 4K", 
+    badge: "Pro",
+    aspectRatios: ["1:1", "3:2", "2:3", "4:3", "3:4", "4:5", "5:4", "9:16", "16:9", "21:9"],
+    resolutions: ["1k", "2k", "4k"],
+    maxPromptLength: 45000,
+    supportsNegativePrompt: false,
+  },
+  { 
+    value: "imagen-4.0-preview", 
+    label: "Imagen 4.0 Preview", 
+    provider: "Google", 
+    description: "Improved textures, lighting, and typography",
+    aspectRatios: ["1:1", "9:16", "16:9", "3:4", "4:3"],
+    resolutions: ["custom"],
+    maxPromptLength: 3000,
+    supportsNegativePrompt: false,
+  },
+  { 
+    value: "imagen-4.0-ultra", 
+    label: "Imagen 4.0 Ultra", 
+    provider: "Google", 
+    description: "Exceptional detail, color accuracy, best quality", 
+    badge: "Ultra",
+    aspectRatios: ["1:1", "9:16", "16:9", "3:4", "4:3"],
+    resolutions: ["custom"],
+    maxPromptLength: 3000,
+    supportsNegativePrompt: false,
+  },
+  { 
+    value: "imagen-4.0-fast", 
+    label: "Imagen 4.0 Fast", 
+    provider: "Google", 
+    description: "Speed optimized with minimal quality loss", 
+    badge: "Fast",
+    aspectRatios: ["1:1", "9:16", "16:9", "3:4", "4:3"],
+    resolutions: ["custom"],
+    maxPromptLength: 3000,
+    supportsNegativePrompt: true,
+  },
   
   // ByteDance Models
-  { value: "seedream-4.0", label: "Seedream 4.0", provider: "ByteDance", description: "Ultra-fast 2K/4K with sequential images", badge: "Sequential" },
-  { value: "seedream-4.5", label: "Seedream 4.5", provider: "ByteDance", description: "Production reliability, sharp 2K/4K", badge: "Reliable" },
+  { 
+    value: "seedream-4.0", 
+    label: "Seedream 4.0", 
+    provider: "ByteDance", 
+    description: "Ultra-fast 2K/4K with sequential images", 
+    badge: "Sequential",
+    aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"],
+    resolutions: ["1k", "2k", "4k"],
+    maxPromptLength: 2000,
+    supportsNegativePrompt: false,
+  },
+  { 
+    value: "seedream-4.5", 
+    label: "Seedream 4.5", 
+    provider: "ByteDance", 
+    description: "Production reliability, sharp 2K/4K", 
+    badge: "Reliable",
+    aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"],
+    resolutions: ["2k", "4k"],
+    maxPromptLength: 2000,
+    supportsNegativePrompt: false,
+  },
   
   // Black Forest Labs - FLUX.2 Series
-  { value: "flux-2-dev", label: "FLUX.2 [dev]", provider: "Black Forest Labs", description: "Open weights, full architectural control", badge: "Dev" },
-  { value: "flux-2-pro", label: "FLUX.2 [pro]", provider: "Black Forest Labs", description: "Production-ready, robust editing", badge: "Pro" },
-  { value: "flux-2-flex", label: "FLUX.2 [flex]", provider: "Black Forest Labs", description: "Best text rendering, typography specialist", badge: "Typography" },
+  { 
+    value: "flux-2-dev", 
+    label: "FLUX.2 [dev]", 
+    provider: "Black Forest Labs", 
+    description: "Open weights, full architectural control", 
+    badge: "Dev",
+    aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "21:9"],
+    resolutions: ["custom"],
+    maxPromptLength: 10000,
+    supportsNegativePrompt: false,
+  },
+  { 
+    value: "flux-2-pro", 
+    label: "FLUX.2 [pro]", 
+    provider: "Black Forest Labs", 
+    description: "Production-ready, robust editing", 
+    badge: "Pro",
+    aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
+    resolutions: ["custom"],
+    maxPromptLength: 3000,
+    supportsNegativePrompt: false,
+  },
+  { 
+    value: "flux-2-flex", 
+    label: "FLUX.2 [flex]", 
+    provider: "Black Forest Labs", 
+    description: "Best text rendering, typography specialist", 
+    badge: "Typography",
+    aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
+    resolutions: ["custom"],
+    maxPromptLength: 3000,
+    supportsNegativePrompt: false,
+  },
   
   // Other Providers
-  { value: "midjourney-v7", label: "Midjourney V7", provider: "Midjourney", description: "Cinematic realism, photographic quality", badge: "Cinematic" },
-  { value: "ideogram-3.0", label: "Ideogram 3.0", provider: "Ideogram", description: "Sharp text, graphic design specialist", badge: "Design" },
+  { 
+    value: "midjourney-v7", 
+    label: "Midjourney V7", 
+    provider: "Midjourney", 
+    description: "Cinematic realism, photographic quality", 
+    badge: "Cinematic",
+    aspectRatios: ["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"],
+    resolutions: ["custom"],
+    maxPromptLength: 2000,
+    supportsNegativePrompt: false,
+  },
+  { 
+    value: "ideogram-3.0", 
+    label: "Ideogram 3.0", 
+    provider: "Ideogram", 
+    description: "Sharp text, graphic design specialist", 
+    badge: "Design",
+    aspectRatios: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "5:4", "4:5", "8:5", "5:8", "3:1", "1:3"],
+    resolutions: ["custom"],
+    maxPromptLength: 2000,
+    supportsNegativePrompt: true,
+  },
 ];
 
 const MOODS = [
@@ -579,17 +699,28 @@ Perfect for meditation, focus work, or peaceful background ambiance.`;
                   </p>
                 </div>
 
-                {/* 10 Aspect Ratios and 1k info */}
+                {/* Model Capabilities Info */}
                 <div className="flex items-center gap-2 text-xs text-white/40 pt-2">
-                  <span>10 aspect ratios</span>
-                  <span>•</span>
-                  <span>1k</span>
-                  <Badge 
-                    variant="outline" 
-                    className="ml-auto bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-cyan-300"
-                  >
-                    Fast
-                  </Badge>
+                  {(() => {
+                    const selectedModel = IMAGE_MODELS.find(m => m.value === imageModel);
+                    if (!selectedModel) return null;
+                    
+                    return (
+                      <>
+                        <span>{selectedModel.aspectRatios.length} aspect ratios</span>
+                        <span>•</span>
+                        <span>{selectedModel.resolutions.join(", ")}</span>
+                        {selectedModel.supportsNegativePrompt && (
+                          <>
+                            <span>•</span>
+                            <span className="text-emerald-400">Negative prompt</span>
+                          </>
+                        )}
+                        <span>•</span>
+                        <span>{selectedModel.maxPromptLength >= 10000 ? '10K+' : `${Math.floor(selectedModel.maxPromptLength / 1000)}K`} chars</span>
+                      </>
+                    );
+                  })()}
                 </div>
               </CardContent>
             </Card>

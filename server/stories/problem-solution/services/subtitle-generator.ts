@@ -17,7 +17,8 @@ interface Scene {
   sceneNumber: number;
   narration: string;
   duration: number;
-  wordTimestamps?: WordTimestamp[];  // NEW: Word-level timestamps from ElevenLabs
+  wordTimestamps?: WordTimestamp[];  // Word-level timestamps from ElevenLabs
+  audioSpeed?: number;               // Audio speed adjustment (for timestamp correction)
 }
 
 interface SubtitleSegment {
@@ -239,12 +240,20 @@ function createSrtFile(scenes: Scene[]): string {
   for (const scene of scenes) {
     let segments: SubtitleSegment[];
     
+    // Get audio speed adjustment factor (default 1.0 = no change)
+    const audioSpeed = scene.audioSpeed || 1.0;
+    
     // ═══════════════════════════════════════════════════════════════════════════
     // OPTION A: Use word-level timestamps if available (PRECISE SYNC)
     // ═══════════════════════════════════════════════════════════════════════════
     if (scene.wordTimestamps && scene.wordTimestamps.length > 0) {
       hasTimestamps = true;
       segments = splitByWordTimestamps(scene.wordTimestamps);
+      
+      // Log audio speed adjustment if applicable
+      if (Math.abs(audioSpeed - 1.0) > 0.01) {
+        console.log(`[subtitle-generator] Scene ${scene.sceneNumber}: Audio speed ${audioSpeed.toFixed(3)}x - adjusting timestamps`);
+      }
       console.log(`[subtitle-generator] Scene ${scene.sceneNumber}: Using ${scene.wordTimestamps.length} word timestamps → ${segments.length} subtitle(s)`);
     } else {
       // ═══════════════════════════════════════════════════════════════════════════
@@ -255,14 +264,22 @@ function createSrtFile(scenes: Scene[]): string {
     }
     
     for (const segment of segments) {
-      // For word timestamps, times are already absolute within scene
-      // For fallback, add scene start time
-      const absoluteStart = scene.wordTimestamps?.length 
-        ? sceneStartTime + segment.startTime 
-        : sceneStartTime + segment.startTime;
-      const absoluteEnd = scene.wordTimestamps?.length
-        ? sceneStartTime + segment.endTime
-        : sceneStartTime + segment.endTime;
+      // ═══════════════════════════════════════════════════════════════════════════
+      // AUDIO SPEED TIMESTAMP ADJUSTMENT
+      // ═══════════════════════════════════════════════════════════════════════════
+      // If audio was slowed down (speed < 1.0), timestamps need to be stretched
+      // If audio was sped up (speed > 1.0), timestamps need to be compressed
+      // Formula: adjustedTime = originalTime / audioSpeed
+      // Example: 
+      //   - Audio slowed to 0.9x → 2.0s becomes 2.0/0.9 = 2.22s
+      //   - Audio sped to 1.1x → 2.0s becomes 2.0/1.1 = 1.82s
+      // ═══════════════════════════════════════════════════════════════════════════
+      
+      const adjustedStartTime = segment.startTime / audioSpeed;
+      const adjustedEndTime = segment.endTime / audioSpeed;
+      
+      const absoluteStart = sceneStartTime + adjustedStartTime;
+      const absoluteEnd = sceneStartTime + adjustedEndTime;
       
       const start = formatSrtTime(absoluteStart);
       const end = formatSrtTime(absoluteEnd);
@@ -271,7 +288,9 @@ function createSrtFile(scenes: Scene[]): string {
       subtitleIndex++;
     }
     
-    sceneStartTime += scene.duration;
+    // Scene duration also needs to be adjusted by audio speed
+    const adjustedSceneDuration = scene.duration / audioSpeed;
+    sceneStartTime += adjustedSceneDuration;
   }
   
   const srtContent = allSubtitles.join('\n');

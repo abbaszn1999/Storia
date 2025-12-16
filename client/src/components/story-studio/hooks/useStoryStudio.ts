@@ -47,9 +47,9 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
   voiceVolume: 80,
   musicVolume: 30,
   
-  // Step 4
-  exportFormat: 'mp4',
-  exportQuality: '1080p',
+  // Step 4 - Fixed export settings (always best quality MP4)
+  exportFormat: 'mp4',      // Fixed: Always MP4
+  exportQuality: '1080p',   // Fixed: Always 1080p Full HD
   
   // UI
   isGenerating: false,
@@ -1070,18 +1070,24 @@ export function useStoryStudio(template: StoryTemplate | null) {
         size: data.size ? `${(data.size / 1024 / 1024).toFixed(2)}MB` : 'Unknown',
       });
 
-      setState(prev => ({
-        ...prev,
-        isGenerating: false,
-        generationProgress: 100,
-      }));
-
-      // Return full result for volume control
-      return {
+      // Save result for volume control remix
+      const exportResult = {
         videoUrl: data.videoUrl,
         videoBaseUrl: data.videoBaseUrl,
         voiceoverUrl: data.voiceoverUrl,
         musicUrl: data.musicUrl,
+      };
+      
+      setState(prev => ({
+        ...prev,
+        isGenerating: false,
+        generationProgress: 100,
+        lastExportResult: exportResult,
+      }));
+
+      // Return full result for volume control
+      return {
+        ...exportResult,
         duration: data.duration,
         size: data.size,
       };

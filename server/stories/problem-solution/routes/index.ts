@@ -8,8 +8,10 @@ import { generateVoiceover } from "../agents/voiceover-generator";
 import { generateMusic } from "../agents/music-generator";
 import { generateVideos } from "../agents/video-generator";
 import { exportFinalVideo, remixVideo } from "../agents/video-exporter";
+import { generateSocialMetadata } from "../agents/social-metadata-generator";
 import { storage } from "../../../storage";
 import { isValidMusicStyle, type MusicStyle } from "../prompts/music-prompts";
+import type { SocialPlatform } from "../types";
 
 const psRouter = Router();
 
@@ -914,6 +916,73 @@ psRouter.post(
       console.error("[problem-solution:routes] Remix failed:", error);
       res.status(500).json({ 
         error: "Failed to remix video",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/problem-solution/social-metadata
+ * Generates platform-specific metadata for social media
+ */
+psRouter.post(
+  "/social-metadata",
+  isAuthenticated,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { platform, scriptText, duration } = req.body || {};
+
+      // Validate platform
+      const validPlatforms: SocialPlatform[] = ['youtube', 'tiktok', 'instagram', 'facebook'];
+      if (!platform || !validPlatforms.includes(platform)) {
+        return res.status(400).json({ 
+          error: "Invalid platform. Must be one of: youtube, tiktok, instagram, facebook" 
+        });
+      }
+
+      if (!scriptText || !scriptText.trim()) {
+        return res.status(400).json({ error: "scriptText is required" });
+      }
+
+      if (!duration || duration < 1) {
+        return res.status(400).json({ error: "duration is required and must be > 0" });
+      }
+
+      console.log('[problem-solution:routes] Generating social metadata:', {
+        platform,
+        scriptLength: scriptText.length,
+        duration,
+      });
+
+      const result = await generateSocialMetadata(
+        {
+          platform,
+          scriptText: scriptText.trim(),
+          duration,
+        },
+        userId,
+        req.headers["x-workspace-id"] as string | undefined
+      );
+
+      console.log('[problem-solution:routes] Social metadata generated:', {
+        platform: result.platform,
+        hasTitle: !!result.title,
+        hasDescription: !!result.description,
+        hasCaption: !!result.caption,
+        cost: result.cost,
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("[problem-solution:routes] Social metadata generation failed:", error);
+      res.status(500).json({ 
+        error: "Failed to generate social metadata",
         details: error instanceof Error ? error.message : String(error)
       });
     }

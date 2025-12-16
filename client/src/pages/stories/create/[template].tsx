@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useParams, useLocation } from "wouter";
+import { useState, useCallback } from "react";
 import { STORY_TEMPLATES } from "@/constants/story-templates";
 import { 
   StudioLayout, 
@@ -51,6 +52,9 @@ export default function StoryCreate() {
   
   // Get accent color for template
   const accentColor = templateAccentMap[templateId] || 'primary';
+  
+  // State for final export process
+  const [isFinalExporting, setIsFinalExporting] = useState(false);
 
   // Check if we can proceed to next step
   const canProceedFromCurrentStep = studio.canProceed(studio.state.currentStep);
@@ -78,9 +82,75 @@ export default function StoryCreate() {
     studio.goToStep(stepId);
   };
 
-  const handleNext = () => {
+  // Direct download function
+  const handleDirectDownload = useCallback(async (url: string, filename: string) => {
+    try {
+      console.log('[StoryCreate] Starting direct download:', filename);
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      console.log('[StoryCreate] Download complete');
+    } catch (error) {
+      console.error('[StoryCreate] Download failed:', error);
+      // Fallback: open in new tab
+      window.open(url, '_blank');
+    }
+  }, []);
+
+  // Get download filename (always 1080p MP4)
+  const getDownloadFilename = useCallback(() => {
+    const timestamp = new Date().toISOString().slice(0, 10);
+    return `storia-video-${timestamp}-1080p.mp4`;
+  }, []);
+
+  // Handle final export - remix with volumes and download
+  const handleFinalExport = useCallback(async (
+    audioAssets: { videoBaseUrl?: string; voiceoverUrl?: string; musicUrl?: string } | null,
+    voiceVolume: number,
+    musicVolume: number
+  ) => {
+    setIsFinalExporting(true);
+    
+    try {
+      // If we have audio assets, remix with new volumes
+      if (audioAssets?.videoBaseUrl && audioAssets?.voiceoverUrl && audioAssets?.musicUrl) {
+        console.log('[StoryCreate] Remixing with volumes:', voiceVolume, musicVolume);
+        const newVideoUrl = await studio.remixVideo(
+          audioAssets.videoBaseUrl,
+          audioAssets.voiceoverUrl,
+          audioAssets.musicUrl,
+          voiceVolume,
+          musicVolume
+        );
+        
+        if (newVideoUrl) {
+          await handleDirectDownload(newVideoUrl, getDownloadFilename());
+        }
+      } else {
+        // No remix needed, use existing video
+        const lastExport = studio.state.lastExportResult;
+        if (lastExport?.videoUrl) {
+          await handleDirectDownload(lastExport.videoUrl, getDownloadFilename());
+        }
+      }
+    } catch (error) {
+      console.error('[StoryCreate] Final export failed:', error);
+    } finally {
+      setIsFinalExporting(false);
+    }
+  }, [studio, handleDirectDownload, getDownloadFilename]);
+
+  const handleNext = async () => {
     if (studio.state.currentStep === 'export') {
-      studio.exportVideo();
+      // Trigger final export - ExportStep will call onFinalExport via useEffect
+      setIsFinalExporting(true);
     } else {
       studio.nextStep();
     }
@@ -138,6 +208,7 @@ export default function StoryCreate() {
         onNext={handleNext}
         onBack={handleBack}
         isNextDisabled={!canProceedFromCurrentStep && studio.state.currentStep !== 'export'}
+        isLoading={isFinalExporting}
         nextLabel={getNextLabel()}
       >
       {/* Step 1: Concept & Script */}
@@ -253,6 +324,7 @@ export default function StoryCreate() {
         <ExportStep
           template={template}
           scenes={studio.state.scenes}
+          scriptText={studio.state.topic}
           aspectRatio={studio.state.aspectRatio}
           duration={studio.state.duration}
           selectedVoice={studio.state.selectedVoice}
@@ -260,16 +332,17 @@ export default function StoryCreate() {
           musicStyle={studio.state.musicStyle}
           voiceVolume={studio.state.voiceVolume}
           musicVolume={studio.state.musicVolume}
-          exportFormat={studio.state.exportFormat}
-          exportQuality={studio.state.exportQuality}
           isGenerating={studio.state.isGenerating}
           generationProgress={studio.state.generationProgress}
           voiceoverEnabled={studio.state.voiceoverEnabled}
-          onFormatChange={studio.setExportFormat}
-          onQualityChange={studio.setExportQuality}
+          imageModel={studio.state.imageModel}
+          isFinalExporting={isFinalExporting}
           onExport={studio.exportVideo}
           onRemix={studio.remixVideo}
+          onFinalExport={handleFinalExport}
           onGenerateVoiceover={studio.generateVoiceover}
+          onVoiceVolumeChange={studio.setVoiceVolume}
+          onMusicVolumeChange={studio.setMusicVolume}
           accentColor={accentColor}
         />
       )}

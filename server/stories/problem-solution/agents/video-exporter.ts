@@ -12,7 +12,8 @@ import {
   concatenateVideos,
   createVideoFromImages,
   createStaticVideoWithTransitions,
-  createVideoFromImagesWithAnimations,
+  createVideoFromImagesWithCreativeTransitions,
+  createVideoWithCreativeTransitions,
   concatenateAudioFiles,
   mergeVoiceover,
   mixBackgroundMusic,
@@ -20,9 +21,11 @@ import {
   cleanupFiles,
   getVideoDuration,
   adjustVideoSpeed,
-  loopVideo,
+  adjustAudioSpeed,
+  calculateDualSpeedSync,
   createMutedVideo,
 } from "../services/ffmpeg-helpers";
+import type { SceneTransition, ImageAnimation, ImageEffect } from "../types";
 import { burnSubtitles } from "../services/subtitle-generator";
 import { generateMusic } from "./music-generator";
 import { isValidMusicStyle, type MusicStyle } from "../prompts/music-prompts";
@@ -170,6 +173,9 @@ export async function exportFinalVideo(
     
     console.log('[video-exporter] Scene durations (with +1s padding on last):', durations);
     
+    // Track audio speeds for subtitle timestamp adjustment (initialized for all modes)
+    const audioSpeedsByScene: number[] = input.scenes.map(() => 1.0);
+    
     if (input.animationMode === 'video') {
       // Scenario: Video mode (image-to-video generated with intelligent sync)
       if (assets.videoFiles.length === 0) {
@@ -177,97 +183,183 @@ export async function exportFinalVideo(
       }
       console.log('[video-exporter] Mode: Video (image-to-video with intelligent sync)');
       
-      // Intelligent sync: adjust video durations to match voiceover if present
+      // DUAL SPEED SYNC: Prefer slowdown over speedup (more natural)
       if (hasVoiceover && assets.audioFiles.length > 0) {
         console.log('[video-exporter] ═══════════════════════════════════════════════');
-        console.log('[video-exporter] Syncing videos with voiceover (professional mode)');
+        console.log('[video-exporter] DUAL SPEED SYNC (Prefer Slowdown Mode)');
+        console.log('[video-exporter] ═══════════════════════════════════════════════');
+        console.log('[video-exporter] Strategy: Slow motion video + Natural audio');
         console.log('[video-exporter] ═══════════════════════════════════════════════');
         
         const adjustedVideos: string[] = [];
+        const adjustedAudios: string[] = [];
         
         for (let i = 0; i < assets.videoFiles.length; i++) {
           const videoPath = assets.videoFiles[i];
-          const targetDuration = durations[i]; // من الصوت الفعلي
+          const audioPath = assets.audioFiles[i];
+          
+          if (!audioPath) {
+            // No audio for this scene - use video as-is
+            console.log(`[video-exporter] Scene ${i + 1}: No audio - using video as-is`);
+            adjustedVideos.push(videoPath);
+            // audioSpeedsByScene[i] already initialized to 1.0
+            continue;
+          }
           
           try {
-            const currentDuration = await getVideoDuration(videoPath);
-            const diff = Math.abs(currentDuration - targetDuration);
-            const diffPercent = (diff / targetDuration) * 100;
+            // Get both durations
+            const videoDuration = await getVideoDuration(videoPath);
+            const audioDuration = durations[i]; // Target from scene config
             
-            console.log(`[video-exporter] Scene ${i + 1}: Video=${currentDuration.toFixed(2)}s, Voice=${targetDuration.toFixed(2)}s, Diff=${diff.toFixed(2)}s (${diffPercent.toFixed(1)}%)`);
+            console.log(`[video-exporter] ─────────────────────────────────────────────`);
+            console.log(`[video-exporter] Scene ${i + 1}:`);
+            console.log(`[video-exporter]   Video: ${videoDuration.toFixed(2)}s`);
+            console.log(`[video-exporter]   Audio: ${audioDuration.toFixed(2)}s`);
+            
+            // Calculate optimal speeds using Dual Speed Sync (Prefer Slowdown)
+            const sync = calculateDualSpeedSync(videoDuration, audioDuration);
+            
+            console.log(`[video-exporter]   Target: ${sync.targetDuration.toFixed(2)}s`);
+            console.log(`[video-exporter]   Video speed: ${sync.videoSpeed.toFixed(3)}x`);
+            console.log(`[video-exporter]   Audio speed: ${sync.audioSpeed.toFixed(3)}x`);
+            console.log(`[video-exporter]   Method: ${sync.method}`);
             
             let adjustedVideo = videoPath;
+            let adjustedAudio = audioPath;
             
-            if (diff < 0.5) {
-              // فرق صغير جداً (<0.5s): لا حاجة للتعديل
-              console.log(`[video-exporter]   → No adjustment needed (difference < 0.5s)`);
-              
-            } else if (currentDuration < targetDuration) {
-              // الفيديو أقصر من الصوت
-              const speedRatio = currentDuration / targetDuration;
-              
-              if (speedRatio >= 0.7) {
-                // فرق معقول: تبطيء الفيديو (0.7x-1.0x)
-                console.log(`[video-exporter]   → Slowing down video (${speedRatio.toFixed(2)}x speed)`);
-                adjustedVideo = await adjustVideoSpeed(videoPath, targetDuration);
-                tempFiles.push(adjustedVideo);
-                
-              } else {
-                // فرق كبير: loop الفيديو
-                console.log(`[video-exporter]   → Looping video to extend duration`);
-                adjustedVideo = await loopVideo(videoPath, targetDuration);
+            // Store audio speed for subtitle adjustment
+            audioSpeedsByScene[i] = sync.audioSpeed;
+            
+            if (sync.method !== 'none') {
+              // Adjust video speed if needed
+              if (Math.abs(sync.videoSpeed - 1.0) > 0.02) {
+                console.log(`[video-exporter]   → Adjusting video speed...`);
+                adjustedVideo = await adjustVideoSpeed(videoPath, sync.targetDuration);
                 tempFiles.push(adjustedVideo);
               }
               
+              // Adjust audio speed if needed
+              if (Math.abs(sync.audioSpeed - 1.0) > 0.02) {
+                console.log(`[video-exporter]   → Adjusting audio speed...`);
+                adjustedAudio = await adjustAudioSpeed(audioPath, sync.targetDuration);
+                tempFiles.push(adjustedAudio);
+              }
+              
+              console.log(`[video-exporter]   ✓ Sync complete`);
             } else {
-              // الفيديو أطول من الصوت
-              const speedRatio = currentDuration / targetDuration;
-              
-              if (speedRatio <= 1.5) {
-                // فرق معقول: تسريع الفيديو (1.0x-1.5x)
-                console.log(`[video-exporter]   → Speeding up video (${speedRatio.toFixed(2)}x speed)`);
-                adjustedVideo = await adjustVideoSpeed(videoPath, targetDuration);
-                tempFiles.push(adjustedVideo);
-                
-              } else {
-                // فرق كبير جداً: تسريع بحد أقصى 1.5x
-                console.log(`[video-exporter]   → Speeding up video (max 1.5x speed, will trim excess)`);
-                adjustedVideo = await adjustVideoSpeed(videoPath, targetDuration);
-                tempFiles.push(adjustedVideo);
-              }
+              console.log(`[video-exporter]   ✓ No adjustment needed (close enough)`);
             }
             
             adjustedVideos.push(adjustedVideo);
+            adjustedAudios.push(adjustedAudio);
             
           } catch (error) {
             console.error(`[video-exporter] Failed to sync Scene ${i + 1}:`, error);
-            // Fallback: use original video
+            // Fallback: use originals
             adjustedVideos.push(videoPath);
+            adjustedAudios.push(audioPath);
+            // audioSpeedsByScene[i] already initialized to 1.0
           }
         }
         
-        console.log('[video-exporter] ✓ All videos synced with voiceover');
+        console.log('[video-exporter] ═══════════════════════════════════════════════');
+        console.log('[video-exporter] ✓ All scenes synced with Prefer Slowdown strategy');
         console.log('[video-exporter] ═══════════════════════════════════════════════');
         
-        videoTimeline = await concatenateVideos(adjustedVideos);
+        // Update assets with adjusted files
+        assets.audioFiles = adjustedAudios;
+        
+        // Check if creative transitions are specified for video mode
+        const transitions: Array<SceneTransition | null> = input.scenes.map((s, i) => {
+          if (i === input.scenes.length - 1) return null;
+          return (s.transitionToNext as SceneTransition) || null;
+        });
+        const transitionDurations: number[] = input.scenes.map((s, i) => {
+          if (i === input.scenes.length - 1) return 0;
+          return s.transitionDuration || 0.5;
+        });
+        
+        const hasCreativeTransitions = transitions.some(t => t && t !== 'none');
+        
+        if (hasCreativeTransitions && adjustedVideos.length > 1) {
+          console.log('[video-exporter] Applying creative transitions between video clips...');
+          console.log('[video-exporter] Transitions:', transitions.filter(t => t));
+          videoTimeline = await createVideoWithCreativeTransitions(
+            adjustedVideos,
+            durations,
+            transitions,
+            transitionDurations
+          );
+        } else {
+          videoTimeline = await concatenateVideos(adjustedVideos);
+        }
         
       } else {
-        // No voiceover: just concatenate videos as-is
-        console.log('[video-exporter] No voiceover - concatenating videos as-is');
-        videoTimeline = await concatenateVideos(assets.videoFiles);
+        // No voiceover: concatenate videos with transitions if specified
+        console.log('[video-exporter] No voiceover - checking for creative transitions...');
+        
+        const transitions: Array<SceneTransition | null> = input.scenes.map((s, i) => {
+          if (i === input.scenes.length - 1) return null;
+          return (s.transitionToNext as SceneTransition) || null;
+        });
+        const transitionDurations: number[] = input.scenes.map((s, i) => {
+          if (i === input.scenes.length - 1) return 0;
+          return s.transitionDuration || 0.5;
+        });
+        
+        const hasCreativeTransitions = transitions.some(t => t && t !== 'none');
+        
+        if (hasCreativeTransitions && assets.videoFiles.length > 1) {
+          console.log('[video-exporter] Applying creative transitions...');
+          videoTimeline = await createVideoWithCreativeTransitions(
+            assets.videoFiles,
+            durations,
+            transitions,
+            transitionDurations
+          );
+        } else {
+          videoTimeline = await concatenateVideos(assets.videoFiles);
+        }
       }
       
     } else if (input.animationMode === 'transition') {
-      // Scenario: Transition mode (CSS animations → FFmpeg filters)
+      // Scenario: Transition mode (Ken Burns animations + creative scene transitions)
       if (assets.imageFiles.length === 0) {
         throw new Error('Transition mode selected but no image files available');
       }
-      console.log('[video-exporter] Mode: Transition (applying FFmpeg animations + effects)');
-      const animations = input.scenes.map(s => s.imageAnimation || null);
-      const effects = input.scenes.map(s => s.imageEffect || null);
-      console.log('[video-exporter] Animations:', animations);
-      console.log('[video-exporter] Effects:', effects);
-      videoTimeline = await createVideoFromImagesWithAnimations(assets.imageFiles, durations, animations, effects);
+      console.log('[video-exporter] ═══════════════════════════════════════════════');
+      console.log('[video-exporter] Mode: Transition (Ken Burns + Creative Transitions)');
+      console.log('[video-exporter] ═══════════════════════════════════════════════');
+      
+      // Extract animations and effects for Ken Burns
+      const animations: Array<ImageAnimation | null> = input.scenes.map(s => s.imageAnimation || 'ken-burns');
+      const effects: Array<ImageEffect | null> = input.scenes.map(s => s.imageEffect || null);
+      
+      // Extract scene-to-scene transitions (2025 trending)
+      const transitions: Array<SceneTransition | null> = input.scenes.map((s, i) => {
+        // Last scene doesn't need transition
+        if (i === input.scenes.length - 1) return null;
+        return (s.transitionToNext as SceneTransition) || 'cross-dissolve';
+      });
+      const transitionDurations: number[] = input.scenes.map((s, i) => {
+        if (i === input.scenes.length - 1) return 0;
+        return s.transitionDuration || 0.5;
+      });
+      
+      console.log('[video-exporter] Ken Burns Animations:', animations);
+      console.log('[video-exporter] Visual Effects:', effects);
+      console.log('[video-exporter] Scene Transitions:', transitions.slice(0, -1)); // Exclude last null
+      console.log('[video-exporter] Transition Durations:', transitionDurations.slice(0, -1));
+      
+      // Use new creative transitions function
+      videoTimeline = await createVideoFromImagesWithCreativeTransitions(
+        assets.imageFiles,
+        durations,
+        animations,
+        effects,
+        transitions,
+        transitionDurations
+      );
       
     } else {
       // Scenario: Animation off (static images with smooth transitions)
@@ -275,12 +367,39 @@ export async function exportFinalVideo(
         throw new Error('Animation off mode selected but no image files available');
       }
       console.log('[video-exporter] Mode: Off (static images with smooth transitions)');
-      videoTimeline = await createStaticVideoWithTransitions(
-        assets.imageFiles, 
-        durations,
-        'fade',  // transition type: fade, wipeleft, wiperight, slideup, slidedown, dissolve
-        0.5      // transition duration: 0.5 seconds
-      );
+      
+      // Even in 'off' mode, apply creative transitions if specified
+      const transitions: Array<SceneTransition | null> = input.scenes.map((s, i) => {
+        if (i === input.scenes.length - 1) return null;
+        return (s.transitionToNext as SceneTransition) || 'fade';
+      });
+      const transitionDurations: number[] = input.scenes.map((s, i) => {
+        if (i === input.scenes.length - 1) return 0;
+        return s.transitionDuration || 0.5;
+      });
+      
+      // If any non-fade transitions, use creative transitions
+      const hasCreativeTransitions = transitions.some(t => t && t !== 'fade' && t !== 'none');
+      
+      if (hasCreativeTransitions) {
+        console.log('[video-exporter] Using creative transitions:', transitions.filter(t => t));
+        videoTimeline = await createVideoFromImagesWithCreativeTransitions(
+          assets.imageFiles,
+          durations,
+          input.scenes.map(() => null), // No Ken Burns animations
+          input.scenes.map(() => null), // No effects
+          transitions,
+          transitionDurations
+        );
+      } else {
+        // Simple fade transitions
+        videoTimeline = await createStaticVideoWithTransitions(
+          assets.imageFiles, 
+          durations,
+          'fade',
+          0.5
+        );
+      }
     }
     
     tempFiles.push(videoTimeline);
@@ -449,11 +568,13 @@ export async function exportFinalVideo(
       console.log('[video-exporter] Text overlay setting:', input.textOverlay);
       
       // Pass wordTimestamps for synchronized karaoke-style subtitles
-      const scenesForSubtitles = input.scenes.map(s => ({
+      // Also pass audioSpeed to adjust timestamps if audio was sped up/slowed
+      const scenesForSubtitles = input.scenes.map((s, i) => ({
         sceneNumber: s.sceneNumber,
         narration: s.narration,
         duration: s.duration,
         wordTimestamps: s.wordTimestamps,  // ← Word-level sync data!
+        audioSpeed: audioSpeedsByScene[i] || 1.0,  // ← Audio speed for timestamp adjustment
       }));
       
       const hasWordSync = scenesForSubtitles.some(s => s.wordTimestamps && s.wordTimestamps.length > 0);

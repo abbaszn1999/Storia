@@ -306,8 +306,74 @@ ${fieldNumber + 1}. effectName (REQUIRED for transition mode):
 │ Tense → dramatic, cinematic                                                │
 │ Romantic → warm, dreamy, glow                                              │
 │ Epic → cinematic, dramatic                                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+${fieldNumber + 2}. transitionToNext (REQUIRED for all scenes except last):
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Scene-to-scene transition effect. Choose based on mood shift.              │
+│                                                                             │
+│ 🚀 MOTION (viral 2025 - for energy/action):                                 │
+│    • whip-pan        - Fast swipe (TikTok viral) → action, surprise        │
+│    • zoom-punch      - Impact zoom → emphasis, CTA, reveal                 │
+│    • snap-zoom       - Sharp quick zoom → drama, focus                     │
+│    • motion-blur-right - Directional blur → progression, forward           │
+│                                                                             │
+│ ✨ LIGHT (cinematic - for emotional moments):                               │
+│    • flash-white     - Clean flash → solution, positive turn, new start    │
+│    • flash-black     - Dark flash → drama, tension, impact                 │
+│    • light-leak      - Warm glow → nostalgia, romance, memory              │
+│    • lens-flare      - Epic shine → hero moment, inspiration               │
+│                                                                             │
+│ 💻 DIGITAL (modern - for tech/edgy):                                        │
+│    • glitch          - Digital distortion → problem, error, disruption     │
+│    • rgb-split       - Color separation → cyberpunk, edgy, tech            │
+│    • pixelate        - Pixel effect → retro, gaming, digital               │
+│                                                                             │
+│ ⭕ SHAPES (TikTok favorites - for reveals):                                 │
+│    • circle-open     - Circle reveal → focus, intro, spotlight             │
+│    • circle-close    - Circle close → ending, mystery, focus               │
+│    • star-wipe       - Star reveal → celebration, magic, achievement       │
+│                                                                             │
+│ 🌊 SMOOTH (elegant - for calm scenes):                                      │
+│    • smooth-blur     - Soft dissolve → calm, dream, elegant                │
+│    • cross-dissolve  - Classic dissolve → professional, universal          │
+│    • wave-ripple     - Water effect → dream, magical, transformation       │
+│                                                                             │
+│ MOOD TRANSITION GUIDE:                                                      │
+│ Problem → Agitation: glitch, rgb-split, flash-black                        │
+│ Agitation → Solution: flash-white, light-leak, circle-open                 │
+│ Solution → CTA: zoom-punch, lens-flare, star-wipe                          │
+│ Happy → Sad: smooth-blur, luma-fade                                        │
+│ Calm → Action: whip-pan, snap-zoom                                         │
+│ Story → Ending: circle-close, fade, smooth-blur                            │
+│                                                                             │
+│ ⚠️ For LAST scene, use "none" or skip this field                           │
 └─────────────────────────────────────────────────────────────────────────────┘`;
+      fieldNumber += 3;
     }
+  }
+
+  // Always add transitions for any animation mode
+  if (animationMode && animationType !== 'transition') {
+    // For image-to-video mode, also add transitions
+    systemPrompt += `
+
+${fieldNumber}. transitionToNext (REQUIRED for all scenes except last):
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Scene-to-scene transition. Choose based on content and mood:               │
+│                                                                             │
+│ TRENDING 2025:                                                              │
+│ • whip-pan      - Fast swipe (viral TikTok)                                │
+│ • zoom-punch    - Impact zoom (emphasis)                                   │
+│ • flash-white   - Clean transition (positive)                              │
+│ • flash-black   - Dramatic (tension)                                       │
+│ • glitch        - Digital (problem/tech)                                   │
+│ • circle-open   - Reveal (focus)                                           │
+│ • smooth-blur   - Elegant (calm)                                           │
+│ • cross-dissolve- Classic (safe)                                           │
+│                                                                             │
+│ Use "none" for last scene                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘`;
   }
 
   systemPrompt += `
@@ -337,7 +403,7 @@ OUTPUT FORMAT
   "scenes": [
     {
       "sceneNumber": 1,
-      "imagePrompt": "detailed visual description with style keywords..."${voiceoverEnabled ? ',\n      "voiceText": "text from narration...",\n      "voiceMood": "neutral"' : ''}${animationMode && animationType === 'image-to-video' ? ',\n      "videoPrompt": "motion description..."' : ''}${animationMode && animationType === 'transition' ? ',\n      "animationName": "ken-burns",\n      "effectName": "none"' : ''}
+      "imagePrompt": "detailed visual description with style keywords..."${voiceoverEnabled ? ',\n      "voiceText": "text from narration...",\n      "voiceMood": "neutral"' : ''}${animationMode && animationType === 'image-to-video' ? ',\n      "videoPrompt": "motion description..."' : ''}${animationMode && animationType === 'transition' ? ',\n      "animationName": "ken-burns",\n      "effectName": "none"' : ''}${animationMode ? ',\n      "transitionToNext": "cross-dissolve"' : ''}
     }
   ],
   "totalScenes": <number>

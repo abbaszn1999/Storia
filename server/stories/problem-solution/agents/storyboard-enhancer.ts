@@ -3,10 +3,16 @@ import {
   buildStoryboardEnhancerSystemPrompt,
   buildStoryboardUserPrompt,
 } from "../prompts/storyboard-prompts";
+import {
+  selectTransitionForScene,
+  getTransitionDuration,
+} from "../prompts/transition-prompts";
 import type {
   StoryboardEnhancerInput,
   StoryboardEnhancerOutput,
   EnhancedSceneOutput,
+  SceneTransition,
+  VoiceMood,
 } from "../types";
 
 const STORYBOARD_CONFIG = {
@@ -105,12 +111,55 @@ function buildStoryboardSchema(
       };
       requiredFields.push("effectName");
       
+      // Scene-to-scene transition (2025 trending)
+      sceneProperties.transitionToNext = {
+        type: "string",
+        description: "Transition to next scene - based on mood shift and content",
+        enum: [
+          // Motion-based (viral 2025)
+          "whip-pan", "zoom-punch", "snap-zoom", 
+          "motion-blur-left", "motion-blur-right", "motion-blur-up", "motion-blur-down",
+          // Light & Glow
+          "flash-white", "flash-black", "light-leak", "lens-flare", "luma-fade",
+          // Digital / Glitch
+          "glitch", "rgb-split", "pixelate", "vhs-noise",
+          // Shape reveals
+          "circle-open", "circle-close", "heart-reveal", "diamond-wipe", "star-wipe", "diagonal-tl", "diagonal-br",
+          // Smooth & Elegant
+          "smooth-blur", "cross-dissolve", "wave-ripple", "zoom-blur",
+          // Classic
+          "fade", "wipe-left", "wipe-right", "wipe-up", "wipe-down", "none",
+        ],
+      };
+      // transitionToNext is optional for last scene
+      
     } else if (animationType === 'image-to-video') {
       sceneProperties.videoPrompt = {
         type: "string",
         description: "Description of motion/animation for image-to-video",
       };
       requiredFields.push("videoPrompt");
+      
+      // Scene-to-scene transition (2025 trending) - also for image-to-video mode
+      sceneProperties.transitionToNext = {
+        type: "string",
+        description: "Transition to next scene - based on mood shift and content",
+        enum: [
+          // Motion-based (viral 2025)
+          "whip-pan", "zoom-punch", "snap-zoom", 
+          "motion-blur-left", "motion-blur-right",
+          // Light & Glow
+          "flash-white", "flash-black", "light-leak", "lens-flare",
+          // Digital / Glitch
+          "glitch", "rgb-split", "pixelate",
+          // Shape reveals
+          "circle-open", "circle-close", "star-wipe",
+          // Smooth & Elegant
+          "smooth-blur", "cross-dissolve", "wave-ripple",
+          // Classic
+          "fade", "none",
+        ],
+      };
     }
   }
 
@@ -255,6 +304,53 @@ export async function enhanceStoryboard(
           console.log(`[storyboard-enhancer]   ✓ Timing looks good`);
         }
       });
+      console.log('[storyboard-enhancer] ═══════════════════════════════════════════════');
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // AUTO-FILL TRANSITIONS: If AI didn't provide transitions, auto-select them
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (animationMode) {
+      console.log('[storyboard-enhancer] ═══════════════════════════════════════════════');
+      console.log('[storyboard-enhancer] Scene Transitions (2025 Trending):');
+      
+      parsed.scenes.forEach((scene: any, index: number) => {
+        const isLastScene = index === parsed.scenes.length - 1;
+        
+        // If no transition was provided or it's the last scene
+        if (isLastScene) {
+          scene.transitionToNext = 'none';
+          scene.transitionDuration = 0;
+        } else if (!scene.transitionToNext) {
+          // Auto-select transition based on mood
+          const currentMood = (scene.voiceMood || 'neutral') as VoiceMood;
+          const nextScene = parsed.scenes[index + 1];
+          const nextMood = nextScene?.voiceMood || null;
+          
+          // Detect content type for smarter selection
+          let contentType: string | undefined;
+          if (index === 0) {
+            contentType = 'intro';
+          } else if (index === parsed.scenes.length - 2) {
+            contentType = 'cta'; // Second to last is often CTA
+          }
+          
+          scene.transitionToNext = selectTransitionForScene(
+            currentMood,
+            nextMood,
+            contentType,
+            'medium', // Default pacing
+            false
+          );
+          scene.transitionDuration = getTransitionDuration(scene.transitionToNext, 'medium');
+        } else {
+          // Transition was provided, calculate duration
+          scene.transitionDuration = getTransitionDuration(scene.transitionToNext as SceneTransition, 'medium');
+        }
+        
+        console.log(`[storyboard-enhancer] Scene ${scene.sceneNumber} → ${index < parsed.scenes.length - 1 ? `Scene ${scene.sceneNumber + 1}` : 'END'}: ${scene.transitionToNext} (${scene.transitionDuration?.toFixed(2) || 0}s)`);
+      });
+      
       console.log('[storyboard-enhancer] ═══════════════════════════════════════════════');
     }
 

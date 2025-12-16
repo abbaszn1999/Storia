@@ -19,6 +19,7 @@ interface StudioLayoutProps {
   onNext: () => void;
   onBack: () => void;
   isNextDisabled?: boolean;
+  isLoading?: boolean;  // Loading state for export button
   nextLabel?: string;
   children: ReactNode;
 }
@@ -47,6 +48,7 @@ export function StudioLayout({
   onNext,
   onBack,
   isNextDisabled,
+  isLoading = false,
   nextLabel,
   children
 }: StudioLayoutProps) {
@@ -155,6 +157,7 @@ export function StudioLayout({
         onNext={onNext}
         onBack={onBack}
         isNextDisabled={isNextDisabled}
+        isLoading={isLoading}
         nextLabel={nextLabel}
         accentColor={accentColor}
       />

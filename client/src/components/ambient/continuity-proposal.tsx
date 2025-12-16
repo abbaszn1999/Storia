@@ -75,12 +75,12 @@ export function ContinuityProposal({
     isApprovedGroup: boolean = false
   ) => {
     return (
-      <Card key={group.id} className={`border-l-4 ${isApprovedGroup ? 'border-l-green-500' : 'border-l-primary'}`}>
+      <Card key={group.id} className={`bg-white/[0.02] border-white/[0.06] border-l-4 ${isApprovedGroup ? 'border-l-green-500' : 'border-l-cyan-500'}`}>
         <CardContent className="p-4">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="font-mono">
+                <Badge variant="outline" className="font-mono bg-white/5 border-white/10">
                   Group {idx + 1}
                 </Badge>
                 <Badge variant="outline" className={getConnectionTypeColor(group.transitionType)}>
@@ -132,7 +132,7 @@ export function ContinuityProposal({
                   <div key={shotId} className="flex items-center">
                     <Badge
                       variant="outline"
-                      className="bg-card hover-elevate"
+                      className="bg-white/5 border-white/10 hover-elevate"
                       data-testid={`badge-shot-${shot.shotNumber}`}
                     >
                       <span className="font-mono text-xs">Shot {shot.shotNumber}</span>
@@ -140,7 +140,7 @@ export function ContinuityProposal({
                       <span className="text-xs">{shot.shotType}</span>
                     </Badge>
                     {shotIdx < (group.shotIds as string[]).length - 1 && (
-                      <LinkIcon className="h-3 w-3 mx-2 text-primary" />
+                      <LinkIcon className="h-3 w-3 mx-2 text-cyan-400" />
                     )}
                   </div>
                 );
@@ -161,10 +161,10 @@ export function ContinuityProposal({
   // Show the generate button when there are no proposals
   if (totalProposedGroups === 0 && totalApprovedGroups === 0 && !isGenerating) {
     return (
-      <div className="flex items-center justify-between p-4 bg-card/30 rounded-lg border border-dashed border-primary/30">
+      <div className="flex items-center justify-between p-4 bg-white/[0.02] rounded-lg border border-dashed border-cyan-500/30">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-gradient-storia">
-            <Sparkles className="h-5 w-5 text-white" />
+          <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500/20 to-teal-500/20">
+            <Sparkles className="h-5 w-5 text-cyan-400" />
           </div>
           <div>
             <p className="text-sm font-medium">Ready to analyze shot continuity</p>
@@ -173,7 +173,7 @@ export function ContinuityProposal({
             </p>
           </div>
         </div>
-        <Button onClick={onGenerateProposal} className="bg-gradient-storia" data-testid="button-generate-continuity">
+        <Button onClick={onGenerateProposal} variant="ghost" className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white" data-testid="button-generate-continuity">
           <Sparkles className="h-4 w-4 mr-2" />
           Analyze All Shots for Continuity
         </Button>
@@ -184,10 +184,10 @@ export function ContinuityProposal({
   // Show loading state while generating
   if (isGenerating) {
     return (
-      <div className="flex items-center justify-center p-6 bg-card/30 rounded-lg">
+      <div className="flex items-center justify-center p-6 bg-white/[0.02] rounded-lg border border-white/[0.06]">
         <div className="flex items-center gap-3">
           <div className="animate-spin">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <Sparkles className="h-5 w-5 text-cyan-400" />
           </div>
           <p className="text-sm text-muted-foreground">Analyzing shot continuity...</p>
         </div>
@@ -200,8 +200,8 @@ export function ContinuityProposal({
     <div className="space-y-4">
       {/* Review alert for proposed connections */}
       {!isLocked && totalProposedGroups > 0 && (
-        <Alert className="border-primary/50 bg-primary/5">
-          <AlertTriangle className="h-4 w-4 text-primary" />
+        <Alert className="border-cyan-500/50 bg-cyan-500/5">
+          <AlertTriangle className="h-4 w-4 text-cyan-400" />
           <AlertDescription>
             <strong>Review Required:</strong> AI has proposed continuity connections. 
             Review the arrows in the shot list below and approve or decline each connection.
@@ -211,7 +211,7 @@ export function ContinuityProposal({
 
       {/* Status bar showing approved and pending connections */}
       {(totalProposedGroups > 0 || totalApprovedGroups > 0) && (
-        <div className="flex items-center justify-between p-4 bg-card/30 rounded-lg border">
+        <div className="flex items-center justify-between p-4 bg-white/[0.02] rounded-lg border border-white/[0.06]">
           <div className="flex items-center gap-6">
             {totalApprovedGroups > 0 && (
               <div className="flex items-center gap-2">
@@ -223,9 +223,9 @@ export function ContinuityProposal({
             )}
             {!isLocked && totalProposedGroups > 0 && (
               <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-primary" />
+                <div className="h-2 w-2 rounded-full bg-cyan-500" />
                 <span className="text-sm">
-                  <span className="font-medium text-primary">{totalProposedGroups}</span> pending review
+                  <span className="font-medium text-cyan-400">{totalProposedGroups}</span> pending review
                 </span>
               </div>
             )}
@@ -236,7 +236,8 @@ export function ContinuityProposal({
             <Button 
               onClick={onLock} 
               disabled={!canLock}
-              className="bg-gradient-storia" 
+              variant="ghost"
+              className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white" 
               data-testid="button-lock-continuity"
             >
               <Lock className="h-4 w-4 mr-2" />

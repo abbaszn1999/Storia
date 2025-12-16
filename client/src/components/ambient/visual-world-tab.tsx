@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Upload, X, Sparkles, Film, Palette, Play, Wand2 } from "lucide-react";
+import { ArrowRight, Upload, X, Sparkles, Film, Palette, Play, Wand2, Eye } from "lucide-react";
 
 const ART_STYLES = [
   { id: "cinematic", label: "Cinematic", description: "Film-quality realism" },
@@ -132,12 +132,12 @@ export function VisualWorldTab({
         {/* Left Column */}
         <div className="space-y-6">
           {/* Art Style & Reference Images (Combined) */}
-          <Card>
+          <Card className="bg-white/[0.02] border-white/[0.06]">
             <CardContent className="p-6 space-y-6">
               {/* Art Style Section */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
-                  <Palette className="h-5 w-5 text-primary" />
+                  <Palette className="h-5 w-5 text-cyan-400" />
                   <Label className="text-lg font-semibold">Art Style</Label>
                 </div>
                 <p className="text-sm text-muted-foreground">
@@ -150,8 +150,8 @@ export function VisualWorldTab({
                       onClick={() => onArtStyleChange(style.id)}
                       className={`p-3 rounded-lg border text-left transition-all hover-elevate ${
                         artStyle === style.id
-                          ? "border-primary bg-primary/10"
-                          : "border-border bg-muted/30"
+                          ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
+                          : "border-white/10 bg-white/5 hover:bg-white/[0.07]"
                       }`}
                       data-testid={`button-style-${style.id}`}
                     >
@@ -165,18 +165,18 @@ export function VisualWorldTab({
               {/* Divider */}
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border/50"></div>
+                  <div className="w-full border-t border-white/10"></div>
                 </div>
                 <div className="relative flex justify-center">
-                  <span className="bg-card px-3 text-xs text-muted-foreground uppercase tracking-wider">or use reference images</span>
+                  <span className="bg-transparent px-3 text-xs text-white/50 uppercase tracking-wider">or use reference images</span>
                 </div>
               </div>
 
               {/* Reference Images Section */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-muted-foreground">Style Reference Images</Label>
-                  <Badge variant="secondary" className="text-xs">{referenceImages.length}/4</Badge>
+                  <Label className="text-sm font-medium text-white/60">Style Reference Images</Label>
+                  <Badge variant="outline" className="text-xs bg-white/5 border-white/10 text-white/70">{referenceImages.length}/4</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Upload images to guide the visual style (the AI will match the aesthetic)
@@ -197,11 +197,11 @@ export function VisualWorldTab({
                   {referenceImages.length < 4 && (
                     <button
                       onClick={handleImageUpload}
-                      className="aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 hover-elevate"
+                      className="aspect-square rounded-lg border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-1 hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-colors"
                       data-testid="button-upload-reference"
                     >
-                      <Upload className="h-5 w-5 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">Upload</span>
+                      <Upload className="h-5 w-5 text-white/50" />
+                      <span className="text-xs text-white/50">Upload</span>
                     </button>
                   )}
                 </div>
@@ -213,11 +213,14 @@ export function VisualWorldTab({
         {/* Right Column */}
         <div className="space-y-6">
           {/* Key Visual Elements */}
-          <Card>
+          <Card className="bg-white/[0.02] border-white/[0.06]">
             <CardContent className="p-6 space-y-4">
               <div className="flex items-center justify-between">
-                <Label className="text-lg font-semibold">Key Visual Elements</Label>
-                <Badge variant="secondary">{visualElements.length}/5</Badge>
+                <div className="flex items-center gap-2">
+                  <Eye className="h-5 w-5 text-cyan-400" />
+                  <Label className="text-lg font-semibold">Key Visual Elements</Label>
+                </div>
+                <Badge variant="outline" className="bg-white/5 border-white/10 text-white/70">{visualElements.length}/5</Badge>
               </div>
               <p className="text-sm text-muted-foreground">
                 Select up to 5 elements to feature
@@ -226,8 +229,12 @@ export function VisualWorldTab({
                 {VISUAL_ELEMENTS.map((element) => (
                   <Badge
                     key={element}
-                    variant={visualElements.includes(element) ? "default" : "outline"}
-                    className="cursor-pointer hover-elevate"
+                    variant="outline"
+                    className={`cursor-pointer hover-elevate ${
+                      visualElements.includes(element) 
+                        ? "bg-gradient-to-r from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-cyan-300" 
+                        : "border-white/10 bg-white/5 text-white/70 hover:bg-white/[0.07]"
+                    }`}
                     onClick={() => toggleVisualElement(element)}
                     data-testid={`badge-element-${element.toLowerCase().replace(' ', '-')}`}
                   >
@@ -239,10 +246,10 @@ export function VisualWorldTab({
           </Card>
 
           {/* Visual Rhythm */}
-          <Card>
+          <Card className="bg-white/[0.02] border-white/[0.06]">
             <CardContent className="p-6 space-y-4">
               <div className="flex items-center gap-2">
-                <Play className="h-5 w-5 text-primary" />
+                <Play className="h-5 w-5 text-cyan-400" />
                 <Label className="text-lg font-semibold">Visual Rhythm</Label>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -255,8 +262,8 @@ export function VisualWorldTab({
                     onClick={() => onVisualRhythmChange(rhythm.id)}
                     className={`p-3 rounded-lg border text-left transition-all hover-elevate ${
                       visualRhythm === rhythm.id
-                        ? "border-primary bg-primary/10"
-                        : "border-border bg-muted/30"
+                        ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
+                        : "border-white/10 bg-white/5 hover:bg-white/[0.07]"
                     }`}
                     data-testid={`button-rhythm-${rhythm.id}`}
                   >
@@ -269,10 +276,10 @@ export function VisualWorldTab({
           </Card>
 
           {/* Custom Image Generation Instructions */}
-          <Card>
+          <Card className="bg-white/[0.02] border-white/[0.06]">
             <CardContent className="p-6 space-y-4">
               <div className="flex items-center gap-2">
-                <Wand2 className="h-5 w-5 text-primary" />
+                <Wand2 className="h-5 w-5 text-cyan-400" />
                 <Label className="text-lg font-semibold">Custom Image Instructions</Label>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -282,7 +289,7 @@ export function VisualWorldTab({
                 value={imageCustomInstructions}
                 onChange={(e) => onImageCustomInstructionsChange?.(e.target.value)}
                 placeholder="e.g., Use soft focus on backgrounds, include lens flares, maintain consistent color grading across all shots, avoid harsh shadows..."
-                className="min-h-[120px] resize-none"
+                className="min-h-[120px] resize-none bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-cyan-500/50"
                 data-testid="textarea-image-instructions"
               />
               <p className="text-xs text-muted-foreground">
@@ -299,6 +306,8 @@ export function VisualWorldTab({
           onClick={onNext}
           disabled={!artStyle || !colorPalette}
           size="lg"
+          variant="ghost"
+          className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
           data-testid="button-continue-visual-world"
         >
           Continue to Flow Design

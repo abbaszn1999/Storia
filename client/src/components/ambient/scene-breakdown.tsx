@@ -1199,8 +1199,8 @@ export function SceneBreakdown({
           <Card className="border-dashed border-2 border-white/10 bg-white/[0.02]">
             <CardContent className="py-16 px-8">
               <div className="text-center space-y-6">
-                <div className="inline-flex p-4 rounded-full bg-gradient-to-br from-primary/20 to-primary/5">
-                  <Sparkles className="h-8 w-8 text-primary" />
+                <div className="inline-flex p-4 rounded-full bg-gradient-to-br from-cyan-500/20 to-teal-500/20">
+                  <Sparkles className="h-8 w-8 text-cyan-400" />
                 </div>
                 <div className="space-y-2">
                   <h3 className="text-xl font-semibold">Design Your Flow</h3>
@@ -1211,7 +1211,8 @@ export function SceneBreakdown({
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                   <Button
                     size="lg"
-                    className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+                    variant="ghost"
+                    className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
                     onClick={() => breakdownMutation.mutate()}
                     disabled={breakdownMutation.isPending}
                     data-testid="button-generate-breakdown"
@@ -1249,14 +1250,14 @@ export function SceneBreakdown({
           <Card className="bg-white/[0.02] border-white/[0.06]">
             <CardContent className="p-6">
               <div className="flex items-center gap-2 mb-3">
-                <FileText className="h-5 w-5 text-primary" />
+                <FileText className="h-5 w-5 text-cyan-400" />
                 <Label className="text-lg font-semibold">Synopsis</Label>
               </div>
               <Textarea
                 value={synopsis}
                 onChange={(e) => setSynopsis(e.target.value)}
                 placeholder="Describe the overall story or mood of your ambient visual..."
-                className="text-sm resize-none bg-white/5 border-white/10"
+                className="text-sm resize-none bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-cyan-500/50"
                 rows={3}
                 data-testid="input-synopsis"
               />
@@ -1307,12 +1308,12 @@ export function SceneBreakdown({
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2">
-                          <Layers className="h-5 w-5 text-primary" />
+                          <Layers className="h-5 w-5 text-cyan-400" />
                           <h3 className="text-lg font-semibold">
                             Segment {sceneIndex + 1}: {scene.title}
                           </h3>
                         </div>
-                        <Badge className="bg-primary/20 text-primary border-primary/30 text-xs px-2" data-testid={`scene-duration-${scene.id}`}>
+                        <Badge variant="outline" className="bg-gradient-to-r from-cyan-500/20 to-teal-500/20 text-cyan-300 border-cyan-500/50 text-xs px-2" data-testid={`scene-duration-${scene.id}`}>
                           <Clock className="h-3 w-3 mr-1" />
                           {scene.duration || 0}s
                         </Badge>
@@ -1394,13 +1395,13 @@ export function SceneBreakdown({
                           className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition-colors"
                           data-testid={`shot-${shot.id}`}
                         >
-                          <div className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-primary to-primary/60 mt-1.5 shrink-0 shadow-sm shadow-primary/30" />
+                          <div className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-cyan-500 to-teal-500 mt-1.5 shrink-0 shadow-sm shadow-cyan-500/30" />
                           <div className="flex-1 min-w-0">
                             <span className="text-sm font-medium text-foreground mr-2">Shot {shotIndex + 1}</span>
                             <span className="text-sm text-muted-foreground">{shot.description}</span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            <Badge className="bg-white/5 border-white/10 text-xs text-muted-foreground">
+                            <Badge variant="outline" className="bg-white/5 border-white/10 text-xs text-white/70">
                               {shot.duration}s
                             </Badge>
                             <Button
@@ -1429,7 +1430,7 @@ export function SceneBreakdown({
                         variant="ghost"
                         size="sm"
                         onClick={() => openAddShotDialog(scene.id)}
-                        className="w-full mt-3 border border-dashed border-white/10 hover:bg-white/5 hover:border-primary/30 text-muted-foreground hover:text-foreground"
+                        className="w-full mt-3 border border-dashed border-white/10 hover:bg-cyan-500/5 hover:border-cyan-500/50 text-muted-foreground hover:text-foreground"
                         data-testid={`button-add-shot-${scene.id}`}
                       >
                         <Plus className="h-4 w-4 mr-2" />
@@ -1445,7 +1446,7 @@ export function SceneBreakdown({
             <Button
               variant="outline"
               onClick={openAddSceneDialog}
-              className="w-full border-dashed border-white/10 hover:bg-white/5 hover:border-primary/30"
+              className="w-full border-dashed border-white/10 hover:bg-cyan-500/5 hover:border-cyan-500/50"
               data-testid="button-add-scene"
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -1459,7 +1460,7 @@ export function SceneBreakdown({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2 text-sm">
-                    <Clock className="h-4 w-4 text-primary" />
+                    <Clock className="h-4 w-4 text-cyan-400" />
                     <span className="text-muted-foreground">Total Duration:</span>
                     <span className="font-semibold text-foreground">
                       {Math.floor(totalDuration / 60)}:{String(totalDuration % 60).padStart(2, '0')}
@@ -1467,14 +1468,15 @@ export function SceneBreakdown({
                   </div>
                   <div className="h-4 w-px bg-white/10" />
                   <div className="flex items-center gap-2 text-sm">
-                    <Layers className="h-4 w-4 text-primary" />
+                    <Layers className="h-4 w-4 text-cyan-400" />
                     <span className="text-muted-foreground">Shots:</span>
                     <span className="font-semibold text-foreground">{totalShots}</span>
                   </div>
                 </div>
                 <Button 
                   onClick={onNext} 
-                  className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+                  variant="ghost"
+                  className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
                   data-testid="button-next"
                 >
                   Continue

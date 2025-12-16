@@ -117,7 +117,7 @@ export function PreviewTab({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Preview Area */}
         <div className="lg:col-span-2 space-y-4">
-          <Card className="overflow-hidden">
+          <Card className="bg-white/[0.02] border-white/[0.06] overflow-hidden">
             {/* Video Preview */}
             <div className="aspect-video bg-black relative">
               {currentKeyframe ? (
@@ -140,7 +140,7 @@ export function PreviewTab({
               )}
 
               {/* Segment Indicator */}
-              <Badge className="absolute top-4 left-4" variant="secondary">
+              <Badge variant="outline" className="absolute top-4 left-4 bg-black/50 border-white/20 text-white">
                 Segment {currentSegment + 1} / {segments.length}
               </Badge>
 
@@ -156,7 +156,7 @@ export function PreviewTab({
 
               {/* Loop Indicator */}
               {isLoopPreview && (
-                <Badge className="absolute bottom-4 right-4 gap-1" variant="secondary">
+                <Badge variant="outline" className="absolute bottom-4 right-4 gap-1 bg-black/50 border-white/20 text-white">
                   <Repeat className="h-3 w-3" />
                   Loop Preview
                 </Badge>
@@ -195,7 +195,9 @@ export function PreviewTab({
                   
                   <Button
                     size="icon"
+                    variant="ghost"
                     onClick={handlePlay}
+                    className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
                     data-testid="button-play"
                   >
                     {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
@@ -215,7 +217,7 @@ export function PreviewTab({
                 <div className="flex items-center gap-4">
                   {/* Loop Toggle */}
                   <div className="flex items-center gap-2">
-                    <Repeat className={`h-4 w-4 ${isLoopPreview ? "text-primary" : "text-muted-foreground"}`} />
+                    <Repeat className={`h-4 w-4 ${isLoopPreview ? "text-cyan-400" : "text-muted-foreground"}`} />
                     <Switch
                       checked={isLoopPreview}
                       onCheckedChange={setIsLoopPreview}
@@ -247,7 +249,7 @@ export function PreviewTab({
           </Card>
 
           {/* Segment Timeline */}
-          <Card>
+          <Card className="bg-white/[0.02] border-white/[0.06]">
             <CardContent className="p-4">
               <Label className="text-sm font-semibold mb-3 block">Segment Timeline</Label>
               <div className="flex gap-2 overflow-x-auto pb-2">
@@ -257,12 +259,12 @@ export function PreviewTab({
                     onClick={() => setCurrentSegment(index)}
                     className={`flex-shrink-0 w-24 rounded-lg overflow-hidden border-2 transition-all ${
                       currentSegment === index
-                        ? "border-primary ring-2 ring-primary/20"
-                        : "border-transparent hover:border-muted"
+                        ? "border-cyan-500 ring-2 ring-cyan-500/20"
+                        : "border-white/10 hover:border-white/20"
                     }`}
                     data-testid={`button-timeline-segment-${index + 1}`}
                   >
-                    <div className="aspect-video bg-muted">
+                    <div className="aspect-video bg-white/5">
                       {segment.keyframeUrl ? (
                         <img 
                           src={segment.keyframeUrl} 
@@ -275,7 +277,7 @@ export function PreviewTab({
                         </div>
                       )}
                     </div>
-                    <div className="text-xs text-center py-1 bg-muted/50">
+                    <div className="text-xs text-center py-1 bg-white/5">
                       {segment.duration}s
                     </div>
                   </button>
@@ -288,10 +290,10 @@ export function PreviewTab({
         {/* Right Sidebar */}
         <div className="space-y-6">
           {/* Sound Layer */}
-          <Card>
+          <Card className="bg-white/[0.02] border-white/[0.06]">
             <CardContent className="p-4 space-y-4">
               <div className="flex items-center gap-2">
-                <Music className="h-5 w-5 text-primary" />
+                <Music className="h-5 w-5 text-cyan-400" />
                 <Label className="text-lg font-semibold">Ambient Sound</Label>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -304,8 +306,8 @@ export function PreviewTab({
                     onClick={() => setAmbientSound(sound.id)}
                     className={`px-3 py-2 rounded-lg border text-sm transition-all hover-elevate ${
                       ambientSound === sound.id
-                        ? "border-primary bg-primary/10"
-                        : "border-border bg-muted/30"
+                        ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
+                        : "border-white/10 bg-white/5 hover:bg-white/[0.07]"
                     }`}
                     data-testid={`button-sound-${sound.id}`}
                   >
@@ -317,7 +319,7 @@ export function PreviewTab({
           </Card>
 
           {/* Video Info */}
-          <Card>
+          <Card className="bg-white/[0.02] border-white/[0.06]">
             <CardContent className="p-4 space-y-3">
               <Label className="text-lg font-semibold">Video Summary</Label>
               <div className="space-y-2 text-sm">
@@ -342,26 +344,26 @@ export function PreviewTab({
           </Card>
 
           {/* Generate Button */}
-          <Card className={isGenerated ? "border-green-500/50 bg-green-500/5" : ""}>
+          <Card className={isGenerated ? "border-green-500/50 bg-green-500/5" : "bg-white/[0.02] border-white/[0.06]"}>
             <CardContent className="p-4 space-y-4">
               {isGenerated ? (
                 <div className="text-center space-y-3">
                   <CheckCircle2 className="h-12 w-12 mx-auto text-green-500" />
                   <div>
-                    <h4 className="font-semibold text-green-600">Video Generated!</h4>
+                    <h4 className="font-semibold text-green-500">Video Generated!</h4>
                     <p className="text-sm text-muted-foreground">Ready for export</p>
                   </div>
                 </div>
               ) : isGenerating ? (
                 <div className="text-center space-y-3">
-                  <Loader2 className="h-12 w-12 mx-auto animate-spin text-primary" />
+                  <Loader2 className="h-12 w-12 mx-auto animate-spin text-cyan-400" />
                   <div>
                     <h4 className="font-semibold">Generating Video...</h4>
                     <p className="text-sm text-muted-foreground">{progress}% complete</p>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-2">
+                  <div className="w-full bg-white/10 rounded-full h-2">
                     <div 
-                      className="bg-primary h-2 rounded-full transition-all"
+                      className="bg-gradient-to-r from-cyan-500 to-teal-500 h-2 rounded-full transition-all"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
@@ -369,7 +371,9 @@ export function PreviewTab({
               ) : (
                 <>
                   <div className="text-center">
-                    <Wand2 className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                    <div className="inline-flex p-3 rounded-full bg-gradient-to-br from-cyan-500/20 to-teal-500/20 mb-3">
+                      <Wand2 className="h-8 w-8 text-cyan-400" />
+                    </div>
                     <h4 className="font-semibold">Generate Full Video</h4>
                     <p className="text-sm text-muted-foreground">
                       Create the final ambient visual
@@ -377,7 +381,8 @@ export function PreviewTab({
                   </div>
                   <Button
                     onClick={handleGenerateVideo}
-                    className="w-full"
+                    variant="ghost"
+                    className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
                     size="lg"
                     data-testid="button-generate-video"
                   >
@@ -396,7 +401,9 @@ export function PreviewTab({
         <Button
           onClick={onNext}
           size="lg"
+          variant="ghost"
           disabled={!isGenerated}
+          className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white disabled:opacity-50"
           data-testid="button-continue-preview"
         >
           Continue to Export

@@ -146,21 +146,21 @@ export function ExportTab({
           <CardContent className="p-8 text-center space-y-6">
             <CheckCircle2 className="h-16 w-16 mx-auto text-green-500" />
             <div>
-              <h3 className="text-xl font-bold text-green-600">Export Complete!</h3>
+              <h3 className="text-xl font-bold text-green-500">Export Complete!</h3>
               <p className="text-muted-foreground mt-1">Your ambient visual is ready</p>
             </div>
             
-            <div className="bg-muted/50 rounded-lg p-4 flex items-center gap-3">
+            <div className="bg-white/5 rounded-lg p-4 flex items-center gap-3">
               <Input 
                 value={exportedUrl} 
                 readOnly 
-                className="flex-1 bg-background"
+                className="flex-1 bg-white/5 border-white/10 text-white"
                 data-testid="input-exported-url"
               />
-              <Button variant="outline" onClick={handleCopyLink} data-testid="button-copy-link">
+              <Button variant="outline" onClick={handleCopyLink} className="border-white/10 hover:bg-white/5" data-testid="button-copy-link">
                 <Copy className="h-4 w-4" />
               </Button>
-              <Button variant="outline" asChild data-testid="button-open-link">
+              <Button variant="outline" asChild className="border-white/10 hover:bg-white/5" data-testid="button-open-link">
                 <a href={exportedUrl} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="h-4 w-4" />
                 </a>
@@ -168,23 +168,23 @@ export function ExportTab({
             </div>
 
             <div className="flex justify-center gap-4">
-              <Button size="lg" data-testid="button-download-final">
+              <Button size="lg" variant="ghost" className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white" data-testid="button-download-final">
                 <Download className="mr-2 h-4 w-4" />
                 Download Video
               </Button>
-              <Button size="lg" variant="outline" data-testid="button-share-final">
+              <Button size="lg" variant="outline" className="border-white/10 hover:bg-white/5" data-testid="button-share-final">
                 <Share2 className="mr-2 h-4 w-4" />
                 Share
               </Button>
             </div>
 
-            <div className="pt-4 border-t">
+            <div className="pt-4 border-t border-white/10">
               <p className="text-sm text-muted-foreground mb-3">Quick share to:</p>
               <div className="flex justify-center gap-3">
                 {PLATFORM_PRESETS.map((platform) => {
                   const Icon = platform.icon;
                   return (
-                    <Button key={platform.id} variant="outline" size="icon" data-testid={`button-share-${platform.id}`}>
+                    <Button key={platform.id} variant="outline" size="icon" className="border-white/10 hover:bg-white/5 hover:border-cyan-500/50" data-testid={`button-share-${platform.id}`}>
                       <Icon className="h-4 w-4" />
                     </Button>
                   );
@@ -198,7 +198,7 @@ export function ExportTab({
           {/* Left Column - Video Settings */}
           <div className="lg:col-span-2 space-y-6">
             {/* Platform Presets */}
-            <Card>
+            <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
                 <Label className="text-lg font-semibold">Platform Presets</Label>
                 <p className="text-sm text-muted-foreground">
@@ -211,7 +211,7 @@ export function ExportTab({
                       <button
                         key={preset.id}
                         onClick={() => handleApplyPreset(preset.id)}
-                        className="p-4 rounded-lg border text-center transition-all hover-elevate border-border bg-muted/30"
+                        className="p-4 rounded-lg border text-center transition-all hover-elevate border-white/10 bg-white/5 hover:bg-white/[0.07] hover:border-cyan-500/50"
                         data-testid={`button-preset-${preset.id}`}
                       >
                         <Icon className="h-6 w-6 mx-auto mb-2" />
@@ -225,7 +225,7 @@ export function ExportTab({
             </Card>
 
             {/* Aspect Ratio */}
-            <Card>
+            <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
                 <Label className="text-lg font-semibold">Aspect Ratio</Label>
                 <div className="grid grid-cols-4 gap-3">
@@ -237,8 +237,8 @@ export function ExportTab({
                         onClick={() => setAspectRatio(ratio.id)}
                         className={`p-4 rounded-lg border text-center transition-all hover-elevate ${
                           aspectRatio === ratio.id
-                            ? "border-primary bg-primary/10"
-                            : "border-border bg-muted/30"
+                            ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
+                            : "border-white/10 bg-white/5 hover:bg-white/[0.07]"
                         }`}
                         data-testid={`button-aspect-${ratio.id.replace(":", "-")}`}
                       >
@@ -253,7 +253,7 @@ export function ExportTab({
             </Card>
 
             {/* Resolution */}
-            <Card>
+            <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
                 <Label className="text-lg font-semibold">Resolution</Label>
                 <div className="grid grid-cols-3 gap-3">
@@ -263,8 +263,8 @@ export function ExportTab({
                       onClick={() => setResolution(res.id)}
                       className={`p-4 rounded-lg border text-center transition-all hover-elevate ${
                         resolution === res.id
-                          ? "border-primary bg-primary/10"
-                          : "border-border bg-muted/30"
+                          ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
+                          : "border-white/10 bg-white/5 hover:bg-white/[0.07]"
                       }`}
                       data-testid={`button-resolution-${res.id}`}
                     >
@@ -277,7 +277,7 @@ export function ExportTab({
             </Card>
 
             {/* Sound & Loop Options */}
-            <Card>
+            <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-6">
                 <div className="space-y-4">
                   <Label className="text-lg font-semibold">Sound Mix</Label>
@@ -290,8 +290,8 @@ export function ExportTab({
                           onClick={() => setSoundMix(opt.id)}
                           className={`p-3 rounded-lg border text-center transition-all hover-elevate ${
                             soundMix === opt.id
-                              ? "border-primary bg-primary/10"
-                              : "border-border bg-muted/30"
+                              ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
+                              : "border-white/10 bg-white/5 hover:bg-white/[0.07]"
                           }`}
                           data-testid={`button-sound-${opt.id}`}
                         >
@@ -303,9 +303,9 @@ export function ExportTab({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-4 border-t">
+                <div className="flex items-center justify-between pt-4 border-t border-white/10">
                   <div className="flex items-center gap-3">
-                    <Repeat className="h-5 w-5 text-primary" />
+                    <Repeat className="h-5 w-5 text-cyan-400" />
                     <div>
                       <Label className="font-medium">Export as Seamless Loop</Label>
                       <p className="text-xs text-muted-foreground">Optimize for endless replay</p>
@@ -324,7 +324,7 @@ export function ExportTab({
           {/* Right Column - Metadata & Export */}
           <div className="space-y-6">
             {/* Video Metadata */}
-            <Card>
+            <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
                 <Label className="text-lg font-semibold">Video Details</Label>
                 
@@ -334,6 +334,7 @@ export function ExportTab({
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="Enter video title"
+                    className="bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-cyan-500/50"
                     data-testid="input-title"
                   />
                 </div>
@@ -345,6 +346,7 @@ export function ExportTab({
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Add a description for your ambient visual..."
                     rows={4}
+                    className="bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-cyan-500/50"
                     data-testid="input-description"
                   />
                 </div>
@@ -352,7 +354,7 @@ export function ExportTab({
             </Card>
 
             {/* Export Summary */}
-            <Card>
+            <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
                 <Label className="text-lg font-semibold">Export Summary</Label>
                 <div className="space-y-2 text-sm">
@@ -381,18 +383,18 @@ export function ExportTab({
             </Card>
 
             {/* Export Button */}
-            <Card>
+            <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6">
                 {isExporting ? (
                   <div className="text-center space-y-4">
-                    <Loader2 className="h-10 w-10 mx-auto animate-spin text-primary" />
+                    <Loader2 className="h-10 w-10 mx-auto animate-spin text-cyan-400" />
                     <div>
                       <h4 className="font-semibold">Exporting Video...</h4>
                       <p className="text-sm text-muted-foreground">{exportProgress}% complete</p>
                     </div>
-                    <div className="w-full bg-muted rounded-full h-2">
+                    <div className="w-full bg-white/10 rounded-full h-2">
                       <div 
-                        className="bg-primary h-2 rounded-full transition-all"
+                        className="bg-gradient-to-r from-cyan-500 to-teal-500 h-2 rounded-full transition-all"
                         style={{ width: `${exportProgress}%` }}
                       />
                     </div>
@@ -400,7 +402,8 @@ export function ExportTab({
                 ) : (
                   <Button
                     onClick={handleExport}
-                    className="w-full"
+                    variant="ghost"
+                    className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
                     size="lg"
                     data-testid="button-export"
                   >

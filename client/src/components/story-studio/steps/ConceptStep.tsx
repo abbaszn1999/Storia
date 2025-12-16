@@ -42,8 +42,8 @@ interface ConceptStepProps {
   textOverlay: 'minimal' | 'key-points' | 'full';
   textOverlayStyle: 'modern' | 'cinematic' | 'bold';
   pacing: 'slow' | 'medium' | 'fast';
-  hookStyle: 'question' | 'statement' | 'statistic';
   imageModel: string;
+  imageStyle: 'photorealistic' | 'cinematic' | '3d-render' | 'digital-art' | 'anime' | 'illustration' | 'watercolor' | 'minimalist';
   imageResolution: string;
   animationMode: 'off' | 'transition' | 'video';
   videoModel: string;
@@ -59,11 +59,11 @@ interface ConceptStepProps {
   onVoiceoverChange: (enabled: boolean) => void;
   onLanguageChange: (lang: 'ar' | 'en') => void;
   onPacingChange: (pacing: 'slow' | 'medium' | 'fast') => void;
-  onHookStyleChange: (style: 'question' | 'statement' | 'statistic') => void;
   onTextOverlayEnabledChange: (enabled: boolean) => void;
   onTextOverlayChange: (overlay: 'minimal' | 'key-points' | 'full') => void;
   onTextOverlayStyleChange: (style: 'modern' | 'cinematic' | 'bold') => void;
   onImageModelChange: (model: string) => void;
+  onImageStyleChange: (style: 'photorealistic' | 'cinematic' | '3d-render' | 'digital-art' | 'anime' | 'illustration' | 'watercolor' | 'minimalist') => void;
   onImageResolutionChange: (res: string) => void;
   onAnimationModeChange: (mode: 'off' | 'transition' | 'video') => void;
   onVideoModelChange: (model: string) => void;
@@ -100,6 +100,17 @@ const IMAGE_MODELS = [
   { value: 'runware:photon', label: 'Photon' },
 ];
 
+const IMAGE_STYLES = [
+  { value: 'photorealistic', label: 'Photo', desc: 'Realistic', icon: '📷', gradient: 'from-gray-500 to-gray-700' },
+  { value: 'cinematic', label: 'Cinematic', desc: 'Film Look', icon: '🎬', gradient: 'from-amber-600 to-orange-700' },
+  { value: '3d-render', label: '3D', desc: 'Rendered', icon: '🎮', gradient: 'from-blue-500 to-cyan-600' },
+  { value: 'digital-art', label: 'Digital', desc: 'Artistic', icon: '🎨', gradient: 'from-purple-500 to-pink-600' },
+  { value: 'anime', label: 'Anime', desc: 'Japanese', icon: '🌸', gradient: 'from-pink-400 to-rose-500' },
+  { value: 'illustration', label: 'Illust.', desc: 'Drawn', icon: '✏️', gradient: 'from-emerald-500 to-teal-600' },
+  { value: 'watercolor', label: 'Watercolor', desc: 'Painted', icon: '🎭', gradient: 'from-sky-400 to-indigo-500' },
+  { value: 'minimalist', label: 'Minimal', desc: 'Clean', icon: '◻️', gradient: 'from-slate-400 to-slate-600' },
+];
+
 export function ConceptStep({
   template,
   topic,
@@ -112,8 +123,8 @@ export function ConceptStep({
   textOverlay,
   textOverlayStyle,
   pacing,
-  hookStyle,
   imageModel,
+  imageStyle,
   imageResolution,
   animationMode,
   videoModel,
@@ -127,11 +138,11 @@ export function ConceptStep({
   onVoiceoverChange,
   onLanguageChange,
   onPacingChange,
-  onHookStyleChange,
   onTextOverlayEnabledChange,
   onTextOverlayChange,
   onTextOverlayStyleChange,
   onImageModelChange,
+  onImageStyleChange,
   onImageResolutionChange,
   onAnimationModeChange,
   onVideoModelChange,
@@ -186,6 +197,49 @@ export function ConceptStep({
                 selectedModelInfo={selectedImageModel}
               />
             )}
+
+            {/* Image Style */}
+            <div className="space-y-3">
+              <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Visual Style</label>
+              <div className="grid grid-cols-4 gap-2">
+                {IMAGE_STYLES.map(style => (
+                  <button
+                    key={style.value}
+                    onClick={() => onImageStyleChange(style.value as any)}
+                    className={cn(
+                      "group relative flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all duration-200 overflow-hidden",
+                      imageStyle === style.value 
+                        ? "border-white/30 bg-white/10"
+                        : "bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06] hover:border-white/10"
+                    )}
+                  >
+                    {/* Gradient background on selection */}
+                    {imageStyle === style.value && (
+                      <div className={cn(
+                        "absolute inset-0 bg-gradient-to-br opacity-20",
+                        style.gradient
+                      )} />
+                    )}
+                    
+                    {/* Icon */}
+                    <span className={cn(
+                      "text-xl transition-transform duration-200",
+                      imageStyle === style.value ? "scale-110" : "group-hover:scale-105"
+                    )}>
+                      {style.icon}
+                    </span>
+                    
+                    {/* Label */}
+                    <span className={cn(
+                      "text-[10px] font-medium transition-colors",
+                      imageStyle === style.value ? "text-white" : "text-white/60"
+                    )}>
+                      {style.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Aspect Ratio */}
             <div className="space-y-2">
@@ -357,14 +411,36 @@ export function ConceptStep({
                 {/* Language */}
                 <div className="space-y-2">
                   <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Language</label>
-                  <select 
-                    value={language}
-                    onChange={(e) => onLanguageChange(e.target.value as 'ar' | 'en')}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-white/30 transition-colors cursor-pointer"
-                  >
-                    <option value="en">English (US)</option>
-                    <option value="ar">Arabic (العربية)</option>
-                  </select>
+                  <div className="relative">
+                    <select 
+                      value={language}
+                      onChange={(e) => onLanguageChange(e.target.value as 'ar' | 'en')}
+                      className={cn(
+                        "w-full appearance-none",
+                        "bg-white/[0.03] hover:bg-white/[0.06]",
+                        "border border-white/10 hover:border-white/20",
+                        "rounded-xl px-4 py-3",
+                        "text-sm text-white font-medium",
+                        "focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/10",
+                        "transition-all duration-200 cursor-pointer",
+                        "pr-10" // Space for arrow
+                      )}
+                    >
+                      <option value="en" className="bg-zinc-900 text-white">🇺🇸  English (US)</option>
+                      <option value="ar" className="bg-zinc-900 text-white">🇸🇦  العربية (Arabic)</option>
+                    </select>
+                    {/* Custom Arrow */}
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <svg 
+                        className="w-4 h-4 text-white/40" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Text Overlay Toggle */}

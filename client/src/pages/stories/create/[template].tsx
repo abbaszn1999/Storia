@@ -154,8 +154,8 @@ export default function StoryCreate() {
           textOverlay={studio.state.textOverlay}
           textOverlayStyle={studio.state.textOverlayStyle}
           pacing={studio.state.pacing}
-          hookStyle={studio.state.hookStyle}
           imageModel={studio.state.imageModel}
+          imageStyle={studio.state.imageStyle}
           imageResolution={studio.state.imageResolution}
           animationMode={studio.state.animationMode}
           videoModel={studio.state.videoModel}
@@ -169,11 +169,11 @@ export default function StoryCreate() {
           onVoiceoverChange={studio.setVoiceoverEnabled}
           onLanguageChange={studio.setLanguage}
           onPacingChange={studio.setPacing}
-          onHookStyleChange={studio.setHookStyle}
           onTextOverlayEnabledChange={studio.setTextOverlayEnabled}
           onTextOverlayChange={studio.setTextOverlay}
           onTextOverlayStyleChange={studio.setTextOverlayStyle}
           onImageModelChange={studio.setImageModel}
+          onImageStyleChange={studio.setImageStyle}
           onImageResolutionChange={studio.setImageResolution}
           onAnimationModeChange={studio.setAnimationMode}
           onVideoModelChange={studio.setVideoModel}
@@ -232,12 +232,14 @@ export default function StoryCreate() {
           template={template}
           scenes={studio.state.scenes}
           selectedVoice={studio.state.selectedVoice}
+          musicStyle={studio.state.musicStyle}
           backgroundMusic={studio.state.backgroundMusic}
           voiceVolume={studio.state.voiceVolume}
           musicVolume={studio.state.musicVolume}
           isGenerating={studio.state.isGenerating}
           voiceoverEnabled={studio.state.voiceoverEnabled}
           onVoiceChange={studio.setSelectedVoice}
+          onMusicStyleChange={studio.setMusicStyle}
           onMusicChange={studio.setBackgroundMusic}
           onVoiceVolumeChange={studio.setVoiceVolume}
           onMusicVolumeChange={studio.setMusicVolume}
@@ -255,6 +257,7 @@ export default function StoryCreate() {
           duration={studio.state.duration}
           selectedVoice={studio.state.selectedVoice}
           backgroundMusic={studio.state.backgroundMusic}
+          musicStyle={studio.state.musicStyle}
           voiceVolume={studio.state.voiceVolume}
           musicVolume={studio.state.musicVolume}
           exportFormat={studio.state.exportFormat}
@@ -265,6 +268,7 @@ export default function StoryCreate() {
           onFormatChange={studio.setExportFormat}
           onQualityChange={studio.setExportQuality}
           onExport={studio.exportVideo}
+          onRemix={studio.remixVideo}
           onGenerateVoiceover={studio.generateVoiceover}
           accentColor={accentColor}
         />

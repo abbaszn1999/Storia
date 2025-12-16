@@ -3,10 +3,7 @@
 
 import { callAi } from "../../../ai/service";
 import { runwareModelIdMap } from "../../../ai/config";
-import {
-  NEGATIVE_PROMPT,
-  enhanceImagePrompt,
-} from "../prompts/image-prompts";
+import { enhanceImagePrompt } from "../prompts/image-prompts";
 import { getImageDimensions } from "../config";
 import type {
   ImageGeneratorInput,
@@ -31,7 +28,7 @@ export async function generateImages(
   userId: string,
   workspaceName: string
 ): Promise<ImageGeneratorOutput> {
-  const { scenes, aspectRatio, imageModel, imageResolution, projectName, storyId } = input;
+  const { scenes, aspectRatio, imageStyle, imageModel, imageResolution, projectName, storyId } = input;
 
   // Get dimensions for aspect ratio and resolution (pass modelId for model-specific dimensions)
   const dimensions = getImageDimensions(aspectRatio, imageResolution, imageModel);
@@ -51,6 +48,7 @@ export async function generateImages(
   console.log("[problem-solution:image-generator] Starting image generation:", {
     sceneCount: scenes.length,
     aspectRatio,
+    imageStyle,
     imageModel,
     imageResolution,
     dimensions,
@@ -63,10 +61,11 @@ export async function generateImages(
     try {
       console.log(`[problem-solution:image-generator] Generating Scene ${scene.sceneNumber}...`);
 
-      // Enhance prompt
+      // Enhance prompt with style-specific modifiers
       const enhancedPrompt = enhanceImagePrompt(
         scene.imagePrompt,
         aspectRatio,
+        imageStyle,
         isFirstScene
       );
 

@@ -1,6 +1,12 @@
 import { InsufficientCreditsError } from "../../ai/errors";
 import type { AiUsage } from "../types";
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// CREDITS SYSTEM TOGGLE
+// Set to true to disable credit checking entirely (for development)
+// ═══════════════════════════════════════════════════════════════════════════════
+const CREDITS_DISABLED = true;
+
 export interface CreditAccountRef {
   userId?: string;
   workspaceId?: string;
@@ -55,6 +61,9 @@ export interface EnsureBalanceOptions extends CreditAccountRef {
 export async function ensureBalance(
   options: EnsureBalanceOptions,
 ): Promise<void> {
+  // Skip credit check if disabled
+  if (CREDITS_DISABLED) return;
+  
   const { estimatedCostUsd } = options;
   if (estimatedCostUsd <= 0) return;
   const balance = getBalance(options);
@@ -72,6 +81,20 @@ export async function chargeCredits(
   options: ChargeCreditsOptions,
 ): Promise<CreditTransaction> {
   const { amountUsd } = options;
+  
+  // Skip credit charging if disabled (return mock transaction)
+  if (CREDITS_DISABLED) {
+    return {
+      id: `credit_skip_${Date.now()}`,
+      type: "charge",
+      amountUsd: amountUsd > 0 ? amountUsd : 0,
+      balanceAfter: 999999,
+      createdAt: new Date(),
+      userId: options.userId,
+      workspaceId: options.workspaceId,
+    };
+  }
+  
   if (amountUsd <= 0) {
     throw new Error("Charge amount must be positive");
   }

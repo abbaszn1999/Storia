@@ -10,7 +10,73 @@ import type {
   VoiceoverGeneratorOutput,
   VoiceoverGenerationResult,
   VoiceMood,
+  WordTimestamp,
 } from "../types";
+
+/**
+ * Alignment data from ElevenLabs (character-level)
+ */
+interface AlignmentData {
+  characters: string[];
+  character_start_times_seconds: number[];
+  character_end_times_seconds: number[];
+}
+
+/**
+ * Convert character-level timestamps to word-level timestamps
+ * Groups characters into words based on spaces
+ */
+function convertToWordTimestamps(alignment: AlignmentData): WordTimestamp[] {
+  if (!alignment || !alignment.characters || alignment.characters.length === 0) {
+    return [];
+  }
+
+  const words: WordTimestamp[] = [];
+  let currentWord = '';
+  let wordStart: number | null = null;
+  let wordEnd = 0;
+
+  for (let i = 0; i < alignment.characters.length; i++) {
+    const char = alignment.characters[i];
+    const startTime = alignment.character_start_times_seconds[i];
+    const endTime = alignment.character_end_times_seconds[i];
+
+    // Check if this is a space or newline (word boundary)
+    if (char === ' ' || char === '\n' || char === '\r') {
+      // Save the current word if we have one
+      if (currentWord.trim() && wordStart !== null) {
+        words.push({
+          word: currentWord.trim(),
+          startTime: wordStart,
+          endTime: wordEnd,
+        });
+      }
+      // Reset for next word
+      currentWord = '';
+      wordStart = null;
+    } else {
+      // Add character to current word
+      if (wordStart === null) {
+        wordStart = startTime;
+      }
+      currentWord += char;
+      wordEnd = endTime;
+    }
+  }
+
+  // Don't forget the last word
+  if (currentWord.trim() && wordStart !== null) {
+    words.push({
+      word: currentWord.trim(),
+      startTime: wordStart,
+      endTime: wordEnd,
+    });
+  }
+
+  console.log(`[voiceover] Converted ${alignment.characters.length} chars → ${words.length} words`);
+  
+  return words;
+}
 
 /**
  * Voice mood to ElevenLabs v3 audio tag mapping
@@ -111,16 +177,17 @@ async function generateSceneVoiceover(
       
       console.log(`[voiceover] Scene ${scene.sceneNumber} mood: ${voiceMood || 'neutral'}, stability: ${stability}`);
 
-      // Call ElevenLabs TTS with dynamic settings
+      // Call ElevenLabs TTS with timestamps for synchronized subtitles
       const response = await callAi(
         {
           provider: "elevenlabs",
           model: "eleven-v3",
-          task: "text-to-speech",  // Use TTS task for voiceover
+          task: "text-to-speech",
           payload: {
             text: enhancedText,
             voice_id: voiceId,
             model_id: "eleven_v3",  // Latest model with richest emotional expression (70+ languages)
+            with_timestamps: true,  // ← Request word-level timestamps!
             voice_settings: {
               stability: stability,           // Dynamic stability based on mood
               similarity_boost: 0.75,
@@ -136,21 +203,27 @@ async function generateSceneVoiceover(
         }
       );
 
-      // Get audio buffer (TTS returns Buffer directly, Sound Effects returns base64)
+      // Get audio buffer and alignment data
       let audioBuffer: Buffer;
+      let wordTimestamps: WordTimestamp[] = [];
       
-      if (Buffer.isBuffer(response.output)) {
-        // TTS returns Buffer directly
+      const output = response.output as any;
+      
+      if (output && output.audio && output.alignment) {
+        // TTS with timestamps returns { audio: Buffer, alignment: AlignmentData }
+        audioBuffer = output.audio;
+        wordTimestamps = convertToWordTimestamps(output.alignment);
+        console.log(`[voiceover] Audio with timestamps: ${(audioBuffer.length / 1024).toFixed(2)}KB, ${wordTimestamps.length} words`);
+      } else if (Buffer.isBuffer(response.output)) {
+        // Fallback: TTS without timestamps returns Buffer directly
         audioBuffer = response.output;
-        console.log(`[voiceover] Audio received: ${(audioBuffer.length / 1024).toFixed(2)}KB (mp3)`);
-      } else {
+        console.log(`[voiceover] Audio received (no timestamps): ${(audioBuffer.length / 1024).toFixed(2)}KB`);
+      } else if (output && output.audio_base64) {
         // Sound Effects returns object with base64
-        const output = response.output as any;
-        if (!output || !output.audio_base64) {
-          throw new Error("Invalid audio output received from ElevenLabs");
-        }
         audioBuffer = Buffer.from(output.audio_base64, 'base64');
-        console.log(`[voiceover] Audio decoded: ${(audioBuffer.length / 1024).toFixed(2)}KB (${output.format})`);
+        console.log(`[voiceover] Audio decoded: ${(audioBuffer.length / 1024).toFixed(2)}KB`);
+      } else {
+        throw new Error("Invalid audio output received from ElevenLabs");
       }
       
       if (!audioBuffer || audioBuffer.length === 0) {
@@ -206,7 +279,7 @@ async function generateSceneVoiceover(
 
       const cost = response.usage?.totalCostUsd || 0;
 
-      console.log(`[voiceover] Scene ${scene.sceneNumber} completed ✓ (cost: $${cost.toFixed(4)})`);
+      console.log(`[voiceover] Scene ${scene.sceneNumber} completed ✓ (cost: $${cost.toFixed(4)}, words: ${wordTimestamps.length})`);
 
       return {
         sceneNumber: scene.sceneNumber,
@@ -214,6 +287,7 @@ async function generateSceneVoiceover(
         duration: actualDuration,  // Use actual audio duration!
         status: "generated",
         cost,
+        wordTimestamps,  // ← Word-level timestamps for synchronized subtitles!
       };
 
     } catch (error) {

@@ -4,6 +4,7 @@ import {
   buildSceneUserPrompt,
   getOptimalSceneCount,
 } from "../prompts/scene-prompts";
+import { getVideoModelConstraints, getDefaultVideoModel } from "../../shared/config";
 import type { SceneGeneratorInput, SceneGeneratorOutput, SceneOutput } from "../types";
 
 const SCENE_CONFIG = {
@@ -11,45 +12,12 @@ const SCENE_CONFIG = {
   model: "gpt-5",
 };
 
-// JSON Schema for structured outputs
-const SCENE_SCHEMA = {
-  type: "object",
-  properties: {
-    scenes: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          sceneNumber: {
-            type: "number",
-            description: "Scene number starting from 1",
-          },
-          duration: {
-            type: "number",
-            description: "Duration of this scene in seconds (maximum 10 seconds)",
-            minimum: 1,
-            maximum: 10,
-          },
-          narration: {
-            type: "string",
-            description: "Text narration for this scene",
-          },
-        },
-        required: ["sceneNumber", "duration", "narration"],
-        additionalProperties: false,
-      },
-    },
-    totalScenes: {
-      type: "number",
-      description: "Total number of scenes",
-    },
-    totalDuration: {
-      type: "number",
-      description: "Total duration in seconds",
-    },
-  },
-  required: ["scenes", "totalScenes", "totalDuration"],
-  additionalProperties: false,
+/**
+ * Scene count limits
+ */
+const SCENE_LIMITS = {
+  MIN: 3,
+  MAX: 10,
 };
 
 export async function generateScenes(
@@ -57,13 +25,29 @@ export async function generateScenes(
   userId?: string,
   workspaceId?: string
 ): Promise<SceneGeneratorOutput> {
-  const { storyText, duration, pacing } = input;
+  const { storyText, duration, pacing, videoModel } = input;
 
-  const sceneCount = getOptimalSceneCount(duration);
+  // Get video model constraints for duration limits
+  const modelId = videoModel || getDefaultVideoModel().id;
+  const modelConstraints = getVideoModelConstraints(modelId);
+  
+  // Calculate optimal scene count based on duration AND pacing
+  const sceneCount = getOptimalSceneCount(duration, pacing);
+  
+  console.log('[problem-solution:scene-generator] Generating scenes:', {
+    duration,
+    pacing,
+    targetSceneCount: sceneCount,
+    storyLength: storyText.length,
+    videoModel: modelId,
+    supportedDurations: modelConstraints?.supportedDurations || 'default',
+  });
+
   const systemPrompt = buildSceneBreakdownSystemPrompt(
     duration,
     sceneCount,
-    pacing
+    pacing,
+    modelConstraints // Pass video model constraints
   );
   const userPrompt = buildSceneUserPrompt(storyText, duration, pacing);
 
@@ -95,14 +79,37 @@ export async function generateScenes(
     // Parse the JSON response
     const parsed = JSON.parse(response.output.trim());
 
-    // Validate the response
+    // Validate the response structure
     if (!parsed.scenes || !Array.isArray(parsed.scenes)) {
       throw new Error("Invalid response: missing scenes array");
     }
 
+    // Validate scene count limits (3-10)
+    const actualSceneCount = parsed.scenes.length;
+    if (actualSceneCount < SCENE_LIMITS.MIN) {
+      console.warn(`[problem-solution:scene-generator] Too few scenes (${actualSceneCount}), expected at least ${SCENE_LIMITS.MIN}`);
+    }
+    if (actualSceneCount > SCENE_LIMITS.MAX) {
+      console.warn(`[problem-solution:scene-generator] Too many scenes (${actualSceneCount}), expected at most ${SCENE_LIMITS.MAX}`);
+      // Trim excess scenes if needed
+      parsed.scenes = parsed.scenes.slice(0, SCENE_LIMITS.MAX);
+    }
+
+    // Validate and fix scene numbers
+    parsed.scenes = parsed.scenes.map((scene: any, index: number) => ({
+      ...scene,
+      sceneNumber: index + 1, // Ensure sequential numbering
+    }));
+
+    console.log('[problem-solution:scene-generator] Scenes generated successfully:', {
+      sceneCount: parsed.scenes.length,
+      totalDuration: parsed.scenes.reduce((sum: number, s: any) => sum + s.duration, 0),
+      cost: response.usage?.totalCostUsd,
+    });
+
     return {
       scenes: parsed.scenes,
-      totalScenes: parsed.totalScenes || parsed.scenes.length,
+      totalScenes: parsed.scenes.length,
       totalDuration: parsed.totalDuration || duration,
       cost: response.usage?.totalCostUsd,
     };

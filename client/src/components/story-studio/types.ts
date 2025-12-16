@@ -3,6 +3,27 @@
 
 export type StepId = 'concept' | 'script' | 'storyboard' | 'audio' | 'export';
 
+// Music style for AI-generated background music
+export type MusicStyle = 
+  | 'none'
+  | 'cinematic'
+  | 'upbeat'
+  | 'calm'
+  | 'corporate'
+  | 'electronic'
+  | 'emotional'
+  | 'inspiring';
+
+// Export result with separated audio assets for volume control
+export interface ExportResult {
+  videoUrl: string;
+  videoBaseUrl?: string;    // Video with voiceover, no music (for remix)
+  voiceoverUrl?: string;    // Voiceover audio file
+  musicUrl?: string;        // Music audio file
+  duration: number;
+  size: number;
+}
+
 export interface Step {
   id: StepId;
   label: string;
@@ -17,6 +38,15 @@ export const STEPS: Step[] = [
   { id: 'audio', label: 'Audio', shortLabel: 'Audio', icon: '🎵' },
   { id: 'export', label: 'Preview & Export', shortLabel: 'Export', icon: '🚀' },
 ];
+
+/**
+ * Word-level timestamp for synchronized subtitles (karaoke-style)
+ */
+export interface WordTimestamp {
+  word: string;
+  startTime: number;
+  endTime: number;
+}
 
 export interface StoryScene {
   id: string;
@@ -35,6 +65,7 @@ export interface StoryScene {
   isAnimated?: boolean;
   voiceoverEnabled?: boolean;
   voiceInstructions?: string;
+  wordTimestamps?: WordTimestamp[];  // NEW: Word-level sync for karaoke subtitles
 }
 
 export interface StoryTemplate {
@@ -65,10 +96,10 @@ export interface StoryStudioState {
   textOverlay: 'minimal' | 'key-points' | 'full'; // Legacy (auto-set to 'key-points')
   textOverlayStyle: 'modern' | 'cinematic' | 'bold'; // New: 3 simple styles
   pacing: 'slow' | 'medium' | 'fast';
-  hookStyle: 'question' | 'statement' | 'statistic';
   
   // Image & Video Settings
   imageModel: string; // Image model ID (e.g., "nano-banana", "flux-2-pro")
+  imageStyle: 'photorealistic' | 'cinematic' | '3d-render' | 'digital-art' | 'anime' | 'illustration' | 'watercolor' | 'minimalist';
   imageResolution: string; // Resolution (e.g., "1k", "2k", "4k", "custom")
   animationMode: 'off' | 'transition' | 'video'; // New (Replacing old imageMode)
   videoModel: string; // Video model ID (e.g., "seedance-1.0-pro", "veo-3.0")
@@ -82,7 +113,8 @@ export interface StoryStudioState {
   
   // Step 3: Audio
   selectedVoice: string;
-  backgroundMusic: string;
+  musicStyle: MusicStyle;     // AI music style (replaces backgroundMusic)
+  backgroundMusic: string;    // Legacy: kept for backwards compatibility
   voiceVolume: number;
   musicVolume: number;
   
@@ -111,10 +143,10 @@ export interface StoryStudioActions {
   setVoiceoverEnabled: (enabled: boolean) => void;
   setLanguage: (lang: 'ar' | 'en') => void;
   setPacing: (pacing: 'slow' | 'medium' | 'fast') => void;
-  setHookStyle: (style: 'question' | 'statement' | 'statistic') => void;
   setTextOverlay: (overlay: 'minimal' | 'key-points' | 'full') => void;
   setTextOverlayStyle: (style: 'modern' | 'cinematic' | 'bold') => void;
   setImageModel: (model: string) => void;
+  setImageStyle: (style: 'photorealistic' | 'cinematic' | '3d-render' | 'digital-art' | 'anime' | 'illustration' | 'watercolor' | 'minimalist') => void;
   setImageResolution: (res: string) => void;
   setAnimationMode: (mode: 'off' | 'transition' | 'video') => void;
   setVideoModel: (model: string) => void;
@@ -135,14 +167,16 @@ export interface StoryStudioActions {
   
   // Step 3
   setSelectedVoice: (voice: string) => void;
-  setBackgroundMusic: (music: string) => void;
+  setMusicStyle: (style: MusicStyle) => void;
+  setBackgroundMusic: (music: string) => void; // Legacy
   setVoiceVolume: (volume: number) => void;
   setMusicVolume: (volume: number) => void;
   
   // Step 4
   setExportFormat: (format: string) => void;
   setExportQuality: (quality: string) => void;
-  exportVideo: () => Promise<void>;
+  exportVideo: () => Promise<ExportResult | null>;
+  remixVideo: (videoBaseUrl: string, voiceoverUrl: string, musicUrl: string, voiceVolume: number, musicVolume: number) => Promise<string | null>;
   
   // General
   reset: () => void;

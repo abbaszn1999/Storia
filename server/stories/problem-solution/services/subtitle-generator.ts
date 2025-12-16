@@ -1,4 +1,5 @@
 // Subtitle Generation Service for Text Overlay
+// Supports word-level synchronized subtitles (karaoke-style)
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import { randomUUID } from "crypto";
@@ -6,6 +7,7 @@ import { writeFileSync, unlinkSync, existsSync } from "fs";
 import path from "path";
 import { execSync } from "child_process";
 import { getTempDir } from "./ffmpeg-helpers";
+import type { WordTimestamp } from "../types";
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
@@ -15,6 +17,7 @@ interface Scene {
   sceneNumber: number;
   narration: string;
   duration: number;
+  wordTimestamps?: WordTimestamp[];  // NEW: Word-level timestamps from ElevenLabs
 }
 
 interface SubtitleSegment {
@@ -23,24 +26,158 @@ interface SubtitleSegment {
   endTime: number;
 }
 
-// Configuration for smart text splitting
+// Configuration for karaoke-style subtitles (3-4 words at a time)
 const SEGMENT_CONFIG = {
-  MIN_SEGMENT_DURATION: 2.5,  // Minimum seconds per segment
-  MAX_SEGMENT_DURATION: 4.5,  // Maximum seconds per segment (comfortable reading)
-  IDEAL_SEGMENT_DURATION: 3.5, // Ideal duration for each segment
-  MAX_WORDS_PER_SEGMENT: 12,   // Maximum words to show at once
-  MIN_WORDS_PER_SEGMENT: 4,    // Minimum words per segment
+  WORDS_PER_SEGMENT: 4,       // Show 3-4 words at a time (TikTok/Reels style)
+  MIN_SEGMENT_DURATION: 0.5,  // Minimum seconds per segment
+  MAX_SEGMENT_DURATION: 3.0,  // Maximum seconds per segment
+  // Legacy fallback settings
+  LEGACY_MAX_WORDS: 12,
+  LEGACY_MIN_WORDS: 4,
+  LEGACY_IDEAL_DURATION: 3.5,
 };
 
 /**
- * Split text into readable segments based on duration
- * Uses punctuation and word count for natural breaks
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * ARABIC DIACRITICS REMOVAL
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * Removes Arabic tashkeel/harakat from text for clean subtitle display.
+ * The voiceover uses diacritics for correct pronunciation, but subtitles
+ * should show clean text without them for better readability.
+ * 
+ * Diacritics removed:
+ * - Fatha (فَتْحة) ◌َ U+064E
+ * - Damma (ضَمَّة) ◌ُ U+064F
+ * - Kasra (كَسْرة) ◌ِ U+0650
+ * - Sukun (سُكُون) ◌ْ U+0652
+ * - Shadda (شَدَّة) ◌ّ U+0651
+ * - Fathatan (تَنْوِين فَتْح) ◌ً U+064B
+ * - Dammatan (تَنْوِين ضَمّ) ◌ٌ U+064C
+ * - Kasratan (تَنْوِين كَسْر) ◌ٍ U+064D
+ * - Superscript Alef ◌ٰ U+0670
+ * - Maddah ◌ٓ U+0653
+ * - Hamza Above ◌ٔ U+0654
+ * - Hamza Below ◌ٕ U+0655
+ */
+function removeArabicDiacritics(text: string): string {
+  // Arabic diacritics Unicode range: U+064B to U+065F, plus some extras
+  const arabicDiacriticsRegex = /[\u064B-\u065F\u0670\u0653-\u0655]/g;
+  return text.replace(arabicDiacriticsRegex, '');
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * AUDIO TAGS REMOVAL
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * Removes ElevenLabs v3 audio tags from text.
+ * Tags like [happy], [sighs], [chuckles], [whispers] etc. are used for
+ * voice emotion control but should NOT appear in subtitles.
+ * 
+ * Examples:
+ * - "[happy] Hello world" → "Hello world"
+ * - "He said [whispers] be quiet" → "He said be quiet"
+ * - "[sighs] I'm tired [sad]" → "I'm tired"
+ */
+function removeAudioTags(text: string): string {
+  // Remove all [tag] patterns (ElevenLabs audio tags)
+  // Matches: [word] or [multiple words]
+  const audioTagsRegex = /\[[^\]]+\]/g;
+  return text.replace(audioTagsRegex, '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Clean text for subtitle display
+ * Removes both Arabic diacritics and audio tags
+ */
+function cleanTextForSubtitle(text: string): string {
+  let cleaned = text;
+  
+  // Step 1: Remove audio tags like [happy], [sighs], etc.
+  cleaned = removeAudioTags(cleaned);
+  
+  // Step 2: Remove Arabic diacritics (harakat/tashkeel)
+  cleaned = removeArabicDiacritics(cleaned);
+  
+  // Step 3: Clean up extra whitespace
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  
+  return cleaned;
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * OPTION A: Create segments from word-level timestamps (PRECISE)
+ * Uses ElevenLabs alignment data for 100% synchronized subtitles
+ * Groups words into chunks of 3-4 words each
+ * ═══════════════════════════════════════════════════════════════════════════════
+ */
+function splitByWordTimestamps(wordTimestamps: WordTimestamp[]): SubtitleSegment[] {
+  if (!wordTimestamps || wordTimestamps.length === 0) {
+    return [];
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Step 1: Clean words - remove audio tags and filter empty words
+  // ═══════════════════════════════════════════════════════════════════════════
+  const cleanedTimestamps = wordTimestamps
+    .map(wt => ({
+      ...wt,
+      // Clean each word: remove audio tags and diacritics
+      word: cleanTextForSubtitle(wt.word),
+    }))
+    // Filter out empty words (audio tags become empty after cleaning)
+    .filter(wt => wt.word.length > 0);
+
+  if (cleanedTimestamps.length === 0) {
+    console.warn('[subtitle-generator] All words were filtered out after cleaning');
+    return [];
+  }
+
+  console.log(`[subtitle-generator] Cleaned words: ${wordTimestamps.length} → ${cleanedTimestamps.length} (removed ${wordTimestamps.length - cleanedTimestamps.length} audio tags)`);
+
+  const segments: SubtitleSegment[] = [];
+  const wordsPerGroup = SEGMENT_CONFIG.WORDS_PER_SEGMENT; // 3-4 words
+
+  for (let i = 0; i < cleanedTimestamps.length; i += wordsPerGroup) {
+    const group = cleanedTimestamps.slice(i, i + wordsPerGroup);
+    
+    if (group.length === 0) continue;
+
+    const text = group.map(w => w.word).join(' ');
+    const startTime = group[0].startTime;
+    const endTime = group[group.length - 1].endTime;
+
+    // Ensure minimum duration
+    const actualEnd = Math.max(endTime, startTime + SEGMENT_CONFIG.MIN_SEGMENT_DURATION);
+
+    segments.push({
+      text: text.trim(),
+      startTime,
+      endTime: actualEnd,
+    });
+  }
+
+  console.log(`[subtitle-generator] ✓ Created ${segments.length} segments from ${cleanedTimestamps.length} clean words (${wordsPerGroup} words/segment)`);
+  
+  return segments;
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * OPTION B: Split text into segments based on duration (FALLBACK)
+ * Used when word timestamps are not available
+ * ═══════════════════════════════════════════════════════════════════════════════
  */
 function splitTextIntoSegments(text: string, duration: number): SubtitleSegment[] {
-  const cleanText = text.trim().replace(/\r/g, '');
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Clean text: remove audio tags and Arabic diacritics for subtitle display
+  // ═══════════════════════════════════════════════════════════════════════════
+  const cleanText = cleanTextForSubtitle(text);
   
-  // For short durations (< 5s), show full text
-  if (duration <= 5) {
+  // For very short durations (< 3s), show full text
+  if (duration <= 3) {
     return [{
       text: cleanText,
       startTime: 0,
@@ -48,55 +185,17 @@ function splitTextIntoSegments(text: string, duration: number): SubtitleSegment[
     }];
   }
   
-  // Calculate ideal number of segments
-  const idealSegmentCount = Math.ceil(duration / SEGMENT_CONFIG.IDEAL_SEGMENT_DURATION);
-  
-  // Split by sentence-ending punctuation first (Arabic and English)
-  const sentenceBreaks = cleanText.split(/([.،؟!。?!]+\s*)/);
-  
-  // Combine into sentences
-  const sentences: string[] = [];
-  for (let i = 0; i < sentenceBreaks.length; i += 2) {
-    const sentence = sentenceBreaks[i] + (sentenceBreaks[i + 1] || '');
-    if (sentence.trim()) {
-      sentences.push(sentence.trim());
-    }
-  }
-  
-  // If we have enough sentences, use them as segments
-  if (sentences.length >= idealSegmentCount && sentences.length <= idealSegmentCount * 1.5) {
-    const segments: SubtitleSegment[] = [];
-    const timePerSegment = duration / sentences.length;
-    let currentTime = 0;
-    
-    for (const sentence of sentences) {
-      segments.push({
-        text: sentence,
-        startTime: currentTime,
-        endTime: currentTime + timePerSegment,
-      });
-      currentTime += timePerSegment;
-    }
-    
-    console.log(`[subtitle-generator] Split by sentences: ${segments.length} segments`);
-    return segments;
-  }
-  
-  // Otherwise, split by word count
-  const words = cleanText.split(/\s+/);
-  const wordsPerSegment = Math.ceil(words.length / idealSegmentCount);
-  const actualWordsPerSegment = Math.min(
-    Math.max(wordsPerSegment, SEGMENT_CONFIG.MIN_WORDS_PER_SEGMENT),
-    SEGMENT_CONFIG.MAX_WORDS_PER_SEGMENT
-  );
+  // Split by words and group into chunks of 3-4 words
+  const words = cleanText.split(/\s+/).filter(w => w.length > 0);
+  const wordsPerSegment = SEGMENT_CONFIG.WORDS_PER_SEGMENT;
   
   const segments: SubtitleSegment[] = [];
-  const actualSegmentCount = Math.ceil(words.length / actualWordsPerSegment);
-  const timePerSegment = duration / actualSegmentCount;
+  const segmentCount = Math.ceil(words.length / wordsPerSegment);
+  const timePerSegment = duration / segmentCount;
   let currentTime = 0;
   
-  for (let i = 0; i < words.length; i += actualWordsPerSegment) {
-    const segmentWords = words.slice(i, i + actualWordsPerSegment);
+  for (let i = 0; i < words.length; i += wordsPerSegment) {
+    const segmentWords = words.slice(i, i + wordsPerSegment);
     const segmentText = segmentWords.join(' ');
     
     if (segmentText.trim()) {
@@ -109,12 +208,14 @@ function splitTextIntoSegments(text: string, duration: number): SubtitleSegment[
     }
   }
   
-  console.log(`[subtitle-generator] Split by words: ${segments.length} segments (${actualWordsPerSegment} words each)`);
+  console.log(`[subtitle-generator] Split by words (fallback): ${segments.length} segments (${wordsPerSegment} words each)`);
   return segments;
 }
 
 /**
- * Create SRT subtitle file from scenes with smart text splitting
+ * Create SRT subtitle file from scenes
+ * Uses word-level timestamps if available (100% sync)
+ * Falls back to duration-based splitting otherwise
  */
 function createSrtFile(scenes: Scene[]): string {
   const srtPath = path.join(TEMP_DIR, `${randomUUID()}.srt`);
@@ -130,16 +231,38 @@ function createSrtFile(scenes: Scene[]): string {
   };
   
   const allSubtitles: string[] = [];
+  let hasTimestamps = false;
+  
+  console.log('[subtitle-generator] ═══════════════════════════════════════════════');
+  console.log('[subtitle-generator] Creating synchronized subtitles...');
   
   for (const scene of scenes) {
-    // Split this scene's text into segments
-    const segments = splitTextIntoSegments(scene.narration, scene.duration);
+    let segments: SubtitleSegment[];
     
-    console.log(`[subtitle-generator] Scene ${scene.sceneNumber}: ${scene.duration}s → ${segments.length} subtitle(s)`);
+    // ═══════════════════════════════════════════════════════════════════════════
+    // OPTION A: Use word-level timestamps if available (PRECISE SYNC)
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (scene.wordTimestamps && scene.wordTimestamps.length > 0) {
+      hasTimestamps = true;
+      segments = splitByWordTimestamps(scene.wordTimestamps);
+      console.log(`[subtitle-generator] Scene ${scene.sceneNumber}: Using ${scene.wordTimestamps.length} word timestamps → ${segments.length} subtitle(s)`);
+    } else {
+      // ═══════════════════════════════════════════════════════════════════════════
+      // OPTION B: Fall back to duration-based splitting
+      // ═══════════════════════════════════════════════════════════════════════════
+      segments = splitTextIntoSegments(scene.narration, scene.duration);
+      console.log(`[subtitle-generator] Scene ${scene.sceneNumber}: Fallback mode → ${segments.length} subtitle(s)`);
+    }
     
     for (const segment of segments) {
-      const absoluteStart = sceneStartTime + segment.startTime;
-      const absoluteEnd = sceneStartTime + segment.endTime;
+      // For word timestamps, times are already absolute within scene
+      // For fallback, add scene start time
+      const absoluteStart = scene.wordTimestamps?.length 
+        ? sceneStartTime + segment.startTime 
+        : sceneStartTime + segment.startTime;
+      const absoluteEnd = scene.wordTimestamps?.length
+        ? sceneStartTime + segment.endTime
+        : sceneStartTime + segment.endTime;
       
       const start = formatSrtTime(absoluteStart);
       const end = formatSrtTime(absoluteEnd);
@@ -157,7 +280,9 @@ function createSrtFile(scenes: Scene[]): string {
   const bom = '\uFEFF';
   writeFileSync(srtPath, bom + srtContent, 'utf-8');
   
-  console.log(`[subtitle-generator] SRT file created with ${subtitleIndex - 1} subtitles`);
+  console.log('[subtitle-generator] ═══════════════════════════════════════════════');
+  console.log(`[subtitle-generator] ✓ SRT created: ${subtitleIndex - 1} subtitles`);
+  console.log(`[subtitle-generator] Mode: ${hasTimestamps ? '🎯 Word-level sync (precise)' : '⏱️ Duration-based (estimated)'}`);
   console.log(`[subtitle-generator] Path: ${srtPath}`);
   
   return srtPath;

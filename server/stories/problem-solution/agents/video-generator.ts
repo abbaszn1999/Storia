@@ -1,14 +1,41 @@
-// Video Generation Agent for Problem-Solution Mode
-// Generates videos from images using Runware video inference (Image-to-Video)
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * VIDEO GENERATION AGENT
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * Generates videos from images using Runware Image-to-Video AI.
+ * 
+ * INPUT:
+ * - scenes[] with imageUrl, videoPrompt, narration, duration
+ * - videoModel, videoResolution, aspectRatio
+ * - imageStyle (for style-aware fallback prompts)
+ * 
+ * OUTPUT:
+ * - scenes[] with videoUrl, actualDuration, status
+ * 
+ * FLOW:
+ * 1. For each scene, build motion prompt
+ * 2. Send all scenes in parallel batch to Runware
+ * 3. Map results back to scenes
+ */
 
 import { callAi } from "../../../ai/service";
 import { runwareModelIdMap } from "../../../ai/config";
 import { getDimensions, VIDEO_MODEL_CONFIGS } from "../../shared/config";
 import { randomUUID } from "crypto";
+import {
+  buildVideoPrompt,
+  getDefaultVideoPrompt,
+  analyzeNarrationForMotion,
+  CAMERA_MOVEMENTS,
+  SUBJECT_MOTIONS,
+  ENVIRONMENTAL_EFFECTS,
+} from "../prompts/video-prompts";
 import type {
   VideoGeneratorInput,
   VideoGeneratorOutput,
   VideoGenerationResult,
+  ImageStyle,
 } from "../types";
 
 /**
@@ -23,6 +50,10 @@ import type {
  * findClosestDuration(6, [2, 4, 5, 8, 10]) // returns 5
  * findClosestDuration(7, [2, 4, 5, 8, 10]) // returns 8
  * findClosestDuration(3, [2, 4, 5, 8, 10]) // returns 2 (prefer lower)
+ */
+/**
+ * Find the closest supported duration for a given target duration
+ * Prefers lower duration if equidistant
  */
 function findClosestDuration(
   targetDuration: number,
@@ -48,6 +79,78 @@ function findClosestDuration(
 }
 
 /**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * BUILD ENHANCED VIDEO PROMPT
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * Creates a professional motion prompt for Image-to-Video AI.
+ * 
+ * PRIORITY:
+ * 1. Use videoPrompt from storyboard-enhancer (if available and good)
+ * 2. Build from narration analysis + style
+ * 3. Fall back to style-specific default
+ * 
+ * @param scene - Scene data with videoPrompt, narration, mood
+ * @param imageStyle - The image style for style-aware prompts
+ * @param sceneNumber - Current scene number
+ * @param totalScenes - Total number of scenes
+ * @returns Enhanced video prompt string
+ */
+function buildEnhancedVideoPrompt(
+  scene: {
+    videoPrompt?: string;
+    narration?: string;
+    voiceMood?: string;
+    duration: number;
+  },
+  imageStyle: ImageStyle = 'photorealistic',
+  sceneNumber: number = 1,
+  totalScenes: number = 5
+): string {
+  // Option 1: Use existing videoPrompt if it's good quality
+  if (scene.videoPrompt && scene.videoPrompt.length >= 40) {
+    console.log(`[video-generator] Scene ${sceneNumber}: Using storyboard videoPrompt`);
+    return scene.videoPrompt;
+  }
+
+  // Option 2: Build from context using video-prompts module
+  if (scene.narration || scene.voiceMood) {
+    console.log(`[video-generator] Scene ${sceneNumber}: Building from context`);
+    
+    return buildVideoPrompt({
+      originalPrompt: scene.videoPrompt,
+      narration: scene.narration,
+      imageStyle,
+      mood: scene.voiceMood || 'neutral',
+      duration: scene.duration,
+      sceneNumber,
+      totalScenes,
+    });
+  }
+
+  // Option 3: Analyze narration for motion suggestions
+  if (scene.narration) {
+    console.log(`[video-generator] Scene ${sceneNumber}: Analyzing narration`);
+    
+    const analysis = analyzeNarrationForMotion(scene.narration);
+    const camera = CAMERA_MOVEMENTS[analysis.suggestedCamera];
+    const subject = SUBJECT_MOTIONS[analysis.suggestedSubject];
+    
+    const parts: string[] = [camera, subject];
+    if (analysis.suggestedEnvironment !== 'none') {
+      const envEffect = ENVIRONMENTAL_EFFECTS[analysis.suggestedEnvironment];
+      parts.push(envEffect);
+    }
+    
+    return parts.join(', ');
+  }
+
+  // Option 4: Style-specific default
+  console.log(`[video-generator] Scene ${sceneNumber}: Using style default`);
+  return getDefaultVideoPrompt(imageStyle);
+}
+
+/**
  * Generate videos for all scenes using Image-to-Video
  * 
  * @param input - Scenes and settings
@@ -60,7 +163,15 @@ export async function generateVideos(
   userId: string,
   workspaceName: string
 ): Promise<VideoGeneratorOutput> {
-  const { scenes, videoModel, videoResolution, aspectRatio, projectName, storyId } = input;
+  const { 
+    scenes, 
+    videoModel, 
+    videoResolution, 
+    aspectRatio, 
+    projectName, 
+    storyId,
+    imageStyle = 'photorealistic', // Default to photorealistic
+  } = input;
 
   // Get model configuration
   const modelConfig = VIDEO_MODEL_CONFIGS[videoModel];
@@ -82,12 +193,13 @@ export async function generateVideos(
     videoModel,
     videoResolution,
     aspectRatio,
+    imageStyle,
     dimensions,
     supportedDurations: modelConfig.durations,
   });
 
   // Build all payloads at once for parallel processing
-  const payloads = scenes.map((scene) => {
+  const payloads = scenes.map((scene, index) => {
     if (!scene.imageUrl) {
       throw new Error(`Scene ${scene.sceneNumber} has no imageUrl`);
     }
@@ -98,23 +210,37 @@ export async function generateVideos(
       modelConfig.durations
     );
 
+    // Build enhanced video prompt using the new prompt system
+    const enhancedPrompt = buildEnhancedVideoPrompt(
+      {
+        videoPrompt: scene.videoPrompt,
+        narration: scene.narration,
+        voiceMood: scene.voiceMood,
+        duration: scene.duration,
+      },
+      imageStyle,
+      scene.sceneNumber,
+      scenes.length
+    );
+
     console.log(`[problem-solution:video-generator] Preparing Scene ${scene.sceneNumber}:`, {
       targetDuration: scene.duration,
       matchedDuration,
       imageUrl: scene.imageUrl.substring(0, 50) + "...",
+      promptLength: enhancedPrompt.length,
+      promptPreview: enhancedPrompt.substring(0, 80) + "...",
     });
 
     // Build Runware payload for video inference
-    // Note: frameImages format is array of objects { inputImage: URL }
     return {
       taskType: "videoInference",
-      taskUUID: randomUUID(), // Unique ID for tracking
+      taskUUID: randomUUID(),
       model: runwareModelId,
-      positivePrompt: scene.videoPrompt || "Smooth camera movement, cinematic motion",
+      positivePrompt: enhancedPrompt,
       width: dimensions.width,
       height: dimensions.height,
       duration: matchedDuration,
-      frameImages: [{ inputImage: scene.imageUrl }], // Runware format: object with inputImage
+      frameImages: [{ inputImage: scene.imageUrl }],
       numberResults: 1,
       deliveryMethod: "async",
       includeCost: true,

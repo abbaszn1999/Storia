@@ -20,7 +20,7 @@ import Dashboard from "@/pages/dashboard";
 import Videos from "@/pages/videos";
 import NarrativeMode from "@/pages/videos/narrative-mode";
 import CharacterVlogMode from "@/pages/videos/character-vlog-mode";
-import AmbientVisualMode from "@/pages/videos/ambient-mode";
+import AmbientVisualMode from "@/pages/videos/ambient-visual-mode";
 import SocialCommerceMode from "@/pages/videos/social-commerce-mode";
 import LogoAnimationMode from "@/pages/videos/logo-animation-mode";
 import Stories from "@/pages/stories";

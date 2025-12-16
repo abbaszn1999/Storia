@@ -167,38 +167,6 @@ export function VisualWorldTab({
             </CardContent>
           </Card>
 
-          {/* Color Palette */}
-          <Card>
-            <CardContent className="p-6 space-y-4">
-              <Label className="text-lg font-semibold">Color Palette</Label>
-              <div className="grid grid-cols-2 gap-3">
-                {COLOR_PALETTES.map((palette) => (
-                  <button
-                    key={palette.id}
-                    onClick={() => onColorPaletteChange(palette.id)}
-                    className={`p-3 rounded-lg border transition-all hover-elevate ${
-                      colorPalette === palette.id
-                        ? "border-primary bg-primary/10"
-                        : "border-border bg-muted/30"
-                    }`}
-                    data-testid={`button-palette-${palette.id}`}
-                  >
-                    <div className="flex gap-1 mb-2">
-                      {palette.colors.map((color, i) => (
-                        <div
-                          key={i}
-                          className="h-4 w-4 rounded-full"
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
-                    </div>
-                    <div className="text-sm font-medium">{palette.label}</div>
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Reference Images */}
           <Card>
             <CardContent className="p-6 space-y-4">
@@ -236,55 +204,6 @@ export function VisualWorldTab({
 
         {/* Right Column */}
         <div className="space-y-6">
-          {/* Lighting Mood */}
-          <Card>
-            <CardContent className="p-6 space-y-4">
-              <Label className="text-lg font-semibold">Lighting Mood</Label>
-              <div className="flex flex-wrap gap-2">
-                {LIGHTING_MOODS.map((light) => (
-                  <button
-                    key={light.id}
-                    onClick={() => onLightingMoodChange(light.id)}
-                    className={`px-4 py-2 rounded-lg border text-sm transition-all hover-elevate ${
-                      lightingMood === light.id
-                        ? "border-primary bg-primary/10"
-                        : "border-border bg-muted/30"
-                    }`}
-                    data-testid={`button-lighting-${light.id}`}
-                  >
-                    {light.label}
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Texture/Film Look */}
-          <Card>
-            <CardContent className="p-6 space-y-4">
-              <div className="flex items-center gap-2">
-                <Film className="h-5 w-5 text-primary" />
-                <Label className="text-lg font-semibold">Texture / Film Look</Label>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {TEXTURES.map((tex) => (
-                  <button
-                    key={tex.id}
-                    onClick={() => onTextureChange(tex.id)}
-                    className={`px-4 py-2 rounded-lg border text-sm transition-all hover-elevate ${
-                      texture === tex.id
-                        ? "border-primary bg-primary/10"
-                        : "border-border bg-muted/30"
-                    }`}
-                    data-testid={`button-texture-${tex.id}`}
-                  >
-                    {tex.label}
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Key Visual Elements */}
           <Card>
             <CardContent className="p-6 space-y-4">

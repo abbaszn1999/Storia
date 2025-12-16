@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Upload, X, Sparkles, Film, Palette, Play } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowRight, Upload, X, Sparkles, Film, Palette, Play, Wand2 } from "lucide-react";
 
 const ART_STYLES = [
   { id: "cinematic", label: "Cinematic", description: "Film-quality realism" },
@@ -68,6 +69,7 @@ interface VisualWorldTabProps {
   visualElements: string[];
   visualRhythm: string;
   referenceImages: string[];
+  imageCustomInstructions?: string;
   onArtStyleChange: (style: string) => void;
   onColorPaletteChange: (palette: string) => void;
   onLightingMoodChange: (mood: string) => void;
@@ -75,6 +77,7 @@ interface VisualWorldTabProps {
   onVisualElementsChange: (elements: string[]) => void;
   onVisualRhythmChange: (rhythm: string) => void;
   onReferenceImagesChange: (images: string[]) => void;
+  onImageCustomInstructionsChange?: (instructions: string) => void;
   onNext: () => void;
 }
 
@@ -86,6 +89,7 @@ export function VisualWorldTab({
   visualElements,
   visualRhythm,
   referenceImages,
+  imageCustomInstructions = "",
   onArtStyleChange,
   onColorPaletteChange,
   onLightingMoodChange,
@@ -93,6 +97,7 @@ export function VisualWorldTab({
   onVisualElementsChange,
   onVisualRhythmChange,
   onReferenceImagesChange,
+  onImageCustomInstructionsChange,
   onNext,
 }: VisualWorldTabProps) {
   const toggleVisualElement = (element: string) => {
@@ -126,63 +131,80 @@ export function VisualWorldTab({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Left Column */}
         <div className="space-y-6">
-          {/* Art Style */}
+          {/* Art Style & Reference Images (Combined) */}
           <Card>
-            <CardContent className="p-6 space-y-4">
-              <div className="flex items-center gap-2">
-                <Palette className="h-5 w-5 text-primary" />
-                <Label className="text-lg font-semibold">Art Style</Label>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {ART_STYLES.map((style) => (
-                  <button
-                    key={style.id}
-                    onClick={() => onArtStyleChange(style.id)}
-                    className={`p-3 rounded-lg border text-left transition-all hover-elevate ${
-                      artStyle === style.id
-                        ? "border-primary bg-primary/10"
-                        : "border-border bg-muted/30"
-                    }`}
-                    data-testid={`button-style-${style.id}`}
-                  >
-                    <div className="font-medium text-sm">{style.label}</div>
-                    <div className="text-xs text-muted-foreground">{style.description}</div>
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Reference Images */}
-          <Card>
-            <CardContent className="p-6 space-y-4">
-              <Label className="text-lg font-semibold">Reference Images</Label>
-              <p className="text-sm text-muted-foreground">
-                Upload mood board images for visual inspiration (max 4)
-              </p>
-              <div className="grid grid-cols-4 gap-3">
-                {referenceImages.map((img, idx) => (
-                  <div key={idx} className="relative aspect-square rounded-lg overflow-hidden group">
-                    <img src={img} alt={`Reference ${idx + 1}`} className="h-full w-full object-cover" />
+            <CardContent className="p-6 space-y-6">
+              {/* Art Style Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Palette className="h-5 w-5 text-primary" />
+                  <Label className="text-lg font-semibold">Art Style</Label>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Choose a visual style or upload reference images for custom styling
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {ART_STYLES.map((style) => (
                     <button
-                      onClick={() => removeImage(idx)}
-                      className="absolute top-1 right-1 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                      data-testid={`button-remove-ref-${idx}`}
+                      key={style.id}
+                      onClick={() => onArtStyleChange(style.id)}
+                      className={`p-3 rounded-lg border text-left transition-all hover-elevate ${
+                        artStyle === style.id
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-muted/30"
+                      }`}
+                      data-testid={`button-style-${style.id}`}
                     >
-                      <X className="h-3 w-3" />
+                      <div className="font-medium text-sm">{style.label}</div>
+                      <div className="text-xs text-muted-foreground">{style.description}</div>
                     </button>
-                  </div>
-                ))}
-                {referenceImages.length < 4 && (
-                  <button
-                    onClick={handleImageUpload}
-                    className="aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 hover-elevate"
-                    data-testid="button-upload-reference"
-                  >
-                    <Upload className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">Upload</span>
-                  </button>
-                )}
+                  ))}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border/50"></div>
+                </div>
+                <div className="relative flex justify-center">
+                  <span className="bg-card px-3 text-xs text-muted-foreground uppercase tracking-wider">or use reference images</span>
+                </div>
+              </div>
+
+              {/* Reference Images Section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium text-muted-foreground">Style Reference Images</Label>
+                  <Badge variant="secondary" className="text-xs">{referenceImages.length}/4</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Upload images to guide the visual style (the AI will match the aesthetic)
+                </p>
+                <div className="grid grid-cols-4 gap-3">
+                  {referenceImages.map((img, idx) => (
+                    <div key={idx} className="relative aspect-square rounded-lg overflow-hidden group">
+                      <img src={img} alt={`Reference ${idx + 1}`} className="h-full w-full object-cover" />
+                      <button
+                        onClick={() => removeImage(idx)}
+                        className="absolute top-1 right-1 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                        data-testid={`button-remove-ref-${idx}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {referenceImages.length < 4 && (
+                    <button
+                      onClick={handleImageUpload}
+                      className="aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 hover-elevate"
+                      data-testid="button-upload-reference"
+                    >
+                      <Upload className="h-5 w-5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Upload</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -243,6 +265,29 @@ export function VisualWorldTab({
                   </button>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Custom Image Generation Instructions */}
+          <Card>
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <Wand2 className="h-5 w-5 text-primary" />
+                <Label className="text-lg font-semibold">Custom Image Instructions</Label>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Add specific instructions to guide the AI image generation (optional)
+              </p>
+              <Textarea
+                value={imageCustomInstructions}
+                onChange={(e) => onImageCustomInstructionsChange?.(e.target.value)}
+                placeholder="e.g., Use soft focus on backgrounds, include lens flares, maintain consistent color grading across all shots, avoid harsh shadows..."
+                className="min-h-[120px] resize-none"
+                data-testid="textarea-image-instructions"
+              />
+              <p className="text-xs text-muted-foreground">
+                These instructions will be applied to all generated images in this project
+              </p>
             </CardContent>
           </Card>
         </div>

@@ -6,6 +6,52 @@ The Ambient Visualizer is a tool for creating long-form, loopable ambient videos
 
 ---
 
+## Recent Updates
+
+### Latest Changes (December 2024)
+
+**Step 1 (Atmosphere):**
+- ✅ Added Image Settings section with 12 AI image models (Google, ByteDance, Black Forest Labs, Midjourney, Ideogram)
+- ✅ Dynamic model capabilities display (aspect ratios, resolutions, prompt length, features)
+- ✅ Section renumbering: Image Settings is now 1.1, all subsequent sections shifted
+
+**Step 2 (Visual World):**
+- ✅ Removed: Color Palette, Lighting Mood, Texture, Atmospheric Layers sections
+- ✅ Added: Visual Rhythm (moved from Flow Design) - positioned after Key Visual Elements
+- ✅ Simplified structure: Art Style & Reference Images (combined), Key Visual Elements, Visual Rhythm, Custom Image Instructions
+
+**Step 3 (Flow Design):**
+- ✅ Completely restructured to use SceneBreakdown component
+- ✅ Removed: Variation Type, Visual Rhythm (moved to Visual World)
+- ✅ Added: Full scene and shot management system
+- ✅ AI-powered scene generation based on mood description
+- ✅ Manual scene/shot creation and editing
+- ✅ Continuity management across scenes
+- ✅ **Start-End Frame Mode**: Re-enabled ContinuityProposal UI with mode conditionals
+- ✅ **Start-End Frame Mode**: AI proposes shot connections, approve/decline workflow, lock before Composition
+
+**Step 4 (Composition):**
+- ✅ Replaced simple segment-based interface with StoryboardEditor
+- ✅ Shot-by-shot image/video generation
+- ✅ Per-scene model selection (image model, video model)
+- ✅ Cards View and Timeline View modes
+- ✅ Version management with comparison
+- ✅ Drag-and-drop shot reordering
+- ✅ Shot prompt editing with quick edit categories
+- ✅ **Start-End Frame Mode**: All shots show Start/End frame tabs (matching Narrative mode)
+- ✅ **Start-End Frame Mode**: All shots show Image/Video tabs in Video Animation mode
+- ✅ **Start-End Frame Mode**: Connected shot visualization (Link2 icon between shots)
+- ✅ **Start-End Frame Mode**: Drag restrictions for connected shots
+- ✅ **Start-End Frame Mode**: Connected shots show next shot's start as end frame preview
+- ✅ **UI Styling**: Cyan/teal color theme applied consistently (buttons, badges, icons)
+
+**Settings Migration:**
+- Pacing, Segment Settings, Loop Mode → Moved to Atmosphere (Step 1)
+- Transition Style, Camera Motion → Moved to Atmosphere (Step 1)
+- Visual Rhythm → Moved to Visual World (Step 2)
+
+---
+
 ## Table of Contents
 
 1. [Onboarding](#onboarding)
@@ -57,11 +103,30 @@ Before entering the main workflow, users go through a quick onboarding process t
    - Define both starting and ending frames
    - AI creates smooth transitions between states
    - More precise control over animation
+   - Enables Continuity Proposal in Flow Design phase
 
 **After onboarding completion, the selected modes are:**
 - Locked and displayed as read-only in Atmosphere settings
 - Used throughout the workflow to show/hide relevant settings
 - Stored as project configuration
+
+### Video Generation Mode Comparison
+
+| Feature | Image-Reference Mode | Start-End Frame Mode |
+|---------|---------------------|---------------------|
+| **Flow Design** | | |
+| Continuity Proposal | Hidden | Available |
+| Shot Connection Arrows | Hidden | Visible |
+| Lock Button | Hidden | Required before Composition |
+| **Composition** | | |
+| Frame Tabs | Single image view | "Start" and "End" tabs on all shots |
+| Image/Video Tabs | Both tabs (in Video Animation) | Both tabs on all shots |
+| Connected Shot Icons | None | Link2 icon between connected shots |
+| Drag Reordering | All shots | Blocked for connected shots |
+| End Frame Display | N/A | Shows next shot's start (if connected) |
+| **Generation** | | |
+| Frames per Shot | 1 image | Start + conditional end frame |
+| Continuity Groups | N/A | Enforced per locked groups |
 
 ---
 
@@ -86,7 +151,63 @@ flowchart LR
 
 ### Settings Structure
 
-#### 1.1 Aspect Ratio
+#### 1.1 Image Settings
+
+**Image Model**
+- **Type**: Dropdown selection with model details
+- **Options**:
+  - `nano-banana` - Nano Banana (Google) - Gemini Flash 2.5, Fast & interactive [Default, Fast badge]
+    - 10 aspect ratios, 1k resolution, 3K chars max prompt
+  - `nano-banana-2-pro` - Nano Banana 2 Pro (Google) - Gemini 3 Pro, Professional-grade, up to 4K [Pro badge]
+    - 10 aspect ratios, 1k/2k/4k resolution, 45K chars max prompt
+  - `imagen-4.0-preview` - Imagen 4.0 Preview (Google) - Improved textures, lighting, typography
+    - 5 aspect ratios, custom resolution, 3K chars max prompt
+  - `imagen-4.0-ultra` - Imagen 4.0 Ultra (Google) - Exceptional detail, color accuracy [Ultra badge]
+    - 5 aspect ratios, custom resolution, 3K chars max prompt
+  - `imagen-4.0-fast` - Imagen 4.0 Fast (Google) - Speed optimized [Fast badge]
+    - 5 aspect ratios, custom resolution, 3K chars max prompt, supports negative prompt
+  - `seedream-4.0` - Seedream 4.0 (ByteDance) - Ultra-fast 2K/4K with sequential images [Sequential badge]
+    - 8 aspect ratios, 1k/2k/4k resolution, 2K chars max prompt
+  - `seedream-4.5` - Seedream 4.5 (ByteDance) - Production reliability, sharp 2K/4K [Reliable badge]
+    - 8 aspect ratios, 2k/4k resolution, 2K chars max prompt
+  - `flux-2-dev` - FLUX.2 [dev] (Black Forest Labs) - Open weights, architectural control [Dev badge]
+    - 8 aspect ratios, custom resolution, 10K+ chars max prompt
+  - `flux-2-pro` - FLUX.2 [pro] (Black Forest Labs) - Production-ready, robust editing [Pro badge]
+    - 7 aspect ratios, custom resolution, 3K chars max prompt
+  - `flux-2-flex` - FLUX.2 [flex] (Black Forest Labs) - Best text rendering [Typography badge]
+    - 7 aspect ratios, custom resolution, 3K chars max prompt
+  - `midjourney-v7` - Midjourney V7 - Cinematic realism, photographic quality [Cinematic badge]
+    - 8 aspect ratios, custom resolution, 2K chars max prompt
+  - `ideogram-3.0` - Ideogram 3.0 - Sharp text, graphic design specialist [Design badge]
+    - 13 aspect ratios, custom resolution, 2K chars max prompt, supports negative prompt
+- **Default**: `nano-banana`
+- **Backend Field**: `imageModel: string`
+- **UI Display**: Shows dynamic capabilities info based on selected model:
+  - Number of supported aspect ratios
+  - Available resolutions
+  - Max prompt length
+  - Special features (negative prompt support)
+
+**Image Resolution**
+- **Type**: Button selection (dynamic based on model)
+- **Options**: Varies by model:
+  - Models with specific resolutions: `auto`, `1k`, `2k`, `4k` (available options depend on model)
+  - Models with custom resolution: Shows `Auto` only (model handles resolution automatically)
+- **Default**: `auto`
+- **Backend Field**: `imageResolution: string`
+- **Behavior**:
+  - `auto` - Let the AI choose optimal resolution based on content
+  - `1k` - ~1024px (fastest, suitable for previews)
+  - `2k` - ~2048px (balanced quality and speed)
+  - `4k` - ~4096px (highest quality, slowest)
+- **Model-specific availability**:
+  - Nano Banana: 1k only
+  - Nano Banana 2 Pro: 1k, 2k, 4k
+  - Seedream 4.0: 1k, 2k, 4k
+  - Seedream 4.5: 2k, 4k
+  - Other models: Custom (auto-optimized)
+
+#### 1.2 Aspect Ratio
 - **Type**: Selection (single choice)
 - **Options**:
   - `16:9` - YouTube (Horizontal)
@@ -96,7 +217,7 @@ flowchart LR
 - **Default**: `16:9`
 - **Backend Field**: `aspectRatio: string`
 
-#### 1.2 Target Duration
+#### 1.3 Target Duration
 - **Type**: Selection (single choice)
 - **Options**:
   - `5min` - 5 minutes
@@ -108,7 +229,7 @@ flowchart LR
 - **Backend Field**: `duration: string`
 - **Backend Processing**: Convert to seconds (e.g., `5min` → `300` seconds)
 
-#### 1.3 Primary Mood
+#### 1.4 Primary Mood
 - **Type**: Selection (single choice)
 - **Options**:
   - `calm` - Peaceful and serene
@@ -122,7 +243,7 @@ flowchart LR
 - **Default**: `calm`
 - **Backend Field**: `mood: string`
 
-#### 1.4 Theme / Environment
+#### 1.5 Theme / Environment
 - **Type**: Selection (single choice)
 - **Options**:
   - `nature` - Natural landscapes
@@ -134,7 +255,7 @@ flowchart LR
 - **Default**: `nature`
 - **Backend Field**: `theme: string`
 
-#### 1.5 Time Context (Smart Dynamic)
+#### 1.6 Time Context (Smart Dynamic)
 - **Type**: Selection (single choice, theme-dependent)
 - **Behavior**: Options change based on selected theme
 - **Backend Field**: `timeContext: string`
@@ -149,7 +270,7 @@ flowchart LR
 | `interior` | Lighting Mood | `morning-light`, `afternoon`, `golden-hour`, `evening`, `ambient` |
 | `fantasy` | Magical Time | `ethereal-dawn`, `mystical-day`, `enchanted-dusk`, `moonlit-night`, `twilight` |
 
-#### 1.6 Season / Weather (Smart Dynamic)
+#### 1.7 Season / Weather (Smart Dynamic)
 - **Type**: Selection (single choice, theme-dependent)
 - **Behavior**: Options change based on selected theme
 - **Backend Field**: `season: string`
@@ -164,7 +285,7 @@ flowchart LR
 | `interior` | Ambiance | `warm-cozy`, `cool-fresh`, `natural-light`, `dim-moody`, `bright-airy` |
 | `fantasy` | Magical Condition | `magical-bloom`, `mystical-mist`, `enchanted-frost`, `fairy-lights`, `elemental` |
 
-#### 1.7 Animation Mode (Read-Only)
+#### 1.8 Animation Mode (Read-Only)
 - **Type**: Display only (selected during onboarding)
 - **Values**:
   - `image-transitions` - Image Transitions (static images with motion effects)
@@ -177,7 +298,7 @@ flowchart LR
 
 **Purpose**: Displays the animation approach selected during project setup and shows/hides relevant settings accordingly
 
-##### 1.7.1 Image Transitions Settings
+##### 1.8.1 Image Transitions Settings
 
 **When `animationMode === 'image-transitions'`**:
 
@@ -192,28 +313,37 @@ flowchart LR
   - **Backend Field**: `easingStyle: string`
   - **Usage**: Default easing for all image transitions (can be overridden per segment)
 
-##### 1.7.2 Video Animation Settings
+##### 1.8.2 Video Animation Settings
 
 **When `animationMode === 'video-animation'`**:
 
 - **Video Model**
-  - **Type**: Dropdown selection
-  - **Options**:
-    - `kling-1.6` - Kling 1.6
-    - `minimax-video-01` - MiniMax Video 01
-    - `luma-ray` - Luma Ray
-  - **Default**: `kling-1.6`
+  - **Type**: Enhanced dropdown selection with model details
+  - **UI Features**:
+    - Selected model card showing provider, badge, and capabilities
+    - Dropdown with full model details (provider, description, durations, resolutions)
+    - Automatic resolution reset when model changes
+  - **Options** (imported from `@/constants/video-models`):
+    - `seedance-1.0-pro` - Seedance 1.0 Pro (ByteDance) - 2-12s, 480p-1080p [Default]
+    - `veo-3.0` - Google Veo 3.0 (Google) - 4-8s, 720p-1080p
+    - `veo-3.1` - Google Veo 3.1 (Google) - 4-8s, 720p-1080p [Cinematic]
+    - `klingai-2.5-turbo-pro` - KlingAI 2.5 Turbo Pro (KlingAI) - 5-10s, 720p [Turbo]
+    - `pixverse-v5.5` - PixVerse v5.5 (PixVerse) - 5-8s, 360p-1080p
+    - `hailuo-2.3` - MiniMax Hailuo 2.3 (MiniMax) - 6-10s, 768p-1080p
+    - `sora-2-pro` - Sora 2 Pro (OpenAI) - 4-12s, 720p [Pro]
+    - `ltx-2-pro` - LTX-2 Pro (Lightricks) - 6-10s, 1080p-4K [4K]
+  - **Default**: `seedance-1.0-pro` (from `getDefaultVideoModel()`)
   - **Backend Field**: `videoModel: string`
   - **Backend Integration**: Different API endpoints per model
 
-- **Resolution**
+- **Video Resolution** (Dynamic)
   - **Type**: Button selection
-  - **Options**:
-    - `720p` - 720p
-    - `1080p` - 1080p
-    - `4k` - 4K
-  - **Default**: `1080p`
+  - **Options**: Dynamic based on selected model's supported resolutions
+  - **Display Labels**: Uses `VIDEO_RESOLUTION_LABELS` for user-friendly display
+    - `360p`, `480p`, `540p`, `720p (HD)`, `768p`, `1080p (Full HD)`, `1440p (2K)`, `2160p (4K)`
+  - **Default**: First resolution from selected model
   - **Backend Field**: `videoResolution: string`
+  - **Behavior**: Automatically resets to model's first supported resolution when model changes
 
 - **Motion Prompt**
   - **Type**: Textarea (multiline text)
@@ -222,30 +352,32 @@ flowchart LR
   - **Backend Field**: `motionPrompt: string`
   - **Usage**: Custom instructions for AI video generation, applied globally to all video segments
 
-#### 1.8 Transition Style / Camera Motion (Conditional)
+#### 1.9 Transition Style / Camera Motion (Conditional)
 
 **This setting is conditional based on Animation Mode selected during onboarding.**
 
-##### 1.8.1 When `animationMode === 'image-transitions'`
+##### 1.9.1 When `animationMode === 'image-transitions'`
 
 **Transition Style**
 - **Type**: Button grid selection (2 columns)
 - **Options**:
+  - `auto` - Auto (AI selects best transition per scene)
   - `crossfade` - Smooth Crossfade (Gentle blend between scenes)
   - `dissolve` - Slow Dissolve (Gradual fade transition)
   - `drift` - Drift (Floating motion blend)
   - `match-cut` - Match Cut (Seamless visual continuity)
   - `morph` - Morph (Shape transformation)
   - `wipe` - Soft Wipe (Directional reveal)
-- **Default**: `crossfade`
+- **Default**: `auto`
 - **Backend Field**: `transitionStyle: string`
 - **Usage**: How images transition between each other
 
-##### 1.8.2 When `animationMode === 'video-animation'`
+##### 1.9.2 When `animationMode === 'video-animation'`
 
 **Camera Motion**
 - **Type**: Button selection (flex wrap)
 - **Options**:
+  - `auto` - Auto (AI selects best camera motion per scene)
   - `static` - Static
   - `slow-pan` - Slow Pan
   - `gentle-drift` - Gentle Drift
@@ -253,26 +385,91 @@ flowchart LR
   - `push-in` - Push In
   - `pull-out` - Pull Out
   - `float` - Floating
-- **Default**: `slow-pan`
+- **Default**: `auto`
 - **Backend Field**: `cameraMotion: string`
 - **Usage**: Default camera movement for AI-generated video clips
 
 **Note**: These settings occupy the same UI space and swap based on the selected Animation Mode.
 
-#### 1.9 Pacing & Segment Settings
+#### 1.10 Pacing & Flow Settings
 
 **Note**: Moved from Flow Design (Step 3) to Atmosphere for better workflow organization.
 
-#### 1.10 Voiceover
+##### 1.10.1 Pacing
+- **Type**: Slider (0-100)
+- **Default**: `30`
+- **Backend Field**: `pacing: number`
+- **Usage**: How quickly visual changes occur (0 = very slow, 100 = fast-paced).
+
+##### 1.10.2 Segment Settings
+- **Type**: Toggle (On/Off)
+- **Default**: `true` (On)
+- **Backend Field**: `segmentEnabled: boolean`
+- **Usage**: When enabled, allows custom configuration of segments and shots.
+
+###### 1.10.2.1 Conditional Segment Settings (When Segment Settings is ON)
+
+**Number of Segments**
+- **Type**: Auto button / Number input (1-20)
+- **Default**: `auto`
+- **Backend Field**: `segmentCount: 'auto' | number`
+- **Usage**: Defines the number of distinct visual segments in the video.
+
+**Shots per Segment**
+- **Type**: Auto button / Number input (1-10)
+- **Default**: `auto`
+- **Backend Field**: `shotsPerSegment: 'auto' | number`
+- **Usage**: Defines the number of individual shots within each segment.
+
+##### 1.10.3 Loop Mode
+- **Type**: Toggle (On/Off)
+- **Default**: `true` (On)
+- **Backend Field**: `loopMode: boolean`
+- **Usage**: When enabled, the video will loop back to the beginning seamlessly.
+
+###### 1.10.3.1 Loop Settings (Conditional - When Loop is ON)
+
+**Loop Type**
+- **Type**: Button selection (single choice)
+- **Options**:
+  - `seamless` - Seamless (perfect continuous loop)
+  - `fade` - Fade (fade out then fade in)
+  - `hard-cut` - Hard Cut (direct cut to beginning)
+- **Default**: `seamless`
+- **Backend Field**: `loopType: 'seamless' | 'fade' | 'hard-cut'`
+
+**Segment Loop**
+- **Type**: Toggle (On/Off)
+- **Default**: `false` (Off)
+- **Backend Field**: `segmentLoopEnabled: boolean`
+- **Usage**: When enabled, individual segments will loop a specified number of times.
+
+**Segment Loop Count** (Conditional - When Segment Loop is ON)
+- **Type**: Auto button / Number input (1-10)
+- **Default**: `auto`
+- **Backend Field**: `segmentLoopCount: 'auto' | number`
+
+**Shot Loop**
+- **Type**: Toggle (On/Off)
+- **Default**: `false` (Off)
+- **Backend Field**: `shotLoopEnabled: boolean`
+- **Usage**: When enabled, individual shots within segments will loop a specified number of times.
+
+**Shot Loop Count** (Conditional - When Shot Loop is ON)
+- **Type**: Auto button / Number input (1-10)
+- **Default**: `auto`
+- **Backend Field**: `shotLoopCount: 'auto' | number`
+
+#### 1.11 Voiceover
 
 **Note**: Voiceover is always the last setting in the Atmosphere tab.
 
-##### 1.10.1 Enable Voiceover
+##### 1.11.1 Enable Voiceover
 - **Type**: Toggle (On/Off)
 - **Default**: `false` (Off)
 - **Backend Field**: `voiceoverEnabled: boolean`
 
-##### 1.10.2 Voiceover Settings (Conditional)
+##### 1.11.2 Voiceover Settings (Conditional)
 
 **When `voiceoverEnabled === true`**:
 
@@ -298,81 +495,7 @@ flowchart LR
   - **Default**: `modern`
   - **Backend Field**: `textOverlayStyle: 'modern' | 'cinematic' | 'bold'`
 
-#### 1.9 Pacing & Flow Settings
-
-##### 1.9.1 Pacing
-- **Type**: Slider (0-100)
-- **Type**: Slider (0-100)
-- **Default**: `30`
-- **Backend Field**: `pacing: number`
-- **Usage**: Controls how quickly scenes change (0 = very slow/meditative, 100 = fast-paced/dynamic)
-
-##### 1.9.2 Segment Settings
-- **Type**: Toggle (On/Off)
-- **Default**: `true` (On)
-- **Backend Field**: `segmentEnabled: boolean`
-- **Usage**: Enable custom segment configuration
-
-###### 1.9.2.1 Segment Settings (Conditional - When Segments are ON)
-
-**Number of Segments**
-- **Type**: Auto or custom number input
-- **Options**: `auto` or number (1-20)
-- **Default**: `auto`
-- **Backend Field**: `segmentCount: 'auto' | number`
-- **Usage**: Number of distinct visual segments in your video
-
-**Shots per Segment**
-- **Type**: Auto or custom number input
-- **Options**: `auto` or number (1-10)
-- **Default**: `auto`
-- **Backend Field**: `shotsPerSegment: 'auto' | number`
-- **Usage**: Number of individual shots within each segment
-
-##### 1.9.3 Seamless Loop
-- **Type**: Toggle (On/Off)
-- **Default**: `true` (On)
-- **Backend Field**: `loopMode: boolean`
-- **Usage**: When enabled, the video will loop back to the beginning seamlessly
-
-###### 1.9.3.1 Loop Settings (Conditional - When Loop is ON)
-
-**Loop Type**
-- **Type**: Button selection (single choice)
-- **Options**:
-  - `seamless` - Seamless (perfect continuous loop)
-  - `fade` - Fade (fade out then fade in)
-  - `hard-cut` - Hard Cut (direct cut to beginning)
-- **Default**: `seamless`
-- **Backend Field**: `loopType: 'seamless' | 'fade' | 'hard-cut'`
-
-**Segment Loop**
-- **Type**: Toggle (On/Off)
-- **Default**: `false` (Off)
-- **Backend Field**: `segmentLoopEnabled: boolean`
-- **Usage**: Loop each segment individually before moving to next
-
-**Segment Loop Count** (when Segment Loop is ON)
-- **Type**: Auto or custom number input
-- **Options**: `auto` or number (1-10)
-- **Default**: `auto`
-- **Backend Field**: `segmentLoopCount: 'auto' | number`
-- **Usage**: How many times to loop each segment
-
-**Shot Loop**
-- **Type**: Toggle (On/Off)
-- **Default**: `false` (Off)
-- **Backend Field**: `shotLoopEnabled: boolean`
-- **Usage**: Loop individual shots within segments
-
-**Shot Loop Count** (when Shot Loop is ON)
-- **Type**: Auto or custom number input
-- **Options**: `auto` or number (1-10)
-- **Default**: `auto`
-- **Backend Field**: `shotLoopCount: 'auto' | number`
-- **Usage**: How many times to loop each shot
-
-#### 1.11 AI Idea Generator
+#### 1.12 AI Idea Generator
 
 - **AI Prompt Input**
   - **Type**: Text input
@@ -393,124 +516,357 @@ flowchart LR
 
 ### Settings Structure
 
-#### 2.1 Art Style
-- **Type**: Selection
+#### 2.1 Art Style & Reference Images (Combined Card)
+
+This combined card allows users to either select a preset art style OR upload reference images for custom styling.
+
+**Art Style Selection**:
+- **Type**: Selection (button grid, 2 columns)
+- **Options**:
+  - `cinematic` - Cinematic (Film-quality realism)
+  - `anime` - Anime (Japanese animation style)
+  - `illustrated` - Illustrated (Digital art look)
+  - `realistic` - Realistic (Photo-realistic)
+  - `abstract` - Abstract (Non-representational)
+  - `painterly` - Painterly (Oil painting texture)
+  - `watercolor` - Watercolor (Soft, flowing edges)
+  - `minimalist` - Minimalist (Clean and simple)
+- **Default**: `cinematic`
 - **Backend Field**: `artStyle: string`
 - **Usage**: Determines the visual rendering style for image generation
 
-#### 2.2 Color Palette
-- **Type**: Selection
-- **Backend Field**: `colorPalette: string`
-- **Usage**: Color scheme for all generated images
-
-#### 2.3 Lighting Mood
-- **Type**: Selection
-- **Backend Field**: `lightingMood: string`
-- **Usage**: Lighting conditions for image generation
-
-#### 2.4 Texture
-- **Type**: Selection
-- **Backend Field**: `texture: string`
-- **Usage**: Surface quality and detail level
-
-#### 2.5 Visual Elements
-- **Type**: Multi-select
-- **Backend Field**: `visualElements: string[]`
-- **Usage**: Specific elements to include in scenes
-
-#### 2.6 Atmospheric Layers
-- **Type**: Multi-select
-- **Backend Field**: `atmosphericLayers: string[]`
-- **Usage**: Environmental effects (fog, particles, etc.)
-
-#### 2.7 Reference Images
-- **Type**: Image upload (multiple)
+**Style Reference Images**:
+- **Type**: Image upload (multiple, max 4)
 - **Backend Field**: `referenceImages: string[]` (URLs or file paths)
-- **Usage**: Style reference for image generation
+- **Usage**: Upload images to guide the visual style (AI will match the aesthetic)
+- **Note**: Reference images can be used alongside or instead of preset art styles
 
----
+#### 2.2 Key Visual Elements
+- **Type**: Multi-select badges (max 5)
+- **Options**: Mountains, Ocean, Forest, City Lights, Stars, Rain, Fireplace, Clouds, Waves, Snow, Aurora, Fog, Flowers, Desert, Lake, Waterfall, Sunset Sky, Neon Signs
+- **Backend Field**: `visualElements: string[]`
+- **Usage**: Specific elements to feature in scenes
 
-## Step 3: Flow Design
-
-**Purpose**: Define the rhythm, style, and evolution of the ambient visual.
-
-**Note**: Pacing, Segment Count, Loop Mode, Transition Style, and Camera Motion have been moved to Step 1 (Atmosphere) for better workflow organization.
-
-### Settings Structure
-
-#### 3.1 Variation Type
-- **Type**: Selection
-- **Options**: `evolving`, `static`, `cycling`
-- **Backend Field**: `variationType: string`
-- **Usage**: How visuals change over time
-
-#### 3.2 Visual Rhythm
-- **Type**: Selection
+#### 2.3 Visual Rhythm
+- **Type**: Button grid selection (2 columns)
+- **Options**:
+  - `constant` - Constant Calm (Steady, unchanging pace)
+  - `breathing` - Breathing (Subtle rhythmic pulse)
+  - `building` - Building (Gradually intensifying)
+  - `wave` - Wave (Rising and falling)
+- **Default**: `breathing`
 - **Backend Field**: `visualRhythm: string`
-- **Usage**: Pattern of visual changes
+- **Usage**: How the experience unfolds over time
+- **Note**: Moved from Flow Design (Step 3) to Visual World for better workflow organization
+
+#### 2.4 Custom Image Instructions
+- **Type**: Textarea (multiline text)
+- **Placeholder**: "e.g., Use soft focus on backgrounds, include lens flares, maintain consistent color grading across all shots, avoid harsh shadows..."
+- **Default**: Empty string
+- **Backend Field**: `imageCustomInstructions: string`
+- **Usage**: Custom instructions to guide AI image generation, applied globally to all generated images
+- **Examples**:
+  - "Maintain warm color temperature throughout"
+  - "Use shallow depth of field with bokeh effects"
+  - "Add subtle film grain for vintage look"
+  - "Keep lighting dramatic with strong shadows"
 
 ---
 
-## Step 4: Composition
+## Step 3: Flow Design (Scene Breakdown)
 
-**Purpose**: Configure individual segments with specific settings.
+**Purpose**: Create and manage the visual segments (scenes and shots) that make up the ambient experience.
 
-### Segment Structure
+**Note**: This step uses the SceneBreakdown component which allows AI-powered generation or manual creation of scenes.
 
-Each segment represents a distinct visual moment in the ambient video.
+### Overview
 
+The Flow Design phase leverages the atmosphere description and visual world settings to break down the ambient visual into structured scenes and shots. This step:
+- Uses the mood description as the "script" input
+- Generates scenes based on the configured atmosphere
+- Allows manual scene creation and editing
+- Supports continuity management across scenes
+- Provides shot-level control within scenes
+
+### Key Features
+
+#### 3.1 AI Scene Generation
+
+**Trigger**: "Generate Flow Design" button
+
+**Process**:
+1. Takes the mood description from Step 1 (Atmosphere)
+2. Uses the selected image model and theme settings
+3. Generates a sequence of scenes with:
+   - Scene descriptions
+   - Shot breakdowns within each scene
+   - Duration estimates
+   - Visual prompts
+
+**Backend Integration**:
+- **Endpoint**: `/api/videos/:videoId/scene-breakdown`
+- **Input**: Mood description (as script), atmosphere settings
+- **Output**: Array of `Scene` objects with nested `Shot` arrays
+
+#### 3.2 Manual Scene Management
+
+**Actions**:
+- **Add Scene Manually**: Create custom scenes with specific descriptions
+- **Edit Scene**: Modify scene descriptions and settings
+- **Delete Scene**: Remove unwanted scenes
+- **Reorder Scenes**: Drag-and-drop or move up/down buttons
+
+#### 3.3 Shot Management
+
+Within each scene:
+- **Generate Shots**: AI creates shot variations
+- **Edit Shots**: Modify prompts, duration, or settings
+- **Add Shots**: Manually create additional shots
+- **Delete Shots**: Remove specific shots
+- **Upload References**: Add reference images for shots
+
+#### 3.4 Continuity Management (Start-End Frame Mode Only)
+
+**Note**: Continuity management is only available when Video Animation mode with Start-End Frame generation is selected during onboarding. In Image-Reference mode, this section is hidden.
+
+**Continuity Proposal System**:
+- **Generate Proposal**: AI analyzes all shots across scenes and proposes shot connections
+- **Review Arrows**: Visual arrows in the shot list show proposed connections
+- **Approve/Decline**: Accept or reject individual connections per scene
+- **Lock Continuity**: Once approved, lock the continuity to proceed to Composition
+
+**Visual Indicators**:
+- **Blue arrows**: Proposed connections pending review
+- **Green indicators**: Approved connections
+- **Status bar**: Shows count of approved vs. pending connections
+
+**How It Works**:
+1. Click "Analyze All Shots for Continuity" button
+2. AI proposes groups of shots that should connect seamlessly
+3. Review each proposed connection (shown as arrows between shots)
+4. Approve or decline connections using the buttons
+5. When at least one group is approved, click "Lock & Continue"
+6. Once locked, continuity cannot be changed
+
+**Connection Types**:
+- `flow`: Smooth camera movement between shots
+- `pan`: Continuous pan across scene elements
+- `character-movement`: Following subject from one position to another
+
+**Backend Fields**: 
+- `continuityLocked: boolean` - Whether continuity is finalized
+- `continuityGroups: { [sceneId: string]: ContinuityGroup[] }` - Approved connections by scene
+
+### Data Structure
+
+#### Scene Object
 ```typescript
-interface Segment {
+interface Scene {
   id: string;
-  
-  // Timing
-  duration: number; // in seconds
-  
-  // Image/Video Generation
-  keyframeUrl: string | null; // Generated image URL
-  
-  // Per-Segment Settings (Animation Mode Dependent)
-  
-  // For Image Transitions Mode:
-  transitionType?: 'zoom-in' | 'zoom-out' | 'pan-left' | 'pan-right' | 'pan-up' | 'pan-down' | 'fade' | 'ken-burns';
-  easingStyle?: 'smooth' | 'linear' | 'ease-in-out' | 'cinematic';
-  
-  // For Video Animation Mode:
-  cameraMotion?: 'static' | 'orbit' | 'zoom-in' | 'zoom-out' | 'pan-left' | 'pan-right';
-  
-  // Visual Layers (optional, for advanced composition)
-  layers?: {
-    background: boolean;
-    midground: boolean;
-    foreground: boolean;
-  };
-  
-  // Effects (optional)
-  effects?: {
-    particles: boolean;
-    lightRays: boolean;
-    fog: boolean;
-  };
+  sceneNumber: number;
+  description: string;
+  setting: string;
+  duration: number;
+  order: number;
 }
 ```
 
-### Backend Processing
+#### Shot Object
+```typescript
+interface Shot {
+  id: string;
+  sceneId: string;
+  shotNumber: number;
+  description: string;
+  visualPrompt: string;
+  duration: number;
+  shotType: string;
+  cameraAngle: string;
+  order: number;
+}
+```
 
-1. **Calculate Segment Durations**:
-   - Total duration (e.g., 300 seconds for 5 min)
-   - Divide by `segmentCount` to get base duration per segment
-   - Allow manual adjustment per segment
+#### Shot Version Object
+```typescript
+interface ShotVersion {
+  id: string;
+  shotId: string;
+  versionNumber: number;
+  visualPrompt: string;
+  imageUrl?: string;
+  selected: boolean;
+}
+```
 
-2. **Generate Keyframes**:
-   - For each segment, generate an image based on:
-     - Atmosphere settings (mood, theme, time, season)
-     - Visual World settings (art style, colors, etc.)
-     - Mood description
-   - Store generated image URL in `keyframeUrl`
+### Navigation
 
-3. **Apply Per-Segment Settings**:
-   - **Image Transitions**: Apply transition type and easing
-   - **Video Animation**: Send image to video model with camera motion preset
+After completing scene/shot setup, clicking "Continue" proceeds to Step 4 (Composition) where individual segments are configured with motion and effects.
+
+---
+
+## Step 4: Composition (Storyboard Editor)
+
+**Purpose**: Generate images/videos for each shot, manage versions, and refine the visual composition.
+
+**Note**: This step uses the StoryboardEditor component which works with scenes and shots created in the Flow Design phase.
+
+### Overview
+
+The Composition phase takes the scenes and shots from Flow Design and allows:
+- Image/video generation for each shot
+- Per-scene model selection (image model, video model)
+- Animation mode configuration per scene
+- Shot prompt editing and refinement
+- Version management with comparison
+- Drag-and-drop shot reordering
+
+### View Modes
+
+#### 4.1 Cards View (Default)
+- Grid layout of shot cards organized by scene
+- Each card shows:
+  - Shot thumbnail (generated image or placeholder)
+  - Shot number and description
+  - Duration
+  - Generate/Regenerate button
+  - Edit prompt controls
+
+#### 4.2 Timeline View
+- Horizontal timeline representation
+- Visual duration bars for each shot
+- Playhead for navigation
+- Quick overview of total video length
+
+### Per-Scene Settings
+
+Each scene can have its own settings:
+
+#### 4.3 Image Model Selection
+- **Type**: Dropdown
+- **Options**: Flux, Midjourney, Nano Banana, GPT Image
+- **Default**: Inherits from Atmosphere settings
+- **Backend Field**: `sceneImageModel: string`
+
+#### 4.4 Video Model Selection (Video Animation Mode)
+- **Type**: Dropdown
+- **Options**: (Inherited from `@/constants/video-models`)
+  - Seedance 1.0 Pro (ByteDance) [Default]
+  - Google Veo 3.0, Veo 3.1 (Google)
+  - KlingAI 2.5 Turbo Pro (KlingAI)
+  - PixVerse v5.5 (PixVerse)
+  - MiniMax Hailuo 2.3 (MiniMax)
+  - Sora 2 Pro (OpenAI)
+  - LTX-2 Pro (Lightricks)
+- **Default**: Inherits from Atmosphere settings
+- **Backend Field**: `sceneVideoModel: string`
+
+#### 4.5 Animation Mode (Per-Scene Override)
+- **Options**:
+  - `smooth-image` - Smooth Image (Ken Burns effect)
+  - `animate` - Full Animation (AI Video generation)
+- **Backend Field**: `sceneAnimationMode: string`
+
+### Shot Card Features
+
+#### 4.6 Frame Display (Mode-Dependent)
+
+**Image-Reference Mode**:
+- Single image view per shot
+- Both Image and Video tabs available (in Video Animation mode)
+- Full drag-and-drop reordering capability
+
+**Start-End Frame Mode** (requires locked continuity from Flow Design):
+- **Start/End Tab Selector**: All shots show Start and End tabs (matching Narrative mode behavior)
+- **Image/Video Tabs**: All shots show both Image and Video tabs (in Video Animation mode)
+- **Start Frame**: Beginning state of the shot (always generated)
+- **End Frame**: 
+  - For connected shots: Shows the next shot's start frame (synced automatically)
+  - For standalone/last shots: Shows the shot's own end frame
+- **Connection Indicators**: Link2 icon (cyan/teal) between connected shots
+- **Drag Restrictions**: Connected shots cannot be reordered to maintain continuity
+- **UI Styling**: Consistent cyan/teal color theme (buttons use `variant="ghost"` with gradient, badges use `variant="outline"`)
+
+#### 4.7 Shot Generation
+- **Generate**: Creates initial image for the shot using visual prompt
+- **Regenerate**: Creates a new version while keeping existing versions
+- **Upload Reference**: Add reference image to guide generation
+
+#### 4.8 Prompt Editing
+- Edit the visual prompt for the shot
+- Apply quick edit categories:
+  - Prompt refinement
+  - Clothing changes
+  - Element removal
+  - Expression changes
+  - Figure adjustments
+  - Camera angle
+  - Effects
+  - Variations
+
+#### 4.9 Version Management
+- Multiple versions per shot
+- Compare mode for side-by-side comparison
+- Select active version
+- Delete unwanted versions
+
+#### 4.10 Shot Duration
+- Adjustable duration per shot (3-10 seconds typical)
+- Visual duration indicators
+- Affects final video length
+
+### Shot Types
+- Extreme Close-up
+- Close-up
+- Medium Close-up
+- Medium Shot
+- Medium Wide Shot
+- Wide Shot
+- Extreme Wide Shot
+- Over-the-Shoulder
+- Point of View
+- Establishing Shot
+
+### Camera Movements
+- Static
+- Pan Left / Right
+- Tilt Up / Down
+- Zoom In / Out
+- Dolly In / Out
+- Tracking Shot
+- Crane Up / Down
+- Handheld
+- Steadicam
+
+### Transition Types
+- Cut (instant)
+- Fade (to/from black)
+- Dissolve (cross-dissolve)
+- Wipe
+- Slide
+
+### Actions Available
+
+| Action | Description |
+|--------|-------------|
+| Add Scene | Insert new scene after current |
+| Delete Scene | Remove scene and all its shots |
+| Add Shot | Insert new shot in current scene |
+| Delete Shot | Remove shot from scene |
+| Reorder Shots | Drag-and-drop within scene |
+| Generate All | Generate images for all shots |
+
+### Backend Integration
+
+**Endpoints**:
+- `POST /api/shots/:shotId/generate` - Generate image for shot
+- `POST /api/shots/:shotId/regenerate` - Create new version
+- `PUT /api/shots/:shotId` - Update shot details
+- `POST /api/shots/:shotId/reference` - Upload reference image
+- `DELETE /api/shots/:shotId/reference` - Remove reference image
+
+### Navigation
+
+After completing shot generation and refinement, clicking "Continue to Animatic" proceeds to Step 5 (Preview) where the full ambient video is assembled and previewed.
 
 ---
 
@@ -592,21 +948,29 @@ Including [visual elements]. [Atmospheric layers] effects.
 flowchart LR
     A[Generated Image] --> B[Video Model API]
     B --> C{Model Type}
-    C -->|Kling| D[Kling API]
-    C -->|MiniMax| E[MiniMax API]
-    C -->|Luma| F[Luma API]
-    D --> G[Generated Video Clip]
-    E --> G
-    F --> G
-    G --> H[Store in Segment]
+    C -->|Seedance| D[ByteDance API]
+    C -->|Veo 3.x| E[Google API]
+    C -->|KlingAI| F[KlingAI API]
+    C -->|PixVerse| G[PixVerse API]
+    C -->|Hailuo| H[MiniMax API]
+    C -->|Sora| I[OpenAI API]
+    C -->|LTX| J[Lightricks API]
+    D --> K[Generated Video Clip]
+    E --> K
+    F --> K
+    G --> K
+    H --> K
+    I --> K
+    J --> K
+    K --> L[Store in Segment]
 ```
 
 **Video Generation Parameters**:
 - Input: Keyframe image
 - Camera motion: From segment settings
 - Motion prompt: Global from Atmosphere step
-- Resolution: From Atmosphere step
-- Duration: Segment duration
+- Resolution: Dynamic based on selected model's supported resolutions
+- Duration: Model-specific durations (e.g., 2-12s for Seedance, 4-8s for Veo)
 
 ### Image Transitions Flow (Image Transitions Mode)
 
@@ -659,6 +1023,8 @@ interface AmbientVisualProject {
   
   // Step 1: Atmosphere
   atmosphere: {
+    imageModel: string; // Image model selection
+    imageResolution: string; // NEW: Image resolution (auto, 1k, 2k, 4k)
     aspectRatio: string;
     duration: string;
     mood: string;
@@ -666,12 +1032,29 @@ interface AmbientVisualProject {
     timeContext: string;
     season: string;
     animationMode: 'image-transitions' | 'video-animation';
+    videoGenerationMode?: 'image-reference' | 'start-end-frame'; // Only for video-animation
     
     // Animation Mode Settings
     easingStyle?: string; // for image-transitions
     videoModel?: string; // for video-animation
     videoResolution?: string; // for video-animation
     motionPrompt?: string; // for video-animation
+    
+    // Transition/Camera (moved from Flow Design)
+    transitionStyle: string; // for image-transitions
+    cameraMotion: string; // for video-animation
+    
+    // Pacing & Flow (moved from Flow Design)
+    pacing: number;
+    segmentEnabled: boolean;
+    segmentCount: 'auto' | number;
+    shotsPerSegment: 'auto' | number;
+    loopMode: boolean;
+    loopType: 'seamless' | 'fade' | 'hard-cut';
+    segmentLoopEnabled: boolean;
+    segmentLoopCount: 'auto' | number;
+    shotLoopEnabled: boolean;
+    shotLoopCount: 'auto' | number;
     
     // Voiceover
     voiceoverEnabled: boolean;
@@ -686,23 +1069,36 @@ interface AmbientVisualProject {
   // Step 2: Visual World
   visualWorld: {
     artStyle: string;
-    colorPalette: string;
-    lightingMood: string;
-    texture: string;
     visualElements: string[];
-    atmosphericLayers: string[];
+    visualRhythm: string; // MOVED from Flow Design
     referenceImages: string[];
+    // REMOVED: colorPalette, lightingMood, texture, atmosphericLayers
   };
   
-  // Step 3: Flow Design
+  // Step 3: Flow Design (Scene Breakdown)
   flowDesign: {
-    transitionStyle: string;
-    variationType: string;
-    visualRhythm: string;
+    scenes: Scene[];
+    shots: { [sceneId: string]: Shot[] };
+    shotVersions?: { [shotId: string]: ShotVersion[] };
+    continuityLocked: boolean;
+    continuityGroups: { [sceneId: string]: ContinuityGroup[] };
   };
   
-  // Step 4: Composition
-  segments: Segment[];
+  // Step 4: Composition (uses scenes/shots from Flow Design)
+  // StoryboardEditor works with flowDesign.scenes and flowDesign.shots
+  // Additional composition state:
+  composition: {
+    shotReferenceImages: ReferenceImage[];
+    characters: Character[];
+    voiceActorId: string | null;
+    sceneSettings: {
+      [sceneId: string]: {
+        imageModel?: string;
+        videoModel?: string;
+        animationMode?: 'smooth-image' | 'animate';
+      };
+    };
+  };
   
   // Export
   exportSettings?: {
@@ -908,7 +1304,7 @@ Response: {
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: December 2024  
+**Document Version**: 1.1  
+**Last Updated**: December 16, 2024  
 **Authors**: Storia Development Team
 

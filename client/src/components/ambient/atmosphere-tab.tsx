@@ -336,21 +336,11 @@ const EASING_STYLES = [
   { value: 'cinematic', label: 'Cinematic' },
 ];
 
-// Video Animation - AI Video Models
-const VIDEO_MODELS = [
-  { value: 'kling-1.6', label: 'Kling 1.6' },
-  { value: 'minimax-video-01', label: 'MiniMax Video 01' },
-  { value: 'luma-ray', label: 'Luma Ray' },
-];
-
-// Video Animation - Resolutions
-const VIDEO_RESOLUTIONS = [
-  { value: '720p', label: '720p' },
-  { value: '1080p', label: '1080p' },
-  { value: '4k', label: '4K' },
-];
+// Video Animation - Import from shared constants
+import { VIDEO_MODELS as IMPORTED_VIDEO_MODELS, getVideoModelConfig, getDefaultVideoModel, VIDEO_RESOLUTION_LABELS } from "@/constants/video-models";
 
 const TRANSITION_STYLES = [
+  { id: "auto", label: "Auto", description: "AI selects best transition per scene" },
   { id: "crossfade", label: "Smooth Crossfade", description: "Gentle blend between scenes" },
   { id: "dissolve", label: "Slow Dissolve", description: "Gradual fade transition" },
   { id: "drift", label: "Drift", description: "Floating motion blend" },
@@ -360,6 +350,7 @@ const TRANSITION_STYLES = [
 ];
 
 const CAMERA_MOTIONS = [
+  { id: "auto", label: "Auto" },
   { id: "static", label: "Static" },
   { id: "slow-pan", label: "Slow Pan" },
   { id: "gentle-drift", label: "Gentle Drift" },
@@ -378,6 +369,7 @@ interface AtmosphereTabProps {
   duration: string;
   moodDescription: string;
   imageModel?: string;
+  imageResolution?: string;
   aspectRatio?: string;
   voiceoverEnabled?: boolean;
   language?: 'ar' | 'en';
@@ -414,6 +406,7 @@ interface AtmosphereTabProps {
   onDurationChange: (duration: string) => void;
   onMoodDescriptionChange: (description: string) => void;
   onImageModelChange?: (model: string) => void;
+  onImageResolutionChange?: (resolution: string) => void;
   onAspectRatioChange?: (aspectRatio: string) => void;
   onVoiceoverChange?: (enabled: boolean) => void;
   onLanguageChange?: (lang: 'ar' | 'en') => void;
@@ -448,6 +441,7 @@ export function AtmosphereTab({
   duration,
   moodDescription,
   imageModel = "nano-banana",
+  imageResolution = "auto",
   aspectRatio = "16:9",
   voiceoverEnabled = false,
   language = 'en',
@@ -456,8 +450,8 @@ export function AtmosphereTab({
   animationMode = 'image-transitions',
   videoGenerationMode,
   defaultEasingStyle = 'smooth',
-  videoModel = 'kling-1.6',
-  videoResolution = '1080p',
+  videoModel = getDefaultVideoModel().value,
+  videoResolution = getDefaultVideoModel().resolutions[0] || '720p',
   motionPrompt = '',
   transitionStyle = 'crossfade',
   cameraMotion = 'slow-pan',
@@ -479,6 +473,7 @@ export function AtmosphereTab({
   onDurationChange,
   onMoodDescriptionChange,
   onImageModelChange,
+  onImageResolutionChange,
   onAspectRatioChange,
   onVoiceoverChange,
   onLanguageChange,
@@ -664,9 +659,13 @@ Perfect for meditation, focus work, or peaceful background ambiance.`;
                         })()}
                       </SelectValue>
                     </SelectTrigger>
-                    <SelectContent className="max-h-[400px]">
+                    <SelectContent className="max-h-[400px] bg-[#0a0a0a] border-white/10">
                       {IMAGE_MODELS.map((model) => (
-                        <SelectItem key={model.value} value={model.value} className="py-3">
+                        <SelectItem 
+                          key={model.value} 
+                          value={model.value} 
+                          className="py-3 focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                        >
                           <div className="flex items-start justify-between gap-3 w-full">
                             <div className="flex flex-col flex-1">
                               <div className="flex items-center gap-2 flex-wrap">
@@ -696,6 +695,67 @@ Perfect for meditation, focus work, or peaceful background ambiance.`;
                   </Select>
                   <p className="text-xs text-white/50">
                     AI model used to generate images from your prompts
+                  </p>
+                </div>
+
+                {/* Resolution Selector */}
+                <div className="space-y-2">
+                  <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Resolution</label>
+                  {(() => {
+                    const selectedModel = IMAGE_MODELS.find(m => m.value === imageModel);
+                    const availableResolutions = selectedModel?.resolutions || ["1k"];
+                    const hasMultipleResolutions = availableResolutions.length > 1 || (availableResolutions.length === 1 && availableResolutions[0] !== "custom");
+                    
+                    // If model has "custom" only, show auto
+                    if (availableResolutions.length === 1 && availableResolutions[0] === "custom") {
+                      return (
+                        <div className="flex items-center gap-2">
+                          <button
+                            className={cn(
+                              "flex-1 px-4 py-3 rounded-lg border transition-all",
+                              "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
+                            )}
+                          >
+                            Auto
+                          </button>
+                          <p className="text-xs text-white/40">Model uses optimal resolution automatically</p>
+                        </div>
+                      );
+                    }
+                    
+                    // Show resolution buttons for models with specific resolutions
+                    return (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => onImageResolutionChange?.("auto")}
+                          className={cn(
+                            "flex-1 px-4 py-3 rounded-lg border transition-all text-sm font-medium",
+                            imageResolution === "auto"
+                              ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
+                              : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70"
+                          )}
+                        >
+                          Auto
+                        </button>
+                        {availableResolutions.filter(r => r !== "custom").map((res) => (
+                          <button
+                            key={res}
+                            onClick={() => onImageResolutionChange?.(res)}
+                            className={cn(
+                              "flex-1 px-4 py-3 rounded-lg border transition-all text-sm font-medium",
+                              imageResolution === res
+                                ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
+                                : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70"
+                            )}
+                          >
+                            {res.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  <p className="text-xs text-white/50">
+                    Higher resolution = more detail but slower generation
                   </p>
                 </div>
 
@@ -770,9 +830,13 @@ Perfect for meditation, focus work, or peaceful background ambiance.`;
                   <SelectTrigger data-testid="select-duration" className="h-12 bg-white/5 border-white/10 text-white">
                     <SelectValue placeholder="Select duration" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#0a0a0a] border-white/10">
                     {DURATIONS.map((d) => (
-                      <SelectItem key={d.value} value={d.value}>
+                      <SelectItem 
+                        key={d.value} 
+                        value={d.value}
+                        className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                      >
                         {d.label}
                       </SelectItem>
                     ))}
@@ -967,48 +1031,130 @@ Perfect for meditation, focus work, or peaceful background ambiance.`;
                     animate={{ height: 'auto', opacity: 1 }}
                     className="space-y-4"
                   >
-                    {/* Video Model */}
-                    <div className="space-y-2">
+                    {/* Video Model - Enhanced UI */}
+                    <div className="space-y-3">
                       <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Video Model</label>
-                      <p className="text-xs text-white/40">
-                        AI model used to generate video from images
-                      </p>
-                      <Select value={videoModel} onValueChange={(value) => onVideoModelChange?.(value)}>
-                        <SelectTrigger className="h-12 bg-white/5 border-white/10 text-white">
-                          <SelectValue placeholder="Select video model" />
+                      
+                      <Select value={videoModel} onValueChange={(value) => {
+                        onVideoModelChange?.(value);
+                        // Reset resolution to first available for new model
+                        const newModel = getVideoModelConfig(value);
+                        if (newModel && !newModel.resolutions.includes(videoResolution)) {
+                          onVideoResolutionChange?.(newModel.resolutions[0]);
+                        }
+                      }}>
+                        <SelectTrigger className="h-auto p-0 border-0 bg-transparent [&>svg]:hidden">
+                          {/* Custom styled trigger that looks like a card */}
+                          {(() => {
+                            const selectedVideoModel = getVideoModelConfig(videoModel);
+                            if (!selectedVideoModel) return <SelectValue placeholder="Select video model" />;
+                            
+                            return (
+                              <div className="w-full p-4 rounded-lg bg-white/5 border border-white/10 hover:bg-white/[0.07] transition-colors text-left">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500/20 to-teal-500/20">
+                                      <Video className="w-5 h-5 text-cyan-400" />
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-white">{selectedVideoModel.label}</span>
+                                        {selectedVideoModel.badge && (
+                                          <Badge 
+                                            variant="outline" 
+                                            className={cn(
+                                              "text-[10px] px-1.5 py-0",
+                                              selectedVideoModel.default 
+                                                ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-amber-500/50 text-amber-300"
+                                                : "bg-white/10 border-white/20 text-white/70"
+                                            )}
+                                          >
+                                            {selectedVideoModel.badge}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <span className="text-xs text-white/50">{selectedVideoModel.provider}</span>
+                                    </div>
+                                  </div>
+                                  <svg className="w-5 h-5 text-white/40 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </div>
+                                <div className="mt-2 text-xs text-white/40">
+                                  {selectedVideoModel.durations.join(', ')}s • {selectedVideoModel.resolutions.join(', ')}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </SelectTrigger>
-                        <SelectContent>
-                          {VIDEO_MODELS.map((model) => (
-                            <SelectItem key={model.value} value={model.value}>
-                              {model.label}
+                        <SelectContent className="max-h-[400px] bg-[#0a0a0a] border-white/10">
+                          {IMPORTED_VIDEO_MODELS.map((model) => (
+                            <SelectItem 
+                              key={model.value} 
+                              value={model.value}
+                              className="py-3 focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                            >
+                              <div className="flex items-start justify-between gap-3 w-full">
+                                <div className="flex flex-col flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium text-sm">{model.label}</span>
+                                    {model.default && (
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-amber-500/50 text-amber-300">
+                                        Default
+                                      </Badge>
+                                    )}
+                                    {model.badge && !model.default && (
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-white/10 border-white/20">
+                                        {model.badge}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground mt-0.5">
+                                    {model.provider}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground/80 mt-1">
+                                    {model.description}
+                                  </span>
+                                  <span className="text-[10px] text-white/40 mt-1">
+                                    {model.durations.join(', ')}s • {model.resolutions.join(', ')}
+                                  </span>
+                                </div>
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
 
-                    {/* Resolution */}
+                    {/* Video Resolution - Dynamic based on selected model */}
                     <div className="space-y-2">
-                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Resolution</label>
-                      <p className="text-xs text-white/40">
-                        Output video resolution
-                      </p>
-                      <div className="grid grid-cols-3 gap-3">
-                        {VIDEO_RESOLUTIONS.map((res) => (
-                          <button
-                            key={res.value}
-                            onClick={() => onVideoResolutionChange?.(res.value)}
-                            className={cn(
-                              "py-2.5 px-3 rounded-lg text-sm font-medium border transition-all",
-                              videoResolution === res.value
-                                ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                                : "bg-white/5 border-white/10 hover:bg-white/10"
-                            )}
-                          >
-                            {res.label}
-                          </button>
-                        ))}
-                      </div>
+                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Video Resolution</label>
+                      {(() => {
+                        const selectedVideoModel = getVideoModelConfig(videoModel);
+                        const availableResolutions = selectedVideoModel?.resolutions || ['720p'];
+                        
+                        return (
+                          <div className={cn(
+                            "grid gap-2",
+                            availableResolutions.length <= 3 ? "grid-cols-3" : "grid-cols-4"
+                          )}>
+                            {availableResolutions.map((res) => (
+                              <button
+                                key={res}
+                                onClick={() => onVideoResolutionChange?.(res)}
+                                className={cn(
+                                  "py-3 px-3 rounded-lg text-sm font-medium border transition-all",
+                                  videoResolution === res
+                                    ? "bg-gradient-to-br from-amber-500/20 to-orange-500/20 border-amber-500/50 text-white"
+                                    : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70"
+                                )}
+                              >
+                                {VIDEO_RESOLUTION_LABELS[res] || res}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Motion Prompt */}

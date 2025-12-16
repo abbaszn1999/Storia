@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Sparkles, Edit, Trash2, Plus, Copy, ChevronUp, ChevronDown } from "lucide-react";
+import { Loader2, Sparkles, Edit, Trash2, Plus, Copy, ChevronUp, ChevronDown, FileText, Layers, Clock } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -134,32 +135,11 @@ export function SceneBreakdown({
     return merged;
   };
   
-  const approvedGroups = hasParentCallback 
-    ? Object.fromEntries(
-        Object.entries(propsGroups).map(([sceneId, groups]) => [
-          sceneId, 
-          groups.filter(g => g.status === "approved")
-        ]).filter(([_, groups]) => groups.length > 0)
-      )
-    : localApprovedGroups;
-    
-  const proposalDraft = hasParentCallback
-    ? Object.fromEntries(
-        Object.entries(propsGroups).map(([sceneId, groups]) => [
-          sceneId,
-          groups.filter(g => g.status === "proposed")
-        ]).filter(([_, groups]) => groups.length > 0)
-      )
-    : localProposalDraft;
-  
-  const declinedGroups = hasParentCallback
-    ? Object.fromEntries(
-        Object.entries(propsGroups).map(([sceneId, groups]) => [
-          sceneId,
-          groups.filter(g => g.status === "declined")
-        ]).filter(([_, groups]) => groups.length > 0)
-      )
-    : localDeclinedGroups;
+  // Always use local state for Flow phase UI (proposals, approvals, declines)
+  // The parent only receives approved groups for the Composition phase
+  const approvedGroups = localApprovedGroups;
+  const proposalDraft = localProposalDraft;
+  const declinedGroups = localDeclinedGroups;
   
   const continuityGroups = mergeAllGroups(approvedGroups, proposalDraft, declinedGroups);
   
@@ -169,13 +149,14 @@ export function SceneBreakdown({
     proposed: { [sceneId: string]: ContinuityGroup[] },
     declined: { [sceneId: string]: ContinuityGroup[] }
   ) => {
+    // Always update local state for all groups (needed for Flow phase UI)
+    setLocalApprovedGroups(approved);
+    setLocalProposalDraft(proposed);
+    setLocalDeclinedGroups(declined);
+    
+    // Only pass approved groups to parent - Composition phase should only see approved connections
     if (hasParentCallback) {
-      const merged = mergeAllGroups(approved, proposed, declined);
-      onContinuityGroupsChange!(merged);
-    } else {
-      setLocalApprovedGroups(approved);
-      setLocalProposalDraft(proposed);
-      setLocalDeclinedGroups(declined);
+      onContinuityGroupsChange!(approved);
     }
   };
 
@@ -885,13 +866,14 @@ export function SceneBreakdown({
       const dummyShotVersions: { [shotId: string]: ShotVersion[] } = {};
       Object.values(dummyShots).flat().forEach((shot, index) => {
         const versionId = `version-${shot.id}-1`;
-        const colors = [
-          'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=450&fit=crop', // Mountain landscape
-          'https://images.unsplash.com/photo-1506709551723-4c3c5c8bbb4b?w=800&h=450&fit=crop', // Forest
-          'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&h=450&fit=crop', // Nature
-          'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=450&fit=crop', // Forest path
+        // More variety of nature/landscape images using picsum with different seeds
+        const imageSeeds = [
+          'forest-dawn', 'misty-mountains', 'dewdrop-leaf', 'ancient-trees', 
+          'stream-stones', 'waterfall-mist', 'sunbeam-canopy', 'fern-closeup',
+          'golden-hour', 'twilight-forest', 'peaceful-lake', 'moss-rocks'
         ];
-        const imageUrl = colors[index % colors.length];
+        const seed = imageSeeds[index % imageSeeds.length];
+        const imageUrl = `https://picsum.photos/seed/${seed}-${index}/800/450`;
 
         dummyShotVersions[shot.id] = [
           {
@@ -1202,63 +1184,102 @@ export function SceneBreakdown({
   const hasBreakdown = scenes.length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Page Header */}
+      <div className="text-center max-w-2xl mx-auto">
+        <h2 className="text-2xl font-bold mb-2">Design the Flow</h2>
+        <p className="text-muted-foreground">
+          Break down your ambient visual into segments and shots
+        </p>
+      </div>
+
       {!hasBreakdown ? (
-        <div className="space-y-6">
-          <div className="text-center py-12">
-            <p className="text-muted-foreground mb-6">
-              AI will analyze your atmosphere description and create visual segments.
-            </p>
-            <Button
-              size="lg"
-              onClick={() => breakdownMutation.mutate()}
-              disabled={breakdownMutation.isPending}
-              data-testid="button-generate-breakdown"
-            >
-              {breakdownMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating Segments...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Generate Flow Design
-                </>
-              )}
-            </Button>
-          </div>
-          
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground mb-4">or</p>
-            <Button
-              variant="outline"
-              onClick={openAddSceneDialog}
-              data-testid="button-add-scene"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Segment Manually
-            </Button>
-          </div>
+        <div className="space-y-8">
+          {/* Empty State - Generate or Add Manually */}
+          <Card className="border-dashed border-2 border-white/10 bg-white/[0.02]">
+            <CardContent className="py-16 px-8">
+              <div className="text-center space-y-6">
+                <div className="inline-flex p-4 rounded-full bg-gradient-to-br from-primary/20 to-primary/5">
+                  <Sparkles className="h-8 w-8 text-primary" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold">Design Your Flow</h3>
+                  <p className="text-muted-foreground max-w-md mx-auto">
+                    AI will analyze your atmosphere description and create visual segments with shots.
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                  <Button
+                    size="lg"
+                    className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+                    onClick={() => breakdownMutation.mutate()}
+                    disabled={breakdownMutation.isPending}
+                    data-testid="button-generate-breakdown"
+                  >
+                    {breakdownMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating Segments...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Generate Flow Design
+                      </>
+                    )}
+                  </Button>
+                  <span className="text-sm text-muted-foreground">or</span>
+                  <Button
+                    variant="outline"
+                    onClick={openAddSceneDialog}
+                    className="border-white/10 hover:bg-white/5"
+                    data-testid="button-add-scene"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Segment Manually
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       ) : (
         <>
-          {synopsis && (
-            <Card className="bg-card/50">
-              <CardContent className="pt-6">
-                <h3 className="text-sm font-semibold mb-2">Synopsis</h3>
-                <Textarea
-                  value={synopsis}
-                  onChange={(e) => setSynopsis(e.target.value)}
-                  className="text-sm resize-none"
-                  rows={3}
-                  data-testid="input-synopsis"
-                />
-              </CardContent>
-            </Card>
-          )}
+          {/* Synopsis - Always visible */}
+          <Card className="bg-white/[0.02] border-white/[0.06]">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-2 mb-3">
+                <FileText className="h-5 w-5 text-primary" />
+                <Label className="text-lg font-semibold">Synopsis</Label>
+              </div>
+              <Textarea
+                value={synopsis}
+                onChange={(e) => setSynopsis(e.target.value)}
+                placeholder="Describe the overall story or mood of your ambient visual..."
+                className="text-sm resize-none bg-white/5 border-white/10"
+                rows={3}
+                data-testid="input-synopsis"
+              />
+            </CardContent>
+          </Card>
 
-          {/* Continuity Proposal removed for Ambient mode - not applicable */}
+          {/* Continuity Proposal - Only for Start-End Frame mode */}
+          {narrativeMode === "start-end" && scenes.length > 0 && (
+            <ContinuityProposal
+              scenes={scenes}
+              allShots={shots}
+              proposedGroups={proposalDraft}
+              approvedGroups={approvedGroups}
+              declinedGroups={declinedGroups}
+              isGenerating={isGeneratingContinuity}
+              isLocked={localContinuityLocked}
+              onGenerateProposal={handleGenerateContinuityProposal}
+              onGroupApprove={handleGroupApprove}
+              onGroupDecline={handleGroupDecline}
+              onGroupEdit={handleGroupEdit}
+              onLock={handleLock}
+            />
+          )}
 
           <div className="space-y-4">
             {scenes.map((scene, sceneIndex) => {
@@ -1280,14 +1301,19 @@ export function SceneBreakdown({
               const shotRefs = shotRefsMap.current[scene.id];
               
               return (
-                <Card key={scene.id} className="bg-card/50" data-testid={`scene-${scene.id}`}>
+                <Card key={scene.id} className="bg-white/[0.02] border-white/[0.06]" data-testid={`scene-${scene.id}`}>
                   <CardContent className="p-6">
+                    {/* Segment Header */}
                     <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">
-                          Segment {sceneIndex + 1}: {scene.title}
-                        </h3>
-                        <Badge variant="secondary" className="text-xs" data-testid={`scene-duration-${scene.id}`}>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <Layers className="h-5 w-5 text-primary" />
+                          <h3 className="text-lg font-semibold">
+                            Segment {sceneIndex + 1}: {scene.title}
+                          </h3>
+                        </div>
+                        <Badge className="bg-primary/20 text-primary border-primary/30 text-xs px-2" data-testid={`scene-duration-${scene.id}`}>
+                          <Clock className="h-3 w-3 mr-1" />
                           {scene.duration || 0}s
                         </Badge>
                       </div>
@@ -1295,6 +1321,7 @@ export function SceneBreakdown({
                         <Button
                           size="icon"
                           variant="ghost"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-white/5"
                           onClick={() => duplicateScene(scene)}
                           data-testid={`button-copy-scene-${scene.id}`}
                         >
@@ -1303,6 +1330,7 @@ export function SceneBreakdown({
                         <Button
                           size="icon"
                           variant="ghost"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-white/5"
                           onClick={() => openEditSceneDialog(scene)}
                           data-testid={`button-edit-scene-${scene.id}`}
                         >
@@ -1311,6 +1339,7 @@ export function SceneBreakdown({
                         <Button
                           size="icon"
                           variant="ghost"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-white/5"
                           disabled={sceneIndex === 0}
                           onClick={() => moveScene(scene.id, 'up')}
                           data-testid={`button-move-up-scene-${scene.id}`}
@@ -1320,6 +1349,7 @@ export function SceneBreakdown({
                         <Button
                           size="icon"
                           variant="ghost"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-white/5"
                           disabled={sceneIndex === scenes.length - 1}
                           onClick={() => moveScene(scene.id, 'down')}
                           data-testid={`button-move-down-scene-${scene.id}`}
@@ -1329,6 +1359,7 @@ export function SceneBreakdown({
                         <Button
                           size="icon"
                           variant="ghost"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                           onClick={() => setDeleteSceneId(scene.id)}
                           data-testid={`button-delete-scene-${scene.id}`}
                         >
@@ -1338,7 +1369,19 @@ export function SceneBreakdown({
                     </div>
 
                     <div className="relative space-y-2">
-                      {/* Continuity arrows removed for Ambient mode */}
+                      {/* Continuity arrows - Only for Start-End Frame mode */}
+                      {narrativeMode === "start-end" && (
+                        <ShotContinuityArrows
+                          sceneId={scene.id}
+                          sceneShots={sceneShots}
+                          shotRefs={shotRefs}
+                          proposedGroups={proposalDraft[scene.id] || []}
+                          approvedGroups={approvedGroups[scene.id] || []}
+                          isLocked={localContinuityLocked}
+                          onApproveConnection={(shotId1, shotId2) => handleApproveConnection(scene.id, shotId1, shotId2)}
+                          onDeclineConnection={(shotId1, shotId2) => handleDeclineConnection(scene.id, shotId1, shotId2)}
+                        />
+                      )}
                       
                       {sceneShots.map((shot, shotIndex) => (
                         <div
@@ -1348,21 +1391,22 @@ export function SceneBreakdown({
                               shotRefs.current[shotIndex] = el;
                             }
                           }}
-                          className="flex items-start gap-3 p-3 rounded-lg bg-background/50 hover-elevate"
+                          className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition-colors"
                           data-testid={`shot-${shot.id}`}
                         >
-                          <div className="h-2 w-2 rounded-full bg-primary mt-2 shrink-0" />
+                          <div className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-primary to-primary/60 mt-1.5 shrink-0 shadow-sm shadow-primary/30" />
                           <div className="flex-1 min-w-0">
-                            <span className="text-sm font-medium mr-2">Shot {shotIndex + 1}</span>
-                            <span className="text-sm">{shot.description}</span>
+                            <span className="text-sm font-medium text-foreground mr-2">Shot {shotIndex + 1}</span>
+                            <span className="text-sm text-muted-foreground">{shot.description}</span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            <Badge variant="outline" className="text-xs">
+                            <Badge className="bg-white/5 border-white/10 text-xs text-muted-foreground">
                               {shot.duration}s
                             </Badge>
                             <Button
                               size="icon"
                               variant="ghost"
+                              className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-white/5"
                               onClick={() => openEditShotDialog(shot, scene.id)}
                               data-testid={`button-edit-shot-${shot.id}`}
                             >
@@ -1371,6 +1415,7 @@ export function SceneBreakdown({
                             <Button
                               size="icon"
                               variant="ghost"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                               onClick={() => setDeleteShotId(shot.id)}
                               data-testid={`button-delete-shot-${shot.id}`}
                             >
@@ -1384,7 +1429,7 @@ export function SceneBreakdown({
                         variant="ghost"
                         size="sm"
                         onClick={() => openAddShotDialog(scene.id)}
-                        className="w-full mt-2"
+                        className="w-full mt-3 border border-dashed border-white/10 hover:bg-white/5 hover:border-primary/30 text-muted-foreground hover:text-foreground"
                         data-testid={`button-add-shot-${scene.id}`}
                       >
                         <Plus className="h-4 w-4 mr-2" />
@@ -1396,10 +1441,11 @@ export function SceneBreakdown({
               );
             })}
 
+            {/* Add Segment Button */}
             <Button
               variant="outline"
               onClick={openAddSceneDialog}
-              className="w-full"
+              className="w-full border-dashed border-white/10 hover:bg-white/5 hover:border-primary/30"
               data-testid="button-add-scene"
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -1407,22 +1453,36 @@ export function SceneBreakdown({
             </Button>
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-card/50 rounded-lg">
-            <div className="text-sm text-muted-foreground">
-              The video is approximately{' '}
-              <span className="text-foreground font-medium">
-                {Math.floor(totalDuration / 60)}:{String(totalDuration % 60).padStart(2, '0')}
-              </span>{' '}
-              ({totalShots} shots)
-            </div>
-            <Button 
-              onClick={onNext} 
-              data-testid="button-next"
-            >
-              Next
-              <span className="ml-2">→</span>
-            </Button>
-          </div>
+          {/* Summary Footer */}
+          <Card className="bg-white/[0.02] border-white/[0.06]">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="h-4 w-4 text-primary" />
+                    <span className="text-muted-foreground">Total Duration:</span>
+                    <span className="font-semibold text-foreground">
+                      {Math.floor(totalDuration / 60)}:{String(totalDuration % 60).padStart(2, '0')}
+                    </span>
+                  </div>
+                  <div className="h-4 w-px bg-white/10" />
+                  <div className="flex items-center gap-2 text-sm">
+                    <Layers className="h-4 w-4 text-primary" />
+                    <span className="text-muted-foreground">Shots:</span>
+                    <span className="font-semibold text-foreground">{totalShots}</span>
+                  </div>
+                </div>
+                <Button 
+                  onClick={onNext} 
+                  className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+                  data-testid="button-next"
+                >
+                  Continue
+                  <span className="ml-2">→</span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           <SceneDialog
             open={sceneDialogOpen}

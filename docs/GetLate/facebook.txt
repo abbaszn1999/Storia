@@ -1,0 +1,161 @@
+# Facebook
+
+Image and video requirements for Facebook Pages posts and Stories
+
+## Image Requirements
+
+| Property | Feed Post | Story |
+|----------|-----------|-------|
+| **Max Images** | 10 | 1 |
+| **Formats** | JPEG, PNG, GIF, WebP | JPEG, PNG |
+| **Max File Size** | 10 MB | 10 MB |
+| **Recommended** | 1200 × 630 px | 1080 × 1920 px |
+| **Min Dimensions** | 200 × 200 px | 500 × 500 px |
+
+### Aspect Ratios
+
+| Type | Ratio | Dimensions | Use Case |
+|------|-------|------------|----------|
+| Landscape | 1.91:1 | 1200 × 630 px | Link previews, standard |
+| Square | 1:1 | 1080 × 1080 px | Engagement posts |
+| Portrait | 4:5 | 1080 × 1350 px | Mobile-optimized |
+| Story | 9:16 | 1080 × 1920 px | Stories only |
+
+## Video Requirements
+
+| Property | Feed Video | Story |
+|----------|------------|-------|
+| **Max Videos** | 1 | 1 |
+| **Formats** | MP4, MOV | MP4, MOV |
+| **Max File Size** | 4 GB | 4 GB |
+| **Max Duration** | 240 minutes | 120 seconds |
+| **Min Duration** | 1 second | 1 second |
+| **Resolution** | Up to 4K | 1080 × 1920 px |
+| **Frame Rate** | 30 fps recommended | 30 fps |
+
+### Recommended Video Specs
+
+| Property | Recommended |
+|----------|-------------|
+| Resolution | 1280 × 720 px (720p) min |
+| Aspect Ratio | 16:9 (landscape), 9:16 (Stories) |
+| Codec | H.264 |
+| Audio | AAC, 128 kbps stereo |
+| Bitrate | 8 Mbps for 1080p |
+
+## Multi-Image Posts
+
+Facebook supports up to **10 images** in a single post:
+
+```json
+{
+  "content": "Photo dump from the weekend! 📸",
+  "mediaItems": [
+    { "url": "https://example.com/photo1.jpg" },
+    { "url": "https://example.com/photo2.jpg" },
+    { "url": "https://example.com/photo3.jpg" }
+  ],
+  "platforms": [
+    { "platform": "facebook", "accountId": "acc_123" }
+  ]
+}
+```
+
+**Note:** You cannot mix images and videos in the same post.
+
+## Facebook Stories
+
+Stories are 24-hour ephemeral content. To post as a Story:
+
+```json
+{
+  "mediaItems": [
+    { "url": "https://example.com/story.jpg" }
+  ],
+  "platforms": [
+    {
+      "platform": "facebook",
+      "accountId": "acc_123",
+      "platformSpecificData": {
+        "contentType": "story"
+      }
+    }
+  ]
+}
+```
+
+### Story Requirements
+
+- **Media required** - Stories must have an image or video
+- **No text captions** - Text won't display on Stories
+- **Disappear after 24 hours**
+- Recommended: 1080 × 1920 px (9:16)
+
+## First Comment
+
+Add an automatic first comment to your post:
+
+```json
+{
+  "content": "New product launch! 🚀",
+  "mediaItems": [
+    { "url": "https://example.com/product.jpg" }
+  ],
+  "platforms": [
+    {
+      "platform": "facebook",
+      "accountId": "acc_123",
+      "platformSpecificData": {
+        "firstComment": "Link to purchase: https://shop.example.com"
+      }
+    }
+  ]
+}
+```
+
+**Note:** First comments don't work with Stories.
+
+## Page Targeting
+
+If you manage multiple Pages, specify which one:
+
+```json
+{
+  "platforms": [
+    {
+      "platform": "facebook",
+      "accountId": "acc_123",
+      "platformSpecificData": {
+        "pageId": "123456789"
+      }
+    }
+  ]
+}
+```
+
+## GIF Support
+
+Facebook supports animated GIFs:
+
+- Treated as videos internally
+- Auto-play in feed
+- Max file size: 25 MB recommended
+- Loop automatically
+
+## Common Issues
+
+### "Cannot mix media types"
+
+Facebook doesn't allow images and videos in the same post. Create separate posts for each.
+
+### Story has no caption
+
+This is expected behavior. Facebook Stories don't display text captions. Add text as an image overlay instead.
+
+### Video processing taking long
+
+Large videos (>100 MB) may take several minutes to process. Use scheduled posts for async processing.
+
+### Image looks cropped
+
+Facebook auto-crops to fit feed. Use recommended aspect ratios (1.91:1, 1:1, or 4:5) for best results.

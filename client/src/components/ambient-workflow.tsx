@@ -6,7 +6,8 @@ import { StoryboardEditor } from "@/components/ambient/storyboard-editor";
 import { AnimaticPreview } from "@/components/ambient/animatic-preview";
 import { ExportSettings, type ExportData } from "@/components/ambient/export-settings";
 import { useToast } from "@/hooks/use-toast";
-import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
+import type { Character } from "@shared/schema";
+import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 
 interface AmbientWorkflowProps {
   activeStep: string;

@@ -1,0 +1,341 @@
+# Pipelines
+
+Automate content workflows with CSV scheduling and cross-posting
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+The Pipelines module provides higher-level workflows for common content scheduling tasks, including CSV bulk scheduling and cross-platform posting.
+
+## CSV Scheduler
+
+Schedule multiple posts from a CSV file.
+
+### Basic Usage
+
+```python
+from late import Late
+from late.pipelines import CSVSchedulerPipeline
+
+client = Late(api_key="your_api_key")
+pipeline = CSVSchedulerPipeline(client)
+
+# Schedule all posts from CSV
+results = pipeline.schedule("posts.csv")
+
+for result in results:
+    if result.success:
+        print(f"Row {result.row}: Created post {result.post_id}")
+    else:
+        print(f"Row {result.row}: Failed - {result.error}")
+```
+
+### Dry Run (Validation)
+
+Validate CSV without creating posts:
+
+```python
+results = pipeline.schedule("posts.csv", dry_run=True)
+
+if all(r.success for r in results):
+    print("Validation passed! Ready to schedule.")
+    # Actually create posts
+    results = pipeline.schedule("posts.csv")
+else:
+    print("Validation errors:")
+    for r in results:
+        if not r.success:
+            print(f"  Row {r.row}: {r.error}")
+```
+
+### CSV Format
+
+**Required columns:**
+
+| Column | Description |
+|--------|-------------|
+| `content` | Post content text |
+| `platform` | Platform name (twitter, instagram, etc.) |
+| `account_id` | Account ID to post from |
+| `scheduled_for` | ISO datetime or custom format |
+
+**Optional columns:**
+
+| Column | Description |
+|--------|-------------|
+| `title` | Post title (for YouTube, Pinterest) |
+| `media_url` | URL to media file |
+| `media_type` | Media type: image, video, gif (default: image) |
+| `tags` | Comma-separated tags |
+| `timezone` | IANA timezone (default: UTC) |
+
+**Example CSV:**
+
+```csv
+content,platform,account_id,scheduled_for,title,media_url,tags
+"Hello world!",twitter,acc_123,2024-12-25T10:00:00Z,,,
+"LinkedIn post",linkedin,acc_456,2024-12-25T11:00:00Z,My Title,,tag1,tag2
+"With image",instagram,acc_789,2024-12-25T12:00:00Z,,https://example.com/image.jpg,
+```
+
+### Custom Date Format
+
+```python
+# Use custom date format
+pipeline = CSVSchedulerPipeline(
+    client,
+    date_format="%Y-%m-%d %H:%M:%S",
+    default_timezone="America/New_York"
+)
+
+results = pipeline.schedule("posts.csv")
+```
+
+### Async Usage
+
+```python
+import asyncio
+from late import Late
+from late.pipelines import CSVSchedulerPipeline
+
+async def schedule_posts():
+    async with Late(api_key="your_api_key") as client:
+        pipeline = CSVSchedulerPipeline(client)
+        results = await pipeline.aschedule("posts.csv")
+
+        for r in results:
+            print(f"Row {r.row}: {'OK' if r.success else r.error}")
+
+asyncio.run(schedule_posts())
+```
+
+## Cross-Poster
+
+Post content to multiple platforms with automatic staggering and content adaptation.
+
+### Basic Usage
+
+```python
+import asyncio
+from late import Late, Platform
+from late.pipelines import CrossPosterPipeline, PlatformConfig
+
+async def cross_post():
+    async with Late(api_key="your_api_key") as client:
+        cross_poster = CrossPosterPipeline(client)
+
+        results = await cross_poster.post(
+            content="Exciting news! Our new feature is live.",
+            platforms=[
+                PlatformConfig(Platform.TWITTER, "tw_123"),
+                PlatformConfig(Platform.LINKEDIN, "li_456"),
+                PlatformConfig(Platform.INSTAGRAM, "ig_789"),
+            ],
+        )
+
+        for r in results:
+            if r.success:
+                print(f"{r.platform}: Posted ({r.post_id})")
+            else:
+                print(f"{r.platform}: Failed - {r.error}")
+
+asyncio.run(cross_post())
+```
+
+### Custom Delays
+
+Control timing between posts:
+
+```python
+results = await cross_poster.post(
+    content="Big announcement!",
+    platforms=[
+        PlatformConfig(Platform.TWITTER, "tw_123", delay_minutes=0),    # Post immediately
+        PlatformConfig(Platform.LINKEDIN, "li_456", delay_minutes=5),   # 5 min later
+        PlatformConfig(Platform.INSTAGRAM, "ig_789", delay_minutes=10), # 10 min later
+    ],
+)
+```
+
+### Platform-Specific Content
+
+Customize content per platform:
+
+```python
+results = await cross_poster.post(
+    content="Default content for all platforms",
+    platforms=[
+        PlatformConfig(
+            Platform.TWITTER,
+            "tw_123",
+            custom_content="Short version for Twitter! #announcement"
+        ),
+        PlatformConfig(
+            Platform.LINKEDIN,
+            "li_456",
+            custom_content="Longer, more professional version for LinkedIn..."
+        ),
+        PlatformConfig(Platform.INSTAGRAM, "ig_789"),  # Uses default content
+    ],
+)
+```
+
+### Content Adaptation
+
+The cross-poster automatically adapts content to platform character limits:
+
+| Platform | Character Limit |
+|----------|-----------------|
+| Twitter | 280 |
+| Threads | 500 |
+| Bluesky | 300 |
+| LinkedIn | 3,000 |
+| Instagram | 2,200 |
+| TikTok | 2,200 |
+| Facebook | 63,206 |
+
+```python
+# Automatic content truncation (default: enabled)
+results = await cross_poster.post(
+    content="Very long content that exceeds some platform limits...",
+    platforms=[...],
+    adapt_content=True  # Truncates for each platform
+)
+
+# Disable adaptation
+results = await cross_poster.post(
+    content="Short content",
+    platforms=[...],
+    adapt_content=False  # Use exact content
+)
+```
+
+### With Media and Tags
+
+```python
+from late import MediaType
+
+results = await cross_poster.post(
+    content="Check out our new product!",
+    platforms=[
+        PlatformConfig(Platform.TWITTER, "tw_123"),
+        PlatformConfig(Platform.INSTAGRAM, "ig_456"),
+    ],
+    title="Product Launch",
+    media_items=[{"type": MediaType.IMAGE, "url": "https://example.com/product.jpg"}],
+    tags=["product", "launch", "tech"],
+)
+```
+
+### Sync Version
+
+```python
+from late import Late, Platform
+from late.pipelines import CrossPosterPipeline, PlatformConfig
+
+client = Late(api_key="your_api_key")
+cross_poster = CrossPosterPipeline(client)
+
+# Synchronous cross-posting
+results = cross_poster.post_sync(
+    content="Announcement!",
+    platforms=[
+        PlatformConfig(Platform.TWITTER, "tw_123"),
+        PlatformConfig(Platform.LINKEDIN, "li_456"),
+    ],
+)
+```
+
+## API Reference
+
+### CSVSchedulerPipeline
+
+```python
+CSVSchedulerPipeline(
+    client: Late,
+    date_format: str = "%Y-%m-%d %H:%M:%S",
+    default_timezone: str = "UTC"
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `client` | `Late` | — | Late client instance |
+| `date_format` | `str` | `"%Y-%m-%d %H:%M:%S"` | Date parsing format |
+| `default_timezone` | `str` | `"UTC"` | Default timezone |
+
+#### Methods
+
+**`schedule(file_path, dry_run=False)`** - Schedule posts from CSV
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `file_path` | `str \| Path` | — | Path to CSV file |
+| `dry_run` | `bool` | `False` | Validate without creating |
+
+**Returns:** `list[ScheduleResult]`
+
+### ScheduleResult
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `row` | `int` | Row number in CSV |
+| `success` | `bool` | Whether scheduling succeeded |
+| `post_id` | `str \| None` | Created post ID |
+| `error` | `str \| None` | Error message if failed |
+
+### CrossPosterPipeline
+
+```python
+CrossPosterPipeline(
+    client: Late,
+    default_stagger: int = 5
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `client` | `Late` | — | Late client instance |
+| `default_stagger` | `int` | `5` | Minutes between posts |
+
+#### Methods
+
+**`post(content, platforms, ...)`** - Cross-post content (async)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `content` | `str` | — | Base content |
+| `platforms` | `list[PlatformConfig]` | — | Platform configs |
+| `title` | `str` | `None` | Optional title |
+| `media_items` | `list[dict]` | `None` | Optional media |
+| `tags` | `list[str]` | `None` | Optional tags |
+| `base_time` | `datetime` | `None` | Base schedule time |
+| `adapt_content` | `bool` | `True` | Adapt to char limits |
+
+**Returns:** `list[CrossPostResult]`
+
+### PlatformConfig
+
+```python
+PlatformConfig(
+    platform: Platform | str,
+    account_id: str,
+    custom_content: str | None = None,
+    delay_minutes: int = 0
+)
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `platform` | `Platform \| str` | — | Platform enum or string |
+| `account_id` | `str` | — | Account ID |
+| `custom_content` | `str` | `None` | Platform-specific content |
+| `delay_minutes` | `int` | `0` | Delay from base time |
+
+### CrossPostResult
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `platform` | `Platform \| str` | Platform enum or string |
+| `success` | `bool` | Whether posting succeeded |
+| `post_id` | `str \| None` | Created post ID |
+| `error` | `str \| None` | Error message if failed |

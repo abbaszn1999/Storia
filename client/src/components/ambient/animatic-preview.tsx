@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Play, FileText, Info, Music, Subtitles } from "lucide-react";
-import type { Scene, Shot } from "@shared/schema";
+import type { Scene, Shot } from "@/types/storyboard";
 import { FullScriptDialog } from "./full-script-dialog";
 import { ShotDetailsDialog } from "./shot-details-dialog";
 

@@ -22,7 +22,8 @@ import {
 import { Plus, Upload, Check, Pencil, User, Library, ChevronDown, ChevronUp, Loader2, Sparkles, X, MapPin, Trash2, RefreshCw, Settings2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
-import type { Character, ReferenceImage } from "@shared/schema";
+import type { Character } from "@shared/schema";
+import type { ReferenceImage } from "@/types/storyboard";
 import { LocationDialog } from "@/components/narrative/location-dialog";
 import { LocationRecommendationModal } from "@/components/narrative/location-recommendation-modal";
 import { LocationLibraryModal } from "@/components/narrative/location-library-modal";

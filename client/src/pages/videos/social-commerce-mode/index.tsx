@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SocialCommerceWorkflow } from "@/components/social-commerce-workflow";
 import { NarrativeModeSelector } from "@/components/narrative/narrative-mode-selector";
-import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
+import type { Character } from "@shared/schema";
+import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 
 interface ProductDetails {
   title: string;

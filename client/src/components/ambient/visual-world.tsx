@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
-import type { ReferenceImage } from "@shared/schema";
+import type { ReferenceImage } from "@/types/storyboard";
 
 import cinematicImg from "@assets/stock_images/cinematic_dramatic_m_11f2a438.jpg";
 import vintageImg from "@assets/stock_images/vintage_retro_film_a_271325f2.jpg";

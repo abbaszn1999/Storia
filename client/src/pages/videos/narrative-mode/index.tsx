@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NarrativeWorkflow } from "@/components/narrative-workflow";
 import { NarrativeModeSelector } from "@/components/narrative/narrative-mode-selector";
-import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
+import type { Character } from "@shared/schema";
+import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 import { apiRequest } from "@/lib/queryClient";
 
 const steps = [

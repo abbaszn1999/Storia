@@ -15,6 +15,13 @@
       "when": 1765207660516,
       "tag": "0001_motionless_khan",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1765967324803,
+      "tag": "0002_flashy_triton",
+      "breakpoints": true
     }
   ]
 }

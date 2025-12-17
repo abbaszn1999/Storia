@@ -1,5 +1,5 @@
 import { SceneBreakdown } from "./scene-breakdown";
-import type { Scene, Shot, ShotVersion, ContinuityGroup } from "@shared/schema";
+import type { Scene, Shot, ShotVersion, ContinuityGroup } from "@/types/storyboard";
 
 interface FlowDesignTabProps {
   videoId: string;

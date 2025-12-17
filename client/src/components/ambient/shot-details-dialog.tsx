@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Clock, FileText, Search } from "lucide-react";
-import type { Scene, Shot } from "@shared/schema";
+import type { Scene, Shot } from "@/types/storyboard";
 
 interface ShotDetailsDialogProps {
   open: boolean;

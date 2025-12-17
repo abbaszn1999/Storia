@@ -1,7 +1,6 @@
 import {
   users,
   workspaces,
-  projects,
   stories,
   characters,
   locations,
@@ -15,8 +14,6 @@ import {
   type UpsertUser,
   type Workspace,
   type InsertWorkspace,
-  type Project,
-  type InsertProject,
   type Video,
   type InsertVideo,
   type Story,
@@ -33,39 +30,12 @@ import {
   type InsertUpload,
   type ContentCalendarItem,
   type InsertContentCalendar,
-  type Scene,
-  type InsertScene,
-  type Shot,
-  type InsertShot,
-  type ShotVersion,
-  type InsertShotVersion,
-  type ReferenceImage,
-  type InsertReferenceImage,
-  type ContinuityGroup,
-  type InsertContinuityGroup,
   type WorkspaceIntegration,
   type InsertWorkspaceIntegration,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function isValidUUID(value: string): boolean {
-  return UUID_REGEX.test(value);
-}
-
-function validateShotIds(shotIds: unknown): void {
-  if (!Array.isArray(shotIds)) {
-    throw new Error('shotIds must be an array');
-  }
-  for (const id of shotIds) {
-    if (typeof id !== 'string' || !isValidUUID(id)) {
-      throw new Error(`Invalid shot ID: ${id}. Must be a valid UUID.`);
-    }
-  }
-}
 
 export interface IStorage {
   // User operations
@@ -82,12 +52,6 @@ export interface IStorage {
   updateWorkspace(id: string, workspace: Partial<Workspace>): Promise<Workspace>;
   deleteWorkspace(id: string): Promise<void>;
   countUserWorkspaces(userId: string): Promise<number>;
-  
-  getProjectsByWorkspaceId(workspaceId: string): Promise<Project[]>;
-  getProject(id: string): Promise<Project | undefined>;
-  createProject(project: InsertProject): Promise<Project>;
-  updateProject(id: string, project: Partial<Project>): Promise<Project>;
-  deleteProject(id: string): Promise<void>;
   
   getVideosByWorkspaceId(workspaceId: string): Promise<Video[]>;
   getVideo(id: string): Promise<Video | undefined>;
@@ -130,35 +94,6 @@ export interface IStorage {
   getContentCalendarByWorkspaceId(workspaceId: string): Promise<ContentCalendarItem[]>;
   createContentCalendarItem(item: InsertContentCalendar): Promise<ContentCalendarItem>;
   
-  getScenesByVideoId(videoId: string): Promise<Scene[]>;
-  createScene(scene: InsertScene): Promise<Scene>;
-  updateScene(id: string, scene: Partial<Scene>): Promise<Scene>;
-  deleteScene(id: string): Promise<void>;
-  
-  getShotsBySceneId(sceneId: string): Promise<Shot[]>;
-  createShot(shot: InsertShot): Promise<Shot>;
-  updateShot(id: string, shot: Partial<Shot>): Promise<Shot>;
-  deleteShot(id: string): Promise<void>;
-  
-  getShotVersionsByShotId(shotId: string): Promise<ShotVersion[]>;
-  createShotVersion(version: InsertShotVersion): Promise<ShotVersion>;
-  getShotVersion(id: string): Promise<ShotVersion | undefined>;
-  updateShotVersion(id: string, version: Partial<ShotVersion>): Promise<ShotVersion>;
-  deleteShotVersion(id: string): Promise<void>;
-  
-  getReferenceImagesByVideoId(videoId: string): Promise<ReferenceImage[]>;
-  getReferenceImagesByCharacterId(characterId: string): Promise<ReferenceImage[]>;
-  getReferenceImagesByShotId(shotId: string): Promise<ReferenceImage[]>;
-  createReferenceImage(refImage: InsertReferenceImage): Promise<ReferenceImage>;
-  deleteReferenceImage(id: string): Promise<void>;
-  
-  getContinuityGroupsBySceneId(sceneId: string): Promise<ContinuityGroup[]>;
-  getContinuityGroupById(id: string): Promise<ContinuityGroup | undefined>;
-  createContinuityGroup(group: InsertContinuityGroup): Promise<ContinuityGroup>;
-  updateContinuityGroup(id: string, group: Partial<ContinuityGroup>): Promise<ContinuityGroup>;
-  deleteContinuityGroup(id: string): Promise<void>;
-  deleteContinuityGroupsBySceneId(sceneId: string): Promise<void>;
-  
   getWorkspaceIntegrations(workspaceId: string): Promise<WorkspaceIntegration[]>;
   getWorkspaceIntegration(workspaceId: string, platform: string): Promise<WorkspaceIntegration | undefined>;
   createWorkspaceIntegration(integration: InsertWorkspaceIntegration): Promise<WorkspaceIntegration>;
@@ -185,7 +120,6 @@ export interface IStorage {
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private workspacesMap: Map<string, Workspace>;
-  private projectsMap: Map<string, Project>;
   private videos: Map<string, Video>;
   private stories: Map<string, Story>;
   private characters: Map<string, Character>;
@@ -193,17 +127,11 @@ export class MemStorage implements IStorage {
   private voices: Map<string, Voice>;
   private uploads: Map<string, Upload>;
   private contentCalendar: Map<string, ContentCalendarItem>;
-  private scenes: Map<string, Scene>;
-  private shots: Map<string, Shot>;
-  private shotVersions: Map<string, ShotVersion>;
-  private referenceImages: Map<string, ReferenceImage>;
-  private continuityGroups: Map<string, ContinuityGroup>;
   // workspaceIntegrations now uses PostgreSQL directly (not in-memory)
 
   constructor() {
     this.users = new Map();
     this.workspacesMap = new Map();
-    this.projectsMap = new Map();
     this.videos = new Map();
     this.stories = new Map();
     this.characters = new Map();
@@ -211,11 +139,6 @@ export class MemStorage implements IStorage {
     this.voices = new Map();
     this.uploads = new Map();
     this.contentCalendar = new Map();
-    this.scenes = new Map();
-    this.shots = new Map();
-    this.shotVersions = new Map();
-    this.referenceImages = new Map();
-    this.continuityGroups = new Map();
     // workspaceIntegrations uses PostgreSQL directly
   }
 
@@ -331,8 +254,6 @@ export class MemStorage implements IStorage {
     await db.delete(workspaceIntegrations).where(eq(workspaceIntegrations.workspaceId, id));
     await db.delete(stories).where(eq(stories.workspaceId, id));
     await db.delete(videos).where(eq(videos.workspaceId, id));
-    // projects has cascade delete but let's be explicit
-    await db.delete(projects).where(eq(projects.workspaceId, id));
     // Finally delete the workspace itself
     await db.delete(workspaces).where(eq(workspaces.id, id));
   }
@@ -340,39 +261,6 @@ export class MemStorage implements IStorage {
   async countUserWorkspaces(userId: string): Promise<number> {
     const result = await db.select().from(workspaces).where(eq(workspaces.userId, userId));
     return result.length;
-  }
-
-  async getProjectsByWorkspaceId(workspaceId: string): Promise<Project[]> {
-    return db.select().from(projects).where(eq(projects.workspaceId, workspaceId));
-  }
-
-  async getProject(id: string): Promise<Project | undefined> {
-    const [project] = await db.select().from(projects).where(eq(projects.id, id));
-    return project;
-  }
-
-  async createProject(insertProject: InsertProject): Promise<Project> {
-    const [project] = await db
-      .insert(projects)
-      .values(insertProject)
-      .returning();
-    return project;
-  }
-
-  async updateProject(id: string, updates: Partial<Project>): Promise<Project> {
-    const [project] = await db
-      .update(projects)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(eq(projects.id, id))
-      .returning();
-    if (!project) {
-      throw new Error(`Project with id ${id} not found`);
-    }
-    return project;
-  }
-
-  async deleteProject(id: string): Promise<void> {
-    await db.delete(projects).where(eq(projects.id, id));
   }
 
   async getVideosByWorkspaceId(workspaceId: string): Promise<Video[]> {
@@ -632,266 +520,6 @@ export class MemStorage implements IStorage {
     return item;
   }
 
-  async getScenesByVideoId(videoId: string): Promise<Scene[]> {
-    return Array.from(this.scenes.values()).filter((s) => s.videoId === videoId);
-  }
-
-  async createScene(insertScene: InsertScene): Promise<Scene> {
-    const id = randomUUID();
-    const scene: Scene = {
-      ...insertScene,
-      id,
-      description: insertScene.description ?? null,
-      duration: null, // Duration is calculated from shot durations
-      videoModel: insertScene.videoModel ?? null,
-      imageModel: insertScene.imageModel ?? null,
-      lighting: insertScene.lighting ?? null,
-      weather: insertScene.weather ?? null,
-      createdAt: new Date(),
-    };
-    this.scenes.set(id, scene);
-    return scene;
-  }
-
-  async updateScene(id: string, updates: Partial<Scene>): Promise<Scene> {
-    const scene = this.scenes.get(id);
-    if (!scene) throw new Error('Scene not found');
-    const updated = { ...scene, ...updates };
-    this.scenes.set(id, updated);
-    return updated;
-  }
-
-  async deleteScene(id: string): Promise<void> {
-    const sceneShots = await this.getShotsBySceneId(id);
-    for (const shot of sceneShots) {
-      await this.deleteShot(shot.id);
-    }
-    this.scenes.delete(id);
-  }
-
-  async getShotsBySceneId(sceneId: string): Promise<Shot[]> {
-    return Array.from(this.shots.values()).filter((s) => s.sceneId === sceneId);
-  }
-
-  async createShot(insertShot: InsertShot): Promise<Shot> {
-    const id = randomUUID();
-    const shot: Shot = {
-      ...insertShot,
-      id,
-      cameraMovement: insertShot.cameraMovement ?? "static",
-      transition: insertShot.transition ?? "cut",
-      description: insertShot.description ?? null,
-      videoModel: insertShot.videoModel ?? null,
-      imageModel: insertShot.imageModel ?? null,
-      soundEffects: insertShot.soundEffects ?? null,
-      currentVersionId: insertShot.currentVersionId ?? null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.shots.set(id, shot);
-    return shot;
-  }
-
-  async updateShot(id: string, updates: Partial<Shot>): Promise<Shot> {
-    const shot = this.shots.get(id);
-    if (!shot) throw new Error('Shot not found');
-    const updated = { ...shot, ...updates, updatedAt: new Date() };
-    this.shots.set(id, updated);
-    return updated;
-  }
-
-  async deleteShot(id: string): Promise<void> {
-    const versions = await this.getShotVersionsByShotId(id);
-    for (const version of versions) {
-      this.shotVersions.delete(version.id);
-    }
-    
-    const refImages = await this.getReferenceImagesByShotId(id);
-    for (const refImage of refImages) {
-      this.referenceImages.delete(refImage.id);
-    }
-    
-    this.shots.delete(id);
-  }
-
-  async getShotVersionsByShotId(shotId: string): Promise<ShotVersion[]> {
-    return Array.from(this.shotVersions.values()).filter((sv) => sv.shotId === shotId);
-  }
-
-  async createShotVersion(insertVersion: InsertShotVersion): Promise<ShotVersion> {
-    const id = randomUUID();
-    const version: ShotVersion = {
-      ...insertVersion,
-      id,
-      imagePrompt: insertVersion.imagePrompt ?? null,
-      imageUrl: insertVersion.imageUrl ?? null,
-      startFramePrompt: insertVersion.startFramePrompt ?? null,
-      startFrameUrl: insertVersion.startFrameUrl ?? null,
-      endFramePrompt: insertVersion.endFramePrompt ?? null,
-      endFrameUrl: insertVersion.endFrameUrl ?? null,
-      videoPrompt: insertVersion.videoPrompt ?? null,
-      videoUrl: insertVersion.videoUrl ?? null,
-      videoDuration: insertVersion.videoDuration ?? null,
-      status: insertVersion.status ?? "draft",
-      needsRerender: insertVersion.needsRerender ?? false,
-      createdAt: new Date(),
-    };
-    this.shotVersions.set(id, version);
-    
-    if (version.status === 'approved') {
-      const allVersions = await this.getShotVersionsByShotId(version.shotId);
-      for (const v of allVersions) {
-        if (v.id !== id && v.status === 'approved') {
-          this.shotVersions.set(v.id, { ...v, status: 'rejected' });
-        }
-      }
-      
-      const shot = this.shots.get(version.shotId);
-      if (shot) {
-        shot.currentVersionId = id;
-        shot.updatedAt = new Date();
-        this.shots.set(shot.id, shot);
-      }
-    }
-    
-    return version;
-  }
-
-  async getShotVersion(id: string): Promise<ShotVersion | undefined> {
-    return this.shotVersions.get(id);
-  }
-
-  async updateShotVersion(id: string, updates: Partial<ShotVersion>): Promise<ShotVersion> {
-    const version = this.shotVersions.get(id);
-    if (!version) throw new Error('Shot version not found');
-    const oldStatus = version.status;
-    const updated = { ...version, ...updates };
-    const newStatus = updates.status !== undefined ? updates.status : oldStatus;
-    this.shotVersions.set(id, updated);
-    
-    const shot = this.shots.get(version.shotId);
-    if (!shot) return updated;
-    
-    if (newStatus === 'approved') {
-      const allVersions = Array.from(this.shotVersions.values())
-        .filter((v) => v.shotId === version.shotId && v.id !== id);
-      
-      for (const v of allVersions) {
-        if (v.status === 'approved') {
-          this.shotVersions.set(v.id, { ...v, status: 'rejected' });
-        }
-      }
-      
-      shot.currentVersionId = id;
-      shot.updatedAt = new Date();
-      this.shots.set(shot.id, shot);
-    } else if (oldStatus === 'approved' && newStatus !== 'approved') {
-      if (shot.currentVersionId === id) {
-        shot.currentVersionId = null;
-        shot.updatedAt = new Date();
-        this.shots.set(shot.id, shot);
-      }
-    }
-    
-    return updated;
-  }
-
-  async deleteShotVersion(id: string): Promise<void> {
-    const version = this.shotVersions.get(id);
-    if (!version) return;
-    
-    const shot = this.shots.get(version.shotId);
-    if (shot && shot.currentVersionId === id) {
-      shot.currentVersionId = null;
-      shot.updatedAt = new Date();
-      this.shots.set(shot.id, shot);
-    }
-    
-    this.shotVersions.delete(id);
-  }
-
-  async getReferenceImagesByVideoId(videoId: string): Promise<ReferenceImage[]> {
-    return Array.from(this.referenceImages.values()).filter((ri) => ri.videoId === videoId);
-  }
-
-  async getReferenceImagesByCharacterId(characterId: string): Promise<ReferenceImage[]> {
-    return Array.from(this.referenceImages.values()).filter((ri) => ri.characterId === characterId);
-  }
-
-  async getReferenceImagesByShotId(shotId: string): Promise<ReferenceImage[]> {
-    return Array.from(this.referenceImages.values()).filter((ri) => ri.shotId === shotId);
-  }
-
-  async createReferenceImage(insertRefImage: InsertReferenceImage): Promise<ReferenceImage> {
-    const id = randomUUID();
-    const refImage: ReferenceImage = {
-      ...insertRefImage,
-      id,
-      videoId: insertRefImage.videoId ?? null,
-      shotId: insertRefImage.shotId ?? null,
-      characterId: insertRefImage.characterId ?? null,
-      description: insertRefImage.description ?? null,
-      createdAt: new Date(),
-    };
-    this.referenceImages.set(id, refImage);
-    return refImage;
-  }
-
-  async deleteReferenceImage(id: string): Promise<void> {
-    this.referenceImages.delete(id);
-  }
-
-  async getContinuityGroupsBySceneId(sceneId: string): Promise<ContinuityGroup[]> {
-    return Array.from(this.continuityGroups.values()).filter((cg) => cg.sceneId === sceneId);
-  }
-
-  async getContinuityGroupById(id: string): Promise<ContinuityGroup | undefined> {
-    return this.continuityGroups.get(id);
-  }
-
-  async createContinuityGroup(insertGroup: InsertContinuityGroup): Promise<ContinuityGroup> {
-    validateShotIds(insertGroup.shotIds);
-    
-    const id = randomUUID();
-    const group: ContinuityGroup = {
-      ...insertGroup,
-      id,
-      description: insertGroup.description ?? null,
-      transitionType: insertGroup.transitionType ?? null,
-      status: insertGroup.status ?? "proposed",
-      editedBy: insertGroup.editedBy ?? null,
-      editedAt: insertGroup.editedAt ?? null,
-      approvedAt: insertGroup.approvedAt ?? null,
-      createdAt: new Date(),
-    };
-    this.continuityGroups.set(id, group);
-    return group;
-  }
-
-  async updateContinuityGroup(id: string, updates: Partial<ContinuityGroup>): Promise<ContinuityGroup> {
-    const group = this.continuityGroups.get(id);
-    if (!group) throw new Error('Continuity group not found');
-    
-    if (updates.shotIds !== undefined) {
-      validateShotIds(updates.shotIds);
-    }
-    
-    const updated = { ...group, ...updates };
-    this.continuityGroups.set(id, updated);
-    return updated;
-  }
-
-  async deleteContinuityGroup(id: string): Promise<void> {
-    this.continuityGroups.delete(id);
-  }
-
-  async deleteContinuityGroupsBySceneId(sceneId: string): Promise<void> {
-    const groups = await this.getContinuityGroupsBySceneId(sceneId);
-    for (const group of groups) {
-      this.continuityGroups.delete(group.id);
-    }
-  }
-
   // ========== WORKSPACE INTEGRATIONS - PostgreSQL Storage ==========
   
   async getWorkspaceIntegrations(workspaceId: string): Promise<WorkspaceIntegration[]> {
@@ -1011,64 +639,45 @@ export class MemStorage implements IStorage {
     const userWorkspaces = await this.getWorkspacesByUserId(userId);
     
     for (const workspace of userWorkspaces) {
-      // Delete all videos and related data in this workspace
-      const videos = await this.getVideosByWorkspaceId(workspace.id);
-      for (const video of videos) {
-        // Delete scenes and shots
-        const scenes = await this.getScenesByVideoId(video.id);
-        for (const scene of scenes) {
-          const shots = await this.getShotsBySceneId(scene.id);
-          for (const shot of shots) {
-            const versions = await this.getShotVersionsByShotId(shot.id);
-            for (const version of versions) {
-              this.shotVersions.delete(version.id);
-            }
-            this.shots.delete(shot.id);
-          }
-          await this.deleteContinuityGroupsBySceneId(scene.id);
-          this.scenes.delete(scene.id);
-        }
-        // Delete reference images for video
-        const refImages = await this.getReferenceImagesByVideoId(video.id);
-        for (const img of refImages) {
-          this.referenceImages.delete(img.id);
-        }
+      // Delete all videos in this workspace
+      const videosList = await this.getVideosByWorkspaceId(workspace.id);
+      for (const video of videosList) {
         this.videos.delete(video.id);
       }
       
       // Delete stories
-      const stories = Array.from(this.stories.values()).filter(s => s.workspaceId === workspace.id);
-      for (const story of stories) {
+      const storiesList = Array.from(this.stories.values()).filter(s => s.workspaceId === workspace.id);
+      for (const story of storiesList) {
         this.stories.delete(story.id);
       }
       
       // Delete characters
-      const characters = await this.getCharactersByWorkspaceId(workspace.id);
-      for (const char of characters) {
+      const charactersList = await this.getCharactersByWorkspaceId(workspace.id);
+      for (const char of charactersList) {
         this.characters.delete(char.id);
       }
       
       // Delete locations
-      const locations = await this.getLocationsByWorkspaceId(workspace.id);
-      for (const loc of locations) {
+      const locationsList = await this.getLocationsByWorkspaceId(workspace.id);
+      for (const loc of locationsList) {
         this.locations.delete(loc.id);
       }
       
       // Delete voices
-      const voices = await this.getVoicesByWorkspaceId(workspace.id);
-      for (const voice of voices) {
+      const voicesList = await this.getVoicesByWorkspaceId(workspace.id);
+      for (const voice of voicesList) {
         this.voices.delete(voice.id);
       }
       
       // Delete brandkits
-      const brandkits = await this.getBrandkitsByWorkspaceId(workspace.id);
-      for (const kit of brandkits) {
+      const brandkitsList = await this.getBrandkitsByWorkspaceId(workspace.id);
+      for (const kit of brandkitsList) {
         await this.deleteBrandkit(kit.id);
       }
       
       // Delete uploads
-      const uploads = await this.getUploadsByWorkspaceId(workspace.id);
-      for (const upload of uploads) {
+      const uploadsList = await this.getUploadsByWorkspaceId(workspace.id);
+      for (const upload of uploadsList) {
         this.uploads.delete(upload.id);
       }
       
@@ -1082,12 +691,6 @@ export class MemStorage implements IStorage {
       const integrations = await this.getWorkspaceIntegrations(workspace.id);
       for (const integration of integrations) {
         await this.deleteWorkspaceIntegration(integration.id);
-      }
-      
-      // Delete projects
-      const projectsList = await this.getProjectsByWorkspaceId(workspace.id);
-      for (const project of projectsList) {
-        await this.deleteProject(project.id);
       }
       
       // Delete workspace (uses database)

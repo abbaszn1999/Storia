@@ -6,7 +6,8 @@ import { StoryboardEditor } from "./ambient/storyboard-editor";
 import { PreviewTab } from "./ambient/preview-tab";
 import { ExportTab } from "./ambient/export-tab";
 import { getDefaultVideoModel } from "@/constants/video-models";
-import type { Scene, Shot, ShotVersion, ContinuityGroup, ReferenceImage, Character } from "@shared/schema";
+import type { Character } from "@shared/schema";
+import type { Scene, Shot, ShotVersion, ContinuityGroup, ReferenceImage } from "@/types/storyboard";
 
 interface AmbientVisualWorkflowProps {
   activeStep: number;

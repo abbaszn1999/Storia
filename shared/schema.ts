@@ -60,36 +60,31 @@ export const workspaces = pgTable("workspaces", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const projects = pgTable("projects", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  type: text("type").notNull(), // 'narrative_video', 'character_vlog', 'stories', 'ambient_video', 'asmr'
-  description: text("description"),
-  settings: jsonb("settings"), // Project-specific settings
-  thumbnailUrl: text("thumbnail_url"),
-  status: text("status").default("active").notNull(), // 'active', 'archived'
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
 export const videos = pgTable("videos", {
+  // Core
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
   title: text("title").notNull(),
-  mode: text("mode").notNull(),
-  narrativeMode: text("narrative_mode"),
-  status: text("status").default("draft").notNull(),
-  script: text("script"),
-  scenes: jsonb("scenes"),
-  worldSettings: jsonb("world_settings"),
-  cast: jsonb("cast"),
-  storyboard: jsonb("storyboard"),
+  mode: text("mode").notNull(), // "ambient" | "narrative" | "commerce" | "vlog" | "logo"
+  status: text("status").default("draft"),
+  
+  // Progress
+  currentStep: integer("current_step"),
+  completedSteps: jsonb("completed_steps"),
+  
+  // Step Data
+  step1Data: jsonb("step1_data"), // Concept: Script/Atmosphere/Product
+  step2Data: jsonb("step2_data"), // World: Art style, characters, locations
+  step3Data: jsonb("step3_data"), // Flow: Scenes, shots, continuity
+  step4Data: jsonb("step4_data"), // Storyboard: Shot versions, compositions
+  step5Data: jsonb("step5_data"), // Preview: Animatic, audio config
+  step6Data: jsonb("step6_data"), // Export: Resolution, format settings
+  
+  // Output
   exportUrl: text("export_url"),
-  duration: integer("duration"),
-  voiceActorId: text("voice_actor_id"),
-  voiceOverEnabled: boolean("voice_over_enabled").default(true).notNull(),
-  continuityLocked: boolean("continuity_locked").default(false).notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  
+  // Timestamps
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -112,20 +107,6 @@ export const stories = pgTable("stories", {
   duration: integer("duration"),
   exportUrl: text("export_url"),
   thumbnailUrl: text("thumbnail_url"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-export const storyScenes = pgTable("story_scenes", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  storyId: varchar("story_id").notNull().references(() => stories.id),
-  sceneNumber: integer("scene_number").notNull(),
-  imagePrompt: text("image_prompt"),
-  imageUrl: text("image_url"),
-  effect: text("effect").default("fade").notNull(),
-  voiceoverText: text("voiceover_text"),
-  duration: integer("duration").default(3).notNull(),
-  status: text("status").default("draft").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -191,80 +172,6 @@ export const contentCalendar = pgTable("content_calendar", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const scenes = pgTable("scenes", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  videoId: varchar("video_id").notNull().references(() => videos.id),
-  sceneNumber: integer("scene_number").notNull(),
-  title: text("title").notNull(),
-  description: text("description"),
-  duration: integer("duration"),
-  videoModel: text("video_model"),
-  imageModel: text("image_model"),
-  lighting: text("lighting"),
-  weather: text("weather"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const shots = pgTable("shots", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sceneId: varchar("scene_id").notNull().references(() => scenes.id),
-  shotNumber: integer("shot_number").notNull(),
-  shotType: text("shot_type").notNull(),
-  cameraMovement: text("camera_movement").default("static").notNull(),
-  duration: integer("duration").notNull(),
-  description: text("description"),
-  videoModel: text("video_model"),
-  imageModel: text("image_model"),
-  soundEffects: text("sound_effects"),
-  transition: text("transition").default("cut"),
-  currentVersionId: varchar("current_version_id"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-export const shotVersions = pgTable("shot_versions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  shotId: varchar("shot_id").notNull().references(() => shots.id),
-  versionNumber: integer("version_number").notNull(),
-  imagePrompt: text("image_prompt"),
-  imageUrl: text("image_url"),
-  startFramePrompt: text("start_frame_prompt"),
-  startFrameUrl: text("start_frame_url"),
-  endFramePrompt: text("end_frame_prompt"),
-  endFrameUrl: text("end_frame_url"),
-  videoPrompt: text("video_prompt"),
-  videoUrl: text("video_url"),
-  videoDuration: integer("video_duration"),
-  status: text("status").default("draft").notNull(),
-  needsRerender: boolean("needs_rerender").default(false).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const referenceImages = pgTable("reference_images", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  videoId: varchar("video_id").references(() => videos.id),
-  shotId: varchar("shot_id").references(() => shots.id),
-  characterId: varchar("character_id").references(() => characters.id),
-  type: text("type").notNull(),
-  imageUrl: text("image_url").notNull(),
-  description: text("description"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const continuityGroups = pgTable("continuity_groups", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sceneId: varchar("scene_id").notNull().references(() => scenes.id),
-  groupNumber: integer("group_number").notNull(),
-  shotIds: jsonb("shot_ids").notNull(),
-  description: text("description"),
-  transitionType: text("transition_type"),
-  status: text("status").default("proposed").notNull(), // 'proposed' | 'approved' | 'declined'
-  editedBy: text("edited_by"), // Optional: who last edited this group
-  editedAt: timestamp("edited_at"), // Optional: when was it last edited
-  approvedAt: timestamp("approved_at"), // Optional: when was it approved
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
 export const workspaceIntegrations = pgTable("workspace_integrations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
@@ -292,12 +199,6 @@ export const insertWorkspaceSchema = createInsertSchema(workspaces).omit({
   updatedAt: true,
 });
 
-export const insertProjectSchema = createInsertSchema(projects).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
 export const insertVideoSchema = createInsertSchema(videos).omit({
   id: true,
   createdAt: true,
@@ -305,12 +206,6 @@ export const insertVideoSchema = createInsertSchema(videos).omit({
 });
 
 export const insertStorySchema = createInsertSchema(stories).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export const insertStorySceneSchema = createInsertSchema(storyScenes).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -342,33 +237,6 @@ export const insertUploadSchema = createInsertSchema(uploads).omit({
 });
 
 export const insertContentCalendarSchema = createInsertSchema(contentCalendar).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertSceneSchema = createInsertSchema(scenes).omit({
-  id: true,
-  createdAt: true,
-  duration: true, // Duration is calculated from sum of shot durations, not user-provided
-});
-
-export const insertShotSchema = createInsertSchema(shots).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export const insertShotVersionSchema = createInsertSchema(shotVersions).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertReferenceImageSchema = createInsertSchema(referenceImages).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertContinuityGroupSchema = createInsertSchema(continuityGroups).omit({
   id: true,
   createdAt: true,
 });
@@ -527,14 +395,10 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;
 export type Workspace = typeof workspaces.$inferSelect;
-export type InsertProject = z.infer<typeof insertProjectSchema>;
-export type Project = typeof projects.$inferSelect;
 export type InsertVideo = z.infer<typeof insertVideoSchema>;
 export type Video = typeof videos.$inferSelect;
 export type InsertStory = z.infer<typeof insertStorySchema>;
 export type Story = typeof stories.$inferSelect;
-export type InsertStoryScene = z.infer<typeof insertStorySceneSchema>;
-export type StoryScene = typeof storyScenes.$inferSelect;
 export type InsertCharacter = z.infer<typeof insertCharacterSchema>;
 export type Character = typeof characters.$inferSelect;
 export type InsertLocation = z.infer<typeof insertLocationSchema>;
@@ -547,16 +411,6 @@ export type InsertUpload = z.infer<typeof insertUploadSchema>;
 export type Upload = typeof uploads.$inferSelect;
 export type InsertContentCalendar = z.infer<typeof insertContentCalendarSchema>;
 export type ContentCalendarItem = typeof contentCalendar.$inferSelect;
-export type InsertScene = z.infer<typeof insertSceneSchema>;
-export type Scene = typeof scenes.$inferSelect;
-export type InsertShot = z.infer<typeof insertShotSchema>;
-export type Shot = typeof shots.$inferSelect;
-export type InsertShotVersion = z.infer<typeof insertShotVersionSchema>;
-export type ShotVersion = typeof shotVersions.$inferSelect;
-export type InsertReferenceImage = z.infer<typeof insertReferenceImageSchema>;
-export type ReferenceImage = typeof referenceImages.$inferSelect;
-export type InsertContinuityGroup = z.infer<typeof insertContinuityGroupSchema>;
-export type ContinuityGroup = typeof continuityGroups.$inferSelect;
 export type InsertWorkspaceIntegration = z.infer<typeof insertWorkspaceIntegrationSchema>;
 export type WorkspaceIntegration = typeof workspaceIntegrations.$inferSelect;
 export type InsertProductionCampaign = z.infer<typeof insertProductionCampaignSchema>;

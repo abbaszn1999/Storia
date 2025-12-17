@@ -724,50 +724,106 @@ export function ExportStep({
       )}>
         <ScrollArea className="flex-1 h-full">
           <div className="p-6 space-y-6 pb-12">
-            {/* Voiceover Generation Loading */}
-            {isGeneratingVoiceover && (
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-              >
-                <GlassPanel className="border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-pink-500/10">
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
-                        <RefreshCw className="w-6 h-6 text-purple-400 animate-spin" />
-                      </div>
+            {/* Voiceover Generation Status - Styled like other sections */}
+            {voiceoverEnabled && (
+              <GlassPanel>
+                <div className="space-y-4">
+                  {/* Header */}
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-10 h-10 rounded-xl flex items-center justify-center",
+                      "bg-gradient-to-br from-purple-500/20 to-pink-500/20"
+                    )}>
+                      <Mic className="w-5 h-5 text-purple-400" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
-                        <Mic className="w-5 h-5" />
-                        Generating Voiceover...
-                      </h3>
-                      <p className="text-sm text-white/60">
-                        Creating audio for {scenes.length} scene{scenes.length > 1 ? 's' : ''}. This may take a moment.
-                      </p>
+                      <h3 className="font-semibold text-white">Voiceover</h3>
+                      <p className="text-xs text-white/50">AI-generated narration</p>
                     </div>
+                    
+                    {/* Status Badge */}
+                    {isGeneratingVoiceover ? (
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-500/20 border border-orange-500/30">
+                        <RefreshCw className="w-3.5 h-3.5 text-orange-400 animate-spin" />
+                        <span className="text-xs font-medium text-orange-300">Generating...</span>
+                      </div>
+                    ) : voiceoverGenerated || allScenesHaveAudio ? (
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/20 border border-green-500/30">
+                        <Check className="w-3.5 h-3.5 text-green-400" />
+                        <span className="text-xs font-medium text-green-300">Ready</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20">
+                        <Clock className="w-3.5 h-3.5 text-white/50" />
+                        <span className="text-xs font-medium text-white/50">Pending</span>
+                      </div>
+                    )}
                   </div>
-                  
-                  <div className="mt-4">
-                    <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                      <motion.div
-                        className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
-                        initial={{ width: "0%" }}
-                        animate={{ width: "100%" }}
-                        transition={{ duration: scenes.length * 5, ease: "linear" }}
-                      />
-                    </div>
-                    <p className="text-xs text-white/40 mt-2 text-center">
-                      Please wait, do not navigate away...
+
+                  {/* Progress Bar - Only when generating */}
+                  {isGeneratingVoiceover && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="space-y-2"
+                    >
+                      <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                        <motion.div
+                          className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+                          initial={{ width: "0%" }}
+                          animate={{ width: "100%" }}
+                          transition={{ duration: scenes.length * 5, ease: "linear" }}
+                        />
+                      </div>
+                      <p className="text-xs text-white/40 text-center">
+                        Creating audio for {scenes.length} scene{scenes.length > 1 ? 's' : ''}...
+                      </p>
+                    </motion.div>
+                  )}
+
+                  {/* Scene Status Grid - When generating or complete */}
+                  <div className="grid grid-cols-6 gap-2">
+                    {scenes.map((scene, index) => {
+                      const hasAudio = Boolean(scene.audioUrl);
+                      return (
+                        <div
+                          key={scene.sceneNumber}
+                          className={cn(
+                            "aspect-square rounded-lg flex items-center justify-center text-xs font-medium",
+                            "border transition-all duration-300",
+                            hasAudio
+                              ? "bg-green-500/20 border-green-500/30 text-green-300"
+                              : isGeneratingVoiceover
+                                ? "bg-orange-500/10 border-orange-500/20 text-orange-300/70 animate-pulse"
+                                : "bg-white/5 border-white/10 text-white/30"
+                          )}
+                        >
+                          {hasAudio ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            <span>{index + 1}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Info Text */}
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-white/[0.03]">
+                    <Volume2 className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                    <p className="text-xs text-white/50">
+                      {isGeneratingVoiceover 
+                        ? "Please wait, do not navigate away..."
+                        : voiceoverGenerated || allScenesHaveAudio
+                          ? "Voiceover ready for all scenes"
+                          : "Voiceover will be generated automatically"
+                      }
                     </p>
                   </div>
-                </GlassPanel>
-              </motion.div>
+                </div>
+              </GlassPanel>
             )}
 
-            {/* Hide settings during voiceover generation */}
-            {!isGeneratingVoiceover && (
-              <>
                 {/* Video Summary */}
                 <GlassPanel>
                   <div className="space-y-4">
@@ -1134,8 +1190,6 @@ export function ExportStep({
                     </AnimatePresence>
                   </div>
                 </GlassPanel>
-              </>
-            )}
           </div>
         </ScrollArea>
       </div>

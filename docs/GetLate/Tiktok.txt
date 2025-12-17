@@ -1,0 +1,201 @@
+# TikTok
+
+Video and photo carousel requirements for TikTok posts
+
+## Content Types
+
+TikTok supports two content types:
+
+| Type | Description | Max Items |
+|------|-------------|-----------|
+| **Video** | Single video post | 1 |
+| **Photo Carousel** | Multiple images | 35 |
+
+**Important:** You cannot mix photos and videos in the same post.
+
+## Video Requirements
+
+| Property | Requirement |
+|----------|-------------|
+| **Formats** | MP4, MOV, WebM |
+| **Max File Size** | 4 GB |
+| **Max Duration** | 10 minutes |
+| **Min Duration** | 3 seconds |
+| **Resolution** | 720 × 1280 px minimum |
+| **Aspect Ratio** | 9:16 (recommended) |
+| **Frame Rate** | 24-60 fps |
+| **Codec** | H.264 |
+
+### Recommended Video Specs
+
+| Property | Recommended |
+|----------|-------------|
+| Resolution | 1080 × 1920 px |
+| Aspect Ratio | 9:16 (vertical) |
+| Frame Rate | 30 fps |
+| Bitrate | 10-20 Mbps |
+| Audio | AAC, 128 kbps |
+
+### Video Example
+
+```json
+{
+  "content": "Check out this amazing sunset! 🌅 #sunset #nature",
+  "mediaItems": [
+    { "url": "https://example.com/sunset-video.mp4" }
+  ],
+  "platforms": [
+    { "platform": "tiktok", "accountId": "acc_123" }
+  ],
+  "tiktokSettings": {
+    "privacy_level": "PUBLIC_TO_EVERYONE",
+    "allow_comment": true,
+    "allow_duet": true,
+    "allow_stitch": true,
+    "content_preview_confirmed": true,
+    "express_consent_given": true
+  }
+}
+```
+
+## Video Cover (Thumbnail)
+
+Customize which frame appears as the thumbnail:
+
+```json
+{
+  "tiktokSettings": {
+    "video_cover_timestamp_ms": 3000
+  }
+}
+```
+
+- Value in **milliseconds**
+- Default: 1000 (1 second)
+- Must be within video duration
+
+## Photo Carousel Requirements
+
+| Property | Requirement |
+|----------|-------------|
+| **Max Photos** | 35 |
+| **Formats** | JPEG, PNG, WebP |
+| **Max File Size** | 20 MB per image |
+| **Aspect Ratio** | 9:16 recommended |
+| **Resolution** | 1080 × 1920 px recommended |
+
+### Photo Carousel Example
+
+```json
+{
+  "content": "My travel highlights ✈️",
+  "mediaItems": [
+    { "url": "https://example.com/photo1.jpg" },
+    { "url": "https://example.com/photo2.jpg" },
+    { "url": "https://example.com/photo3.jpg" }
+  ],
+  "platforms": [
+    { "platform": "tiktok", "accountId": "acc_123" }
+  ],
+  "tiktokSettings": {
+    "privacy_level": "PUBLIC_TO_EVERYONE",
+    "allow_comment": true,
+    "media_type": "photo",
+    "photo_cover_index": 0,
+    "content_preview_confirmed": true,
+    "express_consent_given": true
+  }
+}
+```
+
+## Title/Caption Limits
+
+| Content Type | Title Limit | Description |
+|--------------|-------------|-------------|
+| **Video** | 2200 chars | Full content used as title |
+| **Photo** | 90 chars | Auto-truncated (hashtags/URLs stripped) |
+
+For photo carousels with longer captions, use the `description` field:
+
+```json
+{
+  "tiktokSettings": {
+    "description": "This is my detailed description up to 4000 characters..."
+  }
+}
+```
+
+## Auto-Add Music
+
+Let TikTok add recommended music to photo carousels:
+
+```json
+{
+  "tiktokSettings": {
+    "auto_add_music": true
+  }
+}
+```
+
+**Note:** Only works for photo carousels, not videos.
+
+## AI Disclosure
+
+Disclose AI-generated content:
+
+```json
+{
+  "tiktokSettings": {
+    "video_made_with_ai": true
+  }
+}
+```
+
+## Draft Mode
+
+Send to Creator Inbox as draft instead of publishing:
+
+```json
+{
+  "tiktokSettings": {
+    "draft": true
+  }
+}
+```
+
+## Required TikTok Settings
+
+Due to TikTok's Direct Post API requirements, these fields are **required**:
+
+| Field | Required For | Notes |
+|-------|--------------|-------|
+| `privacy_level` | All | Must match allowed values from creator info |
+| `allow_comment` | All | Enable/disable comments |
+| `allow_duet` | Videos only | Enable/disable duets |
+| `allow_stitch` | Videos only | Enable/disable stitches |
+| `content_preview_confirmed` | All | Must be `true` |
+| `express_consent_given` | All | Must be `true` |
+
+## Common Issues
+
+### "Invalid privacy_level"
+
+The `privacy_level` must be one of the values allowed for the creator's account. Fetch allowed values from the TikTok creator info endpoint.
+
+### "Missing required fields"
+
+Ensure `content_preview_confirmed` and `express_consent_given` are both `true`.
+
+### "Cannot mix media types"
+
+TikTok doesn't allow photos and videos in the same post. Use either all photos or one video.
+
+### Video rejected
+
+- Check duration (3 sec - 10 min)
+- Verify format (MP4 recommended)
+- Ensure aspect ratio is vertical (9:16)
+
+### Photo carousel title truncated
+
+Photo titles are limited to 90 characters. Use the `description` field for longer text.

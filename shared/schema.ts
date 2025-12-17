@@ -61,22 +61,30 @@ export const workspaces = pgTable("workspaces", {
 });
 
 export const videos = pgTable("videos", {
+  // Core
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
   title: text("title").notNull(),
-  mode: text("mode").notNull(),
-  narrativeMode: text("narrative_mode"),
-  status: text("status").default("draft").notNull(),
-  script: text("script"),
-  scenes: jsonb("scenes"),
-  worldSettings: jsonb("world_settings"),
-  cast: jsonb("cast"),
-  storyboard: jsonb("storyboard"),
+  mode: text("mode").notNull(), // "ambient" | "narrative" | "commerce" | "vlog" | "logo"
+  status: text("status").default("draft"),
+  
+  // Progress
+  currentStep: integer("current_step"),
+  completedSteps: jsonb("completed_steps"),
+  
+  // Step Data
+  step1Data: jsonb("step1_data"), // Concept: Script/Atmosphere/Product
+  step2Data: jsonb("step2_data"), // World: Art style, characters, locations
+  step3Data: jsonb("step3_data"), // Flow: Scenes, shots, continuity
+  step4Data: jsonb("step4_data"), // Storyboard: Shot versions, compositions
+  step5Data: jsonb("step5_data"), // Preview: Animatic, audio config
+  step6Data: jsonb("step6_data"), // Export: Resolution, format settings
+  
+  // Output
   exportUrl: text("export_url"),
-  duration: integer("duration"),
-  voiceActorId: text("voice_actor_id"),
-  voiceOverEnabled: boolean("voice_over_enabled").default(true).notNull(),
-  continuityLocked: boolean("continuity_locked").default(false).notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  
+  // Timestamps
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

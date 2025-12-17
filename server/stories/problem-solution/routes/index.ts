@@ -122,7 +122,7 @@ psRouter.post(
 
       const { 
         scenes, 
-        aspectRatio,
+        aspectRatio, 
         imageStyle,
         voiceoverEnabled, 
         language,
@@ -239,7 +239,7 @@ psRouter.post(
         sceneNumber, 
         sceneId,
         imagePrompt, 
-        aspectRatio,
+        aspectRatio, 
         imageStyle,
         imageModel,
         imageResolution,
@@ -768,13 +768,20 @@ psRouter.post(
         });
       }
 
-      // Validate that video mode has videoUrls
+      // Validate that video mode has at least imageUrl (videoUrl is optional - will fallback to animated image)
+      // This enables hybrid mode: scenes with videoUrl use video, scenes without use animated image
       if (animationMode === 'video') {
-        const missingVideoUrls = scenes.filter((s: any) => !s.videoUrl);
-        if (missingVideoUrls.length > 0) {
+        const missingMedia = scenes.filter((s: any) => !s.videoUrl && !s.imageUrl);
+        if (missingMedia.length > 0) {
           return res.status(400).json({ 
-            error: `Video mode requires all scenes to have videoUrl. Missing for scenes: ${missingVideoUrls.map((s: any) => s.sceneNumber).join(', ')}` 
+            error: `Video mode requires all scenes to have videoUrl or imageUrl. Missing for scenes: ${missingMedia.map((s: any) => s.sceneNumber).join(', ')}` 
           });
+        }
+        // Log hybrid mode info
+        const videoScenes = scenes.filter((s: any) => s.videoUrl).length;
+        const imageOnlyScenes = scenes.filter((s: any) => !s.videoUrl && s.imageUrl).length;
+        if (imageOnlyScenes > 0) {
+          console.log(`[problem-solution:routes] Hybrid mode: ${videoScenes} video scenes, ${imageOnlyScenes} image-only scenes (will animate)`);
         }
       }
 

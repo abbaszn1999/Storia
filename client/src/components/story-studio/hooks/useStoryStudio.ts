@@ -53,6 +53,8 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
   
   // UI
   isGenerating: false,
+  isEnhancingStoryboard: false,  // Storyboard enhancement agent running
+  isGeneratingImages: false,     // Image generation running
   generationProgress: 0,
   error: null,
 });
@@ -298,7 +300,14 @@ export function useStoryStudio(template: StoryTemplate | null) {
     if (state.scenes.length === 0) return;
 
     console.log('[storyboard] Starting storyboard enhancement...');
-    setState(prev => ({ ...prev, isGenerating: true, error: null }));
+    // Phase 1: Enhancement agent running
+    setState(prev => ({ 
+      ...prev, 
+      isGenerating: true, 
+      isEnhancingStoryboard: true,  // Agent creating prompts
+      isGeneratingImages: false,
+      error: null 
+    }));
 
     try {
       // Determine animation type based on animationMode
@@ -362,10 +371,11 @@ export function useStoryStudio(template: StoryTemplate | null) {
         return scene;
       });
 
+      // Phase 2: Enhancement done, prompts are now visible
       setState(prev => ({
         ...prev,
         scenes: enhancedScenes,
-        isGenerating: false,
+        isEnhancingStoryboard: false,  // Enhancement complete - prompts visible
       }));
 
       // ✅ AUTO-TRIGGER: Generate images immediately after enhancement
@@ -375,12 +385,17 @@ export function useStoryStudio(template: StoryTemplate | null) {
       const hasPrompts = enhancedScenes.some(s => s.imagePrompt);
       if (!hasPrompts) {
         console.warn('[storyboard] No image prompts found after enhancement, skipping image generation...');
+        setState(prev => ({ ...prev, isGenerating: false }));
         return;
       }
 
-      // Trigger image generation with enhanced scenes
+      // Phase 3: Image generation (only media box shows loading)
       console.log('[storyboard] Starting automatic image generation...');
-      setState(prev => ({ ...prev, isGenerating: true, error: null }));
+      setState(prev => ({ 
+        ...prev, 
+        isGeneratingImages: true,  // Image generation starting
+        error: null 
+      }));
 
       try {
         const res = await apiRequest("POST", "/api/problem-solution/images", {
@@ -418,6 +433,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
               : scene;
           }),
           isGenerating: false,
+          isGeneratingImages: false,  // Image generation complete
         }));
       } catch (error) {
         console.error("[storyboard] Failed to generate images:", error);
@@ -425,6 +441,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
           ...prev,
           error: 'Failed to generate images',
           isGenerating: false,
+          isGeneratingImages: false,
         }));
       }
 
@@ -434,6 +451,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
         ...prev,
         error: 'Failed to enhance storyboard',
         isGenerating: false,
+        isEnhancingStoryboard: false,
+        isGeneratingImages: false,
       }));
     }
   }, [state.scenes, state.aspectRatio, state.voiceoverEnabled, state.imageMode, generateImages]);
@@ -611,10 +630,33 @@ export function useStoryStudio(template: StoryTemplate | null) {
       
       console.log('[setAnimationMode] Updating:', { animationMode, imageMode });
       
+      // Auto-adjust scene durations when switching to video mode
+      let adjustedScenes = prev.scenes;
+      if (animationMode === 'video' && prev.scenes.length > 0) {
+        const modelConfig = getVideoModelConfig(prev.videoModel);
+        if (modelConfig) {
+          const supportedDurations = modelConfig.durations;
+          adjustedScenes = prev.scenes.map(scene => {
+            if (!supportedDurations.includes(scene.duration)) {
+              // Find closest supported duration
+              const closestDuration = supportedDurations.reduce((closest, current) => {
+                return Math.abs(current - scene.duration) < Math.abs(closest - scene.duration)
+                  ? current
+                  : closest;
+              });
+              console.log(`[setAnimationMode] Adjusting scene ${scene.sceneNumber}: ${scene.duration}s → ${closestDuration}s`);
+              return { ...scene, duration: closestDuration };
+            }
+            return scene;
+          });
+        }
+      }
+      
       return { 
         ...prev, 
         animationMode,
-        imageMode  // Update legacy field for StoryboardStep
+        imageMode,
+        scenes: adjustedScenes
       };
     });
   }, []);
@@ -628,10 +670,30 @@ export function useStoryStudio(template: StoryTemplate | null) {
         ? prev.videoResolution
         : modelConfig?.resolutions[0] || '720p';
       
+      // Auto-adjust scene durations if in video mode and scenes exist
+      let adjustedScenes = prev.scenes;
+      if (prev.animationMode === 'video' && modelConfig && prev.scenes.length > 0) {
+        const supportedDurations = modelConfig.durations;
+        adjustedScenes = prev.scenes.map(scene => {
+          // Check if current duration is supported
+          if (!supportedDurations.includes(scene.duration)) {
+            // Find closest supported duration
+            const closestDuration = supportedDurations.reduce((closest, current) => {
+              return Math.abs(current - scene.duration) < Math.abs(closest - scene.duration)
+                ? current
+                : closest;
+            });
+            return { ...scene, duration: closestDuration };
+          }
+          return scene;
+        });
+      }
+      
       return { 
         ...prev, 
         videoModel,
-        videoResolution: newResolution
+        videoResolution: newResolution,
+        scenes: adjustedScenes
       };
     });
   }, []);
@@ -755,10 +817,23 @@ export function useStoryStudio(template: StoryTemplate | null) {
   const addScene = useCallback(() => {
     setState(prev => {
       const newSceneNumber = prev.scenes.length + 1;
+      
+      // Get default duration based on video model (for image-to-video mode)
+      let defaultDuration = 5;
+      if (prev.animationMode === 'video') {
+        const modelConfig = getVideoModelConfig(prev.videoModel);
+        if (modelConfig && modelConfig.durations.length > 0) {
+          // Use the median duration from supported durations
+          const sortedDurations = [...modelConfig.durations].sort((a, b) => a - b);
+          const midIndex = Math.floor(sortedDurations.length / 2);
+          defaultDuration = sortedDurations[midIndex];
+        }
+      }
+      
       const newScene: StoryScene = {
         id: `scene-${newSceneNumber}-${Date.now()}`,
         sceneNumber: newSceneNumber,
-        duration: 5, // Default 5s (within 10s max limit)
+        duration: defaultDuration,
         narration: '',
       };
       return {

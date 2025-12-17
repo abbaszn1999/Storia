@@ -1,6 +1,26 @@
-// Image Generation Agent for Problem-Solution Mode
-// Generates images with character consistency using seed + reference image
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * IMAGE GENERATION AGENT - BATCH MODE
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * Generates images for all scenes using Runware AI in batch mode.
+ * 
+ * FEATURES:
+ * - Parallel batch processing (all images in one request)
+ * - Chunking for large batches (max 10 per batch)
+ * - Robust error handling (partial failures don't stop the process)
+ * - Automatic retry for failed images
+ * - Special handling for Midjourney (numberResults = 4)
+ * 
+ * INPUT:
+ * - scenes[] with imagePrompt, sceneNumber, id
+ * - aspectRatio, imageStyle, imageModel, imageResolution
+ * 
+ * OUTPUT:
+ * - scenes[] with imageUrl, status ('generated' | 'failed')
+ */
 
+import { randomUUID } from "crypto";
 import { callAi } from "../../../ai/service";
 import { runwareModelIdMap } from "../../../ai/config";
 import { enhanceImagePrompt } from "../prompts/image-prompts";
@@ -11,17 +31,322 @@ import type {
   ImageGenerationResult,
 } from "../types";
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const CONFIG = {
+  /** Maximum images per batch request (prevents API overload) */
+  MAX_BATCH_SIZE: 10,
+  
+  /** Maximum retry attempts for failed images */
+  MAX_RETRIES: 2,
+  
+  /** Delay between retry attempts (ms) */
+  RETRY_DELAY_MS: 1000,
+  
+  /** Timeout for batch request (ms) */
+  BATCH_TIMEOUT_MS: 120000, // 2 minutes
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
 /**
- * Generate images for all scenes with character consistency
+ * Sleep for specified milliseconds
+ */
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Split array into chunks of specified size
+ */
+function chunkArray<T>(array: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+/**
+ * Build Runware payload for a single image
+ */
+function buildImagePayload(
+  scene: { imagePrompt: string; sceneNumber: number },
+  options: {
+    runwareModelId: string;
+    dimensions: { width: number; height: number };
+    aspectRatio: string;
+    imageStyle: string;
+    isMidjourney: boolean;
+  }
+): Record<string, any> {
+  const { runwareModelId, dimensions, aspectRatio, imageStyle, isMidjourney } = options;
+  
+  // Enhance prompt with style-specific modifiers
+  const enhancedPrompt = enhanceImagePrompt(
+    scene.imagePrompt,
+    aspectRatio,
+    imageStyle,
+    scene.sceneNumber === 1
+  );
+
+  return {
+    taskType: "imageInference",
+    taskUUID: randomUUID(),
+    model: runwareModelId,
+    positivePrompt: enhancedPrompt,
+    width: dimensions.width,
+    height: dimensions.height,
+    // Midjourney requires numberResults to be multiple of 4
+    numberResults: isMidjourney ? 4 : 1,
+    includeCost: true,
+    outputType: "URL",
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BATCH PROCESSING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface BatchItem {
+  scene: { id: string; sceneNumber: number; imagePrompt: string };
+  payload: Record<string, any>;
+}
+
+interface BatchResult {
+  sceneId: string;
+  sceneNumber: number;
+  imageUrl: string;
+  status: "generated" | "failed";
+  error?: string;
+  cost?: number;
+}
+
+/**
+ * Process a single batch of images
+ * Returns results for all items, with status indicating success/failure
+ * Uses taskUUID for reliable result matching (prevents race conditions!)
+ */
+async function processBatch(
+  items: BatchItem[],
+  options: {
+    imageModel: string;
+    userId: string;
+    workspaceId?: string;
+    isMidjourney: boolean;
+  }
+): Promise<BatchResult[]> {
+  const { imageModel, userId, workspaceId, isMidjourney } = options;
+  
+  // Create taskUUID -> scene mapping for reliable result matching
+  const taskToSceneMap = new Map<string, { sceneId: string; sceneNumber: number }>();
+  
+  const payloads = items.map((item) => {
+    const taskUUID = item.payload.taskUUID;
+    taskToSceneMap.set(taskUUID, {
+      sceneId: item.scene.id,
+      sceneNumber: item.scene.sceneNumber,
+    });
+    return item.payload;
+  });
+  
+  console.log(`[image-generator:batch] Processing batch of ${items.length} images...`);
+  
+  try {
+    const response = await callAi(
+      {
+        provider: "runware",
+        model: imageModel,
+        task: "image-generation",
+        payload: payloads,
+        userId,
+        workspaceId,
+        runware: {
+          timeoutMs: CONFIG.BATCH_TIMEOUT_MS,
+        },
+      },
+      {
+        skipCreditCheck: false,
+      }
+    );
+
+    // Process results
+    const outputData = response.output as any[];
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Match results using taskUUID (NOT by index - results may be out of order!)
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    // Create a map of taskUUID -> result for O(1) lookup
+    const resultByTaskUUID = new Map<string, any>();
+    for (const data of outputData) {
+      if (data?.taskUUID) {
+        resultByTaskUUID.set(data.taskUUID, data);
+      }
+    }
+    
+    console.log(`[image-generator:batch] Mapped ${resultByTaskUUID.size} results by taskUUID`);
+    
+    return items.map((item) => {
+      const taskUUID = item.payload.taskUUID;
+      const sceneInfo = taskToSceneMap.get(taskUUID);
+      
+      if (!sceneInfo) {
+        console.error(`[image-generator:batch] No scene mapping for taskUUID: ${taskUUID}`);
+        return {
+          sceneId: item.scene.id,
+          sceneNumber: item.scene.sceneNumber,
+          imageUrl: "",
+          status: "failed" as const,
+          error: "Scene mapping not found",
+          cost: 0,
+        };
+      }
+      
+      // Find result by taskUUID (reliable matching!)
+      const data = resultByTaskUUID.get(taskUUID);
+      
+      // For Midjourney, we get 4 results per task, take the first one
+      const imageData = isMidjourney && Array.isArray(data) ? data[0] : data;
+      
+      if (imageData?.imageURL) {
+        console.log(`[image-generator:batch] Scene ${sceneInfo.sceneNumber} completed ✓ (taskUUID: ${taskUUID.substring(0, 8)}...)`);
+        return {
+          sceneId: sceneInfo.sceneId,
+          sceneNumber: sceneInfo.sceneNumber,
+          imageUrl: imageData.imageURL,
+          status: "generated" as const,
+          cost: imageData.cost || 0,
+        };
+      } else {
+        const errorMsg = imageData?.error || "No image URL in response";
+        console.error(`[image-generator:batch] Scene ${sceneInfo.sceneNumber} failed:`, errorMsg);
+        return {
+          sceneId: sceneInfo.sceneId,
+          sceneNumber: sceneInfo.sceneNumber,
+          imageUrl: "",
+          status: "failed" as const,
+          error: errorMsg,
+          cost: 0,
+        };
+      }
+    });
+  } catch (error) {
+    // Batch failed - mark all items as failed
+    const errorMessage = error instanceof Error ? error.message : "Unknown batch error";
+    console.error(`[image-generator:batch] Batch failed:`, errorMessage);
+    
+    return items.map((item) => ({
+      sceneId: item.scene.id,
+      sceneNumber: item.scene.sceneNumber,
+      imageUrl: "",
+      status: "failed" as const,
+      error: errorMessage,
+      cost: 0,
+    }));
+  }
+}
+
+/**
+ * Retry failed images individually
+ * Uses single-image requests for more reliable retry
+ */
+async function retryFailedImages(
+  failedResults: BatchResult[],
+  sceneMap: Map<string, { id: string; sceneNumber: number; imagePrompt: string }>,
+  options: {
+    runwareModelId: string;
+    dimensions: { width: number; height: number };
+    aspectRatio: string;
+    imageStyle: string;
+    imageModel: string;
+    isMidjourney: boolean;
+    userId: string;
+    workspaceId?: string;
+  }
+): Promise<BatchResult[]> {
+  const { runwareModelId, dimensions, aspectRatio, imageStyle, imageModel, isMidjourney, userId, workspaceId } = options;
+  
+  const retriedResults: BatchResult[] = [];
+  
+  for (const failedResult of failedResults) {
+    const scene = sceneMap.get(failedResult.sceneId);
+    if (!scene) continue;
+    
+    console.log(`[image-generator:retry] Retrying Scene ${failedResult.sceneNumber}...`);
+    
+    await sleep(CONFIG.RETRY_DELAY_MS);
+    
+    try {
+      const payload = buildImagePayload(scene, {
+        runwareModelId,
+        dimensions,
+        aspectRatio,
+        imageStyle,
+        isMidjourney,
+      });
+
+      const response = await callAi(
+        {
+          provider: "runware",
+          model: imageModel,
+          task: "image-generation",
+          payload: [payload],
+          userId,
+          workspaceId,
+        },
+        {
+          skipCreditCheck: false,
+        }
+      );
+
+      const outputData = response.output as any[];
+      const data = isMidjourney && Array.isArray(outputData[0]) ? outputData[0][0] : outputData[0];
+
+      if (data?.imageURL) {
+        console.log(`[image-generator:retry] Scene ${failedResult.sceneNumber} retry succeeded ✓`);
+        retriedResults.push({
+          sceneId: failedResult.sceneId,
+          sceneNumber: failedResult.sceneNumber,
+          imageUrl: data.imageURL,
+          status: "generated",
+          cost: data.cost || 0,
+        });
+      } else {
+        console.log(`[image-generator:retry] Scene ${failedResult.sceneNumber} retry failed again`);
+        retriedResults.push({
+          ...failedResult,
+          error: `Retry failed: ${data?.error || "No image URL"}`,
+        });
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error(`[image-generator:retry] Scene ${failedResult.sceneNumber} retry error:`, errorMessage);
+      retriedResults.push({
+        ...failedResult,
+        error: `Retry failed: ${errorMessage}`,
+      });
+    }
+  }
+  
+  return retriedResults;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN EXPORT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Generate images for all scenes using batch processing
  * 
- * Strategy:
- * - Scene 1: Generate without seed/reference (becomes reference)
- * - Scenes 2-N: Use Scene 1 seed for character consistency
- * 
- * @param input - Scenes and settings (including imageModel and imageResolution)
+ * @param input - Scenes and settings
  * @param userId - User ID for tracking
  * @param workspaceName - Workspace name for tracking
- * @returns Generated image URLs (Runware direct URLs) and metadata
+ * @returns Generated image URLs and metadata
  */
 export async function generateImages(
   input: ImageGeneratorInput,
@@ -30,7 +355,11 @@ export async function generateImages(
 ): Promise<ImageGeneratorOutput> {
   const { scenes, aspectRatio, imageStyle, imageModel, imageResolution, projectName, storyId } = input;
 
-  // Get dimensions for aspect ratio and resolution (pass modelId for model-specific dimensions)
+  // ─────────────────────────────────────────────────────────────────────────────
+  // SETUP
+  // ─────────────────────────────────────────────────────────────────────────────
+  
+  // Get dimensions for aspect ratio and resolution
   const dimensions = getImageDimensions(aspectRatio, imageResolution, imageModel);
 
   // Get Runware model ID
@@ -39,149 +368,150 @@ export async function generateImages(
     throw new Error(`No Runware mapping for model: ${imageModel}`);
   }
 
-  const results: ImageGenerationResult[] = [];
-  const errors: string[] = [];
-  let referenceSeed: number | null = null;
-  let referenceImageUrl: string | null = null;
-  let totalCost = 0;
-
-  console.log("[problem-solution:image-generator] Starting image generation:", {
+  const isMidjourney = imageModel === 'midjourney-v7';
+  
+  console.log("[image-generator] Starting batch image generation:", {
     sceneCount: scenes.length,
     aspectRatio,
     imageStyle,
     imageModel,
     imageResolution,
     dimensions,
+    batchSize: CONFIG.MAX_BATCH_SIZE,
+    isMidjourney,
   });
 
-  // Generate images sequentially to maintain consistency
-  for (const scene of scenes) {
-    const isFirstScene = scene.sceneNumber === 1;
-
-    try {
-      console.log(`[problem-solution:image-generator] Generating Scene ${scene.sceneNumber}...`);
-
-      // Enhance prompt with style-specific modifiers
-      const enhancedPrompt = enhanceImagePrompt(
-        scene.imagePrompt,
-        aspectRatio,
-        imageStyle,
-        isFirstScene
-      );
-
-      // Build Runware payload (no negativePrompt - not supported by many models)
-      // Midjourney requires numberResults to be multiple of 4 (4, 8, 12, 16, 20)
-      const isMidjourney = imageModel === 'midjourney-v7';
-      
-      const payload: any = {
-        taskType: "imageInference",
-        model: runwareModelId,
-        positivePrompt: enhancedPrompt,
-        width: dimensions.width,
-        height: dimensions.height,
-        numberResults: isMidjourney ? 4 : 1,
-        includeCost: true,
-      };
-
-      // Add consistency parameters for non-first scenes
-      if (!isFirstScene && referenceSeed) {
-        payload.seed = referenceSeed;
-      }
-
-      // Call Runware API
-      const response = await callAi(
+  // ─────────────────────────────────────────────────────────────────────────────
+  // BUILD BATCH ITEMS
+  // ─────────────────────────────────────────────────────────────────────────────
+  
+  // Create a map for quick scene lookup
+  const sceneMap = new Map<string, { id: string; sceneNumber: number; imagePrompt: string }>();
+  
+  const batchItems: BatchItem[] = scenes.map((scene) => {
+    sceneMap.set(scene.id, {
+      id: scene.id,
+      sceneNumber: scene.sceneNumber,
+      imagePrompt: scene.imagePrompt,
+    });
+    
+    return {
+      scene: {
+        id: scene.id,
+        sceneNumber: scene.sceneNumber,
+        imagePrompt: scene.imagePrompt,
+      },
+      payload: buildImagePayload(
+        { imagePrompt: scene.imagePrompt, sceneNumber: scene.sceneNumber },
         {
-          provider: "runware",
-          model: imageModel,
-          task: "image-generation",
-          payload,
-          userId,
-          workspaceId: input.workspaceId,
-        },
-        {
-          skipCreditCheck: false,
+          runwareModelId,
+          dimensions,
+          aspectRatio,
+          imageStyle,
+          isMidjourney,
         }
-      );
+      ),
+    };
+  });
 
-      // Extract image data
-      const outputData = response.output as any[];
-      const data = Array.isArray(outputData) ? outputData[0] : outputData;
-
-      if (!data?.imageURL) {
-        throw new Error("No image URL in response");
-      }
-
-      const imageURL = data.imageURL;
-      const seed = data.seed || Math.floor(Math.random() * 1000000);
-
-      // Save reference for first scene
-      if (isFirstScene) {
-        referenceSeed = seed;
-        referenceImageUrl = imageURL;
-        console.log(`[problem-solution:image-generator] Reference saved:`, {
-          seed: referenceSeed,
-          url: referenceImageUrl,
-        });
-      }
-
-      // Track cost
-      totalCost += response.usage?.totalCostUsd || data.cost || 0;
-
-      // Use Runware URL directly (no CDN upload)
-      console.log(`[problem-solution:image-generator] Using Runware URL directly:`, imageURL);
-
-      // Add to results
-      results.push({
-        sceneNumber: scene.sceneNumber,
-        sceneId: scene.id,
-        imageUrl: imageURL,
-        status: "generated",
-      });
-
-      console.log(`[problem-solution:image-generator] Scene ${scene.sceneNumber} completed ✓`);
-    } catch (error) {
-      console.error(
-        `[problem-solution:image-generator] Scene ${scene.sceneNumber} failed:`,
-        error
-      );
-
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      errors.push(`Scene ${scene.sceneNumber}: ${errorMessage}`);
-
-      results.push({
-        sceneNumber: scene.sceneNumber,
-        sceneId: scene.id,
-        imageUrl: "",
-        status: "failed",
-        error: errorMessage,
-      });
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PROCESS IN BATCHES
+  // ─────────────────────────────────────────────────────────────────────────────
+  
+  // Split into chunks if needed
+  const batches = chunkArray(batchItems, CONFIG.MAX_BATCH_SIZE);
+  console.log(`[image-generator] Split into ${batches.length} batch(es)`);
+  
+  let allResults: BatchResult[] = [];
+  let totalCost = 0;
+  
+  // Process each batch
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
+    console.log(`[image-generator] Processing batch ${i + 1}/${batches.length} (${batch.length} images)`);
+    
+    const batchResults = await processBatch(batch, {
+      imageModel,
+      userId,
+      workspaceId: input.workspaceId,
+      isMidjourney,
+    });
+    
+    allResults.push(...batchResults);
+    
+    // Small delay between batches to avoid rate limiting
+    if (i < batches.length - 1) {
+      await sleep(500);
     }
   }
 
-  const successfulCount = results.filter((r) => r.status === "generated").length;
-  const failedCount = results.filter((r) => r.status === "failed").length;
+  // ─────────────────────────────────────────────────────────────────────────────
+  // RETRY FAILED IMAGES
+  // ─────────────────────────────────────────────────────────────────────────────
+  
+  const failedResults = allResults.filter((r) => r.status === "failed");
+  
+  if (failedResults.length > 0 && failedResults.length <= scenes.length / 2) {
+    // Only retry if less than half failed (otherwise likely systemic issue)
+    console.log(`[image-generator] Retrying ${failedResults.length} failed image(s)...`);
+    
+    const retriedResults = await retryFailedImages(failedResults, sceneMap, {
+      runwareModelId,
+      dimensions,
+      aspectRatio,
+      imageStyle,
+      imageModel,
+      isMidjourney,
+      userId,
+      workspaceId: input.workspaceId,
+    });
+    
+    // Update results with retried ones
+    const retriedMap = new Map(retriedResults.map((r) => [r.sceneId, r]));
+    allResults = allResults.map((r) => retriedMap.get(r.sceneId) || r);
+  }
 
-  console.log("[problem-solution:image-generator] Generation complete:", {
+  // ─────────────────────────────────────────────────────────────────────────────
+  // CALCULATE TOTALS
+  // ─────────────────────────────────────────────────────────────────────────────
+  
+  totalCost = allResults.reduce((sum, r) => sum + (r.cost || 0), 0);
+  
+  const successfulCount = allResults.filter((r) => r.status === "generated").length;
+  const failedCount = allResults.filter((r) => r.status === "failed").length;
+  const errors = allResults
+    .filter((r) => r.status === "failed" && r.error)
+    .map((r) => `Scene ${r.sceneNumber}: ${r.error}`);
+
+  console.log("[image-generator] Generation complete:", {
     total: scenes.length,
     successful: successfulCount,
     failed: failedCount,
     totalCost,
   });
 
-  console.log("[problem-solution:image-generator] Results array:", 
-    results.map(r => ({ sceneNumber: r.sceneNumber, status: r.status, hasUrl: !!r.imageUrl }))
-  );
-
-  const output = {
-    scenes: results,
-    referenceSeed: referenceSeed || 0,
-    referenceImageUrl: referenceImageUrl || "",
+  // ─────────────────────────────────────────────────────────────────────────────
+  // BUILD OUTPUT
+  // ─────────────────────────────────────────────────────────────────────────────
+  
+  // Sort results by scene number
+  allResults.sort((a, b) => a.sceneNumber - b.sceneNumber);
+  
+  const output: ImageGeneratorOutput = {
+    scenes: allResults.map((r) => ({
+      sceneNumber: r.sceneNumber,
+      sceneId: r.sceneId,
+      imageUrl: r.imageUrl,
+      status: r.status,
+      error: r.error,
+    })),
+    referenceSeed: 0, // No longer using seed consistency
+    referenceImageUrl: "", // No longer using reference image
     totalCost,
     errors,
   };
 
-  console.log("[problem-solution:image-generator] Returning output with", output.scenes.length, "scenes");
+  console.log("[image-generator] Returning output with", output.scenes.length, "scenes");
 
   return output;
 }
-

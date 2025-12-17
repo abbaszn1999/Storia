@@ -14,6 +14,7 @@ import {
   createStaticVideoWithTransitions,
   createVideoFromImagesWithCreativeTransitions,
   createVideoWithCreativeTransitions,
+  createSingleAnimatedClip,
   concatenateAudioFiles,
   mergeVoiceover,
   mixBackgroundMusic,
@@ -46,18 +47,30 @@ async function downloadAssets(
   const videoFiles: string[] = [];
   const imageFiles: string[] = [];
   const audioFiles: string[] = [];
+  // Track which scenes have video vs image (for hybrid mode)
+  const sceneMediaType: ('video' | 'image')[] = [];
   
   for (const scene of scenes) {
     // Download video or image based on animation mode
     if (animationMode === 'video') {
-      // Video mode: download videos
+      // Video mode with HYBRID support: prefer video, fallback to image
       if (scene.videoUrl) {
+        // Scene has video - use it
         const videoPath = path.join(TEMP_DIR, `${randomUUID()}_scene${scene.sceneNumber}.mp4`);
         await downloadFile(scene.videoUrl, videoPath);
         videoFiles.push(videoPath);
+        sceneMediaType.push('video');
         console.log(`[video-exporter] ✓ Downloaded video for scene ${scene.sceneNumber}`);
+      } else if (scene.imageUrl) {
+        // Fallback: Scene has only image - will animate it
+        const imagePath = path.join(TEMP_DIR, `${randomUUID()}_scene${scene.sceneNumber}.jpg`);
+        await downloadFile(scene.imageUrl, imagePath);
+        imageFiles.push(imagePath);
+        sceneMediaType.push('image');
+        console.log(`[video-exporter] ✓ Downloaded image for scene ${scene.sceneNumber} (will animate)`);
       } else {
-        console.warn(`[video-exporter] ⚠ Scene ${scene.sceneNumber} missing videoUrl in video mode`);
+        console.warn(`[video-exporter] ⚠ Scene ${scene.sceneNumber} missing both videoUrl and imageUrl`);
+        sceneMediaType.push('image'); // Placeholder
       }
     } else {
       // 'off' or 'transition' mode: download images
@@ -65,9 +78,11 @@ async function downloadAssets(
         const imagePath = path.join(TEMP_DIR, `${randomUUID()}_scene${scene.sceneNumber}.jpg`);
         await downloadFile(scene.imageUrl, imagePath);
         imageFiles.push(imagePath);
+        sceneMediaType.push('image');
         console.log(`[video-exporter] ✓ Downloaded image for scene ${scene.sceneNumber}`);
       } else {
         console.warn(`[video-exporter] ⚠ Scene ${scene.sceneNumber} missing imageUrl in ${animationMode} mode`);
+        sceneMediaType.push('image'); // Placeholder
       }
     }
     
@@ -86,7 +101,16 @@ async function downloadAssets(
   console.log('[video-exporter]   Images:', imageFiles.length);
   console.log('[video-exporter]   Audio:', audioFiles.length);
   
-  return { videoFiles, imageFiles, audioFiles };
+  // Log hybrid mode info
+  if (animationMode === 'video') {
+    const videoCount = sceneMediaType.filter(t => t === 'video').length;
+    const imageCount = sceneMediaType.filter(t => t === 'image').length;
+    if (imageCount > 0) {
+      console.log(`[video-exporter] HYBRID MODE: ${videoCount} videos, ${imageCount} images (will be animated)`);
+    }
+  }
+  
+  return { videoFiles, imageFiles, audioFiles, sceneMediaType };
 }
 
 /**
@@ -177,11 +201,54 @@ export async function exportFinalVideo(
     const audioSpeedsByScene: number[] = input.scenes.map(() => 1.0);
     
     if (input.animationMode === 'video') {
-      // Scenario: Video mode (image-to-video generated with intelligent sync)
-      if (assets.videoFiles.length === 0) {
-        throw new Error('Video mode selected but no video files available');
+      // Scenario: Video mode - supports HYBRID (mix of videos and animated images)
+      const isHybridMode = assets.sceneMediaType.includes('image');
+      const videoSceneCount = assets.sceneMediaType.filter(t => t === 'video').length;
+      const imageSceneCount = assets.sceneMediaType.filter(t => t === 'image').length;
+      
+      if (assets.videoFiles.length === 0 && assets.imageFiles.length === 0) {
+        throw new Error('Video mode selected but no video or image files available');
       }
+      
       console.log('[video-exporter] Mode: Video (image-to-video with intelligent sync)');
+      if (isHybridMode) {
+        console.log(`[video-exporter] HYBRID MODE: ${videoSceneCount} videos + ${imageSceneCount} animated images`);
+      }
+      
+      // STEP: Create animated clips from images (for hybrid mode)
+      // Build unified video clips array matching scene order
+      let unifiedVideoClips: string[] = [];
+      let videoIndex = 0;
+      let imageIndex = 0;
+      
+      for (let i = 0; i < assets.sceneMediaType.length; i++) {
+        if (assets.sceneMediaType[i] === 'video') {
+          // Use existing video
+          unifiedVideoClips.push(assets.videoFiles[videoIndex]);
+          videoIndex++;
+        } else {
+          // Create animated clip from image
+          console.log(`[video-exporter] Scene ${i + 1}: Creating animated clip from image...`);
+          const imagePath = assets.imageFiles[imageIndex];
+          const targetDuration = durations[i];
+          try {
+            const animatedClip = await createSingleAnimatedClip(imagePath, targetDuration);
+            tempFiles.push(animatedClip);
+            unifiedVideoClips.push(animatedClip);
+            console.log(`[video-exporter] Scene ${i + 1}: ✓ Created ${targetDuration}s animated clip`);
+          } catch (error) {
+            console.error(`[video-exporter] Scene ${i + 1}: Failed to create animated clip:`, error);
+            throw new Error(`Failed to create animated clip for scene ${i + 1}`);
+          }
+          imageIndex++;
+        }
+      }
+      
+      console.log(`[video-exporter] Unified clips: ${unifiedVideoClips.length} total`);
+      
+      // Replace assets.videoFiles with unified clips for the rest of the processing
+      const originalVideoFiles = assets.videoFiles;
+      assets.videoFiles = unifiedVideoClips;
       
       // DUAL SPEED SYNC: Prefer slowdown over speedup (more natural)
       if (hasVoiceover && assets.audioFiles.length > 0) {

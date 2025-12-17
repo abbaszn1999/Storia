@@ -130,6 +130,8 @@ export interface StoryStudioState {
   
   // UI State
   isGenerating: boolean;
+  isEnhancingStoryboard: boolean;  // Storyboard enhancement agent running
+  isGeneratingImages: boolean;     // Image generation running
   generationProgress: number;
   error: string | null;
 }

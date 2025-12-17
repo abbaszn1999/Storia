@@ -12,8 +12,9 @@ import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, ChevronDown, Shirt, Eraser, Trash2, Play, Pause, Check, Link2, LayoutGrid, Clock, ArrowRight } from "lucide-react";
+import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, ChevronDown, Shirt, Eraser, Trash2, Play, Pause, Check, Link2, LayoutGrid, Clock, ArrowRight, Film } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import type { Character } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
@@ -958,14 +959,6 @@ export function StoryboardEditor({
     setDontRemindAgain(dontRemind);
   }, []);
 
-  const handleContinueToAnimatic = () => {
-    // Check if all shots have been animated to video
-    if (animatedCount < totalCount && !dontRemindAgain) {
-      setShowEnhancementDialog(true);
-    } else {
-      onNext();
-    }
-  };
 
   const handleAnimateAll = () => {
     // TODO: Implement animate all logic
@@ -1257,14 +1250,6 @@ export function StoryboardEditor({
               Timeline
             </Button>
           </div>
-
-          <Button
-            onClick={handleContinueToAnimatic}
-            disabled={generatedCount < totalCount}
-            data-testid="button-continue-to-animatic"
-          >
-            Continue to Animatic
-          </Button>
           </div>
         </div>
       </div>
@@ -1279,17 +1264,17 @@ export function StoryboardEditor({
               <div className="flex items-start gap-4">
                 <div className="w-80 shrink-0 space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="text-xs">
-                        # {sceneIndex + 1}
-                      </Badge>
-                      <h4 className="font-semibold text-sm">{scene.title}</h4>
+                    <div className="flex items-center gap-3">
+                      <div className={cn("h-8 w-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-bold")}>
+                        {sceneIndex + 1}
+                      </div>
+                      <h4 className="font-semibold text-sm text-white">{scene.title}</h4>
                     </div>
                     {onDeleteScene && scenes.length > 1 && (
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        className="h-7 w-7 text-white/50 hover:text-red-400 hover:bg-red-500/10"
                         onClick={() => {
                           if (window.confirm(`Delete scene "${scene.title}"? This will also delete all ${sceneShots.length} shot(s) in this scene.`)) {
                             onDeleteScene(scene.id);
@@ -1301,7 +1286,7 @@ export function StoryboardEditor({
                       </Button>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground line-clamp-2">
+                  <p className="text-sm text-white/50 line-clamp-2">
                     {scene.description}
                   </p>
                   

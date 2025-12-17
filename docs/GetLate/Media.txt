@@ -1,0 +1,332 @@
+# Media
+
+Upload images, videos, and documents with the Late Python SDK
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+import { Callout } from 'fumadocs-ui/components/callout';
+
+The Media resource handles file uploads for images, videos, and documents. The SDK provides two upload methods depending on file size.
+
+## Upload Methods Overview
+
+| Method | File Size | Storage | Token Required |
+|--------|-----------|---------|----------------|
+| **Direct Upload** | ≤ 4 MB | Late API | API Key only |
+| **Large File Upload** | 4 MB - 500 MB | Vercel Blob | Vercel Token |
+
+## Direct Upload (Small Files)
+
+For files up to 4 MB, use the direct upload methods. These upload directly to the Late API.
+
+### Upload Single File
+
+```python
+from late import Late
+
+client = Late(api_key="your_api_key")
+
+# Upload a single image
+response = client.media.upload("photo.jpg")
+
+print(response.files[0].url)
+print(response.files[0].filename)
+print(response.files[0].size)
+print(response.files[0].mimeType)
+```
+
+### Upload Multiple Files
+
+```python
+# Upload several files at once
+response = client.media.upload_multiple([
+    "image1.jpg",
+    "image2.png",
+    "thumbnail.webp"
+])
+
+# Access each uploaded file
+for file in response.files:
+    print(f"{file.filename}: {file.url}")
+```
+
+### Upload from Bytes
+
+Useful when you have file content in memory (e.g., from a download or generation):
+
+```python
+# Upload from bytes
+image_bytes = download_image_from_somewhere()
+
+result = client.media.upload_bytes(
+    content=image_bytes,
+    filename="generated.png",
+    mime_type="image/png"  # optional, auto-detected from filename
+)
+```
+
+## Large File Upload (Vercel Blob)
+
+For files larger than 4 MB (up to 500 MB), use the Vercel Blob upload methods. This requires a Vercel Blob token.
+
+<Callout type="info">
+  **Getting a Vercel Token**
+
+  1. Go to [Vercel Dashboard](https://vercel.com/dashboard) → Storage → Create Database → Blob
+  2. Create a new Blob store
+  3. Go to the store settings and copy the `BLOB_READ_WRITE_TOKEN`
+</Callout>
+
+### Upload Large File
+
+```python
+# Upload a large video file
+response = client.media.upload_large(
+    "video.mp4",
+    vercel_token="vercel_blob_rw_xxxxx"
+)
+
+print(response.url)
+print(response.pathname)
+print(response.contentType)
+print(response.size)
+print(response.downloadUrl)
+```
+
+### Progress Tracking
+
+Monitor upload progress for large files:
+
+```python
+from late.upload import UploadProgress
+
+def on_progress(progress: UploadProgress):
+    print(f"Uploading: {progress.percentage:.1f}% ({progress.uploaded_bytes}/{progress.total_bytes} bytes)")
+
+result = client.media.upload_large(
+    "large_video.mp4",
+    vercel_token="vercel_blob_rw_xxxxx",
+    on_progress=on_progress
+)
+```
+
+### Upload Large Bytes
+
+```python
+# Upload large content from bytes
+video_bytes = get_video_bytes()
+
+result = client.media.upload_large_bytes(
+    content=video_bytes,
+    filename="video.mp4",
+    vercel_token="vercel_blob_rw_xxxxx",
+    mime_type="video/mp4"
+)
+```
+
+## Upload Token Flow (Browser-Based)
+
+For scenarios where direct file upload isn't possible (e.g., AI assistants, chatbots), use the upload token flow:
+
+```python
+# 1. Generate an upload token
+token_response = client.media.generate_upload_token()
+
+print(f"Ask user to upload at: {token_response.uploadUrl}")
+# User opens the URL in their browser and uploads files
+
+# 2. Check token status and get uploaded files
+status_response = client.media.check_upload_token(token_response.token)
+
+if status_response.status.value == "completed":
+    for file in status_response.files:
+        print(f"Uploaded: {file.url}")
+elif status_response.status.value == "pending":
+    print("Still waiting for upload...")
+elif status_response.status.value == "expired":
+    print("Token expired, generate a new one")
+```
+
+## Async Methods
+
+All upload methods have async versions:
+
+```python
+import asyncio
+from late import Late
+
+async def upload_files():
+    async with Late(api_key="your_api_key") as client:
+        # Direct upload
+        result = await client.media.aupload("photo.jpg")
+
+        # Multiple files
+        result = await client.media.aupload_multiple(["a.jpg", "b.jpg"])
+
+        # From bytes
+        result = await client.media.aupload_bytes(content, "file.png")
+
+        # Large files
+        result = await client.media.aupload_large(
+            "video.mp4",
+            vercel_token="vercel_blob_rw_xxxxx"
+        )
+
+        # Upload token
+        token = await client.media.agenerate_upload_token()
+        status = await client.media.acheck_upload_token(token["token"])
+
+asyncio.run(upload_files())
+```
+
+## Supported File Types
+
+### Images
+
+| Format | Extensions | MIME Type |
+|--------|------------|-----------|
+| JPEG | `.jpg`, `.jpeg` | `image/jpeg` |
+| PNG | `.png` | `image/png` |
+| WebP | `.webp` | `image/webp` |
+| GIF | `.gif` | `image/gif` |
+
+### Videos
+
+| Format | Extensions | MIME Type |
+|--------|------------|-----------|
+| MP4 | `.mp4` | `video/mp4` |
+| QuickTime | `.mov` | `video/quicktime` |
+| AVI | `.avi` | `video/x-msvideo` |
+| WebM | `.webm` | `video/webm` |
+| M4V | `.m4v` | `video/x-m4v` |
+
+### Documents
+
+| Format | Extensions | MIME Type |
+|--------|------------|-----------|
+| PDF | `.pdf` | `application/pdf` |
+
+## Error Handling
+
+```python
+from late.upload import LargeFileError
+from late.client.exceptions import LateAPIError
+
+try:
+    # This will raise LargeFileError if file > 4MB
+    result = client.media.upload("large_video.mp4")
+except LargeFileError as e:
+    print(f"File too large ({e.size} bytes). Use upload_large() instead.")
+    result = client.media.upload_large(
+        "large_video.mp4",
+        vercel_token="vercel_blob_rw_xxxxx"
+    )
+except LateAPIError as e:
+    print(f"Upload failed: {e.message}")
+```
+
+## Using Uploaded Media in Posts
+
+Once uploaded, use the URL in your posts:
+
+```python
+from datetime import datetime, timedelta
+from late import Platform, MediaType
+
+# Upload media
+media_result = client.media.upload("product.jpg")
+media_url = media_result.files[0].url
+
+# Create post with media
+post = client.posts.create(
+    content="Check out our new product!",
+    platforms=[{"platform": Platform.TWITTER, "accountId": "acc_123"}],
+    media_items=[{"type": MediaType.IMAGE, "url": media_url}],
+    scheduled_for=datetime.now() + timedelta(hours=1)
+)
+```
+
+## API Reference
+
+### `media.upload()`
+
+Upload a single file (max 4 MB).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `file_path` | `str \| Path` | Yes | Path to the file to upload |
+
+**Returns:** `MediaUploadResponse`
+
+**Raises:** `LargeFileError` if file exceeds 4 MB.
+
+### `media.upload_multiple()`
+
+Upload multiple files at once (each max 4 MB).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `file_paths` | `list[str \| Path]` | Yes | List of file paths to upload |
+
+**Returns:** `MediaUploadResponse`
+
+### `media.upload_bytes()`
+
+Upload from bytes (max 4 MB).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `content` | `bytes` | Yes | File content as bytes |
+| `filename` | `str` | Yes | Name for the file |
+| `mime_type` | `str` | No | MIME type (auto-detected from filename) |
+
+**Returns:** `MediaUploadResponse`
+
+### `media.upload_large()`
+
+Upload large file using Vercel Blob (up to 500 MB).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `file_path` | `str \| Path` | Yes | Path to the file to upload |
+| `vercel_token` | `str` | Yes | Vercel Blob token (`vercel_blob_rw_xxx`) |
+| `on_progress` | `Callable[[UploadProgress], None]` | No | Progress callback |
+
+**Returns:** `MediaLargeUploadResponse`
+
+### `media.upload_large_bytes()`
+
+Upload large content from bytes using Vercel Blob.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `content` | `bytes` | Yes | File content as bytes |
+| `filename` | `str` | Yes | Name for the file |
+| `vercel_token` | `str` | Yes | Vercel Blob token |
+| `mime_type` | `str` | No | MIME type |
+| `on_progress` | `Callable[[UploadProgress], None]` | No | Progress callback |
+
+**Returns:** `MediaLargeUploadResponse`
+
+### `media.generate_upload_token()`
+
+Generate an upload token for browser-based uploads.
+
+**Returns:** `UploadTokenResponse`
+
+### `media.check_upload_token()`
+
+Check status of an upload token.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `token` | `str` | Yes | The upload token |
+
+**Returns:** `UploadTokenStatusResponse`
+
+## Best Practices
+
+1. **Choose the right method**: Use direct upload for small files (< 4MB), Vercel Blob for larger files
+2. **Track progress**: For large uploads, use the `on_progress` callback to provide user feedback
+3. **Handle errors**: Always handle `LargeFileError` to gracefully switch to large file upload
+4. **Validate before upload**: Check file size and type before uploading to avoid errors
+5. **Use async for multiple files**: When uploading many files, use async methods for better performance

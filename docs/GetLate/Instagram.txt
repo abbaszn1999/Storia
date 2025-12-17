@@ -1,0 +1,168 @@
+# Instagram
+
+Image and video requirements for Instagram posts, Stories, Reels, and Carousels
+
+## Content Types
+
+Instagram supports multiple content types, each with different requirements:
+
+| Type | Description | Media Required |
+|------|-------------|----------------|
+| **Feed Post** | Standard image/video post | Yes |
+| **Carousel** | Multi-image/video post (up to 10) | Yes |
+| **Story** | 24-hour ephemeral content | Yes |
+| **Reel** | Short-form video (up to 90 sec) | Yes (video) |
+
+## Image Requirements
+
+| Property | Feed Post | Story | Carousel |
+|----------|-----------|-------|----------|
+| **Max Images** | 1 | 1 | 10 |
+| **Formats** | JPEG, PNG | JPEG, PNG | JPEG, PNG |
+| **Max File Size** | 8 MB | 8 MB | 8 MB each |
+| **Recommended** | 1080 × 1350 px | 1080 × 1920 px | 1080 × 1080 px |
+
+### Aspect Ratio Requirements
+
+**This is critical for Instagram!** Feed posts have strict aspect ratio requirements:
+
+| Orientation | Ratio | Dimensions | Use Case |
+|-------------|-------|------------|----------|
+| Portrait | 4:5 | 1080 × 1350 px | Best engagement |
+| Square | 1:1 | 1080 × 1080 px | Standard |
+| Landscape | 1.91:1 | 1080 × 566 px | Minimum |
+
+**Allowed range:** 0.8 (4:5) to 1.91 (1.91:1)
+
+```
+✅ 4:5 (0.8) - Portrait
+✅ 1:1 (1.0) - Square
+✅ 1.91:1 (1.91) - Landscape
+❌ 9:16 (0.56) - Too tall, use Story instead
+❌ 16:9 (1.78) - Acceptable but cropped
+```
+
+> **Important:** Images outside the 0.8-1.91 range (like 9:16 vertical videos) must be posted as Stories using `contentType: "story"`.
+
+## Video Requirements
+
+### Feed Videos / Reels
+
+| Property | Requirement |
+|----------|-------------|
+| **Formats** | MP4, MOV |
+| **Max File Size** | 300 MB (auto-compressed if larger) |
+| **Max Duration** | 90 seconds (Reels), 60 min (Feed) |
+| **Min Duration** | 3 seconds |
+| **Aspect Ratio** | 9:16 (Reels), 4:5 to 1.91:1 (Feed) |
+| **Resolution** | 1080 × 1920 px (Reels) |
+| **Frame Rate** | 30 fps recommended |
+| **Codec** | H.264 |
+
+### Story Videos
+
+| Property | Requirement |
+|----------|-------------|
+| **Max File Size** | 100 MB (auto-compressed if larger) |
+| **Max Duration** | 60 seconds |
+| **Aspect Ratio** | 9:16 |
+| **Resolution** | 1080 × 1920 px |
+
+## Carousel Posts
+
+Carousels support up to **10 items** mixing images and videos:
+
+```json
+{
+  "content": "Check out these photos from my trip! 🌴",
+  "mediaItems": [
+    { "url": "https://example.com/photo1.jpg" },
+    { "url": "https://example.com/video.mp4" },
+    { "url": "https://example.com/photo2.jpg" },
+    { "url": "https://example.com/photo3.jpg" }
+  ],
+  "platforms": [
+    { "platform": "instagram", "accountId": "acc_123" }
+  ]
+}
+```
+
+### Carousel Requirements
+
+- All items should have the **same aspect ratio**
+- First item determines the aspect ratio for all
+- Mix of images and videos is allowed
+- Each item: max 8 MB (images), 100 MB (videos)
+
+## Stories
+
+To post as a Story instead of feed:
+
+```json
+{
+  "mediaItems": [
+    { "url": "https://example.com/story-image.jpg" }
+  ],
+  "platforms": [
+    {
+      "platform": "instagram",
+      "accountId": "acc_123",
+      "platformSpecificData": {
+        "contentType": "story"
+      }
+    }
+  ]
+}
+```
+
+**Story Notes:**
+- Stories disappear after 24 hours
+- No text captions displayed (use image overlays)
+- 9:16 aspect ratio recommended
+- Tappable links available for business accounts
+
+## Collaborators
+
+Invite up to 3 collaborators on feed posts and Reels:
+
+```json
+{
+  "platforms": [
+    {
+      "platform": "instagram",
+      "accountId": "acc_123",
+      "platformSpecificData": {
+        "collaborators": ["username1", "username2"]
+      }
+    }
+  ]
+}
+```
+
+## Automatic Compression
+
+Late automatically compresses oversized media:
+
+| Content Type | Image Limit | Video Limit | Action |
+|--------------|-------------|-------------|--------|
+| Feed/Carousel | 8 MB | 300 MB | Auto-compress |
+| Story | 8 MB | 100 MB | Auto-compress |
+| Reel | 8 MB | 300 MB | Auto-compress |
+
+Original files are preserved.
+
+## Common Issues
+
+### "Invalid aspect ratio"
+
+Your image is outside the 0.8-1.91 range. Solutions:
+1. Crop to 4:5 or 1:1
+2. Use `contentType: "story"` for 9:16 content
+
+### Video rejected as Reel
+
+Videos under 90 seconds with 9:16 aspect ratio automatically become Reels. If you want a feed video, use a different aspect ratio.
+
+### Carousel items showing differently
+
+Ensure all carousel items have the same aspect ratio. The first item sets the ratio for all.

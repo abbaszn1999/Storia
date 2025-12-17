@@ -1,0 +1,282 @@
+# Queue
+
+Manage posting schedules with recurring time slots using the Late Python SDK
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+The Queue resource manages recurring posting schedules. Set up time slots for each day of the week, and posts will automatically be scheduled to the next available slot.
+
+## How the Queue Works
+
+1. **Define slots**: Set recurring time slots for each day of the week
+2. **Add posts to queue**: Create posts with `queued_from_profile` parameter
+3. **Auto-scheduling**: Posts are automatically assigned to the next available slot
+
+## Get Queue Slots
+
+```python
+from late import Late
+
+client = Late(api_key="your_api_key")
+
+# Get queue slots for all profiles
+response = client.queue.get_slots()
+
+print(f"Active: {response.active}")
+print(f"Timezone: {response.timezone}")
+
+for slot in response.slots:
+    day_name = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][slot.dayOfWeek]
+    print(f"  {day_name} at {slot.time}")
+
+# Get slots for a specific profile
+response = client.queue.get_slots(profile_id="prof_123")
+```
+
+## Update Queue Slots
+
+<Callout type="info">
+  `dayOfWeek` uses `DayOfWeek` enum: Sunday = 0, Saturday = 6.
+</Callout>
+
+```python
+from late import DayOfWeek
+
+# Set up a posting schedule
+client.queue.update_slots(
+    profile_id="prof_123",
+    timezone="America/New_York",
+    slots=[
+        {"dayOfWeek": DayOfWeek.MONDAY, "time": "09:00"},     # Monday 9am
+        {"dayOfWeek": DayOfWeek.MONDAY, "time": "17:00"},     # Monday 5pm
+        {"dayOfWeek": DayOfWeek.WEDNESDAY, "time": "12:00"},  # Wednesday noon
+        {"dayOfWeek": DayOfWeek.FRIDAY, "time": "10:00"},     # Friday 10am
+    ],
+    active=True
+)
+```
+
+### Day of Week Reference
+
+| Enum | Value | Day |
+|------|-------|-----|
+| `DayOfWeek.SUNDAY` | 0 | Sunday |
+| `DayOfWeek.MONDAY` | 1 | Monday |
+| `DayOfWeek.TUESDAY` | 2 | Tuesday |
+| `DayOfWeek.WEDNESDAY` | 3 | Wednesday |
+| `DayOfWeek.THURSDAY` | 4 | Thursday |
+| `DayOfWeek.FRIDAY` | 5 | Friday |
+| `DayOfWeek.SATURDAY` | 6 | Saturday |
+
+## Deactivate Queue
+
+```python
+# Deactivate without removing slots
+client.queue.update_slots(
+    profile_id="prof_123",
+    timezone="America/New_York",
+    slots=[...],  # Keep existing slots
+    active=False
+)
+```
+
+## Delete All Slots
+
+```python
+# Remove all queue slots for a profile
+response = client.queue.delete_slots(profile_id="prof_123")
+print(response.message)
+```
+
+## Preview Scheduled Slots
+
+See when the next posts would be scheduled:
+
+```python
+# Preview next scheduled times
+response = client.queue.preview(profile_id="prof_123")
+
+for slot in response.nextSlots:
+    print(f"Next slot: {slot.scheduledFor}")
+```
+
+## Get Next Available Slot
+
+Get the single next available slot time:
+
+```python
+response = client.queue.next_slot(profile_id="prof_123")
+
+print(f"Next available: {response.nextSlot}")
+```
+
+## Create a Queued Post
+
+When creating a post, use `queued_from_profile` to auto-assign it to the next slot:
+
+```python
+from late import Platform
+
+# Post will be scheduled to the next available queue slot
+response = client.posts.create(
+    content="This will go out at the next queue slot!",
+    platforms=[{"platform": Platform.TWITTER, "accountId": "acc_123"}],
+    queued_from_profile="prof_123"
+)
+
+print(f"Scheduled for: {response.post.scheduledFor}")
+```
+
+## Async Methods
+
+All methods have async versions:
+
+```python
+import asyncio
+from late import Late, DayOfWeek
+
+async def manage_queue():
+    async with Late(api_key="your_api_key") as client:
+        # Get slots
+        slots = await client.queue.aget_slots(profile_id="prof_123")
+
+        # Update slots
+        await client.queue.aupdate_slots(
+            profile_id="prof_123",
+            timezone="UTC",
+            slots=[{"dayOfWeek": DayOfWeek.MONDAY, "time": "10:00"}],
+            active=True
+        )
+
+        # Delete slots
+        await client.queue.adelete_slots(profile_id="prof_123")
+
+        # Preview
+        preview = await client.queue.apreview(profile_id="prof_123")
+
+        # Next slot
+        next_slot = await client.queue.anext_slot(profile_id="prof_123")
+
+asyncio.run(manage_queue())
+```
+
+## API Reference
+
+### `queue.get_slots()`
+
+Get queue slots for a profile.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `profile_id` | `str` | No | `None` | Profile ID to filter |
+
+**Returns:** `QueueSlotsResponse`
+
+```python
+response = client.queue.get_slots()
+
+response.profileId
+response.timezone
+response.active
+response.slots      # list[QueueSlot]
+```
+
+### `queue.update_slots()`
+
+Update queue slots for a profile.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `profile_id` | `str` | Yes | — | Profile ID to update |
+| `timezone` | `str` | Yes | — | IANA timezone (e.g., "America/New_York") |
+| `slots` | `list[dict]` | Yes | — | List of slot objects |
+| `active` | `bool` | No | `True` | Whether the queue is active |
+
+**Slot object structure:**
+
+```python
+{
+    "dayOfWeek": 1,  # 0-6, Sunday-Saturday
+    "time": "09:00"  # HH:mm format (24-hour)
+}
+```
+
+**Returns:** `QueueUpdateResponse`
+
+### `queue.delete_slots()`
+
+Delete all queue slots for a profile.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `profile_id` | `str` | Yes | Profile ID to clear slots for |
+
+**Returns:** `QueueDeleteResponse`
+
+### `queue.preview()`
+
+Preview the next scheduled slot times.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `profile_id` | `str` | No | `None` | Profile ID to filter |
+
+**Returns:** `QueuePreviewResponse`
+
+```python
+response = client.queue.preview()
+
+for slot in response.nextSlots:
+    print(slot.scheduledFor)
+```
+
+### `queue.next_slot()`
+
+Get the next available queue slot.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `profile_id` | `str` | No | `None` | Profile ID to filter |
+
+**Returns:** `QueueNextSlotResponse`
+
+```python
+response = client.queue.next_slot()
+
+print(response.nextSlot)
+print(response.timezone)
+```
+
+## Example: Weekly Content Calendar
+
+```python
+from late import DayOfWeek
+
+# Set up a full week content calendar
+client.queue.update_slots(
+    profile_id="prof_123",
+    timezone="America/Los_Angeles",
+    slots=[
+        # Monday - 3 posts
+        {"dayOfWeek": DayOfWeek.MONDAY, "time": "09:00"},
+        {"dayOfWeek": DayOfWeek.MONDAY, "time": "13:00"},
+        {"dayOfWeek": DayOfWeek.MONDAY, "time": "18:00"},
+        # Tuesday
+        {"dayOfWeek": DayOfWeek.TUESDAY, "time": "10:00"},
+        {"dayOfWeek": DayOfWeek.TUESDAY, "time": "16:00"},
+        # Wednesday
+        {"dayOfWeek": DayOfWeek.WEDNESDAY, "time": "09:00"},
+        {"dayOfWeek": DayOfWeek.WEDNESDAY, "time": "14:00"},
+        # Thursday
+        {"dayOfWeek": DayOfWeek.THURSDAY, "time": "11:00"},
+        {"dayOfWeek": DayOfWeek.THURSDAY, "time": "17:00"},
+        # Friday
+        {"dayOfWeek": DayOfWeek.FRIDAY, "time": "09:00"},
+        {"dayOfWeek": DayOfWeek.FRIDAY, "time": "15:00"},
+        # Saturday - lighter posting
+        {"dayOfWeek": DayOfWeek.SATURDAY, "time": "12:00"},
+        # Sunday - rest day, no slots
+    ],
+    active=True
+)
+```

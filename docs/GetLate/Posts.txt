@@ -1,0 +1,496 @@
+# Posts
+
+Create, schedule, and manage social media posts with the Late Python SDK
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+import { Callout } from 'fumadocs-ui/components/callout';
+
+The Posts resource allows you to create, schedule, update, and manage social media posts across all connected platforms.
+
+## Type-Safe Enums
+
+The SDK provides enums for platforms, statuses, and media types. Using enums gives you autocomplete, type checking, and prevents typos:
+
+```python
+from late import Platform, PostStatus, MediaType
+
+# Enums work like strings - these are equivalent:
+Platform.TWITTER == "twitter"  # True
+PostStatus.SCHEDULED == "scheduled"  # True
+```
+
+## Supported Platforms
+
+| Platform | Enum | String ID |
+|----------|------|-----------|
+| Twitter/X | `Platform.TWITTER` | `"twitter"` |
+| Instagram | `Platform.INSTAGRAM` | `"instagram"` |
+| Facebook | `Platform.FACEBOOK` | `"facebook"` |
+| LinkedIn | `Platform.LINKEDIN` | `"linkedin"` |
+| TikTok | `Platform.TIKTOK` | `"tiktok"` |
+| YouTube | `Platform.YOUTUBE` | `"youtube"` |
+| Pinterest | `Platform.PINTEREST` | `"pinterest"` |
+| Reddit | `Platform.REDDIT` | `"reddit"` |
+| Bluesky | `Platform.BLUESKY` | `"bluesky"` |
+| Threads | `Platform.THREADS` | `"threads"` |
+| Google Business | `Platform.GOOGLE_BUSINESS` | `"googlebusiness"` |
+
+## Post Statuses
+
+| Status | Enum | Description |
+|--------|------|-------------|
+| `draft` | `PostStatus.DRAFT` | Saved but not scheduled |
+| `scheduled` | `PostStatus.SCHEDULED` | Scheduled for future publishing |
+| `publishing` | `PostStatus.PUBLISHING` | Currently being published |
+| `published` | `PostStatus.PUBLISHED` | Successfully published |
+| `failed` | `PostStatus.FAILED` | Publishing failed |
+| `partial` | `PostStatus.PARTIAL` | Some platforms failed, others succeeded |
+
+## Create a Post
+
+### Basic Post
+
+```python
+from late import Late, Platform
+from datetime import datetime, timedelta
+
+client = Late(api_key="your_api_key")
+
+# Schedule a post for 1 hour from now
+response = client.posts.create(
+    content="Hello from the Late Python SDK!",
+    platforms=[
+        {"platform": Platform.TWITTER, "accountId": "acc_123"}
+    ],
+    scheduled_for=datetime.now() + timedelta(hours=1)
+)
+
+print(response.post.field_id)
+```
+
+### Publish Immediately
+
+```python
+post = client.posts.create(
+    content="This goes live right now!",
+    platforms=[{"platform": Platform.TWITTER, "accountId": "acc_123"}],
+    publish_now=True
+)
+```
+
+### Save as Draft
+
+```python
+post = client.posts.create(
+    content="Draft for later review",
+    platforms=[{"platform": Platform.TWITTER, "accountId": "acc_123"}],
+    is_draft=True
+)
+```
+
+### Multi-Platform Post
+
+```python
+post = client.posts.create(
+    content="Cross-posting to multiple platforms!",
+    platforms=[
+        {"platform": Platform.TWITTER, "accountId": "tw_123"},
+        {"platform": Platform.LINKEDIN, "accountId": "li_456"},
+        {"platform": Platform.FACEBOOK, "accountId": "fb_789"}
+    ],
+    scheduled_for=datetime.now() + timedelta(days=1),
+    timezone="America/New_York"
+)
+```
+
+### Post with Media
+
+```python
+from late import MediaType
+
+# First upload your media
+media_result = client.media.upload("product.jpg")
+image_url = media_result.files[0].url
+
+# Create post with media
+post = client.posts.create(
+    content="Check out our new product!",
+    platforms=[{"platform": Platform.INSTAGRAM, "accountId": "ig_123"}],
+    media_items=[
+        {"type": MediaType.IMAGE, "url": image_url}
+    ],
+    scheduled_for=datetime.now() + timedelta(hours=2)
+)
+```
+
+### Platform-Specific Content
+
+Customize content per platform:
+
+```python
+post = client.posts.create(
+    content="Default content for all platforms",
+    platforms=[
+        {
+            "platform": Platform.TWITTER,
+            "accountId": "tw_123",
+            "customContent": "Short version for Twitter! #late"
+        },
+        {
+            "platform": Platform.LINKEDIN,
+            "accountId": "li_456",
+            "customContent": "Professional version with more detail for LinkedIn..."
+        }
+    ],
+    scheduled_for=datetime.now() + timedelta(hours=1)
+)
+```
+
+### YouTube Post
+
+```python
+post = client.posts.create(
+    content="Video description goes here...",
+    title="My YouTube Video Title",
+    platforms=[{"platform": Platform.YOUTUBE, "accountId": "yt_123"}],
+    media_items=[{"type": MediaType.VIDEO, "url": video_url}],
+    tags=["tech", "tutorial", "python"],  # YouTube tags
+    scheduled_for=datetime.now() + timedelta(hours=3)
+)
+```
+
+### TikTok Post
+
+<Callout type="warning">
+  TikTok requires `tiktok_settings` with specific disclosure and consent fields.
+</Callout>
+
+```python
+from late import TikTokPrivacyLevel
+
+post = client.posts.create(
+    content="TikTok video caption!",
+    platforms=[{"platform": Platform.TIKTOK, "accountId": "tt_123"}],
+    media_items=[{"type": MediaType.VIDEO, "url": video_url}],
+    tiktok_settings={
+        "privacy_level": TikTokPrivacyLevel.PUBLIC_TO_EVERYONE,  # Required
+        "allow_comment": True,                                    # Required
+        "allow_duet": True,                                       # Required for videos
+        "allow_stitch": True,                                     # Required for videos
+        "content_preview_confirmed": True,                        # Required, must be True
+        "express_consent_given": True,                            # Required, must be True
+    },
+    scheduled_for=datetime.now() + timedelta(hours=1)
+)
+```
+
+**TikTok Settings Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `privacy_level` | `TikTokPrivacyLevel` | Yes | `PUBLIC_TO_EVERYONE`, `MUTUAL_FOLLOW_FRIENDS`, `FOLLOWER_OF_CREATOR`, or `SELF_ONLY` |
+| `allow_comment` | bool | Yes | Allow comments on the post |
+| `allow_duet` | bool | Videos | Allow duets (required for video posts) |
+| `allow_stitch` | bool | Videos | Allow stitches (required for video posts) |
+| `content_preview_confirmed` | bool | Yes | Must be `True` |
+| `express_consent_given` | bool | Yes | Must be `True` |
+| `draft` | bool | No | Send to Creator Inbox as draft |
+| `description` | string | No | Long description for photo posts (max 4000 chars) |
+| `video_cover_timestamp_ms` | int | No | Thumbnail frame timestamp in ms |
+| `auto_add_music` | bool | No | Let TikTok add music (photos only) |
+
+## List Posts
+
+### Basic Listing
+
+```python
+# Get all posts (paginated)
+response = client.posts.list()
+
+for post in response.posts:
+    print(f"{post.field_id}: {post.content[:50]}...")
+
+# Pagination info
+print(f"Page {response.pagination.page} of {response.pagination.pages}")
+```
+
+### Filter Posts
+
+```python
+from late import PostStatus
+
+# Get scheduled posts only
+scheduled = client.posts.list(status=PostStatus.SCHEDULED)
+
+# Filter by platform
+twitter_posts = client.posts.list(platform=Platform.TWITTER)
+
+# Filter by date range
+recent = client.posts.list(
+    date_from="2024-01-01",
+    date_to="2024-01-31"
+)
+
+# Filter by profile
+profile_posts = client.posts.list(profile_id="profile_123")
+
+# Pagination
+page_2 = client.posts.list(page=2, limit=25)
+
+# Include hidden posts
+all_posts = client.posts.list(include_hidden=True)
+```
+
+## Get a Single Post
+
+```python
+response = client.posts.get("post_123")
+
+print(f"Content: {response.post.content}")
+print(f"Status: {response.post.status}")
+print(f"Scheduled for: {response.post.scheduledFor}")
+```
+
+## Update a Post
+
+<Callout type="info">
+  Only `draft`, `scheduled`, `failed`, and `partial` posts can be updated. Published posts cannot be modified.
+</Callout>
+
+```python
+# Update content
+client.posts.update(
+    "post_123",
+    content="Updated post content!"
+)
+
+# Reschedule
+client.posts.update(
+    "post_123",
+    scheduled_for=datetime.now() + timedelta(days=2),
+    timezone="Europe/London"
+)
+
+# Update multiple fields
+client.posts.update(
+    "post_123",
+    content="New content",
+    title="New title",
+    tags=["updated", "tags"]
+)
+```
+
+## Delete a Post
+
+```python
+# Delete a draft or scheduled post
+response = client.posts.delete("post_123")
+print(response.message)
+```
+
+<Callout type="warning">
+  Published posts cannot be deleted. If you deleted a scheduled post that consumed upload quota, the quota is automatically refunded.
+</Callout>
+
+## Retry Failed Posts
+
+```python
+# Retry a failed post
+response = client.posts.retry("post_123")
+print(response.message)
+```
+
+## Bulk Upload from CSV
+
+Upload multiple posts from a CSV file:
+
+```python
+# Validate first (dry run)
+validation = client.posts.bulk_upload("posts.csv", dry_run=True)
+
+if validation["success"]:
+    print(f"Validation passed: {validation['totalRows']} posts ready")
+    # Actually create the posts
+    result = client.posts.bulk_upload("posts.csv")
+    print(f"Created {result['created']} posts")
+else:
+    print("Validation errors:")
+    for error in validation["errors"]:
+        print(f"  Row {error['row']}: {error['message']}")
+```
+
+**CSV Format:**
+
+```csv
+content,platform,account_id,scheduled_for,title,media_url,tags
+"Hello world!",twitter,acc123,2024-12-25T10:00:00Z,,,
+"LinkedIn post",linkedin,acc456,2024-12-25T11:00:00Z,My Title,,tag1|tag2
+"With media",instagram,acc789,2024-12-25T12:00:00Z,,https://example.com/image.jpg,
+```
+
+## Async Methods
+
+All methods have async versions:
+
+```python
+import asyncio
+from late import Late, Platform, PostStatus
+
+async def manage_posts():
+    async with Late(api_key="your_api_key") as client:
+        # List
+        posts = await client.posts.alist(status=PostStatus.SCHEDULED)
+
+        # Get
+        post = await client.posts.aget("post_123")
+
+        # Create
+        new_post = await client.posts.acreate(
+            content="Async post!",
+            platforms=[{"platform": Platform.TWITTER, "accountId": "..."}],
+            publish_now=True
+        )
+
+        # Update
+        await client.posts.aupdate("post_123", content="Updated!")
+
+        # Delete
+        await client.posts.adelete("post_123")
+
+        # Retry
+        await client.posts.aretry("post_123")
+
+asyncio.run(manage_posts())
+```
+
+## Error Handling
+
+```python
+from late.client.exceptions import (
+    LateAPIError,
+    LateNotFoundError,
+    LateValidationError
+)
+
+try:
+    post = client.posts.get("invalid_id")
+except LateNotFoundError:
+    print("Post not found")
+except LateValidationError as e:
+    print(f"Validation error: {e.message}")
+except LateAPIError as e:
+    print(f"API error: {e.message}")
+```
+
+## API Reference
+
+### `posts.create()`
+
+Create a new post.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `content` | `str` | Yes | — | Post content/text |
+| `platforms` | `list[dict]` | Yes | — | List of platform targets (see below) |
+| `title` | `str` | No | `None` | Title for YouTube, Pinterest |
+| `media_items` | `list[dict]` | No | `None` | List of media with `type` and `url` |
+| `scheduled_for` | `datetime \| str` | No | `None` | When to publish |
+| `publish_now` | `bool` | No | `False` | Publish immediately |
+| `is_draft` | `bool` | No | `False` | Save as draft |
+| `timezone` | `str` | No | `"UTC"` | IANA timezone |
+| `tags` | `list[str]` | No | `None` | Tags (YouTube: max 100 chars each) |
+| `hashtags` | `list[str]` | No | `None` | Hashtags |
+| `mentions` | `list[str]` | No | `None` | Mentions |
+| `crossposting_enabled` | `bool` | No | `True` | Enable crossposting |
+| `metadata` | `dict` | No | `None` | Custom metadata |
+| `tiktok_settings` | `dict` | No | `None` | TikTok-specific settings |
+| `queued_from_profile` | `str` | No | `None` | Profile ID if using queue |
+
+**Platform object structure:**
+
+```python
+{
+    "platform": Platform.TWITTER,   # Required (Platform enum or string)
+    "accountId": "acc_123",         # Required
+    "customContent": "...",         # Optional: per-platform content
+    "customMedia": [...],           # Optional: per-platform media
+    "scheduledFor": "...",          # Optional: per-platform schedule
+    "platformSpecificData": {...}   # Optional: platform-specific options
+}
+```
+
+### `posts.list()`
+
+List posts with optional filters.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `page` | `int` | No | `1` | Page number (1-based) |
+| `limit` | `int` | No | `10` | Posts per page (max 100) |
+| `status` | `PostStatus \| str` | No | `None` | Filter by status |
+| `platform` | `Platform \| str` | No | `None` | Filter by platform |
+| `profile_id` | `str` | No | `None` | Filter by profile ID |
+| `created_by` | `str` | No | `None` | Filter by creator user ID |
+| `date_from` | `str` | No | `None` | Filter from date (YYYY-MM-DD) |
+| `date_to` | `str` | No | `None` | Filter to date (YYYY-MM-DD) |
+| `include_hidden` | `bool` | No | `None` | Include hidden posts |
+
+### `posts.update()`
+
+Update an existing post.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `post_id` | `str` | Yes | ID of the post to update |
+| `content` | `str` | No | New content |
+| `title` | `str` | No | New title |
+| `platforms` | `list[dict]` | No | New platform targets |
+| `media_items` | `list[dict]` | No | New media items |
+| `scheduled_for` | `datetime \| str` | No | New scheduled time |
+| `timezone` | `str` | No | New timezone |
+| `tags` | `list[str]` | No | New tags |
+| `hashtags` | `list[str]` | No | New hashtags |
+| `mentions` | `list[str]` | No | New mentions |
+| `metadata` | `dict` | No | New metadata |
+| `tiktok_settings` | `dict` | No | New TikTok settings |
+
+## Response Types
+
+All methods return typed Pydantic models:
+
+| Method | Return Type |
+|--------|-------------|
+| `posts.list()` | `PostsListResponse` |
+| `posts.get()` | `PostGetResponse` |
+| `posts.create()` | `PostCreateResponse` |
+| `posts.update()` | `PostUpdateResponse` |
+| `posts.delete()` | `PostDeleteResponse` |
+| `posts.retry()` | `PostRetryResponse` |
+
+### PostCreateResponse
+
+```python
+response = client.posts.create(...)
+
+response.message      # str: "Post created successfully"
+response.post         # Post model
+response.post.field_id
+response.post.content
+response.post.status  # Status enum
+response.post.scheduledFor
+response.post.platforms
+response.post.mediaItems
+```
+
+### PostsListResponse
+
+```python
+response = client.posts.list()
+
+response.posts        # list[Post]
+response.pagination   # Pagination model
+response.pagination.page
+response.pagination.limit
+response.pagination.total
+response.pagination.pages
+```

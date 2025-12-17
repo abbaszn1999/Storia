@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Sparkles, Edit, Trash2, Plus, Copy, ChevronUp, ChevronDown } from "lucide-react";
+import { Loader2, Sparkles, Edit, Trash2, Plus, Copy, ChevronUp, ChevronDown, Film } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion, ContinuityGroup } from "@/types/storyboard";
 import { SceneDialog } from "./scene-dialog";
@@ -1259,14 +1260,19 @@ export function SceneBreakdown({
   const totalShots = Object.values(shots).flat().length;
   const totalDuration = scenes.reduce((sum, scene) => sum + (scene.duration || 0), 0);
   const hasBreakdown = scenes.length > 0;
+  const accentClasses = "from-purple-500 to-pink-500";
 
   return (
     <div className="space-y-6">
       {!hasBreakdown ? (
         <div className="space-y-6">
-          <div className="text-center py-12">
-            <p className="text-muted-foreground mb-6">
-              AI will analyze your script and break it down into scenes and shots.
+          <div className="text-center py-16">
+            <div className={cn("h-16 w-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br flex items-center justify-center", accentClasses)}>
+              <Film className="h-8 w-8 text-white" />
+            </div>
+            <h3 className="text-xl font-semibold text-white mb-2">Generate Scene Breakdown</h3>
+            <p className="text-white/50 mb-8 max-w-md mx-auto">
+              AI will analyze your script and break it down into scenes and shots for your storyboard.
             </p>
             <Button
               size="lg"
@@ -1276,6 +1282,7 @@ export function SceneBreakdown({
                 setIsGeneratingBreakdown(false);
               }}
               disabled={isGeneratingBreakdown}
+              className={cn("bg-gradient-to-br text-white hover:opacity-90", accentClasses)}
               data-testid="button-generate-breakdown"
             >
               {isGeneratingBreakdown ? (
@@ -1293,10 +1300,11 @@ export function SceneBreakdown({
           </div>
           
           <div className="text-center">
-            <p className="text-sm text-muted-foreground mb-4">or</p>
+            <p className="text-sm text-white/40 mb-4">or</p>
             <Button
               variant="outline"
               onClick={openAddSceneDialog}
+              className="bg-white/5 border-white/10 text-white hover:bg-white/10"
               data-testid="button-add-scene"
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -1307,13 +1315,13 @@ export function SceneBreakdown({
       ) : (
         <>
           {synopsis && (
-            <Card className="bg-card/50">
+            <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="pt-6">
-                <h3 className="text-sm font-semibold mb-2">Synopsis</h3>
+                <h3 className="text-sm font-semibold mb-2 text-white">Synopsis</h3>
                 <Textarea
                   value={synopsis}
                   onChange={(e) => setSynopsis(e.target.value)}
-                  className="text-sm resize-none"
+                  className="text-sm resize-none bg-white/5 border-white/10 text-white placeholder:text-white/30"
                   rows={3}
                   data-testid="input-synopsis"
                 />
@@ -1359,14 +1367,17 @@ export function SceneBreakdown({
               const shotRefs = shotRefsMap.current[scene.id];
               
               return (
-                <Card key={scene.id} className="bg-card/50" data-testid={`scene-${scene.id}`}>
+                <Card key={scene.id} className="bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30 transition-all" data-testid={`scene-${scene.id}`}>
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">
-                          Scene {sceneIndex + 1}: {scene.title}
+                      <div className="flex items-center gap-3">
+                        <div className={cn("h-8 w-8 rounded-lg bg-gradient-to-br flex items-center justify-center text-white text-sm font-bold", accentClasses)}>
+                          {sceneIndex + 1}
+                        </div>
+                        <h3 className="font-semibold text-white">
+                          {scene.title}
                         </h3>
-                        <Badge variant="secondary" className="text-xs" data-testid={`scene-duration-${scene.id}`}>
+                        <Badge variant="secondary" className="text-xs bg-white/10 text-white/70 border-0" data-testid={`scene-duration-${scene.id}`}>
                           {scene.duration || 0}s
                         </Badge>
                       </div>
@@ -1375,6 +1386,7 @@ export function SceneBreakdown({
                           size="icon"
                           variant="ghost"
                           onClick={() => duplicateScene(scene)}
+                          className="text-white/50 hover:text-white hover:bg-white/10"
                           data-testid={`button-copy-scene-${scene.id}`}
                         >
                           <Copy className="h-4 w-4" />
@@ -1383,6 +1395,7 @@ export function SceneBreakdown({
                           size="icon"
                           variant="ghost"
                           onClick={() => openEditSceneDialog(scene)}
+                          className="text-white/50 hover:text-white hover:bg-white/10"
                           data-testid={`button-edit-scene-${scene.id}`}
                         >
                           <Edit className="h-4 w-4" />
@@ -1392,6 +1405,7 @@ export function SceneBreakdown({
                           variant="ghost"
                           disabled={sceneIndex === 0}
                           onClick={() => moveScene(scene.id, 'up')}
+                          className="text-white/50 hover:text-white hover:bg-white/10 disabled:opacity-30"
                           data-testid={`button-move-up-scene-${scene.id}`}
                         >
                           <ChevronUp className="h-4 w-4" />
@@ -1401,6 +1415,7 @@ export function SceneBreakdown({
                           variant="ghost"
                           disabled={sceneIndex === scenes.length - 1}
                           onClick={() => moveScene(scene.id, 'down')}
+                          className="text-white/50 hover:text-white hover:bg-white/10 disabled:opacity-30"
                           data-testid={`button-move-down-scene-${scene.id}`}
                         >
                           <ChevronDown className="h-4 w-4" />
@@ -1409,6 +1424,7 @@ export function SceneBreakdown({
                           size="icon"
                           variant="ghost"
                           onClick={() => setDeleteSceneId(scene.id)}
+                          className="text-white/50 hover:text-red-400 hover:bg-red-500/10"
                           data-testid={`button-delete-scene-${scene.id}`}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -1439,23 +1455,24 @@ export function SceneBreakdown({
                               shotRefs.current[shotIndex] = el;
                             }
                           }}
-                          className="flex items-start gap-3 p-3 rounded-lg bg-background/50 hover-elevate"
+                          className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.02] border border-white/[0.06] hover:border-purple-500/20 transition-all"
                           data-testid={`shot-${shot.id}`}
                         >
-                          <div className="h-2 w-2 rounded-full bg-primary mt-2 shrink-0" />
+                          <div className={cn("h-2 w-2 rounded-full bg-gradient-to-br mt-2 shrink-0", accentClasses)}>
+                          </div>
                           <div className="flex-1 min-w-0">
-                            <span className="text-sm font-medium mr-2">Shot {shotIndex + 1}</span>
-                            <span className="text-sm text-muted-foreground mr-2">subtitles:</span>
-                            <span className="text-sm">{shot.description}</span>
+                            <span className="text-sm font-medium text-white mr-2">Shot {shotIndex + 1}</span>
+                            <span className="text-sm text-white/70">{shot.description}</span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            <Badge variant="outline" className="text-xs">
+                            <Badge variant="outline" className="text-xs bg-white/5 border-white/10 text-white/50">
                               {shot.description?.length || 0}/200
                             </Badge>
                             <Button
                               size="icon"
                               variant="ghost"
                               onClick={() => openEditShotDialog(shot, scene.id)}
+                              className="text-white/50 hover:text-white hover:bg-white/10"
                               data-testid={`button-edit-shot-${shot.id}`}
                             >
                               <Edit className="h-3 w-3" />
@@ -1464,6 +1481,7 @@ export function SceneBreakdown({
                               size="icon"
                               variant="ghost"
                               onClick={() => setDeleteShotId(shot.id)}
+                              className="text-white/50 hover:text-red-400 hover:bg-red-500/10"
                               data-testid={`button-delete-shot-${shot.id}`}
                             >
                               <Trash2 className="h-3 w-3" />
@@ -1476,7 +1494,7 @@ export function SceneBreakdown({
                         variant="ghost"
                         size="sm"
                         onClick={() => openAddShotDialog(scene.id)}
-                        className="w-full mt-2"
+                        className="w-full mt-2 border border-dashed border-white/10 text-white/50 hover:border-purple-500/30 hover:text-white hover:bg-white/[0.02]"
                         data-testid={`button-add-shot-${scene.id}`}
                       >
                         <Plus className="h-4 w-4 mr-2" />
@@ -1491,7 +1509,7 @@ export function SceneBreakdown({
             <Button
               variant="outline"
               onClick={openAddSceneDialog}
-              className="w-full"
+              className="w-full border-dashed border-purple-500/30 text-purple-400 hover:bg-purple-500/10 hover:border-purple-500/50"
               data-testid="button-add-scene"
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -1499,28 +1517,14 @@ export function SceneBreakdown({
             </Button>
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-card/50 rounded-lg">
-            <div className="text-sm text-muted-foreground">
+          <div className="flex items-center justify-between p-4 bg-white/[0.02] border border-white/[0.06] rounded-lg">
+            <div className="text-sm text-white/50">
               The video is approximately{' '}
-              <span className="text-foreground font-medium">
+              <span className="text-white font-medium">
                 {Math.floor(totalDuration / 60)}:{String(totalDuration % 60).padStart(2, '0')}
               </span>{' '}
               ({totalShots} shots)
             </div>
-            <Button 
-              onClick={onNext} 
-              disabled={narrativeMode === "start-end" && !localContinuityLocked}
-              data-testid="button-next"
-            >
-              {narrativeMode === "start-end" && !localContinuityLocked ? (
-                <>Lock Continuity First</>
-              ) : (
-                <>
-                  Next
-                  <span className="ml-2">→</span>
-                </>
-              )}
-            </Button>
           </div>
 
           <SceneDialog

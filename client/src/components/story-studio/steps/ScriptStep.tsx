@@ -1,21 +1,89 @@
 // Script Step - Auto-generated scenes with editable cards
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { GlassPanel } from "../shared/GlassPanel";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { 
   Layers,
   Clock,
   RefreshCw,
   Trash2,
   AlertCircle,
-  Plus
+  Plus,
+  AlertTriangle
 } from "lucide-react";
 import { StoryScene, StoryTemplate } from "../types";
+import { getVideoModelConfig, VIDEO_MODELS } from "@/constants/video-models";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEXT DURATION ESTIMATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Calculate expected voiceover duration based on text length
+ * Average speaking rate: ~150 words per minute = 2.5 words per second
+ * Arabic/slow pace: ~2 words per second
+ */
+function estimateNarrationDuration(text: string): number {
+  if (!text.trim()) return 0;
+  const words = text.trim().split(/\s+/).length;
+  const WORDS_PER_SECOND = 2.2; // Conservative estimate for natural speech
+  return Math.ceil(words / WORDS_PER_SECOND);
+}
+
+/**
+ * Determine if text length is compatible with scene duration
+ */
+function getTextDurationStatus(text: string, sceneDuration: number): {
+  status: 'ok' | 'warning' | 'error';
+  message: string;
+  estimatedDuration: number;
+} {
+  const estimated = estimateNarrationDuration(text);
+  
+  if (!text.trim()) {
+    return { 
+      status: 'warning', 
+      message: 'No narration text',
+      estimatedDuration: 0 
+    };
+  }
+  
+  // Text too long for duration (voiceover will exceed video)
+  if (estimated > sceneDuration * 1.2) {
+    return { 
+      status: 'error', 
+      message: `Text too long (~${estimated}s for ${sceneDuration}s scene)`,
+      estimatedDuration: estimated 
+    };
+  }
+  
+  // Text too short (wasted video time)
+  if (estimated < sceneDuration * 0.4 && sceneDuration > 3) {
+    return { 
+      status: 'warning', 
+      message: `Text short (~${estimated}s for ${sceneDuration}s scene)`,
+      estimatedDuration: estimated 
+    };
+  }
+  
+  return { 
+    status: 'ok', 
+    message: `~${estimated}s narration`,
+    estimatedDuration: estimated 
+  };
+}
 
 interface ScriptStepProps {
   template: StoryTemplate;
@@ -24,6 +92,7 @@ interface ScriptStepProps {
   duration: number;
   aspectRatio: string;
   imageMode: 'none' | 'transition' | 'image' | 'image-to-video';
+  videoModel: string;
   voiceoverEnabled: boolean;
   isGenerating: boolean;
   error?: string | null;
@@ -118,6 +187,7 @@ export function ScriptStep({
   duration,
   aspectRatio,
   imageMode,
+  videoModel,
   voiceoverEnabled,
   isGenerating,
   error,
@@ -137,6 +207,40 @@ export function ScriptStep({
   }[accentColor] || "from-primary to-violet-500";
 
   const totalDuration = scenes.reduce((sum, s) => sum + s.duration, 0);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VIDEO MODEL CONSTRAINTS
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  const modelConfig = useMemo(() => {
+    return getVideoModelConfig(videoModel);
+  }, [videoModel]);
+
+  // Get supported durations based on image mode
+  const supportedDurations = useMemo(() => {
+    if (imageMode === 'image-to-video' && modelConfig) {
+      // Use model's exact supported durations
+      return modelConfig.durations;
+    }
+    // For other modes, allow 1-15 seconds
+    return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+  }, [imageMode, modelConfig]);
+
+  // Check if current scene durations have issues
+  const scenesWithIssues = useMemo(() => {
+    return scenes.filter(scene => {
+      // Duration not supported by model
+      if (imageMode === 'image-to-video' && !supportedDurations.includes(scene.duration)) {
+        return true;
+      }
+      // Text too long for duration
+      const textStatus = getTextDurationStatus(scene.narration, scene.duration);
+      if (textStatus.status === 'error') {
+        return true;
+      }
+      return false;
+    });
+  }, [scenes, imageMode, supportedDurations]);
 
   // Show fullscreen loading during generation
   if (isGenerating) {
@@ -218,21 +322,29 @@ export function ScriptStep({
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded-md">
+                    <div className="flex items-center gap-1.5 bg-black/30 px-1 py-0.5 rounded-md">
                       <Clock className="w-3.5 h-3.5 text-white/60" />
-                      <Input
-                        type="number"
-                        value={scene.duration}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value) || 0;
-                          const clampedValue = Math.min(Math.max(value, 1), 10);
-                          onSceneUpdate(scene.id, { duration: clampedValue });
+                      <Select
+                        value={scene.duration.toString()}
+                        onValueChange={(val) => {
+                          onSceneUpdate(scene.id, { duration: parseInt(val) });
                         }}
-                        className="w-10 h-5 bg-transparent border-none text-xs text-center p-0 text-white"
-                        min="1"
-                        max="10"
-                      />
-                      <span className="text-xs text-white/60">s</span>
+                      >
+                        <SelectTrigger className="w-14 h-6 bg-transparent border-none text-xs text-white p-1 gap-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-zinc-900 border-white/10">
+                          {supportedDurations.map((d) => (
+                            <SelectItem 
+                              key={d} 
+                              value={d.toString()}
+                              className="text-xs"
+                            >
+                              {d}s
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <Button
                       variant="ghost"
@@ -246,18 +358,42 @@ export function ScriptStep({
                 </div>
 
                 {/* Scene Content - Flexible */}
-                <div className="flex-1 p-3">
+                <div className="flex-1 p-3 flex flex-col gap-2">
                   <Textarea
                     value={scene.narration}
                     onChange={(e) => onSceneUpdate(scene.id, { narration: e.target.value })}
                     className={cn(
-                      "h-full min-h-[180px] bg-white/5 border-white/10",
+                      "flex-1 min-h-[150px] bg-white/5 border-white/10",
                       "focus:border-white/20 resize-none",
                       "text-sm leading-relaxed text-white/90",
                       "placeholder:text-white/20"
                     )}
                     placeholder="Enter scene narration..."
                   />
+                  
+                  {/* Text Duration Warning */}
+                  {voiceoverEnabled && (() => {
+                    const status = getTextDurationStatus(scene.narration, scene.duration);
+                    if (status.status === 'ok') {
+                      return (
+                        <div className="flex items-center gap-1.5 text-xs text-white/40">
+                          <Clock className="w-3 h-3" />
+                          <span>{status.message}</span>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className={cn(
+                        "flex items-center gap-1.5 text-xs px-2 py-1 rounded",
+                        status.status === 'error' 
+                          ? "bg-red-500/10 text-red-400" 
+                          : "bg-yellow-500/10 text-yellow-400"
+                      )}>
+                        <AlertTriangle className="w-3 h-3" />
+                        <span>{status.message}</span>
+                      </div>
+                    );
+                  })()}
                 </div>
               </GlassPanel>
             </motion.div>
@@ -303,25 +439,36 @@ export function ScriptStep({
               Total Duration: 
               <span className={cn(
                 "ml-2 font-semibold",
+                scenesWithIssues.length > 0 ? "text-red-400" :
                 totalDuration === duration ? "text-green-400" : "text-yellow-400"
               )}>
                 {totalDuration}s
               </span>
             </p>
-            {duration && totalDuration !== duration && (
+            {duration && totalDuration !== duration && scenesWithIssues.length === 0 && (
               <span className="text-sm text-yellow-400/80">
                 (Target: {duration}s)
               </span>
             )}
-            {totalDuration === duration && (
+            {scenesWithIssues.length > 0 ? (
+              <span className="text-xs text-red-400 flex items-center gap-1 px-2 py-1 rounded-md bg-red-500/10">
+                <AlertTriangle className="w-3 h-3" />
+                {scenesWithIssues.length} scene{scenesWithIssues.length > 1 ? 's' : ''} need attention
+              </span>
+            ) : totalDuration === duration ? (
               <span className="text-xs text-green-400 flex items-center gap-1 px-2 py-1 rounded-md bg-green-500/10">
                 ✓ Ready to proceed
               </span>
-            )}
+            ) : null}
           </div>
-          <p className="text-xs text-white/30">
-            {aspectRatio} · {imageMode} · {voiceoverEnabled ? 'Voiceover On' : 'Voiceover Off'}
-          </p>
+          <div className="flex items-center gap-3 text-xs text-white/30">
+            {imageMode === 'image-to-video' && modelConfig && (
+              <span className="text-white/40">
+                {modelConfig.label}: [{modelConfig.durations.join(', ')}]s
+              </span>
+            )}
+            <span>{aspectRatio} · {imageMode} · {voiceoverEnabled ? 'Voiceover On' : 'Voiceover Off'}</span>
+          </div>
         </div>
       </div>
     </div>

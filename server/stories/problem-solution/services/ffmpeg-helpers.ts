@@ -1563,11 +1563,11 @@ export async function createVideoFromImagesWithCreativeTransitions(
  * 3. Output at consistent 30fps with proper timing
  * 4. Use high-quality scaling flags
  */
-async function createSingleAnimatedClip(
+export async function createSingleAnimatedClip(
   imagePath: string,
   duration: number,
-  animation: ImageAnimation | null,
-  effect: ImageEffect | null
+  animation: ImageAnimation | null = 'ken-burns',
+  effect: ImageEffect | null = null
 ): Promise<string> {
   const outputPath = path.join(TEMP_DIR, `${randomUUID()}_animated_clip.mp4`);
   const fps = 30;

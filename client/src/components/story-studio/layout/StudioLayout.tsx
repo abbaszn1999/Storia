@@ -84,18 +84,18 @@ export function StudioLayout({
 
       {/* Header */}
       <header className="relative z-10 px-6 pt-5 pb-3">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          {/* Back to Templates */}
+        <div className="max-w-7xl mx-auto flex items-center justify-center gap-4">
+          {/* Back to Templates - Fixed Left Position */}
           <motion.button
             onClick={() => navigate('/stories')}
-            className="flex items-center gap-2 text-white/50 hover:text-white transition-colors"
+            className="absolute left-6 flex items-center gap-2 text-white/50 hover:text-white transition-colors"
             whileHover={{ x: -3 }}
           >
             <ArrowLeft className="w-4 h-4" />
             <span className="text-sm font-medium">Templates</span>
           </motion.button>
 
-          {/* Template Badge + Step Title */}
+          {/* Template Badge + Step Title - Centered */}
           <div className="flex items-center gap-4">
             <div className={cn(
               "flex items-center gap-2 px-3 py-1.5 rounded-lg",
@@ -120,9 +120,6 @@ export function StudioLayout({
               <span className="text-lg font-semibold">{currentStepInfo.label}</span>
             </motion.div>
           </div>
-
-          {/* Placeholder for balance */}
-          <div className="w-24" />
         </div>
       </header>
 

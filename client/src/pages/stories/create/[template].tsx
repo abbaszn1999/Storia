@@ -199,18 +199,18 @@ export default function StoryCreate() {
         accentColor={accentColor}
       />
 
-      <StudioLayout
-        template={template}
-        currentStep={studio.state.currentStep}
-        completedSteps={studio.state.completedSteps}
-        direction={studio.state.direction}
-        onStepClick={handleStepClick}
-        onNext={handleNext}
-        onBack={handleBack}
-        isNextDisabled={!canProceedFromCurrentStep && studio.state.currentStep !== 'export'}
+    <StudioLayout
+      template={template}
+      currentStep={studio.state.currentStep}
+      completedSteps={studio.state.completedSteps}
+      direction={studio.state.direction}
+      onStepClick={handleStepClick}
+      onNext={handleNext}
+      onBack={handleBack}
+      isNextDisabled={!canProceedFromCurrentStep && studio.state.currentStep !== 'export'}
         isLoading={isFinalExporting}
-        nextLabel={getNextLabel()}
-      >
+      nextLabel={getNextLabel()}
+    >
       {/* Step 1: Concept & Script */}
       {studio.state.currentStep === 'concept' && (
         <ConceptStep
@@ -264,6 +264,7 @@ export default function StoryCreate() {
           duration={studio.state.duration}
           aspectRatio={studio.state.aspectRatio}
           imageMode={studio.state.imageMode}
+          videoModel={studio.state.videoModel}
           voiceoverEnabled={studio.state.voiceoverEnabled}
           isGenerating={studio.state.isGenerating}
           error={studio.state.error}
@@ -284,6 +285,8 @@ export default function StoryCreate() {
           voiceoverEnabled={studio.state.voiceoverEnabled}
           imageMode={studio.state.imageMode}
           isGenerating={studio.state.isGenerating}
+          isEnhancing={studio.state.isEnhancingStoryboard}
+          isGeneratingImages={studio.state.isGeneratingImages}
           onScenesChange={studio.setScenes}
           onSceneUpdate={studio.updateScene}
           onVoiceoverToggle={studio.setVoiceoverEnabled}
@@ -346,7 +349,7 @@ export default function StoryCreate() {
           accentColor={accentColor}
         />
       )}
-      </StudioLayout>
+    </StudioLayout>
     </>
   );
 }

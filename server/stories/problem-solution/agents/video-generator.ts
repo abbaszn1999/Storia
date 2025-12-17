@@ -198,7 +198,14 @@ export async function generateVideos(
     supportedDurations: modelConfig.durations,
   });
 
-  // Build all payloads at once for parallel processing
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Build payloads with taskUUID tracking for correct result matching
+  // This prevents race conditions when results return out of order!
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  // Map to track taskUUID -> sceneNumber for reliable matching
+  const taskToSceneMap = new Map<string, { sceneNumber: number; sceneId: string; duration: number }>();
+  
   const payloads = scenes.map((scene, index) => {
     if (!scene.imageUrl) {
       throw new Error(`Scene ${scene.sceneNumber} has no imageUrl`);
@@ -223,7 +230,18 @@ export async function generateVideos(
       scenes.length
     );
 
+    // Generate unique taskUUID for this scene
+    const taskUUID = randomUUID();
+    
+    // Store mapping for later result matching
+    taskToSceneMap.set(taskUUID, {
+      sceneNumber: scene.sceneNumber,
+      sceneId: scene.id,
+      duration: matchedDuration,
+    });
+
     console.log(`[problem-solution:video-generator] Preparing Scene ${scene.sceneNumber}:`, {
+      taskUUID: taskUUID.substring(0, 8) + '...',
       targetDuration: scene.duration,
       matchedDuration,
       imageUrl: scene.imageUrl.substring(0, 50) + "...",
@@ -234,7 +252,7 @@ export async function generateVideos(
     // Build Runware payload for video inference
     return {
       taskType: "videoInference",
-      taskUUID: randomUUID(),
+      taskUUID,
       model: runwareModelId,
       positivePrompt: enhancedPrompt,
       width: dimensions.width,
@@ -277,31 +295,60 @@ export async function generateVideos(
     const outputData = response.output as any[];
     console.log(`[problem-solution:video-generator] Received ${outputData.length} results`);
 
-    // Map results back to scenes
-    results = scenes.map((scene, index) => {
-      const data = outputData[index];
-      const payload = payloads[index];
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Match results using taskUUID (NOT by index - results may be out of order!)
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    // Create a map of taskUUID -> result for O(1) lookup
+    const resultByTaskUUID = new Map<string, any>();
+    for (const data of outputData) {
+      if (data?.taskUUID) {
+        resultByTaskUUID.set(data.taskUUID, data);
+      }
+    }
+    
+    console.log(`[problem-solution:video-generator] Mapped ${resultByTaskUUID.size} results by taskUUID`);
+
+    // Map results back to scenes using taskUUID
+    results = payloads.map((payload) => {
+      const taskUUID = payload.taskUUID;
+      const sceneInfo = taskToSceneMap.get(taskUUID);
+      
+      if (!sceneInfo) {
+        console.error(`[problem-solution:video-generator] No scene mapping for taskUUID: ${taskUUID}`);
+        return {
+          sceneNumber: 0,
+          sceneId: '',
+          videoUrl: '',
+          actualDuration: 0,
+          status: 'failed' as const,
+          error: 'Scene mapping not found',
+        };
+      }
+
+      // Find result by taskUUID (reliable matching!)
+      const data = resultByTaskUUID.get(taskUUID);
 
       if (data?.videoURL) {
-        console.log(`[problem-solution:video-generator] Scene ${scene.sceneNumber} completed ✓`);
+        console.log(`[problem-solution:video-generator] Scene ${sceneInfo.sceneNumber} completed ✓ (taskUUID: ${taskUUID.substring(0, 8)}...)`);
         return {
-          sceneNumber: scene.sceneNumber,
-          sceneId: scene.id,
+          sceneNumber: sceneInfo.sceneNumber,
+          sceneId: sceneInfo.sceneId,
           videoUrl: data.videoURL,
-          actualDuration: payload.duration,
-          status: "generated",
+          actualDuration: sceneInfo.duration,
+          status: 'generated' as const,
         };
       } else {
-        const errorMessage = data?.error || "No video URL in response";
-        console.error(`[problem-solution:video-generator] Scene ${scene.sceneNumber} failed:`, errorMessage);
-        errors.push(`Scene ${scene.sceneNumber}: ${errorMessage}`);
+        const errorMessage = data?.error || 'No video URL in response';
+        console.error(`[problem-solution:video-generator] Scene ${sceneInfo.sceneNumber} failed:`, errorMessage);
+        errors.push(`Scene ${sceneInfo.sceneNumber}: ${errorMessage}`);
         
         return {
-          sceneNumber: scene.sceneNumber,
-          sceneId: scene.id,
-          videoUrl: "",
-          actualDuration: scene.duration,
-          status: "failed",
+          sceneNumber: sceneInfo.sceneNumber,
+          sceneId: sceneInfo.sceneId,
+          videoUrl: '',
+          actualDuration: sceneInfo.duration,
+          status: 'failed' as const,
           error: errorMessage,
         };
       }

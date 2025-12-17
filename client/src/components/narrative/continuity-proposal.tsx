@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link as LinkIcon, Sparkles, Check, X, Edit2, AlertTriangle, Lock } from "lucide-react";
-import type { Shot, ContinuityGroup, Scene } from "@shared/schema";
+import type { Shot, ContinuityGroup, Scene } from "@/types/storyboard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 

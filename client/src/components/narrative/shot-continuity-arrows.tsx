@@ -1,6 +1,6 @@
 import { Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { Shot, ContinuityGroup } from "@shared/schema";
+import type { Shot, ContinuityGroup } from "@/types/storyboard";
 import { useEffect, useRef, useState } from "react";
 
 interface ShotContinuityArrowsProps {

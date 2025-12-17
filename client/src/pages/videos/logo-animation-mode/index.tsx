@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LogoNarrativeWorkflow } from "@/components/logo-narrative-workflow";
-import type { Scene, Shot, ShotVersion, ReferenceImage } from "@shared/schema";
+import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 
 const steps = [
   { id: "script", label: "Logo Script" },

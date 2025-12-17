@@ -6,7 +6,8 @@ import { StoryboardEditor } from "@/components/narrative/storyboard-editor";
 import { AnimaticPreview } from "@/components/narrative/animatic-preview";
 import { ExportSettings, type ExportData } from "@/components/narrative/export-settings";
 import { useToast } from "@/hooks/use-toast";
-import type { Scene, Shot, ShotVersion, Character, ReferenceImage } from "@shared/schema";
+import type { Character } from "@shared/schema";
+import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 
 interface NarrativeWorkflowProps {
   activeStep: string;

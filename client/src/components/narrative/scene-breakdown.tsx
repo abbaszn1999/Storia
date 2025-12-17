@@ -3,10 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Sparkles, Edit, Trash2, Plus, Copy, ChevronUp, ChevronDown } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
-import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import type { Scene, Shot, ShotVersion, ContinuityGroup } from "@shared/schema";
+import type { Scene, Shot, ShotVersion, ContinuityGroup } from "@/types/storyboard";
 import { SceneDialog } from "./scene-dialog";
 import { ShotDialog } from "./shot-dialog";
 import { ContinuityProposal } from "./continuity-proposal";
@@ -1045,7 +1043,7 @@ export function SceneBreakdown({
     onShotsChange?.(dummyShots);
   }, []);
 
-  const moveScene = async (sceneId: string, direction: 'up' | 'down') => {
+  const moveScene = (sceneId: string, direction: 'up' | 'down') => {
     const sceneIndex = scenes.findIndex(s => s.id === sceneId);
     if (sceneIndex < 0) return;
     
@@ -1062,23 +1060,7 @@ export function SceneBreakdown({
 
     onScenesGenerated?.(updatedScenes, shots);
     onScenesChange?.(updatedScenes);
-
-    try {
-      await Promise.all([
-        apiRequest('PUT', `/api/narrative/scenes/${currentScene.id}`, { sceneNumber: targetScene.sceneNumber }),
-        apiRequest('PUT', `/api/narrative/scenes/${targetScene.id}`, { sceneNumber: currentScene.sceneNumber }),
-      ]);
-
-      toast({ title: "Scene order updated" });
-    } catch (error) {
-      onScenesGenerated?.(scenes, shots);
-      onScenesChange?.(scenes);
-      toast({
-        title: "Failed to reorder scenes",
-        description: "Please try again.",
-        variant: "destructive",
-      });
-    }
+    toast({ title: "Scene order updated" });
   };
 
   const refreshSceneData = (updatedScene: Scene, updatedShot?: Shot) => {
@@ -1129,8 +1111,8 @@ export function SceneBreakdown({
     onShotsChange?.(updatedShots);
   };
 
-  const breakdownMutation = useMutation({
-    mutationFn: async () => {
+  const handleGenerateBreakdown = async () => {
+    try {
       const response = await fetch('/api/narrative/breakdown', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1141,9 +1123,8 @@ export function SceneBreakdown({
         }),
       });
       if (!response.ok) throw new Error('Failed to generate breakdown');
-      return response.json() as Promise<{ scenes: Scene[]; shots: { [sceneId: string]: Shot[] } }>;
-    },
-    onSuccess: (data) => {
+      const data = await response.json() as { scenes: Scene[]; shots: { [sceneId: string]: Shot[] } };
+      
       onScenesGenerated?.(data.scenes, data.shots);
       onScenesChange?.(data.scenes);
       onShotsChange?.(data.shots);
@@ -1152,151 +1133,87 @@ export function SceneBreakdown({
         title: "Breakdown Complete",
         description: `Generated ${data.scenes.length} scenes with shots.`,
       });
-    },
-    onError: () => {
+    } catch (error) {
       toast({
         title: "Breakdown Failed",
         description: "Failed to analyze script. Please try again.",
         variant: "destructive",
       });
-    },
-  });
-
-  const createSceneMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest('POST', '/api/narrative/scenes', { ...data, videoId });
-      return await res.json() as Scene;
-    },
-    onSuccess: (scene: Scene) => {
-      refreshSceneData(scene);
-      toast({ title: "Scene created successfully" });
-      setSceneDialogOpen(false);
-      setEditingScene(undefined);
-    },
-    onError: () => {
-      toast({
-        title: "Failed to create scene",
-        description: "Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateSceneMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const res = await apiRequest('PUT', `/api/narrative/scenes/${id}`, data);
-      return await res.json() as Scene;
-    },
-    onSuccess: (scene: Scene) => {
-      refreshSceneData(scene);
-      toast({ title: "Scene updated successfully" });
-      setSceneDialogOpen(false);
-      setEditingScene(undefined);
-    },
-    onError: () => {
-      toast({
-        title: "Failed to update scene",
-        description: "Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteSceneMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest('DELETE', `/api/narrative/scenes/${id}`);
-      return id;
-    },
-    onSuccess: (id: string) => {
-      removeSceneData(id);
-      toast({ title: "Scene deleted successfully" });
-      setDeleteSceneId(null);
-    },
-    onError: () => {
-      toast({
-        title: "Failed to delete scene",
-        description: "Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const createShotMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest('POST', '/api/narrative/shots', { ...data, sceneId: activeSceneId });
-      return await res.json() as Shot;
-    },
-    onSuccess: (shot: Shot) => {
-      const scene = scenes.find(s => s.id === shot.sceneId);
-      if (scene) refreshSceneData(scene, shot);
-      toast({ title: "Shot created successfully" });
-      setShotDialogOpen(false);
-      setEditingShot(undefined);
-    },
-    onError: () => {
-      toast({
-        title: "Failed to create shot",
-        description: "Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateShotMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const res = await apiRequest('PUT', `/api/narrative/shots/${id}`, data);
-      return await res.json() as Shot;
-    },
-    onSuccess: (shot: Shot) => {
-      const scene = scenes.find(s => s.id === shot.sceneId);
-      if (scene) refreshSceneData(scene, shot);
-      toast({ title: "Shot updated successfully" });
-      setShotDialogOpen(false);
-      setEditingShot(undefined);
-    },
-    onError: () => {
-      toast({
-        title: "Failed to update shot",
-        description: "Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteShotMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const shot = Object.values(shots).flat().find(s => s.id === id);
-      await apiRequest('DELETE', `/api/narrative/shots/${id}`);
-      return shot;
-    },
-    onSuccess: (shot) => {
-      if (shot) removeShotData(shot.id, shot.sceneId);
-      toast({ title: "Shot deleted successfully" });
-      setDeleteShotId(null);
-    },
-    onError: () => {
-      toast({
-        title: "Failed to delete shot",
-        description: "Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleSceneSubmit = async (data: any) => {
-    if (editingScene) {
-      await updateSceneMutation.mutateAsync({ id: editingScene.id, data });
-    } else {
-      await createSceneMutation.mutateAsync(data);
     }
   };
+  
+  const [isGeneratingBreakdown, setIsGeneratingBreakdown] = useState(false);
 
-  const handleShotSubmit = async (data: any) => {
-    if (editingShot) {
-      await updateShotMutation.mutateAsync({ id: editingShot.id, data });
+  const handleSceneSubmit = async (data: any): Promise<void> => {
+    if (editingScene) {
+      // Update existing scene
+      const updatedScene: Scene = {
+        ...editingScene,
+        ...data,
+        updatedAt: new Date(),
+      };
+      refreshSceneData(updatedScene);
+      toast({ title: "Scene updated successfully" });
     } else {
-      await createShotMutation.mutateAsync(data);
+      // Create new scene
+      const newScene: Scene = {
+        id: crypto.randomUUID(),
+        videoId,
+        sceneNumber: scenes.length + 1,
+        ...data,
+        createdAt: new Date(),
+      };
+      refreshSceneData(newScene);
+      toast({ title: "Scene created successfully" });
     }
+    setSceneDialogOpen(false);
+    setEditingScene(undefined);
+  };
+
+  const handleShotSubmit = async (data: any): Promise<void> => {
+    if (editingShot) {
+      // Update existing shot
+      const updatedShot: Shot = {
+        ...editingShot,
+        ...data,
+        updatedAt: new Date(),
+      };
+      const scene = scenes.find(s => s.id === updatedShot.sceneId);
+      if (scene) refreshSceneData(scene, updatedShot);
+      toast({ title: "Shot updated successfully" });
+    } else {
+      // Create new shot
+      const sceneShots = shots[activeSceneId] || [];
+      const newShot: Shot = {
+        id: crypto.randomUUID(),
+        sceneId: activeSceneId,
+        shotNumber: sceneShots.length + 1,
+        ...data,
+        currentVersionId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const scene = scenes.find(s => s.id === activeSceneId);
+      if (scene) refreshSceneData(scene, newShot);
+      toast({ title: "Shot created successfully" });
+    }
+    setShotDialogOpen(false);
+    setEditingShot(undefined);
+  };
+
+  const handleDeleteScene = (id: string) => {
+    removeSceneData(id);
+    toast({ title: "Scene deleted successfully" });
+    setDeleteSceneId(null);
+  };
+
+  const handleDeleteShot = (id: string) => {
+    const shot = Object.values(shots).flat().find(s => s.id === id);
+    if (shot) {
+      removeShotData(shot.id, shot.sceneId);
+      toast({ title: "Shot deleted successfully" });
+    }
+    setDeleteShotId(null);
   };
 
   const openAddSceneDialog = () => {
@@ -1322,12 +1239,21 @@ export function SceneBreakdown({
   };
 
   const duplicateScene = (scene: Scene) => {
-    const newSceneData = {
+    const newScene: Scene = {
+      id: crypto.randomUUID(),
+      videoId: scene.videoId,
       sceneNumber: scenes.length + 1,
       title: `${scene.title} (Copy)`,
       description: scene.description,
+      duration: scene.duration,
+      videoModel: scene.videoModel,
+      imageModel: scene.imageModel,
+      lighting: scene.lighting,
+      weather: scene.weather,
+      createdAt: new Date(),
     };
-    createSceneMutation.mutate(newSceneData);
+    refreshSceneData(newScene);
+    toast({ title: "Scene duplicated successfully" });
   };
 
   const totalShots = Object.values(shots).flat().length;
@@ -1344,11 +1270,15 @@ export function SceneBreakdown({
             </p>
             <Button
               size="lg"
-              onClick={() => breakdownMutation.mutate()}
-              disabled={breakdownMutation.isPending}
+              onClick={async () => {
+                setIsGeneratingBreakdown(true);
+                await handleGenerateBreakdown();
+                setIsGeneratingBreakdown(false);
+              }}
+              disabled={isGeneratingBreakdown}
               data-testid="button-generate-breakdown"
             >
-              {breakdownMutation.isPending ? (
+              {isGeneratingBreakdown ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Analyzing Script...
@@ -1600,7 +1530,7 @@ export function SceneBreakdown({
             videoId={videoId}
             sceneCount={scenes.length}
             onSubmit={handleSceneSubmit}
-            isPending={createSceneMutation.isPending || updateSceneMutation.isPending}
+            isPending={false}
           />
 
           <ShotDialog
@@ -1610,7 +1540,7 @@ export function SceneBreakdown({
             sceneId={activeSceneId}
             shotCount={activeSceneId ? (shots[activeSceneId] || []).length : 0}
             onSubmit={handleShotSubmit}
-            isPending={createShotMutation.isPending || updateShotMutation.isPending}
+            isPending={false}
           />
 
           <AlertDialog open={!!deleteSceneId} onOpenChange={(open) => !open && setDeleteSceneId(null)}>
@@ -1624,7 +1554,7 @@ export function SceneBreakdown({
               <AlertDialogFooter>
                 <AlertDialogCancel data-testid="button-cancel-delete-scene">Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={() => deleteSceneId && deleteSceneMutation.mutate(deleteSceneId)}
+                  onClick={() => deleteSceneId && handleDeleteScene(deleteSceneId)}
                   data-testid="button-confirm-delete-scene"
                 >
                   Delete
@@ -1644,7 +1574,7 @@ export function SceneBreakdown({
               <AlertDialogFooter>
                 <AlertDialogCancel data-testid="button-cancel-delete-shot">Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={() => deleteShotId && deleteShotMutation.mutate(deleteShotId)}
+                  onClick={() => deleteShotId && handleDeleteShot(deleteShotId)}
                   data-testid="button-confirm-delete-shot"
                 >
                   Delete

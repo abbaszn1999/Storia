@@ -3,7 +3,8 @@ import { ArrowLeft, Check } from "lucide-react";
 import { Link, useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import type { StoryScene, Story } from "@shared/schema";
+import type { Story } from "@shared/schema";
+import type { StoryScene } from "@/types/storyboard";
 import type { StoryTemplate } from "@/constants/story-templates";
 import { STORY_TEMPLATES } from "@/constants/story-templates";
 

@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
-import type { Shot } from "@shared/schema";
+import type { Shot } from "@/types/storyboard";
 
 const shotFormSchema = z.object({
   shotNumber: z.number().min(1),

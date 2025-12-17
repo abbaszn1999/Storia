@@ -22,7 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
-import type { Scene } from "@shared/schema";
+import type { Scene } from "@/types/storyboard";
 
 const sceneFormSchema = z.object({
   sceneNumber: z.number().min(1),

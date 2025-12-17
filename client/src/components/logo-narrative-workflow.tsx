@@ -5,7 +5,7 @@ import { ExportSettings, type ExportData } from "@/components/narrative/export-s
 import { LogoScriptEditor } from "@/components/logo-animation/logo-script-editor";
 import { LogoWorldSettings } from "@/components/logo-animation/logo-world-settings";
 import { useToast } from "@/hooks/use-toast";
-import type { Scene, Shot, ShotVersion, ReferenceImage } from "@shared/schema";
+import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 
 interface LogoNarrativeWorkflowProps {
   activeStep: string;

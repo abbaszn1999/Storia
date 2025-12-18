@@ -90,6 +90,7 @@ interface SocialCommerceWorkflowProps {
   videoResolution: string;
   language: 'ar' | 'en';
   motionPrompt: string;
+  imageInstructions: string;
   // Product DNA & Brand Identity (Tab 2) props
   productImages: {
     heroProfile: string | null;
@@ -198,6 +199,7 @@ interface SocialCommerceWorkflowProps {
   onVideoResolutionChange: (resolution: string) => void;
   onLanguageChange: (lang: 'ar' | 'en') => void;
   onMotionPromptChange: (prompt: string) => void;
+  onImageInstructionsChange: (instructions: string) => void;
   // Tab 2 handlers
   onProductImagesChange: (images: {
     heroView: string | null;
@@ -272,6 +274,7 @@ export function SocialCommerceWorkflow({
   videoResolution,
   language,
   motionPrompt,
+  imageInstructions,
   productImages,
   materialPreset,
   objectMass,
@@ -326,6 +329,7 @@ export function SocialCommerceWorkflow({
   onVideoResolutionChange,
   onLanguageChange,
   onMotionPromptChange,
+  onImageInstructionsChange,
   onProductImagesChange,
   onMaterialPresetChange,
   onObjectMassChange,
@@ -823,6 +827,8 @@ export function SocialCommerceWorkflow({
           onVoiceOverToggle={onVoiceOverToggle}
           onLanguageChange={onLanguageChange}
           onMotionPromptChange={onMotionPromptChange}
+          onImageInstructionsChange={onImageInstructionsChange}
+          imageInstructions={imageInstructions}
           onTargetAudienceChange={onTargetAudienceChange}
           onNext={onNext}
         />

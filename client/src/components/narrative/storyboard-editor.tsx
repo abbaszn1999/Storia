@@ -381,6 +381,35 @@ function SortableShotCard({
           <Badge className="bg-background/80 text-foreground border-0">
             # {shotIndex + 1}
           </Badge>
+          {/* Speed Profile Badge (Commerce Mode) */}
+          {shot.speedProfile && (
+            <Badge 
+              variant="outline" 
+              className={cn(
+                "bg-background/80 text-[10px] px-1.5 py-0 h-5 border-0",
+                shot.speedProfile === 'speed-ramp' && "text-amber-300",
+                shot.speedProfile === 'slow-motion' && "text-blue-300",
+                shot.speedProfile === 'kinetic' && "text-red-300",
+                shot.speedProfile === 'smooth' && "text-purple-300",
+                shot.speedProfile === 'linear' && "text-gray-300"
+              )}
+            >
+              <Zap className="w-3 h-3 mr-0.5" />
+              {shot.speedProfile === 'speed-ramp' ? 'Ramp' : 
+               shot.speedProfile === 'slow-motion' ? 'Slow' :
+               shot.speedProfile === 'kinetic' ? 'Kinetic' :
+               shot.speedProfile === 'smooth' ? 'Smooth' : 'Linear'}
+            </Badge>
+          )}
+          {/* Dual Timer Display (Commerce Mode) */}
+          {shot.renderDuration && shot.renderDuration !== shot.duration && (
+            <div className="flex items-center gap-1.5 bg-background/80 rounded px-2 py-0.5 text-[10px]">
+              <Clock className="w-3 h-3 text-muted-foreground" />
+              <span className="text-foreground">{shot.duration}s</span>
+              <span className="text-muted-foreground">/</span>
+              <span className="text-orange-400">{shot.renderDuration}s</span>
+            </div>
+          )}
         </div>
         <div className="absolute top-2 right-2 flex items-center gap-1">
           {displayImageUrl && (
@@ -1612,9 +1641,37 @@ export function StoryboardEditor({
                                       {shot.description?.slice(0, 30) || "No description"}
                                       {shot.description && shot.description.length > 30 ? "..." : ""}
                                     </p>
-                                    <p className="text-[10px] text-muted-foreground">
-                                      {duration}s • {shot.shotType || "Medium Shot"}
-                                    </p>
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {duration}s • {shot.shotType || "Medium Shot"}
+                                      </p>
+                                      {/* Speed Profile Badge (Commerce Mode) */}
+                                      {shot.speedProfile && (
+                                        <Badge 
+                                          variant="outline" 
+                                          className={cn(
+                                            "text-[8px] px-1 py-0 h-4",
+                                            shot.speedProfile === 'speed-ramp' && "bg-amber-500/20 border-amber-500/30 text-amber-300",
+                                            shot.speedProfile === 'slow-motion' && "bg-blue-500/20 border-blue-500/30 text-blue-300",
+                                            shot.speedProfile === 'kinetic' && "bg-red-500/20 border-red-500/30 text-red-300",
+                                            shot.speedProfile === 'smooth' && "bg-purple-500/20 border-purple-500/30 text-purple-300",
+                                            shot.speedProfile === 'linear' && "bg-gray-500/20 border-gray-500/30 text-gray-300"
+                                          )}
+                                        >
+                                          <Zap className="w-2 h-2 mr-0.5" />
+                                          {shot.speedProfile === 'speed-ramp' ? 'Ramp' : 
+                                           shot.speedProfile === 'slow-motion' ? 'Slow' :
+                                           shot.speedProfile === 'kinetic' ? 'Kinetic' :
+                                           shot.speedProfile === 'smooth' ? 'Smooth' : 'Linear'}
+                                        </Badge>
+                                      )}
+                                      {/* Render Duration (Commerce Mode) */}
+                                      {shot.renderDuration && shot.renderDuration !== shot.duration && (
+                                        <span className="text-[9px] text-orange-400/70">
+                                          ({shot.renderDuration}s)
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
 
                                   {/* Connection Indicator */}

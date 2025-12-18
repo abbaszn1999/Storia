@@ -55,6 +55,7 @@ export default function SocialCommerceMode() {
   const [videoResolution, setVideoResolution] = useState("1080p");
   const [language, setLanguage] = useState<'ar' | 'en'>('en');
   const [motionPrompt, setMotionPrompt] = useState("");
+  const [imageInstructions, setImageInstructions] = useState("");
   
   // Product DNA & Brand Identity settings (Tab 2)
   const [productImages, setProductImages] = useState<{
@@ -200,6 +201,24 @@ export default function SocialCommerceMode() {
         createdAt: new Date(),
       }));
       
+      // Helper function to calculate render duration based on speed profile
+      const calculateRenderDuration = (
+        targetDuration: number, 
+        speedProfile: string | undefined, 
+        shotType: string
+      ): number => {
+        const multipliers: Record<string, number> = {
+          'linear': 1.0,
+          'speed-ramp': 1.2,
+          'slow-motion': 2.0,
+          'kinetic': 0.8,
+          'smooth': 1.1,
+        };
+        const profileMultiplier = multipliers[speedProfile || 'linear'] || 1.0;
+        const typeMultiplier = shotType === 'start-end' ? 1.15 : 1.0;
+        return Math.round(targetDuration * profileMultiplier * typeMultiplier * 10) / 10;
+      };
+
       // Convert sceneManifest shots to shots dictionary
       const convertedShots: { [sceneId: string]: Shot[] } = {};
       sceneManifest.scenes.forEach(scene => {
@@ -212,6 +231,8 @@ export default function SocialCommerceMode() {
           duration: shot.duration,
           description: shot.description,
           currentVersionId: null,
+          speedProfile: shot.speedProfile || 'linear',
+          renderDuration: calculateRenderDuration(shot.duration, shot.speedProfile, shot.shotType),
           createdAt: new Date(),
           updatedAt: new Date(),
         }));
@@ -444,6 +465,8 @@ export default function SocialCommerceMode() {
               onVideoResolutionChange={setVideoResolution}
               onLanguageChange={setLanguage}
               onMotionPromptChange={setMotionPrompt}
+              onImageInstructionsChange={setImageInstructions}
+              imageInstructions={imageInstructions}
               onProductImagesChange={setProductImages}
               onMaterialPresetChange={setMaterialPreset}
               onObjectMassChange={setObjectMass}

@@ -148,6 +148,7 @@ interface ProductSetupTabProps {
   voiceOverEnabled: boolean;
   language: 'ar' | 'en';
   motionPrompt: string;
+  imageInstructions: string;
   targetAudience: string;
   onImageModelChange: (model: string) => void;
   onImageResolutionChange: (resolution: string) => void;
@@ -158,6 +159,7 @@ interface ProductSetupTabProps {
   onVoiceOverToggle: (enabled: boolean) => void;
   onLanguageChange: (lang: 'ar' | 'en') => void;
   onMotionPromptChange: (prompt: string) => void;
+  onImageInstructionsChange: (instructions: string) => void;
   onTargetAudienceChange: (audience: string) => void;
   onNext: () => void;
 }
@@ -204,6 +206,7 @@ export function ProductSetupTab({
   voiceOverEnabled,
   language,
   motionPrompt,
+  imageInstructions,
   targetAudience,
   onImageModelChange,
   onImageResolutionChange,
@@ -214,6 +217,7 @@ export function ProductSetupTab({
   onVoiceOverToggle,
   onLanguageChange,
   onMotionPromptChange,
+  onImageInstructionsChange,
   onTargetAudienceChange,
 }: ProductSetupTabProps) {
   
@@ -683,6 +687,25 @@ Examples:
                       <span className="text-xs text-amber-400/80">Required</span>
                     )}
                   </div>
+                </div>
+
+                {/* Custom Image Instructions Textarea */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-white/50">Custom Image Instructions</Label>
+                  <Textarea
+                    value={imageInstructions}
+                    onChange={(e) => onImageInstructionsChange(e.target.value)}
+                    placeholder="Define style and composition for image generation...
+
+Examples:
+• High contrast studio lighting, white background
+• Photorealistic product render, soft shadows
+• Lifestyle photography, natural daylight"
+                    className="min-h-[100px] resize-none bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-amber-500/50 text-sm"
+                  />
+                  <span className="text-[10px] text-white/30">
+                    {imageInstructions.length} characters
+                  </span>
                 </div>
               </CardContent>
             </Card>

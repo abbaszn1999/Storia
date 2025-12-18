@@ -35,7 +35,9 @@ import {
   Wand2,
   Send,
   CheckSquare,
-  SquareIcon
+  SquareIcon,
+  Calendar,
+  Zap
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,6 +46,9 @@ import { SiYoutube, SiTiktok, SiInstagram, SiFacebook } from "react-icons/si";
 import { StoryScene, StoryTemplate } from "../types";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Slider } from "@/components/ui/slider";
+import { useWorkspace } from "@/contexts/workspace-context";
+import { lateApi, type PublishVideoInput } from "@/lib/api/late";
+import { useToast } from "@/hooks/use-toast";
 
 // Export result with separated audio assets
 interface ExportResult {
@@ -147,6 +152,10 @@ export function ExportStep({
   onMusicVolumeChange,
   accentColor = "primary"
 }: ExportStepProps) {
+  // Get workspace for publishing
+  const { currentWorkspace } = useWorkspace();
+  const { toast } = useToast();
+
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
   const [platformMetadata, setPlatformMetadata] = useState<Record<string, PlatformMetadata>>({
@@ -158,6 +167,10 @@ export function ExportStep({
   const [isGeneratingMetadata, setIsGeneratingMetadata] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [copied, setCopied] = useState(false);
+  
+  // Scheduling state
+  const [scheduleMode, setScheduleMode] = useState<'now' | 'scheduled'>('now');
+  const [scheduledDateTime, setScheduledDateTime] = useState<string>('');
   const [voiceoverGenerated, setVoiceoverGenerated] = useState(false);
   const [exportedVideoUrl, setExportedVideoUrl] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -661,7 +674,8 @@ export function ExportStep({
   // Check if all selected platforms have valid metadata
   const canPublish = selectedPlatforms.length > 0 && 
     platformsWithMissingMetadata.length === 0 && 
-    exportedVideoUrl;
+    exportedVideoUrl &&
+    (scheduleMode === 'now' || (scheduleMode === 'scheduled' && scheduledDateTime));
 
   // Handle publish to selected platforms
   const handlePublishToSocial = useCallback(async () => {
@@ -692,26 +706,96 @@ export function ExportStep({
         }
       }
       
-      // Step 2: Publish to selected platforms with metadata
-      // TODO: Implement actual publishing via API
-      console.log('[ExportStep] Publishing video:', finalVideoUrl);
-      console.log('[ExportStep] Platform metadata:', platformMetadata);
-      
-      // Simulate publishing delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Show success (placeholder)
-      alert(`Video published to: ${selectedPlatforms.map(id => 
-        PLATFORMS.find(p => p.id === id)?.name
-      ).join(', ')}`);
+      // Step 2: Validate workspace
+      if (!currentWorkspace?.id) {
+        toast({
+          title: 'Error',
+          description: 'No workspace selected. Please select a workspace first.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Step 3: Build publish input
+      const publishInput: PublishVideoInput = {
+        videoUrl: finalVideoUrl,
+        platforms: selectedPlatforms.map(id => ({
+          platform: id as 'youtube' | 'tiktok' | 'instagram' | 'facebook',
+        })),
+        metadata: {
+          youtube: platformMetadata.youtube ? {
+            title: platformMetadata.youtube.title || '',
+            description: platformMetadata.youtube.description || '',
+            tags: platformMetadata.youtube.hashtags,
+          } : undefined,
+          tiktok: platformMetadata.tiktok ? {
+            caption: platformMetadata.tiktok.caption || '',
+            hashtags: platformMetadata.tiktok.hashtags,
+          } : undefined,
+          instagram: platformMetadata.instagram ? {
+            caption: platformMetadata.instagram.caption || '',
+            hashtags: platformMetadata.instagram.hashtags,
+          } : undefined,
+          facebook: platformMetadata.facebook ? {
+            caption: platformMetadata.facebook.caption || '',
+            hashtags: platformMetadata.facebook.hashtags,
+          } : undefined,
+        },
+        publishNow: scheduleMode === 'now',
+        scheduledFor: scheduleMode === 'scheduled' && scheduledDateTime 
+          ? new Date(scheduledDateTime).toISOString() 
+          : undefined,
+      };
+
+      console.log('[ExportStep] Publishing to Late.dev:', publishInput);
+
+      // Step 4: Call Late.dev API
+      const result = await lateApi.publishVideo(currentWorkspace.id, publishInput);
+
+      console.log('[ExportStep] Publish result:', result);
+
+      // Step 5: Show success message
+      const successPlatforms = result.platforms
+        .filter(p => p.status === 'published' || p.status === 'pending')
+        .map(p => PLATFORMS.find(pl => pl.id === p.platform)?.name)
+        .filter(Boolean);
+
+      if (scheduleMode === 'scheduled' && scheduledDateTime) {
+        const scheduledDate = new Date(scheduledDateTime);
+        toast({
+          title: 'Post Scheduled! 📅',
+          description: `Your video will be published on ${scheduledDate.toLocaleDateString()} at ${scheduledDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        });
+      } else {
+        toast({
+          title: 'Publishing Started! 🎉',
+          description: result.status === 'published' 
+            ? `Video published to ${successPlatforms.join(', ')}!`
+            : `Video is being published to ${successPlatforms.join(', ')}...`,
+        });
+      }
+
+      // Show any failed platforms
+      const failedPlatforms = result.platforms.filter(p => p.status === 'failed');
+      if (failedPlatforms.length > 0) {
+        toast({
+          title: 'Some platforms failed',
+          description: failedPlatforms.map(p => `${p.platform}: ${p.error}`).join('; '),
+          variant: 'destructive',
+        });
+      }
       
     } catch (error) {
       console.error('[ExportStep] Publishing failed:', error);
-      alert('Publishing failed. Please try again.');
+      toast({
+        title: 'Publishing Failed',
+        description: error instanceof Error ? error.message : 'An error occurred while publishing. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setIsPublishing(false);
     }
-  }, [canPublish, selectedPlatforms, exportedVideoUrl, audioAssets, localVoiceVolume, localMusicVolume, onRemix, platformMetadata]);
+  }, [canPublish, selectedPlatforms, exportedVideoUrl, audioAssets, localVoiceVolume, localMusicVolume, onRemix, platformMetadata, currentWorkspace, toast, scheduleMode, scheduledDateTime]);
 
   return (
     <div className="flex w-full h-[calc(100vh-12rem)] gap-0 overflow-hidden">
@@ -1105,6 +1189,89 @@ export function ExportStep({
                       })}
                     </div>
 
+                    {/* Schedule Options */}
+                    <AnimatePresence>
+                      {selectedPlatforms.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 10 }}
+                          transition={{ duration: 0.2 }}
+                          className="space-y-4"
+                        >
+                          {/* Publish Mode Toggle */}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setScheduleMode('now')}
+                              className={cn(
+                                "flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl",
+                                "border transition-all duration-200",
+                                scheduleMode === 'now'
+                                  ? "bg-gradient-to-r from-purple-600/30 to-pink-600/30 border-purple-500/50 text-white"
+                                  : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/80"
+                              )}
+                            >
+                              <Zap className="w-4 h-4" />
+                              <span className="text-sm font-medium">Publish Now</span>
+                            </button>
+                            <button
+                              onClick={() => setScheduleMode('scheduled')}
+                              className={cn(
+                                "flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl",
+                                "border transition-all duration-200",
+                                scheduleMode === 'scheduled'
+                                  ? "bg-gradient-to-r from-blue-600/30 to-cyan-600/30 border-blue-500/50 text-white"
+                                  : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/80"
+                              )}
+                            >
+                              <Calendar className="w-4 h-4" />
+                              <span className="text-sm font-medium">Schedule</span>
+                            </button>
+                          </div>
+
+                          {/* Date/Time Picker - Only when scheduled */}
+                          <AnimatePresence>
+                            {scheduleMode === 'scheduled' && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 space-y-3">
+                                  <div className="flex items-center gap-2 text-blue-300">
+                                    <Clock className="w-4 h-4" />
+                                    <span className="text-sm font-medium">Select Date & Time</span>
+                                  </div>
+                                  <input
+                                    type="datetime-local"
+                                    value={scheduledDateTime}
+                                    onChange={(e) => setScheduledDateTime(e.target.value)}
+                                    min={new Date().toISOString().slice(0, 16)}
+                                    className={cn(
+                                      "w-full px-4 py-3 rounded-xl",
+                                      "bg-white/10 border border-white/20",
+                                      "text-white placeholder:text-white/40",
+                                      "focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50",
+                                      "transition-all duration-200",
+                                      "[color-scheme:dark]"
+                                    )}
+                                  />
+                                  {scheduledDateTime && (
+                                    <p className="text-xs text-blue-300/70 flex items-center gap-1.5">
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      Scheduled for {new Date(scheduledDateTime).toLocaleDateString()} at {new Date(scheduledDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                  )}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
                     {/* Publish Button */}
                     <AnimatePresence>
                       {selectedPlatforms.length > 0 && (
@@ -1128,15 +1295,26 @@ export function ExportStep({
                               </p>
                             </div>
                           )}
+
+                          {/* Warning for missing schedule date */}
+                          {scheduleMode === 'scheduled' && !scheduledDateTime && (
+                            <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
+                              <p className="text-xs text-blue-300 flex items-center gap-2">
+                                <Calendar className="w-4 h-4" />
+                                <span>Please select a date and time to schedule</span>
+                              </p>
+                            </div>
+                          )}
                           
                           <Button
                             onClick={handlePublishToSocial}
                             disabled={!canPublish || isPublishing}
                             className={cn(
                               "w-full h-12 text-sm font-semibold",
-                              "bg-gradient-to-r from-purple-600 to-pink-600",
-                              "hover:from-purple-500 hover:to-pink-500",
-                              "border-0 shadow-lg shadow-purple-500/25",
+                              scheduleMode === 'scheduled'
+                                ? "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 shadow-blue-500/25"
+                                : "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-purple-500/25",
+                              "border-0 shadow-lg",
                               "transition-all duration-300",
                               "disabled:opacity-50 disabled:cursor-not-allowed"
                             )}
@@ -1144,12 +1322,21 @@ export function ExportStep({
                             {isPublishing ? (
                               <div className="flex items-center gap-2">
                                 <RefreshCw className="w-4 h-4 animate-spin" />
-                                Publishing...
+                                {scheduleMode === 'scheduled' ? 'Scheduling...' : 'Publishing...'}
                               </div>
                             ) : (
                               <div className="flex items-center gap-2">
-                                <Send className="w-4 h-4" />
-                                Publish to {selectedPlatforms.length} Platform{selectedPlatforms.length > 1 ? 's' : ''}
+                                {scheduleMode === 'scheduled' ? (
+                                  <>
+                                    <Calendar className="w-4 h-4" />
+                                    Schedule for {selectedPlatforms.length} Platform{selectedPlatforms.length > 1 ? 's' : ''}
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send className="w-4 h-4" />
+                                    Publish to {selectedPlatforms.length} Platform{selectedPlatforms.length > 1 ? 's' : ''}
+                                  </>
+                                )}
                               </div>
                             )}
                           </Button>

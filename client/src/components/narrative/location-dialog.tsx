@@ -140,7 +140,7 @@ export function LocationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto custom-scrollbar">
         <DialogHeader>
           <DialogTitle>{editingLocation ? "Edit Location" : "Create New Location"}</DialogTitle>
           <DialogDescription>

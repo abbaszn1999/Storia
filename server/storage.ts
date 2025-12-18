@@ -57,6 +57,7 @@ export interface IStorage {
   getVideo(id: string): Promise<Video | undefined>;
   createVideo(video: InsertVideo): Promise<Video>;
   updateVideo(id: string, video: Partial<Video>): Promise<Video>;
+  deleteVideo(id: string): Promise<void>;
   
   getStoriesByWorkspaceId(workspaceId: string): Promise<Story[]>;
   createStory(story: InsertStory): Promise<Story>;
@@ -264,43 +265,34 @@ export class MemStorage implements IStorage {
   }
 
   async getVideosByWorkspaceId(workspaceId: string): Promise<Video[]> {
-    return Array.from(this.videos.values()).filter((v) => v.workspaceId === workspaceId);
+    return db.select().from(videos).where(eq(videos.workspaceId, workspaceId));
   }
 
   async getVideo(id: string): Promise<Video | undefined> {
-    return this.videos.get(id);
+    const [video] = await db.select().from(videos).where(eq(videos.id, id));
+    return video;
   }
 
   async createVideo(insertVideo: InsertVideo): Promise<Video> {
-    const id = randomUUID();
-    const video: Video = {
-      ...insertVideo,
-      id,
-      status: insertVideo.status ?? "draft",
-      narrativeMode: insertVideo.narrativeMode ?? null,
-      script: insertVideo.script ?? null,
-      scenes: insertVideo.scenes ?? null,
-      worldSettings: insertVideo.worldSettings ?? null,
-      cast: insertVideo.cast ?? null,
-      storyboard: insertVideo.storyboard ?? null,
-      exportUrl: insertVideo.exportUrl ?? null,
-      duration: insertVideo.duration ?? null,
-      voiceActorId: insertVideo.voiceActorId ?? null,
-      voiceOverEnabled: insertVideo.voiceOverEnabled ?? true,
-      continuityLocked: insertVideo.continuityLocked ?? false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.videos.set(id, video);
+    const [video] = await db
+      .insert(videos)
+      .values(insertVideo)
+      .returning();
     return video;
   }
 
   async updateVideo(id: string, updates: Partial<Video>): Promise<Video> {
-    const video = this.videos.get(id);
+    const [video] = await db
+      .update(videos)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(videos.id, id))
+      .returning();
     if (!video) throw new Error('Video not found');
-    const updated = { ...video, ...updates, updatedAt: new Date() };
-    this.videos.set(id, updated);
-    return updated;
+    return video;
+  }
+
+  async deleteVideo(id: string): Promise<void> {
+    await db.delete(videos).where(eq(videos.id, id));
   }
 
   async getStoriesByWorkspaceId(workspaceId: string): Promise<Story[]> {
@@ -640,10 +632,7 @@ export class MemStorage implements IStorage {
     
     for (const workspace of userWorkspaces) {
       // Delete all videos in this workspace
-      const videosList = await this.getVideosByWorkspaceId(workspace.id);
-      for (const video of videosList) {
-        this.videos.delete(video.id);
-      }
+      await db.delete(videos).where(eq(videos.workspaceId, workspace.id));
       
       // Delete stories
       const storiesList = Array.from(this.stories.values()).filter(s => s.workspaceId === workspace.id);

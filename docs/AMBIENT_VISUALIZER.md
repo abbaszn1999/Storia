@@ -6,52 +6,6 @@ The Ambient Visualizer is a tool for creating long-form, loopable ambient videos
 
 ---
 
-## Recent Updates
-
-### Latest Changes (December 2024)
-
-**Step 1 (Atmosphere):**
-- ✅ Added Image Settings section with 12 AI image models (Google, ByteDance, Black Forest Labs, Midjourney, Ideogram)
-- ✅ Dynamic model capabilities display (aspect ratios, resolutions, prompt length, features)
-- ✅ Section renumbering: Image Settings is now 1.1, all subsequent sections shifted
-
-**Step 2 (Visual World):**
-- ✅ Removed: Color Palette, Lighting Mood, Texture, Atmospheric Layers sections
-- ✅ Added: Visual Rhythm (moved from Flow Design) - positioned after Key Visual Elements
-- ✅ Simplified structure: Art Style & Reference Images (combined), Key Visual Elements, Visual Rhythm, Custom Image Instructions
-
-**Step 3 (Flow Design):**
-- ✅ Completely restructured to use SceneBreakdown component
-- ✅ Removed: Variation Type, Visual Rhythm (moved to Visual World)
-- ✅ Added: Full scene and shot management system
-- ✅ AI-powered scene generation based on mood description
-- ✅ Manual scene/shot creation and editing
-- ✅ Continuity management across scenes
-- ✅ **Start-End Frame Mode**: Re-enabled ContinuityProposal UI with mode conditionals
-- ✅ **Start-End Frame Mode**: AI proposes shot connections, approve/decline workflow, lock before Composition
-
-**Step 4 (Composition):**
-- ✅ Replaced simple segment-based interface with StoryboardEditor
-- ✅ Shot-by-shot image/video generation
-- ✅ Per-scene model selection (image model, video model)
-- ✅ Cards View and Timeline View modes
-- ✅ Version management with comparison
-- ✅ Drag-and-drop shot reordering
-- ✅ Shot prompt editing with quick edit categories
-- ✅ **Start-End Frame Mode**: All shots show Start/End frame tabs (matching Narrative mode)
-- ✅ **Start-End Frame Mode**: All shots show Image/Video tabs in Video Animation mode
-- ✅ **Start-End Frame Mode**: Connected shot visualization (Link2 icon between shots)
-- ✅ **Start-End Frame Mode**: Drag restrictions for connected shots
-- ✅ **Start-End Frame Mode**: Connected shots show next shot's start as end frame preview
-- ✅ **UI Styling**: Cyan/teal color theme applied consistently (buttons, badges, icons)
-
-**Settings Migration:**
-- Pacing, Segment Settings, Loop Mode → Moved to Atmosphere (Step 1)
-- Transition Style, Camera Motion → Moved to Atmosphere (Step 1)
-- Visual Rhythm → Moved to Visual World (Step 2)
-
----
-
 ## Table of Contents
 
 1. [Onboarding](#onboarding)
@@ -62,8 +16,9 @@ The Ambient Visualizer is a tool for creating long-form, loopable ambient videos
 6. [Step 4: Composition](#step-4-composition)
 7. [Step 5: Preview](#step-5-preview)
 8. [Step 6: Export](#step-6-export)
-9. [Backend Architecture](#backend-architecture)
-10. [Data Models](#data-models)
+9. [AI Agent Architecture](#ai-agent-architecture)
+10. [Backend Architecture](#backend-architecture)
+11. [Data Models](#data-models)
 
 ---
 
@@ -900,6 +855,268 @@ After completing shot generation and refinement, clicking "Continue to Animatic"
 - **Voiceover**: Include generated voiceover (if enabled)
 - **Background Music**: Optional ambient music track
 - **Audio Mixing**: Volume levels for voiceover and music
+
+---
+
+## AI Agent Architecture
+
+The Ambient Visualizer uses **12 specialized agents** (7 AI-powered, 5 non-AI) to automate the video creation pipeline.
+
+### Agent Overview
+
+| Step | Agent | Role | AI Model Type |
+|------|-------|------|---------------|
+| **1. Atmosphere** | Mood Description Generator | Generate atmospheric description from user settings | Text Generation |
+| **2. Visual World** | *(None)* | User uploads reference images manually | N/A |
+| **3. Flow Design** | Scene Generator | Generate scenes based on mood/theme | Text Generation |
+| | Shot Composer | Break scenes into individual shots | Text Generation |
+| | Continuity Producer | Propose shot connections (Start-End mode only) | Text Generation |
+| **4. Composition** | Image/Video Prompt Engineer | Build optimized prompts for image and video generation | Text Generation |
+| | Keyframe Image Generator | Generate keyframe images from prompts | Text-to-Image |
+| | Video Generator | Animate images into video clips | Image-to-Video |
+| | Image Transition Processor | Apply FFmpeg transitions (Image Transitions mode) | Non-AI |
+| **5. Preview** | Voiceover Synthesizer | Generate voiceover from script | Text-to-Speech |
+| | Video Compositor | Concatenate segments into full video | Non-AI |
+| | Audio Mixer | Merge audio and video tracks | Non-AI |
+| **6. Export** | Final Video Renderer | Export with quality settings | Non-AI |
+
+### Agent Statistics
+
+| Category | Count |
+|----------|-------|
+| **Total Agents** | 12 |
+| **AI Agents** | 7 |
+| **Non-AI Agents** | 5 |
+| **Start-End Mode Only** | 1 (Continuity Producer) |
+
+### AI Model Requirements
+
+| Model Type | Use Cases | Suggested Providers |
+|------------|-----------|---------------------|
+| Text Generation | Mood description, scene analysis, prompt engineering | GPT-4, Claude, Gemini |
+| Text-to-Image | Keyframe generation | Imagen 4, FLUX, Midjourney, Ideogram, Seedream |
+| Image-to-Video | Video animation | Veo, Kling, Seedance, PixVerse, Hailuo, Sora, LTX |
+| Text-to-Speech | Voiceover synthesis | Eleven Labs, Google TTS |
+
+### Agent Details
+
+#### Agent 1.1: Mood Description Generator
+
+**Step**: Atmosphere  
+**Type**: AI (Text Generation)  
+**Role**: Analyze user's atmosphere settings and generate a rich, descriptive mood paragraph
+
+**Inputs**:
+- Mood selection (calm, dreamy, mysterious, etc.)
+- Theme selection (nature, urban, abstract, etc.)
+- Time context (dawn, day, dusk, night)
+- Season/weather settings
+
+**Outputs**:
+- `moodDescription`: Rich text paragraph describing the overall atmosphere
+
+---
+
+#### Agent 3.1: Scene Generator
+
+**Step**: Flow Design  
+**Type**: AI (Text Generation)  
+**Role**: Generate scene structure based on mood description and duration
+
+**Inputs**:
+- Mood description (from Agent 1.1)
+- Target duration
+- Visual world settings
+
+**Outputs**:
+- Array of scene objects with titles and descriptions
+
+---
+
+#### Agent 3.2: Shot Composer
+
+**Step**: Flow Design  
+**Type**: AI (Text Generation)  
+**Role**: Break each scene into individual shots with timing
+
+**Inputs**:
+- Scene data (from Agent 3.1)
+- Pacing settings
+- Shots per segment preference
+
+**Outputs**:
+- Array of shot objects per scene with descriptions and durations
+
+---
+
+#### Agent 3.3: Continuity Producer
+
+**Step**: Flow Design  
+**Type**: AI (Text Generation)  
+**Visibility**: Start-End Frame Mode only  
+**Role**: Propose shot connections for smooth visual transitions
+
+**Inputs**:
+- All shots across scenes
+- Visual coherence requirements
+
+**Outputs**:
+- Proposed continuity groups (connected shot sequences)
+- Connection rationale
+
+---
+
+#### Agent 4.1: Image/Video Prompt Engineer
+
+**Step**: Composition  
+**Type**: AI (Text Generation)  
+**Role**: Build optimized prompts for both image and video generation
+
+**Inputs**:
+- Shot description
+- Art style settings
+- Visual elements
+- Reference images (if uploaded)
+- Custom image instructions
+
+**Outputs**:
+- `imagePrompt`: Optimized prompt for image generation
+- `videoPrompt`: Motion prompt for video generation
+- `negativePrompt`: Elements to avoid (if model supports)
+
+---
+
+#### Agent 4.2: Keyframe Image Generator
+
+**Step**: Composition  
+**Type**: AI (Text-to-Image)  
+**Role**: Generate keyframe images for each shot
+
+**Inputs**:
+- Image prompt (from Agent 4.1)
+- Negative prompt (optional)
+- Reference images (optional)
+- Aspect ratio
+- Resolution settings
+- Selected image model
+
+**Outputs**:
+- `imageUrl`: Generated keyframe image URL
+- `imageVersion`: Version tracking for regeneration
+
+**Supported Models**: Imagen 4, FLUX, Midjourney, Ideogram, Seedream, Nano Banana
+
+---
+
+#### Agent 4.3: Video Generator
+
+**Step**: Composition  
+**Type**: AI (Image-to-Video)  
+**Visibility**: Video Animation mode only  
+**Role**: Animate keyframe images into video clips
+
+**Inputs**:
+- Keyframe image URL (from Agent 4.2)
+- Video prompt (from Agent 4.1)
+- Camera motion settings
+- Duration
+- Selected video model
+- End frame image (Start-End Frame mode only)
+
+**Outputs**:
+- `videoUrl`: Generated video clip URL
+- `duration`: Actual video duration
+
+**Supported Models**: Veo 3.x, Kling AI, Seedance, PixVerse, Hailuo, Sora, LTX
+
+---
+
+#### Agent 4.4: Image Transition Processor
+
+**Step**: Composition  
+**Type**: Non-AI (FFmpeg)  
+**Visibility**: Image Transitions mode only  
+**Role**: Apply motion effects to static images
+
+**Inputs**:
+- Keyframe image URL
+- Transition type (zoom-in, zoom-out, pan-left, pan-right, etc.)
+- Easing style
+- Duration
+
+**Outputs**:
+- `videoUrl`: Video segment with applied transition
+
+---
+
+#### Agent 5.1: Voiceover Synthesizer
+
+**Step**: Preview  
+**Type**: AI (Text-to-Speech)  
+**Visibility**: When voiceover is enabled  
+**Role**: Generate voiceover audio from script
+
+**Inputs**:
+- Voiceover script
+- Language selection
+- Voice actor ID
+- Target duration
+
+**Outputs**:
+- `audioUrl`: Generated voiceover audio URL
+
+**Supported Providers**: Eleven Labs, Google TTS
+
+---
+
+#### Agent 5.2: Video Compositor
+
+**Step**: Preview  
+**Type**: Non-AI (FFmpeg)  
+**Role**: Concatenate all video segments into final video
+
+**Inputs**:
+- Array of video segment URLs
+- Transition style between segments
+- Loop mode settings
+
+**Outputs**:
+- `compositeVideoUrl`: Full concatenated video
+
+---
+
+#### Agent 5.3: Audio Mixer
+
+**Step**: Preview  
+**Type**: Non-AI (FFmpeg)  
+**Role**: Merge audio tracks with video
+
+**Inputs**:
+- Composite video URL (from Agent 5.2)
+- Voiceover audio URL (optional)
+- Background music selection
+- Volume levels
+
+**Outputs**:
+- `finalVideoUrl`: Video with mixed audio
+
+---
+
+#### Agent 6.1: Final Video Renderer
+
+**Step**: Export  
+**Type**: Non-AI (FFmpeg)  
+**Role**: Export final video with specified quality settings
+
+**Inputs**:
+- Final video URL (from Agent 5.3)
+- Export quality (Draft, Standard, High Quality, Ultra HD)
+- File format (MP4, WebM, MOV)
+
+**Outputs**:
+- `downloadUrl`: Exportable video file
+- `fileSize`: File size in bytes
+- `duration`: Final duration
 
 ---
 

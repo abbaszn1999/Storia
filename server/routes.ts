@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import narrativeRoutes from "./modes/narrative/routes";
+import { ambientVisualRoutes } from "./modes/ambient-visual";
 import storiesRouter from "./stories";
 import { psRouter as problemSolutionRouter } from "./stories/problem-solution/routes";
 import { storageRoutes } from "./storage/index";
@@ -29,6 +30,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Feature routes
   app.use('/api/narrative', narrativeRoutes);
+  app.use('/api/ambient-visual', ambientVisualRoutes);
   app.use('/api/stories', storiesRouter);
   app.use('/api/problem-solution', problemSolutionRouter);
   app.use('/api/storage', storageRoutes);
@@ -293,6 +295,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting story:', error);
       res.status(500).json({ error: 'Failed to delete story' });
+    }
+  });
+
+  // Videos routes
+  app.get('/api/workspaces/:workspaceId/videos', isAuthenticated, async (req: any, res) => {
+    try {
+      const { workspaceId } = req.params;
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Verify workspace ownership
+      const hasAccess = await verifyWorkspaceOwnership(workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
+      }
+
+      const videos = await storage.getVideosByWorkspaceId(workspaceId);
+      res.json(videos);
+    } catch (error) {
+      console.error('Error fetching videos:', error);
+      res.status(500).json({ error: 'Failed to fetch videos' });
+    }
+  });
+
+  app.get('/api/videos/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const video = await storage.getVideo(id);
+      if (!video) {
+        return res.status(404).json({ error: 'Video not found' });
+      }
+
+      // Verify workspace ownership
+      const hasAccess = await verifyWorkspaceOwnership(video.workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this video' });
+      }
+
+      res.json(video);
+    } catch (error) {
+      console.error('Error fetching video:', error);
+      res.status(500).json({ error: 'Failed to fetch video' });
+    }
+  });
+
+  app.delete('/api/videos/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Get video to verify ownership
+      const video = await storage.getVideo(id);
+      if (!video) {
+        return res.status(404).json({ error: 'Video not found' });
+      }
+
+      // Verify workspace ownership
+      const hasAccess = await verifyWorkspaceOwnership(video.workspaceId, userId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to this video' });
+      }
+
+      await storage.deleteVideo(id);
+      res.json({ success: true, message: 'Video deleted' });
+    } catch (error) {
+      console.error('Error deleting video:', error);
+      res.status(500).json({ error: 'Failed to delete video' });
     }
   });
 

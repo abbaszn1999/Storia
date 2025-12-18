@@ -118,7 +118,7 @@ function CharacterRecommendationModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto custom-scrollbar">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
@@ -702,12 +702,19 @@ export function WorldCast({
 
   const styleRefs = referenceImages.filter((r) => r.type === "style");
 
+  const accentClasses = "from-purple-500 to-pink-500";
+
   return (
     <div className="space-y-8">
       {/* World Settings Section */}
-      <Card>
+      <Card className="bg-white/[0.02] border-white/[0.06]">
         <CardContent className="p-6">
-          <h3 className="text-lg font-semibold mb-6">World Settings</h3>
+          <div className="flex items-center gap-3 mb-6">
+            <div className={`p-2 rounded-lg bg-gradient-to-br ${accentClasses}`}>
+              <Settings2 className="h-5 w-5 text-white" />
+            </div>
+            <h3 className="text-lg font-semibold text-white">World Settings</h3>
+          </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Image AI Model */}
@@ -795,20 +802,20 @@ export function WorldCast({
 
             {/* Style */}
             <div className="space-y-3">
-              <Label className="text-sm font-medium">STYLE</Label>
+              <Label className="text-sm font-medium text-white/70 uppercase tracking-wider">STYLE</Label>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
                 {VIDEO_STYLES.map((style) => (
                   <Card
                     key={style.id}
-                    className={`cursor-pointer transition-all hover-elevate relative group overflow-hidden ${
-                      selectedArtStyle === style.id ? 'ring-2 ring-primary' : ''
+                    className={`cursor-pointer transition-all hover-elevate relative group overflow-hidden bg-white/[0.02] border-white/[0.06] ${
+                      selectedArtStyle === style.id ? 'ring-2 ring-purple-500' : 'hover:border-purple-500/30'
                     }`}
                     onClick={() => handleArtStyleChange(style.id)}
                     data-testid={`video-style-${style.id}`}
                   >
                     <CardContent className="p-0">
                       <div className="relative">
-                        <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
+                        <div className="aspect-square bg-white/5 flex items-center justify-center overflow-hidden">
                           {style.imageUrl ? (
                             <img 
                               src={style.imageUrl} 
@@ -816,19 +823,19 @@ export function WorldCast({
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <div className="w-12 h-12 rounded-full bg-background/50" />
+                            <div className="w-12 h-12 rounded-full bg-white/10" />
                           )}
                         </div>
                         {selectedArtStyle === style.id && (
-                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-                              <Check className="h-5 w-5 text-primary-foreground" />
+                          <div className="absolute inset-0 bg-purple-500/30 flex items-center justify-center">
+                            <div className={`h-8 w-8 rounded-full bg-gradient-to-br ${accentClasses} flex items-center justify-center`}>
+                              <Check className="h-5 w-5 text-white" />
                             </div>
                           </div>
                         )}
                       </div>
-                      <div className="p-2 text-center bg-card">
-                        <p className="text-xs font-medium leading-tight">{style.name}</p>
+                      <div className="p-2 text-center bg-black/40">
+                        <p className="text-xs font-medium leading-tight text-white">{style.name}</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -845,27 +852,27 @@ export function WorldCast({
               <CollapsibleTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="w-full flex items-center justify-between p-3 rounded-lg border border-dashed hover:border-solid hover:bg-muted/50"
+                  className="w-full flex items-center justify-between p-3 rounded-lg border border-dashed border-white/10 hover:border-purple-500/30 hover:bg-white/[0.02] transition-all"
                   data-testid="button-toggle-ai-settings"
                 >
                   <div className="flex items-center gap-2">
-                    <Settings2 className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">AI Generation Settings</span>
+                    <Settings2 className="h-4 w-4 text-purple-400" />
+                    <span className="text-sm font-medium text-white">AI Generation Settings</span>
                     {(selectedImageInstructions || selectedVideoInstructions) && (
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                      <span className={`text-xs bg-gradient-to-br ${accentClasses} text-white px-2 py-0.5 rounded-full`}>
                         Configured
                       </span>
                     )}
                   </div>
                   {isAiSettingsOpen ? (
-                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                    <ChevronUp className="h-4 w-4 text-white/50" />
                   ) : (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    <ChevronDown className="h-4 w-4 text-white/50" />
                   )}
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-4 space-y-4">
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-white/50">
                   These instructions will be appended to every AI generation request in your project.
                 </p>
 
@@ -909,18 +916,42 @@ export function WorldCast({
       {/* Cast Section */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-xl font-semibold">
-            {videoMode === "character-vlog" ? "Your Characters" : "Cast"}
-          </h3>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsRecommendationModalOpen(true)}
-            data-testid="button-recommend-characters"
-          >
-            <Sparkles className="mr-2 h-4 w-4" />
-            {videoMode === "character-vlog" ? "Recommend Primary Character" : "Recommend AI Characters"}
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg bg-gradient-to-br ${accentClasses}`}>
+              <User className="h-5 w-5 text-white" />
+            </div>
+            <h3 className="text-xl font-semibold text-white">
+              {videoMode === "character-vlog" ? "Your Characters" : "Cast"}
+            </h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsRecommendationModalOpen(true)}
+              className="bg-white/5 border-white/10 text-white hover:bg-white/10"
+              data-testid="button-recommend-characters"
+            >
+              <Sparkles className="mr-2 h-4 w-4 text-purple-400" />
+              {videoMode === "character-vlog" ? "Recommend Primary Character" : "Recommend AI Characters"}
+            </Button>
+            
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingCharacter(null);
+                setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
+                setCharacterReferenceImages([]);
+                setGeneratedCharacterImage(null);
+                setIsAddCharacterOpen(true);
+              }}
+              className={`bg-gradient-to-br ${accentClasses} text-white hover:opacity-90`}
+              data-testid="button-add-character"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Character
+            </Button>
+          </div>
         </div>
 
         {/* Character Vlog Mode: Primary + Secondary Characters */}
@@ -929,8 +960,8 @@ export function WorldCast({
             {/* Primary Character Section */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <h4 className="text-sm font-semibold text-primary">Primary Character</h4>
-                <span className="text-xs text-muted-foreground">(Required - the story is about this character)</span>
+                <h4 className="text-sm font-semibold text-purple-400">Primary Character</h4>
+                <span className="text-xs text-white/50">(Required - the story is about this character)</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {/* Add Primary Character Card - only show if no main character */}
@@ -938,19 +969,19 @@ export function WorldCast({
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Card
-                        className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-primary/5 border-primary/30 border-dashed"
+                        className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-purple-500/10 border-purple-500/30 border-dashed hover:border-purple-500/50 transition-all"
                         data-testid="button-add-primary-character"
                       >
                         <CardContent className="flex flex-col items-center justify-center p-6">
-                          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-                            <Plus className="h-6 w-6 text-primary" />
+                          <div className={`h-12 w-12 rounded-full bg-gradient-to-br ${accentClasses} flex items-center justify-center mb-2`}>
+                            <Plus className="h-6 w-6 text-white" />
                           </div>
-                          <p className="text-sm font-medium text-primary">Add Primary</p>
-                          <ChevronDown className="h-4 w-4 text-primary/70 mt-1" />
+                          <p className="text-sm font-medium text-purple-400">Add Primary</p>
+                          <ChevronDown className="h-4 w-4 text-purple-400/70 mt-1" />
                         </CardContent>
                       </Card>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent>
+                    <DropdownMenuContent className="bg-[#0a0a0a] border-white/10">
                       <DropdownMenuItem
                         onClick={() => {
                           setEditingCharacter(null);
@@ -959,16 +990,18 @@ export function WorldCast({
                           setGeneratedCharacterImage(null);
                           setIsAddCharacterOpen(true);
                         }}
+                        className="text-white hover:bg-white/10"
                         data-testid="menu-create-primary-character"
                       >
-                        <Plus className="h-4 w-4 mr-2" />
+                        <Plus className="h-4 w-4 mr-2 text-cyan-400" />
                         Create New Character
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => setIsLibraryOpen(true)}
+                        className="text-white hover:bg-white/10"
                         data-testid="menu-browse-library-primary"
                       >
-                        <Library className="h-4 w-4 mr-2" />
+                        <Library className="h-4 w-4 mr-2 text-cyan-400" />
                         Browse Library
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -977,7 +1010,7 @@ export function WorldCast({
 
                 {/* Primary Character Card */}
                 {mainCharacter && (
-                  <Card className="relative aspect-[3/4] overflow-hidden group ring-2 ring-primary" data-testid={`primary-character-${mainCharacter.id}`}>
+                  <Card className="relative aspect-[3/4] overflow-hidden group ring-2 ring-purple-500 bg-white/[0.02] border-white/[0.06]" data-testid={`primary-character-${mainCharacter.id}`}>
                     <CardContent className="p-0 h-full">
                       <div className="h-full bg-muted flex items-center justify-center relative">
                         {mainCharacter.thumbnailUrl ? (
@@ -987,7 +1020,7 @@ export function WorldCast({
                         )}
                         
                         {/* Primary Badge */}
-                        <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded font-medium">
+                        <div className={`absolute top-2 left-2 bg-gradient-to-br ${accentClasses} text-white text-xs px-2 py-1 rounded font-medium`}>
                           Primary
                         </div>
                         
@@ -1020,8 +1053,8 @@ export function WorldCast({
             {/* Secondary Characters Section */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <h4 className="text-sm font-semibold text-muted-foreground">Secondary Characters</h4>
-                <span className="text-xs text-muted-foreground">(Optional - up to 2 supporting characters)</span>
+                <h4 className="text-sm font-semibold text-white/70">Secondary Characters</h4>
+                <span className="text-xs text-white/50">(Optional - up to 2 supporting characters)</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {/* Add Secondary Character Card - only show if less than 2 secondary */}
@@ -1029,19 +1062,19 @@ export function WorldCast({
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Card
-                        className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-card/50"
+                        className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-white/[0.02] border-dashed border-white/10 hover:border-purple-500/30 transition-all"
                         data-testid="button-add-secondary-character"
                       >
                         <CardContent className="flex flex-col items-center justify-center p-6">
-                          <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-2">
-                            <Plus className="h-6 w-6 text-muted-foreground" />
+                          <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center mb-2">
+                            <Plus className="h-6 w-6 text-white/50" />
                           </div>
-                          <p className="text-sm font-medium">Add Secondary</p>
-                          <ChevronDown className="h-4 w-4 text-muted-foreground mt-1" />
+                          <p className="text-sm font-medium text-white/70">Add Secondary</p>
+                          <ChevronDown className="h-4 w-4 text-white/50 mt-1" />
                         </CardContent>
                       </Card>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent>
+                    <DropdownMenuContent className="bg-[#0a0a0a] border-white/10">
                       <DropdownMenuItem
                         onClick={() => {
                           setEditingCharacter(null);
@@ -1050,16 +1083,18 @@ export function WorldCast({
                           setGeneratedCharacterImage(null);
                           setIsAddCharacterOpen(true);
                         }}
+                        className="text-white hover:bg-white/10"
                         data-testid="menu-create-secondary-character"
                       >
-                        <Plus className="h-4 w-4 mr-2" />
+                        <Plus className="h-4 w-4 mr-2 text-cyan-400" />
                         Create New Character
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => setIsLibraryOpen(true)}
+                        className="text-white hover:bg-white/10"
                         data-testid="menu-browse-library-secondary"
                       >
-                        <Library className="h-4 w-4 mr-2" />
+                        <Library className="h-4 w-4 mr-2 text-cyan-400" />
                         Browse Library
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -1070,7 +1105,7 @@ export function WorldCast({
                 {characters.filter(c => c.id !== mainCharacter?.id).map((character) => {
                   const charRefs = getCharacterReferenceImages(character.id);
                   return (
-                    <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group" data-testid={`secondary-character-${character.id}`}>
+                    <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30 transition-all" data-testid={`secondary-character-${character.id}`}>
                       <CardContent className="p-0 h-full">
                         <div className="h-full bg-muted flex items-center justify-center relative">
                           {character.thumbnailUrl ? (
@@ -1120,19 +1155,19 @@ export function WorldCast({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Card
-                  className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-card/50"
+                  className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-white/[0.02] border-dashed border-purple-500/30 hover:border-purple-500/50 transition-all"
                   data-testid="button-add-character"
                 >
                   <CardContent className="flex flex-col items-center justify-center p-6">
-                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-2">
-                      <Plus className="h-6 w-6 text-muted-foreground" />
+                    <div className={`h-12 w-12 rounded-full bg-gradient-to-br ${accentClasses} bg-opacity-20 flex items-center justify-center mb-2`}>
+                      <Plus className="h-6 w-6 text-purple-400" />
                     </div>
-                    <p className="text-sm font-medium">Add character</p>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground mt-1" />
+                    <p className="text-sm font-medium text-white">Add character</p>
+                    <ChevronDown className="h-4 w-4 text-white/50 mt-1" />
                   </CardContent>
                 </Card>
               </DropdownMenuTrigger>
-              <DropdownMenuContent>
+              <DropdownMenuContent className="bg-[#0a0a0a] border-white/10">
                 <DropdownMenuItem
                   onClick={() => {
                     setEditingCharacter(null);
@@ -1141,16 +1176,18 @@ export function WorldCast({
                     setGeneratedCharacterImage(null);
                     setIsAddCharacterOpen(true);
                   }}
+                  className="text-white hover:bg-white/10"
                   data-testid="menu-create-new-character"
                 >
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Plus className="h-4 w-4 mr-2 text-cyan-400" />
                   Create New Character
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setIsLibraryOpen(true)}
+                  className="text-white hover:bg-white/10"
                   data-testid="menu-browse-library"
                 >
-                  <Library className="h-4 w-4 mr-2" />
+                  <Library className="h-4 w-4 mr-2 text-cyan-400" />
                   Browse Library
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -1160,7 +1197,7 @@ export function WorldCast({
             {characters.map((character) => {
               const charRefs = getCharacterReferenceImages(character.id);
               return (
-                <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group" data-testid={`character-${character.id}`}>
+                <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30 transition-all" data-testid={`character-${character.id}`}>
                   <CardContent className="p-0 h-full">
                     <div className="h-full bg-muted flex items-center justify-center relative">
                       {character.thumbnailUrl ? (
@@ -1207,33 +1244,39 @@ export function WorldCast({
       {/* Locations Section */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-xl font-semibold">Locations</h3>
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg bg-gradient-to-br ${accentClasses}`}>
+              <MapPin className="h-5 w-5 text-white" />
+            </div>
+            <h3 className="text-xl font-semibold text-white">Locations</h3>
+          </div>
           <div className="flex items-center gap-2">
             <Button
               variant="secondary"
               size="sm"
               onClick={() => setIsLocationRecommendationOpen(true)}
+              className="bg-white/5 border-white/10 text-white hover:bg-white/10"
               data-testid="button-recommend-locations"
             >
-              <Sparkles className="mr-2 h-4 w-4" />
+              <Sparkles className="mr-2 h-4 w-4 text-purple-400" />
               Recommend AI Locations
             </Button>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
-                  variant="outline"
                   size="sm"
+                  className={`bg-gradient-to-br ${accentClasses} text-white hover:opacity-90`}
                   data-testid="button-add-location-dropdown"
                 >
-                  <MapPin className="mr-2 h-4 w-4" />
+                  <Plus className="mr-2 h-4 w-4" />
                   Add Location
                   <ChevronDown className="ml-2 h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setIsLocationLibraryOpen(true)} data-testid="menu-item-browse-library">
-                  <Library className="mr-2 h-4 w-4" />
+              <DropdownMenuContent align="end" className="bg-[#0a0a0a] border-white/10">
+                <DropdownMenuItem onClick={() => setIsLocationLibraryOpen(true)} className="text-white hover:bg-white/10" data-testid="menu-item-browse-library">
+                  <Library className="mr-2 h-4 w-4 text-cyan-400" />
                   Browse Library
                 </DropdownMenuItem>
                 <DropdownMenuItem 
@@ -1241,9 +1284,10 @@ export function WorldCast({
                     setEditingLocation(null);
                     setIsAddLocationOpen(true);
                   }}
+                  className="text-white hover:bg-white/10"
                   data-testid="menu-item-create-new"
                 >
-                  <Plus className="mr-2 h-4 w-4" />
+                  <Plus className="mr-2 h-4 w-4 text-cyan-400" />
                   Create New Location
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -1252,7 +1296,7 @@ export function WorldCast({
         </div>
 
         {locationsList.length === 0 ? (
-          <Card className="border-dashed">
+          <Card className="border-dashed border-white/10 bg-white/[0.02]">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <MapPin className="h-12 w-12 text-muted-foreground mb-3" />
               <p className="text-sm text-muted-foreground text-center mb-4">
@@ -1275,7 +1319,7 @@ export function WorldCast({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {locationsList.map((location) => (
-              <Card key={location.id} className="relative aspect-video overflow-hidden group hover-elevate" data-testid={`location-${location.id}`}>
+              <Card key={location.id} className="relative aspect-video overflow-hidden group hover-elevate bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30 transition-all" data-testid={`location-${location.id}`}>
                 <CardContent className="p-0 h-full">
                   <div className="h-full bg-muted flex items-center justify-center relative">
                     {location.imageUrl ? (
@@ -1340,7 +1384,7 @@ export function WorldCast({
 
       {/* Character Dialog */}
       <Dialog open={isAddCharacterOpen} onOpenChange={setIsAddCharacterOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto custom-scrollbar">
           <DialogHeader>
             <DialogTitle>{editingCharacter ? "Edit Character" : "Create New Character"}</DialogTitle>
             <DialogDescription>
@@ -1489,7 +1533,7 @@ export function WorldCast({
 
       {/* Character Library Dialog */}
       <Dialog open={isLibraryOpen} onOpenChange={setIsLibraryOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto custom-scrollbar">
           <DialogHeader>
             <DialogTitle>Character Library</DialogTitle>
             <DialogDescription>
@@ -1579,13 +1623,6 @@ export function WorldCast({
         existingLocations={locationsList}
         workspaceId={workspaceId}
       />
-
-      {/* Next Button */}
-      <div className="flex justify-end pt-4">
-        <Button onClick={onNext} size="lg" data-testid="button-next">
-          Next: Breakdown
-        </Button>
-      </div>
     </div>
   );
 }

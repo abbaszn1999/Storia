@@ -29,6 +29,7 @@ import type {
   ImageGeneratorInput,
   ImageGeneratorOutput,
   ImageGenerationResult,
+  ImageStyle,
 } from "../types";
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -80,7 +81,7 @@ function buildImagePayload(
     runwareModelId: string;
     dimensions: { width: number; height: number };
     aspectRatio: string;
-    imageStyle: string;
+    imageStyle: ImageStyle;
     isMidjourney: boolean;
   }
 ): Record<string, any> {
@@ -262,7 +263,7 @@ async function retryFailedImages(
     runwareModelId: string;
     dimensions: { width: number; height: number };
     aspectRatio: string;
-    imageStyle: string;
+    imageStyle: ImageStyle;
     imageModel: string;
     isMidjourney: boolean;
     userId: string;

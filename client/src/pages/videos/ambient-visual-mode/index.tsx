@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { AmbientVisualWorkflow } from "@/components/ambient-visual-workflow";
+import { AmbientVisualWorkflow, type AmbientVisualWorkflowRef } from "@/components/ambient-visual-workflow";
 import { AmbientStudioLayout } from "@/components/ambient/studio";
 import { AmbientOnboarding } from "@/components/ambient/onboarding";
 import { useToast } from "@/hooks/use-toast";
@@ -28,7 +28,14 @@ export default function AmbientVisualModePage() {
   const { data: existingVideo, isLoading: isVideoLoading } = useQuery<Video>({
     queryKey: [`/api/videos/${initialVideoId}`],
     enabled: !isNewVideo,
+    staleTime: 0,  // Always refetch
+    refetchOnMount: true,
   });
+  
+  // Debug: Log when video data changes
+  useEffect(() => {
+    console.log('[AmbientPage] existingVideo changed:', existingVideo?.id, 'step1Data:', existingVideo?.step1Data);
+  }, [existingVideo]);
   
   // Video ID state (updated after creation)
   const [videoId, setVideoId] = useState<string>(initialVideoId);
@@ -43,10 +50,22 @@ export default function AmbientVisualModePage() {
   const [activeStep, setActiveStep] = useState<AmbientStepId>(1);
   const [completedSteps, setCompletedSteps] = useState<AmbientStepId[]>([]);
   const [direction, setDirection] = useState(1);
+  const [isSaving, setIsSaving] = useState(false);
+  const [canContinue, setCanContinue] = useState(false);  // Validation state from workflow
+  
+  // Ref to access workflow's save function
+  const workflowRef = useRef<AmbientVisualWorkflowRef>(null);
 
   // Restore state from existing video
   useEffect(() => {
     if (existingVideo) {
+      console.log('[AmbientPage] Restoring from existingVideo:', {
+        id: existingVideo.id,
+        title: existingVideo.title,
+        currentStep: existingVideo.currentStep,
+        step1Data: existingVideo.step1Data,
+      });
+      
       setVideoTitle(existingVideo.title);
       
       // Restore current step
@@ -98,9 +117,21 @@ export default function AmbientVisualModePage() {
     setActiveStep(step);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     const nextStep = (activeStep + 1) as AmbientStepId;
     if (nextStep <= 6) {
+      // Save current step data before advancing
+      if (workflowRef.current) {
+        setIsSaving(true);
+        const success = await workflowRef.current.saveCurrentStep();
+        setIsSaving(false);
+        
+        if (!success) {
+          // Save failed, don't advance
+          return;
+        }
+      }
+      
       // Mark current step as completed
       if (!completedSteps.includes(activeStep)) {
         setCompletedSteps([...completedSteps, activeStep]);
@@ -189,8 +220,11 @@ export default function AmbientVisualModePage() {
       onNext={handleNext}
       onBack={handleBack}
       videoTitle={videoTitle}
+      isNextDisabled={isSaving || !canContinue}
+      nextLabel={isSaving ? "Saving..." : undefined}
     >
       <AmbientVisualWorkflow 
+        ref={workflowRef}
         activeStep={activeStep}
         onStepChange={(step) => {
           setDirection(step > activeStep ? 1 : -1);
@@ -200,8 +234,11 @@ export default function AmbientVisualModePage() {
           }
           setActiveStep(step as AmbientStepId);
         }}
+        onSaveStateChange={setIsSaving}
+        onValidationChange={setCanContinue}
         projectName={videoTitle}
         videoId={videoId}
+        initialStep1Data={existingVideo?.step1Data as Record<string, unknown> | undefined}
         initialAnimationMode={animationMode}
         initialVideoGenerationMode={videoGenerationMode}
       />

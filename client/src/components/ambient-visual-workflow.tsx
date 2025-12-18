@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useImperativeHandle, forwardRef, useEffect } from "react";
 import { AtmosphereTab } from "./ambient/atmosphere-tab";
 import { VisualWorldTab } from "./ambient/visual-world-tab";
 import { FlowDesignTab } from "./ambient/flow-design-tab";
@@ -6,26 +6,44 @@ import { StoryboardEditor } from "./ambient/storyboard-editor";
 import { PreviewTab } from "./ambient/preview-tab";
 import { ExportTab } from "./ambient/export-tab";
 import { getDefaultVideoModel } from "@/constants/video-models";
+import { useToast } from "@/hooks/use-toast";
 import type { Character } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ContinuityGroup, ReferenceImage } from "@/types/storyboard";
+
+export interface AmbientVisualWorkflowRef {
+  saveCurrentStep: () => Promise<boolean>;
+  isSaving: boolean;
+  canContinue: boolean;  // Whether current step has valid data to continue
+}
 
 interface AmbientVisualWorkflowProps {
   activeStep: number;
   onStepChange: (step: number) => void;
+  onSaveStateChange?: (isSaving: boolean) => void;
+  onValidationChange?: (canContinue: boolean) => void;  // Called when validation state changes
   projectName: string;
   videoId?: string;
   initialAnimationMode?: 'image-transitions' | 'video-animation';
   initialVideoGenerationMode?: 'image-reference' | 'start-end-frame';
+  initialStep1Data?: Record<string, unknown>;  // Saved step1 data from database
 }
 
-export function AmbientVisualWorkflow({
+export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, AmbientVisualWorkflowProps>(({
   activeStep,
   onStepChange,
+  onSaveStateChange,
+  onValidationChange,
   projectName,
   videoId,
   initialAnimationMode = 'image-transitions',
   initialVideoGenerationMode,
-}: AmbientVisualWorkflowProps) {
+  initialStep1Data,
+}, ref) => {
+  const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
+  // Track the videoId that was used to initialize, to detect when we need to re-initialize
+  const [initializedForVideoId, setInitializedForVideoId] = useState<string | null>(null);
+  
   // Atmosphere State
   const [mood, setMood] = useState("calm");
   const [theme, setTheme] = useState("nature");
@@ -33,7 +51,17 @@ export function AmbientVisualWorkflow({
   const [season, setSeason] = useState("neutral");
   const [intensity, setIntensity] = useState(50);
   const [duration, setDuration] = useState("5min");
-  const [moodDescription, setMoodDescription] = useState("");
+  const [userStory, setUserStory] = useState("");      // User's original story/prompt
+  const [moodDescription, setMoodDescription] = useState(""); // AI-generated description
+  
+  // Track settings when description was created - to detect if settings changed after
+  const [descriptionSettingsSnapshot, setDescriptionSettingsSnapshot] = useState<{
+    mood: string;
+    theme: string;
+    timeContext: string;
+    season: string;
+    duration: string;
+  } | null>(null);
   const [imageModel, setImageModel] = useState("nano-banana");
   const [imageResolution, setImageResolution] = useState("auto");
   const [aspectRatio, setAspectRatio] = useState("16:9");
@@ -94,8 +122,229 @@ export function AmbientVisualWorkflow({
   const [characters, setCharacters] = useState<Character[]>([]);
   const [voiceActorId, setVoiceActorId] = useState<string | null>(null);
 
-  const goToNextStep = () => {
-    onStepChange(activeStep + 1);
+  // Restore state from saved step1Data when video is reopened
+  useEffect(() => {
+    // Only restore if we have data and videoId, and haven't initialized for this video yet
+    if (!initialStep1Data || !videoId) {
+      console.log('[AmbientWorkflow] Waiting for data - initialStep1Data:', !!initialStep1Data, 'videoId:', videoId);
+      return;
+    }
+    
+    // Skip if already initialized for this video
+    if (initializedForVideoId === videoId) {
+      console.log('[AmbientWorkflow] Already initialized for video:', videoId);
+      return;
+    }
+    
+    const data = initialStep1Data;
+    console.log('[AmbientWorkflow] Restoring state for video:', videoId, 'data:', data);
+    
+    // Restore Atmosphere settings
+    if (data.mood) setMood(data.mood as string);
+    if (data.theme) setTheme(data.theme as string);
+    if (data.timeContext) setTimeContext(data.timeContext as string);
+    if (data.season) setSeason(data.season as string);
+    if (data.duration) setDuration(data.duration as string);
+    if (data.userStory) setUserStory(data.userStory as string);
+    if (data.moodDescription) {
+      setMoodDescription(data.moodDescription as string);
+      // Restore the settings snapshot to match saved settings
+      // (assumes description was created with these settings)
+      setDescriptionSettingsSnapshot({
+        mood: (data.mood as string) || 'calm',
+        theme: (data.theme as string) || 'nature',
+        timeContext: (data.timeContext as string) || 'sunset',
+        season: (data.season as string) || 'neutral',
+        duration: (data.duration as string) || '5min',
+      });
+    }
+    
+    // Restore Image settings
+    if (data.imageModel) setImageModel(data.imageModel as string);
+    if (data.imageResolution) setImageResolution(data.imageResolution as string);
+    if (data.aspectRatio) setAspectRatio(data.aspectRatio as string);
+    
+    // Restore Animation settings
+    if (data.animationMode) setAnimationMode(data.animationMode as 'image-transitions' | 'video-animation');
+    if (data.videoGenerationMode) setVideoGenerationMode(data.videoGenerationMode as 'image-reference' | 'start-end-frame');
+    if (data.defaultEasingStyle) setDefaultEasingStyle(data.defaultEasingStyle as string);
+    if (data.videoModel) setVideoModel(data.videoModel as string);
+    if (data.videoResolution) setVideoResolution(data.videoResolution as string);
+    if (data.motionPrompt) setMotionPrompt(data.motionPrompt as string);
+    
+    // Restore Pacing & Flow settings
+    if (data.pacing !== undefined) setPacing(data.pacing as number);
+    if (data.segmentEnabled !== undefined) setSegmentEnabled(data.segmentEnabled as boolean);
+    if (data.segmentCount !== undefined) setSegmentCount(data.segmentCount as 'auto' | number);
+    if (data.shotsPerSegment !== undefined) setShotsPerSegment(data.shotsPerSegment as 'auto' | number);
+    
+    // Restore Loop settings
+    if (data.loopMode !== undefined) setLoopMode(data.loopMode as boolean);
+    if (data.loopType) setLoopType(data.loopType as 'seamless' | 'fade' | 'hard-cut');
+    if (data.segmentLoopEnabled !== undefined) setSegmentLoopEnabled(data.segmentLoopEnabled as boolean);
+    if (data.segmentLoopCount !== undefined) setSegmentLoopCount(data.segmentLoopCount as 'auto' | number);
+    if (data.shotLoopEnabled !== undefined) setShotLoopEnabled(data.shotLoopEnabled as boolean);
+    if (data.shotLoopCount !== undefined) setShotLoopCount(data.shotLoopCount as 'auto' | number);
+    
+    // Restore Voiceover settings
+    if (data.voiceoverEnabled !== undefined) setVoiceoverEnabled(data.voiceoverEnabled as boolean);
+    if (data.language) setLanguage(data.language as 'ar' | 'en');
+    if (data.textOverlayEnabled !== undefined) setTextOverlayEnabled(data.textOverlayEnabled as boolean);
+    if (data.textOverlayStyle) setTextOverlayStyle(data.textOverlayStyle as 'modern' | 'cinematic' | 'bold');
+    
+    // Restore transition/camera settings
+    if (data.transitionStyle) setTransitionStyle(data.transitionStyle as string);
+    if (data.cameraMotion) setCameraMotion(data.cameraMotion as string);
+    
+    setInitializedForVideoId(videoId);
+    console.log('[AmbientWorkflow] State restored successfully for video:', videoId);
+  }, [initialStep1Data, videoId, initializedForVideoId]);
+
+  // Save Step 1 (Atmosphere) data to database
+  const saveStep1Data = async (): Promise<boolean> => {
+    if (!videoId || videoId === 'new') {
+      toast({
+        title: "Error",
+        description: "Cannot save - no video ID available.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    setIsSaving(true);
+    onSaveStateChange?.(true);
+    
+    try {
+      const response = await fetch(`/api/ambient-visual/videos/${videoId}/step/1/continue`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          // Core atmosphere settings
+          mood,
+          theme,
+          timeContext,
+          season,
+          duration,
+          aspectRatio,
+          userStory,       // User's original story/prompt
+          moodDescription, // AI-generated description
+          // Animation settings
+          animationMode,
+          videoGenerationMode,
+          // Image settings
+          imageModel,
+          imageResolution,
+          // Video animation settings
+          videoModel,
+          videoResolution,
+          motionPrompt,
+          // Animation style settings
+          defaultEasingStyle,
+          transitionStyle,
+          cameraMotion,
+          // Pacing & Flow
+          pacing,
+          segmentEnabled,
+          segmentCount,
+          shotsPerSegment,
+          // Loop settings
+          loopMode,
+          loopType,
+          segmentLoopEnabled,
+          segmentLoopCount,
+          shotLoopEnabled,
+          shotLoopCount,
+          // Voiceover settings
+          voiceoverEnabled,
+          language,
+          textOverlayEnabled,
+          textOverlayStyle,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save atmosphere settings');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('[AmbientWorkflow] Save error:', error);
+      toast({
+        title: "Save Failed",
+        description: error instanceof Error ? error.message : "Failed to save atmosphere settings",
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setIsSaving(false);
+      onSaveStateChange?.(false);
+    }
+  };
+
+  // Handler to update mood description and capture settings snapshot
+  const handleMoodDescriptionChange = (newDescription: string) => {
+    setMoodDescription(newDescription);
+    
+    // If setting a non-empty description, capture current settings as snapshot
+    if (newDescription.trim().length > 0) {
+      setDescriptionSettingsSnapshot({
+        mood,
+        theme,
+        timeContext,
+        season,
+        duration,
+      });
+    } else {
+      // Clear snapshot when description is cleared
+      setDescriptionSettingsSnapshot(null);
+    }
+  };
+
+  // Check if core settings have changed since description was created
+  const settingsChangedSinceDescription = descriptionSettingsSnapshot !== null && (
+    descriptionSettingsSnapshot.mood !== mood ||
+    descriptionSettingsSnapshot.theme !== theme ||
+    descriptionSettingsSnapshot.timeContext !== timeContext ||
+    descriptionSettingsSnapshot.season !== season ||
+    descriptionSettingsSnapshot.duration !== duration
+  );
+
+  // Compute validation for current step
+  // Step 1 requires: description exists AND settings haven't changed since description was created
+  const hasDescription = moodDescription.trim().length > 0;
+  const canContinueStep1 = hasDescription && !settingsChangedSinceDescription;
+  const canContinue = activeStep === 1 ? canContinueStep1 : true;  // Add validations for other steps as needed
+
+  // Notify parent when validation state changes
+  useEffect(() => {
+    onValidationChange?.(canContinue);
+  }, [canContinue, onValidationChange]);
+
+  useImperativeHandle(ref, () => ({
+    saveCurrentStep: async () => {
+      if (activeStep === 1) {
+        return saveStep1Data();
+      }
+      // For other steps, return true (no save needed yet)
+      return true;
+    },
+    isSaving,
+    canContinue,
+  }));
+
+  const goToNextStep = async () => {
+    // For Step 1 (Atmosphere), save data before continuing
+    if (activeStep === 1) {
+      const success = await saveStep1Data();
+      if (success) {
+        onStepChange(activeStep + 1);
+      }
+    } else {
+      // For other steps, just advance (TODO: implement save for other steps)
+      onStepChange(activeStep + 1);
+    }
   };
 
   // Handler for scene generation in Flow Design
@@ -314,12 +563,15 @@ export function AmbientVisualWorkflow({
       case 1:
         return (
           <AtmosphereTab
+            videoId={videoId}
+            isSaving={isSaving}
             mood={mood}
             theme={theme}
             timeContext={timeContext}
             season={season}
             intensity={intensity}
             duration={duration}
+            userStory={userStory}
             moodDescription={moodDescription}
             imageModel={imageModel}
             imageResolution={imageResolution}
@@ -352,7 +604,8 @@ export function AmbientVisualWorkflow({
             onSeasonChange={setSeason}
             onIntensityChange={setIntensity}
             onDurationChange={setDuration}
-            onMoodDescriptionChange={setMoodDescription}
+            onUserStoryChange={setUserStory}
+            onMoodDescriptionChange={handleMoodDescriptionChange}
             onImageModelChange={setImageModel}
             onImageResolutionChange={setImageResolution}
             onAspectRatioChange={setAspectRatio}
@@ -490,4 +743,6 @@ export function AmbientVisualWorkflow({
   };
 
   return <>{renderStep()}</>;
-}
+});
+
+AmbientVisualWorkflow.displayName = 'AmbientVisualWorkflow';

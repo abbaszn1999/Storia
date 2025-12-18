@@ -1,18 +1,18 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * AMBIENT VISUAL AI AGENTS
+ * AMBIENT VISUAL SERVICES
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
- * AI agents for ambient visual content generation.
+ * Utility functions for ambient visual processing.
+ * This file serves as a placeholder for future service implementations.
+ * 
+ * Planned services:
+ * - Video loop processor
+ * - Segment/shot duration calculator
+ * - Transition effect helpers
+ * - FFmpeg helpers for ambient video processing
  */
 
-// Step 1: Atmosphere Phase
-export { generateMoodDescription } from './mood-description-generator';
-
-// Future agents:
-// Step 2: Visual World - Style descriptor, reference image processor
-// Step 3: Flow Design - Scene/shot generator, continuity analyzer
-// Step 4: Composition - Image generator, video generator
-// Step 5: Preview - Animatic assembler
-// Step 6: Export - Final video processor
+// Placeholder export - will be expanded as services are implemented
+export {};
 

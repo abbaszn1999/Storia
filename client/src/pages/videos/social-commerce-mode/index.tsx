@@ -1,10 +1,7 @@
-import { useState } from "react";
-import { ArrowLeft, Check, ShoppingBag } from "lucide-react";
-import { Link, useParams, useSearch } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { useState, useEffect } from "react";
+import { useParams, useSearch } from "wouter";
 import { SocialCommerceWorkflow } from "@/components/social-commerce-workflow";
+import { SocialCommerceStudioLayout, type CommerceStepId } from "@/components/commerce/studio";
 import { NarrativeModeSelector } from "@/components/narrative/narrative-mode-selector";
 import type { Character } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
@@ -16,23 +13,16 @@ interface ProductDetails {
   cta: string;
 }
 
-const steps = [
-  { id: "script", label: "Product" },
-  { id: "world", label: "World & Cast" },
-  { id: "breakdown", label: "Breakdown" },
-  { id: "storyboard", label: "Storyboard" },
-  { id: "animatic", label: "Animatic" },
-  { id: "export", label: "Export" },
-];
-
 export default function SocialCommerceMode() {
   const params = useParams<{ videoId?: string }>();
   const searchParams = useSearch();
   const urlParams = new URLSearchParams(searchParams);
   
   const [videoTitle] = useState(urlParams.get("title") || "Untitled Product Video");
-  const [activeStep, setActiveStep] = useState("script");
-  const [completedSteps, setCompletedSteps] = useState<string[]>([]);
+  const [activeStep, setActiveStep] = useState<CommerceStepId>("setup");
+  const [completedSteps, setCompletedSteps] = useState<CommerceStepId[]>([]);
+  const [direction, setDirection] = useState(1);
+  const [canContinue, setCanContinue] = useState(false);
   // Commerce mode always uses start-end for automatic linear shot connections
   const [narrativeMode, setNarrativeMode] = useState<"image-reference" | "start-end">("start-end");
   
@@ -57,6 +47,93 @@ export default function SocialCommerceMode() {
   const [duration, setDuration] = useState("30");
   const [voiceActorId, setVoiceActorId] = useState<string | null>(null);
   const [voiceOverEnabled, setVoiceOverEnabled] = useState(true);
+  
+  // Campaign Configuration settings (Tab 1)
+  const [imageModel, setImageModel] = useState("imagen-4");
+  const [imageResolution, setImageResolution] = useState("2K");
+  const [videoModel, setVideoModel] = useState("kling-o1");
+  const [videoResolution, setVideoResolution] = useState("1080p");
+  const [language, setLanguage] = useState<'ar' | 'en'>('en');
+  const [motionPrompt, setMotionPrompt] = useState("");
+  
+  // Product DNA & Brand Identity settings (Tab 2)
+  const [productImages, setProductImages] = useState<{
+    heroProfile: string | null;
+    macroDetail: string | null;
+    materialReference: string | null;
+  }>({
+    heroProfile: null,
+    macroDetail: null,
+    materialReference: null,
+  });
+  const [materialPreset, setMaterialPreset] = useState("");
+  const [objectMass, setObjectMass] = useState(50);
+  const [surfaceComplexity, setSurfaceComplexity] = useState(50);
+  const [refractionEnabled, setRefractionEnabled] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [brandPrimaryColor, setBrandPrimaryColor] = useState("#FF006E");
+  const [brandSecondaryColor, setBrandSecondaryColor] = useState("#FB5607");
+  const [logoIntegrity, setLogoIntegrity] = useState(7);
+  const [logoDepth, setLogoDepth] = useState(5);
+  const [heroFeature, setHeroFeature] = useState("");
+  const [originMetaphor, setOriginMetaphor] = useState("");
+  
+  // Cast & Character DNA (Tab 2)
+  const [includeHumanElement, setIncludeHumanElement] = useState(false);
+  const [characterMode, setCharacterMode] = useState<'hand-model' | 'full-body' | 'silhouette' | null>(null);
+  const [characterReferenceUrl, setCharacterReferenceUrl] = useState<string | null>(null);
+  const [characterDescription, setCharacterDescription] = useState("");
+  
+  // Environment & Story Beats (Tab 3)
+  const [environmentConcept, setEnvironmentConcept] = useState("");
+  const [cinematicLighting, setCinematicLighting] = useState("");
+  const [atmosphericDensity, setAtmosphericDensity] = useState(50);
+  const [styleReferenceUrl, setStyleReferenceUrl] = useState<string | null>(null);
+  const [visualPreset, setVisualPreset] = useState("");
+  const [campaignSpark, setCampaignSpark] = useState("");
+  const [visualBeats, setVisualBeats] = useState({
+    beat1: "",
+    beat2: "",
+    beat3: "",
+  });
+  
+  // Environment-specific brand colors (initialized from Tab 2, but local to Tab 3)
+  const [environmentBrandPrimaryColor, setEnvironmentBrandPrimaryColor] = useState(brandPrimaryColor);
+  const [environmentBrandSecondaryColor, setEnvironmentBrandSecondaryColor] = useState(brandSecondaryColor);
+  
+  // Strategic Context (Tab 1 - moved from Tab 3)
+  const [targetAudience, setTargetAudience] = useState("");
+  
+  // Campaign Objective & CTA (Tab 3)
+  const [campaignObjective, setCampaignObjective] = useState("showcase");
+  const [ctaText, setCtaText] = useState("");
+
+  // Scene Manifest (Tab 4)
+  const [sceneManifest, setSceneManifest] = useState<{
+    scenes: Array<{
+      id: string;
+      name: string;
+      description: string;
+      duration: number;
+      actType: 'hook' | 'transformation' | 'payoff';
+      shots: Array<{
+        id: string;
+        sceneId: string;
+        name: string;
+        description: string;
+        duration: number;
+        shotType: 'image-ref' | 'start-end';
+        cameraPath: 'orbit' | 'pan' | 'zoom' | 'dolly' | 'static';
+        lens: 'macro' | 'wide' | '85mm' | 'telephoto';
+        referenceTags: string[];
+        isLinkedToPrevious: boolean;
+      }>;
+    }>;
+    continuityLinksEstablished: boolean;
+  }>({
+    scenes: [],
+    continuityLinksEstablished: false,
+  });
   
   // Scene/shot state
   const [scenes, setScenes] = useState<Scene[]>([]);
@@ -109,87 +186,115 @@ export default function SocialCommerceMode() {
     videoInstructions: "",
   });
 
-  const isStepCompleted = (stepId: string) => completedSteps.includes(stepId);
-  const currentStepIndex = steps.findIndex((s) => s.id === activeStep);
-
-  const handleNext = () => {
-    if (!completedSteps.includes(activeStep)) {
-      setCompletedSteps([...completedSteps, activeStep]);
-    }
-    const nextIndex = currentStepIndex + 1;
-    if (nextIndex < steps.length) {
-      setActiveStep(steps[nextIndex].id);
+  // Update validation state based on current step and data
+  const updateValidation = () => {
+    if (activeStep === "setup") {
+      // Tab 1: Campaign Configuration + Strategic Context validation
+      const isValid = 
+        imageModel && 
+        videoModel && 
+        aspectRatio && 
+        duration && 
+        motionPrompt.trim().length > 0 &&
+        targetAudience !== "";
+      setCanContinue(isValid);
+    } else if (activeStep === "script") {
+      // Tab 2: Product DNA & Brand Identity + Character DNA validation
+      let isValid = 
+        productImages.heroProfile !== null && 
+        materialPreset !== "";
+      // If human element enabled, require character mode
+      if (includeHumanElement) {
+        isValid = isValid && characterMode !== null;
+      }
+      setCanContinue(isValid);
+    } else if (activeStep === "environment") {
+      // Tab 3: Environment & Story Beats validation (simplified - no audience here)
+      const isValid = 
+        environmentConcept.trim().length >= 20 && 
+        campaignSpark.trim().length >= 10;
+      setCanContinue(isValid);
+    } else if (activeStep === "world") {
+      // Tab 4: Scene Manifest validation
+      const isValid = sceneManifest.scenes.length === 3 && 
+                      sceneManifest.scenes.every(scene => scene.shots.length > 0);
+      setCanContinue(isValid);
+    } else {
+      // Other steps - default to true for now
+      setCanContinue(true);
     }
   };
 
+  // Update validation when relevant state changes
+  useEffect(() => {
+    updateValidation();
+  }, [activeStep, imageModel, videoModel, aspectRatio, duration, motionPrompt, targetAudience, productImages, materialPreset, includeHumanElement, characterMode, environmentConcept, campaignSpark, sceneManifest]);
+
+  // Map old workflow step IDs to new studio step IDs
+  const workflowStepMap: { [key in CommerceStepId]: string } = {
+    "setup": "script",  // Tab 1 = Campaign Config (ProductSetupTab)
+    "script": "product-dna",  // Tab 2 = Product DNA & Brand Identity (HookFormatTab)
+    "environment": "environment-story",  // Tab 3 = Environment & Story Beats (VisualStyleTab)
+    "world": "world",
+    "storyboard": "storyboard",
+    "animatic": "animatic",
+    "export": "export"
+  };
+
+  const handleStepClick = (step: CommerceStepId) => {
+    setDirection(step > activeStep ? 1 : -1);
+    setActiveStep(step);
+  };
+
+  const handleNext = () => {
+    // Mark current step as completed when moving forward
+    if (!completedSteps.includes(activeStep)) {
+      setCompletedSteps([...completedSteps, activeStep]);
+    }
+    
+    const steps: CommerceStepId[] = ["setup", "script", "environment", "world", "storyboard", "animatic", "export"];
+    const currentIndex = steps.indexOf(activeStep);
+    const nextIndex = currentIndex + 1;
+    
+    if (nextIndex < steps.length) {
+      setDirection(1);
+      setActiveStep(steps[nextIndex]);
+    }
+  };
+
+  const handleBack = () => {
+    const steps: CommerceStepId[] = ["setup", "script", "environment", "world", "storyboard", "animatic", "export"];
+    const currentIndex = steps.indexOf(activeStep);
+    const prevIndex = currentIndex - 1;
+    
+    if (prevIndex >= 0) {
+      setDirection(-1);
+      setActiveStep(steps[prevIndex]);
+    }
+  };
+
+  // Show narrative mode selector if not selected
+  if (!narrativeMode) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#0a0a0a]">
+        <NarrativeModeSelector onSelectMode={(mode) => setNarrativeMode(mode)} />
+      </div>
+    );
+  }
+
   return (
-    <div className="h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
-        <div className="px-6 py-3">
-          <div className="flex items-center justify-between gap-6">
-            {/* Left: Navigation & Branding */}
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" className="h-8 w-8" asChild data-testid="button-back">
-                <Link href="/videos">
-                  <ArrowLeft className="h-4 w-4" />
-                </Link>
-              </Button>
-              
-              <div className="h-6 w-px bg-border" />
-              
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="gap-1">
-                  <ShoppingBag className="h-3 w-3" />
-                  Social Commerce
-                </Badge>
-                <h1 className="text-sm font-semibold truncate max-w-[200px]" data-testid="text-video-title">
-                  {productDetails.title || videoTitle}
-                </h1>
-              </div>
-            </div>
-
-            {/* Center: Step Navigation */}
-            <div className="flex items-center gap-3">
-              {steps.map((step) => (
-                <button
-                  key={step.id}
-                  onClick={() => setActiveStep(step.id)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all hover-elevate ${
-                    activeStep === step.id
-                      ? "bg-primary text-primary-foreground"
-                      : isStepCompleted(step.id)
-                      ? "bg-muted text-foreground"
-                      : "text-muted-foreground"
-                  }`}
-                  data-testid={`button-step-${step.id}`}
-                >
-                  {isStepCompleted(step.id) && (
-                    <Check className="h-3.5 w-3.5" />
-                  )}
-                  <span className="whitespace-nowrap">{step.label}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Right: Actions */}
-            <div className="flex items-center gap-2">
-              <ThemeToggle />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        <div className="max-w-[1600px] mx-auto px-6 py-8">
-          {!narrativeMode ? (
-            <div className="flex items-center justify-center min-h-[600px]">
-              <NarrativeModeSelector onSelectMode={(mode) => setNarrativeMode(mode)} />
-            </div>
-          ) : (
-            <SocialCommerceWorkflow 
-              activeStep={activeStep}
+    <SocialCommerceStudioLayout
+      currentStep={activeStep}
+      completedSteps={completedSteps}
+      direction={direction}
+      onStepClick={handleStepClick}
+      onNext={handleNext}
+      onBack={handleBack}
+      videoTitle={videoTitle}
+      isNextDisabled={false}
+    >
+      <SocialCommerceWorkflow 
+              activeStep={workflowStepMap[activeStep]}
               videoId={videoId}
               workspaceId={workspaceId}
               narrativeMode={narrativeMode}
@@ -211,6 +316,24 @@ export default function SocialCommerceMode() {
               continuityLocked={continuityLocked}
               continuityGroups={continuityGroups}
               worldSettings={worldSettings}
+              imageModel={imageModel}
+              imageResolution={imageResolution}
+              videoModel={videoModel}
+              videoResolution={videoResolution}
+              language={language}
+              motionPrompt={motionPrompt}
+              productImages={productImages}
+              materialPreset={materialPreset}
+              objectMass={objectMass}
+              surfaceComplexity={surfaceComplexity}
+              refractionEnabled={refractionEnabled}
+              logoUrl={logoUrl}
+              brandPrimaryColor={brandPrimaryColor}
+              brandSecondaryColor={brandSecondaryColor}
+              logoIntegrity={logoIntegrity}
+              logoDepth={logoDepth}
+              heroFeature={heroFeature}
+              originMetaphor={originMetaphor}
               onScriptChange={setScript}
               onAspectRatioChange={setAspectRatio}
               onDurationChange={setDuration}
@@ -231,11 +354,60 @@ export default function SocialCommerceMode() {
               onWorldSettingsChange={setWorldSettings}
               commerceSettings={commerceSettings}
               onCommerceSettingsChange={setCommerceSettings}
+              onImageModelChange={setImageModel}
+              onImageResolutionChange={setImageResolution}
+              onVideoModelChange={setVideoModel}
+              onVideoResolutionChange={setVideoResolution}
+              onLanguageChange={setLanguage}
+              onMotionPromptChange={setMotionPrompt}
+              onProductImagesChange={setProductImages}
+              onMaterialPresetChange={setMaterialPreset}
+              onObjectMassChange={setObjectMass}
+              onSurfaceComplexityChange={setSurfaceComplexity}
+              onRefractionEnabledChange={setRefractionEnabled}
+              onLogoUrlChange={setLogoUrl}
+              onBrandPrimaryColorChange={setBrandPrimaryColor}
+              onBrandSecondaryColorChange={setBrandSecondaryColor}
+              onLogoIntegrityChange={setLogoIntegrity}
+              onLogoDepthChange={setLogoDepth}
+              onHeroFeatureChange={setHeroFeature}
+              onOriginMetaphorChange={setOriginMetaphor}
+              environmentConcept={environmentConcept}
+              cinematicLighting={cinematicLighting}
+              atmosphericDensity={atmosphericDensity}
+              styleReferenceUrl={styleReferenceUrl}
+              visualPreset={visualPreset}
+              campaignSpark={campaignSpark}
+              visualBeats={visualBeats}
+              environmentBrandPrimaryColor={environmentBrandPrimaryColor}
+              environmentBrandSecondaryColor={environmentBrandSecondaryColor}
+              targetAudience={targetAudience}
+              campaignObjective={campaignObjective}
+              ctaText={ctaText}
+              includeHumanElement={includeHumanElement}
+              characterMode={characterMode}
+              characterReferenceUrl={characterReferenceUrl}
+              characterDescription={characterDescription}
+              onEnvironmentConceptChange={setEnvironmentConcept}
+              onCinematicLightingChange={setCinematicLighting}
+              onAtmosphericDensityChange={setAtmosphericDensity}
+              onStyleReferenceUrlChange={setStyleReferenceUrl}
+              onVisualPresetChange={setVisualPreset}
+              onCampaignSparkChange={setCampaignSpark}
+              onVisualBeatsChange={setVisualBeats}
+              onEnvironmentBrandPrimaryColorChange={setEnvironmentBrandPrimaryColor}
+              onEnvironmentBrandSecondaryColorChange={setEnvironmentBrandSecondaryColor}
+              onTargetAudienceChange={setTargetAudience}
+              onCampaignObjectiveChange={setCampaignObjective}
+              onCtaTextChange={setCtaText}
+              onIncludeHumanElementChange={setIncludeHumanElement}
+              onCharacterModeChange={setCharacterMode}
+              onCharacterReferenceUrlChange={setCharacterReferenceUrl}
+              onCharacterDescriptionChange={setCharacterDescription}
+              sceneManifest={sceneManifest}
+              onSceneManifestChange={setSceneManifest}
               onNext={handleNext}
             />
-          )}
-        </div>
-      </main>
-    </div>
+    </SocialCommerceStudioLayout>
   );
 }

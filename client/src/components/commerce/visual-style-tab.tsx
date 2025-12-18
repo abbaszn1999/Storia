@@ -1,315 +1,779 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { 
-  Palette, 
-  Sun,
+  Lightbulb,
   Sparkles,
-  Image as ImageIcon,
-  Layers,
+  Upload,
+  X,
+  Loader2,
   Zap,
-  Square,
-  Circle,
-  Triangle,
-  Upload
+  CheckCircle2,
+  Eye,
+  Palette,
+  Film,
+  Target,
+  Wind,
+  ImageIcon,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { uploadFile } from "@/assets/uploads/routes";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPE DEFINITIONS
+// ═══════════════════════════════════════════════════════════════════════════
 
 interface VisualStyleTabProps {
+  workspaceId: string;
+  environmentConcept: string;
+  cinematicLighting: string;
+  atmosphericDensity: number;
+  styleReferenceUrl: string | null;
+  visualPreset: string;
+  campaignSpark: string;
+  visualBeats: {
+    beat1: string;
+    beat2: string;
+    beat3: string;
+  };
+  brandPrimaryColor: string;
+  brandSecondaryColor: string;
+  environmentBrandPrimaryColor: string;
+  environmentBrandSecondaryColor: string;
+  campaignObjective: string;
+  ctaText: string;
+  onEnvironmentConceptChange: (concept: string) => void;
+  onCinematicLightingChange: (lighting: string) => void;
+  onAtmosphericDensityChange: (density: number) => void;
+  onStyleReferenceUrlChange: (url: string | null) => void;
+  onVisualPresetChange: (preset: string) => void;
+  onCampaignSparkChange: (spark: string) => void;
+  onVisualBeatsChange: (beats: { beat1: string; beat2: string; beat3: string }) => void;
+  onEnvironmentBrandPrimaryColorChange: (color: string) => void;
+  onEnvironmentBrandSecondaryColorChange: (color: string) => void;
+  onCampaignObjectiveChange: (objective: string) => void;
+  onCtaTextChange: (cta: string) => void;
   onNext: () => void;
-  onPrev: () => void;
 }
 
-const VISUAL_AESTHETICS = [
-  { 
-    id: "clean", 
-    label: "Clean & Minimal", 
-    description: "White space, simple compositions",
-    preview: "bg-gradient-to-br from-gray-50 to-gray-100"
-  },
-  { 
-    id: "vibrant", 
-    label: "Vibrant & Bold", 
-    description: "High saturation, energetic colors",
-    preview: "bg-gradient-to-br from-pink-400 to-orange-400"
-  },
-  { 
-    id: "moody", 
-    label: "Moody & Luxe", 
-    description: "Dark tones, dramatic lighting",
-    preview: "bg-gradient-to-br from-gray-900 to-purple-900"
-  },
-  { 
-    id: "natural", 
-    label: "Natural & Organic", 
-    description: "Earth tones, warm textures",
-    preview: "bg-gradient-to-br from-amber-100 to-green-200"
-  },
-  { 
-    id: "tech", 
-    label: "Tech & Futuristic", 
-    description: "Neon accents, sleek surfaces",
-    preview: "bg-gradient-to-br from-cyan-400 to-blue-600"
-  },
-  { 
-    id: "vintage", 
-    label: "Vintage & Retro", 
-    description: "Film grain, muted palettes",
-    preview: "bg-gradient-to-br from-orange-200 to-rose-300"
-  }
+// ═══════════════════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const CINEMATIC_LIGHTING = [
+  { id: "volumetric", label: "Volumetric", description: "God rays & dramatic beams", icon: "🌟" },
+  { id: "neon", label: "Neon Noir", description: "Vibrant glow & shadows", icon: "💜" },
+  { id: "editorial", label: "Editorial", description: "Clean, high-key studio", icon: "💡" },
+  { id: "golden", label: "Golden Hour", description: "Warm natural light", icon: "🌅" },
 ];
 
-const BACKGROUND_OPTIONS = [
-  { id: "solid", label: "Solid Color", icon: Square },
-  { id: "gradient", label: "Gradient", icon: Circle },
-  { id: "lifestyle", label: "Lifestyle Setting", icon: ImageIcon },
-  { id: "studio", label: "Studio White", icon: Sun },
-  { id: "texture", label: "Textured Surface", icon: Triangle },
-  { id: "ai-generated", label: "AI Environment", icon: Sparkles }
+const VISUAL_PRESETS = [
+  { id: "photorealistic", label: "Photorealistic", description: "Lifelike rendering", icon: "📸" },
+  { id: "cinematic", label: "Cinematic", description: "Film-quality look", icon: "🎬" },
+  { id: "anime", label: "Anime/Stylized", description: "Bold artistic style", icon: "✨" },
+  { id: "cyberpunk", label: "Cyberpunk", description: "Neon futuristic", icon: "🌃" },
+  { id: "minimalist", label: "Minimalist", description: "Clean Apple-style", icon: "⚪" },
 ];
 
-const LIGHTING_MOODS = [
-  { id: "bright", label: "Bright & Airy", description: "High-key, fresh feel" },
-  { id: "dramatic", label: "Dramatic", description: "Strong shadows, contrast" },
-  { id: "golden", label: "Golden Hour", description: "Warm, inviting glow" },
-  { id: "neon", label: "Neon", description: "Colorful accent lighting" },
-  { id: "studio", label: "Studio", description: "Even, professional lighting" },
-  { id: "natural", label: "Natural", description: "Soft window light feel" }
+const OBJECTIVES = [
+  { id: "awareness", label: "Brand Awareness", icon: "👁️" },
+  { id: "showcase", label: "Feature Showcase", icon: "⭐" },
+  { id: "sales", label: "Sales/CTA", icon: "🛒" },
 ];
 
-const MOTION_GRAPHICS = [
-  { id: "price-tag", label: "Price Tags", enabled: true },
-  { id: "feature-callouts", label: "Feature Callouts", enabled: true },
-  { id: "animated-stickers", label: "Animated Stickers", enabled: false },
-  { id: "trending-effects", label: "Trending Effects", enabled: false },
-  { id: "sale-badges", label: "Sale Badges", enabled: true },
-  { id: "rating-stars", label: "Rating Stars", enabled: false }
+const BEAT_INFO = [
+  { key: "beat1" as const, title: "The Hook", timeRange: "0-4s", description: "Grab attention instantly" },
+  { key: "beat2" as const, title: "The Transformation", timeRange: "4-8s", description: "Show the journey" },
+  { key: "beat3" as const, title: "The Payoff", timeRange: "8-12s", description: "Deliver impact" },
 ];
 
-const COLOR_PRESETS = [
-  { id: "brand", colors: ["#8B3FFF", "#C944E6", "#FF3F8E"], label: "Brand Colors" },
-  { id: "warm", colors: ["#FF6B6B", "#FFA07A", "#FFD93D"], label: "Warm" },
-  { id: "cool", colors: ["#4ECDC4", "#45B7D1", "#96CDFF"], label: "Cool" },
-  { id: "neutral", colors: ["#2D3436", "#636E72", "#B2BEC3"], label: "Neutral" },
-  { id: "earth", colors: ["#A0522D", "#D2691E", "#F4A460"], label: "Earth" },
-  { id: "pastel", colors: ["#FFB5E8", "#B5DEFF", "#B5FFB5"], label: "Pastel" }
-];
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION HEADER COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
 
-export function VisualStyleTab({ onNext, onPrev }: VisualStyleTabProps) {
+function SectionHeader({ 
+  icon: Icon, 
+  title, 
+  description,
+  iconColor = "text-amber-400"
+}: { 
+  icon: React.ElementType; 
+  title: string; 
+  description: string;
+  iconColor?: string;
+}) {
   return (
-    <div className="p-6 space-y-6">
-      {/* Visual Aesthetic */}
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base font-medium flex items-center gap-2">
-            <Palette className="h-4 w-4 text-primary" />
-            Visual Aesthetic
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            {VISUAL_AESTHETICS.map((aesthetic) => (
-              <div
-                key={aesthetic.id}
-                className="p-4 rounded-lg border border-border cursor-pointer hover-elevate transition-all"
-                data-testid={`button-aesthetic-${aesthetic.id}`}
-              >
-                <div className={`h-20 rounded-md mb-3 ${aesthetic.preview}`} />
-                <p className="text-sm font-medium">{aesthetic.label}</p>
-                <p className="text-xs text-muted-foreground">{aesthetic.description}</p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Background Options */}
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
-              <ImageIcon className="h-4 w-4 text-primary" />
-              Background
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              {BACKGROUND_OPTIONS.map((bg) => (
-                <div
-                  key={bg.id}
-                  className="p-3 rounded-lg border border-border cursor-pointer hover-elevate transition-all text-center"
-                  data-testid={`button-background-${bg.id}`}
-                >
-                  <bg.icon className="h-6 w-6 mx-auto mb-2 text-primary" />
-                  <p className="text-xs font-medium">{bg.label}</p>
-                </div>
-              ))}
-            </div>
-            
-            <div className="pt-2 border-t border-border">
-              <Label className="text-xs mb-2 block">Custom Background</Label>
-              <div 
-                className="h-20 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center gap-2 cursor-pointer hover-elevate"
-                data-testid="upload-custom-background"
-              >
-                <Upload className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Upload Image</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Lighting Mood */}
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
-              <Sun className="h-4 w-4 text-primary" />
-              Lighting Mood
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-3">
-              {LIGHTING_MOODS.map((lighting) => (
-                <div
-                  key={lighting.id}
-                  className="p-3 rounded-lg border border-border cursor-pointer hover-elevate transition-all"
-                  data-testid={`button-lighting-${lighting.id}`}
-                >
-                  <p className="text-sm font-medium">{lighting.label}</p>
-                  <p className="text-xs text-muted-foreground">{lighting.description}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+    <div className="space-y-1 mb-4">
+      <div className="flex items-center gap-2">
+        <Icon className={cn("w-4 h-4", iconColor)} />
+        <span className="text-xs uppercase tracking-wider font-semibold text-white/70">
+          {title}
+        </span>
       </div>
+      <p className="text-xs text-white/40 pl-6">{description}</p>
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Color Palette */}
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
-              <Palette className="h-4 w-4 text-primary" />
-              Color Palette
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              {COLOR_PRESETS.map((preset) => (
-                <div
-                  key={preset.id}
-                  className="p-3 rounded-lg border border-border cursor-pointer hover-elevate transition-all"
-                  data-testid={`button-colors-${preset.id}`}
-                >
-                  <div className="flex gap-1 mb-2">
-                    {preset.colors.map((color, i) => (
-                      <div 
-                        key={i}
-                        className="w-6 h-6 rounded-full"
-                        style={{ backgroundColor: color }}
-                      />
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function VisualStyleTab({
+  workspaceId,
+  environmentConcept,
+  cinematicLighting,
+  atmosphericDensity,
+  styleReferenceUrl,
+  visualPreset,
+  campaignSpark,
+  visualBeats,
+  environmentBrandPrimaryColor,
+  environmentBrandSecondaryColor,
+  campaignObjective,
+  ctaText,
+  onEnvironmentConceptChange,
+  onCinematicLightingChange,
+  onAtmosphericDensityChange,
+  onStyleReferenceUrlChange,
+  onVisualPresetChange,
+  onCampaignSparkChange,
+  onVisualBeatsChange,
+  onEnvironmentBrandPrimaryColorChange,
+  onEnvironmentBrandSecondaryColorChange,
+  onCampaignObjectiveChange,
+  onCtaTextChange,
+}: VisualStyleTabProps) {
+  const [beatsGenerated, setBeatsGenerated] = useState(false);
+  const [uploadingReference, setUploadingReference] = useState(false);
+  const [previewOverlayEnabled, setPreviewOverlayEnabled] = useState(false);
+  const referenceInputRef = useRef<HTMLInputElement>(null);
+
+  // Validation states (FIXED: removed targetAudience dependency)
+  const isEnvironmentSet = environmentConcept.trim().length >= 20;
+  const isStyleDefined = visualPreset !== "" || styleReferenceUrl !== null;
+  const isStoryReady = campaignSpark.trim().length >= 10;
+  const beatsFilledCount = [visualBeats.beat1, visualBeats.beat2, visualBeats.beat3].filter(b => b.trim().length > 0).length;
+
+  // Handlers
+  const handleGenerateBeats = () => {
+    setBeatsGenerated(true);
+    console.log('Generating beats for campaign objective:', campaignObjective);
+  };
+
+  const handleReferenceUpload = async (file: File) => {
+    setUploadingReference(true);
+    try {
+      const response = await uploadFile(workspaceId, file, file.name, "Style Reference");
+      onStyleReferenceUrlChange(response.upload.storageUrl);
+      if (visualPreset) {
+        onVisualPresetChange("");
+      }
+    } catch (error) {
+      console.error("Error uploading reference:", error);
+    } finally {
+      setUploadingReference(false);
+    }
+  };
+
+  const handlePresetSelect = (presetId: string) => {
+    onVisualPresetChange(presetId);
+    if (styleReferenceUrl) {
+      onStyleReferenceUrlChange(null);
+    }
+  };
+
+  return (
+    <motion.div 
+      className="flex flex-col h-[calc(100vh-12rem)] overflow-hidden"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* TWO-ZONE MAIN CONTENT */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <div className="flex-1 grid grid-cols-2 gap-6 p-6 overflow-hidden">
+        
+        {/* ─────────────────────────────────────────────────────────────────── */}
+        {/* ZONE A: ATMOSPHERE & STYLE */}
+        {/* ─────────────────────────────────────────────────────────────────── */}
+        <ScrollArea className="h-full pr-3">
+          <div className="space-y-5 pb-6">
+            
+            {/* Zone Header */}
+            <div className="flex items-center gap-2 pb-2 border-b border-white/10">
+              <Lightbulb className="w-5 h-5 text-amber-400" />
+              <h2 className="text-sm font-semibold text-white uppercase tracking-wider">
+                Atmosphere & Style
+              </h2>
+            </div>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* ENVIRONMENT CONCEPT CARD */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-3">
+                <SectionHeader
+                  icon={Wind}
+                  title="Environment Concept"
+                  description="Describe the world and atmosphere"
+                  iconColor="text-cyan-400"
+                />
+                
+                <Textarea
+                  value={environmentConcept}
+                  onChange={(e) => onEnvironmentConceptChange(e.target.value)}
+                  placeholder="e.g., A dark underwater cavern with jagged obsidian walls and bioluminescent particles..."
+                  className="bg-white/5 border-white/10 text-white min-h-[100px] resize-none text-sm"
+                  maxLength={500}
+                />
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-white/40">{environmentConcept.length}/500</span>
+                  {isEnvironmentSet ? (
+                    <span className="text-[10px] text-green-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Valid
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-amber-400">Min 20 chars</span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* VISUAL STYLE CARD */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <SectionHeader
+                    icon={ImageIcon}
+                    title="Visual Style"
+                    description="Choose preset or upload reference"
+                    iconColor="text-pink-400"
+                  />
+                  <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-white/5 border-white/20">
+                    {visualPreset ? "Preset" : styleReferenceUrl ? "Custom" : "None"}
+                  </Badge>
+                </div>
+
+                {/* Preset Grid */}
+                <div className="grid grid-cols-2 gap-2">
+                  {VISUAL_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handlePresetSelect(preset.id)}
+                      className={cn(
+                        "p-2.5 rounded-lg border transition-all text-left",
+                        visualPreset === preset.id
+                          ? "bg-pink-500/20 border-pink-500/50"
+                          : "bg-white/[0.02] border-white/10 hover:border-pink-500/30"
+                      )}
+                    >
+                      <span className="text-lg block mb-0.5">{preset.icon}</span>
+                      <p className="text-[11px] font-medium text-white">{preset.label}</p>
+                      <p className="text-[9px] text-white/40">{preset.description}</p>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Style Reference Upload */}
+                <div className="pt-2 border-t border-white/10">
+                  <div
+                    onClick={() => !uploadingReference && referenceInputRef.current?.click()}
+                    className={cn(
+                      "h-20 rounded-lg border-2 border-dashed cursor-pointer flex items-center justify-center transition-all",
+                      styleReferenceUrl
+                        ? "border-pink-500/30 bg-white/[0.02]"
+                        : "border-white/10 hover:border-pink-500/30"
+                    )}
+                  >
+                    {uploadingReference ? (
+                      <Loader2 className="w-5 h-5 text-pink-400 animate-spin" />
+                    ) : styleReferenceUrl ? (
+                      <div className="relative w-full h-full">
+                        <img src={styleReferenceUrl} alt="Reference" className="w-full h-full object-cover rounded-lg" />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onStyleReferenceUrlChange(null);
+                          }}
+                          className="absolute top-1 right-1 p-1 bg-black/60 rounded-full"
+                        >
+                          <X className="w-3 h-3 text-white" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-white/40">
+                        <Upload className="w-4 h-4" />
+                        <span className="text-xs">Upload style reference</span>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    ref={referenceInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleReferenceUpload(file);
+                    }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* BRAND COLORS CARD */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <SectionHeader
+                    icon={Palette}
+                    title="Campaign Colors"
+                    description="Override brand colors for this environment"
+                    iconColor="text-purple-400"
+                  />
+                  <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-purple-500/20 border-purple-500/30 text-purple-300">
+                    Local
+                  </Badge>
+                </div>
+
+                <div className="flex gap-3">
+                  {/* Primary Color */}
+                  <div className="flex-1">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button 
+                          className="w-full h-10 rounded-lg border border-white/10 hover:border-purple-500/50 transition-all cursor-pointer relative group" 
+                          style={{ backgroundColor: environmentBrandPrimaryColor }}
+                        >
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Palette className="w-4 h-4 text-white drop-shadow-lg" />
+                          </div>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 bg-[#0a0a0a] border-white/10">
+                        <div className="space-y-2">
+                          <Label className="text-xs text-white">Primary Color</Label>
+                          <div className="flex gap-2">
+                            <input
+                              type="color"
+                              value={environmentBrandPrimaryColor}
+                              onChange={(e) => onEnvironmentBrandPrimaryColorChange(e.target.value)}
+                              className="w-10 h-10 rounded cursor-pointer border border-white/10"
+                            />
+                            <Input
+                              value={environmentBrandPrimaryColor}
+                              onChange={(e) => onEnvironmentBrandPrimaryColorChange(e.target.value)}
+                              className="flex-1 h-10 bg-white/5 border-white/10 text-white text-xs"
+                            />
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <p className="text-[10px] text-white/40 mt-1 text-center">Primary</p>
+                  </div>
+
+                  {/* Secondary Color */}
+                  <div className="flex-1">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button 
+                          className="w-full h-10 rounded-lg border border-white/10 hover:border-purple-500/50 transition-all cursor-pointer relative group" 
+                          style={{ backgroundColor: environmentBrandSecondaryColor }}
+                        >
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Palette className="w-4 h-4 text-white drop-shadow-lg" />
+                          </div>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 bg-[#0a0a0a] border-white/10">
+                        <div className="space-y-2">
+                          <Label className="text-xs text-white">Secondary Color</Label>
+                          <div className="flex gap-2">
+                            <input
+                              type="color"
+                              value={environmentBrandSecondaryColor}
+                              onChange={(e) => onEnvironmentBrandSecondaryColorChange(e.target.value)}
+                              className="w-10 h-10 rounded cursor-pointer border border-white/10"
+                            />
+                            <Input
+                              value={environmentBrandSecondaryColor}
+                              onChange={(e) => onEnvironmentBrandSecondaryColorChange(e.target.value)}
+                              className="flex-1 h-10 bg-white/5 border-white/10 text-white text-xs"
+                            />
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <p className="text-[10px] text-white/40 mt-1 text-center">Secondary</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* CINEMATIC LIGHTING CARD */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-3">
+                <SectionHeader
+                  icon={Lightbulb}
+                  title="Cinematic Lighting"
+                  description="Set the mood and atmosphere"
+                  iconColor="text-amber-400"
+                />
+
+                <div className="grid grid-cols-2 gap-2">
+                  {CINEMATIC_LIGHTING.map((lighting) => (
+                    <button
+                      key={lighting.id}
+                      onClick={() => onCinematicLightingChange(lighting.id)}
+                      className={cn(
+                        "p-2.5 rounded-lg border transition-all text-left",
+                        cinematicLighting === lighting.id
+                          ? "bg-amber-500/20 border-amber-500/50"
+                          : "bg-white/[0.02] border-white/10 hover:border-amber-500/30"
+                      )}
+                    >
+                      <span className="text-lg block mb-0.5">{lighting.icon}</span>
+                      <p className="text-[11px] font-medium text-white">{lighting.label}</p>
+                      <p className="text-[9px] text-white/40">{lighting.description}</p>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Atmospheric Density */}
+                <div className="pt-3 border-t border-white/10 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-white/50">Atmospheric Density</Label>
+                    <span className="text-xs text-amber-400">{atmosphericDensity}%</span>
+                  </div>
+                  <Slider
+                    value={[atmosphericDensity]}
+                    onValueChange={([v]) => onAtmosphericDensityChange(v)}
+                    min={0}
+                    max={100}
+                  />
+                  <div className="flex justify-between text-[10px] text-white/30">
+                    <span>Clear</span>
+                    <span>Dense</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+          </div>
+        </ScrollArea>
+
+        {/* ─────────────────────────────────────────────────────────────────── */}
+        {/* ZONE B: NARRATIVE STUDIO */}
+        {/* ─────────────────────────────────────────────────────────────────── */}
+        <ScrollArea className="h-full pl-3">
+          <div className="space-y-5 pb-6">
+            
+            {/* Zone Header */}
+            <div className="flex items-center gap-2 pb-2 border-b border-white/10">
+              <Film className="w-5 h-5 text-purple-400" />
+              <h2 className="text-sm font-semibold text-white uppercase tracking-wider">
+                Narrative Studio
+              </h2>
+            </div>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* CAMPAIGN DIRECTION CARD */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-4">
+                <SectionHeader
+                  icon={Target}
+                  title="Campaign Direction"
+                  description="Define objective and creative spark"
+                  iconColor="text-orange-400"
+                />
+
+                {/* Objective Toggles */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-white/50">Objective</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {OBJECTIVES.map((objective) => (
+                      <button
+                        key={objective.id}
+                        onClick={() => onCampaignObjectiveChange(objective.id)}
+                        className={cn(
+                          "p-2.5 rounded-lg border transition-all text-center",
+                          campaignObjective === objective.id
+                            ? "bg-orange-500/20 border-orange-500/50"
+                            : "bg-white/[0.02] border-white/10 hover:border-orange-500/30"
+                        )}
+                      >
+                        <span className="text-lg block mb-0.5">{objective.icon}</span>
+                        <p className="text-[10px] font-medium text-white">{objective.label}</p>
+                      </button>
                     ))}
                   </div>
-                  <p className="text-xs font-medium">{preset.label}</p>
                 </div>
-              ))}
-            </div>
 
-            <div className="pt-2 border-t border-border">
-              <Label className="text-xs mb-2 block">Custom Brand Colors</Label>
-              <div className="flex gap-2">
-                <Input 
-                  placeholder="#HEX" 
-                  className="flex-1 h-8"
-                  data-testid="input-custom-color-1"
-                />
-                <Input 
-                  placeholder="#HEX" 
-                  className="flex-1 h-8"
-                  data-testid="input-custom-color-2"
-                />
-                <Input 
-                  placeholder="#HEX" 
-                  className="flex-1 h-8"
-                  data-testid="input-custom-color-3"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Motion Graphics */}
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
-              <Zap className="h-4 w-4 text-primary" />
-              Motion Graphics
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {MOTION_GRAPHICS.map((graphic) => (
-                <div
-                  key={graphic.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                  data-testid={`toggle-motion-${graphic.id}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Layers className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">{graphic.label}</span>
+                {/* Campaign Spark */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-white/50">Creative Spark</Label>
+                  <Input
+                    value={campaignSpark}
+                    onChange={(e) => onCampaignSparkChange(e.target.value)}
+                    placeholder="e.g., The shoe hatches from a dragon egg in a dark cave"
+                    className="h-11 bg-white/5 border-white/10 text-white text-sm"
+                    maxLength={200}
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-white/40">{campaignSpark.length}/200</span>
+                    {isStoryReady ? (
+                      <span className="text-[10px] text-green-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Valid
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-amber-400">Min 10 chars</span>
+                    )}
                   </div>
-                  <Switch defaultChecked={graphic.enabled} />
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* STORY BEATS CARD */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <SectionHeader
+                    icon={Sparkles}
+                    title="Story Beats"
+                    description="Structure your narrative flow"
+                    iconColor="text-purple-400"
+                  />
+                  {beatsGenerated && (
+                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-purple-500/20 border-purple-500/30 text-purple-300">
+                      {beatsFilledCount}/3 filled
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Generate Button */}
+                {!beatsGenerated && (
+                  <Button
+                    onClick={handleGenerateBeats}
+                    disabled={!isStoryReady}
+                    className={cn(
+                      "w-full h-12 font-semibold relative overflow-hidden",
+                      isStoryReady
+                        ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                        : "bg-white/10 text-white/40 cursor-not-allowed"
+                    )}
+                  >
+                    <span className="relative z-10 flex items-center gap-2">
+                      <Zap className="w-4 h-4" />
+                      Generate Visual Beats
+                    </span>
+                    {isStoryReady && (
+                      <motion.div
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                        animate={{ x: ["-100%", "200%"] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                      />
+                    )}
+                  </Button>
+                )}
+
+                {/* Beat Cards */}
+                <AnimatePresence>
+                  {beatsGenerated && (
+                    <div className="space-y-3">
+                      {BEAT_INFO.map((beat, index) => (
+                        <motion.div
+                          key={beat.key}
+                          initial={{ opacity: 0, x: 30 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.3, delay: index * 0.1 }}
+                          className="p-3 rounded-lg bg-white/[0.02] border border-white/10"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-xs font-bold text-white">
+                                {index + 1}
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-white">{beat.title}</p>
+                                <p className="text-[9px] text-white/40">{beat.description}</p>
+                              </div>
+                            </div>
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-purple-500/10 border-purple-500/30 text-purple-300">
+                              {beat.timeRange}
+                            </Badge>
+                          </div>
+                          
+                          <Textarea
+                            value={visualBeats[beat.key]}
+                            onChange={(e) => onVisualBeatsChange({
+                              ...visualBeats,
+                              [beat.key]: e.target.value,
+                            })}
+                            placeholder={`Describe ${beat.title.toLowerCase()}...`}
+                            className="bg-white/5 border-white/10 text-white min-h-[60px] resize-none text-xs"
+                            maxLength={200}
+                          />
+                          
+                          {/* CTA Text for Beat 3 */}
+                          {beat.key === "beat3" && (
+                            <div className="mt-2 pt-2 border-t border-white/10">
+                              <Label className="text-[10px] text-white/50 mb-1 block">CTA Text</Label>
+                              <Input
+                                value={ctaText}
+                                onChange={(e) => onCtaTextChange(e.target.value)}
+                                placeholder="e.g., SHOP NOW at www.website.com"
+                                className="h-8 bg-white/5 border-white/10 text-white text-xs"
+                                maxLength={100}
+                              />
+                            </div>
+                          )}
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </AnimatePresence>
+              </CardContent>
+            </Card>
+
+          </div>
+        </ScrollArea>
       </div>
 
-      {/* Style Preview */}
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base font-medium flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            Style Preview
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="aspect-video bg-gradient-to-br from-gray-900 to-purple-900 rounded-lg flex items-center justify-center relative overflow-hidden">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(139,63,255,0.3),transparent_50%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_60%,rgba(201,68,230,0.2),transparent_50%)]" />
-            
-            {/* Preview Elements */}
-            <div className="relative z-10 text-center">
-              <div className="w-32 h-32 mx-auto mb-4 rounded-lg bg-white/10 backdrop-blur border border-white/20 flex items-center justify-center">
-                <ImageIcon className="h-12 w-12 text-white/50" />
-              </div>
-              <Badge className="bg-primary text-primary-foreground">$29.99</Badge>
-              <p className="mt-2 text-white/80 text-sm">Your Product Name</p>
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* COMPACT VALIDATION FOOTER */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <div className="flex-shrink-0 px-6 py-3 border-t border-white/10 bg-white/[0.02]">
+        <div className="flex items-center justify-between">
+          
+          {/* Validation Checkmarks */}
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              {isEnvironmentSet ? (
+                <CheckCircle2 className="w-4 h-4 text-green-400" />
+              ) : (
+                <div className="w-4 h-4 rounded-full border-2 border-white/20" />
+              )}
+              <span className={cn(
+                "text-xs font-medium",
+                isEnvironmentSet ? "text-white/70" : "text-white/40"
+              )}>
+                Environment Set
+              </span>
             </div>
-            
-            {/* Motion Graphics Overlay Indicators */}
-            <div className="absolute top-4 right-4">
-              <Badge variant="secondary" className="text-[10px]">4.8 ★</Badge>
+
+            <div className="flex items-center gap-2">
+              {isStyleDefined ? (
+                <CheckCircle2 className="w-4 h-4 text-green-400" />
+              ) : (
+                <div className="w-4 h-4 rounded-full border-2 border-white/20" />
+              )}
+              <span className={cn(
+                "text-xs font-medium",
+                isStyleDefined ? "text-white/70" : "text-white/40"
+              )}>
+                Style Defined
+              </span>
             </div>
-            <div className="absolute bottom-4 left-4">
-              <Badge className="bg-red-500 text-white text-[10px]">SALE</Badge>
+
+            <div className="flex items-center gap-2">
+              {isStoryReady ? (
+                <CheckCircle2 className="w-4 h-4 text-green-400" />
+              ) : (
+                <div className="w-4 h-4 rounded-full border-2 border-white/20" />
+              )}
+              <span className={cn(
+                "text-xs font-medium",
+                isStoryReady ? "text-white/70" : "text-white/40"
+              )}>
+                Story Ready
+              </span>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Navigation */}
-      <div className="flex justify-between pt-4">
-        <Button variant="outline" onClick={onPrev} data-testid="button-back-scene">
-          Back to Scene Builder
-        </Button>
-        <Button onClick={onNext} size="lg" data-testid="button-continue-audio">
-          Continue to Audio & Captions
-        </Button>
+          {/* Right side: Safe zone toggle + beats count */}
+          <div className="flex items-center gap-4">
+            {beatsGenerated && (
+              <span className="text-xs text-white/40">
+                {beatsFilledCount}/3 beats filled
+              </span>
+            )}
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPreviewOverlayEnabled(!previewOverlayEnabled)}
+              className={cn(
+                "h-7 text-xs bg-white/5 border-white/10 text-white/60 hover:bg-white/10",
+                previewOverlayEnabled && "border-purple-500/50 bg-purple-500/20 text-purple-300"
+              )}
+            >
+              <Eye className="w-3 h-3 mr-1.5" />
+              Safe Zone
+            </Button>
+          </div>
+        </div>
       </div>
-    </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* SAFE ZONE PREVIEW OVERLAY */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <AnimatePresence>
+        {previewOverlayEnabled && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 pointer-events-none z-50"
+          >
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="relative w-full max-w-sm aspect-[9/16] border-4 border-purple-500/50 rounded-2xl bg-black/20">
+                {/* Right side buttons */}
+                <div className="absolute right-3 bottom-20 space-y-3">
+                  {['❤️', '💬', '↗️', '♪'].map((icon, i) => (
+                    <div key={i} className="w-10 h-10 rounded-full bg-white/20 backdrop-blur flex items-center justify-center text-xl">
+                      {icon}
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Bottom caption */}
+                <div className="absolute bottom-3 left-3 right-16 bg-black/40 backdrop-blur rounded-lg p-2">
+                  <p className="text-white text-xs font-semibold">@username</p>
+                  <p className="text-white/70 text-[10px]">Caption area...</p>
+                </div>
+                
+                {/* Safe zone label */}
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-purple-500/90 text-white px-2 py-0.5 rounded-full text-[10px] font-semibold">
+                  Safe Zone Preview
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }

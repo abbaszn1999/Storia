@@ -1,5 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ProductSetupTab } from "@/components/commerce/product-setup-tab";
+import { HookFormatTab } from "@/components/commerce/hook-format-tab";
+import { VisualStyleTab } from "@/components/commerce/visual-style-tab";
+import { SceneContinuityTab } from "@/components/commerce/scene-continuity-tab";
 import { ProductScriptEditor } from "@/components/social-commerce/product-script-editor";
 import { ProductWorldCast } from "@/components/social-commerce/product-world-cast";
 import { ProductBreakdown } from "@/components/social-commerce/product-breakdown";
@@ -79,6 +83,77 @@ interface SocialCommerceWorkflowProps {
     imageInstructions: string;
     videoInstructions: string;
   };
+  // Campaign Configuration (Tab 1) props
+  imageModel: string;
+  imageResolution: string;
+  videoModel: string;
+  videoResolution: string;
+  language: 'ar' | 'en';
+  motionPrompt: string;
+  // Product DNA & Brand Identity (Tab 2) props
+  productImages: {
+    heroProfile: string | null;
+    macroDetail: string | null;
+    materialReference: string | null;
+  };
+  materialPreset: string;
+  objectMass: number;
+  surfaceComplexity: number;
+  refractionEnabled: boolean;
+  logoUrl: string | null;
+  brandPrimaryColor: string;
+  brandSecondaryColor: string;
+  logoIntegrity: number;
+  logoDepth: number;
+  heroFeature: string;
+  originMetaphor: string;
+  // Environment & Story Beats (Tab 3) props
+  environmentConcept: string;
+  cinematicLighting: string;
+  atmosphericDensity: number;
+  styleReferenceUrl: string | null;
+  visualPreset: string;
+  campaignSpark: string;
+  visualBeats: {
+    beat1: string;
+    beat2: string;
+    beat3: string;
+  };
+  // Environment-specific brand colors
+  environmentBrandPrimaryColor: string;
+  environmentBrandSecondaryColor: string;
+  // Campaign Intelligence (Tab 1 & 3)
+  targetAudience: string;
+  campaignObjective: string;
+  ctaText: string;
+  // Character DNA (Tab 2)
+  includeHumanElement: boolean;
+  characterMode: 'hand-model' | 'full-body' | 'silhouette' | null;
+  characterReferenceUrl: string | null;
+  characterDescription: string;
+  // Scene Manifest (Tab 4) props
+  sceneManifest: {
+    scenes: Array<{
+      id: string;
+      name: string;
+      description: string;
+      duration: number;
+      actType: 'hook' | 'transformation' | 'payoff';
+      shots: Array<{
+        id: string;
+        sceneId: string;
+        name: string;
+        description: string;
+        duration: number;
+        shotType: 'image-ref' | 'start-end';
+        cameraPath: 'orbit' | 'pan' | 'zoom' | 'dolly' | 'static';
+        lens: 'macro' | 'wide' | '85mm' | 'telephoto';
+        referenceTags: string[];
+        isLinkedToPrevious: boolean;
+      }>;
+    }>;
+    continuityLinksEstablished: boolean;
+  };
   onScriptChange: (script: string) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
   onDurationChange: (duration: string) => void;
@@ -117,6 +192,53 @@ interface SocialCommerceWorkflowProps {
     imageInstructions: string;
     videoInstructions: string;
   }) => void;
+  onImageModelChange: (model: string) => void;
+  onImageResolutionChange: (resolution: string) => void;
+  onVideoModelChange: (model: string) => void;
+  onVideoResolutionChange: (resolution: string) => void;
+  onLanguageChange: (lang: 'ar' | 'en') => void;
+  onMotionPromptChange: (prompt: string) => void;
+  // Tab 2 handlers
+  onProductImagesChange: (images: {
+    heroView: string | null;
+    reverseView: string | null;
+    topView: string | null;
+    baseView: string | null;
+    sideProfiles: string | null;
+    macroTexture: string | null;
+  }) => void;
+  onMaterialPresetChange: (preset: string) => void;
+  onObjectMassChange: (mass: number) => void;
+  onSurfaceComplexityChange: (complexity: number) => void;
+  onRefractionEnabledChange: (enabled: boolean) => void;
+  onLogoUrlChange: (url: string | null) => void;
+  onBrandPrimaryColorChange: (color: string) => void;
+  onBrandSecondaryColorChange: (color: string) => void;
+  onLogoIntegrityChange: (integrity: number) => void;
+  onLogoDepthChange: (depth: number) => void;
+  onHeroFeatureChange: (feature: string) => void;
+  onOriginMetaphorChange: (metaphor: string) => void;
+  // Tab 3 handlers
+  onEnvironmentConceptChange: (concept: string) => void;
+  onCinematicLightingChange: (lighting: string) => void;
+  onAtmosphericDensityChange: (density: number) => void;
+  onStyleReferenceUrlChange: (url: string | null) => void;
+  onVisualPresetChange: (preset: string) => void;
+  onCampaignSparkChange: (spark: string) => void;
+  onVisualBeatsChange: (beats: { beat1: string; beat2: string; beat3: string }) => void;
+  onEnvironmentBrandPrimaryColorChange: (color: string) => void;
+  onEnvironmentBrandSecondaryColorChange: (color: string) => void;
+  // Campaign Intelligence handlers
+  onTargetAudienceChange: (audience: string) => void;
+  onCampaignObjectiveChange: (objective: string) => void;
+  onCtaTextChange: (cta: string) => void;
+  // Character DNA handlers
+  onIncludeHumanElementChange: (include: boolean) => void;
+  onCharacterModeChange: (mode: 'hand-model' | 'full-body' | 'silhouette' | null) => void;
+  onCharacterReferenceUrlChange: (url: string | null) => void;
+  onCharacterDescriptionChange: (description: string) => void;
+  // Shot Orchestrator handler
+  onSceneManifestChange: (manifest: any) => void;
   onNext: () => void;
 }
 
@@ -144,6 +266,41 @@ export function SocialCommerceWorkflow({
   continuityGroups,
   worldSettings,
   commerceSettings,
+  imageModel,
+  imageResolution,
+  videoModel,
+  videoResolution,
+  language,
+  motionPrompt,
+  productImages,
+  materialPreset,
+  objectMass,
+  surfaceComplexity,
+  refractionEnabled,
+  logoUrl,
+  brandPrimaryColor,
+  brandSecondaryColor,
+  logoIntegrity,
+  logoDepth,
+  heroFeature,
+  originMetaphor,
+  environmentConcept,
+  cinematicLighting,
+  atmosphericDensity,
+  styleReferenceUrl,
+  visualPreset,
+  campaignSpark,
+  visualBeats,
+  environmentBrandPrimaryColor,
+  environmentBrandSecondaryColor,
+  targetAudience,
+  campaignObjective,
+  ctaText,
+  includeHumanElement,
+  characterMode,
+  characterReferenceUrl,
+  characterDescription,
+  sceneManifest,
   onScriptChange,
   onAspectRatioChange,
   onDurationChange,
@@ -163,6 +320,41 @@ export function SocialCommerceWorkflow({
   onContinuityGroupsChange,
   onWorldSettingsChange,
   onCommerceSettingsChange,
+  onImageModelChange,
+  onImageResolutionChange,
+  onVideoModelChange,
+  onVideoResolutionChange,
+  onLanguageChange,
+  onMotionPromptChange,
+  onProductImagesChange,
+  onMaterialPresetChange,
+  onObjectMassChange,
+  onSurfaceComplexityChange,
+  onRefractionEnabledChange,
+  onLogoUrlChange,
+  onBrandPrimaryColorChange,
+  onBrandSecondaryColorChange,
+  onLogoIntegrityChange,
+  onLogoDepthChange,
+  onHeroFeatureChange,
+  onOriginMetaphorChange,
+  onEnvironmentConceptChange,
+  onCinematicLightingChange,
+  onAtmosphericDensityChange,
+  onStyleReferenceUrlChange,
+  onVisualPresetChange,
+  onCampaignSparkChange,
+  onVisualBeatsChange,
+  onEnvironmentBrandPrimaryColorChange,
+  onEnvironmentBrandSecondaryColorChange,
+  onTargetAudienceChange,
+  onCampaignObjectiveChange,
+  onCtaTextChange,
+  onIncludeHumanElementChange,
+  onCharacterModeChange,
+  onCharacterReferenceUrlChange,
+  onCharacterDescriptionChange,
+  onSceneManifestChange,
   onNext,
 }: SocialCommerceWorkflowProps) {
   const { toast } = useToast();
@@ -611,27 +803,98 @@ export function SocialCommerceWorkflow({
   return (
     <div>
       {activeStep === "script" && (
-        <ProductScriptEditor
-          productPhotos={productPhotos}
-          productDetails={productDetails}
+        <ProductSetupTab
+          imageModel={imageModel}
+          imageResolution={imageResolution}
+          videoModel={videoModel}
+          videoResolution={videoResolution}
           aspectRatio={aspectRatio}
-          duration={duration}
+          duration={parseInt(duration) || 30}
           voiceOverEnabled={voiceOverEnabled}
-          voiceActorId={voiceActorId}
-          voiceOverConcept={voiceOverConcept}
-          voiceOverScript={voiceOverScript}
-          videoConcept={videoConcept}
-          generatedScript={script}
-          onProductPhotosChange={onProductPhotosChange}
-          onProductDetailsChange={onProductDetailsChange}
+          language={language}
+          motionPrompt={motionPrompt}
+          targetAudience={targetAudience}
+          onImageModelChange={onImageModelChange}
+          onImageResolutionChange={onImageResolutionChange}
+          onVideoModelChange={onVideoModelChange}
+          onVideoResolutionChange={onVideoResolutionChange}
           onAspectRatioChange={onAspectRatioChange}
-          onDurationChange={onDurationChange}
+          onDurationChange={(dur) => onDurationChange(dur.toString())}
           onVoiceOverToggle={onVoiceOverToggle}
-          onVoiceActorChange={onVoiceActorChange}
-          onVoiceOverConceptChange={onVoiceOverConceptChange}
-          onVoiceOverScriptChange={onVoiceOverScriptChange}
-          onVideoConceptChange={onVideoConceptChange}
-          onScriptChange={onScriptChange}
+          onLanguageChange={onLanguageChange}
+          onMotionPromptChange={onMotionPromptChange}
+          onTargetAudienceChange={onTargetAudienceChange}
+          onNext={onNext}
+        />
+      )}
+
+      {activeStep === "product-dna" && (
+        <HookFormatTab
+          workspaceId={workspaceId}
+          productImages={productImages}
+          materialPreset={materialPreset}
+          objectMass={objectMass}
+          surfaceComplexity={surfaceComplexity}
+          refractionEnabled={refractionEnabled}
+          logoUrl={logoUrl}
+          brandPrimaryColor={brandPrimaryColor}
+          brandSecondaryColor={brandSecondaryColor}
+          logoIntegrity={logoIntegrity}
+          logoDepth={logoDepth}
+          heroFeature={heroFeature}
+          originMetaphor={originMetaphor}
+          includeHumanElement={includeHumanElement}
+          characterMode={characterMode}
+          characterReferenceUrl={characterReferenceUrl}
+          characterDescription={characterDescription}
+          targetAudience={targetAudience}
+          onProductImagesChange={onProductImagesChange}
+          onMaterialPresetChange={onMaterialPresetChange}
+          onObjectMassChange={onObjectMassChange}
+          onSurfaceComplexityChange={onSurfaceComplexityChange}
+          onRefractionEnabledChange={onRefractionEnabledChange}
+          onLogoUrlChange={onLogoUrlChange}
+          onBrandPrimaryColorChange={onBrandPrimaryColorChange}
+          onBrandSecondaryColorChange={onBrandSecondaryColorChange}
+          onLogoIntegrityChange={onLogoIntegrityChange}
+          onLogoDepthChange={onLogoDepthChange}
+          onHeroFeatureChange={onHeroFeatureChange}
+          onOriginMetaphorChange={onOriginMetaphorChange}
+          onIncludeHumanElementChange={onIncludeHumanElementChange}
+          onCharacterModeChange={onCharacterModeChange}
+          onCharacterReferenceUrlChange={onCharacterReferenceUrlChange}
+          onCharacterDescriptionChange={onCharacterDescriptionChange}
+          onNext={onNext}
+        />
+      )}
+
+      {activeStep === "environment-story" && (
+        <VisualStyleTab
+          workspaceId={workspaceId}
+          environmentConcept={environmentConcept}
+          cinematicLighting={cinematicLighting}
+          atmosphericDensity={atmosphericDensity}
+          styleReferenceUrl={styleReferenceUrl}
+          visualPreset={visualPreset}
+          campaignSpark={campaignSpark}
+          visualBeats={visualBeats}
+          brandPrimaryColor={brandPrimaryColor}
+          brandSecondaryColor={brandSecondaryColor}
+          environmentBrandPrimaryColor={environmentBrandPrimaryColor}
+          environmentBrandSecondaryColor={environmentBrandSecondaryColor}
+          campaignObjective={campaignObjective}
+          ctaText={ctaText}
+          onEnvironmentConceptChange={onEnvironmentConceptChange}
+          onCinematicLightingChange={onCinematicLightingChange}
+          onAtmosphericDensityChange={onAtmosphericDensityChange}
+          onStyleReferenceUrlChange={onStyleReferenceUrlChange}
+          onVisualPresetChange={onVisualPresetChange}
+          onCampaignSparkChange={onCampaignSparkChange}
+          onVisualBeatsChange={onVisualBeatsChange}
+          onEnvironmentBrandPrimaryColorChange={onEnvironmentBrandPrimaryColorChange}
+          onEnvironmentBrandSecondaryColorChange={onEnvironmentBrandSecondaryColorChange}
+          onCampaignObjectiveChange={onCampaignObjectiveChange}
+          onCtaTextChange={onCtaTextChange}
           onNext={onNext}
         />
       )}
@@ -656,28 +919,14 @@ export function SocialCommerceWorkflow({
       )}
 
       {activeStep === "world" && (
-        <ProductWorldCast
-          videoId={videoId}
+        <SceneContinuityTab
           workspaceId={workspaceId}
-          productPhotos={productPhotos}
-          visualStyle={commerceSettings.visualStyle}
-          backdrop={commerceSettings.backdrop}
-          productDisplay={commerceSettings.productDisplay}
-          talentType={commerceSettings.talentType}
-          talents={commerceSettings.talents}
-          styleReference={commerceSettings.styleReference}
-          imageModel={commerceSettings.imageModel}
-          imageInstructions={commerceSettings.imageInstructions}
-          videoInstructions={commerceSettings.videoInstructions}
-          onVisualStyleChange={(style) => onCommerceSettingsChange({ ...commerceSettings, visualStyle: style })}
-          onBackdropChange={(backdrop) => onCommerceSettingsChange({ ...commerceSettings, backdrop })}
-          onProductDisplayChange={(displays) => onCommerceSettingsChange({ ...commerceSettings, productDisplay: displays })}
-          onTalentTypeChange={(type) => onCommerceSettingsChange({ ...commerceSettings, talentType: type })}
-          onTalentsChange={(talents) => onCommerceSettingsChange({ ...commerceSettings, talents })}
-          onStyleReferenceChange={(ref) => onCommerceSettingsChange({ ...commerceSettings, styleReference: ref })}
-          onImageModelChange={(model) => onCommerceSettingsChange({ ...commerceSettings, imageModel: model })}
-          onImageInstructionsChange={(instructions) => onCommerceSettingsChange({ ...commerceSettings, imageInstructions: instructions })}
-          onVideoInstructionsChange={(instructions) => onCommerceSettingsChange({ ...commerceSettings, videoInstructions: instructions })}
+          visualBeats={visualBeats}
+          sceneManifest={sceneManifest}
+          onSceneManifestChange={onSceneManifestChange}
+          heroFeature={heroFeature}
+          logoUrl={logoUrl}
+          styleReferenceUrl={styleReferenceUrl}
           onNext={onNext}
         />
       )}

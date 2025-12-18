@@ -1,5 +1,5 @@
-import { Video, MessageSquare, Sparkles, Mic, ShoppingBag, Clapperboard } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Video, MessageSquare, Sparkles, Mic, ShoppingBag, Clapperboard, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const modes = [
   {
@@ -48,40 +48,71 @@ const modes = [
 
 interface ModeSelectorProps {
   onSelect: (modeId: string) => void;
+  selectedMode?: string | null;
 }
 
-export function ModeSelector({ onSelect }: ModeSelectorProps) {
+export function ModeSelector({ onSelect, selectedMode }: ModeSelectorProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {modes.map((mode) => (
-        <Card
-          key={mode.id}
-          className={`cursor-pointer transition-all ${
-            mode.available
-              ? "hover-elevate active-elevate-2"
-              : "opacity-50 cursor-not-allowed"
-          }`}
-          onClick={() => mode.available && onSelect(mode.id)}
-          data-testid={`card-mode-${mode.id}`}
-        >
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${mode.available ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      {modes.map((mode) => {
+        const isSelected = selectedMode === mode.id;
+        
+        return (
+          <div
+            key={mode.id}
+            className={cn(
+              "group relative cursor-pointer rounded-xl border p-4 transition-all",
+              mode.available
+                ? isSelected
+                  ? "border-primary bg-primary/10"
+                  : "border-white/10 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/20"
+                : "opacity-40 cursor-not-allowed border-white/5 bg-white/[0.01]"
+            )}
+            onClick={() => mode.available && onSelect(mode.id)}
+            data-testid={`card-mode-${mode.id}`}
+          >
+            {/* Selection indicator */}
+            {isSelected && (
+              <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                <Check className="w-3 h-3 text-white" />
+              </div>
+            )}
+            
+            {/* Icon and Title Row */}
+            <div className="flex items-center gap-3 mb-2">
+              <div className={cn(
+                "p-2.5 rounded-xl transition-colors",
+                mode.available
+                  ? isSelected
+                    ? "bg-primary text-white"
+                    : "bg-primary/20 text-primary group-hover:bg-primary/30"
+                  : "bg-white/5 text-white/30"
+              )}>
                 <mode.icon className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle className="text-base">{mode.title}</CardTitle>
+                <h3 className={cn(
+                  "font-semibold transition-colors",
+                  isSelected ? "text-white" : "text-white/90"
+                )}>
+                  {mode.title}
+                </h3>
                 {!mode.available && (
-                  <span className="text-xs text-muted-foreground">Coming soon</span>
+                  <span className="text-xs text-white/40">Coming soon</span>
                 )}
               </div>
             </div>
-          </CardHeader>
-          <CardContent>
-            <CardDescription>{mode.description}</CardDescription>
-          </CardContent>
-        </Card>
-      ))}
+            
+            {/* Description */}
+            <p className={cn(
+              "text-sm leading-relaxed",
+              isSelected ? "text-white/70" : "text-white/50"
+            )}>
+              {mode.description}
+            </p>
+          </div>
+        );
+      })}
     </div>
   );
 }

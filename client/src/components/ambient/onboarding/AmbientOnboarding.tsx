@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Image, Video, ArrowRight, FileImage, GitCompare } from "lucide-react";
+import { Image, Video, ArrowRight, FileImage, GitCompare, Loader2 } from "lucide-react";
 
 interface AmbientOnboardingProps {
   projectName: string;
@@ -11,9 +11,10 @@ interface AmbientOnboardingProps {
     animationMode: 'image-transitions' | 'video-animation';
     videoGenerationMode?: 'image-reference' | 'start-end-frame';
   }) => void;
+  isCreating?: boolean;
 }
 
-export function AmbientOnboarding({ projectName, onComplete }: AmbientOnboardingProps) {
+export function AmbientOnboarding({ projectName, onComplete, isCreating = false }: AmbientOnboardingProps) {
   const [step, setStep] = useState<1 | 2>(1);
   const [animationMode, setAnimationMode] = useState<'image-transitions' | 'video-animation' | null>(null);
   const [videoGenerationMode, setVideoGenerationMode] = useState<'image-reference' | 'start-end-frame' | null>(null);
@@ -113,9 +114,19 @@ export function AmbientOnboarding({ projectName, onComplete }: AmbientOnboarding
                     <Button 
                       className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
                       size="lg"
+                      disabled={isCreating}
                     >
-                      Select Image Transitions
-                      <ArrowRight className="ml-2 w-4 h-4" />
+                      {isCreating ? (
+                        <>
+                          <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          Select Image Transitions
+                          <ArrowRight className="ml-2 w-4 h-4" />
+                        </>
+                      )}
                     </Button>
                   </CardContent>
                 </Card>
@@ -244,9 +255,19 @@ export function AmbientOnboarding({ projectName, onComplete }: AmbientOnboarding
                     <Button 
                       className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white"
                       size="lg"
+                      disabled={isCreating}
                     >
-                      Use Image Reference
-                      <ArrowRight className="ml-2 w-4 h-4" />
+                      {isCreating ? (
+                        <>
+                          <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          Use Image Reference
+                          <ArrowRight className="ml-2 w-4 h-4" />
+                        </>
+                      )}
                     </Button>
                   </CardContent>
                 </Card>
@@ -294,9 +315,19 @@ export function AmbientOnboarding({ projectName, onComplete }: AmbientOnboarding
                     <Button 
                       className="w-full bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white"
                       size="lg"
+                      disabled={isCreating}
                     >
-                      Use Start/End Frames
-                      <ArrowRight className="ml-2 w-4 h-4" />
+                      {isCreating ? (
+                        <>
+                          <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          Use Start/End Frames
+                          <ArrowRight className="ml-2 w-4 h-4" />
+                        </>
+                      )}
                     </Button>
                   </CardContent>
                 </Card>

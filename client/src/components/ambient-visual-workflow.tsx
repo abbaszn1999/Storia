@@ -13,6 +13,7 @@ interface AmbientVisualWorkflowProps {
   activeStep: number;
   onStepChange: (step: number) => void;
   projectName: string;
+  videoId?: string;
   initialAnimationMode?: 'image-transitions' | 'video-animation';
   initialVideoGenerationMode?: 'image-reference' | 'start-end-frame';
 }
@@ -21,6 +22,7 @@ export function AmbientVisualWorkflow({
   activeStep,
   onStepChange,
   projectName,
+  videoId,
   initialAnimationMode = 'image-transitions',
   initialVideoGenerationMode,
 }: AmbientVisualWorkflowProps) {
@@ -309,7 +311,7 @@ export function AmbientVisualWorkflow({
 
   const renderStep = () => {
     switch (activeStep) {
-      case 0:
+      case 1:
         return (
           <AtmosphereTab
             mood={mood}
@@ -378,7 +380,7 @@ export function AmbientVisualWorkflow({
             onNext={goToNextStep}
           />
         );
-      case 1:
+      case 2:
         return (
           <VisualWorldTab
             artStyle={artStyle}
@@ -400,7 +402,7 @@ export function AmbientVisualWorkflow({
             onNext={goToNextStep}
           />
         );
-      case 2:
+      case 3:
         return (
           <FlowDesignTab
             videoId={`ambient-${Date.now()}`}
@@ -419,7 +421,7 @@ export function AmbientVisualWorkflow({
             onNext={goToNextStep}
           />
         );
-      case 3:
+      case 4:
         return (
           <StoryboardEditor
             videoId={`ambient-${Date.now()}`}
@@ -453,7 +455,7 @@ export function AmbientVisualWorkflow({
             onNext={goToNextStep}
           />
         );
-      case 4:
+      case 5:
         // Convert shots to segments for preview
         const previewSegments = allShots.map((shot, index) => {
           const version = shot.currentVersionId ? shotVersions[shot.id]?.find(v => v.id === shot.currentVersionId) : null;
@@ -474,7 +476,7 @@ export function AmbientVisualWorkflow({
             onNext={goToNextStep}
           />
         );
-      case 5:
+      case 6:
         return (
           <ExportTab
             projectName={projectName}

@@ -1135,7 +1135,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
       if (!data.videoUrl) {
         throw new Error('No video URL returned from export');
       }
-
+      
       console.log('[export] Video exported successfully:', {
         videoUrl: data.videoUrl,
         videoBaseUrl: data.videoBaseUrl,

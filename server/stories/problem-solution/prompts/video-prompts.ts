@@ -329,8 +329,8 @@ export function buildVideoPrompt(options: {
   // Add camera movement
   promptParts.push(cameraMovement);
 
-  // Add subject motion
-  if (subjectMotion !== 'No environmental effects, clean scene') {
+  // Add subject motion (skip if 'still' since it's minimal)
+  if (moodMotion.subjectMotion !== 'still') {
     promptParts.push(subjectMotion);
   }
 

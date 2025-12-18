@@ -1304,7 +1304,7 @@ export function SceneBreakdown({
             <Button
               variant="outline"
               onClick={openAddSceneDialog}
-              className="bg-white/5 border-white/10 text-white hover:bg-white/10"
+              className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-purple-500/30 hover:bg-white/[0.04]"
               data-testid="button-add-scene"
             >
               <Plus className="h-4 w-4 mr-2" />

@@ -93,7 +93,7 @@ export function NarrativeStudioLayout({
       </header>
 
       {/* Main Content Area - Scrollable */}
-      <main className="relative z-10 flex-1 overflow-y-auto pb-24">
+      <main className="relative z-10 flex-1 overflow-y-auto pb-24 custom-scrollbar">
         <div className="px-6 pb-6">
           {children}
         </div>

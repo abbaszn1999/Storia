@@ -158,7 +158,7 @@ export function SceneDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isPending} data-testid="button-save-scene">
+              <Button type="submit" disabled={isPending} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90" data-testid="button-save-scene">
                 {isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

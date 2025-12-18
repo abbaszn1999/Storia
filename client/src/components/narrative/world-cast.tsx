@@ -154,6 +154,7 @@ function CharacterRecommendationModal({
                         size="sm"
                         onClick={() => handleAddCharacter(recChar)}
                         disabled={isAdded}
+                        className={isAdded ? "" : "bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90"}
                         data-testid={`button-add-recommended-${index}`}
                       >
                         {isAdded ? (
@@ -926,31 +927,48 @@ export function WorldCast({
           </div>
           <div className="flex items-center gap-2">
             <Button
-              variant="secondary"
               size="sm"
               onClick={() => setIsRecommendationModalOpen(true)}
-              className="bg-white/5 border-white/10 text-white hover:bg-white/10"
+              className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-purple-500/30 hover:bg-white/[0.04]"
               data-testid="button-recommend-characters"
             >
               <Sparkles className="mr-2 h-4 w-4 text-purple-400" />
               {videoMode === "character-vlog" ? "Recommend Primary Character" : "Recommend AI Characters"}
             </Button>
             
-            <Button
-              size="sm"
-              onClick={() => {
-                setEditingCharacter(null);
-                setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
-                setCharacterReferenceImages([]);
-                setGeneratedCharacterImage(null);
-                setIsAddCharacterOpen(true);
-              }}
-              className={`bg-gradient-to-br ${accentClasses} text-white hover:opacity-90`}
-              data-testid="button-add-character"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Character
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  className={`bg-gradient-to-br ${accentClasses} text-white hover:opacity-90`}
+                  data-testid="button-add-character-dropdown"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Character
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-[#0a0a0a] border-white/10">
+                <DropdownMenuItem onClick={() => setIsLibraryOpen(true)} className="text-white hover:bg-white/10" data-testid="menu-item-browse-character-library">
+                  <Library className="mr-2 h-4 w-4 text-purple-400" />
+                  Browse Library
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => {
+                    setEditingCharacter(null);
+                    setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
+                    setCharacterReferenceImages([]);
+                    setGeneratedCharacterImage(null);
+                    setIsAddCharacterOpen(true);
+                  }}
+                  className="text-white hover:bg-white/10"
+                  data-testid="menu-item-create-new-character"
+                >
+                  <Plus className="mr-2 h-4 w-4 text-purple-400" />
+                  Create New Character
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -993,7 +1011,7 @@ export function WorldCast({
                         className="text-white hover:bg-white/10"
                         data-testid="menu-create-primary-character"
                       >
-                        <Plus className="h-4 w-4 mr-2 text-cyan-400" />
+                        <Plus className="h-4 w-4 mr-2 text-purple-400" />
                         Create New Character
                       </DropdownMenuItem>
                       <DropdownMenuItem
@@ -1001,7 +1019,7 @@ export function WorldCast({
                         className="text-white hover:bg-white/10"
                         data-testid="menu-browse-library-primary"
                       >
-                        <Library className="h-4 w-4 mr-2 text-cyan-400" />
+                        <Library className="h-4 w-4 mr-2 text-purple-400" />
                         Browse Library
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -1086,7 +1104,7 @@ export function WorldCast({
                         className="text-white hover:bg-white/10"
                         data-testid="menu-create-secondary-character"
                       >
-                        <Plus className="h-4 w-4 mr-2 text-cyan-400" />
+                        <Plus className="h-4 w-4 mr-2 text-purple-400" />
                         Create New Character
                       </DropdownMenuItem>
                       <DropdownMenuItem
@@ -1094,7 +1112,7 @@ export function WorldCast({
                         className="text-white hover:bg-white/10"
                         data-testid="menu-browse-library-secondary"
                       >
-                        <Library className="h-4 w-4 mr-2 text-cyan-400" />
+                        <Library className="h-4 w-4 mr-2 text-purple-400" />
                         Browse Library
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -1151,47 +1169,25 @@ export function WorldCast({
         ) : (
           /* Narrative Mode: Standard Cast Grid */
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {/* Add Character Card with Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Card
-                  className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-white/[0.02] border-dashed border-purple-500/30 hover:border-purple-500/50 transition-all"
-                  data-testid="button-add-character"
-                >
-                  <CardContent className="flex flex-col items-center justify-center p-6">
-                    <div className={`h-12 w-12 rounded-full bg-gradient-to-br ${accentClasses} bg-opacity-20 flex items-center justify-center mb-2`}>
-                      <Plus className="h-6 w-6 text-purple-400" />
-                    </div>
-                    <p className="text-sm font-medium text-white">Add character</p>
-                    <ChevronDown className="h-4 w-4 text-white/50 mt-1" />
-                  </CardContent>
-                </Card>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="bg-[#0a0a0a] border-white/10">
-                <DropdownMenuItem
-                  onClick={() => {
-                    setEditingCharacter(null);
-                    setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
-                    setCharacterReferenceImages([]);
-                    setGeneratedCharacterImage(null);
-                    setIsAddCharacterOpen(true);
-                  }}
-                  className="text-white hover:bg-white/10"
-                  data-testid="menu-create-new-character"
-                >
-                  <Plus className="h-4 w-4 mr-2 text-cyan-400" />
-                  Create New Character
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setIsLibraryOpen(true)}
-                  className="text-white hover:bg-white/10"
-                  data-testid="menu-browse-library"
-                >
-                  <Library className="h-4 w-4 mr-2 text-cyan-400" />
-                  Browse Library
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* Add Character Card - Direct Dialog */}
+            <Card
+              className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-white/[0.02] border-dashed border-purple-500/30 hover:border-purple-500/50 transition-all"
+              onClick={() => {
+                setEditingCharacter(null);
+                setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
+                setCharacterReferenceImages([]);
+                setGeneratedCharacterImage(null);
+                setIsAddCharacterOpen(true);
+              }}
+              data-testid="button-add-character-grid"
+            >
+              <CardContent className="flex flex-col items-center justify-center p-6">
+                <div className={`h-12 w-12 rounded-full bg-gradient-to-br ${accentClasses} bg-opacity-20 flex items-center justify-center mb-2`}>
+                  <Plus className="h-6 w-6 text-purple-400" />
+                </div>
+                <p className="text-sm font-medium text-white">Add character</p>
+              </CardContent>
+            </Card>
 
             {/* Character Cards */}
             {characters.map((character) => {
@@ -1252,10 +1248,9 @@ export function WorldCast({
           </div>
           <div className="flex items-center gap-2">
             <Button
-              variant="secondary"
               size="sm"
               onClick={() => setIsLocationRecommendationOpen(true)}
-              className="bg-white/5 border-white/10 text-white hover:bg-white/10"
+              className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-purple-500/30 hover:bg-white/[0.04]"
               data-testid="button-recommend-locations"
             >
               <Sparkles className="mr-2 h-4 w-4 text-purple-400" />
@@ -1276,7 +1271,7 @@ export function WorldCast({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-[#0a0a0a] border-white/10">
                 <DropdownMenuItem onClick={() => setIsLocationLibraryOpen(true)} className="text-white hover:bg-white/10" data-testid="menu-item-browse-library">
-                  <Library className="mr-2 h-4 w-4 text-cyan-400" />
+                  <Library className="mr-2 h-4 w-4 text-purple-400" />
                   Browse Library
                 </DropdownMenuItem>
                 <DropdownMenuItem 
@@ -1287,7 +1282,7 @@ export function WorldCast({
                   className="text-white hover:bg-white/10"
                   data-testid="menu-item-create-new"
                 >
-                  <Plus className="mr-2 h-4 w-4 text-cyan-400" />
+                  <Plus className="mr-2 h-4 w-4 text-purple-400" />
                   Create New Location
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -1439,7 +1434,7 @@ export function WorldCast({
                 </div>
                 <Button 
                   onClick={handleGenerateCharacter} 
-                  className="w-full"
+                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90"
                   disabled={isGenerating || !newCharacter.appearance.trim()}
                   data-testid="button-generate-character"
                 >
@@ -1524,7 +1519,7 @@ export function WorldCast({
               </div>
             </div>
 
-            <Button onClick={handleSaveCharacter} className="w-full" data-testid="button-save-character">
+            <Button onClick={handleSaveCharacter} className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90" data-testid="button-save-character">
               {editingCharacter ? "Update Character" : "Add Character"}
             </Button>
           </div>

@@ -252,7 +252,7 @@ export function ShotDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isPending} data-testid="button-save-shot">
+              <Button type="submit" disabled={isPending} className="bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90" data-testid="button-save-shot">
                 {isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -113,5 +113,3 @@ const handlePlayPreview = async (voiceId: string) => {
 1. تطبيق Backend Proxy للـ preview (اختياري)
 2. اختبار الـ voiceover generation الفعلي
 3. التأكد من جودة الصوت المولد
-
-tytrhr

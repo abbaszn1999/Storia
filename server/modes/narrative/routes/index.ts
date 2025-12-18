@@ -11,13 +11,24 @@ router.post('/videos', async (req: Request, res: Response) => {
   try {
     const { workspaceId, title, mode, narrativeMode } = req.body;
     
+    if (!workspaceId) {
+      return res.status(400).json({ error: 'workspaceId is required' });
+    }
+    
+    if (!narrativeMode) {
+      return res.status(400).json({ error: 'narrativeMode is required' });
+    }
+    
     const video = await storage.createVideo({
       workspaceId,
       title: title || 'Untitled Project',
       mode: mode || 'narrative',
-      narrativeMode: narrativeMode || null,
       status: 'draft',
-      continuityLocked: false,
+      currentStep: 1, // Start at Step 1: Script
+      completedSteps: [],
+      step1Data: {
+        narrativeMode, // 'image-reference' or 'start-end'
+      },
     });
 
     res.json(video);

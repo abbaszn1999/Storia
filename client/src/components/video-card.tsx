@@ -1,34 +1,48 @@
-import { Video, Clock, Calendar, MoreVertical, Scissors, Play, Edit, Trash2, Copy } from "lucide-react";
+import { Video, Clock, Calendar, MoreVertical, Scissors, Trash2 } from "lucide-react";
 import { useLocation } from "wouter";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatDistanceToNow } from "date-fns";
+
+// Map mode to route prefix
+const MODE_ROUTES: Record<string, string> = {
+  ambient: "/videos/ambient",
+  narrative: "/videos/narrative",
+  commerce: "/videos/commerce",
+  vlog: "/videos/vlog",
+  logo: "/videos/logo",
+  podcast: "/videos/podcast",
+};
 
 interface VideoCardProps {
   id: string;
   title: string;
   mode: string;
+  modeKey: string; // Raw mode key (e.g., "ambient", "narrative")
   status: string;
   duration?: number;
   updatedAt: Date;
   thumbnailUrl?: string;
   onDelete?: (id: string) => void;
-  onDuplicate?: (id: string) => void;
 }
 
-export function VideoCard({ id, title, mode, status, duration, updatedAt, thumbnailUrl, onDelete, onDuplicate }: VideoCardProps) {
+export function VideoCard({ id, title, mode, modeKey, status, duration, updatedAt, thumbnailUrl, onDelete }: VideoCardProps) {
   const [, navigate] = useLocation();
   
   const canCreateShorts = status === "completed" && 
     (mode.toLowerCase().includes("narrative") || mode.toLowerCase().includes("vlog"));
+
+  const handleCardClick = () => {
+    const routePrefix = MODE_ROUTES[modeKey] || "/videos/narrative";
+    navigate(`${routePrefix}/${id}`);
+  };
 
   const handleCreateShorts = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -43,7 +57,11 @@ export function VideoCard({ id, title, mode, status, duration, updatedAt, thumbn
   };
 
   return (
-    <Card className="overflow-hidden hover-elevate cursor-pointer group" data-testid={`card-video-${id}`}>
+    <Card 
+      className="overflow-hidden hover-elevate cursor-pointer group" 
+      data-testid={`card-video-${id}`}
+      onClick={handleCardClick}
+    >
       <div className="aspect-video bg-muted relative overflow-hidden">
         {thumbnailUrl ? (
           <img src={thumbnailUrl} alt={title} className="object-cover w-full h-full" />
@@ -68,21 +86,12 @@ export function VideoCard({ id, title, mode, status, duration, updatedAt, thumbn
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-              <DropdownMenuItem data-testid={`menu-item-edit-${id}`}>
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </DropdownMenuItem>
               {canCreateShorts && (
                 <DropdownMenuItem onClick={handleCreateShorts} data-testid={`menu-item-create-shorts-${id}`}>
                   <Scissors className="h-4 w-4 mr-2" />
                   Create Shorts
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={() => onDuplicate?.(id)} data-testid={`menu-item-duplicate-${id}`}>
-                <Copy className="h-4 w-4 mr-2" />
-                Duplicate
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem 
                 onClick={() => onDelete?.(id)} 
                 className="text-destructive focus:text-destructive"

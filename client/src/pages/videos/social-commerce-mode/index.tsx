@@ -186,6 +186,90 @@ export default function SocialCommerceMode() {
     videoInstructions: "",
   });
 
+  // Sync sceneManifest to scenes/shots/continuityGroups for StoryboardEditor
+  useEffect(() => {
+    if (sceneManifest.scenes.length > 0) {
+      // Convert sceneManifest scenes to Scene type
+      const convertedScenes: Scene[] = sceneManifest.scenes.map((scene, idx) => ({
+        id: scene.id,
+        videoId: videoId,
+        sceneNumber: idx + 1,
+        title: scene.name,
+        description: scene.description,
+        duration: scene.duration,
+        createdAt: new Date(),
+      }));
+      
+      // Convert sceneManifest shots to shots dictionary
+      const convertedShots: { [sceneId: string]: Shot[] } = {};
+      sceneManifest.scenes.forEach(scene => {
+        convertedShots[scene.id] = scene.shots.map((shot, shotIdx) => ({
+          id: shot.id,
+          sceneId: scene.id,
+          shotNumber: shotIdx + 1,
+          shotType: shot.name.split(':')[1]?.trim() || 'Product View',
+          cameraMovement: shot.cameraPath,
+          duration: shot.duration,
+          description: shot.description,
+          currentVersionId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }));
+      });
+      
+      // Generate continuityGroups from isLinkedToPrevious for connection status
+      const generatedGroups: { [sceneId: string]: any[] } = {};
+      sceneManifest.scenes.forEach(scene => {
+        const groups: any[] = [];
+        let currentGroup: string[] = [];
+        
+        scene.shots.forEach((shot, idx) => {
+          if (idx === 0 || !shot.isLinkedToPrevious) {
+            // Start new group if not linked to previous
+            if (currentGroup.length > 1) {
+              // Save the previous group (only if it has 2+ shots = actual connection)
+              groups.push({
+                id: `group-${scene.id}-${groups.length}`,
+                sceneId: scene.id,
+                groupNumber: groups.length + 1,
+                shotIds: [...currentGroup],
+                description: 'Connected shot sequence',
+                transitionType: 'continuity',
+                status: 'approved',
+                createdAt: new Date(),
+              });
+            }
+            currentGroup = [shot.id];
+          } else {
+            // Continue current group - shot is linked to previous
+            currentGroup.push(shot.id);
+          }
+        });
+        
+        // Don't forget to save the last group if it has connections
+        if (currentGroup.length > 1) {
+          groups.push({
+            id: `group-${scene.id}-${groups.length}`,
+            sceneId: scene.id,
+            groupNumber: groups.length + 1,
+            shotIds: [...currentGroup],
+            description: 'Connected shot sequence',
+            transitionType: 'continuity',
+            status: 'approved',
+            createdAt: new Date(),
+          });
+        }
+        
+        generatedGroups[scene.id] = groups;
+      });
+      
+      setScenes(convertedScenes);
+      setShots(convertedShots);
+      setContinuityGroups(generatedGroups);
+      setContinuityLocked(sceneManifest.continuityLinksEstablished);
+    }
+  }, [sceneManifest, videoId]);
+
   // Update validation state based on current step and data
   const updateValidation = () => {
     if (activeStep === "setup") {

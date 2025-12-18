@@ -1,13 +1,15 @@
 // Unified Scene/Shot Timeline - Tab 4
 // ═══════════════════════════════════════════════════════════════════════════
 // Autonomous Timeline: Pre-planned commercial with automated continuity
+// Enhanced with CRUD operations and connection status indicators
 
 import { useState, useEffect, useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,11 +22,44 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Film,
   CheckCircle2,
   Image as ImageIcon,
   Video,
   Link2,
+  LinkIcon,
+  Unlink,
+  ChevronDown,
+  Clock,
+  Layers,
+  X,
+  Plus,
+  Pencil,
+  Trash2,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -34,24 +69,24 @@ import { cn } from "@/lib/utils";
 
 interface Scene {
   id: string;
-  name: string; // "Scene 1: The Ignition"
+  name: string;
   description: string;
-  duration: number; // Sum of all shots
-  actType: 'hook' | 'transformation' | 'payoff';
+  duration: number;
+  actType: 'hook' | 'transformation' | 'payoff' | 'custom';
   shots: Shot[];
 }
 
 interface Shot {
   id: string;
   sceneId: string;
-  name: string; // "Shot 1.1: Macro Reveal"
-  description: string; // Cinematic description (editable)
-  duration: number; // 0.5 - 10.0
+  name: string;
+  description: string;
+  duration: number;
   shotType: 'image-ref' | 'start-end';
   cameraPath: 'orbit' | 'pan' | 'zoom' | 'dolly' | 'static';
   lens: 'macro' | 'wide' | '85mm' | 'telephoto';
-  referenceTags: string[]; // ['@Product_DNA', '@Logo', '@Texture', '@Style']
-  isLinkedToPrevious: boolean; // Automated continuity
+  referenceTags: string[];
+  isLinkedToPrevious: boolean;
 }
 
 interface SceneManifest {
@@ -68,7 +103,6 @@ interface SceneContinuityTabProps {
   };
   sceneManifest: SceneManifest;
   onSceneManifestChange: (manifest: SceneManifest) => void;
-  // Reference data from previous tabs
   heroFeature: string;
   logoUrl: string | null;
   styleReferenceUrl: string | null;
@@ -91,53 +125,104 @@ const LENSES = [
   { value: 'macro', label: 'Macro' },
   { value: 'wide', label: 'Wide' },
   { value: '85mm', label: '85mm' },
-  { value: 'telephoto', label: 'Telephoto' },
+  { value: 'telephoto', label: 'Tele' },
 ];
 
 const SCENE_THEMES = [
-  { id: 'hook' as const, defaultName: 'The Ignition', color: 'from-pink-500 to-orange-500', accent: 'border-pink-500', badge: 'bg-pink-500' },
-  { id: 'transformation' as const, defaultName: 'The Revelation', color: 'from-purple-500 to-pink-500', accent: 'border-purple-500', badge: 'bg-purple-500' },
-  { id: 'payoff' as const, defaultName: 'The Impact', color: 'from-orange-500 to-amber-500', accent: 'border-orange-500', badge: 'bg-orange-500' },
+  { id: 'hook' as const, defaultName: 'The Ignition', color: 'from-pink-500 to-orange-500', accent: 'border-pink-500/50', badge: 'bg-pink-500', icon: '🎬' },
+  { id: 'transformation' as const, defaultName: 'The Revelation', color: 'from-purple-500 to-pink-500', accent: 'border-purple-500/50', badge: 'bg-purple-500', icon: '✨' },
+  { id: 'payoff' as const, defaultName: 'The Impact', color: 'from-orange-500 to-amber-500', accent: 'border-orange-500/50', badge: 'bg-orange-500', icon: '🎯' },
+  { id: 'custom' as const, defaultName: 'Custom Scene', color: 'from-cyan-500 to-blue-500', accent: 'border-cyan-500/50', badge: 'bg-cyan-500', icon: '🎥' },
+];
+
+const ACT_TYPES = [
+  { value: 'hook', label: 'Hook (Opening)' },
+  { value: 'transformation', label: 'Transformation (Middle)' },
+  { value: 'payoff', label: 'Payoff (Closing)' },
+  { value: 'custom', label: 'Custom' },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AUTONOMOUS SCENE GENERATION - MEDIA PLANNING AGENT
 // ═══════════════════════════════════════════════════════════════════════════
 
-const parseShotDescriptions = (beatContent: string): string[] => {
-  if (!beatContent || beatContent.trim().length === 0) {
-    return ["Cinematic product reveal"];
+// Shot template with type and connection info
+interface ShotTemplate {
+  description: string;
+  shotType: 'image-ref' | 'start-end';
+  isLinkedToPrevious: boolean;
+}
+
+const getShotTemplates = (sceneType: 'hook' | 'transformation' | 'payoff'): ShotTemplate[] => {
+  // Default shot templates showing variety of types and connections
+  const templates: Record<string, ShotTemplate[]> = {
+    hook: [
+      // Shot 1: Image reference, standalone (no link possible - first shot)
+      { description: "Dramatic macro reveal of product emerging from shadow with volumetric lighting", shotType: 'image-ref', isLinkedToPrevious: false },
+      // Shot 2: Start-end, LINKED to shot 1 (forces both to be start-end compatible)
+      { description: "Slow orbit around product showcasing premium materials and craftsmanship", shotType: 'start-end', isLinkedToPrevious: true },
+      // Shot 3: Start-end, NOT linked (standalone start-end example)
+      { description: "Dynamic angle shift revealing hero feature with light refractions", shotType: 'start-end', isLinkedToPrevious: false },
+    ],
+    transformation: [
+      // Shot 1: Start-end, standalone
+      { description: "Product in motion demonstrating key functionality and design", shotType: 'start-end', isLinkedToPrevious: false },
+      // Shot 2: Image reference, NOT linked (can be image-ref since not connected)
+      { description: "Close-up texture shot highlighting material quality and finish", shotType: 'image-ref', isLinkedToPrevious: false },
+      // Shot 3: Start-end, LINKED to shot 2
+      { description: "Wide establishing shot showing product in aspirational context", shotType: 'start-end', isLinkedToPrevious: true },
+    ],
+    payoff: [
+      // Shot 1: Start-end, standalone
+      { description: "Hero shot with dramatic lighting and brand colors", shotType: 'start-end', isLinkedToPrevious: false },
+      // Shot 2: Start-end, LINKED to shot 1
+      { description: "Final reveal with logo and call-to-action composition", shotType: 'start-end', isLinkedToPrevious: true },
+      // Shot 3: Image reference, NOT linked (CTA still shot)
+      { description: "Cinematic closing frame with product as centerpiece", shotType: 'image-ref', isLinkedToPrevious: false },
+    ]
+  };
+  
+  return templates[sceneType];
+};
+
+const parseShotDescriptions = (beatContent: string, sceneType: 'hook' | 'transformation' | 'payoff'): ShotTemplate[] => {
+  const defaults = getShotTemplates(sceneType);
+  
+  // If user provided beat content, try to parse it but keep type/connection variety
+  if (beatContent && beatContent.trim().length > 20) {
+    const sentences = beatContent
+      .split(/[.!]\s+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 15);
+    
+    // If we got sentences, use them but apply the default type/connection patterns
+    if (sentences.length >= 2) {
+      return sentences.slice(0, 3).map((desc, idx) => ({
+        description: desc,
+        shotType: defaults[idx]?.shotType || 'image-ref',
+        isLinkedToPrevious: defaults[idx]?.isLinkedToPrevious || false,
+      }));
+    }
   }
   
-  // Split by periods, take 2-3 shots per scene
-  const sentences = beatContent
-    .split(/[.!]\s+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 15);
-  
-  if (sentences.length === 0) {
-    return [beatContent.substring(0, 100)];
-  }
-  
-  return sentences.slice(0, 3);
+  // Return defaults for this scene type
+  return defaults;
 };
 
 const generateShotName = (sceneNum: number, shotNum: number, description: string): string => {
-  // Auto-generate shot names based on content keywords
   const lower = description.toLowerCase();
-  
   if (lower.includes('macro') || lower.includes('close')) {
-    return `Shot ${sceneNum}.${shotNum}: Macro Reveal`;
+    return `Shot ${sceneNum}.${shotNum}: Macro`;
   } else if (lower.includes('wide') || lower.includes('establishing')) {
-    return `Shot ${sceneNum}.${shotNum}: Wide Establishing`;
+    return `Shot ${sceneNum}.${shotNum}: Wide`;
   } else if (lower.includes('track') || lower.includes('follow')) {
-    return `Shot ${sceneNum}.${shotNum}: Tracking Shot`;
+    return `Shot ${sceneNum}.${shotNum}: Track`;
   } else if (lower.includes('orbit') || lower.includes('rotate')) {
-    return `Shot ${sceneNum}.${shotNum}: Orbital View`;
+    return `Shot ${sceneNum}.${shotNum}: Orbit`;
   } else if (lower.includes('detail') || lower.includes('texture')) {
-    return `Shot ${sceneNum}.${shotNum}: Detail Focus`;
+    return `Shot ${sceneNum}.${shotNum}: Detail`;
   } else {
-    return `Shot ${sceneNum}.${shotNum}: Product View`;
+    return `Shot ${sceneNum}.${shotNum}: Hero`;
   }
 };
 
@@ -155,32 +240,28 @@ const generateScenesFromBeats = (
   
   return beatData.map((beat, sceneIdx) => {
     const sceneNum = sceneIdx + 1;
-    const shotDescriptions = parseShotDescriptions(beat.content);
+    const shotTemplates = parseShotDescriptions(beat.content, beat.id);
     
-    const shots: Shot[] = shotDescriptions.map((desc, shotIdx) => {
+    const shots: Shot[] = shotTemplates.map((template, shotIdx) => {
       const shotNum = shotIdx + 1;
-      const isFirstShotInScene = shotIdx === 0;
-      
-      // Inject reference tags
-      const referenceTags: string[] = ['@Product_DNA', '@Texture'];
+      const referenceTags: string[] = ['@Product', '@Texture'];
       if (logoUrl) referenceTags.push('@Logo');
       if (styleReferenceUrl) referenceTags.push('@Style');
       
       return {
         id: `scene${sceneNum}-shot${shotNum}`,
         sceneId: `scene-${sceneNum}`,
-        name: generateShotName(sceneNum, shotNum, desc),
-        description: desc,
+        name: generateShotName(sceneNum, shotNum, template.description),
+        description: template.description,
         duration: 3.5,
-        shotType: 'image-ref',
-        cameraPath: 'static',
+        shotType: template.shotType,
+        cameraPath: template.shotType === 'start-end' ? 'orbit' : 'static',
         lens: '85mm',
         referenceTags,
-        isLinkedToPrevious: !isFirstShotInScene, // Auto-link all shots except first in scene
+        isLinkedToPrevious: template.isLinkedToPrevious,
       };
     });
     
-    // Calculate total scene duration
     const totalDuration = shots.reduce((sum, shot) => sum + shot.duration, 0);
     
     return {
@@ -193,6 +274,263 @@ const generateScenesFromBeats = (
     };
   });
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCENE EDIT DIALOG COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface SceneEditDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  scene: Scene | null;
+  sceneCount: number;
+  onSubmit: (data: { name: string; description: string; actType: Scene['actType'] }) => void;
+}
+
+function SceneEditDialog({ open, onOpenChange, scene, sceneCount, onSubmit }: SceneEditDialogProps) {
+  const [name, setName] = useState(scene?.name || '');
+  const [description, setDescription] = useState(scene?.description || '');
+  const [actType, setActType] = useState<Scene['actType']>(scene?.actType || 'custom');
+  
+  useEffect(() => {
+    if (scene) {
+      setName(scene.name);
+      setDescription(scene.description);
+      setActType(scene.actType);
+    } else {
+      setName(`Scene ${sceneCount + 1}: Custom`);
+      setDescription('');
+      setActType('custom');
+    }
+  }, [scene, sceneCount]);
+  
+  const handleSubmit = () => {
+    onSubmit({ name, description, actType });
+    onOpenChange(false);
+  };
+  
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px] bg-[#0a0a0a] border-white/10">
+        <DialogHeader>
+          <DialogTitle className="text-white">{scene ? 'Edit Scene' : 'Add Scene'}</DialogTitle>
+          <DialogDescription className="text-white/50">
+            {scene ? 'Update scene details' : 'Create a new scene for your commercial'}
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label className="text-white/70">Scene Name</Label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g., Scene 1: The Ignition"
+              className="bg-white/5 border-white/10 text-white"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label className="text-white/70">Act Type</Label>
+            <Select value={actType} onValueChange={(v) => setActType(v as Scene['actType'])}>
+              <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-[#0a0a0a] border-white/10">
+                {ACT_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={type.value} className="text-white">
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="space-y-2">
+            <Label className="text-white/70">Description</Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe what happens in this scene..."
+              className="bg-white/5 border-white/10 text-white min-h-[100px]"
+            />
+          </div>
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="border-white/10 text-white/70">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSubmit}
+            className="bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600"
+          >
+            {scene ? 'Update Scene' : 'Add Scene'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SHOT EDIT DIALOG COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface ShotEditDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  shot: Shot | null;
+  sceneId: string;
+  shotCount: number;
+  onSubmit: (data: Partial<Shot>) => void;
+}
+
+function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit }: ShotEditDialogProps) {
+  const [name, setName] = useState(shot?.name || '');
+  const [description, setDescription] = useState(shot?.description || '');
+  const [duration, setDuration] = useState(shot?.duration || 3.5);
+  const [shotType, setShotType] = useState<Shot['shotType']>(shot?.shotType || 'image-ref');
+  const [cameraPath, setCameraPath] = useState<Shot['cameraPath']>(shot?.cameraPath || 'static');
+  const [lens, setLens] = useState<Shot['lens']>(shot?.lens || '85mm');
+  
+  useEffect(() => {
+    if (shot) {
+      setName(shot.name);
+      setDescription(shot.description);
+      setDuration(shot.duration);
+      setShotType(shot.shotType);
+      setCameraPath(shot.cameraPath);
+      setLens(shot.lens);
+    } else {
+      const sceneNum = parseInt(sceneId.split('-')[1]) || 1;
+      setName(`Shot ${sceneNum}.${shotCount + 1}: New`);
+      setDescription('');
+      setDuration(3.5);
+      setShotType('image-ref');
+      setCameraPath('static');
+      setLens('85mm');
+    }
+  }, [shot, sceneId, shotCount]);
+  
+  const handleSubmit = () => {
+    onSubmit({ name, description, duration, shotType, cameraPath, lens });
+    onOpenChange(false);
+  };
+  
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[550px] bg-[#0a0a0a] border-white/10">
+        <DialogHeader>
+          <DialogTitle className="text-white">{shot ? 'Edit Shot' : 'Add Shot'}</DialogTitle>
+          <DialogDescription className="text-white/50">
+            {shot ? 'Update shot details and directives' : 'Create a new shot for this scene'}
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-white/70">Shot Name</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Shot 1.1: Macro"
+                className="bg-white/5 border-white/10 text-white"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="text-white/70">Duration: {duration.toFixed(1)}s</Label>
+              <Slider
+                value={[duration]}
+                onValueChange={([v]) => setDuration(v)}
+                min={0.5}
+                max={10}
+                step={0.5}
+              />
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <Label className="text-white/70">Description</Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe the shot composition and action..."
+              className="bg-white/5 border-white/10 text-white min-h-[80px]"
+            />
+          </div>
+          
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label className="text-white/70">Shot Type</Label>
+              <ToggleGroup
+                type="single"
+                value={shotType}
+                onValueChange={(v) => v && setShotType(v as Shot['shotType'])}
+                className="bg-white/5 rounded-lg p-1 justify-start"
+              >
+                <ToggleGroupItem value="image-ref" className="text-xs data-[state=on]:bg-pink-500 flex-1">
+                  <ImageIcon className="w-3 h-3 mr-1" />
+                  Single
+                </ToggleGroupItem>
+                <ToggleGroupItem value="start-end" className="text-xs data-[state=on]:bg-purple-500 flex-1">
+                  <Video className="w-3 h-3 mr-1" />
+                  Start/End
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="text-white/70">Camera Path</Label>
+              <Select value={cameraPath} onValueChange={(v) => setCameraPath(v as Shot['cameraPath'])}>
+                <SelectTrigger className="bg-white/5 border-white/10 text-white h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0a0a0a] border-white/10">
+                  {CAMERA_PATHS.map((path) => (
+                    <SelectItem key={path.value} value={path.value} className="text-white">
+                      {path.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="text-white/70">Lens</Label>
+              <Select value={lens} onValueChange={(v) => setLens(v as Shot['lens'])}>
+                <SelectTrigger className="bg-white/5 border-white/10 text-white h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0a0a0a] border-white/10">
+                  {LENSES.map((l) => (
+                    <SelectItem key={l.value} value={l.value} className="text-white">
+                      {l.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="border-white/10 text-white/70">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSubmit}
+            className="bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600"
+          >
+            {shot ? 'Update Shot' : 'Add Shot'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
@@ -209,8 +547,20 @@ export function SceneContinuityTab({
   onNext,
 }: SceneContinuityTabProps) {
   const [selectedShotId, setSelectedShotId] = useState<string | null>(null);
+  const [expandedScenes, setExpandedScenes] = useState<Set<string>>(new Set(['scene-1', 'scene-2', 'scene-3']));
+  
+  // Dialog states
+  const [sceneDialogOpen, setSceneDialogOpen] = useState(false);
+  const [shotDialogOpen, setShotDialogOpen] = useState(false);
+  const [editingScene, setEditingScene] = useState<Scene | null>(null);
+  const [editingShot, setEditingShot] = useState<{ shot: Shot; sceneId: string } | null>(null);
+  const [activeSceneId, setActiveSceneId] = useState<string>('');
+  
+  // Delete confirmation states
+  const [deleteSceneId, setDeleteSceneId] = useState<string | null>(null);
+  const [deleteShotInfo, setDeleteShotInfo] = useState<{ sceneId: string; shotId: string } | null>(null);
 
-  // Autonomous initialization - Media Planning Agent
+  // Autonomous initialization
   useEffect(() => {
     if (sceneManifest.scenes.length === 0) {
       const generatedScenes = generateScenesFromBeats(
@@ -235,155 +585,443 @@ export function SceneContinuityTab({
     return null;
   }, [selectedShotId, sceneManifest.scenes]);
 
-  // Handlers
+  // Stats
+  const totalShots = useMemo(() => 
+    sceneManifest.scenes.reduce((sum, scene) => sum + scene.shots.length, 0),
+    [sceneManifest.scenes]
+  );
+
+  const totalDuration = useMemo(() => 
+    sceneManifest.scenes.reduce((sum, scene) => sum + scene.duration, 0),
+    [sceneManifest.scenes]
+  );
+
+  const continuityLinks = useMemo(() => 
+    sceneManifest.scenes.reduce((sum, scene) => 
+      sum + scene.shots.filter(s => s.isLinkedToPrevious).length, 0),
+    [sceneManifest.scenes]
+  );
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // CRUD HANDLERS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // Update a single shot
   const updateShot = (sceneId: string, shotId: string, updates: Partial<Shot>) => {
     const updatedScenes = sceneManifest.scenes.map(scene => {
       if (scene.id !== sceneId) return scene;
-      
       const updatedShots = scene.shots.map(shot =>
         shot.id === shotId ? { ...shot, ...updates } : shot
       );
-      
-      // Recalculate scene duration
       const totalDuration = updatedShots.reduce((sum, shot) => sum + shot.duration, 0);
-      
-      return {
-        ...scene,
-        shots: updatedShots,
-        duration: totalDuration,
-      };
+      return { ...scene, shots: updatedShots, duration: totalDuration };
     });
+    onSceneManifestChange({ ...sceneManifest, scenes: updatedScenes });
+  };
+
+  // Add a new scene
+  const handleAddScene = (data: { name: string; description: string; actType: Scene['actType'] }) => {
+    const sceneNum = sceneManifest.scenes.length + 1;
+    const theme = SCENE_THEMES.find(t => t.id === data.actType) || SCENE_THEMES[3];
+    
+    const newScene: Scene = {
+      id: `scene-${sceneNum}-${Date.now()}`,
+      name: data.name,
+      description: data.description,
+      duration: 0,
+      actType: data.actType,
+      shots: [],
+    };
     
     onSceneManifestChange({
       ...sceneManifest,
-      scenes: updatedScenes,
+      scenes: [...sceneManifest.scenes, newScene],
     });
+    
+    // Expand the new scene
+    setExpandedScenes(prev => new Set([...prev, newScene.id]));
+  };
+
+  // Edit an existing scene
+  const handleEditScene = (sceneId: string, data: { name: string; description: string; actType: Scene['actType'] }) => {
+    const updatedScenes = sceneManifest.scenes.map(scene =>
+      scene.id === sceneId ? { ...scene, ...data } : scene
+    );
+    onSceneManifestChange({ ...sceneManifest, scenes: updatedScenes });
+  };
+
+  // Delete a scene
+  const handleDeleteScene = (sceneId: string) => {
+    if (sceneManifest.scenes.length <= 1) return; // Keep at least one scene
+    const updatedScenes = sceneManifest.scenes.filter(scene => scene.id !== sceneId);
+    onSceneManifestChange({ ...sceneManifest, scenes: updatedScenes });
+    setDeleteSceneId(null);
+  };
+
+  // Add a new shot to a scene
+  const handleAddShot = (sceneId: string, data: Partial<Shot>) => {
+    const scene = sceneManifest.scenes.find(s => s.id === sceneId);
+    if (!scene) return;
+    
+    const shotNum = scene.shots.length + 1;
+    const sceneNum = parseInt(sceneId.split('-')[1]) || 1;
+    
+    const newShot: Shot = {
+      id: `${sceneId}-shot${shotNum}-${Date.now()}`,
+      sceneId,
+      name: data.name || `Shot ${sceneNum}.${shotNum}: New`,
+      description: data.description || '',
+      duration: data.duration || 3.5,
+      shotType: data.shotType || 'image-ref',
+      cameraPath: data.cameraPath || 'static',
+      lens: data.lens || '85mm',
+      referenceTags: ['@Product', '@Texture'],
+      isLinkedToPrevious: scene.shots.length > 0, // Link to previous if not first shot
+    };
+    
+    const updatedScenes = sceneManifest.scenes.map(s => {
+      if (s.id !== sceneId) return s;
+      const updatedShots = [...s.shots, newShot];
+      const totalDuration = updatedShots.reduce((sum, shot) => sum + shot.duration, 0);
+      return { ...s, shots: updatedShots, duration: totalDuration };
+    });
+    
+    onSceneManifestChange({ ...sceneManifest, scenes: updatedScenes });
+  };
+
+  // Edit an existing shot
+  const handleEditShot = (sceneId: string, shotId: string, data: Partial<Shot>) => {
+    updateShot(sceneId, shotId, data);
+  };
+
+  // Delete a shot
+  const handleDeleteShot = (sceneId: string, shotId: string) => {
+    const scene = sceneManifest.scenes.find(s => s.id === sceneId);
+    if (!scene || scene.shots.length <= 1) return; // Keep at least one shot per scene
+    
+    const updatedScenes = sceneManifest.scenes.map(s => {
+      if (s.id !== sceneId) return s;
+      const updatedShots = s.shots.filter(shot => shot.id !== shotId);
+      // Update linking for the shot after the deleted one
+      const reindexedShots = updatedShots.map((shot, idx) => ({
+        ...shot,
+        isLinkedToPrevious: idx > 0 ? shot.isLinkedToPrevious : false,
+      }));
+      const totalDuration = reindexedShots.reduce((sum, shot) => sum + shot.duration, 0);
+      return { ...s, shots: reindexedShots, duration: totalDuration };
+    });
+    
+    onSceneManifestChange({ ...sceneManifest, scenes: updatedScenes });
+    setDeleteShotInfo(null);
+  };
+
+  // Toggle shot link - enforces start-end type when linking
+  const handleToggleLink = (sceneId: string, shotId: string) => {
+    const scene = sceneManifest.scenes.find(s => s.id === sceneId);
+    if (!scene) return;
+    
+    const shotIndex = scene.shots.findIndex(s => s.id === shotId);
+    if (shotIndex <= 0) return; // Can't toggle link on first shot
+    
+    const currentShot = scene.shots[shotIndex];
+    const previousShot = scene.shots[shotIndex - 1];
+    const newLinkedState = !currentShot.isLinkedToPrevious;
+    
+    if (newLinkedState) {
+      // LINKING: Force both shots to start-end type
+      // Previous shot needs END frame, current shot needs START frame
+      const updatedScenes = sceneManifest.scenes.map(s => {
+        if (s.id !== sceneId) return s;
+        const updatedShots = s.shots.map((shot, idx) => {
+          if (idx === shotIndex - 1) {
+            // Previous shot: needs end frame
+            return { ...shot, shotType: 'start-end' as const };
+          }
+          if (idx === shotIndex) {
+            // Current shot: linked + needs start frame
+            return { ...shot, isLinkedToPrevious: true, shotType: 'start-end' as const };
+          }
+          return shot;
+        });
+        const totalDuration = updatedShots.reduce((sum, shot) => sum + shot.duration, 0);
+        return { ...s, shots: updatedShots, duration: totalDuration };
+      });
+      onSceneManifestChange({ ...sceneManifest, scenes: updatedScenes });
+    } else {
+      // UNLINKING: Just unlink, keep types as-is
+      updateShot(sceneId, shotId, { isLinkedToPrevious: false });
+    }
+  };
+
+  // Scene expand/collapse
+  const toggleSceneExpanded = (sceneId: string) => {
+    const newExpanded = new Set(expandedScenes);
+    if (newExpanded.has(sceneId)) {
+      newExpanded.delete(sceneId);
+    } else {
+      newExpanded.add(sceneId);
+    }
+    setExpandedScenes(newExpanded);
+  };
+
+  // Open scene dialog for edit
+  const openSceneEdit = (scene: Scene) => {
+    setEditingScene(scene);
+    setSceneDialogOpen(true);
+  };
+
+  // Open scene dialog for add
+  const openSceneAdd = () => {
+    setEditingScene(null);
+    setSceneDialogOpen(true);
+  };
+
+  // Open shot dialog for edit
+  const openShotEdit = (shot: Shot, sceneId: string) => {
+    setEditingShot({ shot, sceneId });
+    setActiveSceneId(sceneId);
+    setShotDialogOpen(true);
+  };
+
+  // Open shot dialog for add
+  const openShotAdd = (sceneId: string) => {
+    setEditingShot(null);
+    setActiveSceneId(sceneId);
+    setShotDialogOpen(true);
+  };
+
+  // Handle scene dialog submit
+  const handleSceneDialogSubmit = (data: { name: string; description: string; actType: Scene['actType'] }) => {
+    if (editingScene) {
+      handleEditScene(editingScene.id, data);
+    } else {
+      handleAddScene(data);
+    }
+    setEditingScene(null);
+  };
+
+  // Handle shot dialog submit
+  const handleShotDialogSubmit = (data: Partial<Shot>) => {
+    if (editingShot) {
+      handleEditShot(editingShot.sceneId, editingShot.shot.id, data);
+    } else {
+      handleAddShot(activeSceneId, data);
+    }
+    setEditingShot(null);
   };
 
   // Validation
-  const isValid = useMemo(() => {
-    return sceneManifest.scenes.length === 3 && 
-           sceneManifest.scenes.every(scene => scene.shots.length > 0);
-  }, [sceneManifest.scenes]);
+  const hasScenes = sceneManifest.scenes.length >= 1;
+  const hasShots = sceneManifest.scenes.every(scene => scene.shots.length > 0);
+  const hasContinuity = sceneManifest.continuityLinksEstablished;
+  const isValid = hasScenes && hasShots && hasContinuity;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="h-full bg-[#0a0a0a] flex flex-col"
+      transition={{ duration: 0.3 }}
+      className="flex flex-col h-[calc(100vh-12rem)] overflow-hidden"
     >
-      {/* Main Content */}
-      <div className="flex-1 flex gap-6 p-8 overflow-hidden">
-        
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* ZONE 1: HIERARCHICAL TIMELINE (100%) */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div className="flex-1 flex flex-col">
-          <div className="flex items-center gap-3 mb-6">
-            <Film className="w-6 h-6 text-pink-400" />
-            <div className="flex-1">
-              <h2 className="text-xl font-semibold text-white">Unified Scene/Shot Timeline</h2>
-              <p className="text-sm text-white/50">Pre-planned commercial with automated continuity</p>
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* ZONE HEADER */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <div className="flex-shrink-0 px-6 py-4 border-b border-white/10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Film className="w-5 h-5 text-pink-400" />
+            <div>
+              <h2 className="text-sm font-semibold text-white uppercase tracking-wider">
+                Scene Timeline
+              </h2>
+              <p className="text-xs text-white/50">Pre-planned commercial with automated continuity</p>
             </div>
-            {sceneManifest.continuityLinksEstablished && (
-              <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                <CheckCircle2 className="w-3 h-3 mr-1" />
+          </div>
+          <div className="flex items-center gap-2">
+            {hasContinuity && (
+              <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
+                <Lock className="w-3 h-3 mr-1" />
                 Continuity Locked
               </Badge>
             )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={openSceneAdd}
+              className="h-7 text-xs border-white/10 text-white/70 hover:bg-white/10"
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              Add Scene
+            </Button>
           </div>
+        </div>
+      </div>
 
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-8">
-              {sceneManifest.scenes.map((scene, sceneIdx) => {
-                const sceneTheme = SCENE_THEMES.find(t => t.id === scene.actType) || SCENE_THEMES[0];
-                
-                return (
-                  <motion.div
-                    key={scene.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: sceneIdx * 0.15 }}
-                  >
-                    {/* ═══════════════════════════════════════════ */}
-                    {/* SCENE CONTAINER */}
-                    {/* ═══════════════════════════════════════════ */}
-                    <Card className={cn(
-                      "bg-white/[0.02] border-l-4 transition-all",
-                      sceneTheme.accent
-                    )}>
-                      <CardContent className="p-6">
-                        {/* Scene Header */}
-                        <div className="mb-6">
-                          <div className="flex items-start gap-4 mb-3">
-                            <div className={cn(
-                              "w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0",
-                              sceneTheme.badge
-                            )}>
-                              <span className="text-white font-bold text-lg">{sceneIdx + 1}</span>
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="text-2xl font-bold text-white mb-1">{scene.name}</h3>
-                              <p className="text-sm text-white/60">{scene.description}</p>
-                            </div>
-                            <Badge variant="outline" className={cn(
-                              "text-xs px-3 py-1 font-semibold",
-                              `bg-gradient-to-r ${sceneTheme.color}`
-                            )}>
-                              {scene.duration.toFixed(1)}s total
-                            </Badge>
-                          </div>
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* MAIN CONTENT - Scene/Shot Timeline */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <ScrollArea className="flex-1 px-6 py-4">
+        <div className="space-y-4 pb-4">
+          {sceneManifest.scenes.map((scene, sceneIdx) => {
+            const sceneTheme = SCENE_THEMES.find(t => t.id === scene.actType) || SCENE_THEMES[3];
+            const isExpanded = expandedScenes.has(scene.id);
+            
+            return (
+              <motion.div
+                key={scene.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: sceneIdx * 0.1 }}
+              >
+                {/* SCENE CONTAINER */}
+                <Card className={cn(
+                  "bg-white/[0.02] border-l-2 transition-all",
+                  sceneTheme.accent
+                )}>
+                  <Collapsible open={isExpanded} onOpenChange={() => toggleSceneExpanded(scene.id)}>
+                    {/* Scene Header */}
+                    <div className="p-4">
+                      <div className="flex items-center gap-3">
+                        {/* Scene Badge */}
+                        <div className={cn(
+                          "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm",
+                          sceneTheme.badge
+                        )}>
+                          {sceneTheme.icon}
                         </div>
+                        
+                        {/* Scene Info */}
+                        <CollapsibleTrigger asChild>
+                          <div className="flex-1 min-w-0 cursor-pointer hover:opacity-80">
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-sm font-semibold text-white truncate">{scene.name}</h3>
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-white/5 border-white/20">
+                                {scene.shots.length} shots
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-white/40 truncate">{scene.description}</p>
+                          </div>
+                        </CollapsibleTrigger>
+                        
+                        {/* Scene Actions */}
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-white/40 hover:text-white hover:bg-white/10"
+                            onClick={(e) => { e.stopPropagation(); openSceneEdit(scene); }}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          {sceneManifest.scenes.length > 1 && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-white/40 hover:text-red-400 hover:bg-red-500/10"
+                              onClick={(e) => { e.stopPropagation(); setDeleteSceneId(scene.id); }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                        
+                        {/* Duration & Toggle */}
+                        <div className="flex items-center gap-3">
+                          <Badge variant="outline" className={cn(
+                            "text-[10px] px-2 py-0.5 font-mono",
+                            `bg-gradient-to-r ${sceneTheme.color}`,
+                            "border-white/20"
+                          )}>
+                            <Clock className="w-3 h-3 mr-1" />
+                            {scene.duration.toFixed(1)}s
+                          </Badge>
+                          <CollapsibleTrigger asChild>
+                            <Button size="icon" variant="ghost" className="h-6 w-6 text-white/40">
+                              <ChevronDown className={cn(
+                                "w-4 h-4 transition-transform",
+                                isExpanded && "rotate-180"
+                              )} />
+                            </Button>
+                          </CollapsibleTrigger>
+                        </div>
+                      </div>
+                    </div>
 
-                        {/* ═══════════════════════════════════════ */}
-                        {/* SHOT CARDS (Nested within scene) */}
-                        {/* ═══════════════════════════════════════ */}
-                        <div className="space-y-4">
-                          {scene.shots.map((shot, shotIdx) => (
+                    {/* SHOT CARDS */}
+                    <CollapsibleContent>
+                      <div className="px-4 pb-4 space-y-2">
+                        {scene.shots.map((shot, shotIdx) => {
+                          const prevShot = shotIdx > 0 ? scene.shots[shotIdx - 1] : null;
+                          
+                          return (
                             <div key={shot.id}>
-                              {/* Continuity Bridge (before shot, except first) */}
-                              {shot.isLinkedToPrevious && (
+                              {/* CONNECTION STATUS INDICATOR */}
+                              {shot.isLinkedToPrevious && prevShot && (
                                 <motion.div
                                   initial={{ opacity: 0, scaleY: 0 }}
                                   animate={{ opacity: 1, scaleY: 1 }}
-                                  transition={{ delay: 0.3 }}
-                                  className="my-3 flex items-center gap-2 px-4"
+                                  className="my-2 flex items-center gap-2 px-2"
                                 >
-                                  <div className="flex-1 h-px bg-gradient-to-r from-purple-500 to-pink-500 animate-pulse" />
-                                  <Badge className="text-[10px] bg-purple-500/20 border-purple-500/40 text-purple-300 px-2 py-0.5">
-                                    <Link2 className="w-3 h-3 mr-1 inline" />
-                                    Narrative Continuity Locked
+                                  <div className="flex-1 h-px bg-gradient-to-r from-green-500/50 to-emerald-500/50" />
+                                  <Badge className="text-[9px] bg-green-500/20 border-green-500/40 text-green-300 px-2 py-0.5">
+                                    <Lock className="w-2.5 h-2.5 mr-1" />
+                                    Linked: {prevShot.name.split(':')[1]?.trim() || 'Prev'} End → Start
                                   </Badge>
-                                  <div className="flex-1 h-px bg-gradient-to-r from-pink-500 to-purple-500 animate-pulse" />
+                                  <div className="flex-1 h-px bg-gradient-to-r from-emerald-500/50 to-green-500/50" />
                                 </motion.div>
                               )}
 
                               {/* Shot Card */}
                               <Card
                                 className={cn(
-                                  "bg-white/[0.03] border-white/[0.06] border-l-2 transition-all cursor-pointer",
-                                  sceneTheme.accent,
-                                  selectedShotId === shot.id && "border-pink-500/50 bg-white/[0.05] shadow-lg shadow-pink-500/10"
+                                  "bg-white/[0.02] border-white/[0.06] transition-all",
+                                  selectedShotId === shot.id && "border-pink-500/40 bg-white/[0.04] shadow-lg shadow-pink-500/5",
+                                  // Add left border color based on shot type
+                                  shot.shotType === 'start-end' 
+                                    ? "border-l-2 border-l-purple-500" 
+                                    : "border-l-2 border-l-pink-500"
                                 )}
-                                onClick={() => setSelectedShotId(shot.id)}
                               >
-                                <CardContent className="p-5">
-                                  {/* Identity Row */}
-                                  <div className="flex items-center gap-3 mb-4">
+                                <CardContent className="p-3 space-y-2">
+                                  {/* Row 1: Shot Name + Type Badge + Duration + Actions */}
+                                  <div className="flex items-center gap-2">
                                     <Badge variant="outline" className={cn(
-                                      "text-xs font-bold px-3 py-1",
+                                      "text-[10px] font-semibold px-2 py-0.5 cursor-pointer",
                                       `bg-gradient-to-r ${sceneTheme.color}`,
                                       "border-white/20"
-                                    )}>
+                                    )}
+                                    onClick={() => setSelectedShotId(shot.id)}
+                                    >
                                       {shot.name}
+                                    </Badge>
+                                    
+                                    {/* PROMINENT SHOT TYPE BADGE */}
+                                    <Badge 
+                                      variant="outline" 
+                                      className={cn(
+                                        "text-[10px] font-semibold px-2 py-0.5",
+                                        shot.shotType === 'start-end'
+                                          ? "bg-purple-500/30 border-purple-500/50 text-purple-200"
+                                          : "bg-pink-500/30 border-pink-500/50 text-pink-200"
+                                      )}
+                                    >
+                                      {shot.shotType === 'start-end' ? (
+                                        <>
+                                          <Video className="w-3 h-3 mr-1" />
+                                          Start/End Frame
+                                        </>
+                                      ) : (
+                                        <>
+                                          <ImageIcon className="w-3 h-3 mr-1" />
+                                          Single Image
+                                        </>
+                                      )}
                                     </Badge>
                                     
                                     <div className="flex-1" />
                                     
                                     {/* Duration Slider */}
-                                    <div className="flex items-center gap-3 min-w-[200px]">
-                                      <Label className="text-xs text-white/50 whitespace-nowrap">Duration:</Label>
+                                    <div className="flex items-center gap-2 min-w-[120px]">
                                       <Slider
                                         value={[shot.duration]}
                                         onValueChange={([value]) => updateShot(scene.id, shot.id, { duration: value })}
@@ -392,268 +1030,401 @@ export function SceneContinuityTab({
                                         step={0.5}
                                         className="flex-1"
                                       />
-                                      <span className="text-xs text-white/70 font-mono min-w-[40px] text-right">
+                                      <span className="text-[10px] text-white/60 font-mono w-7 text-right">
                                         {shot.duration.toFixed(1)}s
                                       </span>
                                     </div>
+                                    
+                                    {/* Shot Type Toggle - More Descriptive */}
+                                    <ToggleGroup
+                                      type="single"
+                                      value={shot.shotType}
+                                      onValueChange={(value) => {
+                                        if (value) updateShot(scene.id, shot.id, { shotType: value as any });
+                                      }}
+                                      className="bg-white/5 rounded p-0.5"
+                                    >
+                                      <ToggleGroupItem
+                                        value="image-ref"
+                                        className={cn(
+                                          "text-[10px] px-2 py-1 h-6 gap-1",
+                                          "data-[state=on]:bg-pink-500 data-[state=on]:text-white"
+                                        )}
+                                        title="Single Image Reference - 1 frame needed"
+                                      >
+                                        <ImageIcon className="w-3 h-3" />
+                                        <span className="hidden sm:inline">1F</span>
+                                      </ToggleGroupItem>
+                                      <ToggleGroupItem
+                                        value="start-end"
+                                        className={cn(
+                                          "text-[10px] px-2 py-1 h-6 gap-1",
+                                          "data-[state=on]:bg-purple-500 data-[state=on]:text-white"
+                                        )}
+                                        title="Start/End Frame - 2 frames needed for motion"
+                                      >
+                                        <Video className="w-3 h-3" />
+                                        <span className="hidden sm:inline">2F</span>
+                                      </ToggleGroupItem>
+                                    </ToggleGroup>
+                                    
+                                    {/* Shot Actions */}
+                                    <div className="flex items-center gap-0.5 ml-2">
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-6 w-6 text-white/40 hover:text-white hover:bg-white/10"
+                                        onClick={() => openShotEdit(shot, scene.id)}
+                                      >
+                                        <Pencil className="w-3 h-3" />
+                                      </Button>
+                                      {scene.shots.length > 1 && (
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          className="h-6 w-6 text-white/40 hover:text-red-400 hover:bg-red-500/10"
+                                          onClick={() => setDeleteShotInfo({ sceneId: scene.id, shotId: shot.id })}
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </Button>
+                                      )}
+                                    </div>
                                   </div>
 
-                                  {/* Vision & Directives */}
-                                  <div className="grid grid-cols-[1fr,auto] gap-4">
-                                    {/* Left: Description */}
-                                    <div className="space-y-3">
-                                      <Label className="text-xs text-white/50">Cinematic Description</Label>
-                                      <Textarea
-                                        value={shot.description}
-                                        onChange={(e) => updateShot(scene.id, shot.id, { description: e.target.value })}
-                                        placeholder="Describe the shot vision..."
-                                        className="bg-white/5 border-white/10 text-white text-sm min-h-[80px] resize-none"
-                                        maxLength={200}
-                                      />
-                                      <div className="text-[10px] text-white/30 text-right">
-                                        {shot.description.length}/200
-                                      </div>
-                                    </div>
-
-                                    {/* Right: Controls Grid */}
-                                    <div className="space-y-3 min-w-[280px]">
-                                      {/* Shot Type Toggle */}
-                                      <div className="space-y-2">
-                                        <Label className="text-xs text-white/50">Shot Type</Label>
-                                        <ToggleGroup
-                                          type="single"
-                                          value={shot.shotType}
-                                          onValueChange={(value) => {
-                                            if (value) updateShot(scene.id, shot.id, { shotType: value as any });
-                                          }}
-                                          className="bg-white/5 rounded-lg p-1 w-full"
+                                  {/* Row 2: Description + Camera/Lens */}
+                                  <div className="flex gap-3">
+                                    <Textarea
+                                      value={shot.description}
+                                      onChange={(e) => updateShot(scene.id, shot.id, { description: e.target.value })}
+                                      placeholder="Shot description..."
+                                      className="flex-1 bg-white/5 border-white/10 text-white text-xs min-h-[50px] max-h-[50px] resize-none"
+                                      maxLength={200}
+                                    />
+                                    
+                                    <div className="flex gap-2 min-w-[140px]">
+                                      <div className="flex-1 space-y-1">
+                                        <Label className="text-[9px] text-white/40 uppercase">Cam</Label>
+                                        <Select 
+                                          value={shot.cameraPath} 
+                                          onValueChange={(value) => updateShot(scene.id, shot.id, { cameraPath: value as any })}
                                         >
-                                          <ToggleGroupItem
-                                            value="image-ref"
-                                            className="text-xs px-3 py-2 data-[state=on]:bg-pink-500 flex-1"
-                                          >
-                                            <ImageIcon className="w-3 h-3 mr-1" />
-                                            Image-Ref
-                                          </ToggleGroupItem>
-                                          <ToggleGroupItem
-                                            value="start-end"
-                                            className="text-xs px-3 py-2 data-[state=on]:bg-purple-500 flex-1"
-                                          >
-                                            <Video className="w-3 h-3 mr-1" />
-                                            Start/End
-                                          </ToggleGroupItem>
-                                        </ToggleGroup>
+                                          <SelectTrigger className="h-7 text-[10px] bg-white/5 border-white/10 text-white">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent className="bg-[#0a0a0a] border-white/10">
+                                            {CAMERA_PATHS.map((path) => (
+                                              <SelectItem key={path.value} value={path.value} className="text-xs">
+                                                {path.label}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
                                       </div>
-
-                                      {/* Camera & Lens Grid */}
-                                      <div className="grid grid-cols-2 gap-2">
-                                        {/* Camera Path */}
-                                        <div className="space-y-1">
-                                          <Label className="text-[10px] text-white/50 uppercase">Camera</Label>
-                                          <Select value={shot.cameraPath} onValueChange={(value) => updateShot(scene.id, shot.id, { cameraPath: value as any })}>
-                                            <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white">
-                                              <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent className="bg-[#0a0a0a] border-white/10">
-                                              {CAMERA_PATHS.map((path) => (
-                                                <SelectItem key={path.value} value={path.value} className="text-xs">
-                                                  {path.label}
-                                                </SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                        </div>
-
-                                        {/* Lens */}
-                                        <div className="space-y-1">
-                                          <Label className="text-[10px] text-white/50 uppercase">Lens</Label>
-                                          <Select value={shot.lens} onValueChange={(value) => updateShot(scene.id, shot.id, { lens: value as any })}>
-                                            <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white">
-                                              <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent className="bg-[#0a0a0a] border-white/10">
-                                              {LENSES.map((lens) => (
-                                                <SelectItem key={lens.value} value={lens.value} className="text-xs">
-                                                  {lens.label}
-                                                </SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                        </div>
-                                      </div>
-
-                                      {/* @ Reference Pills */}
-                                      <div className="space-y-1">
-                                        <Label className="text-[10px] text-white/50 uppercase">References</Label>
-                                        <div className="flex flex-wrap gap-1.5">
-                                          {shot.referenceTags.map((tag) => (
-                                            <Badge
-                                              key={tag}
-                                              variant="outline"
-                                              className="text-[10px] bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-cyan-500/30 text-cyan-300 px-2 py-0.5"
-                                            >
-                                              {tag}
-                                            </Badge>
-                                          ))}
-                                        </div>
+                                      <div className="flex-1 space-y-1">
+                                        <Label className="text-[9px] text-white/40 uppercase">Lens</Label>
+                                        <Select 
+                                          value={shot.lens} 
+                                          onValueChange={(value) => updateShot(scene.id, shot.id, { lens: value as any })}
+                                        >
+                                          <SelectTrigger className="h-7 text-[10px] bg-white/5 border-white/10 text-white">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent className="bg-[#0a0a0a] border-white/10">
+                                            {LENSES.map((lens) => (
+                                              <SelectItem key={lens.value} value={lens.value} className="text-xs">
+                                                {lens.label}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
                                       </div>
                                     </div>
+                                  </div>
+
+                                  {/* Row 3: Reference Tags + Link Toggle */}
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex flex-wrap gap-1">
+                                      {shot.referenceTags.map((tag) => (
+                                        <Badge
+                                          key={tag}
+                                          variant="outline"
+                                          className="text-[9px] bg-cyan-500/10 border-cyan-500/20 text-cyan-300 px-1.5 py-0"
+                                        >
+                                          {tag}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                    
+                                    {/* Link Toggle (only for non-first shots) */}
+                                    {shotIdx > 0 && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className={cn(
+                                          "h-6 text-[10px] px-2",
+                                          shot.isLinkedToPrevious 
+                                            ? "text-green-400 hover:text-green-300 hover:bg-green-500/10" 
+                                            : "text-white/40 hover:text-white hover:bg-white/10"
+                                        )}
+                                        onClick={() => handleToggleLink(scene.id, shot.id)}
+                                      >
+                                        {shot.isLinkedToPrevious ? (
+                                          <>
+                                            <Link2 className="w-3 h-3 mr-1" />
+                                            Linked
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Unlink className="w-3 h-3 mr-1" />
+                                            Unlinked
+                                          </>
+                                        )}
+                                      </Button>
+                                    )}
                                   </div>
                                 </CardContent>
                               </Card>
                             </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </ScrollArea>
+                          );
+                        })}
+                        
+                        {/* Add Shot Button */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full h-8 mt-2 border border-dashed border-white/10 text-white/40 hover:text-white hover:bg-white/5 hover:border-white/20"
+                          onClick={() => openShotAdd(scene.id)}
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          Add Shot
+                        </Button>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </Card>
+              </motion.div>
+            );
+          })}
         </div>
-      </div>
+      </ScrollArea>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* ZONE 3: FRAME BLUEPRINT (BOTTOM BAR) */}
+      {/* FRAME BLUEPRINT (When Shot Selected) */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {selectedShot && (
-        <motion.div
-          initial={{ y: 100, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 100, opacity: 0 }}
-          className="border-t border-white/[0.06] bg-black/40 backdrop-blur-xl"
-        >
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <Film className="w-5 h-5 text-orange-400" />
-                <Label className="text-sm font-semibold text-white">Keyframe Blueprint</Label>
-                <Badge variant="outline" className="text-xs">
-                  {selectedShot.name}
-                </Badge>
+      <AnimatePresence>
+        {selectedShot && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="flex-shrink-0 border-t border-white/10 bg-black/40 backdrop-blur-xl"
+          >
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-orange-400" />
+                  <span className="text-xs font-semibold text-white uppercase tracking-wider">Keyframe Blueprint</span>
+                  <Badge variant="outline" className="text-[10px] px-2 py-0 bg-white/5">
+                    {selectedShot.name}
+                  </Badge>
+                  <Badge variant="outline" className={cn(
+                    "text-[10px] px-2 py-0",
+                    selectedShot.shotType === 'start-end'
+                      ? "bg-purple-500/20 border-purple-500/30 text-purple-300"
+                      : "bg-pink-500/20 border-pink-500/30 text-pink-300"
+                  )}>
+                    {selectedShot.shotType === 'start-end' ? '2 Frames' : '1 Frame'}
+                  </Badge>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedShotId(null)}
+                  className="h-6 w-6 p-0 text-white/40 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
               </div>
+
+              <div className="flex gap-4 justify-center items-center">
+                {selectedShot.shotType === 'start-end' ? (
+                  <>
+                    <div className="w-48">
+                      <div className="aspect-video bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-dashed border-purple-500/30 rounded-lg flex items-center justify-center hover:border-purple-500/50 transition-all">
+                        <div className="text-center">
+                          <ImageIcon className="w-6 h-6 text-purple-400/50 mx-auto mb-1" />
+                          <p className="text-[10px] text-white/50">Start Frame</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-8 h-px bg-gradient-to-r from-purple-500 to-pink-500" />
+                      <span className="text-[9px] text-white/30">→</span>
+                      <div className="w-8 h-px bg-gradient-to-r from-pink-500 to-orange-500" />
+                    </div>
+                    <div className="w-48">
+                      <div className="aspect-video bg-gradient-to-br from-pink-500/10 to-pink-600/5 border border-dashed border-pink-500/30 rounded-lg flex items-center justify-center hover:border-pink-500/50 transition-all">
+                        <div className="text-center">
+                          <ImageIcon className="w-6 h-6 text-pink-400/50 mx-auto mb-1" />
+                          <p className="text-[10px] text-white/50">End Frame</p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-64">
+                    <div className="aspect-video bg-gradient-to-br from-pink-500/10 to-orange-500/5 border border-dashed border-pink-500/30 rounded-lg flex items-center justify-center hover:border-pink-500/50 transition-all">
+                      <div className="text-center">
+                        <ImageIcon className="w-8 h-8 text-pink-400/50 mx-auto mb-1" />
+                        <p className="text-xs text-white/50">Single Frame</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* COMPACT VALIDATION FOOTER */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {!selectedShot && (
+        <div className="flex-shrink-0 px-6 py-3 border-t border-white/10 bg-white/[0.02]">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                {hasScenes ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                ) : (
+                  <div className="w-4 h-4 rounded-full border-2 border-white/20" />
+                )}
+                <span className={cn(
+                  "text-xs font-medium",
+                  hasScenes ? "text-white/70" : "text-white/40"
+                )}>
+                  {sceneManifest.scenes.length} Scenes
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {hasShots ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                ) : (
+                  <div className="w-4 h-4 rounded-full border-2 border-white/20" />
+                )}
+                <span className={cn(
+                  "text-xs font-medium",
+                  hasShots ? "text-white/70" : "text-white/40"
+                )}>
+                  {totalShots} Shots
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {continuityLinks > 0 ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                ) : (
+                  <div className="w-4 h-4 rounded-full border-2 border-white/20" />
+                )}
+                <span className={cn(
+                  "text-xs font-medium",
+                  continuityLinks > 0 ? "text-white/70" : "text-white/40"
+                )}>
+                  {continuityLinks} Links
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1 text-xs text-white/50">
+                <Clock className="w-3.5 h-3.5 text-orange-400" />
+                <span className="font-mono">{totalDuration.toFixed(1)}s total</span>
+              </div>
+              
               <Button
-                variant="ghost"
+                onClick={onNext}
+                disabled={!isValid}
                 size="sm"
-                onClick={() => setSelectedShotId(null)}
-                className="text-white/50 hover:text-white"
+                className={cn(
+                  "h-8 text-xs",
+                  isValid
+                    ? "bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600"
+                    : "bg-white/10 text-white/40 cursor-not-allowed"
+                )}
               >
-                Close
+                Continue to Storyboard
               </Button>
             </div>
-
-            {/* Frame Requirements Badge */}
-            <div className="flex items-center justify-center mb-4">
-              <Badge variant="outline" className={cn(
-                "text-xs px-4 py-1.5",
-                selectedShot.shotType === 'start-end'
-                  ? "bg-purple-500/20 border-purple-500/50 text-purple-300"
-                  : "bg-pink-500/20 border-pink-500/50 text-pink-300"
-              )}>
-                {selectedShot.shotType === 'start-end' ? (
-                  <><Video className="w-3 h-3 mr-1.5 inline" /> 2 Frames Required (Narrative Mode)</>
-                ) : (
-                  <><ImageIcon className="w-3 h-3 mr-1.5 inline" /> 1 Frame Required (Standard)</>
-                )}
-              </Badge>
-            </div>
-
-            <div className="flex gap-6 justify-center items-center">
-              {selectedShot.shotType === 'start-end' ? (
-                <>
-                  {/* Start Frame */}
-                  <div className="w-72">
-                    <Label className="text-xs text-white/70 mb-2 block text-center font-semibold">
-                      🎬 Start Frame
-                    </Label>
-                    <div className="aspect-video bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-2 border-dashed border-purple-500/40 rounded-xl flex items-center justify-center hover:border-purple-500/60 hover:bg-purple-500/15 transition-all">
-                      <div className="text-center">
-                        <ImageIcon className="w-12 h-12 text-purple-400/50 mx-auto mb-2" />
-                        <p className="text-xs text-white/60 font-medium">Upload or Generate</p>
-                        <p className="text-[10px] text-white/40 mt-1">Opening state</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Animated Arrow Connector */}
-                  <div className="flex items-center">
-                    <motion.div
-                      className="flex flex-col items-center gap-2"
-                      initial={{ scale: 0.8 }}
-                      animate={{ scale: 1 }}
-                      transition={{ repeat: Infinity, duration: 1.5, repeatType: "reverse" }}
-                    >
-                      <div className="w-20 h-px bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500" />
-                      <Badge variant="outline" className="text-[10px] bg-white/5 border-white/20">
-                        Transition
-                      </Badge>
-                      <div className="w-20 h-px bg-gradient-to-r from-orange-500 via-pink-500 to-purple-500" />
-                    </motion.div>
-                  </div>
-
-                  {/* End Frame */}
-                  <div className="w-72">
-                    <Label className="text-xs text-white/70 mb-2 block text-center font-semibold">
-                      🎥 End Frame
-                    </Label>
-                    <div className="aspect-video bg-gradient-to-br from-pink-500/10 to-pink-600/5 border-2 border-dashed border-pink-500/40 rounded-xl flex items-center justify-center hover:border-pink-500/60 hover:bg-pink-500/15 transition-all">
-                      <div className="text-center">
-                        <ImageIcon className="w-12 h-12 text-pink-400/50 mx-auto mb-2" />
-                        <p className="text-xs text-white/60 font-medium">Upload or Generate</p>
-                        <p className="text-[10px] text-white/40 mt-1">Closing state</p>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="w-96">
-                  <Label className="text-xs text-white/70 mb-2 block text-center font-semibold">
-                    📸 Single Image Frame
-                  </Label>
-                  <div className="aspect-video bg-gradient-to-br from-pink-500/10 to-orange-500/5 border-2 border-dashed border-pink-500/40 rounded-xl flex items-center justify-center hover:border-pink-500/60 hover:bg-pink-500/15 transition-all">
-                    <div className="text-center">
-                      <ImageIcon className="w-14 h-14 text-pink-400/50 mx-auto mb-3" />
-                      <p className="text-sm text-white/60 font-semibold">Upload or Generate</p>
-                      <p className="text-xs text-white/40 mt-1">Standard I2V Mode</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Continue Button - Fixed at bottom when no shot selected */}
-      {!selectedShot && (
-        <div className="border-t border-white/[0.06] p-6 bg-black/20">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-white/70">
-              {isValid ? (
-                <span className="flex items-center gap-2 text-green-400">
-                  <CheckCircle2 className="w-4 h-4" />
-                  Scene manifest ready for storyboard
-                </span>
-              ) : (
-                <span className="text-orange-400">Loading scene breakdown...</span>
-              )}
-            </div>
-            <Button
-              onClick={onNext}
-              disabled={!isValid}
-              size="lg"
-              className={cn(
-                isValid
-                  ? "bg-gradient-to-r from-pink-500 via-purple-500 to-orange-500 hover:from-pink-600 hover:via-purple-600 hover:to-orange-600"
-                  : "bg-white/10 text-white/40 cursor-not-allowed"
-              )}
-            >
-              Continue to Storyboard
-            </Button>
           </div>
         </div>
       )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* DIALOGS */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      
+      {/* Scene Edit Dialog */}
+      <SceneEditDialog
+        open={sceneDialogOpen}
+        onOpenChange={setSceneDialogOpen}
+        scene={editingScene}
+        sceneCount={sceneManifest.scenes.length}
+        onSubmit={handleSceneDialogSubmit}
+      />
+
+      {/* Shot Edit Dialog */}
+      <ShotEditDialog
+        open={shotDialogOpen}
+        onOpenChange={setShotDialogOpen}
+        shot={editingShot?.shot || null}
+        sceneId={activeSceneId}
+        shotCount={sceneManifest.scenes.find(s => s.id === activeSceneId)?.shots.length || 0}
+        onSubmit={handleShotDialogSubmit}
+      />
+
+      {/* Delete Scene Confirmation */}
+      <AlertDialog open={!!deleteSceneId} onOpenChange={() => setDeleteSceneId(null)}>
+        <AlertDialogContent className="bg-[#0a0a0a] border-white/10">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Delete Scene?</AlertDialogTitle>
+            <AlertDialogDescription className="text-white/50">
+              This will permanently delete this scene and all its shots. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-white/10 text-white/70">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteSceneId && handleDeleteScene(deleteSceneId)}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              Delete Scene
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Shot Confirmation */}
+      <AlertDialog open={!!deleteShotInfo} onOpenChange={() => setDeleteShotInfo(null)}>
+        <AlertDialogContent className="bg-[#0a0a0a] border-white/10">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Delete Shot?</AlertDialogTitle>
+            <AlertDialogDescription className="text-white/50">
+              This will permanently delete this shot. Continuity links may be affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-white/10 text-white/70">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteShotInfo && handleDeleteShot(deleteShotInfo.sceneId, deleteShotInfo.shotId)}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              Delete Shot
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 }

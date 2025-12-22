@@ -1,3 +1,4 @@
+import { callTextModel } from '../../../ai/service';
 import { scriptWriterSystemPrompt, generateScriptPrompt } from '../prompts/script-writer';
 import { sceneAnalyzerSystemPrompt, analyzeScriptPrompt } from '../prompts/scene-analyzer';
 import { characterCreatorSystemPrompt, createCharacterPrompt } from '../prompts/character-creator';
@@ -38,12 +39,69 @@ export interface AnimationInfo {
   pacing?: string;
 }
 
+// AI Model Configuration
+const SCRIPT_GENERATOR_CONFIG = {
+  provider: "openai" as const,
+  model: "gpt-5",
+};
+
 export class NarrativeAgents {
-  static async generateScript(settings: ScriptSettings): Promise<string> {
-    const systemPrompt = scriptWriterSystemPrompt;
-    const userPrompt = generateScriptPrompt(settings);
+  static async generateScript(
+    settings: ScriptSettings,
+    userId?: string,
+    workspaceId?: string
+  ): Promise<string> {
+    const { duration, genre, language, aspectRatio, userPrompt } = settings;
     
-    return `[PLACEHOLDER] Script generation will be implemented with AI model integration`;
+    // Build user prompt with parameters
+    const userPromptText = generateScriptPrompt(settings);
+    
+    console.log('[narrative:agents] Generating script:', {
+      duration,
+      genre,
+      language,
+      aspectRatio,
+      hasUserPrompt: !!userPrompt,
+    });
+    
+    try {
+      // Calculate expected output tokens based on duration
+      // Formula: ~25 words per second of video * 4 tokens per word
+      // Add 20% buffer for formatting and structure
+      const expectedOutputTokens = Math.ceil(duration * 25 * 4 * 1.2);
+      
+      const response = await callTextModel(
+        {
+          provider: SCRIPT_GENERATOR_CONFIG.provider,
+          model: SCRIPT_GENERATOR_CONFIG.model,
+          payload: {
+            reasoning: { effort: "low" },
+            input: [
+              { role: "system", content: scriptWriterSystemPrompt },
+              { role: "user", content: userPromptText },
+            ],
+          },
+          userId,
+          workspaceId,
+        },
+        {
+          expectedOutputTokens,
+        }
+      );
+      
+      const script = response.output.trim();
+      
+      console.log('[narrative:agents] Script generated successfully:', {
+        wordCount: script.split(/\s+/).length,
+        charCount: script.length,
+        cost: response.usage?.totalCostUsd,
+      });
+      
+      return script;
+    } catch (error) {
+      console.error('[narrative:agents] Failed to generate script:', error);
+      throw new Error('Failed to generate script');
+    }
   }
 
   static async analyzeScript(script: string): Promise<any[]> {

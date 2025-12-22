@@ -121,6 +121,7 @@ export function LocationRecommendationModal({
                         size="sm"
                         onClick={() => handleAddLocation(recLocation)}
                         disabled={isAdded}
+                        className={isAdded ? "" : "bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90"}
                         data-testid={`button-add-recommended-${index}`}
                       >
                         {isAdded ? (

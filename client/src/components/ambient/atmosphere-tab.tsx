@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -361,13 +362,16 @@ const CAMERA_MOTIONS = [
 ];
 
 interface AtmosphereTabProps {
+  // Video ID for API calls
+  videoId?: string;
   mood: string;
   theme: string;
   timeContext: string;
   season: string;
   intensity: number;
   duration: string;
-  moodDescription: string;
+  userStory: string;         // User's original story/prompt (preserved)
+  moodDescription: string;   // AI-generated atmospheric description
   imageModel?: string;
   imageResolution?: string;
   aspectRatio?: string;
@@ -398,12 +402,15 @@ interface AtmosphereTabProps {
   segmentLoopCount?: 'auto' | number;
   shotLoopEnabled?: boolean;
   shotLoopCount?: 'auto' | number;
+  // Saving state
+  isSaving?: boolean;
   onMoodChange: (mood: string) => void;
   onThemeChange: (theme: string) => void;
   onTimeContextChange: (timeContext: string) => void;
   onSeasonChange: (season: string) => void;
   onIntensityChange: (intensity: number) => void;
   onDurationChange: (duration: string) => void;
+  onUserStoryChange: (story: string) => void;
   onMoodDescriptionChange: (description: string) => void;
   onImageModelChange?: (model: string) => void;
   onImageResolutionChange?: (resolution: string) => void;
@@ -433,12 +440,15 @@ interface AtmosphereTabProps {
 }
 
 export function AtmosphereTab({
+  videoId,
+  isSaving = false,
   mood,
   theme,
   timeContext,
   season,
   intensity,
   duration,
+  userStory,
   moodDescription,
   imageModel = "nano-banana",
   imageResolution = "auto",
@@ -471,6 +481,7 @@ export function AtmosphereTab({
   onSeasonChange,
   onIntensityChange,
   onDurationChange,
+  onUserStoryChange,
   onMoodDescriptionChange,
   onImageModelChange,
   onImageResolutionChange,
@@ -498,8 +509,17 @@ export function AtmosphereTab({
   onShotLoopCountChange,
   onNext,
 }: AtmosphereTabProps) {
+  const { toast } = useToast();
   const [aiPrompt, setAiPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Restore aiPrompt from userStory when video is reopened
+  useEffect(() => {
+    if (userStory) {
+      console.log('[AtmosphereTab] Restoring aiPrompt from userStory:', userStory);
+      setAiPrompt(userStory);
+    }
+  }, [userStory]);
 
   const accentClasses = "from-cyan-500 to-teal-500";
 
@@ -591,23 +611,105 @@ export function AtmosphereTab({
     }
   }, [theme]); // Only run when theme changes
 
-  const handleGenerateIdea = () => {
+  const handleGenerateIdea = async () => {
     if (!aiPrompt.trim()) return;
+    
+    if (!videoId) {
+      toast({
+        title: "Error",
+        description: "Video ID is required to generate description. Please save the video first.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setIsGenerating(true);
     
-    // Simulate AI generation
-    setTimeout(() => {
-      const generatedDescription = `${aiPrompt}
+    // Save the user's original story/prompt before generating
+    onUserStoryChange(aiPrompt);
+    
+    try {
+      // Build the request with ALL settings (backend will save them all)
+      const requestBody = {
+        videoId,
+        // Core atmosphere settings
+        mood,
+        theme,
+        timeContext,
+        season,
+        duration,
+        aspectRatio,
+        // Animation settings
+        animationMode,
+        videoGenerationMode,
+        // Image settings
+        imageModel,
+        imageResolution,
+        // Video animation settings
+        videoModel,
+        videoResolution,
+        motionPrompt,
+        // Animation style settings
+        defaultEasingStyle,
+        transitionStyle,
+        cameraMotion,
+        // Pacing & Flow
+        pacing,
+        segmentEnabled,
+        segmentCount,
+        shotsPerSegment,
+        // Loop settings
+        loopMode,
+        loopType,
+        segmentLoopEnabled,
+        segmentLoopCount,
+        shotLoopEnabled,
+        shotLoopCount,
+        // Voiceover settings
+        voiceoverEnabled,
+        language,
+        textOverlayEnabled,
+        textOverlayStyle,
+        // User's original story (preserved separately)
+        userStory: aiPrompt,
+        // Empty moodDescription - will be filled by AI
+        moodDescription: '',
+      };
 
-A serene ambient visual experience featuring ${theme} elements with a ${mood} atmosphere. The scene captures the essence of ${getTimeLabel().toLowerCase()} through ${timeContext} lighting, creating a ${getSeasonLabel().toLowerCase()} of ${season}.
+      const response = await fetch('/api/ambient-visual/atmosphere/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(requestBody),
+      });
 
-Perfect for meditation, focus work, or peaceful background ambiance.`;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to generate description');
+      }
+
+      const result = await response.json();
       
-      onMoodDescriptionChange(generatedDescription);
+      // Update the mood description with AI-generated text
+      onMoodDescriptionChange(result.moodDescription);
+      // Note: We keep aiPrompt visible so user can see their original idea
+      
+      toast({
+        title: "Generated!",
+        description: `Mood description created${result.cost ? ` (Cost: $${result.cost.toFixed(4)})` : ''}`,
+      });
+    } catch (error) {
+      console.error('[AtmosphereTab] Generation error:', error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate mood description",
+        variant: "destructive",
+      });
+    } finally {
       setIsGenerating(false);
-      setAiPrompt(""); // Clear the prompt after generation
-    }, 2000);
+    }
   };
 
   return (
@@ -1746,21 +1848,21 @@ Perfect for meditation, focus work, or peaceful background ambiance.`;
             </div>
 
             <p className="text-[10px] text-white/40">
-              This will generate a detailed description and fill the "Your Idea" box below.
+              Enter your idea above, then click Generate to create a detailed atmospheric description.
             </p>
           </div>
         </div>
 
-        {/* Main Content - Your Idea */}
+        {/* Main Content - AI-Generated Description */}
         <div className="flex-1 p-6 overflow-hidden flex flex-col">
           <div className="flex items-center gap-3 mb-4">
             <div className={cn("p-2 rounded-lg bg-gradient-to-br", accentClasses)}>
               <Lightbulb className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-base text-white">Your Idea</h3>
+              <h3 className="font-semibold text-base text-white">Atmospheric Description</h3>
               <p className="text-xs text-white/40">
-                Describe your ambient visual concept in detail
+                AI-generated description based on your settings and idea
               </p>
             </div>
           </div>
@@ -1769,7 +1871,7 @@ Perfect for meditation, focus work, or peaceful background ambiance.`;
             <Textarea
               value={moodDescription}
               onChange={(e) => onMoodDescriptionChange(e.target.value)}
-              placeholder="Write your ambient visual idea here, or use the AI generator above to create one..."
+              placeholder="Click 'Generate' above to create an atmospheric description, or write your own..."
               className={cn(
                 "w-full h-full bg-transparent border-0 p-5 text-[15px] leading-relaxed",
                 "focus:outline-none focus:ring-0 resize-none",

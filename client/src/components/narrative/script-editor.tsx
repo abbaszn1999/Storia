@@ -363,19 +363,19 @@ export function ScriptEditor({
                 <p className="text-sm text-white/50">Select up to 3 genres</p>
                 <div className="flex flex-wrap gap-2">
                   {GENRES.map((genre) => (
-                    <Badge
+                    <button
                       key={genre}
                       className={cn(
-                        "cursor-pointer hover-elevate transition-all",
+                        "px-3 py-1.5 rounded-lg border text-xs font-medium transition-all hover-elevate",
                         selectedGenres.includes(genre)
-                          ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/50 text-purple-300"
-                          : "border-white/10 bg-white/5 text-white/70 hover:bg-white/[0.07]"
+                          ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20 text-white")
+                          : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70"
                       )}
                       onClick={() => toggleGenre(genre)}
-                      data-testid={`badge-genre-${genre.toLowerCase()}`}
+                      data-testid={`button-genre-${genre.toLowerCase()}`}
                     >
                       {genre}
-                    </Badge>
+                    </button>
                   ))}
                 </div>
               </CardContent>
@@ -394,19 +394,19 @@ export function ScriptEditor({
                 <p className="text-sm text-white/50">Select up to 3 tones</p>
                 <div className="flex flex-wrap gap-2">
                   {TONES.map((tone) => (
-                    <Badge
+                    <button
                       key={tone}
                       className={cn(
-                        "cursor-pointer hover-elevate transition-all",
+                        "px-3 py-1.5 rounded-lg border text-xs font-medium transition-all hover-elevate",
                         selectedTones.includes(tone)
-                          ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/50 text-purple-300"
-                          : "border-white/10 bg-white/5 text-white/70 hover:bg-white/[0.07]"
+                          ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20 text-white")
+                          : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70"
                       )}
                       onClick={() => toggleTone(tone)}
-                      data-testid={`badge-tone-${tone.toLowerCase()}`}
+                      data-testid={`button-tone-${tone.toLowerCase()}`}
                     >
                       {tone}
-                    </Badge>
+                    </button>
                   ))}
                 </div>
               </CardContent>

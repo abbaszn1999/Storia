@@ -300,10 +300,10 @@ function SortableShotCard({
     <Card
       ref={setNodeRef}
       style={style}
-      className="shrink-0 w-80 overflow-visible"
+      className="shrink-0 w-80 overflow-visible bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30 transition-all"
       data-testid={`card-shot-${shot.id}`}
     >
-      <div className="aspect-video bg-muted relative group">
+      <div className="aspect-video bg-muted relative group rounded-t-lg overflow-hidden">
         {/* Start/End Frame Tab Selector (Start-End Mode Only) */}
         {narrativeMode === "start-end" && (
           <div className="absolute top-2 left-2 flex gap-1 bg-background/90 backdrop-blur-sm rounded-md p-1 z-10">
@@ -311,7 +311,7 @@ function SortableShotCard({
               onClick={() => setActiveFrame("start")}
               className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
                 activeFrame === "start"
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
                   : "text-muted-foreground hover:text-foreground"
               }`}
               data-testid={`button-start-frame-${shot.id}`}
@@ -326,7 +326,7 @@ function SortableShotCard({
               disabled={!shouldShowEndTab}
               className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
                 activeFrame === "end"
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
                   : shouldShowEndTab
                   ? "text-muted-foreground hover:text-foreground"
                   : "text-muted-foreground/50 cursor-not-allowed"
@@ -381,6 +381,35 @@ function SortableShotCard({
           <Badge className="bg-background/80 text-foreground border-0">
             # {shotIndex + 1}
           </Badge>
+          {/* Speed Profile Badge (Commerce Mode) */}
+          {shot.speedProfile && (
+            <Badge 
+              variant="outline" 
+              className={cn(
+                "bg-background/80 text-[10px] px-1.5 py-0 h-5 border-0",
+                shot.speedProfile === 'speed-ramp' && "text-amber-300",
+                shot.speedProfile === 'slow-motion' && "text-blue-300",
+                shot.speedProfile === 'kinetic' && "text-red-300",
+                shot.speedProfile === 'smooth' && "text-purple-300",
+                shot.speedProfile === 'linear' && "text-gray-300"
+              )}
+            >
+              <Zap className="w-3 h-3 mr-0.5" />
+              {shot.speedProfile === 'speed-ramp' ? 'Ramp' : 
+               shot.speedProfile === 'slow-motion' ? 'Slow' :
+               shot.speedProfile === 'kinetic' ? 'Kinetic' :
+               shot.speedProfile === 'smooth' ? 'Smooth' : 'Linear'}
+            </Badge>
+          )}
+          {/* Dual Timer Display (Commerce Mode) */}
+          {shot.renderDuration && shot.renderDuration !== shot.duration && (
+            <div className="flex items-center gap-1.5 bg-background/80 rounded px-2 py-0.5 text-[10px]">
+              <Clock className="w-3 h-3 text-muted-foreground" />
+              <span className="text-foreground">{shot.duration}s</span>
+              <span className="text-muted-foreground">/</span>
+              <span className="text-orange-400">{shot.renderDuration}s</span>
+            </div>
+          )}
         </div>
         <div className="absolute top-2 right-2 flex items-center gap-1">
           {displayImageUrl && (
@@ -389,7 +418,7 @@ function SortableShotCard({
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-6 w-6 bg-background/80 text-muted-foreground hover:text-primary"
+                  className="h-6 w-6 bg-background/80 text-muted-foreground hover:text-purple-400"
                   title="Quick camera angle"
                   data-testid={`button-camera-angle-${shot.id}`}
                 >
@@ -442,11 +471,11 @@ function SortableShotCard({
 
       <CardContent className="p-4">
         <Tabs defaultValue="image" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-3">
-            <TabsTrigger value="image" className="text-xs" data-testid={`tab-image-${shot.id}`}>
+          <TabsList className="grid w-full grid-cols-2 mb-3 bg-white/[0.02] border border-white/[0.06]">
+            <TabsTrigger value="image" className="text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white" data-testid={`tab-image-${shot.id}`}>
               Image
             </TabsTrigger>
-            <TabsTrigger value="video" className="text-xs" data-testid={`tab-video-${shot.id}`}>
+            <TabsTrigger value="video" className="text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white" data-testid={`tab-video-${shot.id}`}>
               Video
             </TabsTrigger>
           </TabsList>
@@ -459,7 +488,7 @@ function SortableShotCard({
                 onChange={(e) => setLocalPrompt(e.target.value)}
                 onBlur={handlePromptBlur}
                 placeholder="Describe the shot..."
-                className="min-h-20 text-xs resize-none"
+                className="min-h-20 text-xs resize-none bg-white/[0.02] border-white/[0.06] focus:border-purple-500/50"
                 data-testid={`input-prompt-${shot.id}`}
               />
             </div>
@@ -487,10 +516,10 @@ function SortableShotCard({
                     value={shot.imageModel || "scene-default"}
                     onValueChange={(value) => onUpdateShot(shot.id, { imageModel: value === "scene-default" ? null : value })}
                   >
-                    <SelectTrigger className="h-8 text-xs" data-testid={`select-image-model-${shot.id}`}>
+                    <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-image-model-${shot.id}`}>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-black/90 border-white/[0.06]">
                       <SelectItem value="scene-default">
                         Scene Default {sceneImageModel ? `(${sceneImageModel})` : ""}
                       </SelectItem>
@@ -554,10 +583,10 @@ function SortableShotCard({
                     value={shot.shotType}
                     onValueChange={(value) => onUpdateShot(shot.id, { shotType: value })}
                   >
-                    <SelectTrigger className="h-8 text-xs" data-testid={`select-shot-type-${shot.id}`}>
+                    <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-shot-type-${shot.id}`}>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-black/90 border-white/[0.06]">
                       {SHOT_TYPES.map((type) => (
                         <SelectItem key={type} value={type}>
                           {type}
@@ -601,7 +630,7 @@ function SortableShotCard({
                 placeholder="Describe the motion and action for this shot..."
                 value={version?.videoPrompt || ""}
                 onChange={(e) => onUpdateVideoPrompt(shot.id, e.target.value)}
-                className="min-h-[60px] text-xs resize-none"
+                className="min-h-[60px] text-xs resize-none bg-white/[0.02] border-white/[0.06] focus:border-purple-500/50"
                 data-testid={`textarea-video-prompt-${shot.id}`}
               />
             </div>
@@ -629,10 +658,10 @@ function SortableShotCard({
                     value={shot.videoModel || "scene-default"}
                     onValueChange={(value) => onUpdateShot(shot.id, { videoModel: value === "scene-default" ? null : value })}
                   >
-                    <SelectTrigger className="h-8 text-xs" data-testid={`select-video-model-${shot.id}`}>
+                    <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-video-model-${shot.id}`}>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-black/90 border-white/[0.06]">
                       <SelectItem value="scene-default">
                         Scene Default {sceneModel ? `(${sceneModel})` : ""}
                       </SelectItem>
@@ -652,10 +681,10 @@ function SortableShotCard({
                     onValueChange={(value) => onUpdateVideoDuration(shot.id, parseInt(value))}
                     disabled={!shot.videoModel && !sceneModel}
                   >
-                    <SelectTrigger className="h-8 text-xs" data-testid={`select-video-duration-${shot.id}`}>
+                    <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-video-duration-${shot.id}`}>
                       <SelectValue placeholder="Select duration" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-black/90 border-white/[0.06]">
                       {(shot.videoModel && VIDEO_MODEL_DURATIONS[shot.videoModel] 
                         ? VIDEO_MODEL_DURATIONS[shot.videoModel]
                         : sceneModel && VIDEO_MODEL_DURATIONS[sceneModel]
@@ -695,7 +724,7 @@ function SortableShotCard({
                     placeholder="Describe sound effects for this shot..."
                     value={shot.soundEffects || ""}
                     onChange={(e) => onUpdateShot(shot.id, { soundEffects: e.target.value })}
-                    className="min-h-[60px] text-xs resize-none"
+                    className="min-h-[60px] text-xs resize-none bg-white/[0.02] border-white/[0.06] focus:border-purple-500/50"
                     data-testid={`textarea-sound-effects-${shot.id}`}
                   />
                 </div>
@@ -1147,7 +1176,7 @@ export function StoryboardEditor({
 
   return (
     <div className="space-y-6">
-      <div className="sticky top-0 z-50 bg-background py-4 border-b">
+      <div className="sticky top-0 z-50 bg-black/40 backdrop-blur-xl py-4 border-b border-white/[0.06]">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h3 className="text-lg font-semibold">Storyboard</h3>
@@ -1168,7 +1197,7 @@ export function StoryboardEditor({
                         variant="outline"
                         role="combobox"
                         aria-expanded={voiceDropdownOpen}
-                        className="w-48 h-9 justify-between"
+                        className="w-48 h-9 justify-between bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30"
                         disabled={!voiceOverEnabled}
                         data-testid="button-voice-selector"
                       >
@@ -1179,7 +1208,7 @@ export function StoryboardEditor({
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                      <ScrollArea className="max-h-[300px]">
+                      <ScrollArea className="max-h-[300px] custom-scrollbar">
                         <div className="p-1">
                           {VOICE_LIBRARY.map((voice) => (
                             <div
@@ -1190,7 +1219,7 @@ export function StoryboardEditor({
                             >
                               <div className="flex items-center gap-2 flex-1">
                                 {voiceActorId === voice.id && (
-                                  <Check className="h-4 w-4 text-primary" data-testid={`icon-selected-${voice.id}`} />
+                                  <Check className="h-4 w-4 text-purple-400" data-testid={`icon-selected-${voice.id}`} />
                                 )}
                                 <span className={`flex-1 text-sm ${voiceActorId === voice.id ? "font-medium" : ""}`}>
                                   {voice.name}
@@ -1222,31 +1251,32 @@ export function StoryboardEditor({
                   <Switch
                     checked={voiceOverEnabled}
                     onCheckedChange={onVoiceOverToggle}
+                    className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-purple-500 data-[state=checked]:via-pink-500 data-[state=checked]:to-purple-600 data-[state=checked]:shadow-lg data-[state=checked]:shadow-purple-500/30 data-[state=unchecked]:bg-white/[0.06]"
                     data-testid="toggle-voice-over"
                   />
                 </div>
               </>
             )}
 
-          <div className="flex items-center border rounded-md p-0.5 bg-muted/50">
+          <div className="flex items-center border rounded-lg p-1 bg-white/[0.02] border-white/[0.06]">
             <Button
               size="sm"
-              variant={viewMode === "cards" ? "default" : "ghost"}
-              className="h-7 px-2.5"
+              variant="ghost"
+              className={`h-8 px-3 transition-all duration-200 ${viewMode === "cards" ? "bg-gradient-to-r from-purple-500 via-pink-500 to-purple-600 text-white shadow-lg shadow-purple-500/20" : "text-white/70 hover:text-white hover:bg-white/[0.04]"}`}
               onClick={() => setViewMode("cards")}
               data-testid="button-view-cards"
             >
-              <LayoutGrid className="h-4 w-4 mr-1" />
+              <LayoutGrid className="h-4 w-4 mr-1.5" />
               Cards
             </Button>
             <Button
               size="sm"
-              variant={viewMode === "timeline" ? "default" : "ghost"}
-              className="h-7 px-2.5"
+              variant="ghost"
+              className={`h-8 px-3 transition-all duration-200 ${viewMode === "timeline" ? "bg-gradient-to-r from-purple-500 via-pink-500 to-purple-600 text-white shadow-lg shadow-purple-500/20" : "text-white/70 hover:text-white hover:bg-white/[0.04]"}`}
               onClick={() => setViewMode("timeline")}
               data-testid="button-view-timeline"
             >
-              <Clock className="h-4 w-4 mr-1" />
+              <Clock className="h-4 w-4 mr-1.5" />
               Timeline
             </Button>
           </div>
@@ -1260,9 +1290,9 @@ export function StoryboardEditor({
           
           return (
             <>
-              <div key={scene.id} className="space-y-4">
+              <div key={scene.id} className="space-y-4 p-6 bg-white/[0.02] border border-white/[0.06] rounded-xl">
               <div className="flex items-start gap-4">
-                <div className="w-80 shrink-0 space-y-3">
+                <div className="w-80 shrink-0 space-y-3 p-4 bg-white/[0.02] border border-white/[0.06] rounded-lg">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-3">
                       <div className={cn("h-8 w-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-bold")}>
@@ -1297,10 +1327,10 @@ export function StoryboardEditor({
                         value={scene.imageModel || IMAGE_MODELS[0]}
                         onValueChange={(value) => onUpdateScene?.(scene.id, { imageModel: value })}
                       >
-                        <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-image-model-${scene.id}`}>
+                        <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-scene-image-model-${scene.id}`}>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="bg-black/90 border-white/[0.06]">
                           {IMAGE_MODELS.map((model) => (
                             <SelectItem key={model} value={model}>
                               {model}
@@ -1316,10 +1346,10 @@ export function StoryboardEditor({
                         value={scene.videoModel || VIDEO_MODELS[0]}
                         onValueChange={(value) => onUpdateScene?.(scene.id, { videoModel: value })}
                       >
-                        <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-video-model-${scene.id}`}>
+                        <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-scene-video-model-${scene.id}`}>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="bg-black/90 border-white/[0.06]">
                           {VIDEO_MODELS.map((model) => (
                             <SelectItem key={model} value={model}>
                               {model}
@@ -1338,10 +1368,10 @@ export function StoryboardEditor({
                             value={scene.lighting || LIGHTING_OPTIONS[0]}
                             onValueChange={(value) => onUpdateScene?.(scene.id, { lighting: value })}
                           >
-                            <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-lighting-${scene.id}`}>
+                            <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-scene-lighting-${scene.id}`}>
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="bg-black/90 border-white/[0.06]">
                               {LIGHTING_OPTIONS.map((option) => (
                                 <SelectItem key={option} value={option}>
                                   {option}
@@ -1357,10 +1387,10 @@ export function StoryboardEditor({
                             value={scene.weather || WEATHER_OPTIONS[0]}
                             onValueChange={(value) => onUpdateScene?.(scene.id, { weather: value })}
                           >
-                            <SelectTrigger className="h-8 text-xs" data-testid={`select-scene-weather-${scene.id}`}>
+                            <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-scene-weather-${scene.id}`}>
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="bg-black/90 border-white/[0.06]">
                               {WEATHER_OPTIONS.map((option) => (
                                 <SelectItem key={option} value={option}>
                                   {option}
@@ -1374,7 +1404,7 @@ export function StoryboardEditor({
 
                     <Button
                       size="sm"
-                      className="w-full mt-2"
+                      className="w-full mt-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white"
                       onClick={() => {
                         toast({
                           title: "Animate Scene",
@@ -1393,7 +1423,7 @@ export function StoryboardEditor({
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-x-auto">
+                <div className="flex-1 overflow-x-auto custom-scrollbar">
                   {viewMode === "cards" ? (
                   <DndContext
                     sensors={sensors}
@@ -1462,7 +1492,7 @@ export function StoryboardEditor({
                                     <Popover>
                                       <PopoverTrigger asChild>
                                         <button
-                                          className="flex flex-col items-center justify-center w-10 gap-0.5 py-1 rounded-md bg-muted/50 hover:bg-muted border border-dashed border-muted-foreground/30 hover:border-primary/50 transition-colors"
+                                          className="flex flex-col items-center justify-center w-10 gap-0.5 py-1 rounded-md bg-muted/50 hover:bg-muted border border-dashed border-muted-foreground/30 hover:border-purple-500/50 transition-colors"
                                           data-testid={`button-transition-${shot.id}`}
                                           title="Set transition"
                                         >
@@ -1492,7 +1522,7 @@ export function StoryboardEditor({
                                             >
                                               <span className="flex-1 text-left">{trans.label}</span>
                                               {shot.transition === trans.id && (
-                                                <Check className="h-3 w-3 text-primary" />
+                                                <Check className="h-3 w-3 text-purple-400" />
                                               )}
                                             </Button>
                                           ))}
@@ -1502,7 +1532,7 @@ export function StoryboardEditor({
                                     {onAddShot && (
                                       <button
                                         onClick={() => onAddShot(scene.id, shotIndex)}
-                                        className="flex items-center justify-center w-6 h-6 rounded-full bg-background border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                                        className="flex items-center justify-center w-6 h-6 rounded-full bg-background border-2 border-dashed border-muted-foreground/30 hover:border-purple-500/50 hover:bg-purple-500/5 transition-colors"
                                         data-testid={`button-add-shot-between-${shotIndex}`}
                                         title="Insert shot here"
                                       >
@@ -1522,7 +1552,7 @@ export function StoryboardEditor({
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-32 w-24 flex flex-col gap-2 border-dashed border-2 border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5"
+                              className="h-32 w-24 flex flex-col gap-2 border-dashed border-2 border-muted-foreground/30 hover:border-purple-500/50 hover:bg-purple-500/5"
                               onClick={() => onAddShot(scene.id, Math.max(0, sceneShots.length - 1))}
                               data-testid={`button-add-shot-${scene.id}`}
                             >
@@ -1583,8 +1613,8 @@ export function StoryboardEditor({
                                 <div
                                   className={`absolute h-full rounded-md border-2 flex items-center gap-2 px-2 cursor-pointer transition-colors ${
                                     isPartOfConnection 
-                                      ? "bg-gradient-to-r from-primary/20 to-primary/10 border-primary/50" 
-                                      : "bg-muted/50 border-muted-foreground/20 hover:border-primary/50"
+                                      ? "bg-gradient-to-r from-purple-500/20 to-pink-500/10 border-purple-500/50" 
+                                      : "bg-muted/50 border-muted-foreground/20 hover:border-purple-500/50"
                                   }`}
                                   style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}
                                   onClick={() => handleSelectShot(shot)}
@@ -1611,9 +1641,37 @@ export function StoryboardEditor({
                                       {shot.description?.slice(0, 30) || "No description"}
                                       {shot.description && shot.description.length > 30 ? "..." : ""}
                                     </p>
-                                    <p className="text-[10px] text-muted-foreground">
-                                      {duration}s • {shot.shotType || "Medium Shot"}
-                                    </p>
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {duration}s • {shot.shotType || "Medium Shot"}
+                                      </p>
+                                      {/* Speed Profile Badge (Commerce Mode) */}
+                                      {shot.speedProfile && (
+                                        <Badge 
+                                          variant="outline" 
+                                          className={cn(
+                                            "text-[8px] px-1 py-0 h-4",
+                                            shot.speedProfile === 'speed-ramp' && "bg-amber-500/20 border-amber-500/30 text-amber-300",
+                                            shot.speedProfile === 'slow-motion' && "bg-blue-500/20 border-blue-500/30 text-blue-300",
+                                            shot.speedProfile === 'kinetic' && "bg-red-500/20 border-red-500/30 text-red-300",
+                                            shot.speedProfile === 'smooth' && "bg-purple-500/20 border-purple-500/30 text-purple-300",
+                                            shot.speedProfile === 'linear' && "bg-gray-500/20 border-gray-500/30 text-gray-300"
+                                          )}
+                                        >
+                                          <Zap className="w-2 h-2 mr-0.5" />
+                                          {shot.speedProfile === 'speed-ramp' ? 'Ramp' : 
+                                           shot.speedProfile === 'slow-motion' ? 'Slow' :
+                                           shot.speedProfile === 'kinetic' ? 'Kinetic' :
+                                           shot.speedProfile === 'smooth' ? 'Smooth' : 'Linear'}
+                                        </Badge>
+                                      )}
+                                      {/* Render Duration (Commerce Mode) */}
+                                      {shot.renderDuration && shot.renderDuration !== shot.duration && (
+                                        <span className="text-[9px] text-orange-400/70">
+                                          ({shot.renderDuration}s)
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
 
                                   {/* Connection Indicator */}
@@ -1730,7 +1788,7 @@ export function StoryboardEditor({
                   <h3 className="text-sm font-semibold mb-1">Shot {selectedShot.shotNumber}</h3>
                   <p className="text-xs text-muted-foreground">Version History</p>
                 </div>
-                <div className="flex-1 overflow-y-auto space-y-3">
+                <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar">
                   {shotVersions[selectedShot.id] && shotVersions[selectedShot.id]
                     .sort((a, b) => a.versionNumber - b.versionNumber)
                     .map((version) => {
@@ -1742,11 +1800,11 @@ export function StoryboardEditor({
                           key={version.id}
                           className={`relative group ${
                             compareMode && isSelectedForCompare 
-                              ? "ring-2 ring-primary rounded-md" 
+                              ? "ring-2 ring-purple-500 rounded-md" 
                               : isPreviewed
-                              ? "ring-2 ring-cyan-500 rounded-md"
+                              ? "ring-2 ring-purple-500 rounded-md"
                               : isActive
-                              ? "ring-2 ring-primary/50 rounded-md"
+                              ? "ring-2 ring-purple-500/50 rounded-md"
                               : "hover-elevate cursor-pointer"
                           }`}
                           onClick={() => {

@@ -1,12 +1,12 @@
 import { Button } from "@/components/ui/button";
-import { ScriptEditor } from "@/components/narrative/script-editor";
-import { SceneBreakdown } from "@/components/narrative/scene-breakdown";
-import { WorldCast } from "@/components/narrative/world-cast";
+import { CharacterVlogScriptEditor } from "@/components/narrative/character-vlog-script-editor";
+import { CharacterVlogSceneBreakdown } from "@/components/character-vlog/scene-breakdown";
+import { ElementsTab } from "@/components/character-vlog/elements-tab";
 import { StoryboardEditor } from "@/components/narrative/storyboard-editor";
 import { AnimaticPreview } from "@/components/narrative/animatic-preview";
 import { ExportSettings, type ExportData } from "@/components/narrative/export-settings";
 import { useToast } from "@/hooks/use-toast";
-import type { Character } from "@shared/schema";
+import type { Character, Location } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 
 interface CharacterVlogWorkflowProps {
@@ -20,10 +20,15 @@ interface CharacterVlogWorkflowProps {
   narrationStyle: "third-person" | "first-person";
   voiceActorId: string | null;
   voiceOverEnabled: boolean;
+  theme: string;
+  numberOfScenes: number | 'auto';
+  shotsPerScene: number | 'auto';
+  characterPersonality: string;
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
   characters: Character[];
+  locations: Location[];
   referenceImages: ReferenceImage[];
   continuityLocked: boolean;
   continuityGroups: { [sceneId: string]: any[] };
@@ -42,10 +47,15 @@ interface CharacterVlogWorkflowProps {
   onNarrationStyleChange: (style: "third-person" | "first-person") => void;
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
+  onThemeChange: (theme: string) => void;
+  onNumberOfScenesChange: (scenes: number | 'auto') => void;
+  onShotsPerSceneChange: (shots: number | 'auto') => void;
+  onCharacterPersonalityChange: (personality: string) => void;
   onScenesChange: (scenes: Scene[]) => void;
   onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
   onShotVersionsChange: (shotVersions: { [shotId: string]: ShotVersion[] }) => void;
   onCharactersChange: (characters: Character[]) => void;
+  onLocationsChange: (locations: Location[]) => void;
   onReferenceImagesChange: (referenceImages: ReferenceImage[]) => void;
   onContinuityLockedChange: (locked: boolean) => void;
   onContinuityGroupsChange: (groups: { [sceneId: string]: any[] }) => void;
@@ -72,10 +82,15 @@ export function CharacterVlogWorkflow({
   narrationStyle,
   voiceActorId,
   voiceOverEnabled,
+  theme,
+  numberOfScenes,
+  shotsPerScene,
+  characterPersonality,
   scenes,
   shots,
   shotVersions,
   characters,
+  locations,
   referenceImages,
   continuityLocked,
   continuityGroups,
@@ -87,10 +102,15 @@ export function CharacterVlogWorkflow({
   onNarrationStyleChange,
   onVoiceActorChange,
   onVoiceOverToggle,
+  onThemeChange,
+  onNumberOfScenesChange,
+  onShotsPerSceneChange,
+  onCharacterPersonalityChange,
   onScenesChange,
   onShotsChange,
   onShotVersionsChange,
   onCharactersChange,
+  onLocationsChange,
   onReferenceImagesChange,
   onContinuityLockedChange,
   onContinuityGroupsChange,
@@ -411,61 +431,121 @@ export function CharacterVlogWorkflow({
   return (
     <div>
       {activeStep === "script" && (
-        <ScriptEditor
+        <CharacterVlogScriptEditor
           initialScript={script}
-          aspectRatio={aspectRatio}
           scriptModel={scriptModel}
-          videoMode="character-vlog"
           narrationStyle={narrationStyle}
+          theme={theme}
+          numberOfScenes={numberOfScenes}
+          shotsPerScene={shotsPerScene}
+          characterPersonality={characterPersonality}
           onScriptChange={onScriptChange}
-          onAspectRatioChange={onAspectRatioChange}
           onScriptModelChange={onScriptModelChange}
           onNarrationStyleChange={onNarrationStyleChange}
+          onThemeChange={onThemeChange}
+          onNumberOfScenesChange={onNumberOfScenesChange}
+          onShotsPerSceneChange={onShotsPerSceneChange}
+          onCharacterPersonalityChange={onCharacterPersonalityChange}
           onNext={onNext}
         />
       )}
 
-      {activeStep === "breakdown" && (
-        <SceneBreakdown
+      {activeStep === "scenes" && (
+        <CharacterVlogSceneBreakdown
           videoId={videoId}
-          script={script}
-          scriptModel={scriptModel}
           narrativeMode={narrativeMode}
-          scenes={scenes}
-          shots={shots}
-          shotVersions={shotVersions}
-          continuityLocked={continuityLocked}
-          continuityGroups={continuityGroups}
-          onScenesGenerated={(newScenes, newShots, newShotVersions) => {
-            onScenesChange(newScenes);
-            onShotsChange(newShots);
-            if (newShotVersions) {
-              onShotVersionsChange(newShotVersions);
-            }
+          script={script}
+          characterName={mainCharacter?.name || "Character"}
+          theme={theme}
+          scenes={scenes.map(s => ({
+            id: s.id,
+            type: (s.title?.toLowerCase().includes("hook") ? "hook" : 
+                   s.title?.toLowerCase().includes("intro") ? "intro" :
+                   s.title?.toLowerCase().includes("outro") ? "outro" :
+                   s.title?.toLowerCase().includes("transition") ? "transition" : "main") as "hook" | "intro" | "main" | "transition" | "outro",
+            title: s.title || `Scene ${s.sceneNumber}`,
+            description: s.description || "",
+            order: s.sceneNumber,
+          }))}
+          shots={Object.fromEntries(
+            Object.entries(shots).map(([sceneId, sceneShots]) => [
+              sceneId,
+              sceneShots.map(shot => ({
+                id: shot.id,
+                sceneId: shot.sceneId,
+                shotNumber: shot.shotNumber,
+                shotType: shot.shotType || "talking",
+                description: shot.description || "",
+                dialogue: shot.soundEffects || "",
+              }))
+            ])
+          )}
+          onScenesChange={(newScenes) => {
+            onScenesChange(newScenes.map(scene => ({
+              id: scene.id,
+              videoId: videoId,
+              sceneNumber: scene.order,
+              title: scene.title,
+              description: scene.description,
+              lighting: null,
+              weather: null,
+              imageModel: null,
+              videoModel: null,
+              duration: null,
+              createdAt: new Date(),
+            })));
           }}
-          onContinuityLocked={() => onContinuityLockedChange(true)}
+          onShotsChange={(newShots) => {
+            onShotsChange(Object.fromEntries(
+              Object.entries(newShots).map(([sceneId, sceneShots]) => [
+                sceneId,
+                sceneShots.map(shot => ({
+                  id: shot.id,
+                  sceneId: shot.sceneId,
+                  shotNumber: shot.shotNumber,
+                  description: shot.description,
+                  cameraMovement: "Static",
+                  shotType: shot.shotType,
+                  soundEffects: shot.dialogue,
+                  duration: 3,
+                  transition: "cut",
+                  imageModel: null,
+                  videoModel: null,
+                  currentVersionId: null,
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                }))
+              ])
+            ));
+          }}
           onContinuityGroupsChange={onContinuityGroupsChange}
+          onContinuityLockedChange={onContinuityLockedChange}
           onNext={onNext}
         />
       )}
 
-      {activeStep === "world" && (
-        <WorldCast
+      {activeStep === "elements" && (
+        <ElementsTab
           videoId={videoId}
           workspaceId={workspaceId}
           characters={characters}
+          locations={locations}
           referenceImages={referenceImages}
           artStyle={worldSettings.artStyle}
           imageModel={worldSettings.imageModel}
           worldDescription={worldSettings.worldDescription}
-          locations={worldSettings.locations}
-          imageInstructions={worldSettings.imageInstructions}
-          videoInstructions={worldSettings.videoInstructions}
+          aspectRatio={aspectRatio}
           onCharactersChange={onCharactersChange}
+          onLocationsChange={onLocationsChange}
           onReferenceImagesChange={onReferenceImagesChange}
-          onWorldSettingsChange={onWorldSettingsChange}
+          onAspectRatioChange={onAspectRatioChange}
+          onWorldSettingsChange={(settings) => onWorldSettingsChange({
+            ...settings,
+            locations: worldSettings.locations || [],
+            imageInstructions: worldSettings.imageInstructions || "",
+            videoInstructions: worldSettings.videoInstructions || "",
+          })}
           onNext={onNext}
-          videoMode="character-vlog"
           mainCharacter={mainCharacter}
           onMainCharacterChange={onMainCharacterChange}
         />

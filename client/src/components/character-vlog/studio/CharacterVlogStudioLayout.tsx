@@ -1,19 +1,20 @@
-// Narrative Studio Layout - Main container with step transitions
+// Character Vlog Studio Layout - Main container with step transitions
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { NarrativeStudioBackground } from "./NarrativeStudioBackground";
-import { NarrativeTimelineNavigation, NarrativeStepId } from "./NarrativeTimelineNavigation";
-import { ArrowLeft, Film } from "lucide-react";
+import { VLOG_STEPS, VlogStepId } from "./types";
+import { CharacterVlogStudioBackground } from "./CharacterVlogStudioBackground";
+import { CharacterVlogTimelineNavigation } from "./CharacterVlogTimelineNavigation";
+import { ArrowLeft, User } from "lucide-react";
 import { useLocation } from "wouter";
 import { ReactNode } from "react";
 
-interface NarrativeStudioLayoutProps {
-  currentStep: NarrativeStepId;
-  completedSteps: NarrativeStepId[];
+interface CharacterVlogStudioLayoutProps {
+  currentStep: VlogStepId;
+  completedSteps: VlogStepId[];
   direction: number;
-  onStepClick: (step: NarrativeStepId) => void;
+  onStepClick: (step: VlogStepId) => void;
   onNext: () => void;
   onBack: () => void;
   videoTitle: string;
@@ -22,16 +23,7 @@ interface NarrativeStudioLayoutProps {
   children: ReactNode;
 }
 
-const STEP_LABELS = {
-  script: "Script",
-  world: "World & Cast",
-  breakdown: "Breakdown",
-  storyboard: "Storyboard",
-  animatic: "Animatic",
-  export: "Export",
-};
-
-export function NarrativeStudioLayout({
+export function CharacterVlogStudioLayout({
   currentStep,
   completedSteps,
   direction,
@@ -42,13 +34,16 @@ export function NarrativeStudioLayout({
   isNextDisabled,
   nextLabel,
   children
-}: NarrativeStudioLayoutProps) {
+}: CharacterVlogStudioLayoutProps) {
   const [, navigate] = useLocation();
+  
+  const currentStepIndex = VLOG_STEPS.findIndex(s => s.id === currentStep);
+  const currentStepInfo = VLOG_STEPS[currentStepIndex];
 
   return (
-    <div className="h-screen flex flex-col bg-[#0a0a0a] text-white overflow-hidden">
-      {/* Narrative Background */}
-      <NarrativeStudioBackground />
+    <div className="h-screen flex flex-col bg-[#121212] text-white overflow-hidden">
+      {/* Vlog Background */}
+      <CharacterVlogStudioBackground />
 
       {/* Header */}
       <header className="relative z-10 px-6 pt-5 pb-3 flex-shrink-0">
@@ -69,8 +64,11 @@ export function NarrativeStudioLayout({
               "flex items-center gap-2 px-3 py-1.5 rounded-lg",
               "bg-white/5 border border-white/10"
             )}>
-              <Film className="w-4 h-4 text-purple-400" />
-              <span className="text-sm font-medium text-white/70">Narrative Mode</span>
+              <div className="p-1 rounded-md relative">
+                <div className="absolute inset-0 rounded-md bg-gradient-to-br from-[#FF4081] via-[#FF5C8D] to-[#FF6B4A] opacity-60" />
+                <User className="w-3 h-3 text-white relative z-10" />
+              </div>
+              <span className="text-sm font-medium text-white/70">Character Vlog</span>
             </div>
             
             <div className="h-4 w-px bg-white/10" />
@@ -81,7 +79,8 @@ export function NarrativeStudioLayout({
               animate={{ opacity: 1, y: 0 }}
               className="flex items-center gap-2"
             >
-              <span className="text-lg font-semibold">{STEP_LABELS[currentStep]}</span>
+              <span className="text-2xl">{currentStepInfo.icon}</span>
+              <span className="text-lg font-semibold">{currentStepInfo.label}</span>
             </motion.div>
           </div>
 
@@ -93,14 +92,14 @@ export function NarrativeStudioLayout({
       </header>
 
       {/* Main Content Area - Scrollable */}
-      <main className="relative z-10 flex-1 overflow-y-auto pb-24 custom-scrollbar">
-        <div className="px-6 pb-6">
+      <main className="relative z-10 flex-1 overflow-y-auto pb-12 custom-scrollbar">
+        <div className="px-6 pb-4">
           {children}
         </div>
       </main>
 
       {/* Timeline Navigation - Fixed at bottom */}
-      <NarrativeTimelineNavigation
+      <CharacterVlogTimelineNavigation
         currentStep={currentStep}
         completedSteps={completedSteps}
         onStepClick={onStepClick}

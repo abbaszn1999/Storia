@@ -184,7 +184,7 @@ export function LocationDialog({
               </div>
               <Button 
                 onClick={handleGenerateLocation} 
-                className="w-full"
+                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90"
                 disabled={isGenerating || !newLocation.details.trim()}
                 data-testid="button-generate-location"
               >
@@ -269,7 +269,7 @@ export function LocationDialog({
             </div>
           </div>
 
-          <Button onClick={handleSave} className="w-full" data-testid="button-save-location">
+          <Button onClick={handleSave} className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90" data-testid="button-save-location">
             {editingLocation ? "Update Location" : "Add Location"}
           </Button>
         </div>

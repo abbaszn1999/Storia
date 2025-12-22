@@ -1,19 +1,20 @@
-// Narrative Studio Layout - Main container with step transitions
+// Social Commerce Studio Layout - Main container with step transitions
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { NarrativeStudioBackground } from "./NarrativeStudioBackground";
-import { NarrativeTimelineNavigation, NarrativeStepId } from "./NarrativeTimelineNavigation";
-import { ArrowLeft, Film } from "lucide-react";
+import { COMMERCE_STEPS, CommerceStepId } from "./types";
+import { SocialCommerceStudioBackground } from "./SocialCommerceStudioBackground";
+import { SocialCommerceTimelineNavigation } from "./SocialCommerceTimelineNavigation";
+import { ArrowLeft, ShoppingBag } from "lucide-react";
 import { useLocation } from "wouter";
 import { ReactNode } from "react";
 
-interface NarrativeStudioLayoutProps {
-  currentStep: NarrativeStepId;
-  completedSteps: NarrativeStepId[];
+interface SocialCommerceStudioLayoutProps {
+  currentStep: CommerceStepId;
+  completedSteps: CommerceStepId[];
   direction: number;
-  onStepClick: (step: NarrativeStepId) => void;
+  onStepClick: (step: CommerceStepId) => void;
   onNext: () => void;
   onBack: () => void;
   videoTitle: string;
@@ -22,16 +23,7 @@ interface NarrativeStudioLayoutProps {
   children: ReactNode;
 }
 
-const STEP_LABELS = {
-  script: "Script",
-  world: "World & Cast",
-  breakdown: "Breakdown",
-  storyboard: "Storyboard",
-  animatic: "Animatic",
-  export: "Export",
-};
-
-export function NarrativeStudioLayout({
+export function SocialCommerceStudioLayout({
   currentStep,
   completedSteps,
   direction,
@@ -42,13 +34,16 @@ export function NarrativeStudioLayout({
   isNextDisabled,
   nextLabel,
   children
-}: NarrativeStudioLayoutProps) {
+}: SocialCommerceStudioLayoutProps) {
   const [, navigate] = useLocation();
+  
+  const currentStepIndex = COMMERCE_STEPS.findIndex(s => s.id === currentStep);
+  const currentStepInfo = COMMERCE_STEPS[currentStepIndex];
 
   return (
     <div className="h-screen flex flex-col bg-[#0a0a0a] text-white overflow-hidden">
-      {/* Narrative Background */}
-      <NarrativeStudioBackground />
+      {/* Commerce Background */}
+      <SocialCommerceStudioBackground />
 
       {/* Header */}
       <header className="relative z-10 px-6 pt-5 pb-3 flex-shrink-0">
@@ -69,8 +64,8 @@ export function NarrativeStudioLayout({
               "flex items-center gap-2 px-3 py-1.5 rounded-lg",
               "bg-white/5 border border-white/10"
             )}>
-              <Film className="w-4 h-4 text-purple-400" />
-              <span className="text-sm font-medium text-white/70">Narrative Mode</span>
+              <ShoppingBag className="w-4 h-4 text-pink-500" />
+              <span className="text-sm font-medium text-white/70">Social Commerce</span>
             </div>
             
             <div className="h-4 w-px bg-white/10" />
@@ -81,7 +76,8 @@ export function NarrativeStudioLayout({
               animate={{ opacity: 1, y: 0 }}
               className="flex items-center gap-2"
             >
-              <span className="text-lg font-semibold">{STEP_LABELS[currentStep]}</span>
+              <span className="text-2xl">{currentStepInfo.icon}</span>
+              <span className="text-lg font-semibold">{currentStepInfo.label}</span>
             </motion.div>
           </div>
 
@@ -100,7 +96,7 @@ export function NarrativeStudioLayout({
       </main>
 
       {/* Timeline Navigation - Fixed at bottom */}
-      <NarrativeTimelineNavigation
+      <SocialCommerceTimelineNavigation
         currentStep={currentStep}
         completedSteps={completedSteps}
         onStepClick={onStepClick}

@@ -32,6 +32,8 @@ export interface Shot {
   soundEffects?: string | null;
   transition?: string | null;
   currentVersionId?: string | null;
+  speedProfile?: 'linear' | 'speed-ramp' | 'slow-motion' | 'kinetic' | 'smooth' | null;
+  renderDuration?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }

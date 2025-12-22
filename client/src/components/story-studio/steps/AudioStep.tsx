@@ -25,10 +25,12 @@ import { useToast } from "@/hooks/use-toast";
 import { StoryScene, StoryTemplate, MusicStyle } from "../types";
 import { useState, useRef, useEffect } from "react";
 import { ELEVENLABS_VOICES, getVoicesByLanguage } from "@/constants/elevenlabs-voices";
+import { useWorkspace } from "@/contexts/workspace-context";
 
 interface AudioStepProps {
   template: StoryTemplate;
   scenes: StoryScene[];
+  projectFolder: string; // Full folder name with timestamp for file storage
   selectedVoice: string;
   musicStyle: MusicStyle;
   backgroundMusic: string; // Legacy
@@ -71,6 +73,7 @@ const MUSIC_STYLES: Array<{
 export function AudioStep({
   template,
   scenes,
+  projectFolder,
   selectedVoice,
   musicStyle,
   backgroundMusic,
@@ -92,6 +95,7 @@ export function AudioStep({
   accentColor = "primary",
 }: AudioStepProps) {
   const { toast } = useToast();
+  const { currentWorkspace } = useWorkspace();
   const [activeTab, setActiveTab] = useState<'ar' | 'en'>('ar');
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -163,7 +167,8 @@ export function AudioStep({
       setIsUploadingMusic(true);
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('workspaceId', template?.id || 'default');
+      formData.append('workspaceId', currentWorkspace?.id || 'default');
+      formData.append('projectName', projectFolder); // Use projectFolder (with timestamp) for consistent storage
 
       const response = await fetch('/api/problem-solution/custom-music/upload', {
         method: 'POST',

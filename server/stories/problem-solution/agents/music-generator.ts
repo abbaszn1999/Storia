@@ -162,7 +162,8 @@ export async function generateMusic(
       workspaceName,
       toolMode: "problem-solution",
       projectName: truncatedProjectName,
-      filename: `Music/${filename}`,
+      subfolder: "Music",
+      filename: filename,
     });
 
     console.log('[music-generator] Uploading to CDN...');

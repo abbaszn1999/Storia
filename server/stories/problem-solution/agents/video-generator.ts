@@ -38,6 +38,43 @@ import type {
   ImageStyle,
 } from "../types";
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const CONFIG = {
+  /** 
+   * Maximum videos per batch request
+   * Video generation is resource-intensive, so we limit batch size
+   * to prevent timeouts and ensure reliable processing
+   */
+  MAX_BATCH_SIZE: 10,
+  
+  /** Base timeout for video generation (5 minutes) */
+  BASE_TIMEOUT_MS: 300000,
+  
+  /** Additional timeout per video (2 minutes each) */
+  TIMEOUT_PER_VIDEO_MS: 120000,
+  
+  /** Buffer timeout (1 minute) */
+  BUFFER_TIMEOUT_MS: 60000,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Split array into chunks of specified size
+ */
+function chunkArray<T>(array: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
 /**
  * Find the closest supported duration for a given target duration
  * Prefers lower duration if equidistant
@@ -50,10 +87,6 @@ import type {
  * findClosestDuration(6, [2, 4, 5, 8, 10]) // returns 5
  * findClosestDuration(7, [2, 4, 5, 8, 10]) // returns 8
  * findClosestDuration(3, [2, 4, 5, 8, 10]) // returns 2 (prefer lower)
- */
-/**
- * Find the closest supported duration for a given target duration
- * Prefers lower duration if equidistant
  */
 function findClosestDuration(
   targetDuration: number,
@@ -265,116 +298,147 @@ export async function generateVideos(
     };
   });
 
-  // Calculate dynamic timeout based on number of scenes (2 min per scene + 1 min buffer)
-  const dynamicTimeoutMs = Math.max(300000, payloads.length * 120000 + 60000);
-  console.log(`[problem-solution:video-generator] Sending ${payloads.length} scenes in parallel batch (timeout: ${dynamicTimeoutMs / 1000}s)...`);
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BATCH PROCESSING WITH CHUNKING
+  // Split into chunks if scene count exceeds MAX_BATCH_SIZE
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  const batches = chunkArray(payloads, CONFIG.MAX_BATCH_SIZE);
+  console.log(`[problem-solution:video-generator] Split ${payloads.length} scenes into ${batches.length} batch(es) (max ${CONFIG.MAX_BATCH_SIZE} per batch)`);
 
-  let results: VideoGenerationResult[] = [];
+  let allResults: VideoGenerationResult[] = [];
   let errors: string[] = [];
   let totalCost = 0;
 
-  try {
-    // Send ALL scenes in ONE request for parallel processing! 🚀
-    const response = await callAi(
-      {
-        provider: "runware",
-        model: videoModel,
-        task: "video-generation",
-        payload: payloads, // Array of all payloads
-        userId,
-        workspaceId: input.workspaceId,
-        runware: {
-          deliveryMethod: "async",
-          timeoutMs: dynamicTimeoutMs, // Dynamic: 2 min per scene + 1 min buffer
-        },
-      },
-      {
-        skipCreditCheck: false,
-      }
+  // Process each batch sequentially
+  for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+    const batch = batches[batchIndex];
+    const batchNum = batchIndex + 1;
+    
+    // Calculate dynamic timeout based on batch size
+    const dynamicTimeoutMs = Math.max(
+      CONFIG.BASE_TIMEOUT_MS,
+      batch.length * CONFIG.TIMEOUT_PER_VIDEO_MS + CONFIG.BUFFER_TIMEOUT_MS
     );
-
-    // Process results
-    const outputData = response.output as any[];
-    console.log(`[problem-solution:video-generator] Received ${outputData.length} results`);
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Match results using taskUUID (NOT by index - results may be out of order!)
-    // ═══════════════════════════════════════════════════════════════════════════
     
-    // Create a map of taskUUID -> result for O(1) lookup
-    const resultByTaskUUID = new Map<string, any>();
-    for (const data of outputData) {
-      if (data?.taskUUID) {
-        resultByTaskUUID.set(data.taskUUID, data);
+    console.log(`[problem-solution:video-generator] Processing batch ${batchNum}/${batches.length} (${batch.length} videos, timeout: ${dynamicTimeoutMs / 1000}s)...`);
+
+    try {
+      // Send batch for parallel processing
+      const response = await callAi(
+        {
+          provider: "runware",
+          model: videoModel,
+          task: "video-generation",
+          payload: batch,
+          userId,
+          workspaceId: input.workspaceId,
+          runware: {
+            deliveryMethod: "async",
+            timeoutMs: dynamicTimeoutMs,
+          },
+        },
+        {
+          skipCreditCheck: false,
+        }
+      );
+
+      // Process results
+      const outputData = response.output as any[];
+      console.log(`[problem-solution:video-generator] Batch ${batchNum} received ${outputData.length} results`);
+
+      // Create a map of taskUUID -> result for O(1) lookup
+      const resultByTaskUUID = new Map<string, any>();
+      for (const data of outputData) {
+        if (data?.taskUUID) {
+          resultByTaskUUID.set(data.taskUUID, data);
+        }
       }
-    }
-    
-    console.log(`[problem-solution:video-generator] Mapped ${resultByTaskUUID.size} results by taskUUID`);
-
-    // Map results back to scenes using taskUUID
-    results = payloads.map((payload) => {
-      const taskUUID = payload.taskUUID;
-      const sceneInfo = taskToSceneMap.get(taskUUID);
       
-      if (!sceneInfo) {
-        console.error(`[problem-solution:video-generator] No scene mapping for taskUUID: ${taskUUID}`);
-        return {
-          sceneNumber: 0,
-          sceneId: '',
-          videoUrl: '',
-          actualDuration: 0,
-          status: 'failed' as const,
-          error: 'Scene mapping not found',
-        };
-      }
+      console.log(`[problem-solution:video-generator] Batch ${batchNum} mapped ${resultByTaskUUID.size} results by taskUUID`);
 
-      // Find result by taskUUID (reliable matching!)
-      const data = resultByTaskUUID.get(taskUUID);
-
-      if (data?.videoURL) {
-        console.log(`[problem-solution:video-generator] Scene ${sceneInfo.sceneNumber} completed ✓ (taskUUID: ${taskUUID.substring(0, 8)}...)`);
-        return {
-          sceneNumber: sceneInfo.sceneNumber,
-          sceneId: sceneInfo.sceneId,
-          videoUrl: data.videoURL,
-          actualDuration: sceneInfo.duration,
-          status: 'generated' as const,
-        };
-      } else {
-        const errorMessage = data?.error || 'No video URL in response';
-        console.error(`[problem-solution:video-generator] Scene ${sceneInfo.sceneNumber} failed:`, errorMessage);
-        errors.push(`Scene ${sceneInfo.sceneNumber}: ${errorMessage}`);
+      // Map results back to scenes using taskUUID
+      const batchResults = batch.map((payload) => {
+        const taskUUID = payload.taskUUID;
+        const sceneInfo = taskToSceneMap.get(taskUUID);
         
+        if (!sceneInfo) {
+          console.error(`[problem-solution:video-generator] No scene mapping for taskUUID: ${taskUUID}`);
+          return {
+            sceneNumber: 0,
+            sceneId: '',
+            videoUrl: '',
+            actualDuration: 0,
+            status: 'failed' as const,
+            error: 'Scene mapping not found',
+          };
+        }
+
+        // Find result by taskUUID (reliable matching!)
+        const data = resultByTaskUUID.get(taskUUID);
+
+        if (data?.videoURL) {
+          console.log(`[problem-solution:video-generator] Batch ${batchNum}: Scene ${sceneInfo.sceneNumber} completed ✓`);
+          return {
+            sceneNumber: sceneInfo.sceneNumber,
+            sceneId: sceneInfo.sceneId,
+            videoUrl: data.videoURL,
+            actualDuration: sceneInfo.duration,
+            status: 'generated' as const,
+          };
+        } else {
+          const errorMessage = data?.error || 'No video URL in response';
+          console.error(`[problem-solution:video-generator] Batch ${batchNum}: Scene ${sceneInfo.sceneNumber} failed:`, errorMessage);
+          errors.push(`Scene ${sceneInfo.sceneNumber}: ${errorMessage}`);
+          
+          return {
+            sceneNumber: sceneInfo.sceneNumber,
+            sceneId: sceneInfo.sceneId,
+            videoUrl: '',
+            actualDuration: sceneInfo.duration,
+            status: 'failed' as const,
+            error: errorMessage,
+          };
+        }
+      });
+
+      allResults.push(...batchResults);
+      
+      // Calculate batch cost
+      const batchCost = outputData.reduce((sum, data) => sum + (data?.cost || 0), 0);
+      totalCost += batchCost;
+      
+      console.log(`[problem-solution:video-generator] Batch ${batchNum} complete: ${batchResults.filter(r => r.status === 'generated').length}/${batchResults.length} successful, cost: $${batchCost.toFixed(4)}`);
+      
+      // Small delay between batches to avoid rate limiting
+      if (batchIndex < batches.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+    } catch (error) {
+      console.error(`[problem-solution:video-generator] Batch ${batchNum} generation failed:`, error);
+      
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      
+      // Mark all scenes in this batch as failed
+      const failedBatchResults = batch.map((payload) => {
+        const sceneInfo = taskToSceneMap.get(payload.taskUUID);
         return {
-          sceneNumber: sceneInfo.sceneNumber,
-          sceneId: sceneInfo.sceneId,
-          videoUrl: '',
-          actualDuration: sceneInfo.duration,
-          status: 'failed' as const,
+          sceneNumber: sceneInfo?.sceneNumber || 0,
+          sceneId: sceneInfo?.sceneId || '',
+          videoUrl: "",
+          actualDuration: sceneInfo?.duration || 0,
+          status: "failed" as const,
           error: errorMessage,
         };
-      }
-    });
-
-    // Calculate total cost
-    totalCost = outputData.reduce((sum, data) => sum + (data?.cost || 0), 0);
-  } catch (error) {
-    console.error("[problem-solution:video-generator] Batch generation failed:", error);
-    
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    
-    // Mark all scenes as failed
-    results = scenes.map((scene) => ({
-      sceneNumber: scene.sceneNumber,
-      sceneId: scene.id,
-      videoUrl: "",
-      actualDuration: scene.duration,
-      status: "failed",
-      error: errorMessage,
-    }));
-    
-    errors.push(`Batch generation failed: ${errorMessage}`);
+      });
+      
+      allResults.push(...failedBatchResults);
+      errors.push(`Batch ${batchNum} failed: ${errorMessage}`);
+    }
   }
+
+  const results = allResults;
 
   console.log("[problem-solution:video-generator] Generation complete:", {
     total: results.length,

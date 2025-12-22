@@ -81,20 +81,55 @@ export interface BunnyStorageConfig {
 }
 
 /**
+ * Subfolder types for organizing project assets
+ */
+export type StoryModeSubfolder = 'Reference' | 'VoiceOver' | 'Music' | 'Render';
+
+/**
  * Build a Story_Mode path for Bunny storage.
- * Example: {userId}/{workspaceName}/Story_Mode/asmr/{projectName}_{date}/Rendered/{filename}
+ * New Structure: {userId}/{workspaceName}/Story_Mode/{toolMode}/{projectFolder}/{subfolder}/{filename}
+ * 
+ * projectFolder format: {ProjectName}_{YYYYMMDD_HHMMSS}
+ * - If provided, use as-is (frontend generates with timestamp)
+ * - Subfolders: Reference/, VoiceOver/, Music/, Render/
+ * 
+ * Example: user123/MyWorkspace/Story_Mode/problem-solution/MyProject_20241222_143520/Render/final.mp4
  */
 export function buildStoryModePath(params: {
   userId: string;
   workspaceName: string;
-  toolMode: string; // e.g., "asmr"
+  toolMode: string;       // e.g., "problem-solution", "asmr"
+  projectName: string;    // Now expects full folder name with timestamp: "MyProject_20241222_143520"
+  subfolder: StoryModeSubfolder; // "Reference" | "VoiceOver" | "Music" | "Render"
+  filename: string;
+}): string {
+  const { userId, workspaceName, toolMode, projectName, subfolder, filename } = params;
+  
+  // Clean inputs for path safety (preserve Arabic and Unicode characters)
+  const clean = (str: string) => str.replace(/[^a-zA-Z0-9\u0600-\u06FF_\- ]/g, "").trim().replace(/\s+/g, "_");
+  const user = clean(userId);
+  const workspace = clean(workspaceName);
+  const tool = clean(toolMode);
+  const project = clean(projectName) || `MyProject_${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 15)}`;
+  const file = filename.replace(/[^a-zA-Z0-9-_.]/g, "_");
+  
+  return `${user}/${workspace}/Story_Mode/${tool}/${project}/${subfolder}/${file}`;
+}
+
+/**
+ * Build a Story_Mode path for Bunny storage (Legacy - for backward compatibility).
+ * Will be deprecated. Use buildStoryModePath with subfolder instead.
+ */
+export function buildStoryModePathLegacy(params: {
+  userId: string;
+  workspaceName: string;
+  toolMode: string;
   projectName: string;
   filename: string;
-  dateLabel?: string; // optional, default: today YYYYMMDD
+  dateLabel?: string;
 }): string {
   const { userId, workspaceName, toolMode, projectName, filename, dateLabel } = params;
   const safeDate = dateLabel || new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  // Clean inputs for path safety
   const clean = (str: string) => str.replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "_");
   const user = clean(userId);
   const workspace = clean(workspaceName);

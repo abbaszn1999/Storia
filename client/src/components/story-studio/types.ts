@@ -80,6 +80,12 @@ export interface StoryStudioState {
   // Template info
   template: StoryTemplate | null;
   
+  // Project identification
+  projectName: string;       // User-entered project name (required before proceeding)
+  projectTimestamp: string;  // Fixed timestamp generated once: "YYYYMMDD_HHMMSS"
+  projectFolder: string;     // Full folder name: "{projectName}_{projectTimestamp}"
+  isProjectLocked: boolean;  // Locks project name after leaving concept step
+  
   // Navigation
   currentStep: StepId;
   completedSteps: StepId[];
@@ -125,6 +131,7 @@ export interface StoryStudioState {
   // Step 4: Export
   exportFormat: string;
   exportQuality: string;
+  storyId?: string; // Database story ID after saving
   lastExportResult?: {
     videoUrl: string;
     videoBaseUrl?: string;
@@ -149,6 +156,9 @@ export interface StoryStudioActions {
   goToStep: (step: StepId) => void;
   nextStep: () => void;
   prevStep: () => void;
+  
+  // Project
+  setProjectName: (name: string) => void;
   
   // Step 1
   setTopic: (topic: string) => void;

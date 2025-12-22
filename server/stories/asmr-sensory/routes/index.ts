@@ -490,12 +490,18 @@ asmrRouter.post("/generate", isAuthenticated, async (req: Request, res: Response
       console.warn("[asmr-routes] Unable to resolve workspace name, using id");
     }
 
-    const filename = `${Date.now()}.mp4`;
+    // Generate project folder with timestamp (matching problem-solution format)
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+    const projectFolder = `${title}_${timestamp}`;
+    
+    const filename = `final.mp4`;
     const bunnyPath = buildStoryModePath({
       userId,
       workspaceName,
       toolMode: "asmr",
-      projectName: title,
+      projectName: projectFolder,
+      subfolder: "Render",
       filename,
     });
 
@@ -517,12 +523,13 @@ asmrRouter.post("/generate", isAuthenticated, async (req: Request, res: Response
       const thumbBuffer = await fs.readFile(tempThumbPath);
 
       // Upload thumbnail to Bunny (same path as video but with .jpg extension)
-      const thumbFilename = filename.replace(/\.mp4$/, ".jpg");
+      const thumbFilename = "thumbnail.jpg";
       const thumbBunnyPath = buildStoryModePath({
         userId,
         workspaceName,
         toolMode: "asmr",
-        projectName: title,
+        projectName: projectFolder,
+        subfolder: "Render",
         filename: thumbFilename,
       });
       thumbnailUrl = await bunnyStorage.uploadFile(thumbBunnyPath, thumbBuffer, "image/jpeg");
@@ -535,15 +542,17 @@ asmrRouter.post("/generate", isAuthenticated, async (req: Request, res: Response
       // Continue without thumbnail if generation fails
     }
 
-    // Persist story record
+    // Persist story record with new schema
     const story = await storage.createStory({
+      userId,
       workspaceId: effectiveWorkspaceId!,
-      title,
-      template: "asmr-sensory",
-      aspectRatio,
-      duration,
-      exportUrl: cdnUrl,
+      projectName: title,
+      projectFolder,
+      storyMode: "asmr-sensory",
+      videoUrl: cdnUrl,
       thumbnailUrl: thumbnailUrl || undefined,
+      duration,
+      aspectRatio,
     });
 
     // Cleanup local temp if applicable

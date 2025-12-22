@@ -244,6 +244,7 @@ async function generateSceneVoiceover(
         workspaceName,
         toolMode: "problem-solution",
         projectName: truncatedProjectName,
+        subfolder: "VoiceOver",
         filename: filename,
       });
 

@@ -6,17 +6,54 @@ import { StepId, STEPS, StoryStudioState, StoryScene, StoryTemplate, MusicStyle 
 import { apiRequest } from "@/lib/queryClient";
 import { getImageModelConfig } from "@/constants/image-models";
 import { getVideoModelConfig } from "@/constants/video-models";
+import { useWorkspace } from "@/contexts/workspace-context";
 
 const STORAGE_KEY = "storia-studio-state";
 
-const createInitialState = (template: StoryTemplate | null): StoryStudioState => ({
-  template,
-  currentStep: 'concept',
-  completedSteps: [],
-  direction: 1,
+/**
+ * Generate a unique timestamp for project folder naming
+ * Format: YYYYMMDD_HHMMSS (e.g., 20241222_084530)
+ */
+function generateProjectTimestamp(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  return `${year}${month}${day}_${hours}${minutes}${seconds}`;
+}
+
+/**
+ * Generate the full project folder name using a fixed timestamp
+ * Format: {projectName}_{timestamp}
+ */
+function generateProjectFolder(projectName: string, timestamp: string): string {
+  const safeName = (projectName || 'MyProject').trim().replace(/[^a-zA-Z0-9\u0600-\u06FF_\- ]/g, '').replace(/\s+/g, '_') || 'MyProject';
+  return `${safeName}_${timestamp}`;
+}
+
+const createInitialState = (template: StoryTemplate | null): StoryStudioState => {
+  // Generate timestamp ONCE for this project session
+  const projectTimestamp = generateProjectTimestamp();
+  const projectFolder = generateProjectFolder('MyProject', projectTimestamp);
   
-  // Step 1
-  topic: '',
+  return {
+    template,
+    
+    // Project identification
+    projectName: '',
+    projectTimestamp,
+    projectFolder,
+    isProjectLocked: false,
+    
+    currentStep: 'concept',
+    completedSteps: [],
+    direction: 1,
+    
+    // Step 1
+    topic: '',
   generatedScript: '',
   aspectRatio: '9:16',
   duration: 30,
@@ -64,9 +101,13 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
   hasEnhancedStoryboard: false,  // Track if storyboard has been auto-enhanced once
   hasGeneratedVoiceover: false,  // Track if voiceover has been auto-generated once
   hasExportedVideo: false,       // Track if video has been auto-exported once
-});
+  };
+};
 
 export function useStoryStudio(template: StoryTemplate | null) {
+  // Get current workspace for proper file storage paths
+  const { currentWorkspace } = useWorkspace();
+  
   const [isTransitioningToExport, setIsTransitioningToExport] = useState(false);
   const [voiceoverProgress, setVoiceoverProgress] = useState(0);
   
@@ -144,8 +185,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
         styleReferenceUrl: state.styleReferenceUrl || undefined, // Custom style reference
         imageModel: state.imageModel,
         imageResolution: state.imageResolution,
-        projectName: state.topic || 'Untitled',
-        workspaceId: template?.id || 'default',
+        projectName: state.projectFolder,
+        workspaceId: currentWorkspace?.id || 'default',
       });
 
       const data = await res.json();
@@ -213,8 +254,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
         videoResolution: state.videoResolution,
         aspectRatio: state.aspectRatio,
         imageStyle: state.imageStyle,
-        projectName: state.topic || 'Untitled',
-        workspaceId: template?.id || 'default',
+        projectName: state.projectFolder,
+        workspaceId: currentWorkspace?.id || 'default',
       });
 
       const data = await res.json();
@@ -274,8 +315,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
         videoResolution: state.videoResolution,
         aspectRatio: state.aspectRatio,
         imageStyle: state.imageStyle,
-        projectName: state.topic || 'Untitled',
-        workspaceId: template?.id || 'default',
+        projectName: state.projectFolder,
+        workspaceId: currentWorkspace?.id || 'default',
         storyId: template?.id || 'temp-story',
       });
 
@@ -421,8 +462,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
           styleReferenceUrl: state.styleReferenceUrl || undefined, // Custom style reference
           imageModel: state.imageModel,
           imageResolution: state.imageResolution,
-          projectName: state.topic || 'Untitled',
-          workspaceId: template?.id || 'default',
+          projectName: state.projectFolder,
+          workspaceId: currentWorkspace?.id || 'default',
         });
 
         const imageData = await res.json();
@@ -484,6 +525,14 @@ export function useStoryStudio(template: StoryTemplate | null) {
     if (currentIndex < STEPS.length - 1) {
       const nextStepId = STEPS[currentIndex + 1].id;
       
+      // Lock project name when leaving concept step
+      const shouldLockProject = state.currentStep === 'concept' && !state.isProjectLocked;
+      
+      // Regenerate projectFolder with final projectName if not locked yet (using same timestamp)
+      const finalProjectFolder = shouldLockProject 
+        ? generateProjectFolder(state.projectName || 'MyProject', state.projectTimestamp)
+        : state.projectFolder;
+      
       // Navigate first
       setState(prev => ({
         ...prev,
@@ -492,6 +541,9 @@ export function useStoryStudio(template: StoryTemplate | null) {
         completedSteps: prev.completedSteps.includes(prev.currentStep)
           ? prev.completedSteps
           : [...prev.completedSteps, prev.currentStep],
+        // Lock the project and set the final projectFolder
+        isProjectLocked: shouldLockProject ? true : prev.isProjectLocked,
+        projectFolder: finalProjectFolder,
       }));
 
       // Auto-trigger scene generation when entering script step ONLY ONCE (first time ever)
@@ -555,6 +607,21 @@ export function useStoryStudio(template: StoryTemplate | null) {
       }));
     }
   }, [state.currentStep]);
+
+  // Project Name - regenerate projectFolder when name changes using fixed timestamp
+  const setProjectName = useCallback((projectName: string) => {
+    setState(prev => {
+      // If project is locked, don't allow changes
+      if (prev.isProjectLocked) return prev;
+      
+      return {
+        ...prev,
+        projectName,
+        // Regenerate folder with current name but SAME timestamp
+        projectFolder: generateProjectFolder(projectName || 'MyProject', prev.projectTimestamp),
+      };
+    });
+  }, []);
 
   // Step 1: Concept
   const setTopic = useCallback((topic: string) => {
@@ -937,8 +1004,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
         styleReferenceUrl: state.styleReferenceUrl || undefined, // Custom style reference
         imageModel: state.imageModel,
         imageResolution: state.imageResolution,
-        projectName: state.topic || 'Untitled',
-        workspaceId: template?.id || 'default',
+        projectName: state.projectFolder,
+        workspaceId: currentWorkspace?.id || 'default',
         storyId: template?.id || 'temp-story',
       });
 
@@ -1006,8 +1073,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
           duration: s.duration,
         })),
         voiceId: state.selectedVoice,
-        projectName: state.topic || 'Untitled',
-        workspaceId: template?.id || 'default',
+        projectName: state.projectFolder,
+        workspaceId: currentWorkspace?.id || 'default',
       });
 
       const data = await res.json();
@@ -1163,8 +1230,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
         textOverlay: state.voiceoverEnabled && state.textOverlayEnabled, // Text overlay ONLY when both voiceover and textOverlay are enabled
         textOverlayStyle: state.textOverlayStyle, // Style: 'modern' | 'cinematic' | 'bold'
         language: state.language, // Language for font selection: 'en' | 'ar'
-        projectName: state.topic || 'Untitled',
-        workspaceId: template?.id || 'default',
+        projectName: state.projectFolder,
+        workspaceId: currentWorkspace?.id || 'default',
       });
 
       const data = await res.json();
@@ -1190,11 +1257,34 @@ export function useStoryStudio(template: StoryTemplate | null) {
         musicUrl: data.musicUrl,
       };
       
+      // Save story to database and get storyId
+      let storyId: string | undefined;
+      try {
+        console.log('[export] Saving story to database...');
+        const saveRes = await apiRequest("POST", "/api/problem-solution/story/save", {
+          workspaceId: currentWorkspace?.id || 'default',
+          projectName: state.projectName || 'Untitled',
+          projectFolder: state.projectFolder,
+          storyMode: 'problem-solution',
+          videoUrl: data.videoUrl,
+          thumbnailUrl: undefined, // Can add thumbnail generation later
+          duration: data.duration,
+          aspectRatio: state.aspectRatio,
+        });
+        const saveData = await saveRes.json();
+        storyId = saveData.story?.id;
+        console.log('[export] Story saved to database, storyId:', storyId);
+      } catch (saveError) {
+        console.warn('[export] Failed to save story to database:', saveError);
+        // Don't fail the export if DB save fails
+      }
+      
       setState(prev => ({
         ...prev,
         isGenerating: false,
         generationProgress: 100,
         lastExportResult: exportResult,
+        storyId: storyId, // Save storyId in state
         hasExportedVideo: true,  // Mark video as exported (once-only flag)
       }));
 
@@ -1233,8 +1323,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
         musicUrl,
         voiceVolume,
         musicVolume,
-        projectName: state.topic || 'Untitled',
-        workspaceId: template?.id || 'default',
+        projectName: state.projectFolder,
+        workspaceId: currentWorkspace?.id || 'default',
       });
 
       const data = await res.json();
@@ -1264,7 +1354,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
   }, [template]);
 
   // Completion check helpers
-  const isStep1Complete = state.topic.trim().length > 0;
+  const hasProjectName = state.projectName.trim().length > 0;
+  const isStep1Complete = state.topic.trim().length > 0 && hasProjectName;
   
   // Script step is complete only if scenes exist AND total duration matches target
   const totalSceneDuration = state.scenes.reduce((sum, scene) => sum + scene.duration, 0);
@@ -1301,6 +1392,9 @@ export function useStoryStudio(template: StoryTemplate | null) {
     goToStep,
     nextStep,
     prevStep,
+    
+    // Project
+    setProjectName,
     
     // Step 1
     setTopic,

@@ -38,7 +38,9 @@ import {
   SquareIcon,
   Calendar,
   Zap,
-  AlertCircle
+  AlertCircle,
+  Link2,
+  Lock
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,8 +50,10 @@ import { StoryScene, StoryTemplate } from "../types";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Slider } from "@/components/ui/slider";
 import { useWorkspace } from "@/contexts/workspace-context";
-import { lateApi, type PublishVideoInput } from "@/lib/api/late";
+import { lateApi, type PublishVideoInput, type LatePlatform } from "@/lib/api/late";
 import { useToast } from "@/hooks/use-toast";
+import { useSocialAccounts } from "@/components/shared/social";
+import { apiRequest } from "@/lib/queryClient";
 
 // Export result with separated audio assets
 interface ExportResult {
@@ -80,6 +84,7 @@ interface ExportStepProps {
   isFinalExporting?: boolean;  // Is final export in progress
   hasGeneratedVoiceover: boolean;  // Track if voiceover has been auto-generated once
   hasExportedVideo: boolean;       // Track if video has been auto-exported once
+  storyId?: string;                // Database story ID for updating published_platforms
   lastExportResult?: {             // Previous export result to restore on re-entry
     videoUrl: string;
     videoBaseUrl?: string;
@@ -149,6 +154,7 @@ const PLATFORMS: PlatformConfig[] = [
       aspectRatios: ['9:16'],  // Vertical only
       maxDuration: 180,        // 3 minutes max
     },
+    apiPlatform: 'tiktok' as LatePlatform,
   },
   { 
     id: 'instagram', 
@@ -161,6 +167,7 @@ const PLATFORMS: PlatformConfig[] = [
       aspectRatios: ['9:16', '4:5', '1:1'],  // Vertical, portrait, or square
       maxDuration: 90,  // 90 seconds max for Reels
     },
+    apiPlatform: 'instagram' as LatePlatform,
   },
   { 
     id: 'facebook', 
@@ -173,6 +180,7 @@ const PLATFORMS: PlatformConfig[] = [
       aspectRatios: ['9:16', '16:9', '4:5', '1:1'],  // Most formats
       maxDuration: 90,  // 90 seconds max for Reels
     },
+    apiPlatform: 'facebook' as LatePlatform,
   },
 ];
 
@@ -238,6 +246,7 @@ export function ExportStep({
   isFinalExporting = false,
   hasGeneratedVoiceover,
   hasExportedVideo,
+  storyId,
   lastExportResult,
   onExport,
   onRemix,
@@ -250,6 +259,9 @@ export function ExportStep({
   // Get workspace for publishing
   const { currentWorkspace } = useWorkspace();
   const { toast } = useToast();
+  
+  // Social accounts hook for connection status
+  const { isLoading: isLoadingAccounts, isConnected, getConnectUrl, refetch: refetchAccounts } = useSocialAccounts();
 
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
@@ -263,6 +275,7 @@ export function ExportStep({
   const [isGeneratingMetadata, setIsGeneratingMetadata] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
   
   // Scheduling state
   const [scheduleMode, setScheduleMode] = useState<'now' | 'scheduled'>('now');
@@ -337,6 +350,25 @@ export function ExportStep({
   // Track if onFinalExport was called this render
   const hasFinalExportTriggered = useRef(false);
   
+  // Clear connecting state when platform becomes connected
+  useEffect(() => {
+    if (connectingPlatform) {
+      const platform = PLATFORMS.find(p => p.id === connectingPlatform);
+      if (platform?.apiPlatform && isConnected(platform.apiPlatform)) {
+        // Clear the polling interval
+        if (connectIntervalRef.current) {
+          clearInterval(connectIntervalRef.current);
+          connectIntervalRef.current = null;
+        }
+        setConnectingPlatform(null);
+        toast({
+          title: "Connected!",
+          description: `${platform.name} has been connected successfully.`,
+        });
+      }
+    }
+  }, [connectingPlatform, isConnected, toast]);
+  
   // When isFinalExporting changes to true, call onFinalExport
   useEffect(() => {
     if (isFinalExporting && !hasFinalExportTriggered.current && exportedVideoUrl) {
@@ -405,7 +437,7 @@ export function ExportStep({
   useEffect(() => {
     // Skip if already generated globally (parent state tracks this)
     if (hasGeneratedVoiceover) {
-      setVoiceoverGenerated(true);
+        setVoiceoverGenerated(true);
       return;
     }
     
@@ -423,7 +455,7 @@ export function ExportStep({
         .then(() => {
           setVoiceoverGenerated(true);
           setIsGeneratingVoiceover(false);
-          console.log('[ExportStep] Voiceover generation complete');
+        console.log('[ExportStep] Voiceover generation complete');
         })
         .catch(error => {
           console.error('[ExportStep] Voiceover generation failed:', error);
@@ -697,6 +729,44 @@ export function ExportStep({
     }
   };
 
+  // Handle platform connection via OAuth
+  const connectIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const handleConnect = useCallback(async (platformId: string) => {
+    const platform = PLATFORMS.find(p => p.id === platformId);
+    if (!platform?.apiPlatform) return;
+
+    setConnectingPlatform(platformId);
+    
+    const url = await getConnectUrl(platform.apiPlatform);
+    if (url) {
+      window.open(url, '_blank', 'width=600,height=700');
+      toast({
+        title: "Connecting...",
+        description: "Complete authentication in the new window, then return here.",
+      });
+      // Poll for connection - will be stopped by useEffect when connected
+      connectIntervalRef.current = setInterval(async () => {
+        await refetchAccounts();
+      }, 3000);
+      // Stop polling after 2 minutes
+      setTimeout(() => {
+        if (connectIntervalRef.current) {
+          clearInterval(connectIntervalRef.current);
+          connectIntervalRef.current = null;
+        }
+        setConnectingPlatform(null);
+      }, 120000);
+    } else {
+      setConnectingPlatform(null);
+      toast({
+        title: "Connection failed",
+        description: "Could not open connection page. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [getConnectUrl, refetchAccounts, toast]);
+
   // Update platform metadata
   const handleMetadataChange = (platformId: string, field: keyof PlatformMetadata, value: string) => {
     setPlatformMetadata(prev => ({
@@ -856,7 +926,9 @@ export function ExportStep({
         
         if (remixedUrl) {
           finalVideoUrl = remixedUrl;
-          console.log('[ExportStep] Remix complete, using:', finalVideoUrl);
+          // Update local state with the new final.mp4 URL
+          setExportedVideoUrl(remixedUrl);
+          console.log('[ExportStep] Remix complete, updated final video to:', finalVideoUrl);
         }
       }
       
@@ -956,6 +1028,32 @@ export function ExportStep({
         });
       }
       
+      // Step 6: Update story record in database with published_platforms
+      if (storyId) {
+        try {
+          // Build published platforms object
+          const publishedPlatformsData: Record<string, any> = {};
+          for (const platformResult of result.platforms) {
+            if (platformResult.status === 'published' || platformResult.status === 'pending') {
+              publishedPlatformsData[platformResult.platform] = {
+                status: scheduleMode === 'scheduled' ? 'scheduled' : 'published',
+                video_id: platformResult.videoId,
+                published_at: new Date().toISOString(),
+                scheduled_for: scheduleMode === 'scheduled' && scheduledDateTime ? scheduledDateTime : undefined,
+              };
+            }
+          }
+          
+          await apiRequest("PUT", `/api/stories/${storyId}/publish`, {
+            publishedPlatforms: publishedPlatformsData,
+          });
+          console.log('[ExportStep] Story publish info updated in database');
+        } catch (dbError) {
+          console.warn('[ExportStep] Failed to update story in database:', dbError);
+          // Don't fail the whole operation if DB update fails
+        }
+      }
+      
     } catch (error) {
       console.error('[ExportStep] Publishing failed:', error);
       toast({
@@ -966,7 +1064,7 @@ export function ExportStep({
     } finally {
       setIsPublishing(false);
     }
-  }, [canPublish, selectedPlatforms, exportedVideoUrl, audioAssets, localVoiceVolume, localMusicVolume, onRemix, platformMetadata, currentWorkspace, toast, scheduleMode, scheduledDateTime]);
+  }, [canPublish, selectedPlatforms, exportedVideoUrl, audioAssets, localVoiceVolume, localMusicVolume, onRemix, platformMetadata, currentWorkspace, toast, scheduleMode, scheduledDateTime, storyId]);
 
   return (
     <div className="flex w-full h-[calc(100vh-12rem)] gap-0 overflow-hidden">
@@ -1051,55 +1149,55 @@ export function ExportStep({
               </GlassPanel>
             )}
 
-                {/* Video Summary */}
-                <GlassPanel>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className={cn("p-2 rounded-lg bg-gradient-to-br", accentClasses)}>
-                        <Video className="w-4 h-4 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold">Video Summary</h3>
-                        <p className="text-xs text-white/50">Ready to export</p>
-                      </div>
-                    </div>
+        {/* Video Summary */}
+        <GlassPanel>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className={cn("p-2 rounded-lg bg-gradient-to-br", accentClasses)}>
+                <Video className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold">Video Summary</h3>
+                <p className="text-xs text-white/50">Ready to export</p>
+              </div>
+            </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
                       {/* Scenes Count */}
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Layers className="w-3 h-3 text-white/40" />
-                          <span className="text-xs text-white/40">Scenes</span>
-                        </div>
-                        <p className="text-lg font-semibold">{scenes.length}</p>
-                      </div>
+              <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                <div className="flex items-center gap-2 mb-1">
+                  <Layers className="w-3 h-3 text-white/40" />
+                  <span className="text-xs text-white/40">Scenes</span>
+                </div>
+                <p className="text-lg font-semibold">{scenes.length}</p>
+              </div>
                       
                       {/* Duration */}
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Clock className="w-3 h-3 text-white/40" />
-                          <span className="text-xs text-white/40">Duration</span>
-                        </div>
-                        <p className="text-lg font-semibold">{totalDuration}s</p>
-                      </div>
+              <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock className="w-3 h-3 text-white/40" />
+                  <span className="text-xs text-white/40">Duration</span>
+                </div>
+                <p className="text-lg font-semibold">{totalDuration}s</p>
+              </div>
                       
                       {/* Image Model */}
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                        <div className="flex items-center gap-2 mb-1">
+              <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                <div className="flex items-center gap-2 mb-1">
                           <Image className="w-3 h-3 text-white/40" />
                           <span className="text-xs text-white/40">Image Model</span>
-                        </div>
+                </div>
                         <p className="text-sm font-semibold truncate" title={imageModel}>
                           {imageModel || 'Default'}
                         </p>
-                      </div>
+              </div>
                       
                       {/* Voice Over Status */}
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                        <div className="flex items-center gap-2 mb-1">
+              <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                <div className="flex items-center gap-2 mb-1">
                           <Mic className="w-3 h-3 text-white/40" />
                           <span className="text-xs text-white/40">Voice Over</span>
-                        </div>
+                </div>
                         <div className="flex items-center gap-2">
                           <div className={cn(
                             "w-2 h-2 rounded-full",
@@ -1112,28 +1210,28 @@ export function ExportStep({
                             {voiceoverEnabled ? 'ON' : 'OFF'}
                           </p>
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                </GlassPanel>
+              </div>
+            </div>
+          </div>
+        </GlassPanel>
 
                 {/* Export Info - Fixed settings */}
-                <GlassPanel>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
+        <GlassPanel>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
                       <Film className="w-5 h-5 text-purple-400" />
                       <h3 className="font-semibold text-white">Export Settings</h3>
-                    </div>
-                    
+            </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       {/* Quality */}
                       <div className="p-3 rounded-xl bg-white/5 border border-white/10">
                         <div className="flex items-center gap-2 mb-1">
                           <Monitor className="w-3 h-3 text-white/40" />
                           <span className="text-xs text-white/40">Quality</span>
-                        </div>
+                  </div>
                         <p className="text-sm font-semibold text-white">1080p Full HD</p>
-                      </div>
+                  </div>
                       
                       {/* Format */}
                       <div className="p-3 rounded-xl bg-white/5 border border-white/10">
@@ -1143,14 +1241,14 @@ export function ExportStep({
                         </div>
                         <p className="text-sm font-semibold text-white">MP4</p>
                       </div>
-                    </div>
-                  </div>
-                </GlassPanel>
+            </div>
+          </div>
+        </GlassPanel>
 
                 {/* Share to Platforms - Accordion Style */}
-                <GlassPanel>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
+        <GlassPanel>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
                       <Share2 className="w-5 h-5 text-purple-400" />
                       <h3 className="font-semibold text-white">Share To</h3>
                       <span className="text-xs text-white/40">(Optional)</span>
@@ -1161,7 +1259,7 @@ export function ExportStep({
                         variant="ghost"
                         onClick={handleGenerateAllMetadata}
                         disabled={selectedPlatforms.length === 0 || isGeneratingMetadata !== null}
-                        className={cn(
+                    className={cn(
                           "ml-auto h-7 px-3 text-xs gap-1.5",
                           "bg-gradient-to-r from-purple-500/20 to-pink-500/20",
                           "hover:from-purple-500/30 hover:to-pink-500/30",
@@ -1183,28 +1281,29 @@ export function ExportStep({
                           {selectedPlatforms.length} selected
                         </span>
                       )}
-                    </div>
+            </div>
 
                     {/* Platform Accordion List */}
                     <div className="space-y-2">
-                      {PLATFORMS.map(platform => {
-                        const Icon = platform.icon;
+              {PLATFORMS.map(platform => {
+                const Icon = platform.icon;
                         const isExpanded = expandedPlatform === platform.id;
-                        const isSelected = selectedPlatforms.includes(platform.id);
+                const isSelected = selectedPlatforms.includes(platform.id);
                         const metadata = platformMetadata[platform.id];
                         
                         // Check platform compatibility with current video settings
                         const compatibility = getPlatformCompatibility(platform, aspectRatio, duration);
-                        const isDisabled = !compatibility.compatible;
+                        const platformConnected = platform.apiPlatform ? isConnected(platform.apiPlatform) : false;
+                        const isDisabled = !compatibility.compatible || !platformConnected;
 
-                        return (
+                return (
                           <div key={platform.id} className={cn(
                             "overflow-hidden rounded-xl border transition-all duration-200",
                             isDisabled
-                              ? "border-white/5 opacity-50"
+                              ? "border-white/5 opacity-60"
                               : isSelected 
                                 ? "border-purple-500/40 bg-purple-500/5" 
-                                : "border-white/10"
+                                : "border-white/10 hover:border-white/20"
                           )}>
                             {/* Platform Header Row */}
                             <div className={cn(
@@ -1216,59 +1315,98 @@ export function ExportStep({
                                   ? "bg-white/10"
                                   : "bg-white/[0.03]"
                             )}>
-                              {/* Checkbox for selection */}
-                              <button
-                                onClick={(e) => !isDisabled && handlePlatformToggle(platform.id, e)}
-                                disabled={isDisabled}
-                                className={cn(
-                                  "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all",
-                                  isDisabled
-                                    ? "border-white/10 cursor-not-allowed"
-                                    : isSelected
-                                      ? "bg-purple-500 border-purple-500"
-                                      : "border-white/30 hover:border-white/50"
-                                )}
-                              >
-                                {isSelected && !isDisabled && <Check className="w-3 h-3 text-white" />}
-                              </button>
+                              {/* Checkbox or Lock Icon */}
+                              {platformConnected ? (
+                                <button
+                                  onClick={(e) => !isDisabled && handlePlatformToggle(platform.id, e)}
+                                  disabled={isDisabled}
+                    className={cn(
+                                    "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all",
+                                    isDisabled
+                                      ? "border-white/10 cursor-not-allowed"
+                                      : isSelected
+                                        ? "bg-purple-500 border-purple-500"
+                                        : "border-white/30 hover:border-white/50"
+                                  )}
+                                >
+                                  {isSelected && !isDisabled && <Check className="w-3 h-3 text-white" />}
+                                </button>
+                              ) : (
+                                <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                                  <Lock className="w-4 h-4 text-white/30" />
+                                </div>
+                              )}
 
                               {/* Platform Icon */}
-                              <div className={cn(
+                    <div className={cn(
                                 "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
                                 isDisabled ? "opacity-50" : "",
                                 platform.iconBg
-                              )}>
-                                <Icon className="w-4 h-4 text-white" />
-                              </div>
+                    )}>
+                      <Icon className="w-4 h-4 text-white" />
+                    </div>
                               
-                              {/* Platform Name and Incompatibility Reason */}
+                              {/* Platform Name and Status */}
                               <div className="flex-1 min-w-0">
-                                <button
-                                  onClick={() => !isDisabled && handlePlatformExpand(platform.id)}
-                                  disabled={isDisabled}
-                                  className={cn(
-                                    "text-left flex items-center gap-2 transition-opacity",
-                                    isDisabled ? "cursor-not-allowed" : "hover:opacity-80"
-                                  )}
-                                >
+                                <div className="flex items-center gap-2">
                                   <span className={cn(
                                     "text-sm font-medium",
                                     isDisabled ? "text-white/40" : "text-white"
                                   )}>
                                     {platform.name}
                                   </span>
-                                </button>
+                                  
+                                  {/* Connection Status Badge */}
+                                  {!platformConnected && compatibility.compatible && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                      Not Connected
+                                    </span>
+                                  )}
+            </div>
                                 {/* Show incompatibility reason */}
-                                {isDisabled && compatibility.reason && (
+                                {!compatibility.compatible && compatibility.reason && (
                                   <p className="text-[10px] text-red-400/70 mt-0.5 flex items-center gap-1">
                                     <AlertCircle className="w-2.5 h-2.5" />
                                     {compatibility.reason}
                                   </p>
                                 )}
-                              </div>
+      </div>
+
+                              {/* Connect Button for unconnected platforms */}
+                              {!platformConnected && compatibility.compatible && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleConnect(platform.id);
+                                  }}
+                                  disabled={connectingPlatform === platform.id}
+                                  className={cn(
+                                    "h-7 px-3 text-xs gap-1.5",
+                                    "bg-gradient-to-r from-purple-500/10 to-pink-500/10",
+                                    "hover:from-purple-500/20 hover:to-pink-500/20",
+                                    "border-purple-500/30 text-purple-300",
+                                    "transition-all duration-200",
+                                    "disabled:opacity-70"
+                                  )}
+                                >
+                                  {connectingPlatform === platform.id ? (
+                                    <>
+                                      <RefreshCw className="w-3 h-3 animate-spin" />
+                                      Connecting...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Link2 className="w-3 h-3" />
+                                      Connect
+                                    </>
+                                  )}
+                                </Button>
+                              )}
                               
-                              {/* Expand Arrow - only show if compatible */}
-                              {!isDisabled && (
+                              {/* Expand Arrow - only show if connected and compatible */}
+                              {platformConnected && compatibility.compatible && (
                                 <button
                                   onClick={() => handlePlatformExpand(platform.id)}
                                   className="p-1 hover:bg-white/10 rounded transition-colors"
@@ -1308,7 +1446,7 @@ export function ExportStep({
                                               "focus:border-white/20 focus:ring-0"
                                             )}
                                           />
-                                        </div>
+              </div>
                                         <div className="space-y-2">
                                           <Textarea
                                             value={metadata?.description || ''}
@@ -1337,13 +1475,13 @@ export function ExportStep({
                                           onChange={(e) => handleMetadataChange(platform.id, 'caption', e.target.value)}
                                           placeholder="Write a caption..."
                                           rows={3}
-                                          className={cn(
+                    className={cn(
                                             "bg-black/40 border-white/10 text-white text-sm resize-none",
                                             "placeholder:text-white/30",
                                             "focus:border-white/20 focus:ring-0"
                                           )}
                                         />
-                                      </div>
+              </div>
                                     )}
                                   </div>
                                 </motion.div>
@@ -1352,7 +1490,7 @@ export function ExportStep({
                           </div>
                         );
                       })}
-                    </div>
+            </div>
 
                     {/* Schedule Options */}
                     <AnimatePresence>
@@ -1368,7 +1506,7 @@ export function ExportStep({
                           <div className="flex gap-2">
                             <button
                               onClick={() => setScheduleMode('now')}
-                              className={cn(
+              className={cn(
                                 "flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl",
                                 "border transition-all duration-200",
                                 scheduleMode === 'now'
@@ -1381,7 +1519,7 @@ export function ExportStep({
                             </button>
                             <button
                               onClick={() => setScheduleMode('scheduled')}
-                              className={cn(
+                className={cn(
                                 "flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl",
                                 "border transition-all duration-200",
                                 scheduleMode === 'scheduled'
@@ -1430,7 +1568,7 @@ export function ExportStep({
                                     </p>
                                   )}
                                 </div>
-                              </motion.div>
+              </motion.div>
                             )}
                           </AnimatePresence>
                         </motion.div>
@@ -1456,9 +1594,9 @@ export function ExportStep({
                                   Fill in metadata for: {platformsWithMissingMetadata.map(id => 
                                     PLATFORMS.find(p => p.id === id)?.name
                                   ).join(', ')}
-                                </span>
+              </span>
                               </p>
-                            </div>
+            </div>
                           )}
 
                           {/* Warning for missing schedule date */}
@@ -1468,10 +1606,10 @@ export function ExportStep({
                                 <Calendar className="w-4 h-4" />
                                 <span>Please select a date and time to schedule</span>
                               </p>
-                            </div>
+          </div>
                           )}
-                          
-                          <Button
+
+                <Button
                             onClick={handlePublishToSocial}
                             disabled={!canPublish || isPublishing}
                             className={cn(
@@ -1495,14 +1633,14 @@ export function ExportStep({
                                   <>
                                     <Calendar className="w-4 h-4" />
                                     Schedule for {selectedPlatforms.length} Platform{selectedPlatforms.length > 1 ? 's' : ''}
-                                  </>
-                                ) : (
-                                  <>
+                    </>
+                  ) : (
+                    <>
                                     <Send className="w-4 h-4" />
                                     Publish to {selectedPlatforms.length} Platform{selectedPlatforms.length > 1 ? 's' : ''}
-                                  </>
-                                )}
-                              </div>
+                    </>
+                  )}
+              </div>
                             )}
                           </Button>
                           
@@ -1531,7 +1669,7 @@ export function ExportStep({
                                   {isValid && (
                                     <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-green-500 rounded-full flex items-center justify-center border border-black/50">
                                       <Check className="w-2 h-2 text-white" />
-                                    </div>
+            </div>
                                   )}
                                 </div>
                               );
@@ -1540,8 +1678,8 @@ export function ExportStep({
                         </motion.div>
                       )}
                     </AnimatePresence>
-                  </div>
-                </GlassPanel>
+          </div>
+        </GlassPanel>
           </div>
         </ScrollArea>
       </div>
@@ -1554,7 +1692,7 @@ export function ExportStep({
             <div className="flex-1 flex items-center justify-center p-8">
               <div className="text-center space-y-6 max-w-md">
                 {/* Animated Icon */}
-                <motion.div
+            <motion.div
                   animate={{ 
                     scale: [1, 1.1, 1],
                     rotate: [0, 5, -5, 0]
@@ -1566,9 +1704,9 @@ export function ExportStep({
                   }}
                   className={cn(
                     "w-20 h-20 mx-auto rounded-full",
-                    "bg-gradient-to-br flex items-center justify-center",
+                      "bg-gradient-to-br flex items-center justify-center",
                     "shadow-2xl",
-                    accentClasses
+                      accentClasses
                   )}
                 >
                   <Film className="w-10 h-10 text-white" />
@@ -1642,15 +1780,15 @@ export function ExportStep({
               <div className="flex items-center gap-3 p-4 border-b border-white/10 shrink-0">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
                   <CheckCircle2 className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1">
+                    </div>
+                    <div className="flex-1">
                   <h3 className="text-lg font-semibold text-white">
                     Preview Ready
                   </h3>
                   <p className="text-sm text-white/60">
                     Adjust settings below, then click "Export Video" to download
-                  </p>
-                </div>
+                      </p>
+                    </div>
                 {/* Regenerate Button */}
                 <Button
                   variant="outline"
@@ -1666,8 +1804,8 @@ export function ExportStep({
                   <RefreshCw className="w-4 h-4" />
                   Regenerate
                 </Button>
-              </div>
-
+                  </div>
+                  
               {/* Video Player - Fill available space with aspect-ratio aware sizing */}
               <div className="flex-1 flex items-center justify-center p-4 min-h-0">
                 {/* When we have separate audio assets, use muted video + audio elements */}
@@ -1713,7 +1851,7 @@ export function ExportStep({
                     src={exportedVideoUrl}
                     controls
                     autoPlay
-                    className={cn(
+                className={cn(
                       "rounded-xl shadow-2xl",
                       // Portrait videos (9:16): limit height, auto width
                       aspectRatio === '9:16' && "max-h-full w-auto",
@@ -1786,13 +1924,13 @@ export function ExportStep({
           {!isExporting && !exportedVideoUrl && !isGeneratingVoiceover && (
             <div className="flex-1 flex items-center justify-center p-8">
               <div className="text-center space-y-4">
-                <div className={cn(
+              <div className={cn(
                   "w-16 h-16 mx-auto rounded-full",
-                  "bg-gradient-to-br flex items-center justify-center",
+                "bg-gradient-to-br flex items-center justify-center",
                   accentClasses
-                )}>
+              )}>
                   <Film className="w-8 h-8 text-white" />
-                </div>
+              </div>
                 <div>
                   <h3 className="text-lg font-semibold text-white mb-1">
                     Preparing Export
@@ -1800,10 +1938,10 @@ export function ExportStep({
                   <p className="text-sm text-white/60">
                     Your video will appear here shortly
                   </p>
-                </div>
+              </div>
               </div>
             </div>
-          )}
+        )}
         </GlassPanel>
       </div>
     </div>

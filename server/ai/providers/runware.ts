@@ -128,18 +128,108 @@ const runwareAdapter: AiProviderAdapter = {
       Authorization: `Bearer ${providerConfig.apiKey}`,
     };
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DEBUG: Log the full request details
+    // ═══════════════════════════════════════════════════════════════════════════
+    console.log('[runware] Sending request:', {
+      endpoint,
+      taskCount: tasks.length,
+      tasks: tasks.map((t: any) => ({
+        taskType: t.taskType,
+        taskUUID: t.taskUUID?.substring(0, 8) + '...',
+        model: t.model,
+        promptLength: t.positivePrompt?.length,
+        promptPreview: t.positivePrompt?.substring(0, 80) + '...',
+        hasReferenceImages: Boolean(t.referenceImages?.length),
+        referenceImagesCount: t.referenceImages?.length || 0,
+        width: t.width,
+        height: t.height,
+      })),
+    });
+
     const response = await fetch(endpoint, {
       method: "POST",
       headers,
       body: JSON.stringify(tasks),
     });
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DEBUG: Log response status
+    // ═══════════════════════════════════════════════════════════════════════════
+    console.log('[runware] Response received:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+    });
+
     if (!response.ok) {
       const details = await response.text();
+      console.error('[runware] Request failed with details:', details);
       throw new ProviderRequestError("runware", details);
     }
 
     const initialPayload = await response.json();
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DEBUG: Log full response structure
+    // ═══════════════════════════════════════════════════════════════════════════
+    console.log('[runware] Response payload:', {
+      hasData: Boolean(initialPayload?.data),
+      dataCount: initialPayload?.data?.length || 0,
+      hasErrors: Boolean(initialPayload?.errors),
+      errorCount: initialPayload?.errors?.length || 0,
+      // Log each data item's key fields
+      dataItems: initialPayload?.data?.map((d: any) => ({
+        taskUUID: d.taskUUID?.substring(0, 8) + '...',
+        hasImageURL: Boolean(d.imageURL),
+        status: d.status,
+        cost: d.cost,
+      })),
+      // Log error details
+      errors: initialPayload?.errors?.map((e: any) => ({
+        code: e.code,
+        message: e.message,
+        taskUUID: e.taskUUID?.substring(0, 8) + '...',
+      })),
+    });
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // HANDLE PARTIAL ERRORS: Some tasks may succeed while others fail
+    // Runware returns { data: [...successes], errors: [...failures] }
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (initialPayload?.errors && initialPayload.errors.length > 0) {
+      const hasData = initialPayload?.data && initialPayload.data.length > 0;
+      
+      if (!hasData) {
+        // Complete failure - all tasks failed
+        const errorDetails = JSON.stringify(initialPayload, null, 4);
+        throw new ProviderRequestError("runware", errorDetails);
+      }
+      
+      // Partial failure - log warning but continue with available data
+      console.warn('[runware] Partial failure detected:', {
+        successCount: initialPayload.data.length,
+        errorCount: initialPayload.errors.length,
+        errors: initialPayload.errors.map((e: any) => ({
+          code: e.code,
+          message: e.message?.substring(0, 100),
+          taskUUID: e.taskUUID,
+        })),
+      });
+      
+      // Merge errors into data array so we can match them by taskUUID
+      // Add error info to each failed task
+      for (const error of initialPayload.errors) {
+        if (error.taskUUID) {
+          initialPayload.data.push({
+            taskUUID: error.taskUUID,
+            error: error.message || error.code || 'Unknown error',
+            status: 'failed',
+          });
+        }
+      }
+    }
+    
     let results = initialPayload?.data ?? [];
 
     const needsPolling =

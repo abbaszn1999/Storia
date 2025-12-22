@@ -100,13 +100,25 @@ export const voices = pgTable("voices", {
 
 export const stories = pgTable("stories", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
   workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
-  title: text("title").notNull(),
-  template: text("template").notNull(), // e.g., asmr-sensory, problem-solution
-  aspectRatio: text("aspect_ratio").notNull(), // required, no default
-  duration: integer("duration"),
-  exportUrl: text("export_url"),
+  
+  // Project Info
+  projectName: text("project_name").notNull(),
+  projectFolder: text("project_folder").notNull(), // Full folder name with timestamp on BunnyCDN
+  storyMode: text("story_mode").notNull(), // 'problem-solution', 'asmr-sensory', etc.
+  
+  // Final Video
+  videoUrl: text("video_url"), // BunnyCDN URL for final.mp4
   thumbnailUrl: text("thumbnail_url"),
+  duration: integer("duration"), // Duration in seconds
+  aspectRatio: text("aspect_ratio"), // '9:16', '16:9', '1:1'
+  
+  // Social Publishing (JSONB for flexibility)
+  // Example: { "youtube": { "published_at": "...", "video_id": "...", "status": "published" } }
+  publishedPlatforms: jsonb("published_platforms").default({}),
+  
+  // Timestamps
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -209,6 +221,7 @@ export const insertStorySchema = createInsertSchema(stories).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  publishedPlatforms: true, // Will be set via updateStory
 });
 
 export const insertCharacterSchema = createInsertSchema(characters).omit({

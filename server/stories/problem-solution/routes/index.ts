@@ -916,8 +916,6 @@ psRouter.post(
       if (!userId) {
         return res.status(401).json({ error: "Unauthorized" });
       }
-
-      const workspaceName = (req.headers["x-workspace-id"] as string) || "default";
       
       const {
         videoBaseUrl,
@@ -928,6 +926,11 @@ psRouter.post(
         projectName,
         workspaceId,
       } = req.body || {};
+
+      // Get workspace name from database (same as other routes)
+      const workspaces = await storage.getWorkspacesByUserId(userId);
+      const workspace = workspaces.find((w) => w.id === workspaceId);
+      const workspaceName = workspace?.name || workspaceId || 'default';
 
       console.log('[problem-solution:routes] Remix request:', {
         hasVideoBase: !!videoBaseUrl,
@@ -1008,12 +1011,13 @@ psRouter.post(
       const workspaceName = workspace?.name || 'default';
 
       // Build the storage path
-      // Store in StyleReference folder with a fixed filename so it gets replaced on re-upload
+      // Store in Reference folder with a fixed filename so it gets replaced on re-upload
       const bunnyPath = buildStoryModePath({
         userId,
         workspaceName,
         toolMode: "problem-solution",
-        projectName: "_StyleReference", // Special folder for style references
+        projectName: req.body.projectName || "MyProject_Upload", // Use provided projectName or fallback
+        subfolder: "Reference",
         filename: "custom_style.jpg", // Fixed name so it gets replaced
       });
 
@@ -1135,7 +1139,8 @@ psRouter.post(
         userId,
         workspaceName,
         toolMode: "problem-solution",
-        projectName: "_CustomMusic", // Special folder for custom music
+        projectName: req.body.projectName || "MyProject_Upload", // Use provided projectName or fallback
+        subfolder: "Music",
         filename: `custom_music.${extension}`, // Fixed name so it gets replaced
       });
 
@@ -1170,6 +1175,194 @@ psRouter.post(
       console.error("[custom-music] Upload error:", error);
       res.status(500).json({ 
         error: "Failed to upload custom music",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/problem-solution/story/save
+ * Save a new story record after video export
+ */
+psRouter.post(
+  "/story/save",
+  isAuthenticated,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const {
+        workspaceId,
+        projectName,
+        projectFolder,
+        videoUrl,
+        thumbnailUrl,
+        duration,
+        aspectRatio,
+      } = req.body;
+
+      if (!workspaceId || !projectName || !projectFolder) {
+        return res.status(400).json({ 
+          error: "workspaceId, projectName, and projectFolder are required" 
+        });
+      }
+
+      console.log('[problem-solution:routes] Saving story:', {
+        userId,
+        workspaceId,
+        projectName,
+        projectFolder,
+      });
+
+      const story = await storage.createStory({
+        userId,
+        workspaceId,
+        projectName,
+        projectFolder,
+        storyMode: "problem-solution",
+        videoUrl: videoUrl || undefined,
+        thumbnailUrl: thumbnailUrl || undefined,
+        duration: duration || undefined,
+        aspectRatio: aspectRatio || undefined,
+      });
+
+      console.log('[problem-solution:routes] Story saved:', story.id);
+
+      res.json({
+        success: true,
+        story,
+      });
+    } catch (error) {
+      console.error("[problem-solution:routes] Save story error:", error);
+      res.status(500).json({ 
+        error: "Failed to save story",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+);
+
+/**
+ * PUT /api/problem-solution/story/:storyId/publish
+ * Update story with published platforms info after social media publishing
+ */
+psRouter.put(
+  "/story/:storyId/publish",
+  isAuthenticated,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { storyId } = req.params;
+      const { platform, publishData, publishedPlatforms } = req.body;
+
+      // Get current story
+      const story = await storage.getStory(storyId);
+      if (!story) {
+        return res.status(404).json({ error: "Story not found" });
+      }
+
+      // Verify ownership
+      if (story.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Support two modes: single platform or bulk platforms
+      let updatedPlatforms: Record<string, any>;
+      const currentPlatforms = (story.publishedPlatforms || {}) as Record<string, any>;
+
+      if (publishedPlatforms && typeof publishedPlatforms === 'object') {
+        // Bulk mode: merge all provided platforms
+        updatedPlatforms = { ...currentPlatforms, ...publishedPlatforms };
+      } else if (platform && publishData) {
+        // Single platform mode
+        updatedPlatforms = {
+          ...currentPlatforms,
+          [platform]: {
+            ...publishData,
+            published_at: new Date().toISOString(),
+          },
+        };
+      } else {
+        return res.status(400).json({ 
+          error: "Either 'publishedPlatforms' object or 'platform' + 'publishData' are required" 
+        });
+      }
+
+      const updatedStory = await storage.updateStory(storyId, {
+        publishedPlatforms: updatedPlatforms,
+      });
+
+      console.log('[problem-solution:routes] Story publish updated:', {
+        storyId,
+        totalPlatforms: Object.keys(updatedPlatforms).length,
+      });
+
+      res.json({
+        success: true,
+        story: updatedStory,
+      });
+    } catch (error) {
+      console.error("[problem-solution:routes] Update publish error:", error);
+      res.status(500).json({ 
+        error: "Failed to update story publish info",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+);
+
+/**
+ * PUT /api/problem-solution/story/:storyId
+ * Update story video URL (e.g., after remix)
+ */
+psRouter.put(
+  "/story/:storyId",
+  isAuthenticated,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { storyId } = req.params;
+      const { videoUrl, thumbnailUrl, duration, aspectRatio } = req.body;
+
+      // Get current story
+      const story = await storage.getStory(storyId);
+      if (!story) {
+        return res.status(404).json({ error: "Story not found" });
+      }
+
+      // Verify ownership
+      if (story.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const updates: Record<string, any> = {};
+      if (videoUrl !== undefined) updates.videoUrl = videoUrl;
+      if (thumbnailUrl !== undefined) updates.thumbnailUrl = thumbnailUrl;
+      if (duration !== undefined) updates.duration = duration;
+      if (aspectRatio !== undefined) updates.aspectRatio = aspectRatio;
+
+      const updatedStory = await storage.updateStory(storyId, updates);
+
+      res.json({
+        success: true,
+        story: updatedStory,
+      });
+    } catch (error) {
+      console.error("[problem-solution:routes] Update story error:", error);
+      res.status(500).json({ 
+        error: "Failed to update story",
         details: error instanceof Error ? error.message : String(error)
       });
     }

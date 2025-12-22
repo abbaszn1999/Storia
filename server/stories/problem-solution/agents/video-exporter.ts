@@ -522,7 +522,8 @@ export async function exportFinalVideo(
           workspaceName,
           toolMode: "problem-solution",
           projectName: input.projectName,
-          filename: `AudioAssets/${voiceoverFilename}`,
+          subfolder: "VoiceOver",
+          filename: voiceoverFilename,
         });
         const voiceBuffer = await import('fs/promises').then(fs => fs.readFile(mergedAudio));
         voiceoverUrl = await bunnyStorage.uploadFile(voiceoverPath, voiceBuffer, 'audio/mpeg');
@@ -641,16 +642,17 @@ export async function exportFinalVideo(
           }
         }
         
-        // Upload music for volume control
+        // Upload music for volume control (fixed name - gets replaced on re-export)
         if (enableVolumeControl) {
           console.log('[video-exporter] Uploading music file for volume control...');
-          const musicFilename = `music_${Date.now()}.mp3`;
+          const musicFilename = `music_trimmed.mp3`;
           const musicUploadPath = buildStoryModePath({
             userId,
             workspaceName,
             toolMode: "problem-solution",
             projectName: input.projectName,
-            filename: `AudioAssets/${musicFilename}`,
+            subfolder: "Music",
+            filename: musicFilename,
           });
           const musicBuffer = await import('fs/promises').then(fs => fs.readFile(musicPath));
           uploadedMusicUrl = await bunnyStorage.uploadFile(musicUploadPath, musicBuffer, 'audio/mpeg');
@@ -737,14 +739,15 @@ export async function exportFinalVideo(
       const mutedVideoPath = await createMutedVideo(finalVideo);
       tempFiles.push(mutedVideoPath);
       
-      // Upload muted video
-      const mutedFilename = `video_muted_${Date.now()}.mp4`;
+      // Upload muted video (fixed name - gets replaced on re-export)
+      const mutedFilename = `video_base.mp4`;
       const mutedPath = buildStoryModePath({
         userId,
         workspaceName,
         toolMode: "problem-solution",
         projectName: input.projectName,
-        filename: `AudioAssets/${mutedFilename}`,
+        subfolder: "Render",
+        filename: mutedFilename,
       });
       const mutedBuffer = await import('fs/promises').then(fs => fs.readFile(mutedVideoPath));
       videoBaseUrl = await bunnyStorage.uploadFile(mutedPath, mutedBuffer, 'video/mp4');
@@ -757,13 +760,15 @@ export async function exportFinalVideo(
     console.log('[video-exporter] ═══════════════════════════════════════════════');
     console.log('[video-exporter] Uploading final video to Bunny CDN...');
     
-    const filename = `final_${Date.now()}.${input.exportFormat}`;
+    // Fixed filename - gets replaced on re-export (no duplicate files)
+    const filename = `final.${input.exportFormat}`;
     const bunnyPath = buildStoryModePath({
       userId,
       workspaceName,
       toolMode: "problem-solution",
       projectName: input.projectName,
-      filename: `Export/${filename}`,
+      subfolder: "Render",
+      filename: filename,
     });
     
     console.log('[video-exporter] Final video path:', finalVideo);
@@ -906,15 +911,16 @@ export async function remixVideo(
     tempFiles.push(remixedVideo);
     console.log('[video-exporter] ✓ Audio remixed successfully');
     
-    // Step 4: Upload remixed video (uses fixed name so new remix replaces old one)
-    console.log('[video-exporter] Uploading remixed video...');
-    const filename = `remix_latest.mp4`;
+    // Step 4: Upload remixed video (overwrites final.mp4 - same file, updated audio mix)
+    console.log('[video-exporter] Uploading remixed video as final.mp4...');
+    const filename = `final.mp4`;
     const bunnyPath = buildStoryModePath({
       userId,
       workspaceName,
       toolMode: "problem-solution",
       projectName: input.projectName,
-      filename: `Export/${filename}`,
+      subfolder: "Render",
+      filename: filename,
     });
     
     const fileBuffer = await import('fs/promises').then(fs => fs.readFile(remixedVideo));
@@ -937,8 +943,12 @@ export async function remixVideo(
     // Cleanup
     cleanupFiles(tempFiles);
     
+    // Add cache buster to ensure browsers don't serve stale cached version
+    const cacheBuster = Date.now();
+    const videoUrlWithCacheBuster = `${cdnUrl}?v=${cacheBuster}`;
+    
     return {
-      videoUrl: cdnUrl,
+      videoUrl: videoUrlWithCacheBuster,
       duration: videoDuration,
       size: fileStats.size,
     };

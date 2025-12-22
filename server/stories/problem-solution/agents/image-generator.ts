@@ -37,8 +37,12 @@ import type {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const CONFIG = {
-  /** Maximum images per batch request (prevents API overload) */
-  MAX_BATCH_SIZE: 10,
+  /** 
+   * Maximum images per batch request
+   * Based on Runware official docs: numberResults max is 20
+   * Using 20 for optimal batch processing performance
+   */
+  MAX_BATCH_SIZE: 20,
   
   /** Maximum retry attempts for failed images */
   MAX_RETRIES: 2,
@@ -96,6 +100,19 @@ function buildImagePayload(
     scene.sceneNumber === 1
   );
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DEBUG: Log the original and enhanced prompts
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log(`[image-generator] Scene ${scene.sceneNumber} prompt details:`, {
+    originalPromptLength: scene.imagePrompt?.length || 0,
+    originalPrompt: scene.imagePrompt?.substring(0, 200) + (scene.imagePrompt?.length > 200 ? '...' : ''),
+    enhancedPromptLength: enhancedPrompt.length,
+    enhancedPrompt: enhancedPrompt.substring(0, 300) + (enhancedPrompt.length > 300 ? '...' : ''),
+    model: runwareModelId,
+    dimensions: `${dimensions.width}x${dimensions.height}`,
+    imageStyle,
+  });
+
   const payload: Record<string, any> = {
     taskType: "imageInference",
     taskUUID: randomUUID(),
@@ -114,7 +131,7 @@ function buildImagePayload(
   // Supported formats: PNG, JPG, WEBP - can be URL, UUID, base64, or data URI
   if (styleReferenceUrl) {
     payload.referenceImages = [styleReferenceUrl];
-    console.log(`[image-generator] Using referenceImages for scene ${scene.sceneNumber}:`, styleReferenceUrl);
+    console.log(`[image-generator] Scene ${scene.sceneNumber} using referenceImages:`, styleReferenceUrl);
   }
 
   return payload;
@@ -186,6 +203,19 @@ async function processBatch(
       }
     );
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DEBUG: Log raw AI response
+    // ═══════════════════════════════════════════════════════════════════════════
+    console.log('[image-generator:batch] Raw AI response received:', {
+      provider: response.provider,
+      model: response.model,
+      outputType: typeof response.output,
+      outputLength: Array.isArray(response.output) ? response.output.length : 'not array',
+      usage: response.usage,
+      // Log first 1000 chars of raw response
+      rawResponsePreview: JSON.stringify(response.rawResponse)?.substring(0, 1000),
+    });
+
     // Process results
     const outputData = response.output as any[];
     
@@ -195,13 +225,21 @@ async function processBatch(
     
     // Create a map of taskUUID -> result for O(1) lookup
     const resultByTaskUUID = new Map<string, any>();
+    let successCount = 0;
+    let failCount = 0;
+    
     for (const data of outputData) {
       if (data?.taskUUID) {
         resultByTaskUUID.set(data.taskUUID, data);
+        if (data.imageURL) {
+          successCount++;
+        } else if (data.error || data.status === 'failed') {
+          failCount++;
+        }
       }
     }
     
-    console.log(`[image-generator:batch] Mapped ${resultByTaskUUID.size} results by taskUUID`);
+    console.log(`[image-generator:batch] Results mapped: ${successCount} success, ${failCount} failed, ${resultByTaskUUID.size} total`);
     
     return items.map((item) => {
       const taskUUID = item.payload.taskUUID;
@@ -248,10 +286,107 @@ async function processBatch(
       }
     });
   } catch (error) {
-    // Batch failed - mark all items as failed
     const errorMessage = error instanceof Error ? error.message : "Unknown batch error";
     console.error(`[image-generator:batch] Batch failed:`, errorMessage);
     
+    // ═══════════════════════════════════════════════════════════════════════════
+    // AUTO-RETRY: If batch failed with transient errors, wait and retry once
+    // Common transient errors: NO_IMAGE, invalidProviderResponse, timeout
+    // ═══════════════════════════════════════════════════════════════════════════
+    const isTransientError = 
+      errorMessage.includes('NO_IMAGE') || 
+      errorMessage.includes('invalidProviderResponse') ||
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('ECONNRESET');
+    
+    if (isTransientError) {
+      console.warn('[image-generator:batch] Transient error detected, retrying in 5 seconds...');
+      await sleep(5000);
+      
+      try {
+        console.log('[image-generator:batch] Retry attempt starting...');
+        
+        const retryResponse = await callAi(
+          {
+            provider: "runware",
+            model: imageModel,
+            task: "image-generation",
+            payload: payloads,
+            userId,
+            workspaceId,
+            runware: {
+              timeoutMs: CONFIG.BATCH_TIMEOUT_MS,
+            },
+          },
+          { skipCreditCheck: false }
+        );
+        
+        console.log('[image-generator:batch] Retry succeeded, processing results...');
+        
+        // Process retry results
+        const outputData = retryResponse.output as any[];
+        const resultByTaskUUID = new Map<string, any>();
+        
+        for (const data of outputData) {
+          if (data?.taskUUID) {
+            resultByTaskUUID.set(data.taskUUID, data);
+          }
+        }
+        
+        const retryResults = items.map((item) => {
+          const taskUUID = item.payload.taskUUID;
+          const sceneInfo = taskToSceneMap.get(taskUUID);
+          
+          if (!sceneInfo) {
+            return {
+              sceneId: item.scene.id,
+              sceneNumber: item.scene.sceneNumber,
+              imageUrl: "",
+              status: "failed" as const,
+              error: "Scene mapping not found on retry",
+              cost: 0,
+            };
+          }
+          
+          const data = resultByTaskUUID.get(taskUUID);
+          const imageData = isMidjourney && Array.isArray(data) ? data[0] : data;
+          
+          if (imageData?.imageURL) {
+            console.log(`[image-generator:batch] Retry: Scene ${sceneInfo.sceneNumber} completed ✓`);
+            return {
+              sceneId: sceneInfo.sceneId,
+              sceneNumber: sceneInfo.sceneNumber,
+              imageUrl: imageData.imageURL,
+              status: "generated" as const,
+              cost: imageData.cost || 0,
+            };
+          } else {
+            const retryError = imageData?.error || "No image URL in retry response";
+            console.error(`[image-generator:batch] Retry: Scene ${sceneInfo.sceneNumber} failed:`, retryError);
+            return {
+              sceneId: sceneInfo.sceneId,
+              sceneNumber: sceneInfo.sceneNumber,
+              imageUrl: "",
+              status: "failed" as const,
+              error: retryError,
+              cost: 0,
+            };
+          }
+        });
+        
+        const retrySuccessCount = retryResults.filter(r => r.status === 'generated').length;
+        console.log(`[image-generator:batch] Retry complete: ${retrySuccessCount}/${retryResults.length} succeeded`);
+        
+        return retryResults;
+        
+      } catch (retryError) {
+        const retryErrorMessage = retryError instanceof Error ? retryError.message : "Unknown retry error";
+        console.error('[image-generator:batch] Retry also failed:', retryErrorMessage);
+        // Fall through to original error handling
+      }
+    }
+    
+    // Original error handling - mark all items as failed
     return items.map((item) => ({
       sceneId: item.scene.id,
       sceneNumber: item.scene.sceneNumber,

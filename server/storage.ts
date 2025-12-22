@@ -60,7 +60,11 @@ export interface IStorage {
   deleteVideo(id: string): Promise<void>;
   
   getStoriesByWorkspaceId(workspaceId: string): Promise<Story[]>;
+  getStoriesByUserId(userId: string): Promise<Story[]>;
+  getStory(id: string): Promise<Story | undefined>;
   createStory(story: InsertStory): Promise<Story>;
+  updateStory(id: string, updates: Partial<Story>): Promise<Story>;
+  deleteStory(id: string): Promise<void>;
   
   getCharactersByWorkspaceId(workspaceId: string): Promise<Character[]>;
   getCharacter(id: string): Promise<Character | undefined>;
@@ -299,6 +303,10 @@ export class MemStorage implements IStorage {
     return db.select().from(stories).where(eq(stories.workspaceId, workspaceId));
   }
 
+  async getStoriesByUserId(userId: string): Promise<Story[]> {
+    return db.select().from(stories).where(eq(stories.userId, userId));
+  }
+
   async createStory(insertStory: InsertStory): Promise<Story> {
     const [story] = await db
       .insert(stories)
@@ -309,6 +317,15 @@ export class MemStorage implements IStorage {
 
   async getStory(id: string): Promise<Story | undefined> {
     const [story] = await db.select().from(stories).where(eq(stories.id, id));
+    return story;
+  }
+
+  async updateStory(id: string, updates: Partial<Story>): Promise<Story> {
+    const [story] = await db
+      .update(stories)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(stories.id, id))
+      .returning();
     return story;
   }
 

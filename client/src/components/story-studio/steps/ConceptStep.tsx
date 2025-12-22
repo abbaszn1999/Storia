@@ -33,10 +33,14 @@ import {
 import { StoryStudioState, StoryTemplate } from "../types";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/contexts/workspace-context";
 
 interface ConceptStepProps {
   template: StoryTemplate;
   // State
+  projectName: string;
+  projectFolder: string;  // Full folder name with timestamp
+  isProjectLocked: boolean;
   topic: string;
   aiPrompt: string;
   aspectRatio: string;
@@ -58,6 +62,7 @@ interface ConceptStepProps {
   isGenerating: boolean;
   
   // Handlers
+  onProjectNameChange: (name: string) => void;
   onTopicChange: (topic: string) => void;
   onAiPromptChange: (prompt: string) => void;
   onAspectRatioChange: (ratio: string) => void;
@@ -120,6 +125,9 @@ const IMAGE_STYLES = [
 
 export function ConceptStep({
   template,
+  projectName,
+  projectFolder,
+  isProjectLocked,
   topic,
   aiPrompt,
   aspectRatio,
@@ -139,6 +147,7 @@ export function ConceptStep({
   videoResolution,
   isGenerating,
   
+  onProjectNameChange,
   onTopicChange,
   onAiPromptChange,
   onAspectRatioChange,
@@ -169,6 +178,9 @@ export function ConceptStep({
     rose: "from-rose-500 to-pink-500",
   }[accentColor] || "from-primary to-violet-500";
 
+  // Get current workspace for proper file storage paths
+  const { currentWorkspace } = useWorkspace();
+
   // Get current image model config with fallback to default
   const selectedImageModel = getImageModelConfig(imageModel) || getDefaultImageModel();
   
@@ -181,6 +193,16 @@ export function ConceptStep({
   const [isUploadingStyle, setIsUploadingStyle] = useState(false);
 
   const handleStyleUpload = async (file: File) => {
+    // Require project name before uploading
+    if (!projectName.trim()) {
+      toast({
+        title: "Project Name Required",
+        description: "Please enter a project name before uploading files",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!file.type.startsWith('image/')) {
       toast({
         title: "Invalid file type",
@@ -204,7 +226,8 @@ export function ConceptStep({
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('workspaceId', template?.id || 'default');
+      formData.append('workspaceId', currentWorkspace?.id || 'default');
+      formData.append('projectName', projectFolder); // Use projectFolder (with timestamp) for consistent storage
 
       const response = await fetch('/api/problem-solution/style-reference/upload', {
         method: 'POST',
@@ -255,6 +278,44 @@ export function ConceptStep({
         {/* Scrollable Content */}
         <ScrollArea className="flex-1 h-full">
           <div className="p-6 space-y-6 pb-12">
+
+        {/* Project Name */}
+        <GlassPanel>
+          <div className="flex items-center gap-2 mb-3">
+            <AlignLeft className="w-5 h-5 text-purple-400" />
+            <h3 className="font-semibold text-white">Project Name</h3>
+            <span className={cn(
+              "text-[10px] ml-auto",
+              isProjectLocked ? "text-amber-400/70" : "text-red-400/70"
+            )}>
+              {isProjectLocked ? "🔒 Locked" : "* Required"}
+            </span>
+          </div>
+          <input
+            type="text"
+            value={projectName}
+            onChange={(e) => onProjectNameChange(e.target.value)}
+            placeholder="Enter project name..."
+            disabled={isProjectLocked}
+            className={cn(
+              "w-full px-4 py-3 rounded-lg",
+              "bg-white/[0.03] border border-white/10",
+              "text-white placeholder:text-white/30",
+              "focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50",
+              "transition-all duration-200",
+              isProjectLocked && "opacity-60 cursor-not-allowed bg-white/[0.01]"
+            )}
+          />
+          <p className={cn(
+            "mt-2 text-[10px]",
+            isProjectLocked ? "text-amber-400/60" : "text-white/40"
+          )}>
+            {isProjectLocked 
+              ? "Project name cannot be changed after starting" 
+              : "Required before uploading files or proceeding"
+            }
+          </p>
+        </GlassPanel>
         
         {/* BOX 1: Image Model + Aspect Ratio + Resolution */}
         <GlassPanel>

@@ -215,6 +215,9 @@ export default function StoryCreate() {
       {studio.state.currentStep === 'concept' && (
         <ConceptStep
           template={template}
+          projectName={studio.state.projectName}
+          projectFolder={studio.state.projectFolder}
+          isProjectLocked={studio.state.isProjectLocked}
           topic={studio.state.topic}
           aiPrompt={studio.state.aiPrompt}
           aspectRatio={studio.state.aspectRatio}
@@ -234,6 +237,7 @@ export default function StoryCreate() {
           videoResolution={studio.state.videoResolution}
           isGenerating={studio.state.isGenerating}
           
+          onProjectNameChange={studio.setProjectName}
           onTopicChange={studio.setTopic}
           onAiPromptChange={studio.setAiPrompt}
           onAspectRatioChange={studio.setAspectRatio}
@@ -307,6 +311,7 @@ export default function StoryCreate() {
         <AudioStep
           template={template}
           scenes={studio.state.scenes}
+          projectFolder={studio.state.projectFolder}
           selectedVoice={studio.state.selectedVoice}
           musicStyle={studio.state.musicStyle}
           backgroundMusic={studio.state.backgroundMusic}
@@ -350,6 +355,7 @@ export default function StoryCreate() {
           isFinalExporting={isFinalExporting}
           hasGeneratedVoiceover={studio.state.hasGeneratedVoiceover}
           hasExportedVideo={studio.state.hasExportedVideo}
+          storyId={studio.state.storyId}
           lastExportResult={studio.state.lastExportResult}
           onExport={studio.exportVideo}
           onRemix={studio.remixVideo}

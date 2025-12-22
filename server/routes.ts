@@ -215,6 +215,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Stories routes
+  
+  // Get all stories for the current user
+  app.get('/api/stories', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const stories = await storage.getStoriesByUserId(userId);
+      res.json(stories);
+    } catch (error) {
+      console.error('Error fetching user stories:', error);
+      res.status(500).json({ error: 'Failed to fetch stories' });
+    }
+  });
+
+  // Get stories for a specific workspace
   app.get('/api/workspaces/:workspaceId/stories', isAuthenticated, async (req: any, res) => {
     try {
       const { workspaceId } = req.params;
@@ -237,6 +255,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: 'Failed to fetch stories' });
     }
   });
+  
+  // Get a single story by ID
+  app.get('/api/stories/:storyId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { storyId } = req.params;
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const story = await storage.getStory(storyId);
+      if (!story) {
+        return res.status(404).json({ error: 'Story not found' });
+      }
+
+      // Verify ownership
+      if (story.userId !== userId) {
+        return res.status(403).json({ error: 'Access denied to this story' });
+      }
+
+      res.json(story);
+    } catch (error) {
+      console.error('Error fetching story:', error);
+      res.status(500).json({ error: 'Failed to fetch story' });
+    }
+  });
+
+  // Update story with published platforms info (shared endpoint for all story modes)
+  app.put('/api/stories/:storyId/publish', isAuthenticated, async (req: any, res) => {
+    try {
+      const { storyId } = req.params;
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { platform, publishData, publishedPlatforms } = req.body;
+
+      // Get current story
+      const story = await storage.getStory(storyId);
+      if (!story) {
+        return res.status(404).json({ error: 'Story not found' });
+      }
+
+      // Verify ownership
+      if (story.userId !== userId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Support two modes: single platform or bulk platforms
+      let updatedPlatforms: Record<string, any>;
+      const currentPlatforms = (story.publishedPlatforms || {}) as Record<string, any>;
+
+      if (publishedPlatforms && typeof publishedPlatforms === 'object') {
+        // Bulk mode: merge all provided platforms
+        updatedPlatforms = { ...currentPlatforms, ...publishedPlatforms };
+      } else if (platform && publishData) {
+        // Single platform mode
+        updatedPlatforms = {
+          ...currentPlatforms,
+          [platform]: {
+            ...publishData,
+            published_at: new Date().toISOString(),
+          },
+        };
+      } else {
+        return res.status(400).json({ 
+          error: "Either 'publishedPlatforms' object or 'platform' + 'publishData' are required" 
+        });
+      }
+
+      const updatedStory = await storage.updateStory(storyId, {
+        publishedPlatforms: updatedPlatforms,
+      });
+
+      console.log('[routes] Story publish updated:', {
+        storyId,
+        totalPlatforms: Object.keys(updatedPlatforms).length,
+      });
+
+      res.json({
+        success: true,
+        story: updatedStory,
+      });
+    } catch (error) {
+      console.error('Error updating story publish status:', error);
+      res.status(500).json({ error: 'Failed to update story publish status' });
+    }
+  });
 
   app.delete('/api/stories/:storyId', isAuthenticated, async (req: any, res) => {
     try {
@@ -252,23 +359,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: 'Story not found' });
       }
 
-      // Verify workspace ownership
-      const workspaces = await storage.getWorkspacesByUserId(userId);
-      const workspace = workspaces.find(w => w.id === story.workspaceId);
-      if (!workspace) {
+      // Verify ownership (check userId directly on story)
+      if (story.userId !== userId) {
         return res.status(403).json({ error: 'Access denied to this story' });
       }
 
       // Delete entire project folder from Bunny CDN
-      if (story.exportUrl) {
+      if (story.videoUrl) {
         try {
           // Extract path from CDN URL
-          // Example URL: https://storia.b-cdn.net/{userId}/{workspace}/Story_Mode/asmr/{Project_Name_createDate}/Rendered/video.mp4
-          // We want to delete: {userId}/{workspace}/Story_Mode/asmr/{Project_Name_createDate}/
-          const cdnUrl = new URL(story.exportUrl);
+          // Example URL: https://storia.b-cdn.net/{userId}/{workspace}/Story_Mode/asmr/{ProjectFolder}/Render/final.mp4
+          // We want to delete: {userId}/{workspace}/Story_Mode/{storyMode}/{ProjectFolder}/
+          const cdnUrl = new URL(story.videoUrl);
           const fullPath = cdnUrl.pathname.replace(/^\//, ''); // Remove leading slash
           
-          // Extract project folder path (everything before /Rendered/)
+          // Extract project folder path (everything before /Render/)
           const projectFolderMatch = fullPath.match(/^(.+\/Story_Mode\/[^/]+\/[^/]+)\//);
           if (projectFolderMatch) {
             const projectFolderPath = projectFolderMatch[1];

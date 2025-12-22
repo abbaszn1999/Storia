@@ -85,7 +85,7 @@ const elevenlabsAdapter: AiProviderAdapter = {
 
     // Handle Text-to-Speech
     if (request.task === "text-to-speech") {
-      const payload = request.payload as TTSPayload;
+      const payload = request.payload as unknown as TTSPayload;
       
       if (!payload.text) {
         throw new ProviderRequestError("elevenlabs", "Missing 'text' parameter for TTS");
@@ -247,7 +247,7 @@ const elevenlabsAdapter: AiProviderAdapter = {
     // API: POST /v1/music/compose
     // ═══════════════════════════════════════════════════════════════════════════
     if (request.task === "music-generation") {
-      const payload = request.payload as MusicPayload;
+      const payload = request.payload as unknown as MusicPayload;
       
       if (!payload.prompt) {
         throw new ProviderRequestError("elevenlabs", "Missing 'prompt' parameter for music generation");
@@ -328,80 +328,91 @@ const elevenlabsAdapter: AiProviderAdapter = {
       };
     }
 
-    // Handle Sound Effects (existing code)
-    const endpoint = `${baseUrl}/sound-generation`;
-    const payload = request.payload as SoundEffectsPayload;
-    
-    if (!payload.text) {
-      throw new ProviderRequestError("elevenlabs", "Missing 'text' parameter for sound effects generation");
-    }
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Handle Sound Effects
+    // API: POST /v1/sound-generation
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (request.task === "sound-effects") {
+      const endpoint = `${baseUrl}/sound-generation`;
+      const payload = request.payload as unknown as SoundEffectsPayload;
+      
+      if (!payload.text) {
+        throw new ProviderRequestError("elevenlabs", "Missing 'text' parameter for sound effects generation");
+      }
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "xi-api-key": providerConfig.apiKey,
-    };
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "xi-api-key": providerConfig.apiKey,
+      };
 
-    // Build request body
-    const body: Record<string, unknown> = {
-      text: payload.text,
-    };
+      // Build request body
+      const body: Record<string, unknown> = {
+        text: payload.text,
+      };
 
-    // Optional parameters
-    if (payload.duration_seconds !== undefined) {
-      body.duration_seconds = payload.duration_seconds;
-    }
-    if (payload.prompt_influence !== undefined) {
-      body.prompt_influence = payload.prompt_influence;
-    }
+      // Optional parameters
+      if (payload.duration_seconds !== undefined) {
+        body.duration_seconds = payload.duration_seconds;
+      }
+      if (payload.prompt_influence !== undefined) {
+        body.prompt_influence = payload.prompt_influence;
+      }
 
-    console.log("[elevenlabs] Generating sound effect:", {
-      text: payload.text.substring(0, 50) + (payload.text.length > 50 ? "..." : ""),
-      duration_seconds: payload.duration_seconds,
-    });
+      console.log("[elevenlabs] Generating sound effect:", {
+        text: payload.text.substring(0, 50) + (payload.text.length > 50 ? "..." : ""),
+        duration_seconds: payload.duration_seconds,
+      });
 
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[elevenlabs] API error:", errorText);
-      throw new ProviderRequestError("elevenlabs", errorText);
-    }
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[elevenlabs] API error:", errorText);
+        throw new ProviderRequestError("elevenlabs", errorText);
+      }
 
-    // ElevenLabs returns audio data as binary stream
-    const audioBuffer = await response.arrayBuffer();
-    const audioBase64 = Buffer.from(audioBuffer).toString("base64");
-    
-    // Get content type for format detection
-    const contentType = response.headers.get("content-type") || "audio/mpeg";
-    const audioFormat = contentType.includes("wav") ? "wav" : "mp3";
+      // ElevenLabs returns audio data as binary stream
+      const audioBuffer = await response.arrayBuffer();
+      const audioBase64 = Buffer.from(audioBuffer).toString("base64");
+      
+      // Get content type for format detection
+      const contentType = response.headers.get("content-type") || "audio/mpeg";
+      const audioFormat = contentType.includes("wav") ? "wav" : "mp3";
 
-    console.log("[elevenlabs] Sound effect generated successfully:", {
-      format: audioFormat,
-      size: audioBuffer.byteLength,
-    });
-
-    return {
-      provider: "elevenlabs",
-      model: modelConfig.name,
-      output: {
-        audio_base64: audioBase64,
+      console.log("[elevenlabs] Sound effect generated successfully:", {
         format: audioFormat,
-        content_type: contentType,
-        size_bytes: audioBuffer.byteLength,
-      },
-      usage: {
-        // ElevenLabs charges per generation, not per token/character
-        totalCostUsd: modelConfig.pricing?.flatCostPerCall || 0.05,
-      },
-      rawResponse: {
-        status: response.status,
-        contentType,
-      },
-    };
+        size: audioBuffer.byteLength,
+      });
+
+      return {
+        provider: "elevenlabs",
+        model: modelConfig.name,
+        output: {
+          audio_base64: audioBase64,
+          format: audioFormat,
+          content_type: contentType,
+          size_bytes: audioBuffer.byteLength,
+        },
+        usage: {
+          // ElevenLabs charges per generation, not per token/character
+          totalCostUsd: modelConfig.pricing?.flatCostPerCall || 0.05,
+        },
+        rawResponse: {
+          status: response.status,
+          contentType,
+        },
+      };
+    }
+
+    // Unsupported task type
+    throw new ProviderRequestError(
+      "elevenlabs",
+      `Unsupported task type: ${request.task}. Supported tasks: text-to-speech, music-generation, sound-effects`
+    );
   },
 };
 

@@ -1,7 +1,7 @@
 // ASMR Export Page - Professional Glassmorphism Design
 // Matches the ASMR Generator page aesthetic
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -22,7 +22,9 @@ import {
   Video,
   Wand2,
   Send,
-  AlertCircle
+  AlertCircle,
+  Link2,
+  Lock
 } from "lucide-react";
 import { SiYoutube, SiTiktok, SiInstagram, SiFacebook } from "react-icons/si";
 import { cn } from "@/lib/utils";
@@ -43,20 +45,21 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PageTransition, StaggerContainer, StaggerItem } from "@/components/ui/page-transition";
 import { downloadMergedVideo } from "@/lib/api/asmr";
-import { lateApi, type PublishVideoInput } from "@/lib/api/late";
+import { lateApi, type PublishVideoInput, type LatePlatform } from "@/lib/api/late";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useSocialAccounts } from "@/components/shared/social";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
 
 const PLATFORMS = [
-  { id: "youtube", name: "YouTube Shorts", icon: SiYoutube, color: "bg-red-600", gradient: "from-red-600 to-red-700" },
-  { id: "tiktok", name: "TikTok", icon: SiTiktok, color: "bg-black", gradient: "from-gray-800 to-black" },
-  { id: "instagram", name: "Instagram Reels", icon: SiInstagram, gradient: "from-purple-600 via-pink-500 to-orange-400" },
-  { id: "facebook", name: "Facebook Reels", icon: SiFacebook, color: "bg-blue-600", gradient: "from-blue-600 to-blue-700" },
+  { id: "youtube", name: "YouTube Shorts", icon: SiYoutube, color: "bg-red-600", gradient: "from-red-600 to-red-700", apiPlatform: "youtube" as LatePlatform },
+  { id: "tiktok", name: "TikTok", icon: SiTiktok, color: "bg-black", gradient: "from-gray-800 to-black", apiPlatform: "tiktok" as LatePlatform },
+  { id: "instagram", name: "Instagram Reels", icon: SiInstagram, gradient: "from-purple-600 via-pink-500 to-orange-400", apiPlatform: "instagram" as LatePlatform },
+  { id: "facebook", name: "Facebook Reels", icon: SiFacebook, color: "bg-blue-600", gradient: "from-blue-600 to-blue-700", apiPlatform: "facebook" as LatePlatform },
 ];
 
 const RESOLUTIONS = [
@@ -73,6 +76,7 @@ interface StoryExportData {
   aspectRatio: string;
   resolution?: string;
   storyType: string;
+  storyId?: string; // Database story ID for updating published_platforms
   category?: string;
   visualPrompt?: string;
   soundPrompt?: string;
@@ -89,6 +93,9 @@ export default function StoryPreviewExport() {
   const [, navigate] = useLocation();
   const { currentWorkspace } = useWorkspace();
   const { toast } = useToast();
+  
+  // Social accounts hook for connection status
+  const { isLoading: isLoadingAccounts, isConnected, getConnectUrl, refetch: refetchAccounts } = useSocialAccounts();
   
   // Load export data from localStorage
   const [exportData, setExportData] = useState<StoryExportData | null>(() => {
@@ -127,6 +134,7 @@ export default function StoryPreviewExport() {
   const [youtubeDescription, setYoutubeDescription] = useState("");
   const [socialCaption, setSocialCaption] = useState("");
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
 
   if (!exportData) return null;
 
@@ -192,6 +200,63 @@ export default function StoryPreviewExport() {
   // Platform checks (needed by callbacks below)
   const hasYouTube = selectedPlatforms.includes("youtube");
   const hasSocialPlatforms = selectedPlatforms.some(p => ["tiktok", "instagram", "facebook"].includes(p));
+
+  // Handle platform connection via OAuth
+  const connectIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const handleConnect = useCallback(async (platformId: string) => {
+    const platform = PLATFORMS.find(p => p.id === platformId);
+    if (!platform?.apiPlatform) return;
+
+    setConnectingPlatform(platformId);
+    
+    const url = await getConnectUrl(platform.apiPlatform);
+    if (url) {
+      window.open(url, '_blank', 'width=600,height=700');
+      toast({
+        title: "Connecting...",
+        description: "Complete authentication in the new window, then return here.",
+      });
+      // Poll for connection - will be stopped by useEffect when connected
+      connectIntervalRef.current = setInterval(async () => {
+        await refetchAccounts();
+      }, 3000);
+      // Stop polling after 2 minutes
+      setTimeout(() => {
+        if (connectIntervalRef.current) {
+          clearInterval(connectIntervalRef.current);
+          connectIntervalRef.current = null;
+        }
+        setConnectingPlatform(null);
+      }, 120000);
+    } else {
+      setConnectingPlatform(null);
+      toast({
+        title: "Connection failed",
+        description: "Could not open connection page. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [getConnectUrl, refetchAccounts, toast]);
+  
+  // Clear connecting state when platform becomes connected
+  useEffect(() => {
+    if (connectingPlatform) {
+      const platform = PLATFORMS.find(p => p.id === connectingPlatform);
+      if (platform?.apiPlatform && isConnected(platform.apiPlatform)) {
+        // Clear the polling interval
+        if (connectIntervalRef.current) {
+          clearInterval(connectIntervalRef.current);
+          connectIntervalRef.current = null;
+        }
+        setConnectingPlatform(null);
+        toast({
+          title: "Connected!",
+          description: `${platform.name} has been connected successfully.`,
+        });
+      }
+    }
+  }, [connectingPlatform, isConnected, toast]);
 
   // Generate AI metadata using the real API
   const handleAIMetadata = useCallback(async (platform: string) => {
@@ -289,6 +354,32 @@ export default function StoryPreviewExport() {
       const result = await lateApi.publishVideo(currentWorkspace.id, publishInput);
       
       console.log('[ASMR Export] Publish result:', result);
+      
+      // Update story record with published platforms info
+      // Note: For ASMR, the story is already saved during generation
+      // We need to update it with published_platforms
+      if (exportData.storyId) {
+        try {
+          // Build published platforms object
+          const publishedPlatformsData: Record<string, any> = {};
+          for (const platformId of selectedPlatforms) {
+            publishedPlatformsData[platformId] = {
+              status: publishType === 'schedule' ? 'scheduled' : 'published',
+              video_id: result.results?.find((r: any) => r.platform === platformId)?.videoId,
+              published_at: new Date().toISOString(),
+              scheduled_for: publishType === 'schedule' ? `${scheduleDate}T${scheduleTime}` : undefined,
+            };
+          }
+          
+          await apiRequest("PUT", `/api/stories/${exportData.storyId}/publish`, {
+            publishedPlatforms: publishedPlatformsData,
+          });
+          console.log('[ASMR Export] Story publish info updated in database');
+        } catch (dbError) {
+          console.warn('[ASMR Export] Failed to update story in database:', dbError);
+          // Don't fail the whole operation if DB update fails
+        }
+      }
       
       // Show success message
       const platformNames = selectedPlatforms.map(id => 
@@ -438,34 +529,93 @@ export default function StoryPreviewExport() {
                 <div className="grid grid-cols-2 gap-2">
                   {PLATFORMS.map(platform => {
                     const Icon = platform.icon;
+                    const platformConnected = platform.apiPlatform ? isConnected(platform.apiPlatform) : false;
                     const isSelected = selectedPlatforms.includes(platform.id);
+                    const isDisabled = !platformConnected;
+                    
                     return (
-                      <motion.button
+                      <motion.div
                         key={platform.id}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => handlePlatformToggle(platform.id)}
+                        whileHover={{ scale: isDisabled ? 1 : 1.02 }}
+                        whileTap={{ scale: isDisabled ? 1 : 0.98 }}
                         className={cn(
                           "p-3 rounded-xl transition-all duration-200",
                           "flex items-center gap-2",
-                          "border",
-                          isSelected
-                            ? "bg-white/[0.08] border-primary/50"
-                            : "bg-white/[0.02] border-white/[0.06] hover:border-white/[0.12]"
+                          "border relative",
+                          isDisabled
+                            ? "bg-white/[0.01] border-white/[0.04] opacity-60"
+                            : isSelected
+                              ? "bg-white/[0.08] border-primary/50"
+                              : "bg-white/[0.02] border-white/[0.06] hover:border-white/[0.12] cursor-pointer"
                         )}
+                        onClick={() => !isDisabled && handlePlatformToggle(platform.id)}
                       >
+                        {/* Lock or checkbox icon */}
+                        {platformConnected ? (
+                          <div className={cn(
+                            "w-4 h-4 rounded border flex items-center justify-center flex-shrink-0",
+                            isSelected
+                              ? "bg-primary border-primary"
+                              : "border-white/30"
+                          )}>
+                            {isSelected && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                        ) : (
+                          <Lock className="w-4 h-4 text-white/30 flex-shrink-0" />
+                        )}
+                        
                         <div className={cn(
-                          "w-8 h-8 rounded-lg flex items-center justify-center",
+                          "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
                           "bg-gradient-to-br",
-                          platform.gradient || platform.color
+                          platform.gradient || platform.color,
+                          isDisabled && "opacity-50"
                         )}>
                           <Icon className="h-4 w-4 text-white" />
                         </div>
-                        <span className="text-xs font-medium">{platform.name}</span>
-                        {isSelected && (
-                          <Check className="h-3 w-3 text-primary ml-auto" />
+                        
+                        <div className="flex-1 min-w-0">
+                          <span className={cn(
+                            "text-xs font-medium block",
+                            isDisabled && "text-white/50"
+                          )}>
+                            {platform.name}
+                          </span>
+                          {!platformConnected && (
+                            <span className="text-[9px] text-amber-400">Not Connected</span>
+                          )}
+                        </div>
+                        
+                        {/* Connect button for unconnected */}
+                        {!platformConnected && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleConnect(platform.id);
+                            }}
+                            disabled={connectingPlatform === platform.id}
+                            className={cn(
+                              "h-6 px-2 text-[10px] gap-1",
+                              "bg-purple-500/10 border-purple-500/30 text-purple-300",
+                              "hover:bg-purple-500/20",
+                              "disabled:opacity-70"
+                            )}
+                          >
+                            {connectingPlatform === platform.id ? (
+                              <>
+                                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                                Connecting...
+                              </>
+                            ) : (
+                              <>
+                                <Link2 className="w-2.5 h-2.5" />
+                                Connect
+                              </>
+                            )}
+                          </Button>
                         )}
-                      </motion.button>
+                      </motion.div>
                     );
                   })}
                 </div>

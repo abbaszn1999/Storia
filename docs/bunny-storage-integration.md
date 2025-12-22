@@ -38,12 +38,13 @@ Storia uses Bunny CDN Storage for persistent file storage. All user-generated co
   └── {workspace_name}/
       ├── video_mode/
       │   └── {Tool_Mode}/                    # e.g., narrative, ambient, commerce
-      │       └── {Project_Name_createDate}/
+      │       └── {Project_Name_createDate}/  #project name is video title
       │           ├── Rendered/               # Final exported content
       │           │   ├── Final/              # Final exported videos
       │           │   ├── Shots/              # Individual shot renders
       │           │   ├── Images/             # Generated images
-      │           │   └── Voice-Over/         # Voice-over audio files
+      │           │   ├── Voice-Over/         # Voice-over audio files
+      │           │   └── references/         # reference images
       │           └── temp/                   # Temporary files (48h retention)
       ├── Story_Mode/
       │   └── {Tool_Mode}/                    # e.g., asmr, before-after, myth-busting

@@ -100,17 +100,160 @@ export interface MoodDescriptionGeneratorOutput {
   cost?: number;
 }
 
-// Step 2-6 data interfaces (placeholders)
+// Step 2: Visual World data - All settings from the Visual World phase
 export interface Step2Data {
-  artStyle?: string;
-  visualElements?: string[];
-  referenceImages?: string[];
+  artStyle: string;
+  visualElements: string[];
+  visualRhythm: string;
+  referenceImages: string[];
+  imageCustomInstructions?: string;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// FLOW DESIGN TYPES - Scene, Shot, ShotVersion, ContinuityGroup
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface Scene {
+  id: string;
+  videoId: string;
+  sceneNumber: number;
+  title: string;
+  description?: string | null;
+  duration?: number | null;
+  videoModel?: string | null;
+  imageModel?: string | null;
+  lighting?: string | null;
+  weather?: string | null;
+  createdAt: Date;
+}
+
+export interface Shot {
+  id: string;
+  sceneId: string;
+  shotNumber: number;
+  shotType: string;
+  cameraMovement: string;
+  duration: number;
+  description?: string | null;
+  videoModel?: string | null;
+  imageModel?: string | null;
+  soundEffects?: string | null;
+  transition?: string | null;
+  currentVersionId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ShotVersion {
+  id: string;
+  shotId: string;
+  versionNumber: number;
+  imagePrompt?: string | null;
+  imageUrl?: string | null;
+  startFramePrompt?: string | null;
+  startFrameUrl?: string | null;
+  endFramePrompt?: string | null;
+  endFrameUrl?: string | null;
+  videoPrompt?: string | null;
+  videoUrl?: string | null;
+  videoDuration?: number | null;
+  status: string;
+  needsRerender: boolean;
+  createdAt: Date;
+}
+
+export interface ContinuityGroup {
+  id: string;
+  sceneId: string;
+  groupNumber: number;
+  shotIds: string[];
+  description?: string | null;
+  transitionType?: string | null;
+  status: string;  // "proposed" | "approved" | "declined"
+  editedBy?: string | null;
+  editedAt?: Date | null;
+  approvedAt?: Date | null;
+  createdAt: Date;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCENE GENERATOR - AI INPUT/OUTPUT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for scene generation (AI agent)
+ * Combines atmosphere and visual world settings to generate segments
+ */
+export interface SceneGeneratorInput {
+  moodDescription: string;      // From Step 1
+  duration: string;             // "5min", "30min", "1hour", etc.
+  theme: string;                // "nature", "urban", "cosmic", etc.
+  mood: string;                 // "calm", "mysterious", "energetic", etc.
+  pacing: number;               // 0-100 slider value
+  segmentCount: 'auto' | number;
+  shotsPerSegment: 'auto' | number;
+  animationMode: AnimationMode;
+  videoGenerationMode?: VideoGenerationMode;
+  // From Step 2 (Visual World)
+  visualRhythm?: string;        // "constant", "breathing", "building", "wave"
+  artStyle?: string;            // "cinematic", "anime", "realistic", etc.
+  visualElements?: string[];    // ["Mountains", "Ocean", "Forest", etc.]
+}
+
+export interface SceneGeneratorOutput {
+  scenes: Scene[];
+  totalDuration: number;
+  cost?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SHOT COMPOSER - AI INPUT/OUTPUT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for shot composition within a scene
+ */
+export interface ShotComposerInput {
+  scene: Scene;
+  shotsPerSegment: 'auto' | number;
+  pacing: number;
+  animationMode: AnimationMode;
+  artStyle?: string;
+  visualElements?: string[];
+}
+
+export interface ShotComposerOutput {
+  shots: Shot[];
+  cost?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONTINUITY PRODUCER - AI INPUT/OUTPUT (Start-End Frame Mode Only)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for continuity analysis and proposal
+ */
+export interface ContinuityProducerInput {
+  scenes: Scene[];
+  shots: Record<string, Shot[]>;
+}
+
+export interface ContinuityProducerOutput {
+  continuityGroups: Record<string, ContinuityGroup[]>;
+  cost?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 3 DATA - Flow Design Phase
+// ═══════════════════════════════════════════════════════════════════════════════
+
 export interface Step3Data {
-  scenes?: any[];
-  shots?: Record<string, any[]>;
-  continuityLocked?: boolean;
+  scenes: Scene[];
+  shots: Record<string, Shot[]>;
+  shotVersions?: Record<string, ShotVersion[]>;
+  continuityLocked: boolean;
+  continuityGroups: Record<string, ContinuityGroup[]>;
 }
 
 export interface Step4Data {

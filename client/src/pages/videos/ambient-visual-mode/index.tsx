@@ -34,7 +34,11 @@ export default function AmbientVisualModePage() {
   
   // Debug: Log when video data changes
   useEffect(() => {
-    console.log('[AmbientPage] existingVideo changed:', existingVideo?.id, 'step1Data:', existingVideo?.step1Data);
+    console.log('[AmbientPage] existingVideo changed:', {
+      id: existingVideo?.id,
+      step1Data: existingVideo?.step1Data,
+      step2Data: existingVideo?.step2Data,
+    });
   }, [existingVideo]);
   
   // Video ID state (updated after creation)
@@ -239,6 +243,7 @@ export default function AmbientVisualModePage() {
         projectName={videoTitle}
         videoId={videoId}
         initialStep1Data={existingVideo?.step1Data as Record<string, unknown> | undefined}
+        initialStep2Data={existingVideo?.step2Data as Record<string, unknown> | undefined}
         initialAnimationMode={animationMode}
         initialVideoGenerationMode={videoGenerationMode}
       />

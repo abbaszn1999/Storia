@@ -32,7 +32,8 @@ export interface SceneGeneratorInput {
 export interface SceneOutput {
   sceneNumber: number;
   duration: number;
-  narration: string;
+  description: string;   // Visual description (for image generation)
+  narration?: string;    // Voiceover text (only when voiceover enabled)
 }
 
 export interface SceneGeneratorOutput {
@@ -49,7 +50,8 @@ export interface StoryboardEnhancerInput {
   scenes: Array<{
     sceneNumber: number;
     duration: number;
-    narration: string;
+    description: string;   // Visual description (for image generation)
+    narration?: string;    // Voiceover text (only when voiceover enabled)
   }>;
   aspectRatio: string;
   imageStyle: ImageStyle;         // Visual style for image generation
@@ -166,6 +168,7 @@ export interface ImageGeneratorInput {
   }>;
   aspectRatio: string;
   imageStyle: ImageStyle;       // Visual style (e.g., "photorealistic", "anime")
+  styleReferenceUrl?: string;   // Custom style reference image URL for AI to match
   imageModel: string;           // Image model ID (e.g., "nano-banana", "flux-2-pro")
   imageResolution: string;      // Resolution tier (e.g., "1k", "2k", "4k")
   projectName: string;
@@ -285,6 +288,7 @@ export interface VideoExportInput {
   animationMode: 'off' | 'transition' | 'video';
   backgroundMusic?: string;     // Legacy: Direct URL to music file
   musicStyle?: string;          // NEW: AI music style (e.g., "cinematic", "upbeat")
+  customMusicUrl?: string;      // NEW: User-uploaded custom music URL (takes priority)
   storyTopic?: string;          // Topic for context-aware music generation
   voiceVolume: number;
   musicVolume: number;
@@ -292,6 +296,8 @@ export interface VideoExportInput {
   exportFormat: 'mp4' | 'webm' | 'gif';
   exportQuality: '720p' | '1080p' | '4k';
   textOverlay: boolean;
+  textOverlayStyle?: 'modern' | 'cinematic' | 'bold';  // Subtitle style
+  language?: string;                                    // Language for font selection ('en' | 'ar')
   projectName: string;
   workspaceId: string;
 }
@@ -327,22 +333,5 @@ export interface VideoRemixOutput {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SOCIAL MEDIA METADATA
 // ═══════════════════════════════════════════════════════════════════════════════
-
-export type SocialPlatform = 'youtube' | 'tiktok' | 'instagram' | 'facebook';
-
-export interface SocialMetadataInput {
-  platform: SocialPlatform;
-  scriptText: string;        // The video script/narration text
-  duration: number;          // Video duration in seconds
-}
-
-export interface SocialMetadataOutput {
-  platform: SocialPlatform;
-  // YouTube specific
-  title?: string;
-  description?: string;
-  // TikTok, Instagram, Facebook
-  caption?: string;
-  // Cost tracking
-  cost?: number;
-}
+// NOTE: Social media types are now in shared/social/types.ts
+// Import from: import { SocialPlatform, SocialMetadataInput, SocialMetadataOutput } from "../../shared/social";

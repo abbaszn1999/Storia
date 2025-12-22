@@ -1,6 +1,7 @@
 // Concept Step - Redesigned Layout
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { GlassPanel } from "../shared/GlassPanel";
@@ -25,9 +26,13 @@ import {
   Sparkles,
   Zap,
   AlignLeft,
-  Settings2
+  Settings2,
+  Upload,
+  X
 } from "lucide-react";
 import { StoryStudioState, StoryTemplate } from "../types";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface ConceptStepProps {
   template: StoryTemplate;
@@ -44,6 +49,7 @@ interface ConceptStepProps {
   pacing: 'slow' | 'medium' | 'fast';
   imageModel: string;
   imageStyle: 'photorealistic' | 'cinematic' | '3d-render' | 'digital-art' | 'anime' | 'illustration' | 'watercolor' | 'minimalist';
+  styleReferenceUrl: string; // Custom style reference image URL
   imageResolution: string;
   animationMode: 'off' | 'transition' | 'video';
   videoModel: string;
@@ -64,6 +70,7 @@ interface ConceptStepProps {
   onTextOverlayStyleChange: (style: 'modern' | 'cinematic' | 'bold') => void;
   onImageModelChange: (model: string) => void;
   onImageStyleChange: (style: 'photorealistic' | 'cinematic' | '3d-render' | 'digital-art' | 'anime' | 'illustration' | 'watercolor' | 'minimalist') => void;
+  onStyleReferenceUrlChange: (url: string) => void;
   onImageResolutionChange: (res: string) => void;
   onAnimationModeChange: (mode: 'off' | 'transition' | 'video') => void;
   onVideoModelChange: (model: string) => void;
@@ -125,6 +132,7 @@ export function ConceptStep({
   pacing,
   imageModel,
   imageStyle,
+  styleReferenceUrl,
   imageResolution,
   animationMode,
   videoModel,
@@ -143,6 +151,7 @@ export function ConceptStep({
   onTextOverlayStyleChange,
   onImageModelChange,
   onImageStyleChange,
+  onStyleReferenceUrlChange,
   onImageResolutionChange,
   onAnimationModeChange,
   onVideoModelChange,
@@ -165,6 +174,72 @@ export function ConceptStep({
   
   // Get current video model config with fallback to default
   const selectedVideoModel = getVideoModelConfig(videoModel) || getDefaultVideoModel();
+
+  // Style reference upload state
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingStyle, setIsUploadingStyle] = useState(false);
+
+  const handleStyleUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload an image file (JPG, PNG, etc.)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Max 10MB
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload an image smaller than 10MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploadingStyle(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('workspaceId', template?.id || 'default');
+
+      const response = await fetch('/api/problem-solution/style-reference/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const data = await response.json();
+      onStyleReferenceUrlChange(data.url);
+      
+      toast({
+        title: "Style uploaded",
+        description: "Your reference image will guide the AI style",
+      });
+    } catch (error) {
+      console.error('Style upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: "Could not upload style reference image",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingStyle(false);
+    }
+  };
+
+  const handleRemoveStyleReference = () => {
+    onStyleReferenceUrlChange('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   return (
     <div className="flex w-full h-[calc(100vh-12rem)] gap-0 overflow-hidden">
@@ -239,6 +314,74 @@ export function ConceptStep({
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Custom Style Reference Upload */}
+            <div className="space-y-3">
+              <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Style Reference (Optional)</label>
+              
+              {styleReferenceUrl ? (
+                // Show uploaded image preview
+                <div className="relative group">
+                  <div className="relative aspect-video rounded-xl overflow-hidden border border-white/20 bg-black/40">
+                    <img 
+                      src={styleReferenceUrl} 
+                      alt="Style reference" 
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    <div className="absolute bottom-2 left-2 right-2">
+                      <p className="text-xs text-white/80 font-medium">Custom Style Active</p>
+                      <p className="text-[10px] text-white/50">AI will match this visual style</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleRemoveStyleReference}
+                    className="absolute -top-2 -right-2 p-1.5 rounded-full bg-red-500/90 hover:bg-red-500 text-white shadow-lg transition-all opacity-0 group-hover:opacity-100"
+                    title="Remove style reference"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                // Upload area
+                <div 
+                  className={cn(
+                    "relative border-2 border-dashed rounded-xl p-4 text-center transition-all cursor-pointer",
+                    isUploadingStyle 
+                      ? "border-white/30 bg-white/10" 
+                      : "border-white/10 hover:border-white/20 hover:bg-white/5"
+                  )}
+                  onClick={() => !isUploadingStyle && fileInputRef.current?.click()}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleStyleUpload(file);
+                    }}
+                    disabled={isUploadingStyle}
+                  />
+                  
+                  {isUploadingStyle ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <RefreshCw className="w-6 h-6 text-white/60 animate-spin" />
+                      <span className="text-xs text-white/60">Uploading...</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Upload className="w-6 h-6 text-white/40" />
+                      <div>
+                        <p className="text-xs text-white/60 font-medium">Upload reference image</p>
+                        <p className="text-[10px] text-white/40 mt-0.5">AI will generate images in this style</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Aspect Ratio */}

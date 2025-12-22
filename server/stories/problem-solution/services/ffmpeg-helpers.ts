@@ -22,6 +22,46 @@ if (!existsSync(TEMP_DIR)) {
 }
 
 /**
+ * Get video dimensions based on aspect ratio
+ * Returns { width, height } for the target resolution
+ */
+export function getVideoDimensions(aspectRatio: string, quality: '1080p' | '4k' = '1080p'): { width: number; height: number } {
+  const dimensions: Record<string, Record<string, { width: number; height: number }>> = {
+    '16:9': {
+      '1080p': { width: 1920, height: 1080 },
+      '4k': { width: 3840, height: 2160 },
+    },
+    '9:16': {
+      '1080p': { width: 1080, height: 1920 },
+      '4k': { width: 2160, height: 3840 },
+    },
+    '1:1': {
+      '1080p': { width: 1080, height: 1080 },
+      '4k': { width: 2160, height: 2160 },
+    },
+    '4:5': {
+      '1080p': { width: 1080, height: 1350 },
+      '4k': { width: 2160, height: 2700 },
+    },
+    '4:3': {
+      '1080p': { width: 1440, height: 1080 },
+      '4k': { width: 2880, height: 2160 },
+    },
+    '3:4': {
+      '1080p': { width: 1080, height: 1440 },
+      '4k': { width: 2160, height: 2880 },
+    },
+    '21:9': {
+      '1080p': { width: 2560, height: 1080 },
+      '4k': { width: 5120, height: 2160 },
+    },
+  };
+
+  const ratio = dimensions[aspectRatio] || dimensions['16:9'];
+  return ratio[quality] || ratio['1080p'];
+}
+
+/**
  * Download a file from URL to local path with verification and retry
  * Using arrayBuffer instead of stream for more reliable downloads
  */
@@ -151,11 +191,14 @@ export async function concatenateVideos(videoPaths: string[]): Promise<string> {
  */
 export async function createVideoFromImages(
   imagePaths: string[],
-  durations: number[]
+  durations: number[],
+  aspectRatio: string = '16:9'
 ): Promise<string> {
   const outputPath = path.join(TEMP_DIR, `${randomUUID()}_images.mp4`);
+  const { width, height } = getVideoDimensions(aspectRatio);
   
   console.log(`[ffmpeg-helpers] Creating video from ${imagePaths.length} images...`);
+  console.log(`[ffmpeg-helpers] Output dimensions: ${width}x${height} (${aspectRatio})`);
   
   // Build complex FFmpeg filter for Ken Burns effect on each image
   const filters: string[] = [];
@@ -168,8 +211,8 @@ export async function createVideoFromImages(
     
     // Zoom in effect: scale from 1.0 to 1.2 over the duration
     filters.push(
-      `[${i}:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,` +
-      `zoompan=z='min(zoom+0.0015,1.2)':d=${frames}:s=1920x1080:fps=${fps}[v${i}]`
+      `[${i}:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},` +
+      `zoompan=z='min(zoom+0.0015,1.2)':d=${frames}:s=${width}x${height}:fps=${fps}[v${i}]`
     );
     inputs.push(`[v${i}]`);
   }
@@ -225,11 +268,14 @@ export async function createStaticVideoWithTransitions(
   imagePaths: string[],
   durations: number[],
   transitionType: 'fade' | 'wipeleft' | 'wiperight' | 'slideup' | 'slidedown' | 'dissolve' = 'fade',
-  transitionDuration: number = 0.5
+  transitionDuration: number = 0.5,
+  aspectRatio: string = '16:9'
 ): Promise<string> {
   const outputPath = path.join(TEMP_DIR, `${randomUUID()}_static_video.mp4`);
+  const { width, height } = getVideoDimensions(aspectRatio);
   
   console.log(`[ffmpeg-helpers] Creating static video from ${imagePaths.length} images...`);
+  console.log(`[ffmpeg-helpers] Output dimensions: ${width}x${height} (${aspectRatio})`);
   
   const tempClips: string[] = [];
   
@@ -246,7 +292,7 @@ export async function createStaticVideoWithTransitions(
           .input(imagePaths[i])
           .inputOptions(['-loop', '1', '-t', duration.toString()])
           .outputOptions([
-            '-vf', 'scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080',
+            '-vf', `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`,
             '-r', '25',
             '-pix_fmt', 'yuv420p',
             '-c:v', 'libx264',
@@ -382,11 +428,15 @@ export async function createVideoFromImagesWithAnimations(
   imagePaths: string[],
   durations: number[],
   animations: Array<ImageAnimation | null>,
-  effects?: Array<ImageEffect | null>
+  effects?: Array<ImageEffect | null>,
+  aspectRatio: string = '16:9'
 ): Promise<string> {
   const outputPath = path.join(TEMP_DIR, `${randomUUID()}_animated_images.mp4`);
+  const { width, height } = getVideoDimensions(aspectRatio);
+  const size = `${width}x${height}`;
   
   console.log(`[ffmpeg-helpers] Creating video from ${imagePaths.length} images with animations and effects...`);
+  console.log(`[ffmpeg-helpers] Output dimensions: ${width}x${height} (${aspectRatio})`);
   
   const filters: string[] = [];
   const inputs: string[] = [];
@@ -400,65 +450,65 @@ export async function createVideoFromImagesWithAnimations(
     
     console.log(`[ffmpeg-helpers] Scene ${i + 1}: ${animation} + ${effect} (${duration}s)`);
     
-    let filter = `[${i}:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080`;
+    let filter = `[${i}:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`;
     
     // Apply animation-specific FFmpeg filters (smooth, continuous movements with easing - no jitter)
     switch (animation) {
       case 'zoom-in':
         // Smooth continuous zoom with ease-in-out (cinematic, no jitter)
-        filter += `,zoompan=z='1+0.05*pow(on/${frames},1.5)':d=${frames}:s=1920x1080:fps=${fps}`;
+        filter += `,zoompan=z='1+0.05*pow(on/${frames},1.5)':d=${frames}:s=${size}:fps=${fps}`;
         break;
         
       case 'zoom-out':
         // Smooth continuous zoom out with ease-in-out
-        filter += `,zoompan=z='1.05-0.05*pow(on/${frames},1.5)':d=${frames}:s=1920x1080:fps=${fps}`;
+        filter += `,zoompan=z='1.05-0.05*pow(on/${frames},1.5)':d=${frames}:s=${size}:fps=${fps}`;
         break;
         
       case 'pan-right':
         // Smooth gentle pan with easing (professional, no jitter)
-        filter += `,zoompan=z='1.03':x='iw/2-(iw/zoom/2)-pow(on/${frames},1.5)*(iw/6)':d=${frames}:s=1920x1080:fps=${fps}`;
+        filter += `,zoompan=z='1.03':x='iw/2-(iw/zoom/2)-pow(on/${frames},1.5)*(iw/6)':d=${frames}:s=${size}:fps=${fps}`;
         break;
         
       case 'pan-left':
         // Smooth gentle pan from right to left with easing
-        filter += `,zoompan=z='1.03':x='iw/2-(iw/zoom/2)+pow(on/${frames},1.5)*(iw/6)':d=${frames}:s=1920x1080:fps=${fps}`;
+        filter += `,zoompan=z='1.03':x='iw/2-(iw/zoom/2)+pow(on/${frames},1.5)*(iw/6)':d=${frames}:s=${size}:fps=${fps}`;
         break;
         
       case 'pan-up':
         // Smooth gentle pan from bottom to top with easing
-        filter += `,zoompan=z='1.03':y='ih/2-(ih/zoom/2)+pow(on/${frames},1.5)*(ih/6)':d=${frames}:s=1920x1080:fps=${fps}`;
+        filter += `,zoompan=z='1.03':y='ih/2-(ih/zoom/2)+pow(on/${frames},1.5)*(ih/6)':d=${frames}:s=${size}:fps=${fps}`;
         break;
         
       case 'pan-down':
         // Smooth gentle pan from top to bottom with easing
-        filter += `,zoompan=z='1.03':y='ih/2-(ih/zoom/2)-pow(on/${frames},1.5)*(ih/6)':d=${frames}:s=1920x1080:fps=${fps}`;
+        filter += `,zoompan=z='1.03':y='ih/2-(ih/zoom/2)-pow(on/${frames},1.5)*(ih/6)':d=${frames}:s=${size}:fps=${fps}`;
         break;
         
         case 'rotate-cw':
           // First use zoompan to generate frames, then apply rotation
           // Subtle rotation: starts at 0, ends at ~15 degrees (PI/12)
-          filter += `,zoompan=z='1':d=${frames}:s=1920x1080:fps=${fps},pad=iw*1.5:ih*1.5:(ow-iw)/2:(oh-ih)/2,rotate='(PI/12)*t/${duration}':c=none,crop=1920:1080`;
+          filter += `,zoompan=z='1':d=${frames}:s=${size}:fps=${fps},pad=iw*1.5:ih*1.5:(ow-iw)/2:(oh-ih)/2,rotate='(PI/12)*t/${duration}':c=none,crop=${width}:${height}`;
           break;
           
         case 'rotate-ccw':
           // First use zoompan to generate frames, then apply counter-clockwise rotation
-          filter += `,zoompan=z='1':d=${frames}:s=1920x1080:fps=${fps},pad=iw*1.5:ih*1.5:(ow-iw)/2:(oh-ih)/2,rotate='-(PI/12)*t/${duration}':c=none,crop=1920:1080`;
+          filter += `,zoompan=z='1':d=${frames}:s=${size}:fps=${fps},pad=iw*1.5:ih*1.5:(ow-iw)/2:(oh-ih)/2,rotate='-(PI/12)*t/${duration}':c=none,crop=${width}:${height}`;
           break;
         
       case 'slide-left':
         // Smooth gentle slide with easing (no jitter)
-        filter += `,zoompan=z='1':x='(iw*0.15)-pow(on/${frames},1.5)*(iw*0.15)':d=${frames}:s=1920x1080:fps=${fps}`;
+        filter += `,zoompan=z='1':x='(iw*0.15)-pow(on/${frames},1.5)*(iw*0.15)':d=${frames}:s=${size}:fps=${fps}`;
         break;
         
       case 'slide-right':
         // Smooth gentle slide from left with easing
-        filter += `,zoompan=z='1':x='-(iw*0.15)+pow(on/${frames},1.5)*(iw*0.15)':d=${frames}:s=1920x1080:fps=${fps}`;
+        filter += `,zoompan=z='1':x='-(iw*0.15)+pow(on/${frames},1.5)*(iw*0.15)':d=${frames}:s=${size}:fps=${fps}`;
         break;
         
       case 'ken-burns':
       default:
         // Smooth very subtle Ken Burns with easing (cinematic quality)
-        filter += `,zoompan=z='1+0.03*pow(on/${frames},1.5)':d=${frames}:s=1920x1080:fps=${fps}`;
+        filter += `,zoompan=z='1+0.03*pow(on/${frames},1.5)':d=${frames}:s=${size}:fps=${fps}`;
         break;
     }
     
@@ -1476,13 +1526,15 @@ export async function createVideoFromImagesWithCreativeTransitions(
   animations: Array<ImageAnimation | null>,
   effects: Array<ImageEffect | null>,
   transitions: Array<SceneTransition | null>,
-  transitionDurations: number[]
+  transitionDurations: number[],
+  aspectRatio: string = '16:9'
 ): Promise<string> {
   console.log(`[ffmpeg-helpers] ═══════════════════════════════════════════════`);
   console.log(`[ffmpeg-helpers] IMAGE VIDEO WITH CREATIVE TRANSITIONS`);
   console.log(`[ffmpeg-helpers] ═══════════════════════════════════════════════`);
   console.log(`[ffmpeg-helpers] Images: ${imagePaths.length}`);
   console.log(`[ffmpeg-helpers] Durations: ${durations.join(', ')}s`);
+  console.log(`[ffmpeg-helpers] Aspect Ratio: ${aspectRatio}`);
   
   const tempClips: string[] = [];
   
@@ -1501,7 +1553,8 @@ export async function createVideoFromImagesWithCreativeTransitions(
         imagePaths[i],
         duration,
         animation,
-        effect
+        effect,
+        aspectRatio
       );
       tempClips.push(clipPath);
     }
@@ -1567,14 +1620,22 @@ export async function createSingleAnimatedClip(
   imagePath: string,
   duration: number,
   animation: ImageAnimation | null = 'ken-burns',
-  effect: ImageEffect | null = null
+  effect: ImageEffect | null = null,
+  aspectRatio: string = '16:9'
 ): Promise<string> {
   const outputPath = path.join(TEMP_DIR, `${randomUUID()}_animated_clip.mp4`);
   const fps = 30;
   const n = Math.ceil(duration * fps); // Total frames
   const anim = animation || 'ken-burns';
   
+  // Get output dimensions based on aspect ratio
+  const { width: outW, height: outH } = getVideoDimensions(aspectRatio);
+  // Scale up 2x for internal processing (smoother motion)
+  const scaleW = outW * 2;
+  const scaleH = outH * 2;
+  
   console.log(`[ffmpeg-helpers] Creating smooth clip: ${anim} (${duration}s, ${n} frames)`);
+  console.log(`[ffmpeg-helpers] Output dimensions: ${outW}x${outH} (${aspectRatio})`);
   
   // ═══════════════════════════════════════════════════════════════════════════
   // SMOOTH ZOOMPAN FORMULAS
@@ -1583,19 +1644,15 @@ export async function createSingleAnimatedClip(
   //   on = current frame number (0 to n-1)
   //   n  = total frames
   //   iw, ih = input width/height (after scale)
-  //   ow, oh = output width/height (1920x1080)
+  //   ow, oh = output width/height (dynamic based on aspect ratio)
   //   zoom = current zoom level
   // 
   // Formula for smooth linear interpolation: start + (end - start) * (on/n)
   // ═══════════════════════════════════════════════════════════════════════════
   
-  // Scale to 4K first for better quality panning, then zoompan outputs at 1080p
+  // Scale up first for better quality panning, then zoompan outputs at target resolution
   // Using lanczos scaling for highest quality
-  let filter = `scale=3840:2160:force_original_aspect_ratio=increase:flags=lanczos,crop=3840:2160,setsar=1`;
-  
-  // Output size for zoompan
-  const outW = 1920;
-  const outH = 1080;
+  let filter = `scale=${scaleW}:${scaleH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${scaleW}:${scaleH},setsar=1`;
   
   switch (anim) {
     // ═══════════════════════════════════════════════════════════════════════

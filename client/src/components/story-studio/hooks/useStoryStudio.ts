@@ -32,6 +32,7 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
   textOverlayStyle: 'modern',
   imageModel: 'nano-banana', // Default image model
   imageStyle: 'photorealistic', // Default image style
+  styleReferenceUrl: '', // Custom style reference image URL
   imageResolution: '1k', // Default image resolution
   animationMode: 'off',
   videoModel: 'seedance-1.0-pro', // Default video model
@@ -44,6 +45,8 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
   selectedVoice: '21m00Tcm4TlvDq8ikWAM', // Rachel (English) - default
   musicStyle: 'none' as MusicStyle, // AI music style
   backgroundMusic: 'none', // Legacy
+  customMusicUrl: '', // Custom uploaded music URL
+  customMusicDuration: 0, // Duration of custom music in seconds
   voiceVolume: 80,
   musicVolume: 30,
   
@@ -57,6 +60,10 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
   isGeneratingImages: false,     // Image generation running
   generationProgress: 0,
   error: null,
+  hasGeneratedScenes: false,     // Track if scenes have been auto-generated once
+  hasEnhancedStoryboard: false,  // Track if storyboard has been auto-enhanced once
+  hasGeneratedVoiceover: false,  // Track if voiceover has been auto-generated once
+  hasExportedVideo: false,       // Track if video has been auto-exported once
 });
 
 export function useStoryStudio(template: StoryTemplate | null) {
@@ -129,11 +136,12 @@ export function useStoryStudio(template: StoryTemplate | null) {
         scenes: state.scenes.map(s => ({
           id: s.id,
           sceneNumber: s.sceneNumber,
-          imagePrompt: s.imagePrompt || s.narration,
+          imagePrompt: s.imagePrompt || s.description,
           duration: s.duration,
         })),
         aspectRatio: state.aspectRatio,
         imageStyle: state.imageStyle,
+        styleReferenceUrl: state.styleReferenceUrl || undefined, // Custom style reference
         imageModel: state.imageModel,
         imageResolution: state.imageResolution,
         projectName: state.topic || 'Untitled',
@@ -326,7 +334,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
         scenes: state.scenes.map(s => ({
           sceneNumber: s.sceneNumber,
           duration: s.duration,
-          narration: s.narration,
+          description: s.description, // Visual description for image generation
+          narration: s.narration, // Voiceover text (if enabled)
         })),
         aspectRatio: state.aspectRatio,
         imageStyle: state.imageStyle,
@@ -376,6 +385,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         ...prev,
         scenes: enhancedScenes,
         isEnhancingStoryboard: false,  // Enhancement complete - prompts visible
+        hasEnhancedStoryboard: true,   // Mark as enhanced - won't auto-enhance again
       }));
 
       // ✅ AUTO-TRIGGER: Generate images immediately after enhancement
@@ -403,11 +413,12 @@ export function useStoryStudio(template: StoryTemplate | null) {
           scenes: enhancedScenes.map(s => ({
             id: s.id,
             sceneNumber: s.sceneNumber,
-            imagePrompt: s.imagePrompt || s.narration,
+            imagePrompt: s.imagePrompt || s.description,
             duration: s.duration,
           })),
           aspectRatio: state.aspectRatio,
           imageStyle: state.imageStyle,
+          styleReferenceUrl: state.styleReferenceUrl || undefined, // Custom style reference
           imageModel: state.imageModel,
           imageResolution: state.imageResolution,
           projectName: state.topic || 'Untitled',
@@ -483,9 +494,9 @@ export function useStoryStudio(template: StoryTemplate | null) {
           : [...prev.completedSteps, prev.currentStep],
       }));
 
-      // Auto-trigger scene generation when entering script step
-      if (state.currentStep === 'concept' && nextStepId === 'script') {
-        console.log('[nextStep] Auto-triggering scene generation...');
+      // Auto-trigger scene generation when entering script step ONLY ONCE (first time ever)
+      if (state.currentStep === 'concept' && nextStepId === 'script' && !state.hasGeneratedScenes) {
+        console.log('[nextStep] Auto-triggering scene generation (first time)...');
         
         if (!state.topic.trim()) return;
         
@@ -506,13 +517,15 @@ export function useStoryStudio(template: StoryTemplate | null) {
             id: `scene-${s.sceneNumber}`,
             sceneNumber: s.sceneNumber,
             duration: s.duration,
-            narration: s.narration,
+            description: s.description || '', // Visual description for image generation
+            narration: s.narration || '',     // Voiceover text (if enabled)
           }));
           
           setState(prev => ({ 
             ...prev, 
             scenes: generatedScenes,
-            isGenerating: false 
+            isGenerating: false,
+            hasGeneratedScenes: true  // Mark as generated - won't auto-generate again
           }));
         } catch (error) {
           console.error("[nextStep] Failed to generate scenes:", error);
@@ -524,13 +537,13 @@ export function useStoryStudio(template: StoryTemplate | null) {
         }
       }
 
-      // Auto-trigger storyboard enhancement when entering storyboard step
-      if (state.currentStep === 'script' && nextStepId === 'storyboard') {
-        console.log('[nextStep] Auto-triggering storyboard enhancement...');
+      // Auto-trigger storyboard enhancement ONLY ONCE (first time ever)
+      if (state.currentStep === 'script' && nextStepId === 'storyboard' && !state.hasEnhancedStoryboard) {
+        console.log('[nextStep] Auto-triggering storyboard enhancement (first time)...');
         await generateStoryboardEnhancement();
       }
     }
-  }, [state.currentStep, state.topic, state.duration, state.pacing, generateStoryboardEnhancement]);
+  }, [state.currentStep, state.topic, state.duration, state.pacing, state.hasGeneratedScenes, state.hasEnhancedStoryboard, generateStoryboardEnhancement]);
 
   const prevStep = useCallback(() => {
     const currentIndex = STEPS.findIndex(s => s.id === state.currentStep);
@@ -611,6 +624,10 @@ export function useStoryStudio(template: StoryTemplate | null) {
 
   const setImageStyle = useCallback((imageStyle: 'photorealistic' | 'cinematic' | '3d-render' | 'digital-art' | 'anime' | 'illustration' | 'watercolor' | 'minimalist') => {
     setState(prev => ({ ...prev, imageStyle }));
+  }, []);
+
+  const setStyleReferenceUrl = useCallback((styleReferenceUrl: string) => {
+    setState(prev => ({ ...prev, styleReferenceUrl }));
   }, []);
 
   const setImageResolution = useCallback((imageResolution: string) => {
@@ -778,7 +795,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
         id: `scene-${s.sceneNumber}`,
         sceneNumber: s.sceneNumber,
         duration: s.duration,
-        narration: s.narration,
+        description: s.description || '', // Visual description for image generation
+        narration: s.narration || '',     // Voiceover text (if enabled)
       }));
       
       console.log('[generateScript] Mapped scenes:', generatedScenes);
@@ -787,7 +805,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
         ...prev, 
         scenes: generatedScenes,
         isGenerating: false,
-        error: null
+        error: null,
+        hasGeneratedScenes: true  // Mark as generated - won't auto-generate again
       }));
     } catch (error) {
       console.error("[generateScript] Failed to generate scenes:", error);
@@ -834,7 +853,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
         id: `scene-${newSceneNumber}-${Date.now()}`,
         sceneNumber: newSceneNumber,
         duration: defaultDuration,
-        narration: '',
+        description: '', // Visual description for image generation
+        narration: '',   // Voiceover text (if enabled)
       };
       return {
         ...prev,
@@ -878,13 +898,15 @@ export function useStoryStudio(template: StoryTemplate | null) {
         id: `scene-${s.sceneNumber}`,
         sceneNumber: s.sceneNumber,
         duration: s.duration,
-        narration: s.narration,
+        description: s.description || '', // Visual description for image generation
+        narration: s.narration || '',     // Voiceover text (if enabled)
       }));
       
       setState(prev => ({ 
         ...prev, 
         scenes: generatedScenes,
-        isGenerating: false 
+        isGenerating: false,
+        hasGeneratedScenes: true  // Mark as generated
       }));
     } catch (error) {
       console.error("Failed to generate scenes:", error);
@@ -912,6 +934,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         imagePrompt: scene.imagePrompt || scene.narration,
         aspectRatio: state.aspectRatio,
         imageStyle: state.imageStyle,
+        styleReferenceUrl: state.styleReferenceUrl || undefined, // Custom style reference
         imageModel: state.imageModel,
         imageResolution: state.imageResolution,
         projectName: state.topic || 'Untitled',
@@ -1014,6 +1037,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
           return scene;
         }),
         isGenerating: false,
+        hasGeneratedVoiceover: true,  // Mark voiceover as generated (once-only flag)
       }));
 
       // Show errors if any
@@ -1041,6 +1065,15 @@ export function useStoryStudio(template: StoryTemplate | null) {
 
   const setBackgroundMusic = useCallback((backgroundMusic: string) => {
     setState(prev => ({ ...prev, backgroundMusic }));
+  }, []);
+
+  // Custom music upload handlers
+  const setCustomMusic = useCallback((customMusicUrl: string, customMusicDuration: number) => {
+    setState(prev => ({ ...prev, customMusicUrl, customMusicDuration }));
+  }, []);
+
+  const clearCustomMusic = useCallback(() => {
+    setState(prev => ({ ...prev, customMusicUrl: '', customMusicDuration: 0 }));
   }, []);
 
   const setVoiceVolume = useCallback((voiceVolume: number) => {
@@ -1071,6 +1104,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
     console.log('[export] Animation mode:', state.animationMode);
     console.log('[export] Voiceover enabled:', state.voiceoverEnabled);
     console.log('[export] Background music:', state.backgroundMusic);
+    console.log('[export] Custom music:', state.customMusicUrl ? 'uploaded' : 'none');
     console.log('[export] Text overlay:', state.textOverlay);
     console.log('[export] ═══════════════════════════════════════════════');
     
@@ -1118,6 +1152,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         })),
         animationMode: backendAnimationMode,
         musicStyle: state.musicStyle, // AI music style
+        customMusicUrl: state.customMusicUrl || undefined, // User-uploaded custom music (takes priority)
         storyTopic: state.topic, // For context-aware music generation
         backgroundMusic: state.backgroundMusic !== 'none' ? state.backgroundMusic : null, // Legacy
         voiceVolume: state.voiceVolume,
@@ -1126,6 +1161,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
         exportFormat: state.exportFormat,
         exportQuality: state.exportQuality,
         textOverlay: state.voiceoverEnabled && state.textOverlayEnabled, // Text overlay ONLY when both voiceover and textOverlay are enabled
+        textOverlayStyle: state.textOverlayStyle, // Style: 'modern' | 'cinematic' | 'bold'
+        language: state.language, // Language for font selection: 'en' | 'ar'
         projectName: state.topic || 'Untitled',
         workspaceId: template?.id || 'default',
       });
@@ -1158,6 +1195,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         isGenerating: false,
         generationProgress: 100,
         lastExportResult: exportResult,
+        hasExportedVideo: true,  // Mark video as exported (once-only flag)
       }));
 
       // Return full result for volume control
@@ -1279,6 +1317,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setTextOverlayStyle,
     setImageModel,
     setImageStyle,
+    setStyleReferenceUrl,
     setImageResolution,
     setAnimationMode,
     setVideoModel,
@@ -1303,6 +1342,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setSelectedVoice,
     setMusicStyle,
     setBackgroundMusic,
+    setCustomMusic,
+    clearCustomMusic,
     setVoiceVolume,
     setMusicVolume,
     

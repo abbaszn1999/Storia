@@ -227,6 +227,7 @@ export default function StoryCreate() {
           pacing={studio.state.pacing}
           imageModel={studio.state.imageModel}
           imageStyle={studio.state.imageStyle}
+          styleReferenceUrl={studio.state.styleReferenceUrl}
           imageResolution={studio.state.imageResolution}
           animationMode={studio.state.animationMode}
           videoModel={studio.state.videoModel}
@@ -245,6 +246,7 @@ export default function StoryCreate() {
           onTextOverlayStyleChange={studio.setTextOverlayStyle}
           onImageModelChange={studio.setImageModel}
           onImageStyleChange={studio.setImageStyle}
+          onStyleReferenceUrlChange={studio.setStyleReferenceUrl}
           onImageResolutionChange={studio.setImageResolution}
           onAnimationModeChange={studio.setAnimationMode}
           onVideoModelChange={studio.setVideoModel}
@@ -308,13 +310,18 @@ export default function StoryCreate() {
           selectedVoice={studio.state.selectedVoice}
           musicStyle={studio.state.musicStyle}
           backgroundMusic={studio.state.backgroundMusic}
+          customMusicUrl={studio.state.customMusicUrl}
+          customMusicDuration={studio.state.customMusicDuration}
           voiceVolume={studio.state.voiceVolume}
           musicVolume={studio.state.musicVolume}
+          duration={studio.state.duration}
           isGenerating={studio.state.isGenerating}
           voiceoverEnabled={studio.state.voiceoverEnabled}
           onVoiceChange={studio.setSelectedVoice}
           onMusicStyleChange={studio.setMusicStyle}
           onMusicChange={studio.setBackgroundMusic}
+          onCustomMusicChange={studio.setCustomMusic}
+          onClearCustomMusic={studio.clearCustomMusic}
           onVoiceVolumeChange={studio.setVoiceVolume}
           onMusicVolumeChange={studio.setMusicVolume}
           onGenerateVoiceover={studio.generateVoiceover}
@@ -333,6 +340,7 @@ export default function StoryCreate() {
           selectedVoice={studio.state.selectedVoice}
           backgroundMusic={studio.state.backgroundMusic}
           musicStyle={studio.state.musicStyle}
+          customMusicUrl={studio.state.customMusicUrl}
           voiceVolume={studio.state.voiceVolume}
           musicVolume={studio.state.musicVolume}
           isGenerating={studio.state.isGenerating}
@@ -340,6 +348,9 @@ export default function StoryCreate() {
           voiceoverEnabled={studio.state.voiceoverEnabled}
           imageModel={studio.state.imageModel}
           isFinalExporting={isFinalExporting}
+          hasGeneratedVoiceover={studio.state.hasGeneratedVoiceover}
+          hasExportedVideo={studio.state.hasExportedVideo}
+          lastExportResult={studio.state.lastExportResult}
           onExport={studio.exportVideo}
           onRemix={studio.remixVideo}
           onFinalExport={handleFinalExport}

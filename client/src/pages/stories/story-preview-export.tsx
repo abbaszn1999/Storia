@@ -1,7 +1,7 @@
 // ASMR Export Page - Professional Glassmorphism Design
 // Matches the ASMR Generator page aesthetic
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -19,7 +19,10 @@ import {
   Calendar,
   Monitor,
   CheckCircle2,
-  Video
+  Video,
+  Wand2,
+  Send,
+  AlertCircle
 } from "lucide-react";
 import { SiYoutube, SiTiktok, SiInstagram, SiFacebook } from "react-icons/si";
 import { cn } from "@/lib/utils";
@@ -40,6 +43,10 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PageTransition, StaggerContainer, StaggerItem } from "@/components/ui/page-transition";
 import { downloadMergedVideo } from "@/lib/api/asmr";
+import { lateApi, type PublishVideoInput } from "@/lib/api/late";
+import { useWorkspace } from "@/contexts/workspace-context";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -80,6 +87,8 @@ interface StoryExportData {
 
 export default function StoryPreviewExport() {
   const [, navigate] = useLocation();
+  const { currentWorkspace } = useWorkspace();
+  const { toast } = useToast();
   
   // Load export data from localStorage
   const [exportData, setExportData] = useState<StoryExportData | null>(() => {
@@ -110,6 +119,7 @@ export default function StoryPreviewExport() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [copied, setCopied] = useState(false);
   
   // Metadata
@@ -179,26 +189,136 @@ export default function StoryPreviewExport() {
     setIsExporting(false);
   };
 
-  const handleAIMetadata = async () => {
-    setIsGeneratingAI(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    const categoryName = category || "ASMR";
-    
-    if (selectedPlatforms.includes("youtube")) {
-      setYoutubeTitle(`Satisfying ${categoryName} Experience - Ultimate Relaxation`);
-      setYoutubeDescription(`Experience pure relaxation with this calming ${categoryName.toLowerCase()} video. Perfect for sleep, study, or unwinding. Created with Storia AI.`);
-    }
-    
-    if (selectedPlatforms.some(p => ["tiktok", "instagram", "facebook"].includes(p))) {
-      setSocialCaption(`Pure ${categoryName.toLowerCase()} relaxation vibes ✨\n\nLet these satisfying sounds wash over you\n\n#ASMR #${categoryName.replace(/\s+/g, "")} #Satisfying #Relaxing`);
-    }
-    
-    setIsGeneratingAI(false);
-  };
-
+  // Platform checks (needed by callbacks below)
   const hasYouTube = selectedPlatforms.includes("youtube");
   const hasSocialPlatforms = selectedPlatforms.some(p => ["tiktok", "instagram", "facebook"].includes(p));
+
+  // Generate AI metadata using the real API
+  const handleAIMetadata = useCallback(async (platform: string) => {
+    if (!exportData) return;
+    
+    setIsGeneratingAI(true);
+    try {
+      const scriptText = visualPrompt || exportData.soundPrompt || `${category || 'ASMR'} relaxation video`;
+      
+      const res = await apiRequest("POST", "/api/stories/social/metadata", {
+        platform: platform === 'youtube' ? 'youtube' : platform,
+        scriptText,
+        duration: exportData.duration,
+      });
+      
+      const data = await res.json();
+      
+      if (platform === 'youtube') {
+        if (data.title) setYoutubeTitle(data.title);
+        if (data.description) setYoutubeDescription(data.description);
+      } else {
+        if (data.caption) setSocialCaption(data.caption);
+      }
+      
+      toast({
+        title: "Metadata generated",
+        description: `AI generated ${platform} metadata successfully`,
+      });
+    } catch (error) {
+      console.error('[ASMR Export] Failed to generate metadata:', error);
+      toast({
+        title: "Generation failed",
+        description: "Failed to generate AI metadata. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  }, [exportData, visualPrompt, category, toast]);
+
+  // Publish to social media platforms
+  const handlePublishToSocial = useCallback(async () => {
+    if (!exportData || selectedPlatforms.length === 0) return;
+    
+    // Check workspace
+    if (!currentWorkspace) {
+      toast({
+        title: "No workspace selected",
+        description: "Please select a workspace to publish videos.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsPublishing(true);
+    console.log('[ASMR Export] Publishing to platforms:', selectedPlatforms);
+    
+    try {
+      // Build publish input with correct structure
+      const publishInput: PublishVideoInput = {
+        videoUrl: exportData.videoUrl,
+        platforms: selectedPlatforms.map(platformId => ({
+          platform: platformId as 'youtube' | 'tiktok' | 'instagram' | 'facebook',
+        })),
+        metadata: {
+          ...(hasYouTube && {
+            youtube: {
+              title: youtubeTitle || `${category || 'ASMR'} Video`,
+              description: youtubeDescription || 'Created with Storia AI',
+            },
+          }),
+          ...(selectedPlatforms.includes('tiktok') && {
+            tiktok: {
+              caption: socialCaption || `#ASMR #${(category || 'Relaxing').replace(/\s+/g, '')}`,
+            },
+          }),
+          ...(selectedPlatforms.includes('instagram') && {
+            instagram: {
+              caption: socialCaption || `#ASMR #${(category || 'Relaxing').replace(/\s+/g, '')}`,
+            },
+          }),
+          ...(selectedPlatforms.includes('facebook') && {
+            facebook: {
+              caption: socialCaption || `#ASMR #${(category || 'Relaxing').replace(/\s+/g, '')}`,
+            },
+          }),
+        },
+        publishNow: publishType === 'instant',
+        scheduledFor: publishType === 'schedule' && scheduleDate && scheduleTime
+          ? new Date(`${scheduleDate}T${scheduleTime}`).toISOString()
+          : undefined,
+      };
+      
+      // Call Late.dev API
+      const result = await lateApi.publishVideo(currentWorkspace.id, publishInput);
+      
+      console.log('[ASMR Export] Publish result:', result);
+      
+      // Show success message
+      const platformNames = selectedPlatforms.map(id => 
+        PLATFORMS.find(p => p.id === id)?.name || id
+      ).join(', ');
+      
+      toast({
+        title: publishType === 'schedule' ? "Scheduled!" : "Published!",
+        description: `Video ${publishType === 'schedule' ? 'scheduled for' : 'published to'} ${platformNames}`,
+      });
+      
+    } catch (error: any) {
+      console.error('[ASMR Export] Publish failed:', error);
+      toast({
+        title: "Publish failed",
+        description: error.message || "Failed to publish video. Please check your social accounts are connected.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [exportData, selectedPlatforms, currentWorkspace, hasYouTube, youtubeTitle, youtubeDescription, socialCaption, publishType, scheduleDate, scheduleTime, category, toast]);
+  
+  // Validation for publish button
+  const canPublish = selectedPlatforms.length > 0 && 
+    exportData?.videoUrl &&
+    (publishType === 'instant' || (scheduleDate && scheduleTime)) &&
+    // Check metadata is filled for selected platforms
+    (!hasYouTube || (youtubeTitle.trim() && youtubeDescription.trim())) &&
+    (!hasSocialPlatforms || socialCaption.trim());
 
   // ═══════════════════════════════════════════════════════════════════════════
   // RENDER
@@ -434,20 +554,6 @@ export default function StoryPreviewExport() {
                       <Sparkles className="h-4 w-4 text-primary" />
                       <span className="text-sm font-medium">Metadata</span>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleAIMetadata}
-                      disabled={isGeneratingAI}
-                      className="h-7 text-xs"
-                    >
-                      {isGeneratingAI ? (
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-3 w-3 mr-1" />
-                      )}
-                      AI Generate
-                    </Button>
                   </div>
 
                   {hasYouTube && (
@@ -455,9 +561,25 @@ export default function StoryPreviewExport() {
                       "p-3 rounded-xl space-y-3",
                       "bg-white/[0.02] border border-white/[0.06]"
                     )}>
-                      <div className="flex items-center gap-2">
-                        <SiYoutube className="h-4 w-4 text-red-500" />
-                        <span className="text-xs font-medium">YouTube</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <SiYoutube className="h-4 w-4 text-red-500" />
+                          <span className="text-xs font-medium">YouTube</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleAIMetadata('youtube')}
+                          disabled={isGeneratingAI}
+                          className="h-7 text-xs gap-1"
+                        >
+                          {isGeneratingAI ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Wand2 className="h-3 w-3" />
+                          )}
+                          AI Generate
+                        </Button>
                       </div>
                       <Input
                         placeholder="Video title"
@@ -479,25 +601,41 @@ export default function StoryPreviewExport() {
                       "p-3 rounded-xl space-y-3",
                       "bg-white/[0.02] border border-white/[0.06]"
                     )}>
-                      <div className="flex items-center gap-2">
-                        <div className="flex -space-x-1">
-                          {selectedPlatforms.includes("tiktok") && (
-                            <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center ring-2 ring-[#0a0a0a]">
-                              <SiTiktok className="w-2.5 h-2.5 text-white" />
-                            </div>
-                          )}
-                          {selectedPlatforms.includes("instagram") && (
-                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center ring-2 ring-[#0a0a0a]">
-                              <SiInstagram className="w-2.5 h-2.5 text-white" />
-                            </div>
-                          )}
-                          {selectedPlatforms.includes("facebook") && (
-                            <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center ring-2 ring-[#0a0a0a]">
-                              <SiFacebook className="w-2.5 h-2.5 text-white" />
-                            </div>
-                          )}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="flex -space-x-1">
+                            {selectedPlatforms.includes("tiktok") && (
+                              <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center ring-2 ring-[#0a0a0a]">
+                                <SiTiktok className="w-2.5 h-2.5 text-white" />
+                              </div>
+                            )}
+                            {selectedPlatforms.includes("instagram") && (
+                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center ring-2 ring-[#0a0a0a]">
+                                <SiInstagram className="w-2.5 h-2.5 text-white" />
+                              </div>
+                            )}
+                            {selectedPlatforms.includes("facebook") && (
+                              <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center ring-2 ring-[#0a0a0a]">
+                                <SiFacebook className="w-2.5 h-2.5 text-white" />
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-xs font-medium">Social Caption</span>
                         </div>
-                        <span className="text-xs font-medium">Social Caption</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleAIMetadata('tiktok')}
+                          disabled={isGeneratingAI}
+                          className="h-7 text-xs gap-1"
+                        >
+                          {isGeneratingAI ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Wand2 className="h-3 w-3" />
+                          )}
+                          AI Generate
+                        </Button>
                       </div>
                       <Textarea
                         placeholder="Write a caption..."
@@ -513,31 +651,70 @@ export default function StoryPreviewExport() {
           </StaggerContainer>
         </ScrollArea>
 
-        {/* Footer - Export Button */}
-        <div className="flex-shrink-0 p-4 border-t border-white/[0.06]">
+        {/* Footer - Publish/Export Buttons */}
+        <div className="flex-shrink-0 p-4 border-t border-white/[0.06] space-y-3">
+          {/* Validation Warning */}
+          {selectedPlatforms.length > 0 && !canPublish && (
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
+              <AlertCircle className="h-4 w-4 text-orange-400 flex-shrink-0" />
+              <p className="text-xs text-orange-300">
+                {publishType === 'schedule' && (!scheduleDate || !scheduleTime)
+                  ? "Please select date and time for scheduling"
+                  : "Please fill in all required metadata fields"
+                }
+              </p>
+            </div>
+          )}
+          
+          {/* Publish Button - Only when platforms are selected */}
+          {selectedPlatforms.length > 0 && (
+            <Button
+              onClick={handlePublishToSocial}
+              disabled={!canPublish || isPublishing}
+              className={cn(
+                "w-full h-12 font-semibold",
+                publishType === "schedule"
+                  ? "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 shadow-blue-500/25"
+                  : "bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 shadow-emerald-500/25",
+                "border-0 shadow-lg transition-all duration-300"
+              )}
+            >
+              {isPublishing ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  {publishType === "schedule" ? "Scheduling..." : "Publishing..."}
+                </>
+              ) : (
+                <>
+                  <Send className="h-5 w-5 mr-2" />
+                  {publishType === "schedule" ? "Schedule" : "Publish"} to {selectedPlatforms.length} Platform{selectedPlatforms.length > 1 ? 's' : ''}
+                </>
+              )}
+            </Button>
+          )}
+          
+          {/* Download Button - Always available */}
           <Button
-            onClick={handleExport}
-            disabled={isExporting}
+            onClick={handleDownload}
+            disabled={isDownloading}
+            variant={selectedPlatforms.length > 0 ? "outline" : "default"}
             className={cn(
               "w-full h-12",
-              "bg-gradient-to-r from-primary to-purple-500",
-              "hover:from-primary/90 hover:to-purple-500/90",
-              "border-0 shadow-lg shadow-primary/25",
+              selectedPlatforms.length > 0 
+                ? "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.08]"
+                : "bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90 border-0 shadow-lg shadow-primary/25",
               "transition-all duration-300"
             )}
           >
-            {isExporting ? (
+            {isDownloading ? (
               <>
                 <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                {publishType === "schedule" ? "Scheduling..." : "Exporting..."}
+                Downloading...
               </>
             ) : (
               <>
                 <Download className="h-5 w-5 mr-2" />
-                {selectedPlatforms.length > 0
-                  ? publishType === "schedule" ? "Export & Schedule" : "Export & Publish"
-                  : "Export Video"
-                }
+                Download Video
               </>
             )}
           </Button>

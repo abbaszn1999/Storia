@@ -157,9 +157,10 @@ export async function exportFinalVideo(
   try {
     // Determine scenario
     const hasVoiceover = input.scenes.some(s => s.audioUrl);
+    const hasCustomMusic = !!input.customMusicUrl; // User-uploaded music (highest priority)
     const hasLegacyMusic = input.backgroundMusic && input.backgroundMusic !== 'none';
     const hasAiMusic = input.musicStyle && input.musicStyle !== 'none' && isValidMusicStyle(input.musicStyle);
-    const hasMusic = hasLegacyMusic || hasAiMusic;
+    const hasMusic = hasCustomMusic || hasLegacyMusic || hasAiMusic;
     const hasTextOverlay = input.textOverlay && hasVoiceover; // Text overlay ONLY with voiceover
     
     // Should we save separated files for volume control?
@@ -171,8 +172,16 @@ export async function exportFinalVideo(
     console.log('[video-exporter] Scene count:', input.scenes.length);
     console.log('[video-exporter] Animation mode:', input.animationMode);
     console.log('[video-exporter] Has voiceover:', hasVoiceover);
-    console.log('[video-exporter] Has music:', hasMusic, hasAiMusic ? '(AI Generated)' : hasLegacyMusic ? '(Legacy URL)' : '');
-    console.log('[video-exporter] Music style:', input.musicStyle || 'none');
+    console.log('[video-exporter] Has music:', hasMusic, 
+      hasCustomMusic ? '(Custom Upload)' : 
+      hasAiMusic ? '(AI Generated)' : 
+      hasLegacyMusic ? '(Legacy URL)' : ''
+    );
+    console.log('[video-exporter] Music source:', 
+      hasCustomMusic ? 'custom-upload' : 
+      hasAiMusic ? `ai-${input.musicStyle}` : 
+      hasLegacyMusic ? 'legacy-url' : 'none'
+    );
     console.log('[video-exporter] Text overlay enabled:', input.textOverlay);
     console.log('[video-exporter] Will show subtitles:', hasTextOverlay);
     console.log('[video-exporter] Export format:', input.exportFormat);
@@ -232,7 +241,7 @@ export async function exportFinalVideo(
           const imagePath = assets.imageFiles[imageIndex];
           const targetDuration = durations[i];
           try {
-            const animatedClip = await createSingleAnimatedClip(imagePath, targetDuration);
+            const animatedClip = await createSingleAnimatedClip(imagePath, targetDuration, 'ken-burns', null, input.aspectRatio);
             tempFiles.push(animatedClip);
             unifiedVideoClips.push(animatedClip);
             console.log(`[video-exporter] Scene ${i + 1}: ✓ Created ${targetDuration}s animated clip`);
@@ -425,7 +434,8 @@ export async function exportFinalVideo(
         animations,
         effects,
         transitions,
-        transitionDurations
+        transitionDurations,
+        input.aspectRatio
       );
       
     } else {
@@ -456,7 +466,8 @@ export async function exportFinalVideo(
           input.scenes.map(() => null), // No Ken Burns animations
           input.scenes.map(() => null), // No effects
           transitions,
-          transitionDurations
+          transitionDurations,
+          input.aspectRatio
         );
       } else {
         // Simple fade transitions
@@ -464,7 +475,8 @@ export async function exportFinalVideo(
           assets.imageFiles, 
           durations,
           'fade',
-          0.5
+          0.5,
+          input.aspectRatio
         );
       }
     }
@@ -527,9 +539,20 @@ export async function exportFinalVideo(
     
     if (hasMusic) {
       let musicUrl: string;
+      let musicNeedsTrimming = false; // Flag for custom music that needs trimming
       
-      // Option A: AI-generated music (new feature)
-      if (hasAiMusic) {
+      // Calculate total video duration (needed for trimming)
+      const totalDuration = input.scenes.reduce((sum, s) => sum + s.duration, 0);
+      
+      // Option A: Custom uploaded music (highest priority)
+      if (hasCustomMusic) {
+        console.log('[video-exporter] Using custom uploaded music...');
+        console.log('[video-exporter] Custom music URL:', input.customMusicUrl!.substring(0, 80) + '...');
+        musicUrl = input.customMusicUrl!;
+        musicNeedsTrimming = true; // Custom music needs to be trimmed to video length
+      }
+      // Option B: AI-generated music
+      else if (hasAiMusic) {
         console.log('[video-exporter] Generating AI music...');
         console.log('[video-exporter] Music style:', input.musicStyle);
         
@@ -568,7 +591,7 @@ export async function exportFinalVideo(
           musicUrl = '';
         }
       }
-      // Option B: Legacy URL (backwards compatibility)
+      // Option C: Legacy URL (backwards compatibility)
       else if (hasLegacyMusic) {
         console.log('[video-exporter] Using legacy music URL...');
         musicUrl = input.backgroundMusic!;
@@ -586,10 +609,37 @@ export async function exportFinalVideo(
         // NOTE: Muted video will be created AFTER subtitles (at end of export)
         
         // Download music file
-        const musicPath = path.join(TEMP_DIR, `${randomUUID()}_music.mp3`);
+        let musicPath = path.join(TEMP_DIR, `${randomUUID()}_music.mp3`);
         await downloadFile(musicUrl, musicPath);
         tempFiles.push(musicPath);
         console.log('[video-exporter] ✓ Music downloaded');
+        
+        // Trim custom music to video length if needed
+        if (musicNeedsTrimming) {
+          console.log(`[video-exporter] Trimming custom music to ${totalDuration}s with fade out...`);
+          const trimmedPath = path.join(TEMP_DIR, `${randomUUID()}_music_trimmed.mp3`);
+          
+          try {
+            await new Promise<void>((resolve, reject) => {
+              ffmpeg(musicPath)
+                .setStartTime(0)
+                .setDuration(totalDuration)
+                // Add fade out in the last 1.5 seconds
+                .audioFilters(`afade=t=out:st=${Math.max(0, totalDuration - 1.5)}:d=1.5`)
+                .output(trimmedPath)
+                .on('end', () => resolve())
+                .on('error', (err) => reject(err))
+                .run();
+            });
+            
+            tempFiles.push(trimmedPath);
+            musicPath = trimmedPath; // Use trimmed version
+            console.log('[video-exporter] ✓ Custom music trimmed with fade out');
+          } catch (trimError) {
+            console.warn('[video-exporter] Failed to trim music, using original:', trimError);
+            // Continue with original music
+          }
+        }
         
         // Upload music for volume control
         if (enableVolumeControl) {
@@ -633,6 +683,8 @@ export async function exportFinalVideo(
       console.log('[video-exporter] Burning subtitles...');
       console.log('[video-exporter] Voiceover enabled:', hasVoiceover);
       console.log('[video-exporter] Text overlay setting:', input.textOverlay);
+      console.log('[video-exporter] Text overlay style:', input.textOverlayStyle || 'modern');
+      console.log('[video-exporter] Language:', input.language || 'en');
       
       // Pass wordTimestamps for synchronized karaoke-style subtitles
       // Also pass audioSpeed to adjust timestamps if audio was sped up/slowed
@@ -652,7 +704,14 @@ export async function exportFinalVideo(
         console.log(`[video-exporter]   Scene ${i + 1}: "${s.narration.substring(0, 40)}..." (${s.duration}s, ${syncInfo})`);
       });
       
-      const withSubtitles = await burnSubtitles(finalVideo, scenesForSubtitles);
+      const withSubtitles = await burnSubtitles(
+        finalVideo, 
+        scenesForSubtitles,
+        {
+          style: input.textOverlayStyle || 'modern',
+          language: input.language || 'en',
+        }
+      );
       tempFiles.push(withSubtitles);
       finalVideo = withSubtitles;
       console.log('[video-exporter] ✓ Subtitles burned successfully');
@@ -847,9 +906,9 @@ export async function remixVideo(
     tempFiles.push(remixedVideo);
     console.log('[video-exporter] ✓ Audio remixed successfully');
     
-    // Step 4: Upload remixed video
+    // Step 4: Upload remixed video (uses fixed name so new remix replaces old one)
     console.log('[video-exporter] Uploading remixed video...');
-    const filename = `remix_${Date.now()}.mp4`;
+    const filename = `remix_latest.mp4`;
     const bunnyPath = buildStoryModePath({
       userId,
       workspaceName,

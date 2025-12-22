@@ -21,7 +21,9 @@ import {
   Trash2,
   AlertCircle,
   Plus,
-  AlertTriangle
+  AlertTriangle,
+  Mic,
+  Image as ImageIcon
 } from "lucide-react";
 import { StoryScene, StoryTemplate } from "../types";
 import { getVideoModelConfig, VIDEO_MODELS } from "@/constants/video-models";
@@ -234,7 +236,7 @@ export function ScriptStep({
         return true;
       }
       // Text too long for duration
-      const textStatus = getTextDurationStatus(scene.narration, scene.duration);
+  const textStatus = getTextDurationStatus(scene.narration || '', scene.duration);
       if (textStatus.status === 'error') {
         return true;
       }
@@ -358,42 +360,70 @@ export function ScriptStep({
                 </div>
 
                 {/* Scene Content - Flexible */}
-                <div className="flex-1 p-3 flex flex-col gap-2">
-                  <Textarea
-                    value={scene.narration}
-                    onChange={(e) => onSceneUpdate(scene.id, { narration: e.target.value })}
-                    className={cn(
-                      "flex-1 min-h-[150px] bg-white/5 border-white/10",
-                      "focus:border-white/20 resize-none",
-                      "text-sm leading-relaxed text-white/90",
-                      "placeholder:text-white/20"
-                    )}
-                    placeholder="Enter scene narration..."
-                  />
-                  
-                  {/* Text Duration Warning */}
-                  {voiceoverEnabled && (() => {
-                    const status = getTextDurationStatus(scene.narration, scene.duration);
-                    if (status.status === 'ok') {
-                      return (
-                        <div className="flex items-center gap-1.5 text-xs text-white/40">
-                          <Clock className="w-3 h-3" />
-                          <span>{status.message}</span>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div className={cn(
-                        "flex items-center gap-1.5 text-xs px-2 py-1 rounded",
-                        status.status === 'error' 
-                          ? "bg-red-500/10 text-red-400" 
-                          : "bg-yellow-500/10 text-yellow-400"
-                      )}>
-                        <AlertTriangle className="w-3 h-3" />
-                        <span>{status.message}</span>
+                <div className="flex-1 p-3 flex flex-col gap-3">
+                  {/* Description Field - Always Visible */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
+                      <span className="text-xs font-medium text-white/60">Visual Description</span>
+                    </div>
+                    <Textarea
+                      value={scene.description || ''}
+                      onChange={(e) => onSceneUpdate(scene.id, { description: e.target.value })}
+                      className={cn(
+                        "min-h-[80px] bg-white/5 border-white/10",
+                        "focus:border-blue-500/30 resize-none",
+                        "text-sm leading-relaxed text-white/90",
+                        "placeholder:text-white/20"
+                      )}
+                      placeholder="Describe what the viewer sees..."
+                    />
+                  </div>
+
+                  {/* Narration Field - Only if Voiceover Enabled */}
+                  {voiceoverEnabled && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Mic className="w-3.5 h-3.5 text-purple-400" />
+                        <span className="text-xs font-medium text-white/60">Voiceover Text</span>
                       </div>
-                    );
-                  })()}
+                      <Textarea
+                        value={scene.narration || ''}
+                        onChange={(e) => onSceneUpdate(scene.id, { narration: e.target.value })}
+                        className={cn(
+                          "min-h-[80px] bg-white/5 border-white/10",
+                          "focus:border-purple-500/30 resize-none",
+                          "text-sm leading-relaxed text-white/90",
+                          "placeholder:text-white/20"
+                        )}
+                        placeholder="Enter voiceover narration..."
+                      />
+                      
+                      {/* Text Duration Warning */}
+                      {(() => {
+                        const status = getTextDurationStatus(scene.narration || '', scene.duration);
+                        if (status.status === 'ok') {
+                          return (
+                            <div className="flex items-center gap-1.5 text-xs text-white/40">
+                              <Clock className="w-3 h-3" />
+                              <span>{status.message}</span>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className={cn(
+                            "flex items-center gap-1.5 text-xs px-2 py-1 rounded",
+                            status.status === 'error' 
+                              ? "bg-red-500/10 text-red-400" 
+                              : "bg-yellow-500/10 text-yellow-400"
+                          )}>
+                            <AlertTriangle className="w-3 h-3" />
+                            <span>{status.message}</span>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
               </GlassPanel>
             </motion.div>

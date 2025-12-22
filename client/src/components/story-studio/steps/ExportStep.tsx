@@ -37,7 +37,8 @@ import {
   CheckSquare,
   SquareIcon,
   Calendar,
-  Zap
+  Zap,
+  AlertCircle
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -69,6 +70,7 @@ interface ExportStepProps {
   selectedVoice: string;
   backgroundMusic: string;
   musicStyle: string;       // Music style for volume control check
+  customMusicUrl: string;   // User-uploaded custom music URL
   voiceVolume: number;
   musicVolume: number;
   isGenerating: boolean;
@@ -76,6 +78,14 @@ interface ExportStepProps {
   voiceoverEnabled: boolean;
   imageModel: string;       // Image model used for generation
   isFinalExporting?: boolean;  // Is final export in progress
+  hasGeneratedVoiceover: boolean;  // Track if voiceover has been auto-generated once
+  hasExportedVideo: boolean;       // Track if video has been auto-exported once
+  lastExportResult?: {             // Previous export result to restore on re-entry
+    videoUrl: string;
+    videoBaseUrl?: string;
+    voiceoverUrl?: string;
+    musicUrl?: string;
+  };
   onExport: () => Promise<ExportResult | null>;
   onRemix: (videoBaseUrl: string, voiceoverUrl: string, musicUrl: string, voiceVolume: number, musicVolume: number) => Promise<string | null>;
   onFinalExport: (audioAssets: { videoBaseUrl?: string; voiceoverUrl?: string; musicUrl?: string } | null, voiceVolume: number, musicVolume: number) => Promise<void>;  // Called by Export Video button
@@ -85,15 +95,48 @@ interface ExportStepProps {
   accentColor?: string;
 }
 
-// Platform configuration with metadata fields
-const PLATFORMS = [
+// Platform configuration with metadata fields and requirements
+interface PlatformRequirements {
+  aspectRatios?: string[];  // Allowed aspect ratios
+  maxDuration?: number;     // Max duration in seconds
+}
+
+interface PlatformConfig {
+  id: string;
+  name: string;
+  icon: typeof SiYoutube;
+  gradient: string;
+  iconBg: string;
+  fields: readonly ('title' | 'description' | 'caption')[];
+  requirements?: PlatformRequirements;
+  apiPlatform?: string; // The actual platform name to send to API (e.g., 'youtube' for both shorts and video)
+}
+
+const PLATFORMS: PlatformConfig[] = [
   { 
-    id: 'youtube', 
-    name: 'YouTube', 
+    id: 'youtube-short', 
+    name: 'YouTube Shorts', 
     icon: SiYoutube, 
     gradient: 'from-red-600 to-red-700',
     iconBg: 'bg-red-600',
     fields: ['title', 'description'] as const,
+    requirements: {
+      aspectRatios: ['9:16'],  // Vertical only
+      maxDuration: 180,        // 3 minutes max
+    },
+    apiPlatform: 'youtube',
+  },
+  { 
+    id: 'youtube-video', 
+    name: 'YouTube Video', 
+    icon: SiYoutube, 
+    gradient: 'from-red-600 to-red-700',
+    iconBg: 'bg-red-600',
+    fields: ['title', 'description'] as const,
+    requirements: {
+      aspectRatios: ['16:9', '4:5', '1:1'],  // Horizontal or square
+    },
+    apiPlatform: 'youtube',
   },
   { 
     id: 'tiktok', 
@@ -102,6 +145,10 @@ const PLATFORMS = [
     gradient: 'from-gray-800 to-black',
     iconBg: 'bg-black',
     fields: ['caption'] as const,
+    requirements: {
+      aspectRatios: ['9:16'],  // Vertical only
+      maxDuration: 180,        // 3 minutes max
+    },
   },
   { 
     id: 'instagram', 
@@ -110,6 +157,10 @@ const PLATFORMS = [
     gradient: 'from-purple-600 via-pink-500 to-orange-400',
     iconBg: 'bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400',
     fields: ['caption'] as const,
+    requirements: {
+      aspectRatios: ['9:16', '4:5', '1:1'],  // Vertical, portrait, or square
+      maxDuration: 90,  // 90 seconds max for Reels
+    },
   },
   { 
     id: 'facebook', 
@@ -118,14 +169,54 @@ const PLATFORMS = [
     gradient: 'from-blue-600 to-blue-700',
     iconBg: 'bg-blue-600',
     fields: ['caption'] as const,
+    requirements: {
+      aspectRatios: ['9:16', '16:9', '4:5', '1:1'],  // Most formats
+      maxDuration: 90,  // 90 seconds max for Reels
+    },
   },
 ];
+
+// Helper to check platform compatibility and get reason if incompatible
+function getPlatformCompatibility(
+  platform: PlatformConfig, 
+  aspectRatio: string, 
+  duration: number
+): { compatible: boolean; reason?: string } {
+  if (!platform.requirements) {
+    return { compatible: true };
+  }
+
+  const { aspectRatios, maxDuration } = platform.requirements;
+
+  // Check aspect ratio
+  if (aspectRatios && !aspectRatios.includes(aspectRatio)) {
+    const required = aspectRatios.join(' or ');
+    return { 
+      compatible: false, 
+      reason: `Requires ${required} aspect ratio` 
+    };
+  }
+
+  // Check duration
+  if (maxDuration && duration > maxDuration) {
+    const maxMinutes = Math.floor(maxDuration / 60);
+    const maxSeconds = maxDuration % 60;
+    const maxStr = maxSeconds > 0 ? `${maxMinutes}m ${maxSeconds}s` : `${maxMinutes} min`;
+    return { 
+      compatible: false, 
+      reason: `Max duration: ${maxStr}` 
+    };
+  }
+
+  return { compatible: true };
+}
 
 // Type for platform metadata
 interface PlatformMetadata {
   title?: string;
   description?: string;
   caption?: string;
+  hashtags?: string[];
 }
 
 export function ExportStep({
@@ -137,6 +228,7 @@ export function ExportStep({
   selectedVoice,
   backgroundMusic,
   musicStyle,
+  customMusicUrl,
   voiceVolume,
   musicVolume,
   isGenerating,
@@ -144,6 +236,9 @@ export function ExportStep({
   voiceoverEnabled,
   imageModel,
   isFinalExporting = false,
+  hasGeneratedVoiceover,
+  hasExportedVideo,
+  lastExportResult,
   onExport,
   onRemix,
   onFinalExport,
@@ -159,7 +254,8 @@ export function ExportStep({
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
   const [platformMetadata, setPlatformMetadata] = useState<Record<string, PlatformMetadata>>({
-    youtube: { title: '', description: '' },
+    'youtube-short': { title: '', description: '' },
+    'youtube-video': { title: '', description: '' },
     tiktok: { caption: '' },
     instagram: { caption: '' },
     facebook: { caption: '' },
@@ -171,18 +267,23 @@ export function ExportStep({
   // Scheduling state
   const [scheduleMode, setScheduleMode] = useState<'now' | 'scheduled'>('now');
   const [scheduledDateTime, setScheduledDateTime] = useState<string>('');
-  const [voiceoverGenerated, setVoiceoverGenerated] = useState(false);
-  const [exportedVideoUrl, setExportedVideoUrl] = useState<string | null>(null);
+  // Initialize from lastExportResult if returning to this step
+  const [voiceoverGenerated, setVoiceoverGenerated] = useState(hasGeneratedVoiceover);
+  const [exportedVideoUrl, setExportedVideoUrl] = useState<string | null>(lastExportResult?.videoUrl || null);
   const [isExporting, setIsExporting] = useState(false);
   const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   
-  // Volume control state
+  // Volume control state - initialize from lastExportResult if returning
   const [audioAssets, setAudioAssets] = useState<{
     videoBaseUrl?: string;
     voiceoverUrl?: string;
     musicUrl?: string;
-  } | null>(null);
+  } | null>(lastExportResult ? {
+    videoBaseUrl: lastExportResult.videoBaseUrl,
+    voiceoverUrl: lastExportResult.voiceoverUrl,
+    musicUrl: lastExportResult.musicUrl,
+  } : null);
   const [localVoiceVolume, setLocalVoiceVolume] = useState(voiceVolume);
   const [localMusicVolume, setLocalMusicVolume] = useState(musicVolume);
   const [volumeChanged, setVolumeChanged] = useState(false);
@@ -229,7 +330,9 @@ export function ExportStep({
   }, []);
   
   // Check if real-time volume control mode should be enabled
-  const hasAudioAssets = audioAssets?.videoBaseUrl && audioAssets?.voiceoverUrl && audioAssets?.musicUrl;
+  // We need videoBaseUrl (muted video) + at least one of voiceoverUrl or musicUrl
+  const hasAudioAssets = audioAssets?.videoBaseUrl && 
+    (audioAssets?.voiceoverUrl || audioAssets?.musicUrl);
   
   // Track if onFinalExport was called this render
   const hasFinalExportTriggered = useRef(false);
@@ -244,8 +347,26 @@ export function ExportStep({
       hasFinalExportTriggered.current = false;
     }
   }, [isFinalExporting, exportedVideoUrl, audioAssets, localVoiceVolume, localMusicVolume, onFinalExport]);
-  const showVolumeControls = voiceoverEnabled && musicStyle !== 'none' && 
+  // Show volume controls if there's voiceover AND (AI music OR custom music)
+  const hasAnyMusic = musicStyle !== 'none' || !!customMusicUrl;
+  const showVolumeControls = voiceoverEnabled && hasAnyMusic && 
     exportedVideoUrl && hasAudioAssets;
+  
+  // Debug logging for volume controls
+  if (exportedVideoUrl && !showVolumeControls) {
+    console.log('[ExportStep] Volume controls hidden:', {
+      voiceoverEnabled,
+      musicStyle,
+      customMusicUrl: !!customMusicUrl,
+      hasAnyMusic,
+      hasAudioAssets,
+      audioAssets: audioAssets ? {
+        videoBaseUrl: !!audioAssets.videoBaseUrl,
+        voiceoverUrl: !!audioAssets.voiceoverUrl,
+        musicUrl: !!audioAssets.musicUrl,
+      } : null,
+    });
+  }
   // Dynamic export steps based on scenario
   const getExportSteps = () => {
     const steps = [
@@ -274,24 +395,30 @@ export function ExportStep({
   };
   
   const [exportSteps, setExportSteps] = useState<Array<{text: string; status: 'pending' | 'active' | 'complete'}>>(getExportSteps());
-  const hasAttemptedGeneration = useRef(false);
-  const hasAttemptedExport = useRef(false);
+  const hasAttemptedGenerationLocal = useRef(false);  // Local tracking for this mount cycle
+  const hasAttemptedExportLocal = useRef(false);      // Local tracking for this mount cycle
 
   // Check if all scenes have audio
   const allScenesHaveAudio = scenes.every(s => s.audioUrl);
 
-  // Auto-generate voiceover on mount if enabled
+  // Auto-generate voiceover on mount if enabled (ONCE ONLY - uses parent state flag)
   useEffect(() => {
+    // Skip if already generated globally (parent state tracks this)
+    if (hasGeneratedVoiceover) {
+      setVoiceoverGenerated(true);
+      return;
+    }
+    
     if (voiceoverEnabled && 
         !voiceoverGenerated && 
-        !hasAttemptedGeneration.current && 
+        !hasAttemptedGenerationLocal.current && 
         scenes.length > 0 &&
         !allScenesHaveAudio) {
       
-      hasAttemptedGeneration.current = true; // Prevent multiple calls
+      hasAttemptedGenerationLocal.current = true; // Prevent multiple calls in this mount
       setIsGeneratingVoiceover(true);
       
-      console.log('[ExportStep] Auto-generating voiceover...');
+      console.log('[ExportStep] Auto-generating voiceover (first time only)...');
       onGenerateVoiceover()
         .then(() => {
           setVoiceoverGenerated(true);
@@ -300,7 +427,7 @@ export function ExportStep({
         })
         .catch(error => {
           console.error('[ExportStep] Voiceover generation failed:', error);
-          hasAttemptedGeneration.current = false; // Allow retry on failure
+          hasAttemptedGenerationLocal.current = false; // Allow retry on failure
           setIsGeneratingVoiceover(false);
         });
     } else if (allScenesHaveAudio) {
@@ -311,20 +438,25 @@ export function ExportStep({
       console.log('[ExportStep] Voiceover disabled - skipping generation');
       setVoiceoverGenerated(true);
     }
-  }, [voiceoverEnabled, voiceoverGenerated, scenes.length, onGenerateVoiceover, allScenesHaveAudio]);
+  }, [voiceoverEnabled, voiceoverGenerated, scenes.length, onGenerateVoiceover, allScenesHaveAudio, hasGeneratedVoiceover]);
 
-  // Auto-export on mount (after voiceover is ready)
+  // Auto-export on mount (after voiceover is ready) - ONCE ONLY
   useEffect(() => {
+    // Skip if already exported globally (parent state tracks this)
+    if (hasExportedVideo) {
+      return;
+    }
+    
     if (!isGeneratingVoiceover && 
         voiceoverGenerated && 
-        !hasAttemptedExport.current && 
+        !hasAttemptedExportLocal.current && 
         !exportedVideoUrl &&
         scenes.length > 0) {
       
-      hasAttemptedExport.current = true;
+      hasAttemptedExportLocal.current = true;
       handleAutoExport();
     }
-  }, [isGeneratingVoiceover, voiceoverGenerated, exportedVideoUrl, scenes.length]);
+  }, [isGeneratingVoiceover, voiceoverGenerated, exportedVideoUrl, scenes.length, hasExportedVideo]);
 
   // Handle auto export with progress simulation
   const handleAutoExport = async () => {
@@ -370,9 +502,17 @@ export function ExportStep({
         const { videoUrl, videoBaseUrl, voiceoverUrl, musicUrl } = result;
         
         // Save audio assets for volume control
+        console.log('[ExportStep] Audio assets from export:', {
+          videoBaseUrl: videoBaseUrl ? '✓' : '✗',
+          voiceoverUrl: voiceoverUrl ? '✓' : '✗',
+          musicUrl: musicUrl ? '✓' : '✗',
+        });
+        
         if (videoBaseUrl && musicUrl) {
           setAudioAssets({ videoBaseUrl, voiceoverUrl, musicUrl });
           console.log('[ExportStep] Audio assets saved for volume control');
+        } else {
+          console.log('[ExportStep] Missing audio assets, volume control disabled');
         }
         // Small delay to show 100% before showing video
         setTimeout(() => {
@@ -568,77 +708,91 @@ export function ExportStep({
     }));
   };
 
-  // Generate AI metadata for a platform using the backend API
-  const handleGenerateMetadata = useCallback(async (platformId: string) => {
-    if (!scriptText?.trim()) {
-      console.warn('[ExportStep] No script text available for metadata generation');
+  // Generate metadata for ALL selected platforms at once
+  const handleGenerateAllMetadata = useCallback(async () => {
+    if (!scriptText?.trim() || selectedPlatforms.length === 0) {
+      console.warn('[ExportStep] No script text or no platforms selected');
       return;
     }
 
-    setIsGeneratingMetadata(platformId);
+    // Filter only compatible platforms
+    const compatiblePlatforms = selectedPlatforms.filter(id => {
+      const platform = PLATFORMS.find(p => p.id === id);
+      if (!platform) return false;
+      return getPlatformCompatibility(platform, aspectRatio, duration).compatible;
+    });
+
+    if (compatiblePlatforms.length === 0) {
+      console.warn('[ExportStep] No compatible platforms to generate for');
+      return;
+    }
+
+    setIsGeneratingMetadata('all'); // Use 'all' to indicate generating for all
     
     try {
-      console.log('[ExportStep] Generating metadata for:', platformId);
+      console.log('[ExportStep] Generating metadata for all platforms:', compatiblePlatforms);
       
-      const response = await fetch('/api/problem-solution/social-metadata', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          platform: platformId,
-          scriptText: scriptText.trim(),
-          duration: totalDuration,
-        }),
+      // Generate metadata for each platform in parallel
+      const promises = compatiblePlatforms.map(async (platformId) => {
+        // Determine the API platform type (youtube-short/youtube-video -> youtube)
+        const apiPlatform = platformId.startsWith('youtube') ? 'youtube' : platformId;
+        
+        const response = await fetch('/api/stories/social/metadata', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            platform: apiPlatform,
+            scriptText: scriptText.trim(),
+            duration: totalDuration,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`API error for ${platformId}: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return { platformId, data };
       });
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
+      const results = await Promise.allSettled(promises);
+      
+      // Update metadata for successful generations
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          const { platformId, data } = result.value;
+          const isYouTube = platformId.startsWith('youtube');
+          
+          if (isYouTube) {
+            setPlatformMetadata(prev => ({
+              ...prev,
+              [platformId]: {
+                title: data.title || '',
+                description: data.description || '',
+              },
+            }));
+          } else {
+            setPlatformMetadata(prev => ({
+              ...prev,
+              [platformId]: {
+                caption: data.caption || '',
+              },
+            }));
+          }
+        } else {
+          console.error('[ExportStep] Failed for platform:', result.reason);
+        }
+      });
 
-      const data = await response.json();
-      console.log('[ExportStep] Generated metadata:', data);
-
-      // Update metadata based on platform
-      if (platformId === 'youtube') {
-        setPlatformMetadata(prev => ({
-          ...prev,
-          youtube: {
-            title: data.title || '',
-            description: data.description || '',
-          },
-        }));
-      } else {
-        setPlatformMetadata(prev => ({
-          ...prev,
-          [platformId]: {
-            caption: data.caption || '',
-          },
-        }));
-      }
+      console.log('[ExportStep] Generated metadata for all platforms');
     } catch (error) {
-      console.error('[ExportStep] Failed to generate metadata:', error);
-      // Fallback to placeholder on error
-      if (platformId === 'youtube') {
-        setPlatformMetadata(prev => ({
-          ...prev,
-          youtube: {
-            title: `Amazing ${template?.name || 'Video'} - Must Watch! 🔥`,
-            description: `Check out this incredible video!\n\n#shorts #viral #trending`,
-          },
-        }));
-      } else {
-        setPlatformMetadata(prev => ({
-          ...prev,
-          [platformId]: {
-            caption: `This is amazing! 🔥✨ Watch till the end!\n\n#viral #trending #fyp`,
-          },
-        }));
-      }
+      console.error('[ExportStep] Failed to generate metadata for all:', error);
     } finally {
       setIsGeneratingMetadata(null);
     }
-  }, [scriptText, totalDuration, template]);
+  }, [scriptText, totalDuration, selectedPlatforms, aspectRatio, duration]);
 
   // Toggle platform selection for publishing
   const handlePlatformToggle = (platformId: string, e?: React.MouseEvent) => {
@@ -657,8 +811,8 @@ export function ExportStep({
     const metadata = platformMetadata[platformId];
     if (!metadata) return false;
     
-    if (platformId === 'youtube') {
-      // YouTube requires title and description
+    // YouTube platforms require title and description
+    if (platformId.startsWith('youtube')) {
       return Boolean(metadata.title?.trim() && metadata.description?.trim());
     } else {
       // Other platforms require caption
@@ -717,16 +871,26 @@ export function ExportStep({
       }
 
       // Step 3: Build publish input
+      // Map platform IDs to API platform names (youtube-short/youtube-video -> youtube)
+      const getApiPlatform = (id: string): 'youtube' | 'tiktok' | 'instagram' | 'facebook' => {
+        const platform = PLATFORMS.find(p => p.id === id);
+        return (platform?.apiPlatform || id) as 'youtube' | 'tiktok' | 'instagram' | 'facebook';
+      };
+
+      // Get YouTube metadata from whichever YouTube platform is selected
+      const youtubeMetadata = platformMetadata['youtube-short'] || platformMetadata['youtube-video'];
+      const selectedYouTubePlatform = selectedPlatforms.find(id => id.startsWith('youtube'));
+
       const publishInput: PublishVideoInput = {
         videoUrl: finalVideoUrl,
         platforms: selectedPlatforms.map(id => ({
-          platform: id as 'youtube' | 'tiktok' | 'instagram' | 'facebook',
+          platform: getApiPlatform(id),
         })),
         metadata: {
-          youtube: platformMetadata.youtube ? {
-            title: platformMetadata.youtube.title || '',
-            description: platformMetadata.youtube.description || '',
-            tags: platformMetadata.youtube.hashtags,
+          youtube: selectedYouTubePlatform && platformMetadata[selectedYouTubePlatform] ? {
+            title: platformMetadata[selectedYouTubePlatform].title || '',
+            description: platformMetadata[selectedYouTubePlatform].description || '',
+            tags: platformMetadata[selectedYouTubePlatform].hashtags,
           } : undefined,
           tiktok: platformMetadata.tiktok ? {
             caption: platformMetadata.tiktok.caption || '',
@@ -755,9 +919,16 @@ export function ExportStep({
       console.log('[ExportStep] Publish result:', result);
 
       // Step 5: Show success message
+      // Map API platform names back to display names
       const successPlatforms = result.platforms
         .filter(p => p.status === 'published' || p.status === 'pending')
-        .map(p => PLATFORMS.find(pl => pl.id === p.platform)?.name)
+        .map(p => {
+          // Find the platform config (handle youtube mapping)
+          const platformConfig = PLATFORMS.find(pl => 
+            pl.apiPlatform === p.platform || pl.id === p.platform
+          );
+          return platformConfig?.name || p.platform;
+        })
         .filter(Boolean);
 
       if (scheduleMode === 'scheduled' && scheduledDateTime) {
@@ -864,35 +1035,7 @@ export function ExportStep({
                       </p>
                     </motion.div>
                   )}
-
-                  {/* Scene Status Grid - When generating or complete */}
-                  <div className="grid grid-cols-6 gap-2">
-                    {scenes.map((scene, index) => {
-                      const hasAudio = Boolean(scene.audioUrl);
-                      return (
-                        <div
-                          key={scene.sceneNumber}
-                          className={cn(
-                            "aspect-square rounded-lg flex items-center justify-center text-xs font-medium",
-                            "border transition-all duration-300",
-                            hasAudio
-                              ? "bg-green-500/20 border-green-500/30 text-green-300"
-                              : isGeneratingVoiceover
-                                ? "bg-orange-500/10 border-orange-500/20 text-orange-300/70 animate-pulse"
-                                : "bg-white/5 border-white/10 text-white/30"
-                          )}
-                        >
-                          {hasAudio ? (
-                            <Check className="w-4 h-4" />
-                          ) : (
-                            <span>{index + 1}</span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Info Text */}
+           {/* Info ext */}
                   <div className="flex items-center gap-2 p-2 rounded-lg bg-white/[0.03]">
                     <Volume2 className="w-4 h-4 text-purple-400 flex-shrink-0" />
                     <p className="text-xs text-white/50">
@@ -1011,8 +1154,32 @@ export function ExportStep({
                       <Share2 className="w-5 h-5 text-purple-400" />
                       <h3 className="font-semibold text-white">Share To</h3>
                       <span className="text-xs text-white/40">(Optional)</span>
+                      
+                      {/* AI Generate All Button - Only for selected platforms */}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleGenerateAllMetadata}
+                        disabled={selectedPlatforms.length === 0 || isGeneratingMetadata !== null}
+                        className={cn(
+                          "ml-auto h-7 px-3 text-xs gap-1.5",
+                          "bg-gradient-to-r from-purple-500/20 to-pink-500/20",
+                          "hover:from-purple-500/30 hover:to-pink-500/30",
+                          "border border-purple-500/30 text-purple-300",
+                          "transition-all duration-200",
+                          "disabled:opacity-40 disabled:cursor-not-allowed"
+                        )}
+                      >
+                        {isGeneratingMetadata ? (
+                          <RefreshCw className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Wand2 className="w-3 h-3" />
+                        )}
+                        AI Generate
+                      </Button>
+                      
                       {selectedPlatforms.length > 0 && (
-                        <span className="ml-auto text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">
+                        <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">
                           {selectedPlatforms.length} selected
                         </span>
                       )}
@@ -1023,73 +1190,102 @@ export function ExportStep({
                       {PLATFORMS.map(platform => {
                         const Icon = platform.icon;
                         const isExpanded = expandedPlatform === platform.id;
-                        const isGenerating = isGeneratingMetadata === platform.id;
                         const isSelected = selectedPlatforms.includes(platform.id);
                         const metadata = platformMetadata[platform.id];
+                        
+                        // Check platform compatibility with current video settings
+                        const compatibility = getPlatformCompatibility(platform, aspectRatio, duration);
+                        const isDisabled = !compatibility.compatible;
 
                         return (
                           <div key={platform.id} className={cn(
                             "overflow-hidden rounded-xl border transition-all duration-200",
-                            isSelected 
-                              ? "border-purple-500/40 bg-purple-500/5" 
-                              : "border-white/10"
+                            isDisabled
+                              ? "border-white/5 opacity-50"
+                              : isSelected 
+                                ? "border-purple-500/40 bg-purple-500/5" 
+                                : "border-white/10"
                           )}>
                             {/* Platform Header Row */}
                             <div className={cn(
                               "w-full p-3 flex items-center gap-3",
                               "transition-all duration-200",
-                              isExpanded
-                                ? "bg-white/10"
-                                : "bg-white/[0.03]"
+                              isDisabled
+                                ? "bg-white/[0.01] cursor-not-allowed"
+                                : isExpanded
+                                  ? "bg-white/10"
+                                  : "bg-white/[0.03]"
                             )}>
                               {/* Checkbox for selection */}
                               <button
-                                onClick={(e) => handlePlatformToggle(platform.id, e)}
+                                onClick={(e) => !isDisabled && handlePlatformToggle(platform.id, e)}
+                                disabled={isDisabled}
                                 className={cn(
                                   "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all",
-                                  isSelected
-                                    ? "bg-purple-500 border-purple-500"
-                                    : "border-white/30 hover:border-white/50"
+                                  isDisabled
+                                    ? "border-white/10 cursor-not-allowed"
+                                    : isSelected
+                                      ? "bg-purple-500 border-purple-500"
+                                      : "border-white/30 hover:border-white/50"
                                 )}
                               >
-                                {isSelected && <Check className="w-3 h-3 text-white" />}
+                                {isSelected && !isDisabled && <Check className="w-3 h-3 text-white" />}
                               </button>
 
                               {/* Platform Icon */}
                               <div className={cn(
                                 "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                                isDisabled ? "opacity-50" : "",
                                 platform.iconBg
                               )}>
                                 <Icon className="w-4 h-4 text-white" />
                               </div>
                               
-                              {/* Platform Name - Clickable to expand */}
-                              <button
-                                onClick={() => handlePlatformExpand(platform.id)}
-                                className="flex-1 text-left flex items-center gap-2 hover:opacity-80 transition-opacity"
-                              >
-                                <span className="text-sm font-medium text-white">
-                                  {platform.name}
-                                </span>
-                              </button>
-                              
-                              {/* Expand Arrow */}
-                              <button
-                                onClick={() => handlePlatformExpand(platform.id)}
-                                className="p-1 hover:bg-white/10 rounded transition-colors"
-                              >
-                                <motion.div
-                                  animate={{ rotate: isExpanded ? 180 : 0 }}
-                                  transition={{ duration: 0.2 }}
+                              {/* Platform Name and Incompatibility Reason */}
+                              <div className="flex-1 min-w-0">
+                                <button
+                                  onClick={() => !isDisabled && handlePlatformExpand(platform.id)}
+                                  disabled={isDisabled}
+                                  className={cn(
+                                    "text-left flex items-center gap-2 transition-opacity",
+                                    isDisabled ? "cursor-not-allowed" : "hover:opacity-80"
+                                  )}
                                 >
-                                  <ChevronDown className="w-4 h-4 text-white/40" />
-                                </motion.div>
-                              </button>
+                                  <span className={cn(
+                                    "text-sm font-medium",
+                                    isDisabled ? "text-white/40" : "text-white"
+                                  )}>
+                                    {platform.name}
+                                  </span>
+                                </button>
+                                {/* Show incompatibility reason */}
+                                {isDisabled && compatibility.reason && (
+                                  <p className="text-[10px] text-red-400/70 mt-0.5 flex items-center gap-1">
+                                    <AlertCircle className="w-2.5 h-2.5" />
+                                    {compatibility.reason}
+                                  </p>
+                                )}
+                              </div>
+                              
+                              {/* Expand Arrow - only show if compatible */}
+                              {!isDisabled && (
+                                <button
+                                  onClick={() => handlePlatformExpand(platform.id)}
+                                  className="p-1 hover:bg-white/10 rounded transition-colors"
+                                >
+                                  <motion.div
+                                    animate={{ rotate: isExpanded ? 180 : 0 }}
+                                    transition={{ duration: 0.2 }}
+                                  >
+                                    <ChevronDown className="w-4 h-4 text-white/40" />
+                                  </motion.div>
+                                </button>
+                              )}
                             </div>
 
-                            {/* Expanded Content */}
+                            {/* Expanded Content - Only show for compatible platforms */}
                             <AnimatePresence>
-                              {isExpanded && (
+                              {isExpanded && !isDisabled && (
                                 <motion.div
                                   initial={{ height: 0, opacity: 0 }}
                                   animate={{ height: 'auto', opacity: 1 }}
@@ -1097,45 +1293,14 @@ export function ExportStep({
                                   transition={{ duration: 0.2 }}
                                   className="overflow-hidden"
                                 >
-                                  <div className="p-4 pt-2 space-y-4 bg-white/[0.02] border-t border-white/[0.06]">
-                                    {/* Header with AI Generate */}
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <Sparkles className="w-4 h-4 text-purple-400" />
-                                        <span className="text-xs font-medium text-white/70">Metadata</span>
-                                      </div>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleGenerateMetadata(platform.id);
-                                        }}
-                                        disabled={isGenerating}
-                                        className={cn(
-                                          "h-7 px-3 text-xs gap-1.5",
-                                          "bg-gradient-to-r from-purple-500/20 to-pink-500/20",
-                                          "hover:from-purple-500/30 hover:to-pink-500/30",
-                                          "border border-purple-500/30 text-purple-300",
-                                          "transition-all duration-200"
-                                        )}
-                                      >
-                                        {isGenerating ? (
-                                          <RefreshCw className="w-3 h-3 animate-spin" />
-                                        ) : (
-                                          <Wand2 className="w-3 h-3" />
-                                        )}
-                                        AI Generate
-                                      </Button>
-                                    </div>
-
-                                    {/* YouTube: Title + Description */}
-                                    {platform.id === 'youtube' && (
+                                  <div className="p-4 pt-3 space-y-3 bg-white/[0.02] border-t border-white/[0.06]">
+                                    {/* YouTube Shorts/Video: Title + Description */}
+                                    {platform.id.startsWith('youtube') && (
                                       <>
                                         <div className="space-y-2">
                                           <Input
                                             value={metadata?.title || ''}
-                                            onChange={(e) => handleMetadataChange('youtube', 'title', e.target.value)}
+                                            onChange={(e) => handleMetadataChange(platform.id, 'title', e.target.value)}
                                             placeholder="Video title"
                                             className={cn(
                                               "bg-black/40 border-white/10 text-white text-sm",
@@ -1147,7 +1312,7 @@ export function ExportStep({
                                         <div className="space-y-2">
                                           <Textarea
                                             value={metadata?.description || ''}
-                                            onChange={(e) => handleMetadataChange('youtube', 'description', e.target.value)}
+                                            onChange={(e) => handleMetadataChange(platform.id, 'description', e.target.value)}
                                             placeholder="Description"
                                             rows={3}
                                             className={cn(
@@ -1161,7 +1326,7 @@ export function ExportStep({
                                     )}
 
                                     {/* TikTok, Instagram, Facebook: Caption only */}
-                                    {platform.id !== 'youtube' && (
+                                    {!platform.id.startsWith('youtube') && (
                                       <div className="space-y-2">
                                         <div className="flex items-center gap-2 mb-2">
                                           <Icon className="w-3.5 h-3.5 text-white/40" />
@@ -1486,9 +1651,24 @@ export function ExportStep({
                     Adjust settings below, then click "Export Video" to download
                   </p>
                 </div>
+                {/* Regenerate Button */}
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    hasAttemptedExportLocal.current = false;
+                    setExportedVideoUrl(null);
+                    setAudioAssets(null);
+                    handleAutoExport();
+                  }}
+                  disabled={isExporting}
+                  className="gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Regenerate
+                </Button>
               </div>
 
-              {/* Video Player - Fill available space */}
+              {/* Video Player - Fill available space with aspect-ratio aware sizing */}
               <div className="flex-1 flex items-center justify-center p-4 min-h-0">
                 {/* When we have separate audio assets, use muted video + audio elements */}
                 {hasAudioAssets ? (
@@ -1503,7 +1683,15 @@ export function ExportStep({
                       onPause={handleVideoPause}
                       onSeeked={handleVideoSeeked}
                       onEnded={handleVideoPause}
-                      className="max-w-full max-h-full rounded-xl"
+                      className={cn(
+                        "rounded-xl shadow-2xl",
+                        // Portrait videos (9:16): limit height, auto width
+                        aspectRatio === '9:16' && "max-h-full w-auto",
+                        // Landscape videos (16:9): limit width, auto height
+                        aspectRatio === '16:9' && "max-w-full h-auto",
+                        // Square or other ratios: fit within container
+                        !['9:16', '16:9'].includes(aspectRatio) && "max-w-full max-h-full"
+                      )}
                     />
                     {/* Hidden audio elements for voiceover and music */}
                     <audio
@@ -1525,7 +1713,15 @@ export function ExportStep({
                     src={exportedVideoUrl}
                     controls
                     autoPlay
-                    className="max-w-full max-h-full rounded-xl"
+                    className={cn(
+                      "rounded-xl shadow-2xl",
+                      // Portrait videos (9:16): limit height, auto width
+                      aspectRatio === '9:16' && "max-h-full w-auto",
+                      // Landscape videos (16:9): limit width, auto height
+                      aspectRatio === '16:9' && "max-w-full h-auto",
+                      // Square or other ratios: fit within container
+                      !['9:16', '16:9'].includes(aspectRatio) && "max-w-full max-h-full"
+                    )}
                   />
                 )}
               </div>

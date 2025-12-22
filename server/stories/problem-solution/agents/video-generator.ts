@@ -265,7 +265,9 @@ export async function generateVideos(
     };
   });
 
-  console.log(`[problem-solution:video-generator] Sending ${payloads.length} scenes in parallel batch...`);
+  // Calculate dynamic timeout based on number of scenes (2 min per scene + 1 min buffer)
+  const dynamicTimeoutMs = Math.max(300000, payloads.length * 120000 + 60000);
+  console.log(`[problem-solution:video-generator] Sending ${payloads.length} scenes in parallel batch (timeout: ${dynamicTimeoutMs / 1000}s)...`);
 
   let results: VideoGenerationResult[] = [];
   let errors: string[] = [];
@@ -283,7 +285,7 @@ export async function generateVideos(
         workspaceId: input.workspaceId,
         runware: {
           deliveryMethod: "async",
-          timeoutMs: 300000, // 5 minutes timeout
+          timeoutMs: dynamicTimeoutMs, // Dynamic: 2 min per scene + 1 min buffer
         },
       },
       {

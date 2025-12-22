@@ -16,8 +16,12 @@ import {
   Headphones,
   AudioWaveform,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Upload,
+  X,
+  RefreshCw
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { StoryScene, StoryTemplate, MusicStyle } from "../types";
 import { useState, useRef, useEffect } from "react";
 import { ELEVENLABS_VOICES, getVoicesByLanguage } from "@/constants/elevenlabs-voices";
@@ -28,13 +32,18 @@ interface AudioStepProps {
   selectedVoice: string;
   musicStyle: MusicStyle;
   backgroundMusic: string; // Legacy
+  customMusicUrl: string; // User-uploaded custom music
+  customMusicDuration: number; // Duration in seconds
   voiceVolume: number;
   musicVolume: number;
+  duration: number; // Total video duration
   isGenerating: boolean;
   voiceoverEnabled: boolean;
   onVoiceChange: (voice: string) => void;
   onMusicStyleChange: (style: MusicStyle) => void;
   onMusicChange: (music: string) => void; // Legacy
+  onCustomMusicChange: (url: string, duration: number) => void;
+  onClearCustomMusic: () => void;
   onVoiceVolumeChange: (volume: number) => void;
   onMusicVolumeChange: (volume: number) => void;
   onGenerateVoiceover?: () => void;
@@ -65,21 +74,154 @@ export function AudioStep({
   selectedVoice,
   musicStyle,
   backgroundMusic,
+  customMusicUrl,
+  customMusicDuration,
   voiceVolume,
   musicVolume,
+  duration,
   isGenerating,
   voiceoverEnabled,
   onVoiceChange,
   onMusicStyleChange,
   onMusicChange,
+  onCustomMusicChange,
+  onClearCustomMusic,
   onVoiceVolumeChange,
   onMusicVolumeChange,
   onGenerateVoiceover,
   accentColor = "primary",
 }: AudioStepProps) {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'ar' | 'en'>('ar');
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Custom music upload states
+  const musicInputRef = useRef<HTMLInputElement>(null);
+  const musicPreviewRef = useRef<HTMLAudioElement>(null);
+  const [isUploadingMusic, setIsUploadingMusic] = useState(false);
+  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+
+  // Format duration as MM:SS
+  const formatDuration = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Get audio duration from file
+  const getAudioDuration = (file: File): Promise<number> => {
+    return new Promise((resolve, reject) => {
+      const audio = new Audio();
+      audio.onloadedmetadata = () => {
+        resolve(audio.duration);
+        URL.revokeObjectURL(audio.src);
+      };
+      audio.onerror = () => {
+        reject(new Error('Could not load audio'));
+        URL.revokeObjectURL(audio.src);
+      };
+      audio.src = URL.createObjectURL(file);
+    });
+  };
+
+  // Handle custom music upload
+  const handleMusicUpload = async (file: File) => {
+    // Validate file type
+    const validTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/m4a', 'audio/x-m4a', 'audio/ogg'];
+    if (!validTypes.some(type => file.type.includes(type.split('/')[1])) && !file.name.match(/\.(mp3|wav|m4a|ogg)$/i)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload an audio file (MP3, WAV, M4A, OGG)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Max 50MB
+    if (file.size > 50 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload an audio file smaller than 50MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check duration (max 5 minutes)
+    try {
+      const audioDuration = await getAudioDuration(file);
+      if (audioDuration > 300) {
+        toast({
+          title: "Audio too long",
+          description: "Maximum duration is 5 minutes. Your file is " + formatDuration(audioDuration),
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsUploadingMusic(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('workspaceId', template?.id || 'default');
+
+      const response = await fetch('/api/problem-solution/custom-music/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const data = await response.json();
+      onCustomMusicChange(data.url, data.duration);
+      
+      toast({
+        title: "Music uploaded",
+        description: `${file.name} (${formatDuration(data.duration)}) ready to use`,
+      });
+    } catch (error) {
+      console.error('Music upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: "Could not upload custom music",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingMusic(false);
+    }
+  };
+
+  // Handle remove custom music
+  const handleRemoveCustomMusic = () => {
+    if (musicPreviewRef.current) {
+      musicPreviewRef.current.pause();
+      setIsMusicPlaying(false);
+    }
+    onClearCustomMusic();
+    if (musicInputRef.current) {
+      musicInputRef.current.value = '';
+    }
+  };
+
+  // Toggle music preview playback
+  const toggleMusicPreview = () => {
+    if (!musicPreviewRef.current) return;
+    
+    if (isMusicPlaying) {
+      musicPreviewRef.current.pause();
+      setIsMusicPlaying(false);
+    } else {
+      musicPreviewRef.current.play();
+      setIsMusicPlaying(true);
+    }
+  };
+
+  // Handle audio ended
+  const handleMusicEnded = () => {
+    setIsMusicPlaying(false);
+  };
 
   // Calculate total narration and word count (only if voiceover enabled)
   const totalNarration = voiceoverEnabled 
@@ -396,8 +538,153 @@ export function AudioStep({
             })}
           </div>
 
+          {/* Custom Music Upload Section */}
+          <div className="pt-4 border-t border-white/10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Upload className="w-4 h-4 text-purple-400" />
+                <span className="text-sm font-medium text-white">Or Upload Your Own</span>
+              </div>
+              {customMusicUrl && (
+                <span className="text-xs text-green-400 font-medium">Active</span>
+              )}
+            </div>
+
+            {customMusicUrl ? (
+              // Show uploaded music preview
+              <div className="relative group">
+                <div className={cn(
+                  "rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-4",
+                  "backdrop-blur-sm"
+                )}>
+                  {/* Audio Element (hidden) */}
+                  <audio 
+                    ref={musicPreviewRef}
+                    src={customMusicUrl}
+                    onEnded={handleMusicEnded}
+                    preload="metadata"
+                  />
+                  
+                  <div className="flex items-center gap-4">
+                    {/* Play/Pause Button */}
+                    <button
+                      onClick={toggleMusicPreview}
+                      className={cn(
+                        "w-12 h-12 rounded-full flex items-center justify-center transition-all",
+                        "bg-gradient-to-br from-purple-500 to-pink-500",
+                        "hover:from-purple-400 hover:to-pink-400",
+                        "shadow-lg shadow-purple-500/25"
+                      )}
+                    >
+                      {isMusicPlaying ? (
+                        <Pause className="w-5 h-5 text-white" />
+                      ) : (
+                        <Play className="w-5 h-5 text-white ml-0.5" />
+                      )}
+                    </button>
+                    
+                    {/* Music Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Volume2 className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                        <p className="text-sm text-white font-medium truncate">Custom Music</p>
+                      </div>
+                      <p className="text-xs text-white/50 mt-0.5">
+                        Duration: {formatDuration(customMusicDuration)}
+                        {customMusicDuration > 0 && customMusicDuration < duration && (
+                          <span className="text-amber-400 ml-2">
+                            (shorter than video)
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    
+                    {/* Visual Indicator */}
+                    {isMusicPlaying && (
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4].map((i) => (
+                          <motion.div
+                            key={i}
+                            className="w-1 bg-gradient-to-t from-purple-500 to-pink-400 rounded-full"
+                            animate={{
+                              height: [8, 16, 8],
+                            }}
+                            transition={{
+                              duration: 0.5,
+                              repeat: Infinity,
+                              delay: i * 0.1,
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Remove Button */}
+                <button
+                  onClick={handleRemoveCustomMusic}
+                  className="absolute -top-2 -right-2 p-1.5 rounded-full bg-red-500/90 hover:bg-red-500 text-white shadow-lg transition-all opacity-0 group-hover:opacity-100"
+                  title="Remove custom music"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              // Upload area
+              <div 
+                className={cn(
+                  "relative border-2 border-dashed rounded-xl p-5 text-center transition-all cursor-pointer",
+                  isUploadingMusic 
+                    ? "border-purple-400/50 bg-purple-500/10" 
+                    : "border-white/10 hover:border-purple-400/30 hover:bg-purple-500/5"
+                )}
+                onClick={() => !isUploadingMusic && musicInputRef.current?.click()}
+              >
+                <input
+                  ref={musicInputRef}
+                  type="file"
+                  accept="audio/*,.mp3,.wav,.m4a,.ogg"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleMusicUpload(file);
+                  }}
+                  disabled={isUploadingMusic}
+                />
+                
+                {isUploadingMusic ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <RefreshCw className="w-8 h-8 text-purple-400 animate-spin" />
+                    <span className="text-sm text-white/60">Uploading music...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center flex-shrink-0">
+                      <Music className="w-6 h-6 text-purple-400" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm text-white/80 font-medium">Upload custom music</p>
+                      <p className="text-xs text-white/40 mt-0.5">MP3, WAV, M4A, OGG • Max 5 min</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Info note */}
+            <p className="text-xs text-white/40 mt-3 text-center">
+              {customMusicUrl 
+                ? "✓ Custom music will be used. Music will be trimmed to match video length."
+                : musicStyle !== 'none' 
+                  ? "Custom music takes priority over AI-generated music"
+                  : "Upload your own music or select an AI style above"
+              }
+            </p>
+          </div>
+
           {/* AI Music Info Message */}
-          {musicStyle !== 'none' && (
+          {musicStyle !== 'none' && !customMusicUrl && (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}

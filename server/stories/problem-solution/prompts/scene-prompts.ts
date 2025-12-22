@@ -282,6 +282,31 @@ ${modelConstraints ? `✗ NEVER use a duration NOT in [${modelConstraints.suppor
 ✗ Never assign more words than the duration allows
 
 ═══════════════════════════════════════════════════════════════════════════════
+SCENE CONTENT: DESCRIPTION vs NARRATION
+═══════════════════════════════════════════════════════════════════════════════
+
+Each scene needs TWO DIFFERENT text fields:
+
+1. DESCRIPTION (Visual Context):
+   • A SHORT visual summary of what happens in this scene
+   • MUST be in the SAME LANGUAGE as the original story (Arabic → Arabic, English → English)
+   • Describes what the VIEWER SEES (not hears)
+   • Used to guide AI image generation
+   • Should be 1-2 sentences maximum
+   • ⚠️ DO NOT copy the narration text - create a visual summary!
+
+2. NARRATION (Voiceover):
+   • The exact spoken text from the original story
+   • What the VIEWER HEARS
+   • Used for voiceover generation
+   • Preserve diacritics if Arabic!
+
+⚠️ CRITICAL - DESCRIPTION ≠ NARRATION:
+• Description = Visual summary of what's SEEN (in original language)
+• Narration = Exact story text for what's HEARD
+• They must be DIFFERENT content!
+
+═══════════════════════════════════════════════════════════════════════════════
 OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -291,13 +316,33 @@ Return ONLY valid JSON with this exact structure:
     {
       "sceneNumber": 1,
       "duration": <seconds>,
-      "narration": "<exact text from story for this scene>"
+      "description": "<SHORT visual summary - SAME LANGUAGE - DIFFERENT from narration>",
+      "narration": "<exact voiceover text from story>"
     },
     ...
   ],
   "totalScenes": ${sceneCount},
   "totalDuration": ${duration}
 }
+
+EXAMPLE (Arabic story):
+Original: "هل تساءلت يوماً عن عدد النجوم؟ الطفل جالس على العشب يتأمل السماء..."
+
+{
+  "scenes": [
+    {
+      "sceneNumber": 1,
+      "duration": 5,
+      "description": "طفل صغير جالس على عشب أخضر ينظر للسماء المرصعة بالنجوم",
+      "narration": "هل تساءلت يوماً عن عدد النجوم في السماء؟"
+    }
+  ]
+}
+
+⚠️ CRITICAL:
+• description = وصف بصري قصير (ما يُرى)
+• narration = نص القصة الأصلي (ما يُسمع)
+• يجب أن يكونا مختلفين!
 `;
 }
 
@@ -316,10 +361,10 @@ export function buildSceneUserPrompt(
 
   return `
 ═══════════════════════════════════════════════════════════════════════════════
-SCENE BREAKDOWN REQUEST
+SCENE CREATION REQUEST
 ═══════════════════════════════════════════════════════════════════════════════
 
-STORY TO BREAK DOWN:
+STORY:
 """
 ${storyText}
 """
@@ -337,16 +382,23 @@ PARAMETERS
 INSTRUCTIONS
 ═══════════════════════════════════════════════════════════════════════════════
 
-1. Read the story carefully
-2. Identify natural breaking points (sentence boundaries, topic shifts)
-3. Divide into EXACTLY ${sceneCount} scenes
+1. READ the story and UNDERSTAND its meaning
+2. IMAGINE ${sceneCount} visual scenes that represent this story
+3. For EACH scene:
+   - description = IMAGINE what the viewer SEES (visual scene in same language)
+   - narration = Assign story text for what they HEAR
 4. Assign durations that:
    - Sum to EXACTLY ${duration} seconds
    - Match the ${pacing} pacing style
    - Give the hook (scene 1) 3-5 seconds
    - Give the ending (final scene) 3-5 seconds
-5. Each scene's narration = exact text from the story (no modifications)
 
-Generate the scene breakdown as JSON now.
+⚠️ CRITICAL:
+• description ≠ narration (they must be DIFFERENT!)
+• description = وصف بصري (what you IMAGINE the viewer sees)
+• narration = نص القصة (story text for voiceover)
+• Both in the ORIGINAL LANGUAGE of the story!
+
+Generate the scenes as JSON now.
 `;
-}
+ }

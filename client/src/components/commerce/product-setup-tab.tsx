@@ -1,288 +1,793 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { motion } from "framer-motion";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { 
-  Package, 
-  Upload, 
-  Target, 
-  Sparkles,
+  ImageIcon,
+  Video,
+  RectangleHorizontal,
+  RectangleVertical,
+  Square,
+  Mic,
+  CheckCircle2,
+  Clock,
   DollarSign,
-  Users,
-  Tag,
-  Plus,
-  X,
-  Image as ImageIcon,
-  Video
+  Cpu,
+  Monitor,
+  Globe,
+  Wand2,
 } from "lucide-react";
 
+// ═══════════════════════════════════════════════════════════════════════════
+// MODEL CONFIGURATIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const IMAGE_MODELS = [
+  { 
+    value: "imagen-4", 
+    label: "Imagen 4", 
+    provider: "Google",
+    description: "High-quality product photography with excellent lighting",
+    badge: "Recommended",
+    cost: 0.04,
+    default: true,
+    aspectRatios: ["1:1", "9:16", "16:9", "3:4", "4:3"],
+    resolutions: ["1k", "2k", "4k"],
+  },
+  { 
+    value: "dalle-3", 
+    label: "DALL-E 3", 
+    provider: "OpenAI",
+    description: "Creative versatility for lifestyle and conceptual shots",
+    cost: 0.08,
+    aspectRatios: ["1:1", "9:16", "16:9"],
+    resolutions: ["1k"],
+  },
+  { 
+    value: "flux-1", 
+    label: "FLUX.1", 
+    provider: "Black Forest Labs",
+    description: "Photorealistic rendering for premium product visuals",
+    badge: "Pro",
+    cost: 0.12,
+    aspectRatios: ["1:1", "9:16", "16:9", "4:3", "3:4", "21:9"],
+    resolutions: ["2k", "4k"],
+  },
+];
+
+const VIDEO_MODELS = [
+  { 
+    value: "kling-o1", 
+    label: "Kling o1", 
+    provider: "KlingAI",
+    description: "Fast, dynamic motion ideal for product reveals",
+    badge: "Fast",
+    cost: 0.10,
+    estimatedTime: "2-3 min",
+    default: true,
+    durations: [5, 10, 15],
+    resolutions: ["720p", "1080p"],
+  },
+  { 
+    value: "runway-gen3", 
+    label: "Runway Gen-3", 
+    provider: "Runway",
+    description: "Cinematic quality for premium brand storytelling",
+    badge: "Cinematic",
+    cost: 0.15,
+    estimatedTime: "4-5 min",
+    durations: [5, 10, 15, 30],
+    resolutions: ["1080p", "4K Master"],
+  },
+  { 
+    value: "luma-ray2", 
+    label: "Luma Ray 2", 
+    provider: "Luma AI",
+    description: "Smooth camera movements and professional transitions",
+    cost: 0.12,
+    estimatedTime: "3-4 min",
+    durations: [5, 10, 15],
+    resolutions: ["720p", "1080p"],
+  },
+];
+
+const IMAGE_RESOLUTION_LABELS: Record<string, string> = {
+  "1k": "1K",
+  "2k": "2K",
+  "4k": "4K",
+};
+
+const VIDEO_RESOLUTION_LABELS: Record<string, string> = {
+  "720p": "720p",
+  "1080p": "1080p",
+  "4K Master": "4K",
+};
+
+const ASPECT_RATIOS = [
+  { value: "9:16", label: "9:16", description: "Stories / Reels", icon: RectangleVertical },
+  { value: "16:9", label: "16:9", description: "YouTube / Ads", icon: RectangleHorizontal },
+  { value: "1:1", label: "1:1", description: "Instagram Feed", icon: Square },
+];
+
+const LANGUAGES = [
+  { value: "en", label: "English" },
+  { value: "ar", label: "Arabic (العربية)" },
+];
+
+const AUDIENCES = [
+  { value: "mena", label: "MENA / Arab Region" },
+  { value: "western", label: "Western / Minimalist" },
+  { value: "asian", label: "Asian / High-Tech" },
+  { value: "global", label: "Global Tech-Ad" },
+  { value: "luxury", label: "Luxury / Elite" },
+  { value: "genz", label: "Gen Z / Youth Culture" },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMPONENT INTERFACE
+// ═══════════════════════════════════════════════════════════════════════════
+
 interface ProductSetupTabProps {
+  imageModel: string;
+  imageResolution: string;
+  videoModel: string;
+  videoResolution: string;
+  aspectRatio: string;
+  duration: number;
+  voiceOverEnabled: boolean;
+  language: 'ar' | 'en';
+  motionPrompt: string;
+  imageInstructions: string;
+  targetAudience: string;
+  onImageModelChange: (model: string) => void;
+  onImageResolutionChange: (resolution: string) => void;
+  onVideoModelChange: (model: string) => void;
+  onVideoResolutionChange: (resolution: string) => void;
+  onAspectRatioChange: (ratio: string) => void;
+  onDurationChange: (duration: number) => void;
+  onVoiceOverToggle: (enabled: boolean) => void;
+  onLanguageChange: (lang: 'ar' | 'en') => void;
+  onMotionPromptChange: (prompt: string) => void;
+  onImageInstructionsChange: (instructions: string) => void;
+  onTargetAudienceChange: (audience: string) => void;
   onNext: () => void;
 }
 
-const PRODUCT_CATEGORIES = [
-  "Fashion & Apparel",
-  "Beauty & Skincare",
-  "Electronics",
-  "Home & Living",
-  "Food & Beverage",
-  "Health & Wellness",
-  "Sports & Fitness",
-  "Jewelry & Accessories",
-  "Toys & Games",
-  "Pet Products"
-];
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION HEADER COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
 
-const TONE_OPTIONS = [
-  { id: "luxury", label: "Luxury", description: "Premium, elegant, exclusive" },
-  { id: "playful", label: "Fun & Playful", description: "Energetic, youthful, exciting" },
-  { id: "professional", label: "Professional", description: "Clean, trustworthy, reliable" },
-  { id: "trendy", label: "Trendy", description: "Gen-Z style, viral-ready, bold" },
-  { id: "minimal", label: "Minimalist", description: "Simple, sophisticated, modern" },
-  { id: "organic", label: "Natural", description: "Eco-friendly, authentic, warm" }
-];
-
-const TARGET_DEMOGRAPHICS = [
-  "Gen Z (18-24)",
-  "Millennials (25-40)",
-  "Gen X (41-56)",
-  "Parents",
-  "Students",
-  "Professionals",
-  "Fitness Enthusiasts",
-  "Beauty Lovers",
-  "Tech Savvy",
-  "Budget Conscious",
-  "Luxury Seekers"
-];
-
-export function ProductSetupTab({ onNext }: ProductSetupTabProps) {
+function SectionHeader({ 
+  icon: Icon, 
+  title, 
+  description,
+  iconColor = "text-pink-400"
+}: { 
+  icon: React.ElementType; 
+  title: string; 
+  description: string;
+  iconColor?: string;
+}) {
   return (
-    <div className="p-6 space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Column - Product Details */}
-        <div className="space-y-6">
-          {/* Basic Info */}
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base font-medium flex items-center gap-2">
-                <Package className="h-4 w-4 text-primary" />
-                Product Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="product-name">Product Name</Label>
-                <Input 
-                  id="product-name" 
-                  placeholder="Enter your product name"
-                  data-testid="input-product-name"
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="product-price">Price</Label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="product-price" 
-                      placeholder="0.00"
-                      className="pl-9"
-                      data-testid="input-product-price"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="product-category">Category</Label>
-                  <select 
-                    id="product-category"
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                    data-testid="select-product-category"
-                  >
-                    <option value="">Select category</option>
-                    {PRODUCT_CATEGORIES.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="product-description">Short Description</Label>
-                <Textarea 
-                  id="product-description"
-                  placeholder="Briefly describe your product in 1-2 sentences..."
-                  className="min-h-[80px] resize-none"
-                  data-testid="input-product-description"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Value Proposition */}
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base font-medium flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                Value Proposition
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Key Selling Points</Label>
-                <p className="text-xs text-muted-foreground">What makes your product special?</p>
-                <div className="space-y-2">
-                  {[1, 2, 3].map((num) => (
-                    <div key={num} className="flex items-center gap-2">
-                      <Badge variant="outline" className="h-6 w-6 p-0 flex items-center justify-center shrink-0">
-                        {num}
-                      </Badge>
-                      <Input 
-                        placeholder={`Selling point ${num}...`}
-                        data-testid={`input-selling-point-${num}`}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="problem-solved">Problem It Solves</Label>
-                <Textarea 
-                  id="problem-solved"
-                  placeholder="What pain point does your product address?"
-                  className="min-h-[60px] resize-none"
-                  data-testid="input-problem-solved"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="differentiator">What Makes It Different</Label>
-                <Textarea 
-                  id="differentiator"
-                  placeholder="How does it stand out from competitors?"
-                  className="min-h-[60px] resize-none"
-                  data-testid="input-differentiator"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right Column - Media & Targeting */}
-        <div className="space-y-6">
-          {/* Product Media */}
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base font-medium flex items-center gap-2">
-                <ImageIcon className="h-4 w-4 text-primary" />
-                Product Media
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div 
-                  className="aspect-square rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center gap-2 cursor-pointer hover-elevate transition-colors"
-                  data-testid="upload-product-image-1"
-                >
-                  <Upload className="h-8 w-8 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Main Image</span>
-                </div>
-                <div 
-                  className="aspect-square rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center gap-2 cursor-pointer hover-elevate transition-colors"
-                  data-testid="upload-product-image-2"
-                >
-                  <Plus className="h-8 w-8 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Add More</span>
-                </div>
-              </div>
-
-              <div 
-                className="h-24 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center gap-3 cursor-pointer hover-elevate transition-colors"
-                data-testid="upload-product-video"
-              >
-                <Video className="h-6 w-6 text-muted-foreground" />
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">Upload existing product video</p>
-                  <p className="text-xs text-muted-foreground/70">Optional - we can generate visuals from images</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Target Audience */}
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base font-medium flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
-                Target Audience
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Demographics</Label>
-                <div className="flex flex-wrap gap-2">
-                  {TARGET_DEMOGRAPHICS.map((demo) => (
-                    <Badge 
-                      key={demo} 
-                      variant="outline" 
-                      className="cursor-pointer hover-elevate"
-                      data-testid={`badge-demographic-${demo.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
-                    >
-                      {demo}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="audience-interests">Interests & Behaviors</Label>
-                <Textarea 
-                  id="audience-interests"
-                  placeholder="What does your ideal customer care about?"
-                  className="min-h-[60px] resize-none"
-                  data-testid="input-audience-interests"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Tone & Style */}
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base font-medium flex items-center gap-2">
-                <Target className="h-4 w-4 text-primary" />
-                Brand Tone
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-3">
-                {TONE_OPTIONS.map((tone) => (
-                  <div
-                    key={tone.id}
-                    className="p-3 rounded-lg border border-border cursor-pointer hover-elevate transition-all"
-                    data-testid={`button-tone-${tone.id}`}
-                  >
-                    <p className="text-sm font-medium">{tone.label}</p>
-                    <p className="text-xs text-muted-foreground">{tone.description}</p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+    <div className="space-y-1 mb-5">
+      <div className="flex items-center gap-2">
+        <Icon className={cn("w-4 h-4", iconColor)} />
+        <span className="text-xs uppercase tracking-wider font-semibold text-white/70">
+          {title}
+        </span>
       </div>
-
-      {/* Continue Button */}
-      <div className="flex justify-end pt-4">
-        <Button onClick={onNext} size="lg" data-testid="button-continue-hook">
-          Continue to Hook & Format
-        </Button>
-      </div>
+      <p className="text-xs text-white/40 pl-6">{description}</p>
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function ProductSetupTab({
+  imageModel,
+  imageResolution,
+  videoModel,
+  videoResolution,
+  aspectRatio,
+  duration,
+  voiceOverEnabled,
+  language,
+  motionPrompt,
+  imageInstructions,
+  targetAudience,
+  onImageModelChange,
+  onImageResolutionChange,
+  onVideoModelChange,
+  onVideoResolutionChange,
+  onAspectRatioChange,
+  onDurationChange,
+  onVoiceOverToggle,
+  onLanguageChange,
+  onMotionPromptChange,
+  onImageInstructionsChange,
+  onTargetAudienceChange,
+}: ProductSetupTabProps) {
+  
+  // Validation states
+  const isEngineReady = imageModel && videoModel;
+  const isCanvasSet = aspectRatio && duration > 0;
+  const isDirectionSet = motionPrompt.trim().length > 0 && targetAudience !== "";
+  
+  // Selected models
+  const selectedImageModel = IMAGE_MODELS.find(m => m.value === imageModel);
+  const selectedVideoModel = VIDEO_MODELS.find(m => m.value === videoModel);
+  
+  // Cost & Time estimates
+  const estimatedCost = (selectedImageModel?.cost || 0) + (selectedVideoModel?.cost || 0);
+  const estimatedTime = selectedVideoModel?.estimatedTime || "3-4 min";
+
+  return (
+    <motion.div 
+      className="flex flex-col h-[calc(100vh-12rem)] overflow-hidden"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* TWO-ZONE MAIN CONTENT */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <div className="flex-1 grid grid-cols-2 gap-6 p-6 overflow-hidden">
+        
+        {/* ─────────────────────────────────────────────────────────────────── */}
+        {/* ZONE A: GENERATION ENGINE */}
+        {/* ─────────────────────────────────────────────────────────────────── */}
+        <ScrollArea className="h-full pr-3">
+          <div className="space-y-5 pb-6">
+            
+            {/* Zone Header */}
+            <div className="flex items-center gap-2 pb-2 border-b border-white/10">
+              <Cpu className="w-5 h-5 text-pink-400" />
+              <h2 className="text-sm font-semibold text-white uppercase tracking-wider">
+                Generation Engine
+              </h2>
+            </div>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* IMAGE PIPELINE CARD */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-4">
+                <SectionHeader
+                  icon={ImageIcon}
+                  title="Image Pipeline"
+                  description="AI model for product photography generation"
+                  iconColor="text-pink-400"
+                />
+
+                {/* Model Selector */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-white/50">Model</Label>
+                  <Select value={imageModel} onValueChange={onImageModelChange}>
+                    <SelectTrigger className="h-12 bg-white/5 border-white/10 text-white">
+                      <SelectValue placeholder="Select image model">
+                        {selectedImageModel && (
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{selectedImageModel.label}</span>
+                            <span className="text-xs text-white/40">• {selectedImageModel.provider}</span>
+                            {selectedImageModel.badge && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-pink-500/20 border-pink-500/50 text-pink-300">
+                                {selectedImageModel.badge}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0a0a0a] border-white/10">
+                      {IMAGE_MODELS.map((model) => (
+                        <SelectItem 
+                          key={model.value} 
+                          value={model.value}
+                          className="py-3 focus:bg-pink-500/20 data-[state=checked]:bg-pink-500/20"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{model.label}</span>
+                              <span className="text-xs text-white/40">{model.provider}</span>
+                              {model.badge && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-white/10 border-white/20">
+                                  {model.badge}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-white/50">{model.description}</p>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Resolution - Inline Toggles */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-white/50">Resolution</Label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onImageResolutionChange("auto")}
+                      className={cn(
+                        "flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all",
+                        imageResolution === "auto"
+                          ? "bg-pink-500/20 border border-pink-500/50 text-pink-300"
+                          : "bg-white/5 border border-white/10 text-white/60 hover:bg-white/10"
+                      )}
+                    >
+                      Auto
+                    </button>
+                    {(selectedImageModel?.resolutions || ["2k"]).map((res) => (
+                      <button
+                        key={res}
+                        onClick={() => onImageResolutionChange(res)}
+                        className={cn(
+                          "flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all",
+                          imageResolution === res
+                            ? "bg-pink-500/20 border border-pink-500/50 text-pink-300"
+                            : "bg-white/5 border border-white/10 text-white/60 hover:bg-white/10"
+                        )}
+                      >
+                        {IMAGE_RESOLUTION_LABELS[res] || res}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Model Info Badge */}
+                {selectedImageModel && (
+                  <div className="flex items-center gap-3 pt-2 text-xs text-white/40">
+                    <span>${selectedImageModel.cost.toFixed(2)}/image</span>
+                    <span className="w-1 h-1 rounded-full bg-white/20" />
+                    <span>{selectedImageModel.aspectRatios.length} aspect ratios</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* VIDEO PIPELINE CARD */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-4">
+                <SectionHeader
+                  icon={Video}
+                  title="Video Pipeline"
+                  description="AI model for motion synthesis and animation"
+                  iconColor="text-orange-400"
+                />
+
+                {/* Model Selector */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-white/50">Model</Label>
+                  <Select 
+                    value={videoModel} 
+                    onValueChange={(value) => {
+                      onVideoModelChange(value);
+                      const newModel = VIDEO_MODELS.find(m => m.value === value);
+                      if (newModel && !newModel.resolutions.includes(videoResolution)) {
+                        onVideoResolutionChange(newModel.resolutions[0]);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-12 bg-white/5 border-white/10 text-white">
+                      <SelectValue placeholder="Select video model">
+                        {selectedVideoModel && (
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{selectedVideoModel.label}</span>
+                            <span className="text-xs text-white/40">• {selectedVideoModel.provider}</span>
+                            {selectedVideoModel.badge && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-orange-500/20 border-orange-500/50 text-orange-300">
+                                {selectedVideoModel.badge}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0a0a0a] border-white/10">
+                      {VIDEO_MODELS.map((model) => (
+                        <SelectItem 
+                          key={model.value} 
+                          value={model.value}
+                          className="py-3 focus:bg-orange-500/20 data-[state=checked]:bg-orange-500/20"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{model.label}</span>
+                              <span className="text-xs text-white/40">{model.provider}</span>
+                              {model.badge && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-white/10 border-white/20">
+                                  {model.badge}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-white/50">{model.description}</p>
+                            <p className="text-[10px] text-white/40">
+                              {model.durations?.join("s, ")}s • {model.resolutions.join(", ")} • {model.estimatedTime}
+                            </p>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Resolution - Inline Toggles */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-white/50">Resolution</Label>
+                  <div className="flex gap-2">
+                    {(selectedVideoModel?.resolutions || ["1080p"]).map((res) => (
+                      <button
+                        key={res}
+                        onClick={() => onVideoResolutionChange(res)}
+                        className={cn(
+                          "flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all",
+                          videoResolution === res
+                            ? "bg-orange-500/20 border border-orange-500/50 text-orange-300"
+                            : "bg-white/5 border border-white/10 text-white/60 hover:bg-white/10"
+                        )}
+                      >
+                        {VIDEO_RESOLUTION_LABELS[res] || res}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Model Info Badge */}
+                {selectedVideoModel && (
+                  <div className="flex items-center gap-3 pt-2 text-xs text-white/40">
+                    <span>${selectedVideoModel.cost.toFixed(2)}/clip</span>
+                    <span className="w-1 h-1 rounded-full bg-white/20" />
+                    <span>{selectedVideoModel.estimatedTime}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* STRATEGIC CONTEXT CARD */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-4">
+                <SectionHeader
+                  icon={Globe}
+                  title="Strategic Context"
+                  description="Cultural and demographic guidance for AI decisions"
+                  iconColor="text-purple-400"
+                />
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-white/50">Target Audience & Region</Label>
+                  <Select value={targetAudience} onValueChange={onTargetAudienceChange}>
+                    <SelectTrigger className="h-12 bg-white/5 border-white/10 text-white">
+                      <SelectValue placeholder="Select target audience..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0a0a0a] border-white/10">
+                      {AUDIENCES.map((audience) => (
+                        <SelectItem 
+                          key={audience.value} 
+                          value={audience.value}
+                          className="py-2 focus:bg-purple-500/20 data-[state=checked]:bg-purple-500/20"
+                        >
+                          {audience.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {targetAudience === "" && (
+                    <p className="text-xs text-amber-400/80">Required for AI guidance</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+          </div>
+        </ScrollArea>
+
+        {/* ─────────────────────────────────────────────────────────────────── */}
+        {/* ZONE B: OUTPUT SPECIFICATION */}
+        {/* ─────────────────────────────────────────────────────────────────── */}
+        <ScrollArea className="h-full pl-3">
+          <div className="space-y-5 pb-6">
+            
+            {/* Zone Header */}
+            <div className="flex items-center gap-2 pb-2 border-b border-white/10">
+              <Monitor className="w-5 h-5 text-cyan-400" />
+              <h2 className="text-sm font-semibold text-white uppercase tracking-wider">
+                Output Specification
+              </h2>
+            </div>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* CANVAS FORMAT CARD */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-4">
+                <SectionHeader
+                  icon={Square}
+                  title="Canvas Format"
+                  description="Video dimensions and timeline"
+                  iconColor="text-cyan-400"
+                />
+
+                {/* Aspect Ratio */}
+                <div className="space-y-3">
+                  <Label className="text-xs text-white/50">Aspect Ratio</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {ASPECT_RATIOS.map((ratio) => {
+                      const Icon = ratio.icon;
+                      return (
+                        <button
+                          key={ratio.value}
+                          onClick={() => onAspectRatioChange(ratio.value)}
+                          className={cn(
+                            "flex flex-col items-center gap-2 p-4 rounded-lg border transition-all",
+                            aspectRatio === ratio.value
+                              ? "bg-cyan-500/20 border-cyan-500/50"
+                              : "bg-white/5 border-white/10 hover:bg-white/10"
+                          )}
+                        >
+                          <Icon className={cn(
+                            "w-5 h-5",
+                            aspectRatio === ratio.value ? "text-cyan-400" : "text-white/60"
+                          )} />
+                          <span className={cn(
+                            "text-sm font-medium",
+                            aspectRatio === ratio.value ? "text-cyan-300" : "text-white/70"
+                          )}>
+                            {ratio.label}
+                          </span>
+                          <span className="text-[10px] text-white/40">{ratio.description}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Duration Slider */}
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-white/50">Target Duration</Label>
+                    <span className="text-sm font-semibold text-cyan-400">{duration}s</span>
+                  </div>
+                  <Slider
+                    value={[duration]}
+                    onValueChange={(value) => onDurationChange(value[0])}
+                    min={5}
+                    max={60}
+                    step={1}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-[10px] text-white/30">
+                    <span>5s</span>
+                    <span>30s</span>
+                    <span>60s</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* AUDIO LAYER CARD */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-4">
+                <SectionHeader
+                  icon={Mic}
+                  title="Audio Layer"
+                  description="Voice narration settings"
+                  iconColor="text-emerald-400"
+                />
+
+                {/* Voice Over Toggle */}
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-white/50">Voice Over</Label>
+                  <div className="flex bg-white/5 rounded-md p-0.5 border border-white/10">
+                    <button
+                      onClick={() => onVoiceOverToggle(true)}
+                      className={cn(
+                        "px-4 py-1.5 text-xs font-medium rounded transition-all",
+                        voiceOverEnabled 
+                          ? "bg-emerald-500/30 text-emerald-300" 
+                          : "text-white/40"
+                      )}
+                    >
+                      On
+                    </button>
+                    <button
+                      onClick={() => onVoiceOverToggle(false)}
+                      className={cn(
+                        "px-4 py-1.5 text-xs font-medium rounded transition-all",
+                        !voiceOverEnabled 
+                          ? "bg-white/10 text-white/70" 
+                          : "text-white/40"
+                      )}
+                    >
+                      Off
+                    </button>
+                  </div>
+                </div>
+
+                {/* Language Selection (Conditional) */}
+                {voiceOverEnabled && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-2"
+                  >
+                    <Label className="text-xs text-white/50">Language</Label>
+                    <Select value={language} onValueChange={(value) => onLanguageChange(value as 'ar' | 'en')}>
+                      <SelectTrigger className="h-10 bg-white/5 border-white/10 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#0a0a0a] border-white/10">
+                        {LANGUAGES.map((lang) => (
+                          <SelectItem 
+                            key={lang.value} 
+                            value={lang.value}
+                            className="py-2 focus:bg-emerald-500/20 data-[state=checked]:bg-emerald-500/20"
+                          >
+                            {lang.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </motion.div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* CREATIVE DIRECTION CARD */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-4">
+                <SectionHeader
+                  icon={Wand2}
+                  title="Creative Direction"
+                  description="Global motion and camera behavior"
+                  iconColor="text-amber-400"
+                />
+
+                {/* Motion DNA Textarea */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-white/50">Global Motion DNA</Label>
+                  <Textarea
+                    value={motionPrompt}
+                    onChange={(e) => onMotionPromptChange(e.target.value)}
+                    placeholder="Define camera movement and physics rules...
+
+Examples:
+• Cinematic macro lighting, shallow depth of field
+• Smooth dolly zoom, product center frame
+• Dynamic tracking shot, urban streetwear energy"
+                    className="min-h-[140px] resize-none bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-amber-500/50 text-sm"
+                  />
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] text-white/30">
+                      {motionPrompt.length} characters
+                    </span>
+                    {motionPrompt.trim().length === 0 && (
+                      <span className="text-xs text-amber-400/80">Required</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Custom Image Instructions Textarea */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-white/50">Custom Image Instructions</Label>
+                  <Textarea
+                    value={imageInstructions}
+                    onChange={(e) => onImageInstructionsChange(e.target.value)}
+                    placeholder="Define style and composition for image generation...
+
+Examples:
+• High contrast studio lighting, white background
+• Photorealistic product render, soft shadows
+• Lifestyle photography, natural daylight"
+                    className="min-h-[100px] resize-none bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-amber-500/50 text-sm"
+                  />
+                  <span className="text-[10px] text-white/30">
+                    {imageInstructions.length} characters
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+          </div>
+        </ScrollArea>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* COMPACT VALIDATION FOOTER */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <div className="flex-shrink-0 px-6 py-3 border-t border-white/10 bg-white/[0.02]">
+        <div className="flex items-center justify-between">
+          
+          {/* Validation Checkmarks */}
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              {isEngineReady ? (
+                <CheckCircle2 className="w-4 h-4 text-green-400" />
+              ) : (
+                <div className="w-4 h-4 rounded-full border-2 border-white/20" />
+              )}
+              <span className={cn(
+                "text-xs font-medium",
+                isEngineReady ? "text-white/70" : "text-white/40"
+              )}>
+                Engine Ready
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isCanvasSet ? (
+                <CheckCircle2 className="w-4 h-4 text-green-400" />
+              ) : (
+                <div className="w-4 h-4 rounded-full border-2 border-white/20" />
+              )}
+              <span className={cn(
+                "text-xs font-medium",
+                isCanvasSet ? "text-white/70" : "text-white/40"
+              )}>
+                Canvas Set
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isDirectionSet ? (
+                <CheckCircle2 className="w-4 h-4 text-green-400" />
+              ) : (
+                <div className="w-4 h-4 rounded-full border-2 border-white/20" />
+              )}
+              <span className={cn(
+                "text-xs font-medium",
+                isDirectionSet ? "text-white/70" : "text-white/40"
+              )}>
+                Direction Set
+              </span>
+            </div>
+          </div>
+
+          {/* Cost & Time Estimate */}
+          <div className="flex items-center gap-4">
+            {selectedImageModel && selectedVideoModel && (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <DollarSign className="w-3.5 h-3.5 text-pink-400" />
+                  <span className="text-sm font-semibold text-white">
+                    ${estimatedCost.toFixed(2)}
+                  </span>
+                  <span className="text-xs text-white/40">per gen</span>
+                </div>
+                <div className="w-px h-4 bg-white/10" />
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-orange-400" />
+                  <span className="text-sm font-medium text-white/70">
+                    {estimatedTime}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </motion.div>
   );
 }

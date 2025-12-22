@@ -38,6 +38,102 @@ const SEGMENT_CONFIG = {
   LEGACY_IDEAL_DURATION: 3.5,
 };
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SUBTITLE STYLE DEFINITIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+type SubtitleStyle = 'modern' | 'cinematic' | 'bold';
+
+interface StyleConfig {
+  fontSize: number;
+  primaryColor: string;      // ASS format: &HBBGGRR (BGR, not RGB!)
+  outlineColor: string;
+  outline: number;
+  shadow: number;
+  marginV: number;
+  bold: boolean;
+}
+
+// Fonts by language
+const FONTS = {
+  ar: 'Cairo',              // Beautiful Arabic font
+  en: 'Montserrat',         // Clean modern English font (widely available)
+  default: 'Arial',         // Fallback
+};
+
+// Style configurations for each style type
+const STYLE_CONFIGS: Record<SubtitleStyle, StyleConfig> = {
+  modern: {
+    fontSize: 20,
+    primaryColor: '&HFFFFFF',    // White
+    outlineColor: '&H000000',    // Black outline
+    outline: 2,
+    shadow: 1,
+    marginV: 25,
+    bold: false,
+  },
+  cinematic: {
+    fontSize: 22,
+    primaryColor: '&HFFFFFF',    // White
+    outlineColor: '&H222222',    // Dark gray outline
+    outline: 3,
+    shadow: 2,
+    marginV: 30,
+    bold: false,
+  },
+  bold: {
+    fontSize: 26,
+    primaryColor: '&H00FFFF',    // Yellow (BGR: 00FFFF = Yellow)
+    outlineColor: '&H000000',    // Black outline
+    outline: 4,
+    shadow: 2,
+    marginV: 35,
+    bold: true,
+  },
+};
+
+// Subtitle options interface
+export interface SubtitleOptions {
+  style?: SubtitleStyle;
+  language?: string;
+}
+
+/**
+ * Get font name based on language
+ */
+function getFontForLanguage(language: string): string {
+  if (language === 'ar') return FONTS.ar;
+  if (language === 'en') return FONTS.en;
+  // Auto-detect: if language code starts with 'ar', use Arabic font
+  if (language.startsWith('ar')) return FONTS.ar;
+  return FONTS.en;  // Default to English font
+}
+
+/**
+ * Build FFmpeg force_style string from style config
+ */
+function buildForceStyle(style: SubtitleStyle, language: string): string {
+  const config = STYLE_CONFIGS[style] || STYLE_CONFIGS.modern;
+  const fontName = getFontForLanguage(language);
+  
+  const parts = [
+    `FontName=${fontName}`,
+    `FontSize=${config.fontSize}`,
+    `PrimaryColour=${config.primaryColor}`,
+    `OutlineColour=${config.outlineColor}`,
+    `Outline=${config.outline}`,
+    `Shadow=${config.shadow}`,
+    `MarginV=${config.marginV}`,
+    `Alignment=2`,  // Center bottom
+  ];
+  
+  if (config.bold) {
+    parts.push('Bold=1');
+  }
+  
+  return parts.join(',');
+}
+
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
  * ARABIC DIACRITICS REMOVAL
@@ -310,17 +406,29 @@ function createSrtFile(scenes: Scene[]): string {
 /**
  * Burn subtitles into video using subtitles filter with SRT
  * This properly supports RTL languages like Arabic
+ * 
+ * @param videoPath - Path to input video
+ * @param scenes - Array of scenes with narration and timing
+ * @param options - Subtitle style and language options
  */
 export async function burnSubtitles(
   videoPath: string,
-  scenes: Scene[]
+  scenes: Scene[],
+  options: SubtitleOptions = {}
 ): Promise<string> {
   const outputPath = path.join(TEMP_DIR, `${randomUUID()}_with_subs.mp4`);
+  
+  // Extract options with defaults
+  const style = options.style || 'modern';
+  const language = options.language || 'en';
   
   console.log('[subtitle-generator] ═══════════════════════════════════════════════');
   console.log('[subtitle-generator] Burning subtitles into video...');
   console.log('[subtitle-generator] Input video:', videoPath);
   console.log('[subtitle-generator] Scenes count:', scenes.length);
+  console.log('[subtitle-generator] Style:', style);
+  console.log('[subtitle-generator] Language:', language);
+  console.log('[subtitle-generator] Font:', getFontForLanguage(language));
   
   // Create SRT file
   const srtPath = createSrtFile(scenes);
@@ -334,10 +442,11 @@ export async function burnSubtitles(
   console.log('[subtitle-generator] SRT path:', srtPath);
   console.log('[subtitle-generator] Escaped SRT path:', escapedSrtPath);
   
-  // Use subtitles filter with force_style for better control
-  // FontName=Cairo for beautiful Arabic, FontSize=20 for compact look
-  const subtitleFilter = `subtitles='${escapedSrtPath}':force_style='FontName=Cairo,FontSize=20,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2,Shadow=1,MarginV=25,Alignment=2'`;
+  // Build force_style based on selected style and language
+  const forceStyle = buildForceStyle(style, language);
+  const subtitleFilter = `subtitles='${escapedSrtPath}':force_style='${forceStyle}'`;
   
+  console.log('[subtitle-generator] Force style:', forceStyle);
   console.log('[subtitle-generator] Subtitle filter:', subtitleFilter);
   
   // Cleanup function

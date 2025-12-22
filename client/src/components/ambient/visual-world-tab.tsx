@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Upload, X, Sparkles, Film, Palette, Play, Wand2, Eye } from "lucide-react";
+import { ArrowRight, Upload, X, Sparkles, Film, Palette, Play, Wand2, Eye, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const ART_STYLES = [
   { id: "cinematic", label: "Cinematic", description: "Film-quality realism" },
@@ -15,37 +16,7 @@ const ART_STYLES = [
   { id: "painterly", label: "Painterly", description: "Oil painting texture" },
   { id: "watercolor", label: "Watercolor", description: "Soft, flowing edges" },
   { id: "minimalist", label: "Minimalist", description: "Clean and simple" },
-];
-
-const COLOR_PALETTES = [
-  { id: "warm", label: "Warm", colors: ["#FF6B35", "#F7931E", "#FFD700", "#FF4500"] },
-  { id: "cool", label: "Cool", colors: ["#00CED1", "#4169E1", "#7B68EE", "#6A5ACD"] },
-  { id: "monochrome", label: "Monochrome", colors: ["#2D2D2D", "#5A5A5A", "#8A8A8A", "#BABABA"] },
-  { id: "neon", label: "Neon", colors: ["#FF00FF", "#00FFFF", "#FF1493", "#00FF00"] },
-  { id: "pastel", label: "Pastel", colors: ["#FFB6C1", "#FFDAB9", "#E6E6FA", "#B0E0E6"] },
-  { id: "earth", label: "Earth Tones", colors: ["#8B4513", "#A0522D", "#D2691E", "#228B22"] },
-  { id: "sunset", label: "Sunset", colors: ["#FF4500", "#FF6347", "#FF7F50", "#FFD700"] },
-  { id: "ocean", label: "Ocean", colors: ["#006994", "#40E0D0", "#7FFFD4", "#00CED1"] },
-];
-
-const LIGHTING_MOODS = [
-  { id: "golden-hour", label: "Golden Hour" },
-  { id: "blue-hour", label: "Blue Hour" },
-  { id: "overcast", label: "Overcast" },
-  { id: "dramatic", label: "Dramatic" },
-  { id: "soft", label: "Soft & Diffused" },
-  { id: "neon-glow", label: "Neon Glow" },
-  { id: "candlelight", label: "Candlelight" },
-  { id: "moonlight", label: "Moonlight" },
-];
-
-const TEXTURES = [
-  { id: "clean", label: "Clean" },
-  { id: "film-grain", label: "Film Grain" },
-  { id: "vintage", label: "Vintage" },
-  { id: "dreamy-blur", label: "Dreamy Blur" },
-  { id: "vhs", label: "VHS Retro" },
-  { id: "noise", label: "Subtle Noise" },
+  { id: "other", label: "Other", description: "Custom style" },
 ];
 
 const VISUAL_ELEMENTS = [
@@ -61,45 +32,44 @@ const VISUAL_RHYTHMS = [
   { id: "wave", label: "Wave", description: "Rising and falling" },
 ];
 
+// Reference image with temp ID for upload tracking
+export interface TempReferenceImage {
+  tempId: string;
+  previewUrl: string;
+  originalName: string;
+}
+
 interface VisualWorldTabProps {
   artStyle: string;
-  colorPalette: string;
-  lightingMood: string;
-  texture: string;
   visualElements: string[];
   visualRhythm: string;
-  referenceImages: string[];
+  referenceImages: TempReferenceImage[];
   imageCustomInstructions?: string;
   onArtStyleChange: (style: string) => void;
-  onColorPaletteChange: (palette: string) => void;
-  onLightingMoodChange: (mood: string) => void;
-  onTextureChange: (texture: string) => void;
   onVisualElementsChange: (elements: string[]) => void;
   onVisualRhythmChange: (rhythm: string) => void;
-  onReferenceImagesChange: (images: string[]) => void;
+  onReferenceImagesChange: (images: TempReferenceImage[]) => void;
   onImageCustomInstructionsChange?: (instructions: string) => void;
   onNext: () => void;
 }
 
 export function VisualWorldTab({
   artStyle,
-  colorPalette,
-  lightingMood,
-  texture,
   visualElements,
   visualRhythm,
   referenceImages,
   imageCustomInstructions = "",
   onArtStyleChange,
-  onColorPaletteChange,
-  onLightingMoodChange,
-  onTextureChange,
   onVisualElementsChange,
   onVisualRhythmChange,
   onReferenceImagesChange,
   onImageCustomInstructionsChange,
   onNext,
 }: VisualWorldTabProps) {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   const toggleVisualElement = (element: string) => {
     if (visualElements.includes(element)) {
       onVisualElementsChange(visualElements.filter(e => e !== element));
@@ -108,15 +78,109 @@ export function VisualWorldTab({
     }
   };
 
-  const handleImageUpload = () => {
-    const mockUrl = `https://picsum.photos/seed/${Date.now()}/400/300`;
-    if (referenceImages.length < 4) {
-      onReferenceImagesChange([...referenceImages, mockUrl]);
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select an image file (JPEG, PNG, etc.)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please select an image under 10MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check max images
+    if (referenceImages.length >= 4) {
+      toast({
+        title: "Maximum images reached",
+        description: "You can upload up to 4 reference images",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/ambient-visual/upload-reference', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Upload failed');
+      }
+
+      const data = await response.json();
+      
+      // Add the new reference image to the list
+      onReferenceImagesChange([
+        ...referenceImages,
+        {
+          tempId: data.tempId,
+          previewUrl: data.previewUrl,
+          originalName: data.originalName,
+        },
+      ]);
+
+      toast({
+        title: "Image uploaded",
+        description: "Reference image ready for use",
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Failed to upload image",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      // Reset input so same file can be selected again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
-  const removeImage = (index: number) => {
+  const removeImage = async (index: number) => {
+    const imageToRemove = referenceImages[index];
+    
+    // Remove from state immediately for responsive UI
     onReferenceImagesChange(referenceImages.filter((_, i) => i !== index));
+
+    // Also delete from server temp storage (fire and forget)
+    try {
+      await fetch(`/api/ambient-visual/upload-reference/${imageToRemove.tempId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.warn('Failed to delete temp image from server:', error);
+      // Not critical - temp images are auto-cleaned anyway
+    }
   };
 
   return (
@@ -181,10 +245,25 @@ export function VisualWorldTab({
                 <p className="text-xs text-muted-foreground">
                   Upload images to guide the visual style (the AI will match the aesthetic)
                 </p>
+                
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelected}
+                  className="hidden"
+                  data-testid="input-file-reference"
+                />
+                
                 <div className="grid grid-cols-4 gap-3">
                   {referenceImages.map((img, idx) => (
-                    <div key={idx} className="relative aspect-square rounded-lg overflow-hidden group">
-                      <img src={img} alt={`Reference ${idx + 1}`} className="h-full w-full object-cover" />
+                    <div key={img.tempId} className="relative aspect-square rounded-lg overflow-hidden group">
+                      <img 
+                        src={img.previewUrl} 
+                        alt={img.originalName || `Reference ${idx + 1}`} 
+                        className="h-full w-full object-cover" 
+                      />
                       <button
                         onClick={() => removeImage(idx)}
                         className="absolute top-1 right-1 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
@@ -192,16 +271,30 @@ export function VisualWorldTab({
                       >
                         <X className="h-3 w-3" />
                       </button>
+                      {/* Show filename tooltip */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] p-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                        {img.originalName}
+                      </div>
                     </div>
                   ))}
                   {referenceImages.length < 4 && (
                     <button
-                      onClick={handleImageUpload}
-                      className="aspect-square rounded-lg border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-1 hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-colors"
+                      onClick={handleUploadClick}
+                      disabled={isUploading}
+                      className="aspect-square rounded-lg border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-1 hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       data-testid="button-upload-reference"
                     >
-                      <Upload className="h-5 w-5 text-white/50" />
-                      <span className="text-xs text-white/50">Upload</span>
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="h-5 w-5 text-cyan-400 animate-spin" />
+                          <span className="text-xs text-cyan-400">Uploading...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-5 w-5 text-white/50" />
+                          <span className="text-xs text-white/50">Upload</span>
+                        </>
+                      )}
                     </button>
                   )}
                 </div>
@@ -304,7 +397,7 @@ export function VisualWorldTab({
       <div className="flex justify-end pt-4">
         <Button
           onClick={onNext}
-          disabled={!artStyle || !colorPalette}
+          disabled={!artStyle}
           size="lg"
           variant="ghost"
           className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"

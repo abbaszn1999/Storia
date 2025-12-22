@@ -83,9 +83,10 @@ function buildImagePayload(
     aspectRatio: string;
     imageStyle: ImageStyle;
     isMidjourney: boolean;
+    styleReferenceUrl?: string; // Custom style reference image URL
   }
 ): Record<string, any> {
-  const { runwareModelId, dimensions, aspectRatio, imageStyle, isMidjourney } = options;
+  const { runwareModelId, dimensions, aspectRatio, imageStyle, isMidjourney, styleReferenceUrl } = options;
   
   // Enhance prompt with style-specific modifiers
   const enhancedPrompt = enhanceImagePrompt(
@@ -95,7 +96,7 @@ function buildImagePayload(
     scene.sceneNumber === 1
   );
 
-  return {
+  const payload: Record<string, any> = {
     taskType: "imageInference",
     taskUUID: randomUUID(),
     model: runwareModelId,
@@ -107,6 +108,16 @@ function buildImagePayload(
     includeCost: true,
     outputType: "URL",
   };
+
+  // Add style reference using referenceImages array if provided
+  // referenceImages: array of image URLs/UUIDs to guide the generation style
+  // Supported formats: PNG, JPG, WEBP - can be URL, UUID, base64, or data URI
+  if (styleReferenceUrl) {
+    payload.referenceImages = [styleReferenceUrl];
+    console.log(`[image-generator] Using referenceImages for scene ${scene.sceneNumber}:`, styleReferenceUrl);
+  }
+
+  return payload;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -264,13 +275,14 @@ async function retryFailedImages(
     dimensions: { width: number; height: number };
     aspectRatio: string;
     imageStyle: ImageStyle;
+    styleReferenceUrl?: string;
     imageModel: string;
     isMidjourney: boolean;
     userId: string;
     workspaceId?: string;
   }
 ): Promise<BatchResult[]> {
-  const { runwareModelId, dimensions, aspectRatio, imageStyle, imageModel, isMidjourney, userId, workspaceId } = options;
+  const { runwareModelId, dimensions, aspectRatio, imageStyle, styleReferenceUrl, imageModel, isMidjourney, userId, workspaceId } = options;
   
   const retriedResults: BatchResult[] = [];
   
@@ -289,6 +301,7 @@ async function retryFailedImages(
         aspectRatio,
         imageStyle,
         isMidjourney,
+        styleReferenceUrl,
       });
 
       const response = await callAi(
@@ -354,7 +367,7 @@ export async function generateImages(
   userId: string,
   workspaceName: string
 ): Promise<ImageGeneratorOutput> {
-  const { scenes, aspectRatio, imageStyle, imageModel, imageResolution, projectName, storyId } = input;
+  const { scenes, aspectRatio, imageStyle, styleReferenceUrl, imageModel, imageResolution, projectName, storyId } = input;
 
   // ─────────────────────────────────────────────────────────────────────────────
   // SETUP
@@ -375,6 +388,7 @@ export async function generateImages(
     sceneCount: scenes.length,
     aspectRatio,
     imageStyle,
+    styleReferenceUrl: styleReferenceUrl ? 'provided' : 'none',
     imageModel,
     imageResolution,
     dimensions,
@@ -410,6 +424,7 @@ export async function generateImages(
           aspectRatio,
           imageStyle,
           isMidjourney,
+          styleReferenceUrl,
         }
       ),
     };
@@ -461,6 +476,7 @@ export async function generateImages(
       dimensions,
       aspectRatio,
       imageStyle,
+      styleReferenceUrl,
       imageModel,
       isMidjourney,
       userId,

@@ -628,279 +628,6 @@ export function SceneBreakdown({
     });
   };
 
-  // TEMPORARY: Load dummy data for testing UI (Ambient mode)
-  useEffect(() => {
-    // Don't load if we already have data from parent
-    if (scenes.length > 0 || Object.keys(shots).length > 0) return;
-    if (propsGroups && Object.keys(propsGroups).length > 0) return;
-    
-    const dummyScenes: Scene[] = [
-        {
-          id: "scene-1",
-          videoId,
-          sceneNumber: 1,
-          title: "Morning Mist",
-          description: "Soft morning light filters through dense forest canopy. Mist rises gently from the forest floor as dewdrops glisten on leaves.",
-          duration: 60,
-          videoModel: null,
-          imageModel: null,
-          lighting: "Golden Hour",
-          weather: "Misty",
-          createdAt: new Date(),
-        },
-        {
-          id: "scene-2",
-          videoId,
-          sceneNumber: 2,
-          title: "Flowing Waters",
-          description: "A peaceful stream winds through moss-covered rocks. Sunlight dances on the rippling water surface creating natural patterns.",
-          duration: 45,
-          videoModel: null,
-          imageModel: null,
-          lighting: "Natural Daylight",
-          weather: "Clear",
-          createdAt: new Date(),
-        },
-        {
-          id: "scene-3",
-          videoId,
-          sceneNumber: 3,
-          title: "Forest Depths",
-          description: "Deep within the ancient forest, shafts of light pierce through the canopy. Ferns sway gently in the breeze.",
-          duration: 45,
-          videoModel: null,
-          imageModel: null,
-          lighting: "Soft Light",
-          weather: "Partly Cloudy",
-          createdAt: new Date(),
-        },
-        {
-          id: "scene-4",
-          videoId,
-          sceneNumber: 4,
-          title: "Twilight Calm",
-          description: "As evening approaches, the forest takes on warm golden tones. Birds settle into the trees as nature prepares for rest.",
-          duration: 60,
-          videoModel: null,
-          imageModel: null,
-          lighting: "Golden Hour",
-          weather: "Clear",
-          createdAt: new Date(),
-        },
-      ];
-
-      const dummyShots: { [sceneId: string]: Shot[] } = {
-        "scene-1": [
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-1",
-            shotNumber: 1,
-            shotType: "Wide Shot",
-            description: "Wide view of misty forest at dawn, soft golden light filtering through trees",
-            duration: 20,
-            cameraMovement: "slow zoom-in",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
-            transition: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-1",
-            shotNumber: 2,
-            shotType: "Close-Up",
-            description: "Dewdrops on a fern leaf, slowly rolling and catching morning light",
-            duration: 15,
-            cameraMovement: "static",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
-            transition: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-1",
-            shotNumber: 3,
-            shotType: "Medium Shot",
-            description: "Mist rising from the forest floor between ancient tree trunks",
-            duration: 25,
-            cameraMovement: "pan-left",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
-            transition: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        ],
-        "scene-2": [
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-2",
-            shotNumber: 1,
-            shotType: "Wide Shot",
-            description: "Gentle stream flowing over smooth stones, sunlight sparkling on water",
-            duration: 20,
-            cameraMovement: "static",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
-            transition: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-2",
-            shotNumber: 2,
-            shotType: "Close-Up",
-            description: "Water ripples creating natural patterns, light dancing on surface",
-            duration: 15,
-            cameraMovement: "slow zoom-in",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
-            transition: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        ],
-        "scene-3": [
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-3",
-            shotNumber: 1,
-            shotType: "Wide Shot",
-            description: "Shafts of light piercing through dense forest canopy, illuminating floating particles",
-            duration: 20,
-            cameraMovement: "tilt-up",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
-            transition: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-3",
-            shotNumber: 2,
-            shotType: "Medium Shot",
-            description: "Ferns and leaves gently swaying in soft forest breeze",
-            duration: 15,
-            cameraMovement: "static",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
-            transition: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        ],
-        "scene-4": [
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-4",
-            shotNumber: 1,
-            shotType: "Wide Shot",
-            description: "Golden sunset light bathing the forest in warm amber tones",
-            duration: 25,
-            cameraMovement: "slow pan-right",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
-            transition: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-4",
-            shotNumber: 2,
-            shotType: "Medium Shot",
-            description: "Silhouettes of trees against orange and purple twilight sky",
-            duration: 20,
-            cameraMovement: "static",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
-            transition: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            id: crypto.randomUUID(),
-            sceneId: "scene-4",
-            shotNumber: 3,
-            shotType: "Wide Shot",
-            description: "Final wide shot of peaceful forest as darkness gently settles",
-            duration: 15,
-            cameraMovement: "slow zoom-out",
-            videoModel: null,
-            imageModel: null,
-            soundEffects: null,
-            currentVersionId: null,
-            transition: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        ],
-      };
-
-      // Create dummy shot versions with placeholder images
-      const dummyShotVersions: { [shotId: string]: ShotVersion[] } = {};
-      Object.values(dummyShots).flat().forEach((shot, index) => {
-        const versionId = `version-${shot.id}-1`;
-        // More variety of nature/landscape images using picsum with different seeds
-        const imageSeeds = [
-          'forest-dawn', 'misty-mountains', 'dewdrop-leaf', 'ancient-trees', 
-          'stream-stones', 'waterfall-mist', 'sunbeam-canopy', 'fern-closeup',
-          'golden-hour', 'twilight-forest', 'peaceful-lake', 'moss-rocks'
-        ];
-        const seed = imageSeeds[index % imageSeeds.length];
-        const imageUrl = `https://picsum.photos/seed/${seed}-${index}/800/450`;
-
-        dummyShotVersions[shot.id] = [
-          {
-            id: versionId,
-            shotId: shot.id,
-            versionNumber: 1,
-            imagePrompt: shot.description || '',
-            imageUrl,
-            startFramePrompt: null,
-            startFrameUrl: null,
-            endFramePrompt: null,
-            endFrameUrl: null,
-            videoPrompt: null,
-            videoUrl: null,
-            videoDuration: null,
-            status: "completed",
-            needsRerender: false,
-            createdAt: new Date(),
-          },
-        ];
-        
-        // Update shot to reference this version
-        shot.currentVersionId = versionId;
-      });
-
-    setSynopsis("A peaceful journey through a tranquil forest, from misty dawn to golden twilight. Experience the gentle beauty of nature as light plays through the canopy, water flows over ancient stones, and the forest transitions through the day's quiet moments.");
-    onScenesGenerated(dummyScenes, dummyShots, dummyShotVersions);
-  }, []);
-
   const moveScene = (sceneId: string, direction: 'up' | 'down') => {
     const sceneIndex = scenes.findIndex(s => s.id === sceneId);
     if (sceneIndex < 0) return;
@@ -965,28 +692,44 @@ export function SceneBreakdown({
 
   const handleGenerateBreakdown = async () => {
     try {
-      const response = await fetch('/api/narrative/breakdown', {
+      const response = await fetch('/api/ambient-visual/flow-design/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoId,
-          script,
-          model: scriptModel,
         }),
       });
-      if (!response.ok) throw new Error('Failed to generate breakdown');
-      const data = await response.json() as { scenes: Scene[]; shots: { [sceneId: string]: Shot[] } };
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate flow design');
+      }
+      const data = await response.json() as { 
+        scenes: Scene[]; 
+        shots: { [sceneId: string]: Shot[] };
+        shotVersions?: { [shotId: string]: ShotVersion[] };
+        continuityGroups?: { [sceneId: string]: import("@/types/storyboard").ContinuityGroup[] };
+        totalDuration?: number;
+        cost?: number;
+      };
       
-      onScenesGenerated(data.scenes, data.shots);
-      setSynopsis(script.substring(0, 200));
+      onScenesGenerated(data.scenes, data.shots, data.shotVersions);
+      
+      // Update continuity groups if provided
+      if (data.continuityGroups && onContinuityGroupsChange) {
+        onContinuityGroupsChange(data.continuityGroups);
+      }
+      
+      // Set synopsis from script/mood description
+      setSynopsis(script ? script.substring(0, 200) : 'AI-generated ambient visual flow');
       toast({
-        title: "Breakdown Complete",
-        description: `Generated ${data.scenes.length} scenes with shots.`,
+        title: "Flow Design Complete",
+        description: `Generated ${data.scenes.length} segments with ${Object.values(data.shots).flat().length} shots.`,
       });
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to generate flow design';
       toast({
-        title: "Breakdown Failed",
-        description: "Failed to analyze script. Please try again.",
+        title: "Generation Failed",
+        description: message,
         variant: "destructive",
       });
     }

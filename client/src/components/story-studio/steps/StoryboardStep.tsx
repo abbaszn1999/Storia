@@ -155,6 +155,7 @@ export function StoryboardStep({
     const newScene: StoryScene = {
       id: `scene-${Date.now()}`,
       sceneNumber: scenes.length + 1,
+      description: '',
       narration: '',
       isAnimated: true,
       transition: 'slide',
@@ -217,28 +218,48 @@ export function StoryboardStep({
               </div>
             </div>
             
-            {/* Animate All Button - Only for image-to-video mode */}
-            {imageMode === 'image-to-video' && scenes.length > 0 && scenes.every(s => s.imageUrl) && (
-              <Button
-                onClick={onGenerateVideos}
-                disabled={isGenerating}
-                className={cn(
-                  "gap-2 bg-gradient-to-r shadow-lg shadow-orange-500/20",
-                  "hover:shadow-orange-500/30 hover:scale-105 transition-all duration-300",
-                  "font-semibold",
-                  accentClasses
-                )}
-                size="sm"
-              >
-                {isGenerating ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Video className="w-4 h-4" />
-                )}
-                Animate All
-                <Sparkles className="w-3 h-3" />
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* Regenerate All Button */}
+              {scenes.length > 0 && onRegenerateEnhancement && (
+                <Button
+                  onClick={onRegenerateEnhancement}
+                  disabled={isEnhancing || isGeneratingImages || isGenerating}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-white/20 hover:bg-white/10"
+                >
+                  {isEnhancing ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  Regenerate All
+                </Button>
+              )}
+              
+              {/* Animate All Button - Only for image-to-video mode */}
+              {imageMode === 'image-to-video' && scenes.length > 0 && scenes.every(s => s.imageUrl) && (
+                <Button
+                  onClick={onGenerateVideos}
+                  disabled={isGenerating}
+                  className={cn(
+                    "gap-2 bg-gradient-to-r shadow-lg shadow-orange-500/20",
+                    "hover:shadow-orange-500/30 hover:scale-105 transition-all duration-300",
+                    "font-semibold",
+                    accentClasses
+                  )}
+                  size="sm"
+                >
+                  {isGenerating ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Video className="w-4 h-4" />
+                  )}
+                  Animate All
+                  <Sparkles className="w-3 h-3" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -353,14 +374,22 @@ export function StoryboardStep({
                   "w-20 h-20 rounded-full flex items-center justify-center mx-auto",
                   "bg-gradient-to-br", accentClasses
                 )}>
-                  <Wand2 className="w-10 h-10 text-white" />
+                  <motion.div
+                    animate={{ 
+                      rotate: [0, -15, 15, -10, 10, 0],
+                      y: [0, -3, 3, -2, 2, 0],
+                    }}
+                    transition={{ 
+                      duration: 1.5, 
+                      repeat: Infinity, 
+                      ease: "easeInOut",
+                      repeatDelay: 0.5
+                    }}
+                  >
+                    <Wand2 className="w-10 h-10 text-white" />
+                  </motion.div>
                 </div>
-                <motion.div
-                  className="absolute inset-0 rounded-full border-4 border-white/30"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                />
-              </div>
+               </div>
               <div>
                 <h3 className="text-xl font-bold text-white mb-2">Creating Storyboard...</h3>
                 <p className="text-white/60 text-sm">
@@ -491,21 +520,23 @@ export function StoryboardStep({
                   "flex items-center justify-center"
                 )}>
                   {/* Loading Overlay - Shows inside the box only */}
-                  {/* Show when: batch image generation OR single image regeneration OR video generation */}
-                  {(isGeneratingImages || isGeneratingImage || isGeneratingVideo) && (
+                  {/* Show when: batch image generation OR single image regeneration OR video generation OR batch video (Animate All) */}
+                  {(isGeneratingImages || isGeneratingImage || isGeneratingVideo || (isGenerating && activeMediaTab === 'video')) && (
                     <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm">
                       <RefreshCw className="w-12 h-12 text-white/60 mb-3 animate-spin" />
                       <p className="text-white/70 text-sm font-medium">
-                        {isGeneratingVideo 
-                          ? 'Generating Video...' 
-                          : isGeneratingImages 
-                            ? 'Generating Images...'
-                            : 'Generating Image...'}
+                        {(isGenerating && activeMediaTab === 'video')
+                          ? 'Generating All Videos...'
+                          : isGeneratingVideo 
+                            ? 'Generating Video...' 
+                            : isGeneratingImages 
+                              ? 'Generating Images...'
+                              : 'Generating Image...'}
                       </p>
                       <p className="text-white/40 text-xs mt-1">
-                        {isGeneratingImages 
+                        {(isGenerating && activeMediaTab === 'video') || isGeneratingImages 
                           ? `${scenes.length} scenes`
-                          : `Scene ${selectedSceneData.sceneNumber}`}
+                          : `Scene ${selectedSceneData?.sceneNumber}`}
                       </p>
                     </div>
                   )}
@@ -566,10 +597,10 @@ export function StoryboardStep({
                       <Button
                         size="sm"
                         onClick={() => handleGenerateVideo(selectedSceneData)}
-                        disabled={isGeneratingVideo || !selectedSceneData.imageUrl}
+                        disabled={isGeneratingVideo || isGenerating || !selectedSceneData.imageUrl}
                         className={cn("gap-2 bg-gradient-to-r", accentClasses)}
                       >
-                        {isGeneratingVideo ? (
+                        {(isGeneratingVideo || isGenerating) ? (
                           <RefreshCw className="w-4 h-4 animate-spin" />
                         ) : (
                           <Video className="w-4 h-4" />

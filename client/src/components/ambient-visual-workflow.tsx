@@ -1,6 +1,6 @@
 import { useState, useImperativeHandle, forwardRef, useEffect } from "react";
 import { AtmosphereTab } from "./ambient/atmosphere-tab";
-import { VisualWorldTab } from "./ambient/visual-world-tab";
+import { VisualWorldTab, type TempReferenceImage } from "./ambient/visual-world-tab";
 import { FlowDesignTab } from "./ambient/flow-design-tab";
 import { StoryboardEditor } from "./ambient/storyboard-editor";
 import { PreviewTab } from "./ambient/preview-tab";
@@ -26,6 +26,7 @@ interface AmbientVisualWorkflowProps {
   initialAnimationMode?: 'image-transitions' | 'video-animation';
   initialVideoGenerationMode?: 'image-reference' | 'start-end-frame';
   initialStep1Data?: Record<string, unknown>;  // Saved step1 data from database
+  initialStep2Data?: Record<string, unknown>;  // Saved step2 data from database
 }
 
 export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, AmbientVisualWorkflowProps>(({
@@ -38,11 +39,15 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   initialAnimationMode = 'image-transitions',
   initialVideoGenerationMode,
   initialStep1Data,
+  initialStep2Data,
 }, ref) => {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   // Track the videoId that was used to initialize, to detect when we need to re-initialize
   const [initializedForVideoId, setInitializedForVideoId] = useState<string | null>(null);
+  const [step2Initialized, setStep2Initialized] = useState(false);
+  // Flag to trigger auto-generation in Flow Design when coming from Step 2
+  const [shouldAutoGenerateFlow, setShouldAutoGenerateFlow] = useState(false);
   
   // Atmosphere State
   const [mood, setMood] = useState("calm");
@@ -98,12 +103,15 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   
   // Visual World State
   const [artStyle, setArtStyle] = useState("cinematic");
-  const [colorPalette, setColorPalette] = useState("warm");
-  const [lightingMood, setLightingMood] = useState("golden-hour");
-  const [texture, setTexture] = useState("clean");
   const [visualElements, setVisualElements] = useState<string[]>([]);
-  const [referenceImages, setReferenceImages] = useState<string[]>([]);
+  // Reference images with temp IDs (for upload tracking before permanent save)
+  const [referenceImages, setReferenceImages] = useState<TempReferenceImage[]>([]);
   const [imageCustomInstructions, setImageCustomInstructions] = useState("");
+  
+  // Debug: Log artStyle changes
+  useEffect(() => {
+    console.log('[AmbientWorkflow] artStyle changed to:', artStyle);
+  }, [artStyle]);
 
   // Flow Design State
   const [transitionStyle, setTransitionStyle] = useState("auto");
@@ -197,8 +205,57 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     if (data.cameraMotion) setCameraMotion(data.cameraMotion as string);
     
     setInitializedForVideoId(videoId);
+    setStep2Initialized(false); // Reset step2 flag when video changes
     console.log('[AmbientWorkflow] State restored successfully for video:', videoId);
   }, [initialStep1Data, videoId, initializedForVideoId]);
+
+  // Restore Step 2 (Visual World) data when video is reopened
+  useEffect(() => {
+    if (!initialStep2Data || !videoId) {
+      console.log('[AmbientWorkflow] Waiting for step2 data - initialStep2Data:', !!initialStep2Data, 'videoId:', videoId);
+      return;
+    }
+    
+    if (initializedForVideoId !== videoId) {
+      console.log('[AmbientWorkflow] Waiting for step1 to initialize before step2');
+      return; // Wait for step1 to initialize first
+    }
+    
+    if (step2Initialized) {
+      console.log('[AmbientWorkflow] Step2 already initialized');
+      return;
+    }
+    
+    const data = initialStep2Data;
+    console.log('[AmbientWorkflow] Restoring step2 data:', data);
+    
+    // Restore Visual World settings
+    if (data.artStyle) {
+      console.log('[AmbientWorkflow] Setting artStyle to:', data.artStyle);
+      setArtStyle(data.artStyle as string);
+    }
+    if (data.visualElements) setVisualElements(data.visualElements as string[]);
+    if (data.visualRhythm) setVisualRhythm(data.visualRhythm as string);
+    
+    // Handle referenceImages - these are CDN URLs from database (already saved)
+    // Convert them to TempReferenceImage format for display
+    // Note: These are already permanent URLs, not temp uploads
+    if (data.referenceImages && Array.isArray(data.referenceImages)) {
+      const cdnUrls = data.referenceImages as string[];
+      const restoredImages: TempReferenceImage[] = cdnUrls.map((url, index) => ({
+        tempId: `restored-${index}`,  // Mark as restored, not temp
+        previewUrl: url,  // CDN URL works as preview
+        originalName: `Reference ${index + 1}`,  // Extract filename if possible
+      }));
+      setReferenceImages(restoredImages);
+      console.log('[AmbientWorkflow] Restored reference images from CDN:', cdnUrls.length);
+    }
+    
+    if (data.imageCustomInstructions) setImageCustomInstructions(data.imageCustomInstructions as string);
+    
+    setStep2Initialized(true);
+    console.log('[AmbientWorkflow] Step2 data restored successfully');
+  }, [initialStep2Data, videoId, initializedForVideoId, step2Initialized]);
 
   // Save Step 1 (Atmosphere) data to database
   const saveStep1Data = async (): Promise<boolean> => {
@@ -283,6 +340,65 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     }
   };
 
+  // Save Step 2 (Visual World) data to database
+  // This uploads temp reference images to Bunny CDN permanently
+  const saveStep2Data = async (): Promise<boolean> => {
+    if (!videoId || videoId === 'new') {
+      toast({
+        title: "Error",
+        description: "Cannot save - no video ID available.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    setIsSaving(true);
+    onSaveStateChange?.(true);
+    
+    try {
+      // Separate restored images (already CDN URLs) from new temp uploads
+      const restoredImages = referenceImages.filter(img => img.tempId.startsWith('restored-'));
+      const newTempImages = referenceImages.filter(img => !img.tempId.startsWith('restored-'));
+      
+      // Extract existing CDN URLs from restored images
+      const existingReferenceUrls = restoredImages.map(img => img.previewUrl);
+      // Extract temp IDs from new uploads for Bunny upload
+      const referenceTempIds = newTempImages.map(img => img.tempId);
+      
+      const response = await fetch(`/api/ambient-visual/videos/${videoId}/step/2/continue`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          artStyle,
+          visualElements,
+          visualRhythm,
+          existingReferenceUrls, // Already saved CDN URLs
+          referenceTempIds, // New temp IDs - backend will upload to Bunny
+          imageCustomInstructions,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save visual world settings');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('[AmbientWorkflow] Save error:', error);
+      toast({
+        title: "Save Failed",
+        description: error instanceof Error ? error.message : "Failed to save visual world settings",
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setIsSaving(false);
+      onSaveStateChange?.(false);
+    }
+  };
+
   // Handler to update mood description and capture settings snapshot
   const handleMoodDescriptionChange = (newDescription: string) => {
     setMoodDescription(newDescription);
@@ -327,6 +443,9 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
       if (activeStep === 1) {
         return saveStep1Data();
       }
+      if (activeStep === 2) {
+        return saveStep2Data();
+      }
       // For other steps, return true (no save needed yet)
       return true;
     },
@@ -335,10 +454,20 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   }));
 
   const goToNextStep = async () => {
-    // For Step 1 (Atmosphere), save data before continuing
+    // Save data before continuing for steps that require it
     if (activeStep === 1) {
       const success = await saveStep1Data();
       if (success) {
+        onStepChange(activeStep + 1);
+      }
+    } else if (activeStep === 2) {
+      const success = await saveStep2Data();
+      if (success) {
+        // Trigger auto-generation when entering Flow Design from Step 2
+        // Only if we don't already have scene data
+        if (scenes.length === 0) {
+          setShouldAutoGenerateFlow(true);
+        }
         onStepChange(activeStep + 1);
       }
     } else {
@@ -379,9 +508,10 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
         id: `version-${Date.now()}`,
         shotId: shotId,
         versionNumber: (shotVersions[shotId]?.length || 0) + 1,
-        visualPrompt: shot.visualPrompt || "",
+        imagePrompt: shot.description || "",
         imageUrl: `https://picsum.photos/seed/${Date.now()}/640/360`,
-        selected: true,
+        status: 'completed',
+        needsRerender: false,
         createdAt: new Date(),
       };
       setShotVersions(prev => ({
@@ -488,17 +618,16 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
       id: `scene-${Date.now()}`,
       videoId: `ambient-${Date.now()}`,
       sceneNumber: afterSceneIndex + 2,
-      description: "New scene",
-      setting: "",
+      title: "New Scene",
+      description: "New scene description",
       duration: 10,
-      order: afterSceneIndex + 1,
       createdAt: new Date(),
     };
     setScenes(prev => {
       const newScenes = [...prev];
       newScenes.splice(afterSceneIndex + 1, 0, newScene);
       // Update order for all scenes
-      return newScenes.map((s, i) => ({ ...s, order: i, sceneNumber: i + 1 }));
+      return newScenes.map((s, i) => ({ ...s, sceneNumber: i + 1 }));
     });
     setShots(prev => ({ ...prev, [newScene.id]: [] }));
   };
@@ -509,13 +638,12 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
       sceneId: sceneId,
       shotNumber: afterShotIndex + 2,
       description: "New shot",
-      visualPrompt: "",
       duration: 5,
       shotType: "Medium Shot",
-      cameraAngle: "Eye Level",
-      order: afterShotIndex + 1,
+      cameraMovement: "Static",
       currentVersionId: null,
       createdAt: new Date(),
+      updatedAt: new Date(),
     };
     setShots(prev => {
       const sceneShots = [...(prev[sceneId] || [])];
@@ -523,7 +651,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
       // Update order for all shots in scene
       return {
         ...prev,
-        [sceneId]: sceneShots.map((s, i) => ({ ...s, order: i, shotNumber: i + 1 }))
+        [sceneId]: sceneShots.map((s, i) => ({ ...s, shotNumber: i + 1 }))
       };
     });
   };
@@ -637,17 +765,11 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
         return (
           <VisualWorldTab
             artStyle={artStyle}
-            colorPalette={colorPalette}
-            lightingMood={lightingMood}
-            texture={texture}
             visualElements={visualElements}
             visualRhythm={visualRhythm}
             referenceImages={referenceImages}
             imageCustomInstructions={imageCustomInstructions}
             onArtStyleChange={setArtStyle}
-            onColorPaletteChange={setColorPalette}
-            onLightingMoodChange={setLightingMood}
-            onTextureChange={setTexture}
             onVisualElementsChange={setVisualElements}
             onVisualRhythmChange={setVisualRhythm}
             onReferenceImagesChange={setReferenceImages}
@@ -658,7 +780,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
       case 3:
         return (
           <FlowDesignTab
-            videoId={`ambient-${Date.now()}`}
+            videoId={videoId || ''}
             script={moodDescription}
             scriptModel="gemini-flash"
             narrativeMode={videoGenerationMode === 'start-end-frame' ? 'start-end' : 'image-reference'}
@@ -668,9 +790,11 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
             continuityLocked={continuityLocked}
             continuityGroups={continuityGroups}
             animationMode={animationMode}
+            autoGenerate={shouldAutoGenerateFlow}
             onScenesGenerated={handleScenesGenerated}
             onContinuityLocked={handleContinuityLocked}
             onContinuityGroupsChange={handleContinuityGroupsChange}
+            onGenerationComplete={() => setShouldAutoGenerateFlow(false)}
             onNext={goToNextStep}
           />
         );
@@ -724,7 +848,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
         return (
           <PreviewTab
             segments={previewSegments}
-            loopMode={loopMode ? "enabled" : "disabled"}
+            loopMode={loopMode ? "enabled" : "none"}
             duration={duration}
             onNext={goToNextStep}
           />
@@ -733,7 +857,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
         return (
           <ExportTab
             projectName={projectName}
-            loopMode={loopMode}
+            loopMode={loopMode ? "enabled" : "none"}
             totalDuration={totalDuration}
           />
         );

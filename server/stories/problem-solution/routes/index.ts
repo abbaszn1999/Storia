@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import multer from "multer";
 import { isAuthenticated, getCurrentUserId } from "../../../auth";
 import { generateStory } from "../agents/idea-generator";
 import { generateScenes } from "../agents/scene-generator";
@@ -8,10 +9,46 @@ import { generateVoiceover } from "../agents/voiceover-generator";
 import { generateMusic } from "../agents/music-generator";
 import { generateVideos } from "../agents/video-generator";
 import { exportFinalVideo, remixVideo } from "../agents/video-exporter";
-import { generateSocialMetadata } from "../agents/social-metadata-generator";
 import { storage } from "../../../storage";
+import * as bunnyStorage from "../../../storage/bunny-storage";
+import { buildStoryModePath, deleteFile } from "../../../storage/bunny-storage";
 import { isValidMusicStyle, type MusicStyle } from "../prompts/music-prompts";
-import type { SocialPlatform } from "../types";
+
+// Configure multer for memory storage - Image uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+});
+
+// Configure multer for memory storage - Audio uploads (custom music)
+const audioUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit for audio
+  fileFilter: (req, file, cb) => {
+    const validMimeTypes = [
+      'audio/mpeg', 'audio/mp3', 
+      'audio/wav', 'audio/x-wav', 
+      'audio/m4a', 'audio/x-m4a', 'audio/mp4',
+      'audio/ogg', 'audio/vorbis'
+    ];
+    const fileName = file.originalname.toLowerCase();
+    const hasValidExtension = /\.(mp3|wav|m4a|ogg)$/.test(fileName);
+    const hasValidMime = validMimeTypes.some(type => file.mimetype.includes(type.split('/')[1]));
+    
+    if (hasValidExtension || hasValidMime) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only audio files are allowed (MP3, WAV, M4A, OGG)'));
+    }
+  },
+});
 
 const psRouter = Router();
 
@@ -172,7 +209,7 @@ psRouter.post(
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const { storyId, scenes, aspectRatio, imageStyle, imageModel, imageResolution, projectName, workspaceId } = req.body || {};
+      const { storyId, scenes, aspectRatio, imageStyle, styleReferenceUrl, imageModel, imageResolution, projectName, workspaceId } = req.body || {};
 
       if (!scenes || !Array.isArray(scenes) || scenes.length === 0) {
         return res.status(400).json({ error: "scenes array is required" });
@@ -186,6 +223,7 @@ psRouter.post(
         sceneCount: scenes.length,
         aspectRatio: aspectRatio || "9:16",
         imageStyle: imageStyle || "photorealistic",
+        styleReferenceUrl: styleReferenceUrl ? 'provided' : 'none',
         imageModel: imageModel || "nano-banana",
         imageResolution: imageResolution || "1k",
       });
@@ -201,6 +239,7 @@ psRouter.post(
           scenes,
           aspectRatio: aspectRatio || "9:16",
           imageStyle: imageStyle || "photorealistic",
+          styleReferenceUrl: styleReferenceUrl || undefined, // Custom style reference
           imageModel: imageModel || "nano-banana",
           imageResolution: imageResolution || "1k",
           projectName: projectName || "Untitled",
@@ -241,6 +280,7 @@ psRouter.post(
         imagePrompt, 
         aspectRatio, 
         imageStyle,
+        styleReferenceUrl,
         imageModel,
         imageResolution,
         projectName, 
@@ -275,6 +315,7 @@ psRouter.post(
           }],
           aspectRatio: aspectRatio || "9:16",
           imageStyle: imageStyle || "photorealistic",
+          styleReferenceUrl: styleReferenceUrl || undefined, // Custom style reference
           imageModel: imageModel || "nano-banana",
           imageResolution: imageResolution || "1k",
           projectName: projectName || "Untitled",
@@ -741,6 +782,7 @@ psRouter.post(
         animationMode,
         backgroundMusic,
         musicStyle,          // AI music style (e.g., "cinematic", "upbeat")
+        customMusicUrl,      // User-uploaded custom music URL (takes priority)
         storyTopic,          // Topic for context-aware music generation
         voiceVolume,
         musicVolume,
@@ -748,6 +790,8 @@ psRouter.post(
         exportFormat,
         exportQuality,
         textOverlay,
+        textOverlayStyle,    // Style: 'modern' | 'cinematic' | 'bold'
+        language,            // Language for font selection: 'en' | 'ar'
         projectName,
         workspaceId,
       } = req.body;
@@ -799,11 +843,13 @@ psRouter.post(
       console.log("[problem-solution:routes] Starting video export:");
       console.log("[problem-solution:routes]   Scene count:", scenes.length);
       console.log("[problem-solution:routes]   Animation mode:", animationMode);
-      console.log("[problem-solution:routes]   Music style:", musicStyle || 'none');
+      console.log("[problem-solution:routes]   Music:", customMusicUrl ? 'custom-upload' : (musicStyle || 'none'));
       console.log("[problem-solution:routes]   Story topic:", storyTopic?.substring(0, 50) || 'N/A');
       console.log("[problem-solution:routes]   Format:", exportFormat);
       console.log("[problem-solution:routes]   Quality:", exportQuality);
       console.log("[problem-solution:routes]   Text overlay:", textOverlay);
+      console.log("[problem-solution:routes]   Text overlay style:", textOverlayStyle || 'modern');
+      console.log("[problem-solution:routes]   Language:", language || 'en');
       console.log("[problem-solution:routes] ═══════════════════════════════════════════════");
 
       // Get workspace name
@@ -819,6 +865,7 @@ psRouter.post(
           animationMode,
           backgroundMusic,
           musicStyle: musicStyle || 'none',       // AI music style
+          customMusicUrl: customMusicUrl || undefined, // User-uploaded custom music
           storyTopic: storyTopic || '',           // For context-aware music generation
           voiceVolume: voiceVolume || 100,
           musicVolume: musicVolume || 50,
@@ -826,6 +873,8 @@ psRouter.post(
           exportFormat: exportFormat || 'mp4',
           exportQuality: exportQuality || '1080p',
           textOverlay: textOverlay !== false,
+          textOverlayStyle: textOverlayStyle || 'modern',  // Style: 'modern' | 'cinematic' | 'bold'
+          language: language || 'en',                       // Language for font selection
           projectName: projectName || 'Untitled',
           workspaceId: workspaceId || 'default',
         },
@@ -835,6 +884,9 @@ psRouter.post(
 
       console.log("[problem-solution:routes] Export complete:", {
         videoUrl: result.videoUrl,
+        videoBaseUrl: result.videoBaseUrl ? '✓ present' : '✗ missing',
+        voiceoverUrl: result.voiceoverUrl ? '✓ present' : '✗ missing',
+        musicUrl: result.musicUrl ? '✓ present' : '✗ missing',
         duration: result.duration,
         size: `${(result.size / 1024 / 1024).toFixed(2)}MB`,
       });
@@ -930,12 +982,13 @@ psRouter.post(
 );
 
 /**
- * POST /api/problem-solution/social-metadata
- * Generates platform-specific metadata for social media
+ * POST /api/problem-solution/style-reference/upload
+ * Upload a style reference image for AI image generation
  */
 psRouter.post(
-  "/social-metadata",
+  "/style-reference/upload",
   isAuthenticated,
+  upload.single("file"),
   async (req: Request, res: Response) => {
     try {
       const userId = getCurrentUserId(req);
@@ -943,53 +996,180 @@ psRouter.post(
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const { platform, scriptText, duration } = req.body || {};
+      if (!req.file) {
+        return res.status(400).json({ error: "No file provided" });
+      }
 
-      // Validate platform
-      const validPlatforms: SocialPlatform[] = ['youtube', 'tiktok', 'instagram', 'facebook'];
-      if (!platform || !validPlatforms.includes(platform)) {
+      const { workspaceId } = req.body;
+
+      // Get workspace name for path building
+      const workspaces = await storage.getWorkspacesByUserId(userId);
+      const workspace = workspaces.find(w => w.id === workspaceId);
+      const workspaceName = workspace?.name || 'default';
+
+      // Build the storage path
+      // Store in StyleReference folder with a fixed filename so it gets replaced on re-upload
+      const bunnyPath = buildStoryModePath({
+        userId,
+        workspaceName,
+        toolMode: "problem-solution",
+        projectName: "_StyleReference", // Special folder for style references
+        filename: "custom_style.jpg", // Fixed name so it gets replaced
+      });
+
+      // Try to delete old file first (ignore errors if it doesn't exist)
+      try {
+        await deleteFile(bunnyPath);
+        console.log('[style-reference] Deleted old style reference');
+      } catch {
+        // File may not exist, ignore
+      }
+
+      // Upload the new style reference image
+      const cdnUrl = await bunnyStorage.uploadFile(
+        bunnyPath,
+        req.file.buffer,
+        req.file.mimetype
+      );
+
+      console.log('[style-reference] Style reference uploaded:', cdnUrl);
+
+      res.json({ 
+        success: true, 
+        url: cdnUrl,
+        message: "Style reference uploaded successfully"
+      });
+    } catch (error) {
+      console.error("[style-reference] Upload error:", error);
+      res.status(500).json({ 
+        error: "Failed to upload style reference",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/problem-solution/custom-music/upload
+ * Upload custom background music for video export
+ * - Validates file type (MP3, WAV, M4A, OGG)
+ * - Validates duration (max 5 minutes = 300 seconds)
+ * - Stores in BunnyCDN, replacing old file if exists
+ */
+psRouter.post(
+  "/custom-music/upload",
+  isAuthenticated,
+  audioUpload.single("file"),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No file provided" });
+      }
+
+      // Validate file type
+      const validMimeTypes = [
+        'audio/mpeg', 'audio/mp3', 
+        'audio/wav', 'audio/x-wav', 
+        'audio/m4a', 'audio/x-m4a', 'audio/mp4',
+        'audio/ogg', 'audio/vorbis'
+      ];
+      
+      const fileName = req.file.originalname.toLowerCase();
+      const hasValidExtension = /\.(mp3|wav|m4a|ogg)$/.test(fileName);
+      const hasValidMime = validMimeTypes.some(type => 
+        req.file!.mimetype.includes(type.split('/')[1])
+      );
+
+      if (!hasValidExtension && !hasValidMime) {
         return res.status(400).json({ 
-          error: "Invalid platform. Must be one of: youtube, tiktok, instagram, facebook" 
+          error: "Invalid file type",
+          message: "Please upload MP3, WAV, M4A, or OGG audio files"
         });
       }
 
-      if (!scriptText || !scriptText.trim()) {
-        return res.status(400).json({ error: "scriptText is required" });
+      // Max file size: 50MB
+      if (req.file.size > 50 * 1024 * 1024) {
+        return res.status(400).json({ 
+          error: "File too large",
+          message: "Maximum file size is 50MB"
+        });
       }
 
-      if (!duration || duration < 1) {
-        return res.status(400).json({ error: "duration is required and must be > 0" });
+      const { workspaceId } = req.body;
+
+      // Get audio duration using FFprobe (pass buffer directly)
+      let audioDuration = 0;
+      try {
+        const { getAudioDuration } = await import('../services/ffmpeg-helpers');
+        audioDuration = await getAudioDuration(req.file.buffer);
+      } catch (durationError) {
+        console.warn('[custom-music] Could not get audio duration:', durationError);
+        // Default to 0 if we can't get duration - continue anyway
       }
 
-      console.log('[problem-solution:routes] Generating social metadata:', {
-        platform,
-        scriptLength: scriptText.length,
-        duration,
+      // Max duration: 5 minutes (300 seconds)
+      if (audioDuration > 300) {
+        const mins = Math.floor(audioDuration / 60);
+        const secs = Math.floor(audioDuration % 60);
+        return res.status(400).json({ 
+          error: "Audio too long",
+          message: `Maximum duration is 5 minutes. Your file is ${mins}:${secs.toString().padStart(2, '0')}`
+        });
+      }
+
+      // Get workspace name for path building
+      const workspaces = await storage.getWorkspacesByUserId(userId);
+      const workspace = workspaces.find(w => w.id === workspaceId);
+      const workspaceName = workspace?.name || 'default';
+
+      // Determine file extension
+      const extension = fileName.match(/\.(mp3|wav|m4a|ogg)$/i)?.[1] || 'mp3';
+
+      // Build the storage path
+      const bunnyPath = buildStoryModePath({
+        userId,
+        workspaceName,
+        toolMode: "problem-solution",
+        projectName: "_CustomMusic", // Special folder for custom music
+        filename: `custom_music.${extension}`, // Fixed name so it gets replaced
       });
 
-      const result = await generateSocialMetadata(
-        {
-          platform,
-          scriptText: scriptText.trim(),
-          duration,
-        },
-        userId,
-        req.headers["x-workspace-id"] as string | undefined
+      // Try to delete old file first (ignore errors if it doesn't exist)
+      try {
+        await deleteFile(bunnyPath);
+        console.log('[custom-music] Deleted old custom music');
+      } catch {
+        // File may not exist, ignore
+      }
+
+      // Upload the new custom music file
+      const cdnUrl = await bunnyStorage.uploadFile(
+        bunnyPath,
+        req.file.buffer,
+        req.file.mimetype
       );
 
-      console.log('[problem-solution:routes] Social metadata generated:', {
-        platform: result.platform,
-        hasTitle: !!result.title,
-        hasDescription: !!result.description,
-        hasCaption: !!result.caption,
-        cost: result.cost,
+      console.log('[custom-music] Custom music uploaded:', { 
+        url: cdnUrl, 
+        duration: audioDuration,
+        size: req.file.size 
       });
 
-      res.json(result);
+      res.json({ 
+        success: true, 
+        url: cdnUrl,
+        duration: audioDuration,
+        message: "Custom music uploaded successfully"
+      });
     } catch (error) {
-      console.error("[problem-solution:routes] Social metadata generation failed:", error);
+      console.error("[custom-music] Upload error:", error);
       res.status(500).json({ 
-        error: "Failed to generate social metadata",
+        error: "Failed to upload custom music",
         details: error instanceof Error ? error.message : String(error)
       });
     }

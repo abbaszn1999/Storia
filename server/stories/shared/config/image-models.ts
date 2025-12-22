@@ -17,6 +17,7 @@ export interface ImageModelConfig {
   maxPromptLength: number;
   supportsSeed: boolean;
   supportsNegativePrompt: boolean;
+  supportsStyleReference: boolean; // Whether model supports seedImage for style transfer
   default?: boolean;
 }
 
@@ -45,6 +46,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 3000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: false, // Google models don't support seedImage in Runware
     default: true,
   },
 
@@ -66,6 +68,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 45000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: false, // Google models don't support seedImage in Runware
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -87,6 +90,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 2000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: true, // Supports image-to-image (1 reference image)
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -107,6 +111,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 2000,
     supportsSeed: false,
     supportsNegativePrompt: true,
+    supportsStyleReference: false, // Text-to-image only
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -126,6 +131,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 3000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: false, // Text-to-image only
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -146,6 +152,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 3000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: false, // Text-to-image only
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -165,6 +172,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 3000,
     supportsSeed: false,
     supportsNegativePrompt: true,
+    supportsStyleReference: false, // Text-to-image only
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -186,6 +194,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 2000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: true, // Supports image-to-image (up to 14 reference images)
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -208,6 +217,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 2000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: true, // Supports image-to-image (up to 14 reference images)
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -229,6 +239,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 10000,
     supportsSeed: true,
     supportsNegativePrompt: false,
+    supportsStyleReference: true, // Supports reference-to-image (up to 4 reference images)
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -251,6 +262,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 3000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: true, // Supports reference-to-image (up to 9 reference images)
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -275,6 +287,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 3000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: true, // Supports reference-to-image (up to 10 reference images)
   },
 
 };
@@ -300,62 +313,61 @@ export function getAvailableImageModels(): ImageModelConfig[] {
 
 /**
  * Map aspect ratio + resolution to pixel dimensions for images
- * Based on Google Gemini models (Nano Banana & Nano Banana 2 Pro)
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Based on Nano Banana 2 Pro (Gemini 3 Pro Image Preview) - google:4@2
+ * Official dimensions from Runware documentation
+ * ═══════════════════════════════════════════════════════════════════════════
  */
 export const IMAGE_DIMENSION_MAP: Record<string, Record<string, ImageDimensions>> = {
-  // Runware official supported dimensions (from error message):
-  // '1:1': '1024x1024', '3:2': '1248x832', '2:3': '832x1248',
-  // '4:3': '1184x864', '3:4': '864x1184', '4:5': '896x1152', '5:4': '1152x896',
-  // '9:16': '768x1344', '16:9': '1344x768', '21:9': '1536x672'
-  "1:1": {
+    "1:1": {
     "1k": { width: 1024, height: 1024 },
     "2k": { width: 2048, height: 2048 },
     "4k": { width: 4096, height: 4096 },
   },
   "3:2": {
-    "1k": { width: 1248, height: 832 },   // ✅ Runware official
-    "2k": { width: 2496, height: 1664 },
-    "4k": { width: 4992, height: 3328 },
+    "1k": { width: 1264, height: 848 },
+    "2k": { width: 2528, height: 1696 },
+    "4k": { width: 5096, height: 3392 },
   },
   "2:3": {
-    "1k": { width: 832, height: 1248 },   // ✅ Runware official
-    "2k": { width: 1664, height: 2496 },
-    "4k": { width: 3328, height: 4992 },
+    "1k": { width: 848, height: 1264 },
+    "2k": { width: 1696, height: 2528 },
+    "4k": { width: 3392, height: 5096 },
   },
   "4:3": {
-    "1k": { width: 1184, height: 864 },   // ✅ Runware official (was 1200x896)
-    "2k": { width: 2368, height: 1728 },
-    "4k": { width: 4736, height: 3456 },
+    "1k": { width: 1200, height: 896 },
+    "2k": { width: 2400, height: 1792 },
+    "4k": { width: 4800, height: 3584 },
   },
   "3:4": {
-    "1k": { width: 864, height: 1184 },   // ✅ Runware official (was 896x1200)
-    "2k": { width: 1728, height: 2368 },
-    "4k": { width: 3456, height: 4736 },
+    "1k": { width: 896, height: 1200 },
+    "2k": { width: 1792, height: 2400 },
+    "4k": { width: 3584, height: 4800 },
   },
   "4:5": {
-    "1k": { width: 896, height: 1152 },   // ✅ Runware official (was 928x1152)
-    "2k": { width: 1792, height: 2304 },
-    "4k": { width: 3584, height: 4608 },
+    "1k": { width: 928, height: 1152 },
+    "2k": { width: 1856, height: 2304 },
+    "4k": { width: 3712, height: 4608 },
   },
   "5:4": {
-    "1k": { width: 1152, height: 896 },   // ✅ Runware official (was 1152x928)
-    "2k": { width: 2304, height: 1792 },
-    "4k": { width: 4608, height: 3584 },
+    "1k": { width: 1152, height: 928 },
+    "2k": { width: 2304, height: 1856 },
+    "4k": { width: 4608, height: 3712 },
   },
   "9:16": {
-    "1k": { width: 768, height: 1344 },   // ✅ Runware official (was 768x1376)
-    "2k": { width: 1536, height: 2688 },
-    "4k": { width: 3072, height: 5376 },
+    "1k": { width: 768, height: 1376 },
+    "2k": { width: 1536, height: 2752 },
+    "4k": { width: 3072, height: 5504 },
   },
   "16:9": {
-    "1k": { width: 1344, height: 768 },   // ✅ Runware official (was 1376x768)
-    "2k": { width: 2688, height: 1536 },
-    "4k": { width: 5376, height: 3072 },
+    "1k": { width: 1376, height: 768 },
+    "2k": { width: 2752, height: 1536 },
+    "4k": { width: 5504, height: 3072 },
   },
   "21:9": {
-    "1k": { width: 1536, height: 672 },   // ✅ Runware official (was 1548x672)
-    "2k": { width: 3072, height: 1344 },
-    "4k": { width: 6144, height: 2688 },
+    "1k": { width: 1584, height: 672 },
+    "2k": { width: 3168, height: 1344 },
+    "4k": { width: 6336, height: 2688 },
   },
 };
 
@@ -391,6 +403,24 @@ export const MODEL_SPECIFIC_DIMENSIONS: Record<string, Record<string, ImageDimen
     "5:8": { width: 800, height: 1280 },
     "3:1": { width: 1536, height: 512 },
     "1:3": { width: 512, height: 1536 },
+  },
+  
+  // ─────────────────────────────────────────────────────────────────────────
+  // Nano Banana (Gemini Flash Image 2.5) - google:4@1
+  // Fixed dimensions - different from Nano Banana 2 Pro!
+  // From Runware API error: Supported dimensions for text-to-image
+  // ─────────────────────────────────────────────────────────────────────────
+  "nano-banana": {
+    "1:1": { width: 1024, height: 1024 },
+    "3:2": { width: 1248, height: 832 },
+    "2:3": { width: 832, height: 1248 },
+    "4:3": { width: 1184, height: 864 },
+    "3:4": { width: 864, height: 1184 },
+    "4:5": { width: 896, height: 1152 },
+    "5:4": { width: 1152, height: 896 },
+    "9:16": { width: 768, height: 1344 },
+    "16:9": { width: 1344, height: 768 },
+    "21:9": { width: 1536, height: 672 },
   },
   
   // Imagen 4.0 Preview - Fixed dimensions (same for all Imagen 4.0 variants)

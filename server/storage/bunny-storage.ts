@@ -105,6 +105,32 @@ export function buildStoryModePath(params: {
 }
 
 /**
+ * Build a video_mode path for Bunny storage.
+ * Example: {userId}/{workspaceName}/video_mode/ambient/{projectName}_{date}/Rendered/References/{filename}
+ */
+export function buildVideoModePath(params: {
+  userId: string;
+  workspaceName: string;
+  toolMode: string;     // e.g., "ambient", "narrative", "commerce"
+  projectName: string;  // video title
+  subFolder: string;    // e.g., "References", "Images", "Final", "Shots", "Voice-Over"
+  filename: string;
+  dateLabel?: string;   // optional, default: today YYYYMMDD
+}): string {
+  const { userId, workspaceName, toolMode, projectName, subFolder, filename, dateLabel } = params;
+  const safeDate = dateLabel || new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  // Clean inputs for path safety
+  const clean = (str: string) => str.replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "_");
+  const user = clean(userId);
+  const workspace = clean(workspaceName);
+  const tool = clean(toolMode);
+  const project = clean(projectName);
+  const sub = clean(subFolder);
+  const file = filename.replace(/[^a-zA-Z0-9-_.]/g, "_");
+  return `${user}/${workspace}/video_mode/${tool}/${project}_${safeDate}/Rendered/${sub}/${file}`;
+}
+
+/**
  * Check if Bunny Storage is properly configured
  */
 export function isBunnyConfigured(): boolean {
@@ -169,7 +195,7 @@ export async function uploadFile(
   const response = await fetch(url, {
     method: "PUT",
     headers,
-    body: file,
+    body: new Uint8Array(file),
   });
 
   if (!response.ok) {
@@ -419,6 +445,8 @@ export const bunnyStorage = {
   getFileInfo,
   isBunnyConfigured,
   getBunnyConfig,
+  buildStoryModePath,
+  buildVideoModePath,
 };
 
 export default bunnyStorage;

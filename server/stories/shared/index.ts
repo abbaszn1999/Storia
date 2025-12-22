@@ -5,3 +5,7 @@
 // Configuration (Models)
 export * from './config';
 
+// Social Media Module
+export * from './social';
+export { socialRouter } from './social';
+

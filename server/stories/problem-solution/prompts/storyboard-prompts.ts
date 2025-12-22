@@ -124,7 +124,7 @@ FOR EACH SCENE, GENERATE:
 │                                                                             │
 │ REQUIREMENTS:                                                               │
 │ • 80-150 words per prompt                                                   │
-│ • ⚠️ ALWAYS write imagePrompt in ENGLISH (even if narration is Arabic)     │
+│ • ⚠️ ALWAYS write imagePrompt in ENGLISH (even if description is Arabic)   │
 │ • Include specific colors, textures, and details                           │
 │ • Describe composition for ${aspectRatio} format                            │
 │ • Include at least 3 style keywords from the list above                    │
@@ -163,7 +163,7 @@ ${fieldNumber}. voiceText (REQUIRED when voiceover enabled):
 │ • 10-second scene → ${Math.round(10 * wordsPerSecond)}-${Math.round(10 * wordsPerSecond) + 2} words                                          │
 │                                                                             │
 │ RULES:                                                                      │
-│ • Use the EXACT narration text from input (don't rewrite)                  │
+│ • Use the EXACT voiceover text from input (don't rewrite)                  │
 │ • Split text naturally to match scene duration                             │
 │ • Keep complete sentences, never split mid-sentence                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -403,7 +403,7 @@ OUTPUT FORMAT
   "scenes": [
     {
       "sceneNumber": 1,
-      "imagePrompt": "detailed visual description with style keywords..."${voiceoverEnabled ? ',\n      "voiceText": "text from narration...",\n      "voiceMood": "neutral"' : ''}${animationMode && animationType === 'image-to-video' ? ',\n      "videoPrompt": "motion description..."' : ''}${animationMode && animationType === 'transition' ? ',\n      "animationName": "ken-burns",\n      "effectName": "none"' : ''}${animationMode ? ',\n      "transitionToNext": "cross-dissolve"' : ''}
+      "imagePrompt": "detailed visual description based on the scene description, with style keywords..."${voiceoverEnabled ? ',\n      "voiceText": "exact voiceover text from input...",\n      "voiceMood": "neutral"' : ''}${animationMode && animationType === 'image-to-video' ? ',\n      "videoPrompt": "motion description..."' : ''}${animationMode && animationType === 'transition' ? ',\n      "animationName": "ken-burns",\n      "effectName": "none"' : ''}${animationMode ? ',\n      "transitionToNext": "cross-dissolve"' : ''}
     }
   ],
   "totalScenes": <number>
@@ -419,7 +419,7 @@ Return ONLY valid JSON. No markdown, no explanations.
  * User prompt for storyboard enhancement
  */
 export function buildStoryboardUserPrompt(
-  scenes: Array<{ sceneNumber: number; duration: number; narration: string }>,
+  scenes: Array<{ sceneNumber: number; duration: number; description: string; narration?: string }>,
   aspectRatio: string,
   imageStyle: ImageStyle,
   voiceoverEnabled: boolean,
@@ -434,8 +434,11 @@ export function buildStoryboardUserPrompt(
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SCENE ${s.sceneNumber} (${s.duration} seconds)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Narration:
-"${s.narration}"`
+Visual Description:
+"${s.description}"${voiceoverEnabled && s.narration ? `
+
+Voiceover Text:
+"${s.narration}"` : ''}`
     )
     .join('\n\n');
 

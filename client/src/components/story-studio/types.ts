@@ -52,7 +52,8 @@ export interface StoryScene {
   id: string;
   sceneNumber: number;
   duration: number;
-  narration: string;
+  description: string;      // Visual description of the scene (used for image generation)
+  narration?: string;       // Voiceover text (only when voiceover enabled)
   imageUrl?: string;
   videoUrl?: string;
   audioUrl?: string;
@@ -100,6 +101,7 @@ export interface StoryStudioState {
   // Image & Video Settings
   imageModel: string; // Image model ID (e.g., "nano-banana", "flux-2-pro")
   imageStyle: 'photorealistic' | 'cinematic' | '3d-render' | 'digital-art' | 'anime' | 'illustration' | 'watercolor' | 'minimalist';
+  styleReferenceUrl: string; // Custom style reference image URL
   imageResolution: string; // Resolution (e.g., "1k", "2k", "4k", "custom")
   animationMode: 'off' | 'transition' | 'video'; // New (Replacing old imageMode)
   videoModel: string; // Video model ID (e.g., "seedance-1.0-pro", "veo-3.0")
@@ -115,6 +117,8 @@ export interface StoryStudioState {
   selectedVoice: string;
   musicStyle: MusicStyle;     // AI music style (replaces backgroundMusic)
   backgroundMusic: string;    // Legacy: kept for backwards compatibility
+  customMusicUrl: string;     // Custom uploaded music URL (takes priority over AI music)
+  customMusicDuration: number; // Duration of uploaded music in seconds
   voiceVolume: number;
   musicVolume: number;
   
@@ -134,6 +138,10 @@ export interface StoryStudioState {
   isGeneratingImages: boolean;     // Image generation running
   generationProgress: number;
   error: string | null;
+  hasGeneratedScenes: boolean;     // Track if scenes have been auto-generated once
+  hasEnhancedStoryboard: boolean;  // Track if storyboard has been auto-enhanced once
+  hasGeneratedVoiceover: boolean;  // Track if voiceover has been auto-generated once
+  hasExportedVideo: boolean;       // Track if video has been auto-exported once
 }
 
 export interface StoryStudioActions {
@@ -177,6 +185,8 @@ export interface StoryStudioActions {
   setSelectedVoice: (voice: string) => void;
   setMusicStyle: (style: MusicStyle) => void;
   setBackgroundMusic: (music: string) => void; // Legacy
+  setCustomMusic: (url: string, duration: number) => void; // Custom uploaded music
+  clearCustomMusic: () => void; // Remove custom music
   setVoiceVolume: (volume: number) => void;
   setMusicVolume: (volume: number) => void;
   

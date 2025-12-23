@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CharacterVlogStudioLayout, type VlogStepId } from "@/components/character-vlog/studio";
-import { CharacterVlogWorkflow } from "@/components/character-vlog-workflow";
+import { CharacterVlogWorkflow } from "@/components/character-vlog/workflow";
 import type { Character, Location } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 
@@ -93,53 +93,53 @@ export default function CharacterVlogMode() {
       videoTitle={videoTitle}
       isNextDisabled={!canContinue && activeStep !== "script"}
     >
-      <CharacterVlogWorkflow 
-        activeStep={activeStep}
-        videoId={videoId}
-        workspaceId={workspaceId}
-        narrativeMode={narrativeMode}
-        script={script}
-        aspectRatio={aspectRatio}
-        scriptModel={scriptModel}
-        narrationStyle={narrationStyle}
-        voiceActorId={voiceActorId}
-        voiceOverEnabled={voiceOverEnabled}
+            <CharacterVlogWorkflow 
+              activeStep={activeStep}
+              videoId={videoId}
+              workspaceId={workspaceId}
+              narrativeMode={narrativeMode}
+              script={script}
+              aspectRatio={aspectRatio}
+              scriptModel={scriptModel}
+              narrationStyle={narrationStyle}
+              voiceActorId={voiceActorId}
+              voiceOverEnabled={voiceOverEnabled}
         theme={theme}
         numberOfScenes={numberOfScenes}
         shotsPerScene={shotsPerScene}
         characterPersonality={characterPersonality}
-        scenes={scenes}
-        shots={shots}
-        shotVersions={shotVersions}
-        characters={characters}
+              scenes={scenes}
+              shots={shots}
+              shotVersions={shotVersions}
+              characters={characters}
         locations={locations}
-        referenceImages={referenceImages}
-        continuityLocked={continuityLocked}
-        continuityGroups={continuityGroups}
-        mainCharacter={mainCharacter}
-        worldSettings={worldSettings}
-        onScriptChange={setScript}
-        onAspectRatioChange={setAspectRatio}
-        onScriptModelChange={setScriptModel}
-        onNarrationStyleChange={setNarrationStyle}
-        onVoiceActorChange={setVoiceActorId}
-        onVoiceOverToggle={setVoiceOverEnabled}
+              referenceImages={referenceImages}
+              continuityLocked={continuityLocked}
+              continuityGroups={continuityGroups}
+              mainCharacter={mainCharacter}
+              worldSettings={worldSettings}
+              onScriptChange={setScript}
+              onAspectRatioChange={setAspectRatio}
+              onScriptModelChange={setScriptModel}
+              onNarrationStyleChange={setNarrationStyle}
+              onVoiceActorChange={setVoiceActorId}
+              onVoiceOverToggle={setVoiceOverEnabled}
         onThemeChange={setTheme}
         onNumberOfScenesChange={setNumberOfScenes}
         onShotsPerSceneChange={setShotsPerScene}
         onCharacterPersonalityChange={setCharacterPersonality}
-        onScenesChange={setScenes}
-        onShotsChange={setShots}
-        onShotVersionsChange={setShotVersions}
-        onCharactersChange={setCharacters}
+              onScenesChange={setScenes}
+              onShotsChange={setShots}
+              onShotVersionsChange={setShotVersions}
+              onCharactersChange={setCharacters}
         onLocationsChange={setLocations}
-        onReferenceImagesChange={setReferenceImages}
-        onContinuityLockedChange={setContinuityLocked}
-        onContinuityGroupsChange={setContinuityGroups}
-        onMainCharacterChange={setMainCharacter}
-        onWorldSettingsChange={setWorldSettings}
-        onNext={handleNext}
-      />
+              onReferenceImagesChange={setReferenceImages}
+              onContinuityLockedChange={setContinuityLocked}
+              onContinuityGroupsChange={setContinuityGroups}
+              onMainCharacterChange={setMainCharacter}
+              onWorldSettingsChange={setWorldSettings}
+              onNext={handleNext}
+            />
     </CharacterVlogStudioLayout>
   );
 }

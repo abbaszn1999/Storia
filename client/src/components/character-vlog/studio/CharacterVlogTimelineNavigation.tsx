@@ -92,30 +92,30 @@ export function CharacterVlogTimelineNavigation({
                       onClick={() => isClickable && onStepClick(step.id)}
                       disabled={!isClickable}
                       className={cn(
-                        "relative flex items-center gap-2 px-3 py-1.5 rounded-lg",
+                        "relative flex items-center gap-2 px-3 py-2 rounded-lg",
                         "transition-all duration-300",
                         isClickable && "cursor-pointer",
-                        !isClickable && "cursor-not-allowed opacity-50"
+                        !isClickable && "cursor-not-allowed opacity-50",
+                        status === 'active' && "bg-white/[0.03]"
                       )}
-                      whileHover={isClickable ? { scale: 1.02 } : undefined}
+                      whileHover={isClickable && status !== 'active' ? { backgroundColor: "rgba(255, 255, 255, 0.02)" } : undefined}
                       whileTap={isClickable ? { scale: 0.98 } : undefined}
                     >
                       {/* Step Icon/Number */}
                       <motion.div 
                         className={cn(
                           "relative flex items-center justify-center w-8 h-8 rounded-lg",
-                          "border-2 transition-all duration-300",
-                          status === 'active' && "border-transparent",
+                          "border transition-all duration-300",
+                          status === 'active' && "border-[#FF4081]/40 shadow-lg shadow-[#FF4081]/20",
                           status === 'completed' && "border-transparent",
                           status === 'upcoming' && "border-white/20 bg-white/5"
                         )}
-                        style={(status === 'active' || status === 'completed') ? {
-                          background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 107, 74, 0.6))`
+                        style={status === 'completed' ? {
+                          background: `linear-gradient(to right, rgb(255, 64, 129), rgb(255, 107, 74))`
+                        } : status === 'active' ? {
+                          background: 'rgba(255, 64, 129, 0.1)',
+                          backdropFilter: 'blur(10px)'
                         } : undefined}
-                        animate={status === 'active' ? {
-                          boxShadow: ['0 0 0 0 rgba(255,255,255,0)', '0 0 20px 4px rgba(255,255,255,0.1)', '0 0 0 0 rgba(255,255,255,0)']
-                        } : undefined}
-                        transition={{ duration: 2, repeat: Infinity }}
                       >
                         <AnimatePresence mode="wait">
                           {status === 'completed' ? (
@@ -128,37 +128,46 @@ export function CharacterVlogTimelineNavigation({
                               <Check className="w-4 h-4 text-white" strokeWidth={3} />
                             </motion.div>
                           ) : (
-                            <motion.span
+                            <motion.div
                               key="icon"
                               initial={{ scale: 0.8, opacity: 0 }}
                               animate={{ scale: 1, opacity: 1 }}
                               exit={{ scale: 0.8, opacity: 0 }}
-                              className="text-base"
+                              className={cn(
+                                "flex items-center justify-center transition-colors duration-300 text-white",
+                                status === 'active' && "text-white"
+                              )}
+                              style={status === 'active' ? {
+                                filter: 'drop-shadow(0 0 8px rgba(255, 64, 129, 0.3))'
+                              } : undefined}
                             >
-                              {step.icon}
-                            </motion.span>
+                              <step.icon className="w-4 h-4" />
+                            </motion.div>
                           )}
                         </AnimatePresence>
                       </motion.div>
 
                       {/* Step Label */}
                       <span className={cn(
-                        "text-xs font-semibold transition-colors duration-300",
-                        status === 'active' ? "text-white" : "text-white/60"
+                        "text-xs font-semibold transition-all duration-300",
+                        status === 'active' && "text-white",
+                        status !== 'active' && "text-white/60"
                       )}>
                         {step.shortLabel}
                       </span>
 
-                      {/* Active indicator bar */}
+                      {/* Active indicator - Bottom border with gradient */}
                       {status === 'active' && (
                         <motion.div
-                          layoutId="activeStep"
-                          className={cn(
-                            "absolute inset-0 rounded-lg -z-10",
-                            "bg-gradient-to-r",
-                            accentClasses.gradient,
-                            "opacity-60"
-                          )}
+                          layoutId="activeStepIndicator"
+                          className="absolute -bottom-2 left-0 right-0 h-[2px] rounded-full mx-2"
+                          style={{
+                            background: 'linear-gradient(to right, #FF4081, #FF6B4A)',
+                            boxShadow: '0 0 8px rgba(255, 64, 129, 0.5)'
+                          }}
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3 }}
                         />
                       )}
                     </motion.button>
@@ -167,7 +176,10 @@ export function CharacterVlogTimelineNavigation({
                     {index < VLOG_STEPS.length - 1 && (
                       <div className="w-8 h-0.5 mx-0.5 relative overflow-hidden rounded-full bg-white/10">
                         <motion.div
-                          className={cn("h-full rounded-full bg-gradient-to-r opacity-60", accentClasses.gradient)}
+                          className="h-full rounded-full"
+                          style={{
+                            background: 'linear-gradient(to right, #FF4081, #FF6B4A)'
+                          }}
                           initial={{ width: 0 }}
                           animate={{ 
                             width: status === 'completed' || 
@@ -191,9 +203,10 @@ export function CharacterVlogTimelineNavigation({
               onClick={onNext}
               disabled={isNextDisabled}
               size="sm"
-              className="min-w-[100px] gap-1.5 font-semibold h-8 text-xs hover:opacity-90 transition-opacity shadow-lg relative overflow-hidden"
+              className="min-w-[100px] gap-1.5 font-semibold h-8 text-xs hover:brightness-110 transition-all shadow-lg relative overflow-hidden"
               style={{
-                background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                background: `linear-gradient(to right, rgb(255, 64, 129), rgb(255, 92, 141), rgb(255, 107, 74))`,
+                boxShadow: '0 4px 12px rgba(255, 64, 129, 0.3)'
               }}
             >
               {nextLabel || (isLastStep ? "Export Video" : "Continue")}

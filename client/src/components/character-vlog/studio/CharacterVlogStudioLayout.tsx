@@ -79,7 +79,7 @@ export function CharacterVlogStudioLayout({
               animate={{ opacity: 1, y: 0 }}
               className="flex items-center gap-2"
             >
-              <span className="text-2xl">{currentStepInfo.icon}</span>
+              <currentStepInfo.icon className="w-6 h-6" />
               <span className="text-lg font-semibold">{currentStepInfo.label}</span>
             </motion.div>
           </div>

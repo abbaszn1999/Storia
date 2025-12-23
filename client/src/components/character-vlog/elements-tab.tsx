@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Upload, Check, Pencil, User, Sparkles, X, Loader2, RectangleHorizontal, RectangleVertical, Square, ChevronRight, MapPin, Download, MoreVertical, Trash2 } from "lucide-react";
+import { Plus, Upload, Check, Pencil, User, Sparkles, X, Loader2, RectangleHorizontal, RectangleVertical, Square, ChevronRight, MapPin, Download, MoreVertical, Trash2, LayoutGrid } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -128,6 +128,70 @@ const MOCK_RECOMMENDED_LOCATIONS = [
   },
 ];
 
+// Mock character library - previously created characters
+const MOCK_CHARACTER_LIBRARY = [
+  {
+    id: "lib-char-1",
+    name: "Alex Turner",
+    description: "Tech entrepreneur and startup founder",
+    appearance: "Young adult with glasses, casual hoodie style",
+    imageUrl: "https://placehold.co/400x600/1a472a/ffffff?text=Alex+Turner",
+  },
+  {
+    id: "lib-char-2",
+    name: "Maya Johnson",
+    description: "Professional chef and food blogger",
+    appearance: "Woman in her 30s, confident smile, chef's attire",
+    imageUrl: "https://placehold.co/400x600/4a2a1a/ffffff?text=Maya+Johnson",
+  },
+  {
+    id: "lib-char-3",
+    name: "Jordan Lee",
+    description: "Fitness instructor and wellness coach",
+    appearance: "Athletic build, sporty outfit, energetic vibe",
+    imageUrl: "https://placehold.co/400x600/1a3a4a/ffffff?text=Jordan+Lee",
+  },
+  {
+    id: "lib-char-4",
+    name: "Riley Martinez",
+    description: "Travel vlogger and adventure seeker",
+    appearance: "Young adult, backpack, outdoor gear",
+    imageUrl: "https://placehold.co/400x600/3a1a4a/ffffff?text=Riley+Martinez",
+  },
+];
+
+// Mock location library - previously created locations
+const MOCK_LOCATION_LIBRARY = [
+  {
+    id: "lib-loc-1",
+    name: "Modern Home Studio",
+    description: "Well-lit home setup with clean background",
+    details: "Minimalist design, soft lighting, plants, bookshelf",
+    imageUrl: "https://placehold.co/800x600/2a2a3a/ffffff?text=Home+Studio",
+  },
+  {
+    id: "lib-loc-2",
+    name: "Urban Street Corner",
+    description: "Busy city intersection with colorful storefronts",
+    details: "Graffiti walls, street signs, pedestrian traffic, vibrant atmosphere",
+    imageUrl: "https://placehold.co/800x600/3a2a2a/ffffff?text=Urban+Street",
+  },
+  {
+    id: "lib-loc-3",
+    name: "Beach Boardwalk",
+    description: "Scenic coastal walkway with ocean views",
+    details: "Wooden planks, palm trees, blue sky, seagulls, beach vibes",
+    imageUrl: "https://placehold.co/800x600/2a3a4a/ffffff?text=Beach+Boardwalk",
+  },
+  {
+    id: "lib-loc-4",
+    name: "Mountain Trail",
+    description: "Scenic hiking path with forest backdrop",
+    details: "Pine trees, rocky terrain, mountain peaks, natural lighting",
+    imageUrl: "https://placehold.co/800x600/3a4a2a/ffffff?text=Mountain+Trail",
+  },
+];
+
 export function ElementsTab({
   videoId,
   workspaceId,
@@ -152,6 +216,8 @@ export function ElementsTab({
   const [isRecommendationModalOpen, setIsRecommendationModalOpen] = useState(false);
   const [isAddLocationOpen, setIsAddLocationOpen] = useState(false);
   const [isLocationRecommendationOpen, setIsLocationRecommendationOpen] = useState(false);
+  const [isCharacterLibraryOpen, setIsCharacterLibraryOpen] = useState(false);
+  const [isLocationLibraryOpen, setIsLocationLibraryOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isLocationAnalyzing, setIsLocationAnalyzing] = useState(false);
   const [recommendations, setRecommendations] = useState<typeof MOCK_RECOMMENDED_CHARACTERS>([]);
@@ -374,14 +440,70 @@ export function ElementsTab({
       voiceSettings: null,
       imageUrl: null,
       createdAt: new Date(),
-      section: 'secondary', // Recommended characters go to secondary by default
+      section: addingToSection, // Use the section from which Recommend was clicked
     };
 
     onCharactersChange([...characters, character]);
 
     toast({
       title: "Character Added",
-      description: `${recChar.name} has been added to your cast.`,
+      description: `${recChar.name} has been added to ${addingToSection === 'primary' ? 'Primary' : 'Secondary'}.`,
+    });
+  };
+
+  const handleAddFromCharacterLibrary = (libChar: typeof MOCK_CHARACTER_LIBRARY[0]) => {
+    const alreadyExists = characters.some(c => c.name === libChar.name);
+    if (alreadyExists) {
+      toast({
+        title: "Already Added",
+        description: `${libChar.name} is already in your cast.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const character: any = {
+      ...libChar,
+      workspaceId: workspaceId,
+      personality: null,
+      voiceSettings: null,
+      createdAt: new Date(),
+      section: addingToSection,
+    };
+
+    onCharactersChange([...characters, character]);
+
+    toast({
+      title: "Character Added",
+      description: `${libChar.name} has been added to ${addingToSection === 'primary' ? 'Primary' : 'Secondary'}.`,
+    });
+  };
+
+  const handleAddFromLocationLibrary = (libLoc: typeof MOCK_LOCATION_LIBRARY[0]) => {
+    if (!onLocationsChange) return;
+
+    const alreadyExists = locations.some(l => l.name === libLoc.name);
+    if (alreadyExists) {
+      toast({
+        title: "Already Added",
+        description: `${libLoc.name} is already added.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const location: any = {
+      ...libLoc,
+      workspaceId: workspaceId,
+      referenceImages: null,
+      createdAt: new Date(),
+    };
+
+    onLocationsChange([...locations, location]);
+
+    toast({
+      title: "Location Added",
+      description: `${libLoc.name} has been added.`,
     });
   };
 
@@ -838,14 +960,30 @@ export function ElementsTab({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-semibold text-white/90">Primary</h3>
-                  <Button
-                    size="sm"
-                    onClick={handleOpenRecommendations}
-                    className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-[#FF4081]/30 hover:bg-white/[0.04]"
-                  >
-                    <Sparkles className="mr-2 h-4 w-4 text-[#FF4081]" />
-                    Recommend
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setAddingToSection('primary');
+                        setIsCharacterLibraryOpen(true);
+                      }}
+                      className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-[#FF4081]/30 hover:bg-white/[0.04]"
+                    >
+                      <LayoutGrid className="mr-2 h-4 w-4 text-cyan-400" />
+                      Browse Library
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setAddingToSection('primary');
+                        handleOpenRecommendations();
+                      }}
+                      className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-[#FF4081]/30 hover:bg-white/[0.04]"
+                    >
+                      <Sparkles className="mr-2 h-4 w-4 text-[#FF4081]" />
+                      Recommend
+                    </Button>
+                  </div>
                 </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
@@ -952,14 +1090,30 @@ export function ElementsTab({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-semibold text-white/90">Secondary</h3>
-                  <Button
-                    size="sm"
-                    onClick={handleOpenRecommendations}
-                    className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-[#FF4081]/30 hover:bg-white/[0.04]"
-                  >
-                    <Sparkles className="mr-2 h-4 w-4 text-[#FF4081]" />
-                    Recommend
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setAddingToSection('secondary');
+                        setIsCharacterLibraryOpen(true);
+                      }}
+                      className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-[#FF4081]/30 hover:bg-white/[0.04]"
+                    >
+                      <LayoutGrid className="mr-2 h-4 w-4 text-cyan-400" />
+                      Browse Library
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setAddingToSection('secondary');
+                        handleOpenRecommendations();
+                      }}
+                      className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-[#FF4081]/30 hover:bg-white/[0.04]"
+                    >
+                      <Sparkles className="mr-2 h-4 w-4 text-[#FF4081]" />
+                      Recommend
+                    </Button>
+                  </div>
                 </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
@@ -1067,14 +1221,24 @@ export function ElementsTab({
               {/* Location Title */}
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-white">Location</h2>
-                <Button
-                  size="sm"
-                  onClick={handleOpenLocationRecommendations}
-                  className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-[#FF4081]/30 hover:bg-white/[0.04]"
-                >
-                  <Sparkles className="mr-2 h-4 w-4 text-[#FF4081]" />
-                  Recommend
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => setIsLocationLibraryOpen(true)}
+                    className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-[#FF4081]/30 hover:bg-white/[0.04]"
+                  >
+                    <LayoutGrid className="mr-2 h-4 w-4 text-cyan-400" />
+                    Browse Library
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleOpenLocationRecommendations}
+                    className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-[#FF4081]/30 hover:bg-white/[0.04]"
+                  >
+                    <Sparkles className="mr-2 h-4 w-4 text-[#FF4081]" />
+                    Recommend
+                  </Button>
+                </div>
               </div>
 
               {/* Location Grid */}
@@ -1663,6 +1827,124 @@ export function ElementsTab({
                 {editingCharacter ? "Update" : "Add To Cast"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Character Library Modal */}
+      <Dialog open={isCharacterLibraryOpen} onOpenChange={setIsCharacterLibraryOpen}>
+        <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto custom-scrollbar bg-[#1a1a1a] border-white/10">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <LayoutGrid className="h-5 w-5 text-cyan-400" />
+              Character Library
+            </DialogTitle>
+            <DialogDescription>
+              Select from your previously created characters
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-4">
+            {MOCK_CHARACTER_LIBRARY.map((libChar) => {
+              const isAdded = characters.some(c => c.name === libChar.name);
+              return (
+                <Card key={libChar.id} className="overflow-hidden bg-white/[0.02] border-white/[0.06] hover:border-cyan-500/30 transition-all">
+                  <CardContent className="p-0">
+                    <div className="aspect-[3/4] bg-muted flex items-center justify-center relative">
+                      {libChar.imageUrl ? (
+                        <img src={libChar.imageUrl} alt={libChar.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <User className="h-16 w-16 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="p-3 space-y-2">
+                      <h4 className="font-semibold text-sm text-white truncate">{libChar.name}</h4>
+                      <p className="text-xs text-white/60 line-clamp-2">{libChar.description}</p>
+                      <Button
+                        size="sm"
+                        onClick={() => handleAddFromCharacterLibrary(libChar)}
+                        disabled={isAdded}
+                        className={isAdded ? "w-full" : "w-full text-white hover:opacity-90 relative overflow-hidden"}
+                        style={!isAdded ? {
+                          background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                        } : undefined}
+                      >
+                        {isAdded ? (
+                          <>
+                            <Check className="mr-2 h-3 w-3" />
+                            Added
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="mr-2 h-3 w-3" />
+                            Add to Cast
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Location Library Modal */}
+      <Dialog open={isLocationLibraryOpen} onOpenChange={setIsLocationLibraryOpen}>
+        <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto custom-scrollbar bg-[#1a1a1a] border-white/10">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <LayoutGrid className="h-5 w-5 text-cyan-400" />
+              Location Library
+            </DialogTitle>
+            <DialogDescription>
+              Select from your previously created locations
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
+            {MOCK_LOCATION_LIBRARY.map((libLoc) => {
+              const isAdded = locations.some(l => l.name === libLoc.name);
+              return (
+                <Card key={libLoc.id} className="overflow-hidden bg-white/[0.02] border-white/[0.06] hover:border-cyan-500/30 transition-all">
+                  <CardContent className="p-0">
+                    <div className="aspect-video bg-muted flex items-center justify-center relative">
+                      {libLoc.imageUrl ? (
+                        <img src={libLoc.imageUrl} alt={libLoc.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <MapPin className="h-16 w-16 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="p-3 space-y-2">
+                      <h4 className="font-semibold text-sm text-white truncate">{libLoc.name}</h4>
+                      <p className="text-xs text-white/60 line-clamp-2">{libLoc.description}</p>
+                      <Button
+                        size="sm"
+                        onClick={() => handleAddFromLocationLibrary(libLoc)}
+                        disabled={isAdded}
+                        className={isAdded ? "w-full" : "w-full text-white hover:opacity-90 relative overflow-hidden"}
+                        style={!isAdded ? {
+                          background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                        } : undefined}
+                      >
+                        {isAdded ? (
+                          <>
+                            <Check className="mr-2 h-3 w-3" />
+                            Added
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="mr-2 h-3 w-3" />
+                            Add Location
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </DialogContent>
       </Dialog>

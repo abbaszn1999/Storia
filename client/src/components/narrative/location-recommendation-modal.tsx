@@ -2,15 +2,26 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Plus, Check, Loader2, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 interface Location {
   id: string;
   name: string;
   description: string;
+  details?: string;
   imageUrl?: string | null;
+}
+
+interface LocationRecommendation {
+  name: string;
+  description: string;
+  atmosphere: string;
+  timeOfDay: string;
+  importanceScore: number;
 }
 
 interface LocationRecommendationModalProps {
@@ -18,47 +29,57 @@ interface LocationRecommendationModalProps {
   onOpenChange: (open: boolean) => void;
   onAddLocation: (location: Location) => void;
   existingLocations: Location[];
+  script?: string;
+  videoId: string;
+  selectedModel?: string;
 }
 
-const MOCK_RECOMMENDED_LOCATIONS = [
-  {
-    name: "Downtown Coffee Shop",
-    description: "A cozy urban cafe with large windows overlooking the busy street, warm lighting and wooden furniture",
-    details: "Modern industrial interior with exposed brick walls, hanging Edison bulbs, espresso machine sounds, and comfortable booth seating",
-  },
-  {
-    name: "City Park at Sunset",
-    description: "A peaceful urban park with tree-lined walking paths and a central fountain during golden hour",
-    details: "Mature oak trees providing dappled shade, well-maintained grass, wooden benches, flower beds, and warm sunset lighting casting long shadows",
-  },
-  {
-    name: "Underground Parking Garage",
-    description: "A dimly lit concrete parking structure with fluorescent lights and painted parking spaces",
-    details: "Cold industrial atmosphere, concrete pillars, yellow parking lines, echoing sounds, emergency exit signs, and stark overhead lighting",
-  },
-];
 
 export function LocationRecommendationModal({
   open,
   onOpenChange,
   onAddLocation,
   existingLocations,
+  script,
+  videoId,
+  selectedModel,
 }: LocationRecommendationModalProps) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [recommendations, setRecommendations] = useState<typeof MOCK_RECOMMENDED_LOCATIONS>([]);
+  const [recommendations, setRecommendations] = useState<LocationRecommendation[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
-    if (open && recommendations.length === 0) {
+    if (open && script && recommendations.length === 0) {
       setIsAnalyzing(true);
-      setTimeout(() => {
-        setRecommendations(MOCK_RECOMMENDED_LOCATIONS);
-        setIsAnalyzing(false);
-      }, 2000);
+      apiRequest('POST', '/api/narrative/locations/analyze', {
+        videoId,
+        script,
+        model: selectedModel,
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.locations && data.locations.length > 0) {
+            setRecommendations(data.locations);
+          } else {
+            setRecommendations([]);
+          }
+        })
+        .catch(err => {
+          console.error('Failed to fetch location recommendations:', err);
+          toast({
+            title: "Error",
+            description: "Failed to fetch location recommendations. Please try again.",
+            variant: "destructive",
+          });
+          setRecommendations([]);
+        })
+        .finally(() => {
+          setIsAnalyzing(false);
+        });
     }
-  }, [open, recommendations.length]);
+  }, [open, script, videoId, selectedModel, recommendations.length, toast]);
 
-  const handleAddLocation = (recLocation: typeof MOCK_RECOMMENDED_LOCATIONS[0]) => {
+  const handleAddLocation = (recLocation: LocationRecommendation) => {
     const alreadyExists = existingLocations.some(l => l.name === recLocation.name);
     if (alreadyExists) {
       toast({
@@ -73,6 +94,7 @@ export function LocationRecommendationModal({
       id: `loc-${Date.now()}-${Math.random()}`,
       name: recLocation.name,
       description: recLocation.description,
+      details: recLocation.atmosphere,  // Map atmosphere to details field
       imageUrl: null,
     };
 
@@ -101,6 +123,10 @@ export function LocationRecommendationModal({
             <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
             <p className="text-sm text-muted-foreground">Analyzing your story...</p>
           </div>
+        ) : recommendations.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <p className="text-sm text-muted-foreground">No locations found in the script.</p>
+          </div>
         ) : (
           <div className="space-y-4 mt-4">
             {recommendations.map((recLocation, index) => {
@@ -110,12 +136,27 @@ export function LocationRecommendationModal({
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 space-y-2">
-                        <h4 className="font-semibold text-base">{recLocation.name}</h4>
-                        <p className="text-sm text-muted-foreground">{recLocation.description}</p>
-                        <div className="pt-2">
-                          <Label className="text-xs font-medium text-muted-foreground">VISUAL DETAILS</Label>
-                          <p className="text-sm mt-1">{recLocation.details}</p>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-base">{recLocation.name}</h4>
+                          {recLocation.importanceScore && (
+                            <Badge variant="secondary" className="ml-2">
+                              ★ {recLocation.importanceScore}/10
+                            </Badge>
+                          )}
                         </div>
+                        <p className="text-sm text-muted-foreground">{recLocation.description}</p>
+                        {recLocation.atmosphere && (
+                          <div className="pt-2">
+                            <Label className="text-xs font-medium text-muted-foreground">ATMOSPHERE</Label>
+                            <p className="text-sm mt-1">{recLocation.atmosphere}</p>
+                          </div>
+                        )}
+                        {recLocation.timeOfDay && recLocation.timeOfDay !== 'unspecified' && (
+                          <div className="pt-2">
+                            <Label className="text-xs font-medium text-muted-foreground">TIME OF DAY</Label>
+                            <p className="text-sm mt-1 capitalize">{recLocation.timeOfDay}</p>
+                          </div>
+                        )}
                       </div>
                       <Button
                         size="sm"

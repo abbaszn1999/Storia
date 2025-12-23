@@ -9,6 +9,7 @@ import { insertLocationSchema } from "@shared/schema";
 import { bunnyStorage } from "../../../storage/bunny-storage";
 import { MAX_REFERENCE_IMAGES, ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE } from "../config";
 import type { CreateLocationRequest, UpdateLocationRequest } from "../types";
+import { generateLocationImage } from "../../../ai/agents/location-image-generator";
 
 const router = Router();
 
@@ -263,6 +264,99 @@ router.post(
     } catch (error) {
       console.error("[locations] Error uploading image:", error);
       res.status(500).json({ error: "Failed to upload image" });
+    }
+  }
+);
+
+// POST /api/locations/:id/generate-image - Generate main location image using AI
+router.post(
+  "/:id/generate-image",
+  isAuthenticated,
+  async (req: any, res: Response) => {
+    try {
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { id } = req.params;
+      const { artStyleDescription, negativePrompt, referenceImages } = req.body;
+
+      const location = await storage.getLocation(id);
+      if (!location) {
+        return res.status(404).json({ error: "Location not found" });
+      }
+
+      const workspaces = await storage.getWorkspacesByUserId(userId);
+      const workspace = workspaces.find((w) => w.id === location.workspaceId);
+      if (!workspace) {
+        return res.status(403).json({ error: "Access denied to this location" });
+      }
+
+      if (!location.name || !location.description) {
+        return res.status(400).json({ error: "Location name and description are required for image generation." });
+      }
+
+      console.log(`[locations:routes] Generating image for location ${location.id} with model nano-banana`);
+
+      // Call Agent 2.4: Location Image Generator
+      // Hard-coded to nano-banana model for assets library
+      const result = await generateLocationImage(
+        {
+          name: location.name,
+          description: location.description,
+          details: location.details || undefined,
+          artStyleDescription,
+          model: "nano-banana", // Hard-coded for assets library
+          negativePrompt,
+          referenceImages,
+        },
+        userId,
+        workspace.id
+      );
+
+      if (result.error) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      if (!result.imageUrl) {
+        return res.status(500).json({ error: "AI did not return an image URL." });
+      }
+
+      // Download the generated image and upload to Bunny CDN
+      const imageResponse = await fetch(result.imageUrl);
+      if (!imageResponse.ok) {
+        return res.status(500).json({ error: "Failed to download generated image" });
+      }
+
+      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+      const contentType = imageResponse.headers.get("content-type") || "image/png";
+
+      // Build Bunny path for the generated image
+      const bunnyPath = buildLocationImagePath(userId, workspace.name, id, "main", contentType);
+      
+      // Upload to Bunny CDN
+      const cdnUrl = await bunnyStorage.uploadFile(bunnyPath, imageBuffer, contentType);
+
+      // Update location with new image URL
+      await storage.updateLocation(id, { imageUrl: cdnUrl });
+
+      console.log("[locations] AI-generated image saved successfully:", {
+        locationId: id,
+        cdnUrl: cdnUrl.substring(0, 50) + "...",
+        cost: result.cost,
+      });
+
+      res.json({
+        imageUrl: cdnUrl,
+        locationId: id,
+        imageType: "main",
+        success: true,
+        cost: result.cost,
+      });
+    } catch (error) {
+      console.error("[locations] Error generating location image:", error);
+      res.status(500).json({ error: "Failed to generate location image" });
     }
   }
 );

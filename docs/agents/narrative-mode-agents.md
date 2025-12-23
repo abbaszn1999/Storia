@@ -20,7 +20,7 @@
 
 ## Overview
 
-The Narrative Mode workflow consists of **24 specialized agents** (18 AI, 6 non-AI) that guide users from initial concept to final published video. Each agent has specific inputs, outputs, and responsibilities designed to create a seamless creative experience with support for both image-reference and start-end frame continuity workflows.
+The Narrative Mode workflow consists of **22 specialized agents** (16 AI, 6 non-AI) that guide users from initial concept to final published video. Each agent has specific inputs, outputs, and responsibilities designed to create a seamless creative experience with support for both image-reference and start-end frame continuity workflows.
 
 ### Key Design Principles
 - **Modularity**: Each agent handles one specific task
@@ -139,43 +139,61 @@ Requirements:
 
 ---
 
-### Agent 2.2: Character Prompt Engineer (AI)
+### Agent 2.2: Location Analyzer (AI)
 
-**Role**: Generate image generation prompts for character reference images
+**Role**: Analyze script and suggest key locations/environments that need reference images
 
-**AI Model**: GPT-4 / Claude (Prompt Engineering)
+**AI Model**: GPT-4 / Claude (Text Analysis)
 
 **Inputs**:
 | Field | Type | Source | Required |
 |-------|------|--------|----------|
-| Character details | Object | Agent 2.1 output OR user-created character | ✓ |
-| └─ Name | String | Character identifier | ✓ |
-| └─ Appearance description | String | Physical traits | ✓ |
-| └─ Personality traits | String | Behavioral info | ✓ |
-| Art style reference | Image URL | Agent 2.5 output (@style) | ✗ |
-| Additional reference images | Array[Image URL] | User uploads | ✗ |
+| Script text | String | Agent 1.1 output | ✓ |
+| Genre | String | Step 1 user selection | ✓ |
 
 **Outputs**:
 | Field | Type | Description |
 |-------|------|-------------|
-| Image generation prompt | String | Optimized prompt for character image |
-| Negative prompt | String | Elements to avoid |
+| Location list | Array | List of suggested locations |
+| └─ Location name | String | Location identifier |
+| └─ Description | String | Physical environment description |
+| └─ Atmosphere/Mood | String | Emotional tone and lighting |
+| └─ Time of day | String | Lighting context (dawn, day, dusk, night) |
+| └─ Importance score | Integer (1-10) | Story significance |
 
 **Implementation Notes**:
-- **If art style reference exists**: Incorporate style cues into prompt
-- **If character reference images exist**: Note "use reference image for consistency"
-- Remove "key visual traits list" and "color palette" (not needed downstream)
-- Focus on clear, detailed physical descriptions suitable for image models
+- Only suggest locations that appear **in multiple scenes** OR are narratively significant
+- Prioritize by story importance (main setting, key dramatic locations)
+- Merge similar locations (e.g., "kitchen" and "home kitchen" → single location)
+- Include both interior and exterior locations
+- Sort by importance score (highest first)
 
-**Prompt Engineering Strategy**:
+**Selection Criteria**:
+- Appears in multiple shots/scenes
+- Has significant narrative importance (climax location, recurring setting)
+- Unique visual requirements
+- Establishes story mood or context
+
+**Prompt Template**:
 ```
-Character: {name}
-Physical: {appearance_description}
-Personality: {personality_traits}
-Style: {art_style_cues if @style exists}
-Reference: {note_if_reference_images_exist}
+Analyze this script and identify key locations that need visual reference images:
 
-Generate a detailed image prompt optimized for character consistency.
+Script: {script_text}
+Genre: {genre}
+
+For each location, provide:
+1. Clear, descriptive name
+2. Physical environment details (architecture, furnishings, natural elements)
+3. Atmosphere and mood (emotional tone, lighting quality)
+4. Time of day if specified
+5. Importance score (1-10) based on narrative significance
+
+Focus on locations that:
+- Appear in multiple scenes
+- Are important to the story's mood or plot
+- Have distinctive visual characteristics
+
+Exclude generic, unnamed, or transitional locations.
 ```
 
 ---
@@ -184,14 +202,18 @@ Generate a detailed image prompt optimized for character consistency.
 
 **Role**: Generate character reference images for visual consistency
 
-**AI Model**: Imagen 4 / DALL-E 3 / Stable Diffusion (Image Generation with Character Consistency)
+**AI Model**: Imagen 4 / DALL-E 3 / Nano Banana (Image Generation with Character Consistency)
 
 **Inputs**:
 | Field | Type | Source | Required |
 |-------|------|--------|----------|
-| Image prompt | String | Agent 2.2 output | ✓ |
-| Negative prompt | String | Agent 2.2 output | ✗ |
+| Character details | Object | Agent 2.1 output OR user-created | ✓ |
+| └─ Name | String | Character identifier | ✓ |
+| └─ Appearance description | String | Physical traits | ✓ |
+| └─ Personality traits | String | Behavioral info | ✗ |
+| Art style description | String | Agent 2.5 output (@style) | ✗ |
 | Character reference images | Array[Image URL] | User uploads | ✗ |
+| Image model | String | User selection (default: nano-banana) | ✓ |
 | Aspect ratio | Enum | Fixed: "1:1" (square portraits) | ✓ |
 
 **Outputs**:
@@ -199,20 +221,67 @@ Generate a detailed image prompt optimized for character consistency.
 |-------|------|-------------|
 | Generated image URL | String | Character reference image |
 | Character ID | String | Unique identifier (@character{id}) |
+| Cost | Float | Generation cost in USD |
 
 **Implementation Notes**:
-- **No art style in input** - already incorporated in Agent 2.2's prompt
+- Prompt is built directly from character details (no separate prompt engineer agent)
+- Simple template: "{appearance}, {personality traits if provided}, {art style if provided}"
 - Use character reference images if provided for better consistency
 - Generate square 1:1 portraits for character sheets
-- Modern image models (Imagen 4, DALL-E 3) support character consistency natively
+- Modern image models support character consistency natively
 - **No separate consistency checker needed** - model handles this
+- User can select image model in narrative mode (Flux, Midjourney, Nano Banana, GPT Image)
 
 ---
 
-### Agent 2.4: Voice Generator (AI)
-**Status**: ⚠️ **DEFERRED** - Not needed for MVP
+### Agent 2.4: Location Image Generator (AI)
 
-**Reason**: No character voices in current scope, only narrator voice
+**Role**: Generate location reference images for environmental consistency
+
+**AI Model**: Imagen 4 / DALL-E 3 / Nano Banana (Image Generation)
+
+**Inputs**:
+| Field | Type | Source | Required |
+|-------|------|--------|----------|
+| Location details | Object | Agent 2.2 output OR user-created | ✓ |
+| └─ Name | String | Location identifier | ✓ |
+| └─ Description | String | Physical environment | ✓ |
+| └─ Details | String | Additional details/atmosphere | ✗ |
+| Art style description | String | Agent 2.5 output (@style) | ✗ |
+| Location reference images | Array[Image URL] | User uploads (max 2) | ✗ |
+| Image model | String | User selection (default: nano-banana) | ✓ |
+| Aspect ratio | Enum | Fixed: "16:9" (landscape) | ✓ |
+
+**Outputs**:
+| Field | Type | Description |
+|-------|------|-------------|
+| Generated image URL | String | Location reference image (1344x768) |
+| Location ID | String | Unique identifier (@location{id}) |
+| Cost | Float | Generation cost in USD |
+
+**Implementation Notes**:
+- Prompt is built directly from location details (no separate prompt engineer agent)
+- Simple template: "{description}, {details if provided}, {art style if provided}"
+- Use location reference images if provided for better consistency
+- Generate 16:9 landscape images for environmental establishing shots
+- Wide establishing shot composition with atmospheric lighting
+- User can select image model in narrative mode (Flux, Midjourney, Nano Banana, GPT Image)
+- In Location Assets Library: hard-coded to "nano-banana" model
+- In Narrative Mode: user-selectable model from UI
+
+**Prompt Structure**:
+```
+Environmental reference image of {name}, {description}.
+Details: {details if provided}.
+{artStyleDescription if provided}
+
+Wide 16:9 landscape composition, establishing shot showcasing the full environment and atmosphere. Natural or atmospheric lighting that reflects the time of day and mood. Clear, detailed view of the setting with emphasis on architecture, landscape features, or environmental elements. Cinematic depth and perspective, high-resolution, professionally composed, immersive environmental design.
+```
+
+**Default Negative Prompt**:
+```
+blurry, low quality, distorted, watermark, text, logo, people, characters, humans, animals, cropped, out of frame, bad composition, oversaturated, low resolution, pixelated
+```
 
 ---
 
@@ -235,7 +304,7 @@ Generate a detailed image prompt optimized for character consistency.
 **Implementation Notes**:
 - This text description becomes **@style** for all subsequent image generation
 - Single consolidated description includes: artistic medium, key visual elements, color schemes, lighting style, mood, rendering technique
-- Use in Agents 2.2, 2.6, 4.1 to maintain consistent visual style
+- Use in Agents 2.3, 2.6, 4.1 to maintain consistent visual style
 
 **Prompt Template**:
 ```
@@ -247,63 +316,6 @@ Analyze this style reference image and provide a comprehensive style description
 
 Format as a single cohesive description that can be injected into image generation prompts.
 ```
-
----
-
-### Agent 2.6: Location Prompt Engineer (AI)
-
-**Role**: Generate image prompts for location reference images
-
-**AI Model**: GPT-4 / Claude (Prompt Engineering)
-
-**Inputs**:
-| Field | Type | Source | Required |
-|-------|------|--------|----------|
-| Location details | Object | User-created location | ✓ |
-| └─ Name | String | Location identifier | ✓ |
-| └─ Description | String | Physical environment | ✓ |
-| └─ Atmosphere/Mood | String | Emotional tone | ✗ |
-| Art style description | String | Agent 2.5 output (@style) | ✓ |
-| Additional reference images | Array[Image URL] | User uploads | ✗ |
-
-**Outputs**:
-| Field | Type | Description |
-|-------|------|-------------|
-| Image generation prompt | String | Optimized location prompt |
-| Negative prompt | String | Elements to avoid |
-
-**Implementation Notes**:
-- Similar to Agent 2.2 but for environments/locations
-- Incorporate @style description if available
-- Focus on architectural details, lighting, atmosphere
-- No characters should appear in location shots
-
----
-
-### Agent 2.7: Location Image Generator (AI)
-
-**Role**: Generate location reference images for environmental consistency
-
-**AI Model**: Imagen 4 / DALL-E 3 / Stable Diffusion (Image Generation)
-
-**Inputs**:
-| Field | Type | Source | Required |
-|-------|------|--------|----------|
-| Image prompt | String | Agent 2.6 output | ✓ |
-| Negative prompt | String | Agent 2.6 output | ✗ |
-| Location reference images | Array[Image URL] | User uploads | ✗ |
-| Aspect ratio | Enum | User's video aspect ratio (16:9, 9:16, etc.) | ✓ |
-
-**Outputs**:
-| Field | Type | Description |
-|-------|------|-------------|
-| Generated image URL | String | Location reference image |
-| Location ID | String | Unique identifier (@location{id}) |
-
-**Implementation Notes**:
-- Generate in video's aspect ratio for easier composition
-- Use reference images if provided
-- Focus on establishing shots and environment
 
 ---
 
@@ -1078,18 +1090,15 @@ function handleFrameRegeneration(shotId, frameType, continuityGroups) {
 ├─────────────────────────────────────────────────────────────────┤
 │  Script → Agent 2.1 (Character Analyzer) → Character List       │
 │                                                                  │
-│  Character List → Agent 2.2 (Char Prompt Eng) → Image Prompts   │
-│  + @style                                                        │
+│  Script → Agent 2.2 (Location Analyzer) → Location List         │
 │                                                                  │
-│  Image Prompts → Agent 2.3 (Char Image Gen) → @character{id}    │
-│  + References                                  Reference Images  │
+│  Character + @style → Agent 2.3 (Char Image Gen) → @character   │
+│  + References                                   Reference Images │
+│                                                                  │
+│  Location + @style → Agent 2.6 (Loc Image Gen) → @location{id}  │
+│  + References                                   Reference Images │
 │                                                                  │
 │  Style Image → Agent 2.5 (Style Descriptor) → @style Text       │
-│                                                                  │
-│  Location + @style → Agent 2.6 (Loc Prompt) → Location Prompts  │
-│                                                                  │
-│  Location Prompts → Agent 2.7 (Loc Image Gen) → @location{id}   │
-│                                                  Reference Images│
 └────────────────┬────────────────────────────────────────────────┘
                  │
                  ↓
@@ -1158,15 +1167,14 @@ function handleFrameRegeneration(shotId, frameType, continuityGroups) {
 
 1. **Agent 1.1** - Script Generator ✓ Critical
 2. **Agent 2.1** - Character Analyzer ✓ Critical
-3. **Agent 2.5** - Style Descriptor ✓ Critical for consistency
-4. **Agent 2.2** - Character Prompt Engineer ✓ Critical
+3. **Agent 2.2** - Location Analyzer ✓ Critical
+4. **Agent 2.5** - Style Descriptor ✓ Critical for consistency
 5. **Agent 2.3** - Character Image Generator ✓ Critical
-6. **Agent 2.6** - Location Prompt Engineer ✓ Critical
-7. **Agent 2.7** - Location Image Generator ✓ Critical
-8. **Agent 3.1** - Scene Analyzer ✓ Critical
-9. **Agent 3.2** - Shot Composer ✓ Critical
-10. **Agent 3.3** - Timing Calculator ✓ Validation
-11. **Agent 3.4** - Continuity Producer ⚠️ Start-End Mode only
+6. **Agent 2.6** - Location Image Generator ✓ Critical
+7. **Agent 3.1** - Scene Analyzer ✓ Critical
+8. **Agent 3.2** - Shot Composer ✓ Critical
+9. **Agent 3.3** - Timing Calculator ✓ Validation
+10. **Agent 3.4** - Continuity Producer ⚠️ Start-End Mode only
 
 ### Phase 2: Visual Generation
 **Goal**: Storyboard image generation with consistency
@@ -1203,12 +1211,12 @@ function handleFrameRegeneration(shotId, frameType, continuityGroups) {
 
 | Category | Count |
 |----------|-------|
-| **Total Agents** | 24 |
-| **AI Agents** | 18 (17 active + 1 deferred) |
+| **Total Agents** | 22 |
+| **AI Agents** | 16 (15 active + 1 deferred) |
 | **Non-AI Agents** | 6 |
 | **Deferred Agents** | 1 (Agent 2.4) |
-| **Active Agents** | 23 |
-| **Critical Path Agents** | 19 |
+| **Active Agents** | 21 |
+| **Critical Path Agents** | 17 |
 | **Start-End Mode Only** | 2 (Agent 3.4, 4.7) |
 
 ### AI Model Requirements

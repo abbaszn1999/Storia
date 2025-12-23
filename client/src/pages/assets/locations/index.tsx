@@ -17,9 +17,7 @@ import {
   uploadMainImage,
   type LocationResponse,
 } from "@/assets/locations";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-const MAX_LOCATION_REFERENCES = 2;
+import { MAX_LOCATION_REFERENCES } from "@/lib/constants";
 
 export default function Locations() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -35,6 +33,7 @@ export default function Locations() {
   const [referenceImageFiles, setReferenceImageFiles] = useState<File[]>([]);
   const [referenceImagePreviews, setReferenceImagePreviews] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const { toast } = useToast();
   const { currentWorkspace } = useWorkspace();
   const queryClient = useQueryClient();
@@ -223,11 +222,88 @@ export default function Locations() {
     }
   };
 
-  const handleGenerateLocation = () => {
-    toast({
-      title: "Coming Soon",
-      description: "AI image generation will be available soon.",
-    });
+  const handleGenerateLocation = async () => {
+    if (!newLocation.description.trim()) {
+      toast({
+        title: "Description Required",
+        description: "Please describe the location before generating.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!newLocation.name.trim()) {
+      toast({
+        title: "Name Required",
+        description: "Please enter a location name before generating.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!currentWorkspace?.id) {
+      toast({
+        title: "Workspace Required",
+        description: "Please select a workspace.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingImage(true);
+
+    try {
+      let locationId = editingLocation?.id;
+
+      // If it's a new location, create it first
+      if (!locationId) {
+        console.log('[locations] Creating location first before image generation');
+        const newLoc = await createLocation({
+          workspaceId: currentWorkspace.id,
+          name: newLocation.name,
+          description: newLocation.description || undefined,
+          details: newLocation.details || undefined,
+        });
+        locationId = newLoc.id;
+        // Update local state to reflect the created location
+        setEditingLocation(newLoc);
+        console.log('[locations] Location created:', { locationId, name: newLoc.name });
+      }
+
+      // Generate image using the location ID
+      const response = await fetch(`/api/locations/${locationId}/generate-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          referenceImages: referenceImagePreviews.length > 0 ? referenceImagePreviews : undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        throw new Error(data.error || data.details || 'Failed to generate image');
+      }
+
+      if (data.imageUrl) {
+        setMainImagePreview(data.imageUrl);
+        queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
+        toast({
+          title: "Location Generated",
+          description: `Location image for ${newLocation.name} has been created.`,
+        });
+      }
+    } catch (error) {
+      console.error('Location image generation failed:', error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate location image.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingImage(false);
+    }
   };
 
   const handleMainImageUpload = (file: File) => {
@@ -239,12 +315,54 @@ export default function Locations() {
     reader.readAsDataURL(file);
   };
 
-  const handleReferenceImageUpload = (_file: File) => {
-    // Reference image upload is disabled - UI only for now
-    toast({
-      title: "Coming Soon",
-      description: "Reference image upload will be available in a future update.",
-    });
+  const handleReferenceImageUpload = async (file: File) => {
+    if (!currentWorkspace?.id) {
+      toast({
+        title: "Workspace Required",
+        description: "Please select a workspace.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      
+      // Upload to Bunny CDN via uploads endpoint
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('workspaceId', currentWorkspace.id);
+      formData.append('name', `Location Reference - ${file.name}`);
+      
+      const response = await fetch('/api/uploads', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload reference image');
+      }
+
+      const data = await response.json();
+      
+      // Add the CDN URL to reference images
+      setReferenceImagePreviews([...referenceImagePreviews, data.url]);
+      
+      toast({
+        title: "Reference Uploaded",
+        description: "Location reference image added.",
+      });
+    } catch (error) {
+      console.error('[locations] Reference upload error:', error);
+      toast({
+        title: "Upload Failed",
+        description: error instanceof Error ? error.message : "Failed to upload reference image.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleRemoveReferenceImage = (index: number) => {
@@ -415,26 +533,29 @@ export default function Locations() {
                     data-testid="input-location-details"
                   />
                 </div>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div>
-                        <Button
-                          onClick={handleGenerateLocation}
-                          className="w-full"
-                          disabled={true}
-                          data-testid="button-generate-location"
-                        >
-                          <Sparkles className="mr-2 h-4 w-4" />
-                          Generate Location Image
-                        </Button>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Coming soon</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Button
+                  onClick={handleGenerateLocation}
+                  className="w-full"
+                  disabled={isGeneratingImage || !newLocation.name.trim() || !newLocation.description.trim() || !currentWorkspace?.id}
+                  data-testid="button-generate-location"
+                >
+                  {isGeneratingImage ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate Location Image
+                    </>
+                  )}
+                </Button>
+                {!newLocation.name.trim() || !newLocation.description.trim() ? (
+                  <p className="text-xs text-muted-foreground text-center">
+                    Enter name and description to generate image
+                  </p>
+                ) : null}
               </div>
 
               <div className="space-y-4">

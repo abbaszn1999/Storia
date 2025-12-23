@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles, Film, Globe, Clock, Palette, MessageSquare, FileText, Wand2, RectangleHorizontal, RectangleVertical, Square } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Loader2, Sparkles, Film, Globe, Clock, Palette, MessageSquare, FileText, Wand2, RectangleHorizontal, RectangleVertical, Square, Grid3x3, ChevronDown } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -26,10 +27,14 @@ interface ScriptEditorProps {
   initialTones?: string[];
   initialLanguage?: string;
   initialUserIdea?: string;
+  initialNumberOfScenes?: number | 'auto';
+  initialShotsPerScene?: number | 'auto';
   onScriptChange: (script: string) => void;
   onAspectRatioChange?: (aspectRatio: string) => void;
   onScriptModelChange?: (model: string) => void;
   onNarrationStyleChange?: (style: "third-person" | "first-person") => void;
+  onNumberOfScenesChange?: (scenes: number | 'auto') => void;
+  onShotsPerSceneChange?: (shots: number | 'auto') => void;
   onValidationChange?: (canContinue: boolean) => void;  // Called when validation state changes
   onNext: () => void;
 }
@@ -93,10 +98,14 @@ export function ScriptEditor({
   initialTones = ["Dramatic"],
   initialLanguage = "English",
   initialUserIdea = "",
+  initialNumberOfScenes = 'auto',
+  initialShotsPerScene = 'auto',
   onScriptChange, 
   onAspectRatioChange, 
   onScriptModelChange, 
   onNarrationStyleChange,
+  onNumberOfScenesChange,
+  onShotsPerSceneChange,
   onValidationChange,
   onNext 
 }: ScriptEditorProps) {
@@ -110,6 +119,9 @@ export function ScriptEditor({
   const [selectedGenres, setSelectedGenres] = useState<string[]>(initialGenres);
   const [selectedTones, setSelectedTones] = useState<string[]>(initialTones);
   const [language, setLanguage] = useState(initialLanguage);
+  const [selectedNumberOfScenes, setSelectedNumberOfScenes] = useState<number | 'auto'>(initialNumberOfScenes);
+  const [selectedShotsPerScene, setSelectedShotsPerScene] = useState<number | 'auto'>(initialShotsPerScene);
+  const [advancedSettingsOpen, setAdvancedSettingsOpen] = useState(false);
   const { toast } = useToast();
 
   // Track settings when script was created - to detect if settings changed after
@@ -180,6 +192,18 @@ export function ScriptEditor({
       setStoryIdea(initialUserIdea);
     }
   }, [initialUserIdea]);
+
+  useEffect(() => {
+    if (initialNumberOfScenes !== undefined) {
+      setSelectedNumberOfScenes(initialNumberOfScenes);
+    }
+  }, [initialNumberOfScenes]);
+
+  useEffect(() => {
+    if (initialShotsPerScene !== undefined) {
+      setSelectedShotsPerScene(initialShotsPerScene);
+    }
+  }, [initialShotsPerScene]);
 
   const accentClasses = "from-purple-500 to-pink-500";
 
@@ -253,20 +277,29 @@ export function ScriptEditor({
         });
       }
 
-      // Backend expects: duration, genre (singular), language, aspectRatio, userPrompt
+      // Backend expects: duration, genre, language, tone, userPrompt, model
       const res = await apiRequest('POST', '/api/narrative/script/generate', {
         duration: parseInt(duration),
         genre: selectedGenres.join(', '), // Convert array to comma-separated string
         language,
-        aspectRatio: selectedAspectRatio,
+        tone: selectedTones.join(', '), // Convert array to comma-separated string
         userPrompt: userIdea,
+        model: selectedModel, // Send selected AI model
       });
       return await res.json();
     },
-    onSuccess: async (data: { script: string }) => {
+    onSuccess: async (data: { script: string; estimatedDuration: number; metadata: any }) => {
       setGeneratedScript(data.script);
       setHasGeneratedOnce(true);
       onScriptChange(data.script);
+      
+      // Log estimated duration for debugging
+      console.log('[ScriptEditor] Script generated:', {
+        targetDuration: parseInt(duration),
+        estimatedDuration: data.estimatedDuration,
+        difference: data.estimatedDuration - parseInt(duration),
+        metadata: data.metadata,
+      });
       
       // Capture settings snapshot when script is generated
       setScriptSettingsSnapshot({
@@ -364,7 +397,7 @@ export function ScriptEditor({
   const scriptCharCount = generatedScript.length;
   const wordCount = generatedScript.trim() ? generatedScript.trim().split(/\s+/).length : 0;
 
-  // Save genres, tones, duration, and language when they change (debounced)
+  // Save genres, tones, duration, language, and structure settings when they change (debounced)
   useEffect(() => {
     if (!videoId || videoId === 'new') return;
     
@@ -374,11 +407,13 @@ export function ScriptEditor({
         tones: selectedTones,
         duration: parseInt(duration),
         language,
+        numberOfScenes: selectedNumberOfScenes,
+        shotsPerScene: selectedShotsPerScene,
       });
     }, 500); // Debounce for 500ms
 
     return () => clearTimeout(timeoutId);
-  }, [selectedGenres, selectedTones, duration, language, videoId]);
+  }, [selectedGenres, selectedTones, duration, language, selectedNumberOfScenes, selectedShotsPerScene, videoId]);
 
   return (
     <div className="flex w-full gap-0 overflow-hidden">
@@ -613,6 +648,111 @@ export function ScriptEditor({
                 </div>
               </CardContent>
             </Card>
+
+            {/* Advanced Settings - Collapsible */}
+            <Collapsible open={advancedSettingsOpen} onOpenChange={setAdvancedSettingsOpen}>
+              <Card className="bg-white/[0.02] border-white/[0.06]">
+                <CollapsibleTrigger asChild>
+                  <button className="w-full">
+                    <CardContent className="p-6 flex items-center justify-between cursor-pointer hover:bg-white/[0.02] transition-all">
+                      <div className="flex items-center gap-2">
+                        <Grid3x3 className="w-5 h-5 text-purple-400" />
+                        <Label className="text-lg font-semibold text-white cursor-pointer">Advanced Settings</Label>
+                      </div>
+                      <motion.div
+                        animate={{ rotate: advancedSettingsOpen ? 180 : 0 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <ChevronDown className="w-5 h-5 text-purple-400" />
+                      </motion.div>
+                    </CardContent>
+                  </button>
+                </CollapsibleTrigger>
+                
+                <CollapsibleContent>
+                  <CardContent className="px-6 pb-6 pt-0 space-y-4 border-t border-white/[0.06]">
+                    {/* Structure Settings */}
+                    <div className="space-y-4 mt-4">
+                      <Label className="text-md font-semibold text-white/90">Structure Settings</Label>
+                      
+                      {/* Number of Scenes */}
+                      <div className="space-y-2">
+                        <Label className="text-sm text-white/70">Number of Scenes</Label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setSelectedNumberOfScenes('auto');
+                              onNumberOfScenesChange?.('auto');
+                            }}
+                            className={cn(
+                              "px-4 py-2 rounded-lg text-sm font-medium border transition-all",
+                              selectedNumberOfScenes === 'auto'
+                                ? "bg-gradient-to-r from-purple-500 to-pink-500 border-white/20 text-white"
+                                : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
+                            )}
+                          >
+                            Auto
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            max="20"
+                            value={selectedNumberOfScenes === 'auto' ? '' : selectedNumberOfScenes}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value);
+                              if (!isNaN(val) && val > 0) {
+                                setSelectedNumberOfScenes(val);
+                                onNumberOfScenesChange?.(val);
+                              }
+                            }}
+                            placeholder="Enter number"
+                            className="flex-1 bg-white/[0.02] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 placeholder:text-white/30"
+                          />
+                        </div>
+                        <p className="text-xs text-white/40">AI will determine optimal scene count if set to Auto</p>
+                      </div>
+
+                      {/* Shots per Scene */}
+                      <div className="space-y-2">
+                        <Label className="text-sm text-white/70">Shots per Scene</Label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setSelectedShotsPerScene('auto');
+                              onShotsPerSceneChange?.('auto');
+                            }}
+                            className={cn(
+                              "px-4 py-2 rounded-lg text-sm font-medium border transition-all",
+                              selectedShotsPerScene === 'auto'
+                                ? "bg-gradient-to-r from-purple-500 to-pink-500 border-white/20 text-white"
+                                : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
+                            )}
+                          >
+                            Auto
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={selectedShotsPerScene === 'auto' ? '' : selectedShotsPerScene}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value);
+                              if (!isNaN(val) && val > 0) {
+                                setSelectedShotsPerScene(val);
+                                onShotsPerSceneChange?.(val);
+                              }
+                            }}
+                            placeholder="Enter number"
+                            className="flex-1 bg-white/[0.02] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 placeholder:text-white/30"
+                          />
+                        </div>
+                        <p className="text-xs text-white/40">AI will vary shot count per scene if set to Auto</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
 
             {/* Narration Style - Only for Character Vlog mode */}
             {videoMode === "character-vlog" && (

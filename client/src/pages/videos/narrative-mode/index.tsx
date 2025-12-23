@@ -59,6 +59,8 @@ export default function NarrativeMode() {
   const [tones, setTones] = useState<string[]>(["Dramatic"]);
   const [language, setLanguage] = useState("English");
   const [userIdea, setUserIdea] = useState("");
+  const [numberOfScenes, setNumberOfScenes] = useState<number | 'auto'>('auto');
+  const [shotsPerScene, setShotsPerScene] = useState<number | 'auto'>('auto');
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [shots, setShots] = useState<{ [sceneId: string]: Shot[] }>({});
   const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
@@ -70,16 +72,18 @@ export default function NarrativeMode() {
     artStyle: string; 
     imageModel?: string;
     worldDescription?: string;
-    locations?: Array<{ id: string; name: string; description: string }>;
+    locations?: Array<{ id: string; name: string; description: string; details?: string; imageUrl?: string | null }>;
     imageInstructions?: string;
     videoInstructions?: string;
+    cinematicInspiration?: string;
   }>({
     artStyle: "none",
-    imageModel: "Flux",
+    imageModel: "flux-2-dev",
     worldDescription: "",
     locations: [],
     imageInstructions: "",
     videoInstructions: "",
+    cinematicInspiration: "",
   });
 
   // Restore state from existing video
@@ -185,17 +189,55 @@ export default function NarrativeMode() {
         }
       }
       
-      // Restore step2 data (world settings)
+      // Restore step2 data (world settings, characters, locations)
       if (existingVideo.step2Data && typeof existingVideo.step2Data === 'object') {
-        const step2 = existingVideo.step2Data as typeof worldSettings;
+        const step2 = existingVideo.step2Data as {
+          artStyle?: string;
+          imageModel?: string;
+          worldDescription?: string;
+          locations?: Array<{ id: string; name: string; description: string; details?: string; imageUrl?: string | null }>;
+          imageInstructions?: string;
+          videoInstructions?: string;
+          cinematicInspiration?: string;
+          styleReference?: string[];
+          characters?: Character[];
+        };
+        
+        // Restore world settings
         setWorldSettings({
           artStyle: step2.artStyle || "none",
-          imageModel: step2.imageModel || "Flux",
+          imageModel: step2.imageModel || "flux-2-dev",
           worldDescription: step2.worldDescription || "",
           locations: step2.locations || [],
           imageInstructions: step2.imageInstructions || "",
           videoInstructions: step2.videoInstructions || "",
+          cinematicInspiration: step2.cinematicInspiration || "",
         });
+
+        // Restore characters from step2Data (preferred over step4Data)
+        if (step2.characters && Array.isArray(step2.characters)) {
+          setCharacters(step2.characters);
+        }
+
+        // Restore style reference images from step2Data.styleReference
+        if (step2.styleReference && Array.isArray(step2.styleReference) && step2.styleReference.length > 0) {
+          const styleRefImages: ReferenceImage[] = step2.styleReference.map((url, index) => ({
+            id: `style-ref-${index}-${Date.now()}`,
+            videoId: existingVideo.id,
+            shotId: null,
+            characterId: null,
+            type: "style",
+            imageUrl: url,
+            description: null,
+            createdAt: new Date(),
+          }));
+          
+          // Merge with existing reference images (don't overwrite character references)
+          setReferenceImages(prev => {
+            const nonStyleRefs = prev.filter(r => r.type !== "style");
+            return [...nonStyleRefs, ...styleRefImages];
+          });
+        }
       }
       
       // Restore step3 data (scenes, shots, continuity)
@@ -212,7 +254,7 @@ export default function NarrativeMode() {
         if (step3.continuityGroups) setContinuityGroups(step3.continuityGroups);
       }
       
-      // Restore step4 data (shot versions, characters, reference images)
+      // Restore step4 data (shot versions, reference images - only if not already restored from step2)
       if (existingVideo.step4Data && typeof existingVideo.step4Data === 'object') {
         const step4 = existingVideo.step4Data as { 
           shotVersions?: { [shotId: string]: ShotVersion[] };
@@ -220,8 +262,28 @@ export default function NarrativeMode() {
           referenceImages?: ReferenceImage[];
         };
         if (step4.shotVersions) setShotVersions(step4.shotVersions);
-        if (step4.characters) setCharacters(step4.characters);
-        if (step4.referenceImages) setReferenceImages(step4.referenceImages);
+        
+        // Only restore characters from step4Data if not already restored from step2Data
+        // Check if step2Data had characters to avoid overwriting
+        const step2HadCharacters = existingVideo.step2Data && 
+          typeof existingVideo.step2Data === 'object' && 
+          (existingVideo.step2Data as any).characters && 
+          Array.isArray((existingVideo.step2Data as any).characters);
+        
+        if (step4.characters && Array.isArray(step4.characters) && !step2HadCharacters) {
+          setCharacters(step4.characters);
+        }
+        
+        // Only restore reference images from step4Data if not already restored from step2Data
+        // Check if step2Data had styleReference to avoid overwriting
+        const step2HadStyleRefs = existingVideo.step2Data && 
+          typeof existingVideo.step2Data === 'object' && 
+          (existingVideo.step2Data as any).styleReference && 
+          Array.isArray((existingVideo.step2Data as any).styleReference);
+        
+        if (step4.referenceImages && Array.isArray(step4.referenceImages) && !step2HadStyleRefs) {
+          setReferenceImages(step4.referenceImages);
+        }
       }
     }
   }, [existingVideo]);
@@ -274,6 +336,102 @@ export default function NarrativeMode() {
     }
   };
 
+  // Save Step 1 data to database
+  const saveStep1Data = async (step1Data: {
+    script: string;
+    duration?: number;
+    genres?: string[];
+    tones?: string[];
+    language?: string;
+    aspectRatio?: string;
+    scriptModel?: string;
+    userIdea?: string;
+  }) => {
+    if (!videoId || videoId === 'new') {
+      console.warn('[NarrativePage] Cannot save step1 data - no valid videoId');
+      return;
+    }
+
+    console.log('[NarrativePage] Saving step1 data:', {
+      videoId,
+      hasScript: !!step1Data.script && step1Data.script.length > 0,
+      duration: step1Data.duration,
+      genresCount: step1Data.genres?.length || 0,
+      tonesCount: step1Data.tones?.length || 0,
+    });
+
+    try {
+      const response = await fetch(`/api/narrative/videos/${videoId}/step1`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(step1Data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('[NarrativePage] Step1 data save failed:', errorData);
+        throw new Error(errorData.error || 'Failed to save step1 data');
+      }
+
+      const result = await response.json();
+      console.log('[NarrativePage] Step1 data saved successfully');
+      return result;
+    } catch (error) {
+      console.error('[NarrativePage] Step1 data save error:', error);
+      throw error;
+    }
+  };
+
+  // Save Step 2 data to database
+  const saveStep2Data = async (step2Data: {
+    imageModel: string;
+    artStyle: string;
+    styleReference?: string[];
+    cinematicInspiration?: string;
+    worldDescription: string;
+    imageInstructions: string;
+    videoInstructions: string;
+    characters: Character[];
+    locations: Array<{ id: string; name: string; description: string; details?: string; imageUrl?: string | null }>;
+  }) => {
+    if (!videoId || videoId === 'new') {
+      console.warn('[NarrativePage] Cannot save step2 data - no valid videoId');
+      return;
+    }
+
+    console.log('[NarrativePage] Saving step2 data:', {
+      videoId,
+      imageModel: step2Data.imageModel,
+      artStyle: step2Data.artStyle,
+      hasStyleReference: !!step2Data.styleReference && step2Data.styleReference.length > 0,
+      charactersCount: step2Data.characters.length,
+      locationsCount: step2Data.locations.length,
+    });
+
+    try {
+      const response = await fetch(`/api/narrative/videos/${videoId}/step2`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(step2Data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('[NarrativePage] Step2 data save failed:', errorData);
+        throw new Error(errorData.error || 'Failed to save step2 data');
+      }
+
+      const result = await response.json();
+      console.log('[NarrativePage] Step2 data saved successfully');
+      return result;
+    } catch (error) {
+      console.error('[NarrativePage] Step2 data save error:', error);
+      throw error;
+    }
+  };
+
   const handleStepClick = (step: NarrativeStepId) => {
     const steps: NarrativeStepId[] = ["script", "world", "breakdown", "storyboard", "animatic", "export"];
     const currentIndex = steps.indexOf(activeStep);
@@ -291,6 +449,68 @@ export default function NarrativeMode() {
     const nextIndex = currentIndex + 1;
     
     if (nextIndex < steps.length) {
+      // If we're on the "script" step, save Step1Data before proceeding
+      if (activeStep === "script") {
+        try {
+          // Build complete Step1Data object
+          const step1Data = {
+            script: script,
+            duration: parseInt(duration),
+            genres: genres,
+            tones: tones,
+            language: language,
+            aspectRatio: aspectRatio,
+            scriptModel: scriptModel,
+            userIdea: userIdea,
+            // narrativeMode is stored separately in video metadata, not in step1Data
+          };
+
+          // Save Step1Data before proceeding
+          await saveStep1Data(step1Data);
+        } catch (error) {
+          toast({
+            title: "Save Failed",
+            description: error instanceof Error ? error.message : "Failed to save script settings. Please try again.",
+            variant: "destructive",
+          });
+          // Don't proceed to next step if save failed
+          return;
+        }
+      }
+
+      // If we're on the "world" step, save Step2Data before proceeding
+      if (activeStep === "world") {
+        try {
+          // Collect style reference URLs (filter by type === "style")
+          const styleRefs = referenceImages.filter(r => r.type === "style");
+          const styleReference = styleRefs.map(r => r.imageUrl);
+
+          // Build complete Step2Data object
+          const step2Data = {
+            imageModel: worldSettings.imageModel || "flux-2-dev",
+            artStyle: worldSettings.artStyle || "none",
+            styleReference: styleReference.length > 0 ? styleReference : undefined,
+            cinematicInspiration: worldSettings.cinematicInspiration || undefined,
+            worldDescription: worldSettings.worldDescription || "",
+            imageInstructions: worldSettings.imageInstructions || "",
+            videoInstructions: worldSettings.videoInstructions || "",
+            characters: characters,
+            locations: worldSettings.locations || [],
+          };
+
+          // Save Step2Data before proceeding
+          await saveStep2Data(step2Data);
+        } catch (error) {
+          toast({
+            title: "Save Failed",
+            description: error instanceof Error ? error.message : "Failed to save world settings. Please try again.",
+            variant: "destructive",
+          });
+          // Don't proceed to next step if save failed
+          return;
+        }
+      }
+
       // Mark current step as completed
       const newCompletedSteps = completedSteps.includes(activeStep) 
         ? completedSteps 
@@ -447,6 +667,8 @@ export default function NarrativeMode() {
         tones={tones}
         language={language}
         userIdea={userIdea}
+        numberOfScenes={numberOfScenes}
+        shotsPerScene={shotsPerScene}
         scenes={scenes}
         shots={shots}
         shotVersions={shotVersions}
@@ -460,6 +682,8 @@ export default function NarrativeMode() {
         onScriptModelChange={setScriptModel}
         onVoiceActorChange={setVoiceActorId}
         onVoiceOverToggle={setVoiceOverEnabled}
+        onNumberOfScenesChange={setNumberOfScenes}
+        onShotsPerSceneChange={setShotsPerScene}
         onScenesChange={setScenes}
         onShotsChange={setShots}
         onShotVersionsChange={setShotVersions}

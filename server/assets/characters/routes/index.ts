@@ -9,6 +9,7 @@ import { insertCharacterSchema } from "@shared/schema";
 import { bunnyStorage } from "../../../storage/bunny-storage";
 import { MAX_REFERENCE_IMAGES, ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE } from "../config";
 import type { CreateCharacterRequest, UpdateCharacterRequest } from "../types";
+import { generateCharacterImage } from "../../../ai/agents/character-image-generator";
 
 const router = Router();
 
@@ -263,6 +264,118 @@ router.post(
     } catch (error) {
       console.error("[characters] Error uploading image:", error);
       res.status(500).json({ error: "Failed to upload image" });
+    }
+  }
+);
+
+// POST /api/characters/:id/generate-image - Generate AI character image
+// Uses hard-coded nano-banana model for character assets library
+router.post(
+  "/:id/generate-image",
+  isAuthenticated,
+  async (req: any, res: Response) => {
+    try {
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { id } = req.params;
+      const { artStyleDescription, negativePrompt, referenceImages } = req.body;
+
+      const character = await storage.getCharacter(id);
+      
+      if (!character) {
+        return res.status(404).json({ error: "Character not found" });
+      }
+
+      // Verify workspace access
+      const workspaces = await storage.getWorkspacesByUserId(userId);
+      const workspace = workspaces.find((w) => w.id === character.workspaceId);
+      if (!workspace) {
+        return res.status(403).json({ error: "Access denied to this character" });
+      }
+
+      // Validate character has required fields for image generation
+      if (!character.appearance) {
+        return res.status(400).json({ 
+          error: "Character appearance is required for image generation" 
+        });
+      }
+
+      console.log("[characters] Generating AI image for character:", {
+        characterId: id,
+        characterName: character.name,
+        model: "nano-banana",
+        hasArtStyle: !!artStyleDescription,
+        hasReferenceImages: referenceImages && referenceImages.length > 0,
+      });
+
+      // Generate character image using Agent 2.3
+      // Hard-coded to nano-banana model for character assets library
+      const result = await generateCharacterImage(
+        {
+          name: character.name,
+          appearance: character.appearance,
+          personality: character.personality || undefined,
+          artStyleDescription,
+          model: "nano-banana", // Hard-coded for assets library
+          negativePrompt,
+          referenceImages,
+        },
+        userId,
+        workspace.id
+      );
+
+      if (result.error || !result.imageUrl) {
+        console.error("[characters] AI image generation failed:", result.error);
+        return res.status(500).json({ 
+          error: "Failed to generate character image",
+          details: result.error 
+        });
+      }
+
+      console.log("[characters] AI image generated, downloading to CDN:", {
+        generatedUrl: result.imageUrl.substring(0, 50) + "...",
+        cost: result.cost,
+      });
+
+      // Download the generated image and upload to Bunny CDN
+      const imageResponse = await fetch(result.imageUrl);
+      if (!imageResponse.ok) {
+        return res.status(500).json({ error: "Failed to download generated image" });
+      }
+
+      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+      const contentType = imageResponse.headers.get("content-type") || "image/png";
+
+      // Build Bunny path for the generated image
+      const bunnyPath = buildCharacterImagePath(userId, workspace.name, id, "main", contentType);
+      
+      // Upload to Bunny CDN
+      const cdnUrl = await bunnyStorage.uploadFile(bunnyPath, imageBuffer, contentType);
+
+      // Update character with new image URL
+      await storage.updateCharacter(id, { imageUrl: cdnUrl });
+
+      console.log("[characters] AI-generated image saved successfully:", {
+        characterId: id,
+        cdnUrl: cdnUrl.substring(0, 50) + "...",
+        cost: result.cost,
+      });
+
+      res.json({
+        imageUrl: cdnUrl,
+        characterId: id,
+        cost: result.cost,
+        success: true,
+      });
+    } catch (error) {
+      console.error("[characters] Error generating AI image:", error);
+      res.status(500).json({ 
+        error: "Failed to generate character image",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   }
 );

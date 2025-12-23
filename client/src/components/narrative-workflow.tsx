@@ -25,6 +25,8 @@ interface NarrativeWorkflowProps {
   tones: string[];
   language: string;
   userIdea: string;
+  numberOfScenes?: number | 'auto';
+  shotsPerScene?: number | 'auto';
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
@@ -36,15 +38,18 @@ interface NarrativeWorkflowProps {
     artStyle: string; 
     imageModel?: string;
     worldDescription?: string;
-    locations?: Array<{ id: string; name: string; description: string }>;
+    locations?: Array<{ id: string; name: string; description: string; details?: string; imageUrl?: string | null }>;
     imageInstructions?: string;
     videoInstructions?: string;
+    cinematicInspiration?: string;
   };
   onScriptChange: (script: string) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
   onScriptModelChange: (model: string) => void;
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
+  onNumberOfScenesChange?: (scenes: number | 'auto') => void;
+  onShotsPerSceneChange?: (shots: number | 'auto') => void;
   onScenesChange: (scenes: Scene[]) => void;
   onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
   onShotVersionsChange: (shotVersions: { [shotId: string]: ShotVersion[] }) => void;
@@ -56,9 +61,10 @@ interface NarrativeWorkflowProps {
     artStyle: string; 
     imageModel: string;
     worldDescription: string;
-    locations: Array<{ id: string; name: string; description: string }>;
+    locations: Array<{ id: string; name: string; description: string; details?: string; imageUrl?: string | null }>;
     imageInstructions: string;
     videoInstructions: string;
+    cinematicInspiration?: string;
   }) => void;
   onValidationChange?: (canContinue: boolean) => void;  // Validation callback
   onNext: () => void;
@@ -79,6 +85,8 @@ export function NarrativeWorkflow({
   tones,
   language,
   userIdea,
+  numberOfScenes,
+  shotsPerScene,
   scenes,
   shots,
   shotVersions,
@@ -92,6 +100,8 @@ export function NarrativeWorkflow({
   onScriptModelChange,
   onVoiceActorChange,
   onVoiceOverToggle,
+  onNumberOfScenesChange,
+  onShotsPerSceneChange,
   onScenesChange,
   onShotsChange,
   onShotVersionsChange,
@@ -450,9 +460,13 @@ export function NarrativeWorkflow({
           initialTones={tones}
           initialLanguage={language}
           initialUserIdea={userIdea}
+          initialNumberOfScenes={numberOfScenes}
+          initialShotsPerScene={shotsPerScene}
           onScriptChange={onScriptChange}
           onAspectRatioChange={onAspectRatioChange}
           onScriptModelChange={onScriptModelChange}
+          onNumberOfScenesChange={onNumberOfScenesChange}
+          onShotsPerSceneChange={onShotsPerSceneChange}
           onValidationChange={onValidationChange}
           onNext={onNext}
         />
@@ -494,6 +508,8 @@ export function NarrativeWorkflow({
           locations={worldSettings.locations}
           imageInstructions={worldSettings.imageInstructions}
           videoInstructions={worldSettings.videoInstructions}
+          cinematicInspiration={worldSettings.cinematicInspiration}
+          script={script}
           onCharactersChange={onCharactersChange}
           onReferenceImagesChange={onReferenceImagesChange}
           onWorldSettingsChange={onWorldSettingsChange}

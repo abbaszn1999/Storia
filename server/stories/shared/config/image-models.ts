@@ -18,6 +18,8 @@ export interface ImageModelConfig {
   supportsSeed: boolean;
   supportsNegativePrompt: boolean;
   supportsStyleReference: boolean; // Whether model supports seedImage for style transfer
+  maxReferenceImages: number; // Maximum number of reference images (0 = not supported)
+  supportsCharacterReference: boolean; // Whether model supports character reference separately
   default?: boolean;
 }
 
@@ -46,7 +48,9 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 3000,
     supportsSeed: false,
     supportsNegativePrompt: false,
-    supportsStyleReference: false, // Google models don't support seedImage in Runware
+    supportsStyleReference: true, // Supports up to 8 reference images
+    maxReferenceImages: 8,
+    supportsCharacterReference: true,
     default: true,
   },
 
@@ -68,7 +72,9 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 45000,
     supportsSeed: false,
     supportsNegativePrompt: false,
-    supportsStyleReference: false, // Google models don't support seedImage in Runware
+    supportsStyleReference: true, // Supports up to 14 reference images
+    maxReferenceImages: 14,
+    supportsCharacterReference: true,
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -90,7 +96,9 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 2000,
     supportsSeed: false,
     supportsNegativePrompt: false,
-    supportsStyleReference: true, // Supports image-to-image (1 reference image)
+    supportsStyleReference: true, // Supports image-to-image (1 reference image only)
+    maxReferenceImages: 1,
+    supportsCharacterReference: false, // Only supports 1 image total - no character reference
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -111,7 +119,9 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     maxPromptLength: 2000,
     supportsSeed: false,
     supportsNegativePrompt: true,
-    supportsStyleReference: false, // Text-to-image only
+    supportsStyleReference: true, // Supports via providerSettings (styleReferenceImages + characterReferenceImages)
+    maxReferenceImages: 999, // No documented limit, uses providerSettings
+    supportsCharacterReference: true,
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -132,6 +142,8 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsSeed: false,
     supportsNegativePrompt: false,
     supportsStyleReference: false, // Text-to-image only
+    maxReferenceImages: 0,
+    supportsCharacterReference: false,
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -153,6 +165,8 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsSeed: false,
     supportsNegativePrompt: false,
     supportsStyleReference: false, // Text-to-image only
+    maxReferenceImages: 0,
+    supportsCharacterReference: false,
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -173,6 +187,8 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsSeed: false,
     supportsNegativePrompt: true,
     supportsStyleReference: false, // Text-to-image only
+    maxReferenceImages: 0,
+    supportsCharacterReference: false,
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -195,6 +211,8 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsSeed: false,
     supportsNegativePrompt: false,
     supportsStyleReference: true, // Supports image-to-image (up to 14 reference images)
+    maxReferenceImages: 14,
+    supportsCharacterReference: true,
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -218,6 +236,8 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsSeed: false,
     supportsNegativePrompt: false,
     supportsStyleReference: true, // Supports image-to-image (up to 14 reference images)
+    maxReferenceImages: 14,
+    supportsCharacterReference: true,
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -240,6 +260,8 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsSeed: true,
     supportsNegativePrompt: false,
     supportsStyleReference: true, // Supports reference-to-image (up to 4 reference images)
+    maxReferenceImages: 4,
+    supportsCharacterReference: true,
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -263,6 +285,8 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsSeed: false,
     supportsNegativePrompt: false,
     supportsStyleReference: true, // Supports reference-to-image (up to 9 reference images)
+    maxReferenceImages: 9,
+    supportsCharacterReference: true,
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -291,6 +315,13 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
   },
 
 };
+
+/**
+ * Get image model config by ID
+ */
+export function getImageModelConfig(modelId: string): ImageModelConfig | undefined {
+  return IMAGE_MODEL_CONFIGS[modelId];
+}
 
 /**
  * Get the default image model

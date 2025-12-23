@@ -520,23 +520,25 @@ export function StoryboardStep({
                   "flex items-center justify-center"
                 )}>
                   {/* Loading Overlay - Shows inside the box only */}
-                  {/* Show when: batch image generation OR single image regeneration OR video generation OR batch video (Animate All) */}
-                  {(isGeneratingImages || isGeneratingImage || isGeneratingVideo || (isGenerating && activeMediaTab === 'video')) && (
+                  {/* Show when: batch image generation OR single image regeneration OR video generation OR batch video (Animate All) - but only if scene doesn't have video yet */}
+                  {(isGeneratingImages || isGeneratingImage || isGeneratingVideo || (isGenerating && activeMediaTab === 'video' && !selectedSceneData?.videoUrl)) && (
                     <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm">
                       <RefreshCw className="w-12 h-12 text-white/60 mb-3 animate-spin" />
                       <p className="text-white/70 text-sm font-medium">
-                        {(isGenerating && activeMediaTab === 'video')
-                          ? 'Generating All Videos...'
-                          : isGeneratingVideo 
-                            ? 'Generating Video...' 
+                        {isGeneratingVideo 
+                          ? 'Generating Video...'
+                          : (isGenerating && activeMediaTab === 'video')
+                            ? 'Generating All Videos...'
                             : isGeneratingImages 
                               ? 'Generating Images...'
                               : 'Generating Image...'}
                       </p>
                       <p className="text-white/40 text-xs mt-1">
-                        {(isGenerating && activeMediaTab === 'video') || isGeneratingImages 
-                          ? `${scenes.length} scenes`
-                          : `Scene ${selectedSceneData?.sceneNumber}`}
+                        {isGeneratingVideo
+                          ? `Scene ${selectedSceneData?.sceneNumber}`
+                          : (isGenerating && activeMediaTab === 'video') || isGeneratingImages 
+                            ? `${scenes.length} scenes`
+                            : `Scene ${selectedSceneData?.sceneNumber}`}
                       </p>
                     </div>
                   )}

@@ -186,7 +186,7 @@ function removeAudioTags(text: string): string {
 
 /**
  * Clean text for subtitle display
- * Removes both Arabic diacritics and audio tags
+ * Removes Arabic diacritics, audio tags, and TTS pause markers
  */
 function cleanTextForSubtitle(text: string): string {
   let cleaned = text;
@@ -197,7 +197,11 @@ function cleanTextForSubtitle(text: string): string {
   // Step 2: Remove Arabic diacritics (harakat/tashkeel)
   cleaned = removeArabicDiacritics(cleaned);
   
-  // Step 3: Clean up extra whitespace
+  // Step 3: Remove TTS pause markers (...) - these are for voice pauses, not subtitles
+  // Matches 2 or more consecutive dots with optional surrounding whitespace
+  cleaned = cleaned.replace(/\s*\.{2,}\s*/g, ' ');
+  
+  // Step 4: Clean up extra whitespace
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
   
   return cleaned;

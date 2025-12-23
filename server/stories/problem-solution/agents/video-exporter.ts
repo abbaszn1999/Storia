@@ -25,6 +25,9 @@ import {
   adjustAudioSpeed,
   calculateDualSpeedSync,
   createMutedVideo,
+  loopVideo,
+  trimVideo,
+  type SyncResult,
 } from "../services/ffmpeg-helpers";
 import type { SceneTransition, ImageAnimation, ImageEffect } from "../types";
 import { burnSubtitles } from "../services/subtitle-generator";
@@ -292,13 +295,16 @@ export async function exportFinalVideo(
             console.log(`[video-exporter]   Video: ${videoDuration.toFixed(2)}s`);
             console.log(`[video-exporter]   Audio: ${audioDuration.toFixed(2)}s`);
             
-            // Calculate optimal speeds using Dual Speed Sync (Prefer Slowdown)
+            // Calculate optimal speeds using Dual Speed Sync v2.0
+            // Supports: slowdown, speedup, loop, and trim
             const sync = calculateDualSpeedSync(videoDuration, audioDuration);
             
             console.log(`[video-exporter]   Target: ${sync.targetDuration.toFixed(2)}s`);
             console.log(`[video-exporter]   Video speed: ${sync.videoSpeed.toFixed(3)}x`);
             console.log(`[video-exporter]   Audio speed: ${sync.audioSpeed.toFixed(3)}x`);
             console.log(`[video-exporter]   Method: ${sync.method}`);
+            console.log(`[video-exporter]   Needs loop: ${sync.needsLoop}`);
+            console.log(`[video-exporter]   Needs trim: ${sync.needsTrim}`);
             
             let adjustedVideo = videoPath;
             let adjustedAudio = audioPath;
@@ -307,21 +313,41 @@ export async function exportFinalVideo(
             audioSpeedsByScene[i] = sync.audioSpeed;
             
             if (sync.method !== 'none') {
-              // Adjust video speed if needed
-              if (Math.abs(sync.videoSpeed - 1.0) > 0.02) {
-                console.log(`[video-exporter]   → Adjusting video speed...`);
-                adjustedVideo = await adjustVideoSpeed(videoPath, sync.targetDuration);
-                tempFiles.push(adjustedVideo);
+              // Step 1: Apply LOOP if needed (video shorter than audio)
+              if (sync.needsLoop) {
+                console.log(`[video-exporter]   → Looping video (2x)...`);
+                const loopedVideo = await loopVideo(adjustedVideo, videoDuration * 2);
+                if (adjustedVideo !== videoPath) tempFiles.push(adjustedVideo);
+                adjustedVideo = loopedVideo;
+                tempFiles.push(loopedVideo);
               }
               
-              // Adjust audio speed if needed
+              // Step 2: Apply TRIM if needed (video longer than audio)
+              if (sync.needsTrim && sync.trimTo) {
+                console.log(`[video-exporter]   → Trimming video to ${sync.trimTo.toFixed(2)}s...`);
+                const trimmedVideo = await trimVideo(adjustedVideo, sync.trimTo);
+                if (adjustedVideo !== videoPath) tempFiles.push(adjustedVideo);
+                adjustedVideo = trimmedVideo;
+                tempFiles.push(trimmedVideo);
+              }
+              
+              // Step 3: Adjust video speed if needed
+              if (Math.abs(sync.videoSpeed - 1.0) > 0.02) {
+                console.log(`[video-exporter]   → Adjusting video speed to ${sync.videoSpeed.toFixed(2)}x...`);
+                const speedAdjustedVideo = await adjustVideoSpeed(adjustedVideo, sync.targetDuration);
+                if (adjustedVideo !== videoPath) tempFiles.push(adjustedVideo);
+                adjustedVideo = speedAdjustedVideo;
+                tempFiles.push(speedAdjustedVideo);
+              }
+              
+              // Step 4: Adjust audio speed if needed
               if (Math.abs(sync.audioSpeed - 1.0) > 0.02) {
-                console.log(`[video-exporter]   → Adjusting audio speed...`);
+                console.log(`[video-exporter]   → Adjusting audio speed to ${sync.audioSpeed.toFixed(2)}x...`);
                 adjustedAudio = await adjustAudioSpeed(audioPath, sync.targetDuration);
                 tempFiles.push(adjustedAudio);
               }
               
-              console.log(`[video-exporter]   ✓ Sync complete`);
+              console.log(`[video-exporter]   ✓ Sync complete (method: ${sync.method})`);
             } else {
               console.log(`[video-exporter]   ✓ No adjustment needed (close enough)`);
             }

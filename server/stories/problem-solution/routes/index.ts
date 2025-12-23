@@ -209,7 +209,7 @@ psRouter.post(
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const { storyId, scenes, aspectRatio, imageStyle, styleReferenceUrl, imageModel, imageResolution, projectName, workspaceId } = req.body || {};
+      const { storyId, scenes, aspectRatio, imageStyle, styleReferenceUrl, characterReferenceUrl, imageModel, imageResolution, projectName, workspaceId } = req.body || {};
 
       if (!scenes || !Array.isArray(scenes) || scenes.length === 0) {
         return res.status(400).json({ error: "scenes array is required" });
@@ -224,6 +224,7 @@ psRouter.post(
         aspectRatio: aspectRatio || "9:16",
         imageStyle: imageStyle || "photorealistic",
         styleReferenceUrl: styleReferenceUrl ? 'provided' : 'none',
+        characterReferenceUrl: characterReferenceUrl ? 'provided' : 'none',
         imageModel: imageModel || "nano-banana",
         imageResolution: imageResolution || "1k",
       });
@@ -240,6 +241,7 @@ psRouter.post(
           aspectRatio: aspectRatio || "9:16",
           imageStyle: imageStyle || "photorealistic",
           styleReferenceUrl: styleReferenceUrl || undefined, // Custom style reference
+          characterReferenceUrl: characterReferenceUrl || undefined, // Character reference
           imageModel: imageModel || "nano-banana",
           imageResolution: imageResolution || "1k",
           projectName: projectName || "Untitled",
@@ -281,6 +283,7 @@ psRouter.post(
         aspectRatio, 
         imageStyle,
         styleReferenceUrl,
+        characterReferenceUrl,
         imageModel,
         imageResolution,
         projectName, 
@@ -316,6 +319,7 @@ psRouter.post(
           aspectRatio: aspectRatio || "9:16",
           imageStyle: imageStyle || "photorealistic",
           styleReferenceUrl: styleReferenceUrl || undefined, // Custom style reference
+          characterReferenceUrl: characterReferenceUrl || undefined, // Character reference
           imageModel: imageModel || "nano-banana",
           imageResolution: imageResolution || "1k",
           projectName: projectName || "Untitled",
@@ -1003,12 +1007,16 @@ psRouter.post(
         return res.status(400).json({ error: "No file provided" });
       }
 
-      const { workspaceId } = req.body;
+      const { workspaceId, type } = req.body;
 
       // Get workspace name for path building
       const workspaces = await storage.getWorkspacesByUserId(userId);
       const workspace = workspaces.find(w => w.id === workspaceId);
       const workspaceName = workspace?.name || 'default';
+
+      // Determine filename based on type (style or character)
+      const isCharacter = type === 'character';
+      const filename = isCharacter ? "custom_character.jpg" : "custom_style.jpg";
 
       // Build the storage path
       // Store in Reference folder with a fixed filename so it gets replaced on re-upload
@@ -1018,30 +1026,30 @@ psRouter.post(
         toolMode: "problem-solution",
         projectName: req.body.projectName || "MyProject_Upload", // Use provided projectName or fallback
         subfolder: "Reference",
-        filename: "custom_style.jpg", // Fixed name so it gets replaced
+        filename,
       });
 
       // Try to delete old file first (ignore errors if it doesn't exist)
       try {
         await deleteFile(bunnyPath);
-        console.log('[style-reference] Deleted old style reference');
+        console.log(`[style-reference] Deleted old ${isCharacter ? 'character' : 'style'} reference`);
       } catch {
         // File may not exist, ignore
       }
 
-      // Upload the new style reference image
+      // Upload the new reference image
       const cdnUrl = await bunnyStorage.uploadFile(
         bunnyPath,
         req.file.buffer,
         req.file.mimetype
       );
 
-      console.log('[style-reference] Style reference uploaded:', cdnUrl);
+      console.log(`[style-reference] ${isCharacter ? 'Character' : 'Style'} reference uploaded:`, cdnUrl);
 
       res.json({ 
         success: true, 
         url: cdnUrl,
-        message: "Style reference uploaded successfully"
+        message: `${isCharacter ? 'Character' : 'Style'} reference uploaded successfully`
       });
     } catch (error) {
       console.error("[style-reference] Upload error:", error);

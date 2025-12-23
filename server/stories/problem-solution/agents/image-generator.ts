@@ -25,6 +25,7 @@ import { callAi } from "../../../ai/service";
 import { runwareModelIdMap } from "../../../ai/config";
 import { enhanceImagePrompt } from "../prompts/image-prompts";
 import { getImageDimensions } from "../config";
+import { getImageModelConfig } from "../../shared/config/image-models";
 import type {
   ImageGeneratorInput,
   ImageGeneratorOutput,
@@ -87,37 +88,52 @@ function buildImagePayload(
     aspectRatio: string;
     imageStyle: ImageStyle;
     isMidjourney: boolean;
-    styleReferenceUrl?: string; // Custom style reference image URL
+    styleReferenceUrl?: string; // Custom style reference image URL (locks visual style)
+    characterReferenceUrl?: string; // Character/face reference image URL
+    imageModel: string; // Image model ID for checking capabilities
   }
 ): Record<string, any> {
-  const { runwareModelId, dimensions, aspectRatio, imageStyle, isMidjourney, styleReferenceUrl } = options;
+  const { runwareModelId, dimensions, aspectRatio, imageStyle, isMidjourney, styleReferenceUrl, characterReferenceUrl, imageModel } = options;
   
-  // Enhance prompt with style-specific modifiers
-  const enhancedPrompt = enhanceImagePrompt(
-    scene.imagePrompt,
-    aspectRatio,
-    imageStyle,
-    scene.sceneNumber === 1
-  );
+  // Get model config to check reference image support
+  const modelConfig = getImageModelConfig(imageModel);
+  const maxReferenceImages = modelConfig?.maxReferenceImages ?? 0;
+  const supportsCharacterReference = modelConfig?.supportsCharacterReference ?? false;
+  
+  // When custom style reference is provided, use original prompt without style modifiers
+  // The reference image itself will guide the visual style
+  // When no reference, enhance prompt with style-specific modifiers
+  // Note: Character reference does NOT disable style modifiers
+  const finalPrompt = styleReferenceUrl 
+    ? scene.imagePrompt.trim()  // Use original prompt - reference image handles style
+    : enhanceImagePrompt(       // Add style modifiers when no reference
+        scene.imagePrompt,
+        aspectRatio,
+        imageStyle,
+        scene.sceneNumber === 1
+      );
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // DEBUG: Log the original and enhanced prompts
+  // DEBUG: Log the prompt details
   // ═══════════════════════════════════════════════════════════════════════════
   console.log(`[image-generator] Scene ${scene.sceneNumber} prompt details:`, {
     originalPromptLength: scene.imagePrompt?.length || 0,
     originalPrompt: scene.imagePrompt?.substring(0, 200) + (scene.imagePrompt?.length > 200 ? '...' : ''),
-    enhancedPromptLength: enhancedPrompt.length,
-    enhancedPrompt: enhancedPrompt.substring(0, 300) + (enhancedPrompt.length > 300 ? '...' : ''),
+    finalPromptLength: finalPrompt.length,
+    finalPrompt: finalPrompt.substring(0, 300) + (finalPrompt.length > 300 ? '...' : ''),
     model: runwareModelId,
     dimensions: `${dimensions.width}x${dimensions.height}`,
     imageStyle,
+    maxReferenceImages,
+    usingStyleReference: !!styleReferenceUrl,
+    usingCharacterReference: !!characterReferenceUrl,
   });
 
   const payload: Record<string, any> = {
     taskType: "imageInference",
     taskUUID: randomUUID(),
     model: runwareModelId,
-    positivePrompt: enhancedPrompt,
+    positivePrompt: finalPrompt,
     width: dimensions.width,
     height: dimensions.height,
     // Midjourney requires numberResults to be multiple of 4
@@ -126,12 +142,34 @@ function buildImagePayload(
     outputType: "URL",
   };
 
-  // Add style reference using referenceImages array if provided
-  // referenceImages: array of image URLs/UUIDs to guide the generation style
-  // Supported formats: PNG, JPG, WEBP - can be URL, UUID, base64, or data URI
-  if (styleReferenceUrl) {
-    payload.referenceImages = [styleReferenceUrl];
-    console.log(`[image-generator] Scene ${scene.sceneNumber} using referenceImages:`, styleReferenceUrl);
+  // Build referenceImages array respecting model limits
+  // Priority: Style Reference > Character Reference
+  if (maxReferenceImages > 0) {
+    const referenceImages: string[] = [];
+    
+    // Add style reference first (highest priority)
+    if (styleReferenceUrl) {
+      referenceImages.push(styleReferenceUrl);
+      console.log(`[image-generator] Scene ${scene.sceneNumber} using style reference (visual style modifiers disabled)`);
+    }
+    
+    // Add character reference if supported and within limit
+    if (characterReferenceUrl && supportsCharacterReference && referenceImages.length < maxReferenceImages) {
+      referenceImages.push(characterReferenceUrl);
+      console.log(`[image-generator] Scene ${scene.sceneNumber} using character reference`);
+    } else if (characterReferenceUrl && !supportsCharacterReference) {
+      console.log(`[image-generator] Scene ${scene.sceneNumber} character reference ignored (model doesn't support it)`);
+    } else if (characterReferenceUrl && referenceImages.length >= maxReferenceImages) {
+      console.log(`[image-generator] Scene ${scene.sceneNumber} character reference ignored (model limit: ${maxReferenceImages})`);
+    }
+    
+    // Add to payload if we have any references
+    if (referenceImages.length > 0) {
+      payload.referenceImages = referenceImages;
+      console.log(`[image-generator] Scene ${scene.sceneNumber} using ${referenceImages.length}/${maxReferenceImages} reference images`);
+    }
+  } else if (styleReferenceUrl || characterReferenceUrl) {
+    console.log(`[image-generator] Scene ${scene.sceneNumber} reference images ignored (model doesn't support them)`);
   }
 
   return payload;
@@ -411,13 +449,14 @@ async function retryFailedImages(
     aspectRatio: string;
     imageStyle: ImageStyle;
     styleReferenceUrl?: string;
+    characterReferenceUrl?: string;
     imageModel: string;
     isMidjourney: boolean;
     userId: string;
     workspaceId?: string;
   }
 ): Promise<BatchResult[]> {
-  const { runwareModelId, dimensions, aspectRatio, imageStyle, styleReferenceUrl, imageModel, isMidjourney, userId, workspaceId } = options;
+  const { runwareModelId, dimensions, aspectRatio, imageStyle, styleReferenceUrl, characterReferenceUrl, imageModel, isMidjourney, userId, workspaceId } = options;
   
   const retriedResults: BatchResult[] = [];
   
@@ -437,6 +476,8 @@ async function retryFailedImages(
         imageStyle,
         isMidjourney,
         styleReferenceUrl,
+        characterReferenceUrl,
+        imageModel,
       });
 
       const response = await callAi(
@@ -502,7 +543,7 @@ export async function generateImages(
   userId: string,
   workspaceName: string
 ): Promise<ImageGeneratorOutput> {
-  const { scenes, aspectRatio, imageStyle, styleReferenceUrl, imageModel, imageResolution, projectName, storyId } = input;
+  const { scenes, aspectRatio, imageStyle, styleReferenceUrl, characterReferenceUrl, imageModel, imageResolution, projectName, storyId } = input;
 
   // ─────────────────────────────────────────────────────────────────────────────
   // SETUP
@@ -524,6 +565,7 @@ export async function generateImages(
     aspectRatio,
     imageStyle,
     styleReferenceUrl: styleReferenceUrl ? 'provided' : 'none',
+    characterReferenceUrl: characterReferenceUrl ? 'provided' : 'none',
     imageModel,
     imageResolution,
     dimensions,
@@ -560,6 +602,8 @@ export async function generateImages(
           imageStyle,
           isMidjourney,
           styleReferenceUrl,
+          characterReferenceUrl,
+          imageModel,
         }
       ),
     };
@@ -612,6 +656,7 @@ export async function generateImages(
       aspectRatio,
       imageStyle,
       styleReferenceUrl,
+      characterReferenceUrl,
       imageModel,
       isMidjourney,
       userId,

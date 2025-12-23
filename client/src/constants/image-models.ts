@@ -12,6 +12,9 @@ export interface ImageModelConfig {
   maxPromptLength: number;
   supportsSeed: boolean;
   supportsNegativePrompt: boolean;
+  supportsStyleReference: boolean; // Whether model supports style reference images
+  supportsCharacterReference: boolean; // Whether model supports character reference images
+  maxReferenceImages: number; // Maximum number of reference images (0 = not supported)
   default?: boolean;
   badge?: string;
 }
@@ -30,6 +33,9 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     maxPromptLength: 3000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: true,
+    supportsCharacterReference: true,
+    maxReferenceImages: 8,
     default: true,
     badge: "Fast",
   },
@@ -43,6 +49,9 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     maxPromptLength: 45000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: true,
+    supportsCharacterReference: true,
+    maxReferenceImages: 14,
     badge: "Pro",
   },
   {
@@ -55,6 +64,9 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     maxPromptLength: 3000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: false,
+    supportsCharacterReference: false,
+    maxReferenceImages: 0,
   },
   {
     value: "imagen-4.0-ultra",
@@ -66,6 +78,9 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     maxPromptLength: 3000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: false,
+    supportsCharacterReference: false,
+    maxReferenceImages: 0,
     badge: "Ultra",
   },
   {
@@ -78,6 +93,9 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     maxPromptLength: 3000,
     supportsSeed: false,
     supportsNegativePrompt: true,
+    supportsStyleReference: false,
+    supportsCharacterReference: false,
+    maxReferenceImages: 0,
     badge: "Fast",
   },
   
@@ -94,6 +112,9 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     maxPromptLength: 2000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: true,
+    supportsCharacterReference: true,
+    maxReferenceImages: 14,
     badge: "Sequential",
   },
   {
@@ -106,6 +127,9 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     maxPromptLength: 2000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: true,
+    supportsCharacterReference: true,
+    maxReferenceImages: 14,
     badge: "Reliable",
   },
   
@@ -122,6 +146,9 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     maxPromptLength: 10000,
     supportsSeed: true,
     supportsNegativePrompt: false,
+    supportsStyleReference: true,
+    supportsCharacterReference: true,
+    maxReferenceImages: 4,
     badge: "Dev",
   },
   {
@@ -134,6 +161,9 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     maxPromptLength: 3000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: true,
+    supportsCharacterReference: true,
+    maxReferenceImages: 9,
     badge: "Pro",
   },
   {
@@ -146,6 +176,9 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     maxPromptLength: 3000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: true,
+    supportsCharacterReference: true,
+    maxReferenceImages: 4,
     badge: "Typography",
   },
   
@@ -162,6 +195,9 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     maxPromptLength: 2000,
     supportsSeed: false,
     supportsNegativePrompt: false,
+    supportsStyleReference: true,
+    supportsCharacterReference: false, // Only 1 image supported - no character reference
+    maxReferenceImages: 1,
     badge: "Cinematic",
   },
   {
@@ -174,6 +210,9 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     maxPromptLength: 2000,
     supportsSeed: false,
     supportsNegativePrompt: true,
+    supportsStyleReference: true,
+    supportsCharacterReference: true,
+    maxReferenceImages: 999, // Uses providerSettings - no documented limit
     badge: "Design",
   },
 ];

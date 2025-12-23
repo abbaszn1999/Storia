@@ -14,6 +14,8 @@ interface TimelineNavigationProps {
   onNext: () => void;
   onBack: () => void;
   isNextDisabled?: boolean;
+  isBackDisabled?: boolean;  // Disable back button during generation
+  isStepClickDisabled?: boolean;  // Disable step clicking during generation
   isLoading?: boolean;  // Loading state for export button
   nextLabel?: string;
   /** Template accent color */
@@ -27,6 +29,8 @@ export function TimelineNavigation({
   onNext,
   onBack,
   isNextDisabled = false,
+  isBackDisabled = false,
+  isStepClickDisabled = false,
   isLoading = false,
   nextLabel,
   accentColor = "primary"
@@ -44,6 +48,9 @@ export function TimelineNavigation({
   };
 
   const canNavigateTo = (stepId: StepId) => {
+    // If step clicking is disabled (during generation), block all navigation
+    if (isStepClickDisabled) return false;
+    
     const stepIndex = STEPS.findIndex(s => s.id === stepId);
     // Can always go back
     if (stepIndex < currentIndex) return true;
@@ -116,11 +123,12 @@ export function TimelineNavigation({
             variant="ghost"
             size="lg"
             onClick={onBack}
-            disabled={isFirstStep}
+            disabled={isFirstStep || isBackDisabled}
             className={cn(
               "min-w-[120px] gap-2",
               "text-white/70 hover:text-white hover:bg-white/5",
-              isFirstStep && "opacity-0 pointer-events-none"
+              isFirstStep && "opacity-0 pointer-events-none",
+              isBackDisabled && "opacity-50 cursor-not-allowed"
             )}
           >
             <ChevronLeft className="w-4 h-4" />

@@ -97,6 +97,7 @@ interface ExportStepProps {
   onGenerateVoiceover: () => Promise<void>;
   onVoiceVolumeChange: (volume: number) => void;  // Update parent state
   onMusicVolumeChange: (volume: number) => void;  // Update parent state
+  onBusyStateChange?: (isBusy: boolean) => void;  // Notify parent when busy (voiceover, export, publish)
   accentColor?: string;
 }
 
@@ -254,6 +255,7 @@ export function ExportStep({
   onGenerateVoiceover,
   onVoiceVolumeChange,
   onMusicVolumeChange,
+  onBusyStateChange,
   accentColor = "primary"
 }: ExportStepProps) {
   // Get workspace for publishing
@@ -308,6 +310,15 @@ export function ExportStep({
   const musicAudioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NOTIFY PARENT ABOUT BUSY STATE
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Notify parent when any busy state changes (voiceover, export, remix, publish)
+  useEffect(() => {
+    const isBusy = isGeneratingVoiceover || isExporting || isRemixing || isPublishing;
+    onBusyStateChange?.(isBusy);
+  }, [isGeneratingVoiceover, isExporting, isRemixing, isPublishing, onBusyStateChange]);
   
   // ═══════════════════════════════════════════════════════════════════════════
   // DIRECT DOWNLOAD FUNCTION

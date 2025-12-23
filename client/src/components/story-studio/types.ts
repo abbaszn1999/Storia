@@ -107,7 +107,8 @@ export interface StoryStudioState {
   // Image & Video Settings
   imageModel: string; // Image model ID (e.g., "nano-banana", "flux-2-pro")
   imageStyle: 'photorealistic' | 'cinematic' | '3d-render' | 'digital-art' | 'anime' | 'illustration' | 'watercolor' | 'minimalist';
-  styleReferenceUrl: string; // Custom style reference image URL
+  styleReferenceUrl: string; // Custom style reference image URL (locks visual style)
+  characterReferenceUrl: string; // Character/face reference image URL (doesn't lock visual style)
   imageResolution: string; // Resolution (e.g., "1k", "2k", "4k", "custom")
   animationMode: 'off' | 'transition' | 'video'; // New (Replacing old imageMode)
   videoModel: string; // Video model ID (e.g., "seedance-1.0-pro", "veo-3.0")

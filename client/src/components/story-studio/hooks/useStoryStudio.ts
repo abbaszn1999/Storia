@@ -1,7 +1,7 @@
 // useStoryStudio - Main state management hook
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { StepId, STEPS, StoryStudioState, StoryScene, StoryTemplate, MusicStyle } from "../types";
 import { apiRequest } from "@/lib/queryClient";
 import { getImageModelConfig } from "@/constants/image-models";
@@ -69,7 +69,8 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
   textOverlayStyle: 'modern',
   imageModel: 'nano-banana', // Default image model
   imageStyle: 'photorealistic', // Default image style
-  styleReferenceUrl: '', // Custom style reference image URL
+  styleReferenceUrl: '', // Custom style reference image URL (locks visual style)
+  characterReferenceUrl: '', // Character/face reference image URL
   imageResolution: '1k', // Default image resolution
   animationMode: 'off',
   videoModel: 'seedance-1.0-pro', // Default video model
@@ -111,6 +112,9 @@ export function useStoryStudio(template: StoryTemplate | null) {
   const [isTransitioningToExport, setIsTransitioningToExport] = useState(false);
   const [voiceoverProgress, setVoiceoverProgress] = useState(0);
   
+  // Ref to always have the latest state values (avoids stale closures)
+  const stateRef = useRef<StoryStudioState | null>(null);
+  
   const [state, setState] = useState<StoryStudioState>(() => {
     // Check if this is a new project (from template selection)
     const searchParams = new URLSearchParams(window.location.search);
@@ -122,6 +126,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
       // Clear the URL parameter to avoid clearing on refresh
       window.history.replaceState({}, '', window.location.pathname);
     }
+    
+    let initialState: StoryStudioState;
     
     // Try to restore from localStorage (only if not a new project)
     if (template && !isNewProject) {
@@ -141,14 +147,23 @@ export function useStoryStudio(template: StoryTemplate | null) {
             parsed.imageMode = imageMode;
           }
           
-          return { ...createInitialState(template), ...parsed, template };
+          initialState = { ...createInitialState(template), ...parsed, template };
+          stateRef.current = initialState; // Initialize ref immediately
+          return initialState;
         } catch {
           // Ignore parse errors
         }
       }
     }
-    return createInitialState(template);
+    initialState = createInitialState(template);
+    stateRef.current = initialState; // Initialize ref immediately
+    return initialState;
   });
+
+  // Keep stateRef in sync with state (always latest values)
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   // Persist to localStorage
   useEffect(() => {
@@ -159,35 +174,49 @@ export function useStoryStudio(template: StoryTemplate | null) {
 
   // Generate Images: for Storyboard step
   const generateImages = useCallback(async () => {
-    if (state.scenes.length === 0) return;
+    // Use stateRef to get the LATEST state values (avoids stale closure issues)
+    const currentState = stateRef.current || state;
+    
+    if (currentState.scenes.length === 0) return;
 
     // Check if scenes have imagePrompts
-    const hasPrompts = state.scenes.some(s => s.imagePrompt);
+    const hasPrompts = currentState.scenes.some(s => s.imagePrompt);
     if (!hasPrompts) {
       console.warn('[image-generation] No image prompts found, skipping...');
       return;
     }
 
-    console.log('[image-generation] Starting automatic image generation...');
+    console.log('[image-generation] Starting automatic image generation...', {
+      styleReferenceUrl: currentState.styleReferenceUrl ? 'provided' : 'none',
+      characterReferenceUrl: currentState.characterReferenceUrl ? 'provided' : 'none',
+      styleReferenceUrlFull: currentState.styleReferenceUrl,
+      characterReferenceUrlFull: currentState.characterReferenceUrl,
+    });
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
 
     try {
-      const res = await apiRequest("POST", "/api/problem-solution/images", {
-        storyId: state.template?.id || 'temp-story',
-        scenes: state.scenes.map(s => ({
+      const requestBody = {
+        storyId: currentState.template?.id || 'temp-story',
+        scenes: currentState.scenes.map(s => ({
           id: s.id,
           sceneNumber: s.sceneNumber,
           imagePrompt: s.imagePrompt || s.description,
           duration: s.duration,
         })),
-        aspectRatio: state.aspectRatio,
-        imageStyle: state.imageStyle,
-        styleReferenceUrl: state.styleReferenceUrl || undefined, // Custom style reference
-        imageModel: state.imageModel,
-        imageResolution: state.imageResolution,
-        projectName: state.projectFolder,
+        aspectRatio: currentState.aspectRatio,
+        imageStyle: currentState.imageStyle,
+        styleReferenceUrl: currentState.styleReferenceUrl || undefined, // Custom style reference
+        characterReferenceUrl: currentState.characterReferenceUrl || undefined, // Character reference
+        imageModel: currentState.imageModel,
+        imageResolution: currentState.imageResolution,
+        projectName: currentState.projectFolder,
         workspaceId: currentWorkspace?.id || 'default',
+      };
+      console.log('[image-generation] Request body:', {
+        ...requestBody,
+        scenes: `${requestBody.scenes.length} scenes`,
       });
+      const res = await apiRequest("POST", "/api/problem-solution/images", requestBody);
 
       const data = await res.json();
 
@@ -222,7 +251,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         isGenerating: false,
       }));
     }
-  }, [state.scenes, state.aspectRatio, state.topic, template]);
+  }, [state.scenes, state.aspectRatio, state.imageStyle, state.styleReferenceUrl, state.characterReferenceUrl, state.imageModel, state.imageResolution, state.projectFolder, currentWorkspace?.id, template]);
 
   // Generate Videos: converts images to videos using I2V
   const generateVideos = useCallback(async () => {
@@ -694,7 +723,22 @@ export function useStoryStudio(template: StoryTemplate | null) {
   }, []);
 
   const setStyleReferenceUrl = useCallback((styleReferenceUrl: string) => {
-    setState(prev => ({ ...prev, styleReferenceUrl }));
+    setState(prev => {
+      const newState = { ...prev, styleReferenceUrl };
+      stateRef.current = newState; // Update ref immediately for sync access
+      return newState;
+    });
+  }, []);
+
+  const setCharacterReferenceUrl = useCallback((characterReferenceUrl: string) => {
+    console.log('[useStoryStudio] setCharacterReferenceUrl called with:', characterReferenceUrl);
+    setState(prev => {
+      console.log('[useStoryStudio] Previous characterReferenceUrl:', prev.characterReferenceUrl);
+      console.log('[useStoryStudio] New characterReferenceUrl:', characterReferenceUrl);
+      const newState = { ...prev, characterReferenceUrl };
+      stateRef.current = newState; // Update ref immediately for sync access
+      return newState;
+    });
   }, []);
 
   const setImageResolution = useCallback((imageResolution: string) => {
@@ -987,7 +1031,10 @@ export function useStoryStudio(template: StoryTemplate | null) {
 
   // Regenerate single scene image
   const regenerateSceneImage = useCallback(async (sceneId: string) => {
-    const scene = state.scenes.find(s => s.id === sceneId);
+    // Use stateRef to get the LATEST state values (avoids stale closure issues)
+    const currentState = stateRef.current || state;
+    
+    const scene = currentState.scenes.find(s => s.id === sceneId);
     if (!scene) return;
 
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
@@ -999,12 +1046,13 @@ export function useStoryStudio(template: StoryTemplate | null) {
         sceneNumber: scene.sceneNumber,
         sceneId: scene.id,
         imagePrompt: scene.imagePrompt || scene.narration,
-        aspectRatio: state.aspectRatio,
-        imageStyle: state.imageStyle,
-        styleReferenceUrl: state.styleReferenceUrl || undefined, // Custom style reference
-        imageModel: state.imageModel,
-        imageResolution: state.imageResolution,
-        projectName: state.projectFolder,
+        aspectRatio: currentState.aspectRatio,
+        imageStyle: currentState.imageStyle,
+        styleReferenceUrl: currentState.styleReferenceUrl || undefined, // Custom style reference
+        characterReferenceUrl: currentState.characterReferenceUrl || undefined, // Character reference
+        imageModel: currentState.imageModel,
+        imageResolution: currentState.imageResolution,
+        projectName: currentState.projectFolder,
         workspaceId: currentWorkspace?.id || 'default',
         storyId: template?.id || 'temp-story',
       });
@@ -1050,7 +1098,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         isGenerating: false,
       }));
     }
-  }, [state.scenes, state.aspectRatio, state.topic, template]);
+  }, [state.scenes, state.aspectRatio, state.imageStyle, state.styleReferenceUrl, state.characterReferenceUrl, state.imageModel, state.imageResolution, state.projectFolder, currentWorkspace?.id, template]);
 
   // Generate Voiceover: for Audio step
   const generateVoiceover = useCallback(async () => {
@@ -1367,9 +1415,18 @@ export function useStoryStudio(template: StoryTemplate | null) {
 
   const canProceed = useCallback((step: StepId): boolean => {
     switch (step) {
-      case 'concept': return isStep1Complete;
-      case 'script': return isStepScriptComplete;
-      case 'storyboard': return isStep2Complete;
+      case 'concept': 
+        // منع التقدم أثناء توليد الفكرة بالـ AI
+        return isStep1Complete && !state.isGenerating;
+      case 'script': 
+        // منع التقدم أثناء توليد المشاهد
+        return isStepScriptComplete && !state.isGenerating;
+      case 'storyboard': 
+        // منع التقدم أثناء:
+        // - تحسين الـ storyboard (Creating Storyboard)
+        // - توليد الصور (Generating Images)
+        // - توليد الفيديوهات (Animate All)
+        return isStep2Complete && !state.isEnhancingStoryboard && !state.isGeneratingImages && !state.isGenerating;
       case 'audio': 
         // في Audio step، نحتاج فقط اختيار الصوت
         // الـ voiceover سيتم توليده تلقائياً في Export step
@@ -1379,7 +1436,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         return isStep4Ready;
       default: return false;
     }
-  }, [isStep1Complete, isStepScriptComplete, isStep2Complete, isStep3Complete, isStep4Ready]);
+  }, [isStep1Complete, isStepScriptComplete, isStep2Complete, isStep3Complete, isStep4Ready, state.isGenerating, state.isEnhancingStoryboard, state.isGeneratingImages]);
 
   return {
     state,
@@ -1412,6 +1469,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setImageModel,
     setImageStyle,
     setStyleReferenceUrl,
+    setCharacterReferenceUrl,
     setImageResolution,
     setAnimationMode,
     setVideoModel,

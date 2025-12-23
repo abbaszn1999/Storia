@@ -19,6 +19,8 @@ interface StudioLayoutProps {
   onNext: () => void;
   onBack: () => void;
   isNextDisabled?: boolean;
+  isBackDisabled?: boolean;  // Disable back button during generation
+  isNavigationDisabled?: boolean;  // Disable all step navigation during generation
   isLoading?: boolean;  // Loading state for export button
   nextLabel?: string;
   children: ReactNode;
@@ -48,6 +50,8 @@ export function StudioLayout({
   onNext,
   onBack,
   isNextDisabled,
+  isBackDisabled = false,
+  isNavigationDisabled = false,
   isLoading = false,
   nextLabel,
   children
@@ -58,23 +62,17 @@ export function StudioLayout({
   const currentStepIndex = STEPS.findIndex(s => s.id === currentStep);
   const currentStepInfo = STEPS[currentStepIndex];
 
-  // Animation variants for step transitions
+  // Animation variants for step transitions - simple fade only
   const stepVariants = {
-    enter: (dir: number) => ({
-      x: dir > 0 ? 100 : -100,
+    enter: {
       opacity: 0,
-      scale: 0.98,
-    }),
-    center: {
-      x: 0,
-      opacity: 1,
-      scale: 1,
     },
-    exit: (dir: number) => ({
-      x: dir > 0 ? -100 : 100,
+    center: {
+      opacity: 1,
+    },
+    exit: {
       opacity: 0,
-      scale: 0.98,
-    }),
+    },
   };
 
   return (
@@ -112,8 +110,8 @@ export function StudioLayout({
             
             <motion.div
               key={currentStep}
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               className="flex items-center gap-2"
             >
               <span className="text-2xl">{currentStepInfo.icon}</span>
@@ -126,18 +124,16 @@ export function StudioLayout({
       {/* Main Content Area */}
       <main className="relative z-10 px-6 pb-32">
         <div className="w-full h-full">
-          <AnimatePresence mode="wait" custom={direction}>
+          <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
-              custom={direction}
               variants={stepVariants}
               initial="enter"
               animate="center"
               exit="exit"
               transition={{
-                type: "spring",
-                stiffness: 300,
-                damping: 30,
+                duration: 0.2,
+                ease: "easeInOut",
               }}
             >
               {children}
@@ -154,6 +150,8 @@ export function StudioLayout({
         onNext={onNext}
         onBack={onBack}
         isNextDisabled={isNextDisabled}
+        isBackDisabled={isBackDisabled}
+        isStepClickDisabled={isNavigationDisabled}
         isLoading={isLoading}
         nextLabel={nextLabel}
         accentColor={accentColor}

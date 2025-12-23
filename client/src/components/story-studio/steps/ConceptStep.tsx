@@ -53,7 +53,8 @@ interface ConceptStepProps {
   pacing: 'slow' | 'medium' | 'fast';
   imageModel: string;
   imageStyle: 'photorealistic' | 'cinematic' | '3d-render' | 'digital-art' | 'anime' | 'illustration' | 'watercolor' | 'minimalist';
-  styleReferenceUrl: string; // Custom style reference image URL
+  styleReferenceUrl: string; // Custom style reference image URL (locks visual style)
+  characterReferenceUrl: string; // Character/face reference image URL
   imageResolution: string;
   animationMode: 'off' | 'transition' | 'video';
   videoModel: string;
@@ -76,6 +77,7 @@ interface ConceptStepProps {
   onImageModelChange: (model: string) => void;
   onImageStyleChange: (style: 'photorealistic' | 'cinematic' | '3d-render' | 'digital-art' | 'anime' | 'illustration' | 'watercolor' | 'minimalist') => void;
   onStyleReferenceUrlChange: (url: string) => void;
+  onCharacterReferenceUrlChange: (url: string) => void;
   onImageResolutionChange: (res: string) => void;
   onAnimationModeChange: (mode: 'off' | 'transition' | 'video') => void;
   onVideoModelChange: (model: string) => void;
@@ -141,6 +143,7 @@ export function ConceptStep({
   imageModel,
   imageStyle,
   styleReferenceUrl,
+  characterReferenceUrl,
   imageResolution,
   animationMode,
   videoModel,
@@ -161,6 +164,7 @@ export function ConceptStep({
   onImageModelChange,
   onImageStyleChange,
   onStyleReferenceUrlChange,
+  onCharacterReferenceUrlChange,
   onImageResolutionChange,
   onAnimationModeChange,
   onVideoModelChange,
@@ -187,10 +191,17 @@ export function ConceptStep({
   // Get current video model config with fallback to default
   const selectedVideoModel = getVideoModelConfig(videoModel) || getDefaultVideoModel();
 
+  // Check if current model supports reference images
+  const supportsStyleReference = selectedImageModel?.supportsStyleReference ?? false;
+  const supportsCharacterReference = selectedImageModel?.supportsCharacterReference ?? false;
+  const maxReferenceImages = selectedImageModel?.maxReferenceImages ?? 0;
+
   // Style reference upload state
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const characterInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingStyle, setIsUploadingStyle] = useState(false);
+  const [isUploadingCharacter, setIsUploadingCharacter] = useState(false);
 
   const handleStyleUpload = async (file: File) => {
     // Require project name before uploading
@@ -264,6 +275,82 @@ export function ConceptStep({
     }
   };
 
+  // Character reference upload handler
+  const handleCharacterUpload = async (file: File) => {
+    // Require project name before uploading
+    if (!projectName.trim()) {
+      toast({
+        title: "Project Name Required",
+        description: "Please enter a project name before uploading files",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload an image file (JPG, PNG, etc.)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Max 10MB
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload an image smaller than 10MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploadingCharacter(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('workspaceId', currentWorkspace?.id || 'default');
+      formData.append('projectName', projectFolder);
+      formData.append('type', 'character'); // Indicate this is a character reference
+
+      const response = await fetch('/api/problem-solution/style-reference/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const data = await response.json();
+      console.log('[ConceptStep] Character upload response:', { url: data.url });
+      onCharacterReferenceUrlChange(data.url);
+      console.log('[ConceptStep] Called onCharacterReferenceUrlChange with:', data.url);
+      
+      toast({
+        title: "Character uploaded",
+        description: "This character will appear in your generated images",
+      });
+    } catch (error) {
+      console.error('Character upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: "Could not upload character reference image",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingCharacter(false);
+    }
+  };
+
+  const handleRemoveCharacterReference = () => {
+    onCharacterReferenceUrlChange('');
+    if (characterInputRef.current) {
+      characterInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="flex w-full h-[calc(100vh-12rem)] gap-0 overflow-hidden">
       {/* 
@@ -334,19 +421,29 @@ export function ConceptStep({
               />
             )}
 
-            {/* Image Style */}
+            {/* Image Style - Disabled when custom style reference is uploaded */}
             <div className="space-y-3">
-              <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Visual Style</label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Visual Style</label>
+                {styleReferenceUrl && (
+                  <span className="text-[10px] text-amber-400/80 font-medium">Using custom reference</span>
+                )}
+              </div>
+              <div className={cn(
+                "grid grid-cols-4 gap-2",
+                styleReferenceUrl && "opacity-40 pointer-events-none"
+              )}>
                 {IMAGE_STYLES.map(style => (
                   <button
                     key={style.value}
                     onClick={() => onImageStyleChange(style.value as any)}
+                    disabled={!!styleReferenceUrl}
                     className={cn(
                       "group relative flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all duration-200 overflow-hidden",
                       imageStyle === style.value 
                         ? "border-white/30 bg-white/10"
-                        : "bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06] hover:border-white/10"
+                        : "bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06] hover:border-white/10",
+                      styleReferenceUrl && "cursor-not-allowed"
                     )}
                   >
                     {/* Gradient background on selection */}
@@ -377,11 +474,12 @@ export function ConceptStep({
               </div>
             </div>
 
-            {/* Custom Style Reference Upload */}
-            <div className="space-y-3">
-              <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Style Reference (Optional)</label>
-              
-              {styleReferenceUrl ? (
+            {/* Custom Style Reference Upload - Only show if model supports it */}
+            {supportsStyleReference ? (
+              <div className="space-y-3">
+                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Style Reference (Optional)</label>
+                
+                {styleReferenceUrl ? (
                 // Show uploaded image preview
                 <div className="relative group">
                   <div className="relative aspect-video rounded-xl overflow-hidden border border-white/20 bg-black/40">
@@ -443,7 +541,82 @@ export function ConceptStep({
                   )}
                 </div>
               )}
-            </div>
+              </div>
+            ) : (
+              <div className="text-xs text-white/40 italic p-4 border border-white/5 rounded-xl bg-white/[0.02]">
+                ℹ️ This model supports text-to-image only. Reference images are not available.
+              </div>
+            )}
+
+            {/* Character Reference Upload - Only show if model supports it */}
+            {supportsCharacterReference && (
+              <div className="space-y-3">
+                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Character Reference (Optional)</label>
+                
+                {characterReferenceUrl ? (
+                // Show uploaded character preview
+                <div className="relative group">
+                  <div className="relative aspect-video rounded-xl overflow-hidden border border-white/20 bg-black/40">
+                    <img 
+                      src={characterReferenceUrl} 
+                      alt="Character reference" 
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    <div className="absolute bottom-2 left-2 right-2">
+                      <p className="text-xs text-white/80 font-medium">Character Reference Active</p>
+                      <p className="text-[10px] text-white/50">This character will appear in images</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleRemoveCharacterReference}
+                    className="absolute -top-2 -right-2 p-1.5 rounded-full bg-red-500/90 hover:bg-red-500 text-white shadow-lg transition-all opacity-0 group-hover:opacity-100"
+                    title="Remove character reference"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                // Upload area
+                <div 
+                  className={cn(
+                    "relative border-2 border-dashed rounded-xl p-4 text-center transition-all cursor-pointer",
+                    isUploadingCharacter 
+                      ? "border-white/30 bg-white/10" 
+                      : "border-white/10 hover:border-white/20 hover:bg-white/5"
+                  )}
+                  onClick={() => !isUploadingCharacter && characterInputRef.current?.click()}
+                >
+                  <input
+                    ref={characterInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleCharacterUpload(file);
+                    }}
+                    disabled={isUploadingCharacter}
+                  />
+                  
+                  {isUploadingCharacter ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <RefreshCw className="w-6 h-6 text-white/60 animate-spin" />
+                      <span className="text-xs text-white/60">Uploading...</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Upload className="w-6 h-6 text-white/40" />
+                      <div>
+                        <p className="text-xs text-white/60 font-medium">Upload character image</p>
+                        <p className="text-[10px] text-white/40 mt-0.5">Face or character to include in images</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              </div>
+            )}
 
             {/* Aspect Ratio */}
             <div className="space-y-2">

@@ -126,7 +126,7 @@ export async function generateMusic(
           prompt,
           music_length_ms: musicDurationMs,
           force_instrumental: true,      // Always instrumental
-          output_format: "mp3_44100_128", // High quality MP3
+          output_format: "mp3_44100_192", // High quality MP3
         },
         userId,
         workspaceId,

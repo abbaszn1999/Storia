@@ -265,7 +265,7 @@ const elevenlabsAdapter: AiProviderAdapter = {
         prompt: payload.prompt,
         model_id: payload.model_id || "music_v1",
         force_instrumental: payload.force_instrumental ?? true, // Default: no vocals
-        output_format: payload.output_format || "mp3_44100_128",
+        output_format: payload.output_format || "mp3_44100_192", // 192kbps for higher quality
       };
 
       // Add duration if specified (10s - 5min)

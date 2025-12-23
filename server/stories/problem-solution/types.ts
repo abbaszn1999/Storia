@@ -168,7 +168,8 @@ export interface ImageGeneratorInput {
   }>;
   aspectRatio: string;
   imageStyle: ImageStyle;       // Visual style (e.g., "photorealistic", "anime")
-  styleReferenceUrl?: string;   // Custom style reference image URL for AI to match
+  styleReferenceUrl?: string;   // Custom style reference image URL for AI to match (locks visual style)
+  characterReferenceUrl?: string; // Character/face reference image URL (doesn't lock visual style)
   imageModel: string;           // Image model ID (e.g., "nano-banana", "flux-2-pro")
   imageResolution: string;      // Resolution tier (e.g., "1k", "2k", "4k")
   projectName: string;

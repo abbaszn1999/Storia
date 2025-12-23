@@ -55,6 +55,9 @@ export default function StoryCreate() {
   
   // State for final export process
   const [isFinalExporting, setIsFinalExporting] = useState(false);
+  
+  // State for export step busy status (voiceover, export, remix, publish)
+  const [isExportStepBusy, setIsExportStepBusy] = useState(false);
 
   // Check if we can proceed to next step
   const canProceedFromCurrentStep = studio.canProceed(studio.state.currentStep);
@@ -208,7 +211,9 @@ export default function StoryCreate() {
       onNext={handleNext}
       onBack={handleBack}
       isNextDisabled={!canProceedFromCurrentStep && studio.state.currentStep !== 'export'}
-        isLoading={isFinalExporting}
+      isBackDisabled={studio.state.isGenerating || studio.state.isEnhancingStoryboard || studio.state.isGeneratingImages || isExportStepBusy}
+      isNavigationDisabled={studio.state.isGenerating || studio.state.isEnhancingStoryboard || studio.state.isGeneratingImages || isExportStepBusy}
+      isLoading={isFinalExporting}
       nextLabel={getNextLabel()}
     >
       {/* Step 1: Concept & Script */}
@@ -231,6 +236,7 @@ export default function StoryCreate() {
           imageModel={studio.state.imageModel}
           imageStyle={studio.state.imageStyle}
           styleReferenceUrl={studio.state.styleReferenceUrl}
+          characterReferenceUrl={studio.state.characterReferenceUrl}
           imageResolution={studio.state.imageResolution}
           animationMode={studio.state.animationMode}
           videoModel={studio.state.videoModel}
@@ -251,6 +257,7 @@ export default function StoryCreate() {
           onImageModelChange={studio.setImageModel}
           onImageStyleChange={studio.setImageStyle}
           onStyleReferenceUrlChange={studio.setStyleReferenceUrl}
+          onCharacterReferenceUrlChange={studio.setCharacterReferenceUrl}
           onImageResolutionChange={studio.setImageResolution}
           onAnimationModeChange={studio.setAnimationMode}
           onVideoModelChange={studio.setVideoModel}
@@ -363,6 +370,7 @@ export default function StoryCreate() {
           onGenerateVoiceover={studio.generateVoiceover}
           onVoiceVolumeChange={studio.setVoiceVolume}
           onMusicVolumeChange={studio.setMusicVolume}
+          onBusyStateChange={setIsExportStepBusy}
           accentColor={accentColor}
         />
       )}

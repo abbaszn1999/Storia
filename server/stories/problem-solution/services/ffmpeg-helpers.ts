@@ -149,11 +149,12 @@ export async function downloadFile(url: string, outputPath: string): Promise<voi
 
 /**
  * Concatenate multiple video files into one
+ * Re-encodes videos to ensure consistent format and avoid sync issues
  */
 export async function concatenateVideos(videoPaths: string[]): Promise<string> {
   const outputPath = path.join(TEMP_DIR, `${randomUUID()}_concat.mp4`);
   
-  console.log(`[ffmpeg-helpers] Concatenating ${videoPaths.length} videos...`);
+  console.log(`[ffmpeg-helpers] Concatenating ${videoPaths.length} videos with re-encoding...`);
   
   // Create concat file for FFmpeg
   const concatFile = path.join(TEMP_DIR, `${randomUUID()}_concat.txt`);
@@ -165,19 +166,32 @@ export async function concatenateVideos(videoPaths: string[]): Promise<string> {
       .input(concatFile)
       .inputOptions(['-f', 'concat', '-safe', '0'])
       .outputOptions([
-        '-c', 'copy', // Copy without re-encoding (faster)
+        // Re-encode to ensure consistent format across all clips
+        '-c:v', 'libx264',
+        '-preset', 'fast',
+        '-crf', '23',
+        '-c:a', 'aac',
+        '-b:a', '192k',
+        '-movflags', '+faststart',
       ])
       .output(outputPath)
       .on('start', (cmd) => {
         console.log('[ffmpeg-helpers] FFmpeg concat command:', cmd);
       })
+      .on('progress', (progress) => {
+        if (progress.percent) {
+          console.log(`[ffmpeg-helpers] Concatenation progress: ${Math.round(progress.percent)}%`);
+        }
+      })
       .on('end', () => {
-        console.log('[ffmpeg-helpers] Concatenation complete');
+        console.log('[ffmpeg-helpers] ✓ Concatenation complete');
         unlinkSync(concatFile);
         resolve();
       })
       .on('error', (err) => {
-        console.error('[ffmpeg-helpers] Concatenation error:', err);
+        console.error('[ffmpeg-helpers] ✗ Concatenation error:', err);
+        // Clean up concat file on error
+        try { unlinkSync(concatFile); } catch {}
         reject(err);
       })
       .run();
@@ -942,6 +956,52 @@ export async function loopVideo(
 }
 
 /**
+ * Trim video to target duration (cut excess from the end)
+ * Used when video is longer than audio and speed adjustment isn't enough
+ */
+export async function trimVideo(
+  videoPath: string,
+  targetDuration: number
+): Promise<string> {
+  const outputPath = path.join(TEMP_DIR, `${randomUUID()}_trimmed.mp4`);
+  
+  const currentDuration = await getVideoDuration(videoPath);
+  
+  if (currentDuration <= targetDuration) {
+    console.log(`[ffmpeg-helpers] Video already shorter than target (${currentDuration.toFixed(2)}s <= ${targetDuration.toFixed(2)}s), no trim needed`);
+    return videoPath;
+  }
+  
+  console.log(`[ffmpeg-helpers] Trimming video: ${currentDuration.toFixed(2)}s → ${targetDuration.toFixed(2)}s`);
+  
+  await new Promise<void>((resolve, reject) => {
+    ffmpeg(videoPath)
+      .outputOptions([
+        '-t', targetDuration.toString(),
+        '-c:v', 'libx264',
+        '-preset', 'medium',
+        '-crf', '23',
+        '-c:a', 'copy',
+      ])
+      .output(outputPath)
+      .on('start', (cmd) => {
+        console.log('[ffmpeg-helpers] FFmpeg trim command:', cmd);
+      })
+      .on('end', () => {
+        console.log('[ffmpeg-helpers] ✓ Video trimmed successfully');
+        resolve();
+      })
+      .on('error', (err) => {
+        console.error('[ffmpeg-helpers] ✗ Trim error:', err);
+        reject(err);
+      })
+      .run();
+  });
+  
+  return outputPath;
+}
+
+/**
  * Mix background music with video
  */
 export async function mixBackgroundMusic(
@@ -1052,129 +1112,276 @@ export async function createMutedVideo(inputPath: string): Promise<string> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// DUAL SPEED SYNC - Professional Audio/Video Synchronization
+// DUAL SPEED SYNC - Professional Audio/Video Synchronization (v2.0)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Speed limits for professional quality
- * STRATEGY: Prefer slowdown over speedup (more natural)
- * - Slow motion video looks good
- * - Slow audio sounds natural
- * - Fast audio sounds robotic/unnatural
+ * SPEED LIMITS v3.0 - Optimized for Natural Results
+ * 
+ * Key Principle: Prefer Loop over extreme slowdown to avoid "frozen" looking videos
+ * 
+ * ElevenLabs Audio Speed: 0.7x - 1.2x (official)
+ * Using tighter limits for natural-looking results:
+ * - Video: 0.75x - 1.25x (gentle adjustments, natural looking)
+ * - Audio: 0.85x - 1.10x (narrow range for high quality voice)
+ * 
+ * STRATEGY PRIORITY:
+ * Case 1 (Video < Audio): Gentle Slow Video → Dual Adjust → LOOP Video
+ * Case 2 (Video > Audio): Gentle Slow Audio → Dual Adjust → TRIM Video
  */
 const SPEED_LIMITS = {
-  video: { min: 0.4, max: 1.5 },   // Video: prefer slowdown (0.4x-1.5x)
-  audio: { min: 0.85, max: 1.1 },  // Audio: minimal change (0.85x-1.1x) - keep natural!
+  video: { 
+    min: 0.75,  // Gentle slowdown (avoids frozen-looking videos)
+    max: 1.25   // Gentle speedup (barely noticeable)
+  },
+  audio: { 
+    min: 0.85,  // Narrow range for natural voice quality
+    max: 1.10   // Slight speedup, still sounds natural
+  },
+  loop: {
+    maxTimes: 2 // Loop video at most once (1x → 2x)
+  }
 };
 
 /**
- * Calculate optimal speeds with PREFER SLOWDOWN strategy
+ * Sync result interface with loop and trim support
+ */
+export interface SyncResult {
+  targetDuration: number;
+  videoSpeed: number;
+  audioSpeed: number;
+  method: 'none' | 'video-slowdown' | 'audio-slowdown' | 'dual-adjust' | 'loop' | 'trim';
+  needsLoop: boolean;      // True if video needs to be looped
+  needsTrim: boolean;      // True if video needs to be trimmed
+  trimTo?: number;         // Duration to trim video to (if needsTrim)
+}
+
+/**
+ * Calculate optimal sync with PRIORITY-BASED strategy v3.0
  * 
- * Philosophy:
- * - If video is shorter than audio → slow down video (slow motion is beautiful)
- * - If video is longer than audio → slow down audio slightly (natural), keep video as-is
- * - NEVER speed up audio beyond 1.1x (sounds robotic)
- * - Prefer longer target durations (gives breathing room)
+ * Key improvements:
+ * - Tighter speed limits for natural-looking results
+ * - Prefers LOOP over extreme slowdown (avoids frozen-looking videos)
+ * - Better audio quality with narrower speed range
+ * 
+ * CASE 1: Video shorter than Audio (V < A)
+ *   Priority 1: Gentle slow down video (≥0.75x)
+ *   Priority 2: Slow video + speed up audio (dual adjust)
+ *   Priority 3: LOOP video + adjust speeds
+ * 
+ * CASE 2: Video longer than Audio (V > A)
+ *   Priority 1: Gentle slow down audio (≥0.85x)
+ *   Priority 2: Slow audio + speed up video (dual adjust)
+ *   Priority 3: TRIM video to match audio
  * 
  * @param videoDuration - Original video duration in seconds
  * @param audioDuration - Original audio duration in seconds
- * @returns Object with targetDuration, videoSpeed, audioSpeed
+ * @returns SyncResult with all adjustment parameters
  */
 export function calculateDualSpeedSync(
   videoDuration: number,
   audioDuration: number
-): { targetDuration: number; videoSpeed: number; audioSpeed: number; method: string } {
+): SyncResult {
   
-  // If durations are very close (<0.3s difference), no adjustment needed
+  // If durations are very close (<0.5s difference), no adjustment needed
   const diff = Math.abs(videoDuration - audioDuration);
-  if (diff < 0.3) {
+  if (diff < 0.5) {
     return {
       targetDuration: Math.max(videoDuration, audioDuration),
       videoSpeed: 1.0,
       audioSpeed: 1.0,
       method: 'none',
+      needsLoop: false,
+      needsTrim: false,
     };
   }
-  
-  let targetDuration: number;
-  let videoSpeed: number;
-  let audioSpeed: number;
-  let method: string;
   
   if (videoDuration < audioDuration) {
     // ═══════════════════════════════════════════════════════════════
     // CASE 1: Video is SHORTER than Audio
-    // Strategy: Slow down video to match audio (slow motion looks great!)
+    // Need to EXTEND video to match audio
+    // Priority: Gentle Slow Video → Dual Adjust → LOOP Video
     // ═══════════════════════════════════════════════════════════════
     
-    // Target = audio duration (keep audio natural at 1.0x)
-    targetDuration = audioDuration;
-    audioSpeed = 1.0;
-    videoSpeed = videoDuration / targetDuration;
+    const ratio = videoDuration / audioDuration;
     
-    // Check if video slowdown is within limits
-    if (videoSpeed >= SPEED_LIMITS.video.min) {
-      // Perfect! Just slow down video
-      method = 'video-slowdown';
-    } else {
-      // Video would be too slow - need to help with audio slowdown too
-      videoSpeed = SPEED_LIMITS.video.min;
-      targetDuration = videoDuration / videoSpeed;
-      audioSpeed = audioDuration / targetDuration;
-      
-      // Clamp audio slowdown
-      if (audioSpeed < SPEED_LIMITS.audio.min) {
-        audioSpeed = SPEED_LIMITS.audio.min;
-        // Recalculate - use the longer resulting duration
-        const fromVideo = videoDuration / SPEED_LIMITS.video.min;
-        const fromAudio = audioDuration / SPEED_LIMITS.audio.min;
-        targetDuration = Math.max(fromVideo, fromAudio);
-        videoSpeed = videoDuration / targetDuration;
-        audioSpeed = audioDuration / targetDuration;
-      }
-      method = 'dual-slowdown';
+    // Priority 1: Try gentle video slowdown only
+    if (ratio >= SPEED_LIMITS.video.min) {
+      return {
+        targetDuration: audioDuration,
+        videoSpeed: ratio,
+        audioSpeed: 1.0,
+        method: 'video-slowdown',
+        needsLoop: false,
+        needsTrim: false,
+      };
     }
+    
+    // Priority 2: Max video slowdown + speed up audio
+    // videoSpeed = 0.75 (max slowdown)
+    // Calculate what audio speed we need
+    let videoSpeed = SPEED_LIMITS.video.min;
+    let newVideoDuration = videoDuration / videoSpeed; // Slowed video duration
+    let audioSpeed = audioDuration / newVideoDuration; // Required audio speedup
+    
+    if (audioSpeed <= SPEED_LIMITS.audio.max) {
+      return {
+        targetDuration: newVideoDuration,
+        videoSpeed,
+        audioSpeed,
+        method: 'dual-adjust',
+        needsLoop: false,
+        needsTrim: false,
+      };
+    }
+    
+    // Priority 2b: Max audio speedup, adjust video accordingly
+    audioSpeed = SPEED_LIMITS.audio.max;
+    let newAudioDuration = audioDuration / audioSpeed;
+    videoSpeed = videoDuration / newAudioDuration;
+    
+    if (videoSpeed >= SPEED_LIMITS.video.min) {
+      return {
+        targetDuration: newAudioDuration,
+        videoSpeed,
+        audioSpeed,
+        method: 'dual-adjust',
+        needsLoop: false,
+        needsTrim: false,
+      };
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // Priority 3: LOOP video (when dual-adjust isn't enough)
+    // Loop video once (2x original duration), then adjust speeds
+    // ═══════════════════════════════════════════════════════════════
+    const loopedVideoDuration = videoDuration * SPEED_LIMITS.loop.maxTimes;
+    
+    // Try 1: Loop + normal audio speed
+    videoSpeed = loopedVideoDuration / audioDuration;
+    if (videoSpeed >= SPEED_LIMITS.video.min && videoSpeed <= SPEED_LIMITS.video.max) {
+      return {
+        targetDuration: audioDuration,
+        videoSpeed,
+        audioSpeed: 1.0,
+        method: 'loop',
+        needsLoop: true,
+        needsTrim: false,
+      };
+    }
+    
+    // Try 2: Loop + slow down audio (preferred for quality)
+    if (loopedVideoDuration > audioDuration) {
+      // Looped video is longer, slow down audio
+      audioSpeed = audioDuration / loopedVideoDuration;
+      if (audioSpeed >= SPEED_LIMITS.audio.min) {
+        return {
+          targetDuration: loopedVideoDuration,
+          videoSpeed: 1.0,
+          audioSpeed,
+          method: 'loop',
+          needsLoop: true,
+          needsTrim: false,
+        };
+      }
+    }
+    
+    // Try 3: Loop + speed up audio
+    audioSpeed = SPEED_LIMITS.audio.max;
+    newAudioDuration = audioDuration / audioSpeed;
+    videoSpeed = loopedVideoDuration / newAudioDuration;
+    
+    // Clamp video speed to limits
+    videoSpeed = Math.max(SPEED_LIMITS.video.min, Math.min(SPEED_LIMITS.video.max, videoSpeed));
+    
+    // Recalculate target based on clamped speed
+    const finalTargetDuration = loopedVideoDuration / videoSpeed;
+    
+    return {
+      targetDuration: finalTargetDuration,
+      videoSpeed,
+      audioSpeed,
+      method: 'loop',
+      needsLoop: true,
+      needsTrim: false,
+    };
     
   } else {
     // ═══════════════════════════════════════════════════════════════
-    // CASE 2: Video is LONGER than Audio  
-    // Strategy: Slow down audio slightly, keep video natural
+    // CASE 2: Video is LONGER than Audio
+    // Need to SHORTEN video to match audio
+    // Priority: Gentle Slow Audio → Dual Adjust → TRIM Video
     // ═══════════════════════════════════════════════════════════════
     
-    // First try: keep video at 1.0x, slow down audio
-    targetDuration = videoDuration;
-    videoSpeed = 1.0;
-    audioSpeed = audioDuration / targetDuration;
+    const ratio = audioDuration / videoDuration;
+    
+    // Priority 1: Try gentle audio slowdown only
+    if (ratio >= SPEED_LIMITS.audio.min) {
+      return {
+        targetDuration: videoDuration,
+        videoSpeed: 1.0,
+        audioSpeed: ratio,
+        method: 'audio-slowdown',
+        needsLoop: false,
+        needsTrim: false,
+      };
+    }
+    
+    // Priority 2: Max audio slowdown + speed up video
+    // audioSpeed = 0.85 (max slowdown)
+    let audioSpeed = SPEED_LIMITS.audio.min;
+    let newAudioDuration = audioDuration / audioSpeed; // Extended audio duration
+    let videoSpeed = videoDuration / newAudioDuration; // Required video speedup
+    
+    if (videoSpeed <= SPEED_LIMITS.video.max) {
+      return {
+        targetDuration: newAudioDuration,
+        videoSpeed,
+        audioSpeed,
+        method: 'dual-adjust',
+        needsLoop: false,
+        needsTrim: false,
+      };
+    }
+    
+    // Priority 2b: Max video speedup, adjust audio accordingly
+    videoSpeed = SPEED_LIMITS.video.max;
+    let newVideoDuration = videoDuration / videoSpeed;
+    audioSpeed = audioDuration / newVideoDuration;
     
     if (audioSpeed >= SPEED_LIMITS.audio.min) {
-      // Audio slowdown is acceptable
-      method = 'audio-slowdown';
-    } else {
-      // Audio would be too slow - need to speed up video slightly
-      audioSpeed = SPEED_LIMITS.audio.min;
-      targetDuration = audioDuration / audioSpeed;
-      videoSpeed = videoDuration / targetDuration;
-      
-      // Clamp video speedup
-      if (videoSpeed > SPEED_LIMITS.video.max) {
-        videoSpeed = SPEED_LIMITS.video.max;
-        targetDuration = videoDuration / videoSpeed;
-        audioSpeed = audioDuration / targetDuration;
-      }
-      method = 'balanced';
+      return {
+        targetDuration: newVideoDuration,
+        videoSpeed,
+        audioSpeed,
+        method: 'dual-adjust',
+        needsLoop: false,
+        needsTrim: false,
+      };
     }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // Priority 3: TRIM video (cut excess when dual-adjust isn't enough)
+    // Apply max speedup + max audio slowdown, then trim remaining
+    // ═══════════════════════════════════════════════════════════════
+    audioSpeed = SPEED_LIMITS.audio.min;
+    newAudioDuration = audioDuration / audioSpeed;
+    
+    // The target duration is the slowed audio duration
+    // Video will be sped up and then trimmed
+    videoSpeed = SPEED_LIMITS.video.max;
+    const trimmedDuration = newAudioDuration;
+    
+    return {
+      targetDuration: trimmedDuration,
+      videoSpeed,
+      audioSpeed,
+      method: 'trim',
+      needsLoop: false,
+      needsTrim: true,
+      trimTo: trimmedDuration,
+    };
   }
-  
-  // Final safety clamp
-  videoSpeed = Math.max(SPEED_LIMITS.video.min, Math.min(SPEED_LIMITS.video.max, videoSpeed));
-  audioSpeed = Math.max(SPEED_LIMITS.audio.min, Math.min(SPEED_LIMITS.audio.max, audioSpeed));
-  
-  return {
-    targetDuration,
-    videoSpeed,
-    audioSpeed,
-    method,
-  };
 }
 
 /**

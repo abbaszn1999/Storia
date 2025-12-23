@@ -66,6 +66,10 @@ const openAiAdapter: AiProviderAdapter = {
     }
 
     const body = JSON.stringify(basePayload);
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/dce8bcc2-d9cf-48dc-80b9-5e2289140a64',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'openai.ts:68',message:'Request body being sent to OpenAI',data:{url,body:body.substring(0,2000),payloadKeys:Object.keys(basePayload),inputStructure:basePayload.input?JSON.stringify(basePayload.input).substring(0,500):null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
 
     const response = await fetch(url, {
       method: "POST",
@@ -75,6 +79,9 @@ const openAiAdapter: AiProviderAdapter = {
 
     if (!response.ok) {
       const details = await response.text();
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/dce8bcc2-d9cf-48dc-80b9-5e2289140a64',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'openai.ts:77',message:'OpenAI API error response',data:{status:response.status,statusText:response.statusText,details,bodyPreview:body.substring(0,1000)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       throw new ProviderRequestError("openai", details);
     }
 

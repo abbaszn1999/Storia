@@ -77,6 +77,13 @@ export interface Step1Data {
   customImageInstructions?: string;
   customMotionInstructions?: string;
   
+  // AI Model Settings
+  imageModel?: string;
+  imageResolution?: string;
+  videoModel?: string;
+  videoResolution?: string;
+  language?: 'ar' | 'en';
+  
   // Agent 1.1 output
   strategicContext?: StrategicContextOutput;
 }
@@ -97,31 +104,14 @@ export interface ProductImage {
 
 /**
  * Output from Agent 2.1: Product DNA Visionary
+ * 
+ * NOTE: This matches the JSON schema output from the agent
  */
 export interface ProductDNAOutput {
-  geometric_soul: {
-    silhouette_class: string;
-    complexity_score: number;
-    hero_angle: string;
-    negative_space_map: string;
-  };
-  material_fingerprint: {
-    surface_type: string;
-    texture_detail: string;
-    reflectivity: number;
-    transparency: number;
-  };
-  anchor_points: Array<{
-    name: string;
-    position: string;
-    camera_affinity: string[];
-  }>;
-  lighting_response: {
-    key_light_position: string;
-    fill_ratio: string;
-    rim_sensitivity: string;
-    specular_behavior: string;
-  };
+  geometry_profile: string;        // Mathematical description of form
+  material_spec: string;           // Technical texture specifications
+  hero_anchor_points: string[];    // Array of 3-5 key visual landmarks
+  lighting_response: string;       // Physics-based light interaction rules
   cost?: number;
 }
 
@@ -160,50 +150,52 @@ export interface BrandIdentityOutput {
 }
 
 /**
- * Step 2 Data stored in database
+ * Step 2 Data stored in database (Organized Structure)
  */
 export interface Step2Data {
-  // Product images (Bunny CDN URLs from Assets/Uploads/)
-  productImages: {
-    heroProfile: string | null;
-    macroDetail: string | null;
-    materialReference: string | null;
+  product?: {
+    images?: {
+      heroProfile?: string | null;
+      macroDetail?: string | null;
+      materialReference?: string | null;
+    };
+    material?: {
+      preset?: string;
+      surfaceComplexity?: number;
+      refractionEnabled?: boolean;
+      heroFeature?: string;
+      originMetaphor?: string;
+    };
+    dna?: ProductDNAOutput; // Agent 2.1 output
   };
   
-  // Material settings
-  materialPreset: string;
-  surfaceComplexity: number;
-  refractionEnabled: boolean;
-  heroFeature: string;
-  originMetaphor: string;
+  character?: {
+    mode?: string;
+    name?: string;
+    description?: string;
+    referenceUrl?: string | null;
+    assetId?: string | null;
+    aiProfile?: CharacterAIProfile; // Agent 2.2 output
+  };
   
-  // Agent 2.1 output
-  productDNA?: ProductDNAOutput;
+  brand?: {
+    logoUrl?: string | null;
+    name?: string;
+    assetId?: string | null;
+    colors?: {
+      primary?: string;
+      secondary?: string;
+    };
+    logo?: {
+      integrity?: number; // 1-10 slider
+      depth?: number; // 1-5 slider
+    };
+    identity?: BrandIdentityOutput; // Agent 2.3 output
+  };
   
-  // Character (always creates asset if provided)
-  characterMode?: string;
-  characterDescription?: string;
-  characterReferenceUrl?: string | null;
-  characterAssetId?: string | null; // ID in characters table
-  characterName?: string;
-  
-  // Agent 2.2 output
-  characterAIProfile?: CharacterAIProfile;
-  
-  // Brand (always creates asset if provided)
-  logoUrl?: string | null;
-  brandPrimaryColor?: string;
-  brandSecondaryColor?: string;
-  logoIntegrity?: number; // 1-10 slider
-  logoDepth?: number; // 1-5 slider
-  brandkitAssetId?: string | null; // ID in brandkits table
-  brandName?: string;
-  
-  // Agent 2.3 output
-  brandIdentity?: BrandIdentityOutput;
-  
-  // Style reference
-  styleReferenceUrl?: string | null;
+  style?: {
+    referenceUrl?: string | null;
+  };
 }
 
 /**
@@ -233,6 +225,82 @@ export interface CharacterCuratorInput {
 }
 
 /**
+ * Input for Character Planning Agent (AI Recommend)
+ * Generates 3 character suggestions based on description and/or reference image
+ */
+export interface CharacterPlanningInput {
+  // Context from Tab 1
+  strategic_directives: string;
+  targetAudience: string;
+  optimized_image_instruction: string;
+  productTitle: string;
+  
+  // User selected mode (REQUIRED - user must select before AI Recommend)
+  characterMode: CharacterMode;
+  
+  // User input (optional - can work from context alone)
+  character_description?: string;  // User's text description
+  referenceImageUrl?: string;      // Temporary reference image URL
+  
+  // Campaign settings
+  aspectRatio: string;
+  duration: number;
+}
+
+/**
+ * Single character recommendation from Planning Agent (Agent 2.2a)
+ * Each recommendation is a COMPLETE profile ready for execution by Agent 2.2b
+ */
+export interface CharacterRecommendation {
+  id: string;                      // Unique ID like "REC_ASPIRATIONAL_001"
+  name: string;                    // Short name like "Elegant Minimalist"
+  mode: 'hand-model' | 'full-body' | 'silhouette';
+  
+  // Character Profile (detailed persona)
+  character_profile: {
+    identity_id: string;           // Unique reference ID like "LUXURY_ELEGANT_F1"
+    detailed_persona: string;      // Complete physical specification (4-6 sentences)
+    cultural_fit: string;          // How character matches target audience (2-3 sentences)
+  };
+  
+  // Visual profile (for UI display)
+  appearance: {
+    age_range: string;             // "25-35"
+    skin_tone: string;             // "warm olive with golden undertones"
+    build: string;                 // "athletic", "elegant", "professional"
+    style_notes: string;           // Key visual characteristics
+  };
+  
+  // Interaction Protocol (how character engages with product)
+  interaction_protocol: {
+    product_engagement: string;    // Technical rules for product interaction (2-4 sentences)
+    motion_limitations: string;    // AI-safe movement constraints (2-4 sentences)
+  };
+  
+  // Identity Locking (VFX consistency strategy)
+  identity_locking: {
+    strategy: 'IP_ADAPTER_STRICT' | 'PROMPT_EMBEDDING' | 'SEED_CONSISTENCY' | 'COMBINED';
+    vfx_anchor_tags: string[];     // Keywords for shot-to-shot consistency
+    reference_image_required: boolean;
+  };
+  
+  // Ready-to-use prompt for Agent 2.2b execution
+  image_generation_prompt: string; // 100-150 words, includes all details + anchor tags
+  
+  // Quick preview (for UI cards)
+  thumbnail_prompt: string;        // Concise prompt (50-80 words) for preview generation
+}
+
+/**
+ * Output from Character Planning Agent
+ */
+export interface CharacterPlanningOutput {
+  recommendations: CharacterRecommendation[];
+  reasoning: string;               // Brief explanation of choices
+  cost?: number;
+}
+
+/**
  * Input for Agent 2.3: Brand Identity Guardian
  */
 export interface BrandIdentityInput {
@@ -259,35 +327,50 @@ export interface CreativeSparkOutput {
  * Output from Agent 3.1: Atmospheric World-Builder
  */
 export interface EnvironmentOutput {
-  lighting_preset: string;
-  atmospheric_density: string;
-  chromatic_bible: {
-    primary_hex: string;
-    secondary_hex: string;
-    accent_hex: string;
+  visual_manifest: {
+    global_lighting_setup: string;
+    physics_parameters: {
+      fog_density: number;
+      moisture_level: number;
+      wind_intensity: number;
+      dust_frequency: number;
+      particle_type: 'floating_dust' | 'rain' | 'snow' | 'embers' | 'smoke' | 'none';
+    };
+    chromatic_bible: {
+      primary_hex: string;
+      secondary_hex: string;
+      accent_hex: string;
+    };
+    environmental_anchor_prompt: string;
   };
-  environment_anchor_prompt: string;
   cost?: number;
-}
-
-/**
- * Scene structure from Agent 3.2
- */
-export interface SceneStructure {
-  scene_id: string;
-  act: 'hook' | 'transform' | 'payoff';
-  scene_name: string;
-  scene_description: string;
-  energy_level: number; // 1-10
-  sfx_cue?: string;
 }
 
 /**
  * Output from Agent 3.2: 3-Act Narrative Architect
  */
 export interface NarrativeOutput {
-  scenes: SceneStructure[];
-  total_duration: number;
+  script_manifest: {
+    act_1_hook: {
+      text: string;
+      emotional_goal: string;
+      target_energy: number;
+      sfx_cue: string;
+    };
+    act_2_transform: {
+      text: string;
+      emotional_goal: string;
+      target_energy: number;
+      sfx_cue: string;
+    };
+    act_3_payoff: {
+      text: string;
+      emotional_goal: string;
+      target_energy: number;
+      sfx_cue: string;
+      cta_text: string; // Always present, but can be empty string if not applicable
+    };
+  };
   cost?: number;
 }
 
@@ -295,16 +378,11 @@ export interface NarrativeOutput {
  * Output from Agent 3.3: Asset-Environment Harmonizer
  */
 export interface HarmonizerOutput {
-  product_modifiers: {
-    environment_reflection: string;
-    lighting_adaptation: string;
-    color_temperature_shift: string;
+  interaction_physics: {
+    product_modifiers: string;
+    character_modifiers: string;
+    metaphor_injection: string;
   };
-  character_modifiers: {
-    wardrobe_adaptation?: string;
-    skin_tone_lighting?: string;
-  };
-  metaphor_injection: string;
   cost?: number;
 }
 
@@ -334,15 +412,15 @@ export interface Step3Data {
  */
 export interface ShotDefinition {
   shot_id: string;
-  scene_id: string;
-  shot_name: string;
-  description: string;
+  cinematic_goal: string;
+  brief_description: string;
   
   // Technical cinematography
   technical_cinematography: {
-    framing: string;
-    camera_path: string;
+    camera_movement: string;
     lens: string;
+    depth_of_field: string;
+    framing: "ECU" | "CU" | "MCU" | "MED" | "WIDE";
     motion_intensity: number; // 1-10
   };
   
@@ -350,30 +428,48 @@ export interface ShotDefinition {
   generation_mode: {
     shot_type: ShotType;
     reason: string;
-    is_connected_to_previous: boolean;
-    connects_to_next: boolean;
   };
   
   // Identity references (dynamic decisions by Agent 4.1)
   identity_references: {
     refer_to_product: boolean;
-    product_image_ref?: string;
-    refer_to_logo: boolean;
+    product_image_ref?: "heroProfile" | "macroDetail" | "materialReference";
     refer_to_character: boolean;
-    refer_to_previous_outputs?: Array<{
+    refer_to_logo: boolean;
+    focus_anchor: string;
+    refer_to_previous_outputs: Array<{
       shot_id: string;
-      reference_type: 'composition' | 'lighting' | 'color_grade' | 'product_state';
       reason: string;
+      reference_type: "VISUAL_CALLBACK" | "LIGHTING_MATCH" | "PRODUCT_STATE" | "COMPOSITION_ECHO";
     }>;
   };
+  
+  // Continuity logic
+  continuity_logic: {
+    is_connected_to_previous: boolean;
+    is_connected_to_next: boolean;
+    handover_type: "SEAMLESS_FLOW" | "MATCH_CUT" | "JUMP_CUT";
+  };
+  
+  composition_safe_zones: string;
+  lighting_event: string;
+}
+
+/**
+ * Scene definition from Agent 4.1
+ */
+export interface SceneDefinition {
+  scene_id: string;
+  scene_name: string;
+  scene_description: string;
+  shots: ShotDefinition[];
 }
 
 /**
  * Output from Agent 4.1: Cinematic Media Planner
  */
 export interface MediaPlannerOutput {
-  shots: ShotDefinition[];
-  total_shots: number;
+  scenes: SceneDefinition[];
   cost?: number;
 }
 
@@ -402,6 +498,16 @@ export interface TimingOutput {
 }
 
 /**
+ * VFX Seeds from algorithmic calculator
+ */
+export interface VfxSeeds {
+  shot_id: string;
+  motion_bucket: number; // 1-10
+  frame_consistency_scale: number; // 0.70-0.90
+  target_handover_image: string | null;
+}
+
+/**
  * Step 4 Data stored in database
  */
 export interface Step4Data {
@@ -410,6 +516,9 @@ export interface Step4Data {
   
   // Agent 4.2 output
   timing?: TimingOutput;
+  
+  // VFX Seeds (algorithmic)
+  vfxSeeds?: VfxSeeds[];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

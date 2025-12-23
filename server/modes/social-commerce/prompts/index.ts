@@ -12,7 +12,7 @@ export * from './tab-1/strategic-context-prompts';
 
 // Tab 2: Product & Cast DNA
 export * from './tab-2/product-dna-prompts';
-export * from './tab-2/character-curator-prompts';
+export * from './tab-2/character-planning-prompts';  // Agent 2.2a: Complete character recommendations
 
 // Tab 3: Environment & Story
 // export * from './tab-3/creative-spark-prompts';

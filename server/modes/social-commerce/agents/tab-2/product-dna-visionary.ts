@@ -69,34 +69,38 @@ export async function analyzeProductDNA(
   });
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // BUILD IMAGE MESSAGES FOR VISION API
+  // BUILD IMAGE MESSAGES FOR VISION API (OpenAI Responses API format)
   // ═══════════════════════════════════════════════════════════════════════════
   
-  const imageMessages: Array<{ type: "image_url"; image_url: { url: string } }> = [];
+  const imageMessages: Array<{ type: "input_image"; image_url: string }> = [];
   
   // Always include hero profile (required)
   imageMessages.push({
-    type: "image_url",
-    image_url: { url: input.heroProfile }
+    type: "input_image",
+    image_url: input.heroProfile
   });
   
   // Include macro detail if provided
   if (input.macroDetail) {
     imageMessages.push({
-      type: "image_url",
-      image_url: { url: input.macroDetail }
+      type: "input_image",
+      image_url: input.macroDetail
     });
   }
   
   // Include material reference if provided
   if (input.materialReference) {
     imageMessages.push({
-      type: "image_url",
-      image_url: { url: input.materialReference }
+      type: "input_image",
+      image_url: input.materialReference
     });
   }
   
   console.log(`[agent-2.1] Sending ${imageMessages.length} image(s) to GPT-4o Vision`);
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/dce8bcc2-d9cf-48dc-80b9-5e2289140a64',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-dna-visionary.ts:99',message:'imageMessages structure',data:{imageMessages,imageCount:imageMessages.length,firstImageType:imageMessages[0]?.type,firstImageKeys:imageMessages[0]?Object.keys(imageMessages[0]):null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
   
   // ═══════════════════════════════════════════════════════════════════════════
   // BUILD USER PROMPT
@@ -108,32 +112,40 @@ export async function analyzeProductDNA(
   // CALL GPT-4O VISION WITH JSON SCHEMA
   // ═══════════════════════════════════════════════════════════════════════════
   
+  const payload = {
+    input: [
+      { role: 'system', content: PRODUCT_DNA_SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: [
+          ...imageMessages,
+          { type: "input_text", text: userPrompt }
+        ]
+      }
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "product_dna_output",
+        strict: true,
+        schema: PRODUCT_DNA_SCHEMA
+      }
+    },
+    temperature: 0.7,
+    max_output_tokens: 2000,
+  };
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/dce8bcc2-d9cf-48dc-80b9-5e2289140a64',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-dna-visionary.ts:117',message:'Full payload before API call',data:{payload:JSON.stringify(payload),contentArray:payload.input[1].content,contentTypes:payload.input[1].content.map((c:any)=>c?.type),firstContentItem:payload.input[1].content[0]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
+  
   try {
     const result = await callTextModel({
       provider: 'openai',
       model: 'gpt-4o',
       userId,
       workspaceId,
-      messages: [
-        { role: 'system', content: PRODUCT_DNA_SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: [
-            ...imageMessages,
-            { type: "text", text: userPrompt }
-          ]
-        }
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "product_dna_output",
-          strict: true,
-          schema: PRODUCT_DNA_SCHEMA
-        }
-      },
-      temperature: 0.7,
-      max_tokens: 2000,
+      payload,
     });
     
     // Parse JSON response
@@ -141,7 +153,7 @@ export async function analyzeProductDNA(
     
     // Calculate cost from usage
     const cost = result.usage ? 
-      (result.usage.inputTokens * 0.0025 / 1000) + (result.usage.outputTokens * 0.01 / 1000) : 
+      ((result.usage.inputTokens || 0) * 0.0025 / 1000) + ((result.usage.outputTokens || 0) * 0.01 / 1000) : 
       0;
     
     console.log('[agent-2.1] Product DNA analysis complete:', {
@@ -156,6 +168,10 @@ export async function analyzeProductDNA(
       cost
     };
   } catch (error) {
+    // #region agent log
+    const errorDetails = error instanceof Error ? error.message : String(error);
+    fetch('http://127.0.0.1:7242/ingest/dce8bcc2-d9cf-48dc-80b9-5e2289140a64',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-dna-visionary.ts:160',message:'API call failed',data:{error:errorDetails,errorString:JSON.stringify(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     console.error('[agent-2.1] Product DNA analysis failed:', error);
     throw new Error(`Failed to analyze product DNA: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }

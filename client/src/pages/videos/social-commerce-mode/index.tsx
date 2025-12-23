@@ -81,9 +81,10 @@ export default function SocialCommerceMode() {
   const [voiceOverEnabled, setVoiceOverEnabled] = useState(true);
   
   // Campaign Configuration settings (Tab 1)
-  const [imageModel, setImageModel] = useState("imagen-4");
-  const [imageResolution, setImageResolution] = useState("2K");
-  const [videoModel, setVideoModel] = useState("kling-o1");
+  // Defaults match constants: nano-banana (default image model) and seedance-1.0-pro (default video model)
+  const [imageModel, setImageModel] = useState("nano-banana");
+  const [imageResolution, setImageResolution] = useState("1k");
+  const [videoModel, setVideoModel] = useState("seedance-1.0-pro");
   const [videoResolution, setVideoResolution] = useState("1080p");
   const [language, setLanguage] = useState<'ar' | 'en'>('en');
   const [motionPrompt, setMotionPrompt] = useState("");
@@ -100,9 +101,18 @@ export default function SocialCommerceMode() {
     materialReference: null,
   });
   
-  // Asset IDs for created assets (character, brandkit)
+  // Asset IDs for created assets (character, brandkit, product images)
   const [characterAssetId, setCharacterAssetId] = useState<string | null>(null);
   const [brandkitAssetId, setBrandkitAssetId] = useState<string | null>(null);
+  const [productImageAssetIds, setProductImageAssetIds] = useState<{
+    heroProfile: string | null;
+    macroDetail: string | null;
+    materialReference: string | null;
+  }>({
+    heroProfile: null,
+    macroDetail: null,
+    materialReference: null,
+  });
   
   // Names for auto-created assets
   const [characterName, setCharacterName] = useState('');
@@ -124,6 +134,7 @@ export default function SocialCommerceMode() {
   const [includeHumanElement, setIncludeHumanElement] = useState(false);
   const [characterMode, setCharacterMode] = useState<'hand-model' | 'full-body' | 'silhouette' | null>(null);
   const [characterReferenceUrl, setCharacterReferenceUrl] = useState<string | null>(null);
+  const [characterReferenceFile, setCharacterReferenceFile] = useState<File | null>(null);
   const [characterDescription, setCharacterDescription] = useState("");
   const [characterAIProfile, setCharacterAIProfile] = useState<{
     identity_id: string;
@@ -137,6 +148,7 @@ export default function SocialCommerceMode() {
       strategy: string;
       vfx_anchor_tags: string;
     };
+    image_generation_prompt?: string; // Ready-to-use prompt for Agent 2.2b
   } | null>(null);
   const [isGeneratingCharacter, setIsGeneratingCharacter] = useState(false);
   
@@ -156,6 +168,9 @@ export default function SocialCommerceMode() {
   // Environment-specific brand colors (initialized from Tab 2, but local to Tab 3)
   const [environmentBrandPrimaryColor, setEnvironmentBrandPrimaryColor] = useState(brandPrimaryColor);
   const [environmentBrandSecondaryColor, setEnvironmentBrandSecondaryColor] = useState(brandSecondaryColor);
+  
+  // Campaign Objective (optional, can be deselected)
+  const [campaignObjective, setCampaignObjective] = useState("");
   
   // Strategic Context (Tab 1 - moved from Tab 3)
   const [targetAudience, setTargetAudience] = useState("");
@@ -235,8 +250,8 @@ export default function SocialCommerceMode() {
     talents: [],
     styleReference: null,
     additionalInstructions: "",
-    imageModel: "imagen-4",
-    videoModel: "kling",
+    imageModel: "nano-banana",
+    videoModel: "seedance-1.0-pro",
     imageInstructions: "",
     videoInstructions: "",
   });
@@ -414,53 +429,198 @@ export default function SocialCommerceMode() {
         if (step1.targetAudience) setTargetAudience(step1.targetAudience);
         if (step1.customMotionInstructions) setMotionPrompt(step1.customMotionInstructions);
         if (step1.customImageInstructions) setImageInstructions(step1.customImageInstructions);
+        // AI Model Settings
+        if (step1.imageModel) setImageModel(step1.imageModel);
+        if (step1.imageResolution) setImageResolution(step1.imageResolution);
+        if (step1.videoModel) setVideoModel(step1.videoModel);
+        if (step1.videoResolution) setVideoResolution(step1.videoResolution);
+        if (step1.language) setLanguage(step1.language);
       }
       
-      // Restore step2Data if available
+      // Restore step2Data if available (NEW: Nested structure)
       const step2 = existingVideo.step2Data as any;
       if (step2) {
-        // Product images
-        if (step2.productImages) {
-          setProductImages({
-            heroProfile: step2.productImages.heroProfile || null,
-            macroDetail: step2.productImages.macroDetail || null,
-            materialReference: step2.productImages.materialReference || null,
-          });
+        // Product data
+        if (step2.product) {
+          // Product images
+          if (step2.product.images) {
+            setProductImages({
+              heroProfile: step2.product.images.heroProfile || null,
+              macroDetail: step2.product.images.macroDetail || null,
+              materialReference: step2.product.images.materialReference || null,
+            });
+          }
+          
+          // Material settings
+          if (step2.product.material) {
+            if (step2.product.material.preset) setMaterialPreset(step2.product.material.preset);
+            if (step2.product.material.surfaceComplexity !== undefined) setSurfaceComplexity(step2.product.material.surfaceComplexity);
+            if (step2.product.material.refractionEnabled !== undefined) setRefractionEnabled(step2.product.material.refractionEnabled);
+            if (step2.product.material.heroFeature) setHeroFeature(step2.product.material.heroFeature);
+            if (step2.product.material.originMetaphor) setOriginMetaphor(step2.product.material.originMetaphor);
+          }
         }
         
         // Character data
-        if (step2.characterReferenceUrl) setCharacterReferenceUrl(step2.characterReferenceUrl);
-        if (step2.characterAssetId) setCharacterAssetId(step2.characterAssetId);
-        if (step2.characterName) setCharacterName(step2.characterName);
-        if (step2.characterDescription) setCharacterDescription(step2.characterDescription);
-        if (step2.characterMode) setCharacterMode(step2.characterMode);
+        if (step2.character) {
+          if (step2.character.referenceUrl) setCharacterReferenceUrl(step2.character.referenceUrl);
+          if (step2.character.assetId) setCharacterAssetId(step2.character.assetId);
+          if (step2.character.name) setCharacterName(step2.character.name);
+          if (step2.character.description) setCharacterDescription(step2.character.description);
+          if (step2.character.mode) {
+            setCharacterMode(step2.character.mode);
+            setIncludeHumanElement(true);
+          }
+          if (step2.character.aiProfile) setCharacterAIProfile(step2.character.aiProfile);
+        }
         
         // Brand data
-        if (step2.logoUrl) setLogoUrl(step2.logoUrl);
-        if (step2.brandkitAssetId) setBrandkitAssetId(step2.brandkitAssetId);
-        if (step2.brandName) setBrandName(step2.brandName);
-        if (step2.brandPrimaryColor) setBrandPrimaryColor(step2.brandPrimaryColor);
-        if (step2.brandSecondaryColor) setBrandSecondaryColor(step2.brandSecondaryColor);
-        if (step2.logoIntegrity !== undefined) setLogoIntegrity(step2.logoIntegrity);
-        if (step2.logoDepth !== undefined) setLogoDepth(step2.logoDepth);
+        if (step2.brand) {
+          if (step2.brand.logoUrl) setLogoUrl(step2.brand.logoUrl);
+          if (step2.brand.assetId) setBrandkitAssetId(step2.brand.assetId);
+          if (step2.brand.name) setBrandName(step2.brand.name);
+          if (step2.brand.colors) {
+            if (step2.brand.colors.primary) setBrandPrimaryColor(step2.brand.colors.primary);
+            if (step2.brand.colors.secondary) setBrandSecondaryColor(step2.brand.colors.secondary);
+          }
+          if (step2.brand.logo) {
+            if (step2.brand.logo.integrity !== undefined) setLogoIntegrity(step2.brand.logo.integrity);
+            if (step2.brand.logo.depth !== undefined) setLogoDepth(step2.brand.logo.depth);
+          }
+        }
         
         // Style reference
-        if (step2.styleReferenceUrl) setStyleReferenceUrl(step2.styleReferenceUrl);
+        if (step2.style?.referenceUrl) {
+          setStyleReferenceUrl(step2.style.referenceUrl);
+        }
         
-        // Material settings
-        if (step2.materialPreset) setMaterialPreset(step2.materialPreset);
-        if (step2.surfaceComplexity !== undefined) setSurfaceComplexity(step2.surfaceComplexity);
-        if (step2.refractionEnabled !== undefined) setRefractionEnabled(step2.refractionEnabled);
-        if (step2.heroFeature) setHeroFeature(step2.heroFeature);
-        if (step2.originMetaphor) setOriginMetaphor(step2.originMetaphor);
+        console.log('[SocialCommerce] Restored step2Data (nested structure):', {
+          hasProductImages: !!step2.product?.images,
+          hasCharacter: !!step2.character?.assetId,
+          hasBrandkit: !!step2.brand?.assetId,
+        });
+      }
+      
+      // Restore step3Data if available
+      const step3 = existingVideo.step3Data as any;
+      if (step3) {
+        // Creative Spark
+        if (step3.creativeSpark?.creative_spark) {
+          setCampaignSpark(step3.creativeSpark.creative_spark);
+        } else if (typeof step3.campaignSpark === 'string') {
+          setCampaignSpark(step3.campaignSpark);
+        }
         
-        // Character toggle
-        if (step2.characterMode) setIncludeHumanElement(true);
+        // Campaign Objective (optional)
+        if (step3.campaignObjective) {
+          setCampaignObjective(step3.campaignObjective);
+        }
         
-        console.log('[SocialCommerce] Restored step2Data:', {
-          hasProductImages: !!step2.productImages,
-          hasCharacter: !!step2.characterAssetId,
-          hasBrandkit: !!step2.brandkitAssetId,
+        // Visual Beats
+        if (step3.narrative?.script_manifest) {
+          const manifest = step3.narrative.script_manifest;
+          setVisualBeats({
+            beat1: manifest.act_1_hook?.text || '',
+            beat2: manifest.act_2_transform?.text || '',
+            beat3: manifest.act_3_payoff?.text || '',
+          });
+          // CTA Text
+          if (manifest.act_3_payoff?.cta_text) {
+            setCtaText(manifest.act_3_payoff.cta_text);
+          }
+        } else if (step3.visualBeats) {
+          setVisualBeats({
+            beat1: step3.visualBeats.beat1 || '',
+            beat2: step3.visualBeats.beat2 || '',
+            beat3: step3.visualBeats.beat3 || '',
+          });
+        }
+        
+        // Environment
+        if (step3.environment?.concept) {
+          setEnvironmentConcept(step3.environment.concept);
+        }
+        if (step3.environment?.cinematicLighting) {
+          setCinematicLighting(step3.environment.cinematicLighting);
+        }
+        if (step3.environment?.atmosphericDensity !== undefined) {
+          setAtmosphericDensity(step3.environment.atmosphericDensity);
+        }
+        if (step3.environment?.visualPreset) {
+          setVisualPreset(step3.environment.visualPreset);
+        }
+        
+        // Environment brand colors
+        if (step3.environment?.brandColors?.primary) {
+          setEnvironmentBrandPrimaryColor(step3.environment.brandColors.primary);
+        }
+        if (step3.environment?.brandColors?.secondary) {
+          setEnvironmentBrandSecondaryColor(step3.environment.brandColors.secondary);
+        }
+        
+        console.log('[SocialCommerce] Restored step3Data:', {
+          hasCreativeSpark: !!step3.creativeSpark || !!step3.campaignSpark,
+          hasNarrative: !!step3.narrative,
+          hasEnvironment: !!step3.environment,
+        });
+      }
+      
+      // ✨ NEW: Restore step4Data if available
+      const step4 = existingVideo.step4Data as any;
+      if (step4?.mediaPlanner?.scenes) {
+        // Map Agent 4.1 output to sceneManifest format
+        const mappedScenes = step4.mediaPlanner.scenes.map((scene: any, sceneIdx: number) => {
+          // Map timing data by shot_id
+          const timingMap = new Map(
+            (step4.timing?.temporal_map || []).map((t: any) => [t.shot_id, t])
+          );
+          
+          return {
+            id: scene.scene_id,
+            name: scene.scene_name,
+            description: scene.scene_description,
+            duration: scene.shots.reduce((sum: number, shot: any) => {
+              const timing = timingMap.get(shot.shot_id);
+              return sum + (timing?.rendered_duration || 5.0);
+            }, 0),
+            actType: sceneIdx === 0 ? 'hook' : sceneIdx === 1 ? 'transformation' : 'payoff',
+            shots: scene.shots.map((shot: any) => {
+              const timing = timingMap.get(shot.shot_id);
+              return {
+                id: shot.shot_id,
+                sceneId: scene.scene_id,
+                name: `${shot.shot_id}: ${shot.cinematic_goal}`,
+                description: shot.brief_description,
+                duration: timing?.rendered_duration || 5.0,
+                shotType: shot.generation_mode.shot_type === 'IMAGE_REF' ? 'image-ref' : 'start-end',
+                cameraPath: shot.technical_cinematography.camera_movement.toLowerCase().includes('orbit') ? 'orbit' :
+                           shot.technical_cinematography.camera_movement.toLowerCase().includes('pan') ? 'pan' :
+                           shot.technical_cinematography.camera_movement.toLowerCase().includes('zoom') ? 'zoom' :
+                           shot.technical_cinematography.camera_movement.toLowerCase().includes('dolly') ? 'dolly' : 'static',
+                lens: shot.technical_cinematography.lens.toLowerCase().includes('macro') ? 'macro' :
+                      shot.technical_cinematography.lens.toLowerCase().includes('wide') ? 'wide' :
+                      shot.technical_cinematography.lens.toLowerCase().includes('85') ? '85mm' : 'telephoto',
+                referenceTags: [
+                  ...(shot.identity_references.refer_to_product ? ['@Product'] : []),
+                  ...(shot.identity_references.refer_to_character ? ['@Character'] : []),
+                  ...(shot.identity_references.refer_to_logo ? ['@Logo'] : []),
+                ],
+                isLinkedToPrevious: shot.continuity_logic.is_connected_to_previous,
+                speedProfile: timing?.speed_curve === 'EASE_IN' ? 'smooth' :
+                             timing?.speed_curve === 'EASE_OUT' ? 'smooth' : 'linear',
+              };
+            }),
+          };
+        });
+        
+        setSceneManifest({
+          scenes: mappedScenes,
+          continuityLinksEstablished: mappedScenes.some(s => s.shots.some((shot: any) => shot.isLinkedToPrevious)),
+        });
+        
+        console.log('[SocialCommerce] Restored step4Data:', {
+          sceneCount: mappedScenes.length,
+          totalShots: mappedScenes.reduce((sum: number, s: any) => sum + s.shots.length, 0),
         });
       }
       
@@ -554,6 +714,78 @@ export default function SocialCommerceMode() {
     createVideoProject();
   }, [isNewVideo, workspaceId, urlTitle, toast]);
 
+  // Auto-save character and material settings to step2Data when they change
+  useEffect(() => {
+    const saveCharacterAndMaterialSettings = async () => {
+      // Only save if we have a valid video ID and we're not loading an existing video
+      if (!videoId || videoId === 'new' || isNewVideo || !existingVideo) {
+        return;
+      }
+
+      // Only save if we have meaningful character or material data
+      const hasCharacterData = characterAIProfile || characterMode || materialPreset;
+      if (!hasCharacterData) {
+        return;
+      }
+
+      try {
+        const updates: any = {};
+
+        // Build character updates (nested structure)
+        const hasCharacterUpdates = characterAIProfile || characterMode || characterName || characterDescription;
+        if (hasCharacterUpdates) {
+          updates.character = {};
+          if (characterAIProfile) updates.character.aiProfile = characterAIProfile;
+          if (characterMode) updates.character.mode = characterMode;
+          if (characterName) updates.character.name = characterName;
+          if (characterDescription) updates.character.description = characterDescription;
+        }
+
+        // Build product.material updates (nested structure)
+        const hasMaterialUpdates = materialPreset || surfaceComplexity !== undefined || refractionEnabled !== undefined || heroFeature || originMetaphor;
+        if (hasMaterialUpdates) {
+          updates.product = { material: {} };
+          if (materialPreset) updates.product.material.preset = materialPreset;
+          if (surfaceComplexity !== undefined) updates.product.material.surfaceComplexity = surfaceComplexity;
+          if (refractionEnabled !== undefined) updates.product.material.refractionEnabled = refractionEnabled;
+          if (heroFeature) updates.product.material.heroFeature = heroFeature;
+          if (originMetaphor) updates.product.material.originMetaphor = originMetaphor;
+        }
+
+        // Only make API call if we have updates
+        if (Object.keys(updates).length > 0) {
+          await fetch(`/api/social-commerce/videos/${videoId}/step/2/data`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(updates),
+          });
+          console.log('[SocialCommerce] Auto-saved character/material settings (nested structure)');
+        }
+      } catch (error) {
+        console.error('Failed to auto-save settings to step2Data:', error);
+      }
+    };
+
+    // Debounce to avoid excessive API calls
+    const timeoutId = setTimeout(saveCharacterAndMaterialSettings, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [
+    videoId,
+    isNewVideo,
+    existingVideo,
+    characterAIProfile,
+    characterMode,
+    characterName,
+    characterDescription,
+    includeHumanElement,
+    materialPreset,
+    surfaceComplexity,
+    refractionEnabled,
+    heroFeature,
+    originMetaphor,
+  ]);
+
   // Map old workflow step IDs to new studio step IDs
   const workflowStepMap: { [key in CommerceStepId]: string } = {
     "setup": "script",  // Tab 1 = Campaign Config (ProductSetupTab)
@@ -619,8 +851,30 @@ export default function SocialCommerceMode() {
 
       const data = await response.json();
       
-      // Store CDN URL directly (no temp storage)
+      // Store CDN URL and asset ID
       setProductImages(prev => ({ ...prev, [key]: data.cdnUrl }));
+      setProductImageAssetIds(prev => ({ ...prev, [key]: data.assetId }));
+
+      // ✨ Immediately save to step2Data (so user can see images after page refresh)
+      if (videoId && videoId !== 'new') {
+        try {
+          await fetch(`/api/social-commerce/videos/${videoId}/step/2/data`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              product: {
+                images: {
+                  [key]: data.cdnUrl,
+                },
+              },
+            }),
+          });
+          console.log(`[SocialCommerce] Saved product.images.${key} to step2Data`);
+        } catch (saveError) {
+          console.error('Failed to save to step2Data:', saveError);
+        }
+      }
 
       toast({
         title: "Image uploaded to Bunny CDN",
@@ -635,7 +889,7 @@ export default function SocialCommerceMode() {
     }
   };
 
-  const handleCharacterImageUpload = async (file: File) => {
+  const handleCharacterImageUpload = async (file: File, nameOverride?: string, descriptionOverride?: string) => {
     try {
       if (!currentWorkspace?.id || !videoId) {
         toast({
@@ -651,8 +905,8 @@ export default function SocialCommerceMode() {
       formData.append('category', 'character');
       formData.append('workspaceId', currentWorkspace.id);
       formData.append('videoId', videoId);
-      formData.append('characterName', characterName || 'Campaign Character');
-      formData.append('characterDescription', characterDescription || '');
+      formData.append('characterName', nameOverride || characterName || 'Campaign Character');
+      formData.append('characterDescription', descriptionOverride ?? characterDescription ?? '');
 
       const response = await fetch('/api/social-commerce/upload-temp', {
         method: 'POST',
@@ -667,6 +921,28 @@ export default function SocialCommerceMode() {
       // Store CDN URL and asset ID
       setCharacterReferenceUrl(data.cdnUrl);
       setCharacterAssetId(data.assetId);
+
+      // ✨ Immediately save to step2Data (so user can see character after page refresh)
+      if (videoId && videoId !== 'new') {
+        try {
+          await fetch(`/api/social-commerce/videos/${videoId}/step/2/data`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              character: {
+                referenceUrl: data.cdnUrl,
+                assetId: data.assetId,
+                name: nameOverride || characterName || 'Campaign Character',
+                mode: 'upload', // User uploaded a character
+              },
+            }),
+          });
+          console.log('[SocialCommerce] Saved character to step2Data');
+        } catch (saveError) {
+          console.error('Failed to save to step2Data:', saveError);
+        }
+      }
 
       toast({
         title: "Character uploaded to Bunny CDN",
@@ -715,6 +991,31 @@ export default function SocialCommerceMode() {
       setLogoUrl(data.cdnUrl);
       setBrandkitAssetId(data.assetId);
 
+      // ✨ Immediately save to step2Data (so user can see logo after page refresh)
+      if (videoId && videoId !== 'new') {
+        try {
+          await fetch(`/api/social-commerce/videos/${videoId}/step/2/data`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              brand: {
+                logoUrl: data.cdnUrl,
+                assetId: data.assetId,
+                name: brandName || 'Campaign Brand',
+                colors: {
+                  primary: brandPrimaryColor || '#000000',
+                  secondary: brandSecondaryColor || '#FFFFFF',
+                },
+              },
+            }),
+          });
+          console.log('[SocialCommerce] Saved brand to step2Data');
+        } catch (saveError) {
+          console.error('Failed to save to step2Data:', saveError);
+        }
+      }
+
       toast({
         title: "Logo uploaded to Bunny CDN",
         description: "Available in Assets → Brand Kits",
@@ -758,6 +1059,25 @@ export default function SocialCommerceMode() {
       // Store CDN URL directly
       setStyleReferenceUrl(data.cdnUrl);
 
+      // ✨ Immediately save to step2Data (so user can see style reference after page refresh)
+      if (videoId && videoId !== 'new') {
+        try {
+          await fetch(`/api/social-commerce/videos/${videoId}/step/2/data`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              style: {
+                referenceUrl: data.cdnUrl,
+              },
+            }),
+          });
+          console.log('[SocialCommerce] Saved style to step2Data');
+        } catch (saveError) {
+          console.error('Failed to save to step2Data:', saveError);
+        }
+      }
+
       toast({
         title: "Style reference uploaded to Bunny CDN",
         description: "Available in Assets → Uploads",
@@ -768,6 +1088,141 @@ export default function SocialCommerceMode() {
         title: "Upload failed",
         variant: "destructive",
       });
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ASSET DELETION HANDLERS
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  const handleDeleteCharacter = async () => {
+    if (!characterAssetId) return;
+    
+    try {
+      // Delete from Assets + Bunny + update video's step2Data (backend handles all)
+      const url = videoId && videoId !== 'new' 
+        ? `/api/social-commerce/assets/character/${characterAssetId}?videoId=${videoId}`
+        : `/api/social-commerce/assets/character/${characterAssetId}`;
+        
+      const response = await fetch(url, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete from Assets');
+      }
+      
+      // Clear frontend state (backend already updated step2Data)
+      setCharacterReferenceUrl(null);
+      setCharacterAssetId(null);
+      setCharacterName('');
+      setCharacterAIProfile(null);
+      
+      // Show success toast
+      toast({
+        title: "Character deleted",
+        description: "Removed from Assets and Bunny CDN",
+      });
+    } catch (error) {
+      console.error('Delete character error:', error);
+      toast({
+        title: "Delete failed",
+        description: error instanceof Error ? error.message : "Could not delete character",
+        variant: "destructive",
+      });
+      // State remains unchanged - item still visible in UI
+    }
+  };
+
+  const handleDeleteLogo = async () => {
+    if (!brandkitAssetId) return;
+    
+    try {
+      // Delete from Assets + Bunny + update video's step2Data (backend handles all)
+      const url = videoId && videoId !== 'new' 
+        ? `/api/social-commerce/assets/brandkit/${brandkitAssetId}?videoId=${videoId}`
+        : `/api/social-commerce/assets/brandkit/${brandkitAssetId}`;
+        
+      const response = await fetch(url, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete from Assets');
+      }
+      
+      // Clear frontend state (backend already updated step2Data)
+      setLogoUrl(null);
+      setBrandkitAssetId(null);
+      setBrandName('');
+      
+      // Show success toast
+      toast({
+        title: "Logo deleted",
+        description: "Removed from Assets and Bunny CDN",
+      });
+    } catch (error) {
+      console.error('Delete logo error:', error);
+      toast({
+        title: "Delete failed",
+        description: error instanceof Error ? error.message : "Could not delete logo",
+        variant: "destructive",
+      });
+      // State remains unchanged - item still visible in UI
+    }
+  };
+
+  const handleDeleteProductImage = async (key: 'heroProfile' | 'macroDetail' | 'materialReference') => {
+    const assetId = productImageAssetIds[key];
+    if (!assetId) {
+      // If no asset ID, just clear from state (not yet uploaded to DB)
+      setProductImages(prev => ({ ...prev, [key]: null }));
+      toast({
+        title: "Image removed",
+        description: "Product image cleared",
+      });
+      return;
+    }
+    
+    try {
+      // Delete from Assets + Bunny + update video's step2Data (backend handles all)
+      // Pass imageKey so backend knows exactly which product image to clear
+      const params = new URLSearchParams();
+      if (videoId && videoId !== 'new') {
+        params.append('videoId', videoId);
+        params.append('imageKey', key);
+        params.append('imageType', 'product');
+      }
+      const url = `/api/social-commerce/assets/upload/${assetId}${params.toString() ? '?' + params.toString() : ''}`;
+        
+      const response = await fetch(url, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete from Assets');
+      }
+      
+      // Clear frontend state (backend already updated step2Data)
+      setProductImages(prev => ({ ...prev, [key]: null }));
+      setProductImageAssetIds(prev => ({ ...prev, [key]: null }));
+      
+      // Show success toast
+      toast({
+        title: "Image deleted",
+        description: "Removed from Assets and Bunny CDN",
+      });
+    } catch (error) {
+      console.error('Delete product image error:', error);
+      toast({
+        title: "Delete failed",
+        description: error instanceof Error ? error.message : "Could not delete image",
+        variant: "destructive",
+      });
+      // State remains unchanged - item still visible in UI
     }
   };
 
@@ -830,6 +1285,14 @@ export default function SocialCommerceMode() {
     // TAB 1 (SETUP): Run Agent 1.1 and save step1Data
     // ═══════════════════════════════════════════════════════════════════════════
     if (activeStep === "setup") {
+      // ✨ Skip agent if step already completed and no changes made
+      if (completedSteps.includes(activeStep) && !dirtySteps.has(activeStep)) {
+        console.log('[SocialCommerce] Step 1 already completed, no changes - navigating directly');
+        setDirection(1);
+        setActiveStep(steps[nextIndex]);
+        return;
+      }
+      
       if (videoId === "new") {
         toast({
           title: "Error",
@@ -853,6 +1316,12 @@ export default function SocialCommerceMode() {
           duration: parseInt(duration, 10),
           customImageInstructions: imageInstructions,
           customMotionInstructions: motionPrompt,
+          // AI Model Settings
+          imageModel,
+          imageResolution,
+          videoModel,
+          videoResolution,
+          language,
         };
         
         console.log('[SocialCommerce] Saving step 1 and running Agent 1.1:', step1Data);
@@ -905,6 +1374,14 @@ export default function SocialCommerceMode() {
     // TAB 2 (SCRIPT/PRODUCT DNA): Upload images and run Agents 2.1-2.3
     // ═══════════════════════════════════════════════════════════════════════════
     if (activeStep === "script") {
+      // ✨ Skip agents if step already completed and no changes made
+      if (completedSteps.includes(activeStep) && !dirtySteps.has(activeStep)) {
+        console.log('[SocialCommerce] Step 2 already completed, no changes - navigating directly');
+        setDirection(1);
+        setActiveStep(steps[nextIndex]);
+        return;
+      }
+      
       if (videoId === "new") {
         toast({
           title: "Error",
@@ -929,6 +1406,34 @@ export default function SocialCommerceMode() {
       try {
         console.log('[SocialCommerce] Running Tab 2 agents...');
         
+        // If there's a reference file for AI generation, upload it first
+        let finalCharacterReferenceUrl = characterReferenceUrl;
+        if (characterReferenceFile && (!characterReferenceUrl || characterReferenceUrl.startsWith('blob:'))) {
+          console.log('[SocialCommerce] Uploading character reference image for AI generation...');
+          
+          const formData = new FormData();
+          formData.append('file', characterReferenceFile);
+          formData.append('category', 'character');
+          formData.append('workspaceId', currentWorkspace!.id);
+          formData.append('videoId', videoId);
+          formData.append('characterName', 'AI Reference');
+          formData.append('characterDescription', characterDescription || 'Reference for AI character generation');
+          
+          const uploadResponse = await fetch('/api/social-commerce/upload-temp', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData,
+          });
+          
+          if (uploadResponse.ok) {
+            const uploadData = await uploadResponse.json();
+            finalCharacterReferenceUrl = uploadData.cdnUrl;
+            console.log('[SocialCommerce] Reference uploaded:', finalCharacterReferenceUrl);
+          } else {
+            console.warn('[SocialCommerce] Reference upload failed, continuing without it');
+          }
+        }
+        
         const response = await fetch(`/api/social-commerce/videos/${videoId}/step/2/continue`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -938,7 +1443,7 @@ export default function SocialCommerceMode() {
             heroProfileUrl: productImages.heroProfile,
             macroDetailUrl: productImages.macroDetail,
             materialReferenceUrl: productImages.materialReference,
-            characterReferenceUrl,
+            characterReferenceUrl: finalCharacterReferenceUrl,
             logoUrl,
             styleReferenceUrl,
             
@@ -961,6 +1466,7 @@ export default function SocialCommerceMode() {
             includeHumanElement,
             characterMode,
             characterDescription,
+            characterAIProfile, // Send AI profile if character was uploaded (minimal profile)
             targetAudience,
             
             // Brand settings
@@ -1007,6 +1513,164 @@ export default function SocialCommerceMode() {
         toast({
           title: "Error",
           description: error instanceof Error ? error.message : "Failed to process Tab 2",
+          variant: "destructive",
+        });
+      } finally {
+        setIsCreating(false);
+      }
+      
+      return;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // TAB 3 (ENVIRONMENT): Run Agents 3.0-3.3 and save step3Data
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (activeStep === "environment") {
+      // ✨ Skip agents if step already completed and no changes made
+      if (completedSteps.includes(activeStep) && !dirtySteps.has(activeStep)) {
+        console.log('[SocialCommerce] Step 3 already completed, no changes - navigating directly');
+        setDirection(1);
+        setActiveStep(steps[nextIndex]);
+        return;
+      }
+      
+      if (videoId === "new") {
+        toast({
+          title: "Error",
+          description: "Video not created yet. Please refresh the page.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Validate required fields
+      if (!environmentConcept || environmentConcept.trim().length < 20) {
+        toast({
+          title: "Error",
+          description: "Environment concept must be at least 20 characters",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (!campaignSpark || campaignSpark.trim().length < 10) {
+        toast({
+          title: "Error",
+          description: "Creative spark must be at least 10 characters",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setIsCreating(true);
+      
+      try {
+        console.log('[SocialCommerce] Running Tab 3 agents...');
+        
+        const response = await fetch(`/api/social-commerce/videos/${videoId}/step/3/continue`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            environmentConcept,
+            atmosphericDensity,
+            cinematicLighting,
+            visualPreset,
+            styleReferenceUrl,
+            campaignSpark, // Use existing if filled, or let backend generate
+            campaignObjective: campaignObjective || '', // Optional - empty string if not selected
+            visualBeats,
+            environmentBrandPrimaryColor,
+            environmentBrandSecondaryColor,
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.details || errorData.error || 'Failed to process Tab 3');
+        }
+        
+        const data = await response.json();
+        
+        console.log('[SocialCommerce] Tab 3 and Tab 4 completed:', {
+          totalCost: data.totalCost,
+          step3Data: data.step3Data,
+          step4Data: data.step4Data,
+        });
+        
+        // ✨ NEW: Map step4Data to sceneManifest if available
+        if (data.step4Data?.mediaPlanner?.scenes) {
+          const mappedScenes = data.step4Data.mediaPlanner.scenes.map((scene: any, sceneIdx: number) => {
+            // Map timing data by shot_id
+            const timingMap = new Map(
+              (data.step4Data.timing?.temporal_map || []).map((t: any) => [t.shot_id, t])
+            );
+            
+            return {
+              id: scene.scene_id,
+              name: scene.scene_name,
+              description: scene.scene_description,
+              duration: scene.shots.reduce((sum: number, shot: any) => {
+                const timing = timingMap.get(shot.shot_id);
+                return sum + (timing?.rendered_duration || 5.0);
+              }, 0),
+              actType: sceneIdx === 0 ? 'hook' : sceneIdx === 1 ? 'transformation' : 'payoff',
+              shots: scene.shots.map((shot: any) => {
+                const timing = timingMap.get(shot.shot_id);
+                return {
+                  id: shot.shot_id,
+                  sceneId: scene.scene_id,
+                  name: `${shot.shot_id}: ${shot.cinematic_goal}`,
+                  description: shot.brief_description,
+                  duration: timing?.rendered_duration || 5.0,
+                  shotType: shot.generation_mode.shot_type === 'IMAGE_REF' ? 'image-ref' : 'start-end',
+                  cameraPath: shot.technical_cinematography.camera_movement.toLowerCase().includes('orbit') ? 'orbit' :
+                             shot.technical_cinematography.camera_movement.toLowerCase().includes('pan') ? 'pan' :
+                             shot.technical_cinematography.camera_movement.toLowerCase().includes('zoom') ? 'zoom' :
+                             shot.technical_cinematography.camera_movement.toLowerCase().includes('dolly') ? 'dolly' : 'static',
+                  lens: shot.technical_cinematography.lens.toLowerCase().includes('macro') ? 'macro' :
+                        shot.technical_cinematography.lens.toLowerCase().includes('wide') ? 'wide' :
+                        shot.technical_cinematography.lens.toLowerCase().includes('85') ? '85mm' : 'telephoto',
+                  referenceTags: [
+                    ...(shot.identity_references.refer_to_product ? ['@Product'] : []),
+                    ...(shot.identity_references.refer_to_character ? ['@Character'] : []),
+                    ...(shot.identity_references.refer_to_logo ? ['@Logo'] : []),
+                  ],
+                  isLinkedToPrevious: shot.continuity_logic.is_connected_to_previous,
+                  speedProfile: timing?.speed_curve === 'EASE_IN' ? 'smooth' :
+                               timing?.speed_curve === 'EASE_OUT' ? 'smooth' : 'linear',
+                };
+              }),
+            };
+          });
+          
+          setSceneManifest({
+            scenes: mappedScenes,
+            continuityLinksEstablished: mappedScenes.some(s => s.shots.some((shot: any) => shot.isLinkedToPrevious)),
+          });
+          
+          console.log('[SocialCommerce] Mapped step4Data to sceneManifest:', {
+            sceneCount: mappedScenes.length,
+            totalShots: mappedScenes.reduce((sum: number, s: any) => sum + s.shots.length, 0),
+          });
+        }
+        
+        toast({
+          title: "Environment, Story & Shots Generated",
+          description: `Agents 3.0-3.3 and 4.1-4.2 completed successfully (cost: $${(data.totalCost || 0).toFixed(4)})`,
+        });
+        
+        // Mark step as completed and advance
+        if (!completedSteps.includes(activeStep)) {
+          setCompletedSteps([...completedSteps, activeStep]);
+        }
+        setDirection(1);
+        setActiveStep(steps[nextIndex]);
+      } catch (error) {
+        console.error('[SocialCommerce] Tab 3 error:', error);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to process Tab 3",
           variant: "destructive",
         });
       } finally {
@@ -1254,12 +1918,14 @@ export default function SocialCommerceMode() {
               imageInstructions={imageInstructions}
               onProductImagesChange={setProductImages}
               onProductImageUpload={handleProductImageUpload}
+              onProductImageDelete={handleDeleteProductImage}
               onMaterialPresetChange={setMaterialPreset}
               onObjectMassChange={setObjectMass}
               onSurfaceComplexityChange={setSurfaceComplexity}
               onRefractionEnabledChange={setRefractionEnabled}
               onLogoUrlChange={setLogoUrl}
               onLogoUpload={handleLogoUpload}
+              onLogoDelete={handleDeleteLogo}
               onBrandPrimaryColorChange={setBrandPrimaryColor}
               onBrandSecondaryColorChange={setBrandSecondaryColor}
               onLogoIntegrityChange={setLogoIntegrity}
@@ -1280,6 +1946,7 @@ export default function SocialCommerceMode() {
               includeHumanElement={includeHumanElement}
               characterMode={characterMode}
               characterReferenceUrl={characterReferenceUrl}
+              characterAssetId={characterAssetId}
               characterDescription={characterDescription}
               characterAIProfile={characterAIProfile}
               isGeneratingCharacter={isGeneratingCharacter}
@@ -1294,13 +1961,19 @@ export default function SocialCommerceMode() {
               onVisualBeatsChange={setVisualBeats}
               onEnvironmentBrandPrimaryColorChange={setEnvironmentBrandPrimaryColor}
               onEnvironmentBrandSecondaryColorChange={setEnvironmentBrandSecondaryColor}
+              campaignObjective={campaignObjective}
+              onCampaignObjectiveChange={setCampaignObjective}
               onTargetAudienceChange={(value) => { setTargetAudience(value); markStepDirty('setup'); }}
               onCtaTextChange={setCtaText}
               onIncludeHumanElementChange={setIncludeHumanElement}
               onCharacterModeChange={setCharacterMode}
               onCharacterReferenceUrlChange={setCharacterReferenceUrl}
               onCharacterImageUpload={handleCharacterImageUpload}
+              onCharacterDelete={handleDeleteCharacter}
               onCharacterDescriptionChange={setCharacterDescription}
+              onCharacterNameChange={setCharacterName}
+              onCharacterAssetIdChange={setCharacterAssetId}
+              onCharacterReferenceFileChange={setCharacterReferenceFile}
               sceneManifest={sceneManifest}
               onSceneManifestChange={setSceneManifest}
               onNext={handleNext}

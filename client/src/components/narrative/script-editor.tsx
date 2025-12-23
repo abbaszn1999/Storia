@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,15 +14,23 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 interface ScriptEditorProps {
+  videoId?: string;
   initialScript?: string;
   aspectRatio?: string;
   scriptModel?: string;
   videoMode?: "narrative" | "character-vlog";
   narrationStyle?: "third-person" | "first-person";
+  // Initial values for restoring from database
+  initialDuration?: string;
+  initialGenres?: string[];
+  initialTones?: string[];
+  initialLanguage?: string;
+  initialUserIdea?: string;
   onScriptChange: (script: string) => void;
   onAspectRatioChange?: (aspectRatio: string) => void;
   onScriptModelChange?: (model: string) => void;
   onNarrationStyleChange?: (style: "third-person" | "first-person") => void;
+  onValidationChange?: (canContinue: boolean) => void;  // Called when validation state changes
   onNext: () => void;
 }
 
@@ -74,49 +82,205 @@ const ASPECT_RATIOS = [
 ];
 
 export function ScriptEditor({ 
+  videoId,
   initialScript = "", 
   aspectRatio = "16:9", 
   scriptModel = "gpt-4o", 
   videoMode = "narrative",
   narrationStyle = "third-person",
+  initialDuration = "60",
+  initialGenres = ["Adventure"],
+  initialTones = ["Dramatic"],
+  initialLanguage = "English",
+  initialUserIdea = "",
   onScriptChange, 
   onAspectRatioChange, 
   onScriptModelChange, 
   onNarrationStyleChange,
+  onValidationChange,
   onNext 
 }: ScriptEditorProps) {
-  const [storyIdea, setStoryIdea] = useState("");
+  const [storyIdea, setStoryIdea] = useState(initialUserIdea);
   const [generatedScript, setGeneratedScript] = useState(initialScript);
   const [hasGeneratedOnce, setHasGeneratedOnce] = useState(!!initialScript);
-  const [duration, setDuration] = useState("60");
+  const [duration, setDuration] = useState(initialDuration);
   const [selectedAspectRatio, setSelectedAspectRatio] = useState(aspectRatio);
   const [selectedModel, setSelectedModel] = useState(scriptModel);
   const [selectedNarrationStyle, setSelectedNarrationStyle] = useState(narrationStyle);
-  const [selectedGenres, setSelectedGenres] = useState<string[]>(["Adventure"]);
-  const [selectedTones, setSelectedTones] = useState<string[]>(["Dramatic"]);
-  const [language, setLanguage] = useState("English");
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(initialGenres);
+  const [selectedTones, setSelectedTones] = useState<string[]>(initialTones);
+  const [language, setLanguage] = useState(initialLanguage);
   const { toast } = useToast();
+
+  // Track settings when script was created - to detect if settings changed after
+  const [scriptSettingsSnapshot, setScriptSettingsSnapshot] = useState<{
+    duration: string;
+    genres: string[];
+    tones: string[];
+    language: string;
+  } | null>(null);
+
+  // Update state when props change (for restoring from database)
+  useEffect(() => {
+    if (initialScript !== generatedScript) {
+      setGeneratedScript(initialScript);
+      setHasGeneratedOnce(!!initialScript);
+      
+      // If script exists, restore the settings snapshot (assumes script was created with these settings)
+      if (initialScript && initialScript.trim().length > 0) {
+        setScriptSettingsSnapshot({
+          duration: initialDuration,
+          genres: initialGenres,
+          tones: initialTones,
+          language: initialLanguage,
+        });
+      }
+    }
+  }, [initialScript, initialDuration, initialGenres, initialTones, initialLanguage]);
+
+  useEffect(() => {
+    if (aspectRatio !== selectedAspectRatio) {
+      setSelectedAspectRatio(aspectRatio);
+    }
+  }, [aspectRatio]);
+
+  useEffect(() => {
+    if (scriptModel !== selectedModel) {
+      setSelectedModel(scriptModel);
+    }
+  }, [scriptModel]);
+
+  // Restore settings from database
+  useEffect(() => {
+    if (initialDuration && initialDuration !== duration) {
+      setDuration(initialDuration);
+    }
+  }, [initialDuration]);
+
+  useEffect(() => {
+    if (initialGenres && initialGenres.length > 0) {
+      setSelectedGenres(initialGenres);
+    }
+  }, [initialGenres]);
+
+  useEffect(() => {
+    if (initialTones && initialTones.length > 0) {
+      setSelectedTones(initialTones);
+    }
+  }, [initialTones]);
+
+  useEffect(() => {
+    if (initialLanguage && initialLanguage !== language) {
+      setLanguage(initialLanguage);
+    }
+  }, [initialLanguage]);
+
+  useEffect(() => {
+    if (initialUserIdea && initialUserIdea !== storyIdea) {
+      setStoryIdea(initialUserIdea);
+    }
+  }, [initialUserIdea]);
 
   const accentClasses = "from-purple-500 to-pink-500";
 
+  // Check if core settings have changed since script was created
+  const settingsChangedSinceScript = scriptSettingsSnapshot !== null && (
+    scriptSettingsSnapshot.duration !== duration ||
+    JSON.stringify(scriptSettingsSnapshot.genres.sort()) !== JSON.stringify(selectedGenres.sort()) ||
+    JSON.stringify(scriptSettingsSnapshot.tones.sort()) !== JSON.stringify(selectedTones.sort()) ||
+    scriptSettingsSnapshot.language !== language
+  );
+
+  // Compute validation: user can continue if script exists AND settings haven't changed
+  const hasScript = generatedScript.trim().length > 0;
+  const canContinue = hasScript && !settingsChangedSinceScript;
+
+  // Notify parent when validation state changes
+  useEffect(() => {
+    onValidationChange?.(canContinue);
+  }, [canContinue, onValidationChange]);
+
+  // Save step1 data using direct fetch (matching ambient visual mode pattern)
+  const saveStep1Data = async (data: Record<string, any>): Promise<boolean> => {
+    if (!videoId || videoId === 'new') {
+      console.warn('[ScriptEditor] Cannot save - no valid videoId');
+      return false;
+    }
+
+    console.log('[ScriptEditor] Saving step1 data:', { videoId, data });
+
+    try {
+      const response = await fetch(`/api/narrative/videos/${videoId}/step1`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('[ScriptEditor] Save failed:', errorData);
+        throw new Error(errorData.error || 'Failed to save step1 data');
+      }
+
+      const result = await response.json();
+      console.log('[ScriptEditor] Save successful:', result);
+      return true;
+    } catch (error) {
+      console.error('[ScriptEditor] Save error:', error);
+      toast({
+        title: "Save Error",
+        description: error instanceof Error ? error.message : "Failed to save settings",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   const expandScriptMutation = useMutation({
     mutationFn: async (userIdea: string) => {
+      // Save ALL settings before generating script (matching ambient visual pattern)
+      if (videoId && videoId !== 'new') {
+        await saveStep1Data({
+          duration: parseInt(duration),
+          genres: selectedGenres,
+          tones: selectedTones,
+          language,
+          aspectRatio: selectedAspectRatio,
+          scriptModel: selectedModel,
+          narrationStyle: videoMode === "character-vlog" ? selectedNarrationStyle : undefined,
+          userIdea,
+        });
+      }
+
+      // Backend expects: duration, genre (singular), language, aspectRatio, userPrompt
       const res = await apiRequest('POST', '/api/narrative/script/generate', {
         duration: parseInt(duration),
-        genres: selectedGenres,
-        tones: selectedTones,
+        genre: selectedGenres.join(', '), // Convert array to comma-separated string
         language,
         aspectRatio: selectedAspectRatio,
-        model: selectedModel,
         userPrompt: userIdea,
-        mode: 'expand',
       });
       return await res.json();
     },
-    onSuccess: (data: { script: string }) => {
+    onSuccess: async (data: { script: string }) => {
       setGeneratedScript(data.script);
       setHasGeneratedOnce(true);
       onScriptChange(data.script);
+      
+      // Capture settings snapshot when script is generated
+      setScriptSettingsSnapshot({
+        duration,
+        genres: selectedGenres,
+        tones: selectedTones,
+        language,
+      });
+      
+      // Save generated script to step1Data
+      if (videoId && videoId !== 'new') {
+        await saveStep1Data({ script: data.script });
+      }
+
       toast({
         title: "Script Generated",
         description: "Your story idea has been expanded into a full script.",
@@ -131,9 +295,23 @@ export function ScriptEditor({
     },
   });
 
-  const handleGeneratedScriptChange = (value: string) => {
+  const handleGeneratedScriptChange = async (value: string) => {
     setGeneratedScript(value);
     onScriptChange(value);
+    
+    // When user manually edits the script, capture current settings as snapshot
+    // This "refreshes" the validation - they edited it themselves, so settings are now "in sync"
+    if (value.trim().length > 0) {
+      setScriptSettingsSnapshot({
+        duration,
+        genres: selectedGenres,
+        tones: selectedTones,
+        language,
+      });
+    } else {
+      // Clear snapshot when script is cleared
+      setScriptSettingsSnapshot(null);
+    }
   };
 
   const toggleGenre = (genre: string) => {
@@ -186,6 +364,22 @@ export function ScriptEditor({
   const scriptCharCount = generatedScript.length;
   const wordCount = generatedScript.trim() ? generatedScript.trim().split(/\s+/).length : 0;
 
+  // Save genres, tones, duration, and language when they change (debounced)
+  useEffect(() => {
+    if (!videoId || videoId === 'new') return;
+    
+    const timeoutId = setTimeout(() => {
+      saveStep1Data({
+        genres: selectedGenres,
+        tones: selectedTones,
+        duration: parseInt(duration),
+        language,
+      });
+    }, 500); // Debounce for 500ms
+
+    return () => clearTimeout(timeoutId);
+  }, [selectedGenres, selectedTones, duration, language, videoId]);
+
   return (
     <div className="flex w-full gap-0 overflow-hidden">
       {/* LEFT COLUMN: SETTINGS (35% width) */}
@@ -209,9 +403,13 @@ export function ScriptEditor({
                 </div>
                 <Select 
                   value={selectedModel} 
-                  onValueChange={(value) => {
+                  onValueChange={async (value) => {
                     setSelectedModel(value);
                     onScriptModelChange?.(value);
+                    // Save to database
+                    if (videoId && videoId !== 'new') {
+                      await saveStep1Data({ scriptModel: value });
+                    }
                   }}
                 >
                   <SelectTrigger className="h-auto min-h-[48px] py-2.5 bg-white/5 border-white/10 text-white">
@@ -274,9 +472,13 @@ export function ScriptEditor({
                     return (
                       <button
                         key={ratio.id}
-                        onClick={() => {
+                        onClick={async () => {
                           setSelectedAspectRatio(ratio.id);
                           onAspectRatioChange?.(ratio.id);
+                          // Save to database
+                          if (videoId && videoId !== 'new') {
+                            await saveStep1Data({ aspectRatio: ratio.id });
+                          }
                         }}
                         className={cn(
                           "p-4 rounded-lg border transition-all hover-elevate text-center",

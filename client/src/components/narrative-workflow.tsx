@@ -19,6 +19,12 @@ interface NarrativeWorkflowProps {
   scriptModel: string;
   voiceActorId: string | null;
   voiceOverEnabled: boolean;
+  // Step 1 settings
+  duration: string;
+  genres: string[];
+  tones: string[];
+  language: string;
+  userIdea: string;
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
@@ -54,6 +60,7 @@ interface NarrativeWorkflowProps {
     imageInstructions: string;
     videoInstructions: string;
   }) => void;
+  onValidationChange?: (canContinue: boolean) => void;  // Validation callback
   onNext: () => void;
 }
 
@@ -67,6 +74,11 @@ export function NarrativeWorkflow({
   scriptModel,
   voiceActorId,
   voiceOverEnabled,
+  duration,
+  genres,
+  tones,
+  language,
+  userIdea,
   scenes,
   shots,
   shotVersions,
@@ -88,6 +100,7 @@ export function NarrativeWorkflow({
   onContinuityLockedChange,
   onContinuityGroupsChange,
   onWorldSettingsChange,
+  onValidationChange,
   onNext,
 }: NarrativeWorkflowProps) {
   const { toast } = useToast();
@@ -428,12 +441,19 @@ export function NarrativeWorkflow({
     <div>
       {activeStep === "script" && (
         <ScriptEditor
+          videoId={videoId}
           initialScript={script}
           aspectRatio={aspectRatio}
           scriptModel={scriptModel}
+          initialDuration={duration}
+          initialGenres={genres}
+          initialTones={tones}
+          initialLanguage={language}
+          initialUserIdea={userIdea}
           onScriptChange={onScriptChange}
           onAspectRatioChange={onAspectRatioChange}
           onScriptModelChange={onScriptModelChange}
+          onValidationChange={onValidationChange}
           onNext={onNext}
         />
       )}

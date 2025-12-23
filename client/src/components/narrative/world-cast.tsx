@@ -981,7 +981,7 @@ export function WorldCast({
                 <h4 className="text-sm font-semibold text-purple-400">Primary Character</h4>
                 <span className="text-xs text-white/50">(Required - the story is about this character)</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {/* Add Primary Character Card - only show if no main character */}
                 {!mainCharacter && (
                   <DropdownMenu>
@@ -1028,7 +1028,7 @@ export function WorldCast({
 
                 {/* Primary Character Card */}
                 {mainCharacter && (
-                  <Card className="relative aspect-[3/4] overflow-hidden group ring-2 ring-purple-500 bg-white/[0.02] border-white/[0.06]" data-testid={`primary-character-${mainCharacter.id}`}>
+                  <Card className="relative aspect-[3/4] overflow-hidden group hover-elevate ring-2 ring-purple-500 bg-white/[0.02] border-white/[0.06]" data-testid={`primary-character-${mainCharacter.id}`}>
                     <CardContent className="p-0 h-full">
                       <div className="h-full bg-muted flex items-center justify-center relative">
                         {mainCharacter.thumbnailUrl ? (
@@ -1043,21 +1043,25 @@ export function WorldCast({
                         </div>
                         
                         {/* Edit Button */}
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => handleEditCharacter(mainCharacter)}
-                          data-testid={`button-edit-primary-character`}
-                        >
-                          <Pencil className="h-3 w-3 mr-1" />
-                          Edit
-                        </Button>
+                        <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            className="h-7 w-7"
+                            onClick={() => handleEditCharacter(mainCharacter)}
+                            data-testid={`button-edit-primary-character`}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                       
                       {/* Character Info */}
                       <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
-                        <p className="text-sm font-semibold text-white">{mainCharacter.name}</p>
+                        <div className="flex items-center gap-2 mb-1">
+                          <User className="h-4 w-4 text-white shrink-0" />
+                          <p className="text-sm font-semibold text-white">{mainCharacter.name}</p>
+                        </div>
                         {mainCharacter.description && (
                           <p className="text-xs text-white/80 line-clamp-2">{mainCharacter.description}</p>
                         )}
@@ -1074,7 +1078,7 @@ export function WorldCast({
                 <h4 className="text-sm font-semibold text-white/70">Secondary Characters</h4>
                 <span className="text-xs text-white/50">(Optional - up to 2 supporting characters)</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {/* Add Secondary Character Card - only show if less than 2 secondary */}
                 {characters.filter(c => c.id !== mainCharacter?.id).length < 2 && (
                   <DropdownMenu>
@@ -1123,7 +1127,7 @@ export function WorldCast({
                 {characters.filter(c => c.id !== mainCharacter?.id).map((character) => {
                   const charRefs = getCharacterReferenceImages(character.id);
                   return (
-                    <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30 transition-all" data-testid={`secondary-character-${character.id}`}>
+                    <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group hover-elevate bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30 transition-all" data-testid={`secondary-character-${character.id}`}>
                       <CardContent className="p-0 h-full">
                         <div className="h-full bg-muted flex items-center justify-center relative">
                           {character.thumbnailUrl ? (
@@ -1132,29 +1136,42 @@ export function WorldCast({
                             <User className="h-16 w-16 text-muted-foreground" />
                           )}
                           
-                          {/* Reference Images Indicator */}
-                          {charRefs.length > 0 && (
-                            <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded">
-                              {charRefs.length} ref
-                            </div>
-                          )}
-                          
-                          {/* Edit Button */}
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => handleEditCharacter(character)}
-                            data-testid={`button-edit-secondary-character-${character.id}`}
-                          >
-                            <Pencil className="h-3 w-3 mr-1" />
-                            Edit
-                          </Button>
+                          {/* Edit and Delete Buttons */}
+                          <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              size="icon"
+                              variant="secondary"
+                              className="h-7 w-7"
+                              onClick={() => handleEditCharacter(character)}
+                              data-testid={`button-edit-secondary-character-${character.id}`}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="destructive"
+                              className="h-7 w-7"
+                              onClick={() => {
+                                const updatedCharacters = characters.filter(c => c.id !== character.id);
+                                onCharactersChange(updatedCharacters);
+                                toast({
+                                  title: "Character Deleted",
+                                  description: "Character has been removed.",
+                                });
+                              }}
+                              data-testid={`button-delete-secondary-character-${character.id}`}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </div>
                         
                         {/* Character Info */}
                         <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
-                          <p className="text-sm font-semibold text-white">{character.name}</p>
+                          <div className="flex items-center gap-2 mb-1">
+                            <User className="h-4 w-4 text-white shrink-0" />
+                            <p className="text-sm font-semibold text-white">{character.name}</p>
+                          </div>
                           {character.description && (
                             <p className="text-xs text-white/80 line-clamp-2">{character.description}</p>
                           )}
@@ -1168,72 +1185,91 @@ export function WorldCast({
           </div>
         ) : (
           /* Narrative Mode: Standard Cast Grid */
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {/* Add Character Card - Direct Dialog */}
-            <Card
-              className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-white/[0.02] border-dashed border-purple-500/30 hover:border-purple-500/50 transition-all"
-              onClick={() => {
-                setEditingCharacter(null);
-                setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
-                setCharacterReferenceImages([]);
-                setGeneratedCharacterImage(null);
-                setIsAddCharacterOpen(true);
-              }}
-              data-testid="button-add-character-grid"
-            >
-              <CardContent className="flex flex-col items-center justify-center p-6">
-                <div className={`h-12 w-12 rounded-full bg-gradient-to-br ${accentClasses} bg-opacity-20 flex items-center justify-center mb-2`}>
-                  <Plus className="h-6 w-6 text-purple-400" />
-                </div>
-                <p className="text-sm font-medium text-white">Add character</p>
+          characters.length === 0 ? (
+            <Card className="border-dashed border-white/10 bg-white/[0.02]">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <User className="h-12 w-12 text-muted-foreground mb-3" />
+                <p className="text-sm text-muted-foreground text-center mb-4">
+                  No characters added yet. Define characters for your story.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEditingCharacter(null);
+                    setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
+                    setCharacterReferenceImages([]);
+                    setGeneratedCharacterImage(null);
+                    setIsAddCharacterOpen(true);
+                  }}
+                  data-testid="button-add-first-character"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add First Character
+                </Button>
               </CardContent>
             </Card>
-
-            {/* Character Cards */}
-            {characters.map((character) => {
-              const charRefs = getCharacterReferenceImages(character.id);
-              return (
-                <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30 transition-all" data-testid={`character-${character.id}`}>
-                  <CardContent className="p-0 h-full">
-                    <div className="h-full bg-muted flex items-center justify-center relative">
-                      {character.thumbnailUrl ? (
-                        <img src={character.thumbnailUrl} alt={character.name} className="h-full w-full object-cover" />
-                      ) : (
-                        <User className="h-16 w-16 text-muted-foreground" />
-                      )}
-                      
-                      {/* Reference Images Indicator */}
-                      {charRefs.length > 0 && (
-                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded">
-                          {charRefs.length} ref
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {/* Character Cards */}
+              {characters.map((character) => {
+                const charRefs = getCharacterReferenceImages(character.id);
+                return (
+                  <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group hover-elevate bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30 transition-all" data-testid={`character-${character.id}`}>
+                    <CardContent className="p-0 h-full">
+                      <div className="h-full bg-muted flex items-center justify-center relative">
+                        {character.thumbnailUrl ? (
+                          <img src={character.thumbnailUrl} alt={character.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <User className="h-16 w-16 text-muted-foreground" />
+                        )}
+                        
+                        {/* Edit and Delete Buttons */}
+                        <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            className="h-7 w-7"
+                            onClick={() => handleEditCharacter(character)}
+                            data-testid={`button-edit-character-${character.id}`}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="destructive"
+                            className="h-7 w-7"
+                            onClick={() => {
+                              const updatedCharacters = characters.filter(c => c.id !== character.id);
+                              onCharactersChange(updatedCharacters);
+                              toast({
+                                title: "Character Deleted",
+                                description: "Character has been removed.",
+                              });
+                            }}
+                            data-testid={`button-delete-character-${character.id}`}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
-                      )}
+                      </div>
                       
-                      {/* Edit Button */}
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => handleEditCharacter(character)}
-                        data-testid={`button-edit-character-${character.id}`}
-                      >
-                        <Pencil className="h-3 w-3 mr-1" />
-                        Edit
-                      </Button>
-                    </div>
-                    
-                    {/* Character Info */}
-                    <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
-                      <p className="text-sm font-semibold text-white">{character.name}</p>
-                      {character.description && (
-                        <p className="text-xs text-white/80 line-clamp-2">{character.description}</p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                      {/* Character Info */}
+                      <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                        <div className="flex items-center gap-2 mb-1">
+                          <User className="h-4 w-4 text-white shrink-0" />
+                          <p className="text-sm font-semibold text-white">{character.name}</p>
+                        </div>
+                        {character.description && (
+                          <p className="text-xs text-white/80 line-clamp-2">{character.description}</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )
         )}
       </div>
 

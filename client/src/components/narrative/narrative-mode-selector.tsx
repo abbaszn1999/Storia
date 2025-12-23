@@ -10,7 +10,7 @@ interface NarrativeModeSelectorProps {
   title?: string;
   description?: string;
   onBack?: () => void;
-  isCreating?: boolean;
+  creatingMode?: "image-reference" | "start-end" | null;
 }
 
 export function NarrativeModeSelector({ 
@@ -18,7 +18,7 @@ export function NarrativeModeSelector({
   title = "Narrative Mode",
   description = "Choose how to generate your video animations",
   onBack,
-  isCreating = false
+  creatingMode = null
 }: NarrativeModeSelectorProps) {
   const [hoveredMode, setHoveredMode] = useState<"image-reference" | "start-end" | null>(null);
 
@@ -149,9 +149,9 @@ export function NarrativeModeSelector({
                     className="w-full h-10 md:h-11 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white text-sm font-semibold transition-all shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 border-0"
                     onClick={() => onSelectMode("image-reference")} 
                     data-testid="button-select-image-reference"
-                    disabled={isCreating}
+                    disabled={creatingMode !== null}
                   >
-                    {isCreating ? (
+                    {creatingMode === "image-reference" ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         <span>Creating...</span>
@@ -222,9 +222,9 @@ export function NarrativeModeSelector({
                     className="w-full h-10 md:h-11 bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white text-sm font-semibold transition-all shadow-lg shadow-pink-500/20 hover:shadow-pink-500/40 border-0"
                     onClick={() => onSelectMode("start-end")} 
                     data-testid="button-select-start-end"
-                    disabled={isCreating}
+                    disabled={creatingMode !== null}
                   >
-                    {isCreating ? (
+                    {creatingMode === "start-end" ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         <span>Creating...</span>

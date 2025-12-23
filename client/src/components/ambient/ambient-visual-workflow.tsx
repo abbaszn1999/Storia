@@ -1,10 +1,10 @@
 import { useState, useImperativeHandle, forwardRef, useEffect } from "react";
-import { AtmosphereTab } from "./ambient/atmosphere-tab";
-import { VisualWorldTab, type TempReferenceImage } from "./ambient/visual-world-tab";
-import { FlowDesignTab } from "./ambient/flow-design-tab";
-import { StoryboardEditor } from "./ambient/storyboard-editor";
-import { PreviewTab } from "./ambient/preview-tab";
-import { ExportTab } from "./ambient/export-tab";
+import { AtmosphereTab } from "./atmosphere-tab";
+import { VisualWorldTab, type TempReferenceImage } from "./visual-world-tab";
+import { FlowDesignTab } from "./flow-design-tab";
+import { StoryboardEditor } from "./storyboard-editor";
+import { PreviewTab } from "./preview-tab";
+import { ExportTab } from "./export-tab";
 import { getDefaultVideoModel } from "@/constants/video-models";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles } from "lucide-react";
@@ -620,9 +620,23 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
       : true;  // Other steps have no validation yet
 
   // Notify parent when validation state changes
+  // canContinue depends on multiple state values, so it will recompute on any state change
+  // We need to ensure all state dependencies that affect canContinue are properly tracked
   useEffect(() => {
+    console.log('[AmbientWorkflow] Validation state changed, notifying parent:', canContinue);
     onValidationChange?.(canContinue);
-  }, [canContinue, onValidationChange]);
+  }, [
+    canContinue, 
+    onValidationChange,
+    // Explicitly include all state that affects validation to ensure useEffect fires
+    continuityLocked,
+    continuityGroups, // Groups status affects validation (proposed vs approved)
+    continuityGenerated,
+    moodDescription,
+    settingsChangedSinceDescription,
+    activeStep,
+    videoGenerationMode,
+  ]);
 
   useImperativeHandle(ref, () => ({
     saveCurrentStep: async () => {
@@ -1420,3 +1434,4 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
 });
 
 AmbientVisualWorkflow.displayName = 'AmbientVisualWorkflow';
+

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { AmbientVisualWorkflow, type AmbientVisualWorkflowRef } from "@/components/ambient-visual-workflow";
+import { AmbientVisualWorkflow, type AmbientVisualWorkflowRef } from "@/components/ambient/ambient-visual-workflow";
 import { AmbientStudioLayout } from "@/components/ambient/studio";
 import { AmbientOnboarding } from "@/components/ambient/onboarding";
 import { useToast } from "@/hooks/use-toast";

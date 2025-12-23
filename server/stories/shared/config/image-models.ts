@@ -312,6 +312,8 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsSeed: false,
     supportsNegativePrompt: false,
     supportsStyleReference: true, // Supports reference-to-image (up to 10 reference images)
+    maxReferenceImages: 10,
+    supportsCharacterReference: true,
   },
 
 };

@@ -161,7 +161,7 @@ Technical strategies for maintaining character consistency across shots:
 # Agent 2.3: Brand Identity Guardian
 
 ### Role
-The **"Technical Auditor."** It mathematically prepares the logo and brand color matrices for the generation engine. It converts the "Integrity" and "Depth" sliders into hard ControlNet weights to ensure the logo is perfectly legible.
+Converts brand settings (logo integrity, depth, colors) into generation-ready parameters.
 
 ### Type
 Non-AI (Algorithmic Logic)
@@ -176,7 +176,7 @@ Non-AI (Algorithmic Logic)
 | `brandPrimaryColor` | Tab 2 Frontend | Hex color (e.g., "#FF6B35") |
 | `brandSecondaryColor` | Tab 2 Frontend | Hex color (e.g., "#1A1A2E") |
 | `logoIntegrity` | Tab 2 Frontend | Slider value 1-10 |
-| `logoDepth` | Tab 2 Frontend | Slider value (flat to 3D-embossed) |
+| `logoDepth` | Tab 2 Frontend | Slider value 1-5 (flat to embossed) |
 
 ---
 
@@ -184,10 +184,9 @@ Non-AI (Algorithmic Logic)
 
 Pure algorithmic conversion (no AI needed):
 
-1. **Color Matrix Generation**: Creates LUT (Look-Up Table) for consistent color grading
-2. **ControlNet Weight Calculation**: Converts integrity slider to technical weight
-3. **Depth Offset Calculation**: Converts depth slider to Z-offset value
-4. **Safety Filter Configuration**: Determines brand protection level
+1. **Logo Integrity Conversion**: Slider 1-10 → semantic level (flexible/moderate/strict/exact)
+2. **Logo Depth Conversion**: Slider 1-5 → depth descriptor (flat/subtle/moderate/embossed/extruded)
+3. **Brand Colors Pass-Through**: Direct pass of hex values
 
 ---
 
@@ -195,13 +194,12 @@ Pure algorithmic conversion (no AI needed):
 
 ```json
 {
-  "color_lut_matrix": "3x3 matrix for color-grading consistency (e.g., [[1.2, 0, 0], [0, 0.9, 0], [0, 0, 1.1]])",
-  
-  "logo_controlnet_weight": 0.85,
-  
-  "z_depth_offset": 3,
-  
-  "brand_safety_filter": true
+  "logo_integrity": "flexible | moderate | strict | exact",
+  "logo_depth": "flat | subtle | moderate | embossed | extruded",
+  "brand_colors": {
+    "primary": "#C0A060",
+    "secondary": "#1A1A2E"
+  }
 }
 ```
 
@@ -209,31 +207,29 @@ Pure algorithmic conversion (no AI needed):
 
 ## Output Field Definitions
 
-### `color_lut_matrix`
-Color transformation matrix that ensures brand colors are consistently applied across all generated images.
+### `logo_integrity`
+Semantic level derived from `logoIntegrity` slider:
 
-### `logo_controlnet_weight`
-Float value (0.1 to 1.0) derived from `logoIntegrity` slider:
+| Integrity Slider | Level | Effect |
+|------------------|-------|--------|
+| 1-3 | `flexible` | Logo can be stylized/abstracted |
+| 4-6 | `moderate` | Logo maintains general shape |
+| 7-9 | `strict` | Logo is strictly preserved |
+| 10 | `exact` | Logo is pixel-perfect locked |
 
-| Integrity Slider | ControlNet Weight | Effect |
-|------------------|-------------------|--------|
-| 1-3 | 0.1 - 0.3 | Logo can be stylized/abstracted |
-| 4-6 | 0.4 - 0.6 | Logo maintains general shape |
-| 7-9 | 0.7 - 0.9 | Logo is strictly preserved |
-| 10 | 1.0 | Logo is pixel-perfect locked |
+### `logo_depth`
+Depth descriptor derived from `logoDepth` slider:
 
-### `z_depth_offset`
-Integer value derived from `logoDepth` slider:
+| Depth Slider | Level | Visual Effect |
+|--------------|-------|---------------|
+| 1 | `flat` | Logo appears printed on surface |
+| 2 | `subtle` | Slight emboss/deboss |
+| 3 | `moderate` | Clear 3D presence |
+| 4 | `embossed` | Strong 3D embossed effect |
+| 5 | `extruded` | Maximum 3D extrusion |
 
-| Depth Setting | Z-Offset | Visual Effect |
-|---------------|----------|---------------|
-| Flat | 0 | Logo appears printed on surface |
-| Subtle | 1-2 | Slight emboss/deboss |
-| Medium | 3-4 | Clear 3D presence |
-| Deep | 5+ | Strong 3D embossed effect |
-
-### `brand_safety_filter`
-Boolean that enables additional checks to prevent brand misrepresentation.
+### `brand_colors`
+Direct pass-through of brand primary and secondary colors for use in prompts.
 
 ---
 
@@ -247,7 +243,7 @@ The combined output of Tab 2 agents is consumed by:
 | Agent 3.1 (World-Builder) | `brandPrimaryColor` | Environment color sync |
 | Agent 3.3 (Harmonizer) | `geometry_profile`, `material_spec`, `character_profile` | Physics interactions |
 | Agent 4.1 (Media Planner) | All fields | Shot identity references |
-| Agent 4.3 (Prompt Architect) | `geometry_profile`, `material_spec`, `logo_controlnet_weight` | Technical prompts |
+| Agent 5.1 (Prompt Architect) | `geometry_profile`, `material_spec`, `logo_integrity`, `logo_depth` | Technical prompts |
 | Tab 5 (Media Planning) | `heroProfile`, `macroDetail`, `materialReference`, `logoUrl`, `characterReferenceUrl` | @ Tag asset injection |
 
 ---
@@ -315,10 +311,12 @@ The combined output of Tab 2 agents is consumed by:
 ### Agent 2.3 Output
 ```json
 {
-  "color_lut_matrix": [[1.15, 0.05, 0], [0, 0.95, 0.02], [0, 0, 1.08]],
-  "logo_controlnet_weight": 0.8,
-  "z_depth_offset": 4,
-  "brand_safety_filter": true
+  "logo_integrity": "strict",
+  "logo_depth": "embossed",
+  "brand_colors": {
+    "primary": "#C0A060",
+    "secondary": "#1A1A2E"
+  }
 }
 ```
 

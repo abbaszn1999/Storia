@@ -119,9 +119,7 @@ The agent:
     "chromatic_bible": {
       "primary_hex": "#C0A060",
       "secondary_hex": "#1A1A2E",
-      "accent_hex": "#FFD700",
-      "shadow_tint": "#0A0A1A",
-      "highlight_tint": "#FFF8E7"
+      "accent_hex": "#FFD700"
     },
     
     "environmental_anchor_prompt": "Global prefix prompt used to prime every shot render (e.g., 'In a sleek obsidian void with golden volumetric lighting, floating dust particles catching amber light...')"
@@ -400,9 +398,7 @@ The combined output of Tab 3 agents is consumed by:
     "chromatic_bible": {
       "primary_hex": "#C0A060",
       "secondary_hex": "#1A1A2E",
-      "accent_hex": "#FFD700",
-      "shadow_tint": "#0A0A0A",
-      "highlight_tint": "#FFF5E0"
+      "accent_hex": "#FFD700"
     },
     "environmental_anchor_prompt": "In an infinite obsidian void, a single golden volumetric spotlight creates a pool of warm amber light. Floating dust particles drift lazily through the beam. Deep shadows, cinematic atmosphere, 8k render quality."
   }

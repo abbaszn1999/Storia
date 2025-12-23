@@ -13,6 +13,7 @@ import { ReactNode } from "react";
 interface SocialCommerceStudioLayoutProps {
   currentStep: CommerceStepId;
   completedSteps: CommerceStepId[];
+  dirtySteps?: Set<CommerceStepId>;
   direction: number;
   onStepClick: (step: CommerceStepId) => void;
   onNext: () => void;
@@ -26,6 +27,7 @@ interface SocialCommerceStudioLayoutProps {
 export function SocialCommerceStudioLayout({
   currentStep,
   completedSteps,
+  dirtySteps,
   direction,
   onStepClick,
   onNext,
@@ -99,6 +101,7 @@ export function SocialCommerceStudioLayout({
       <SocialCommerceTimelineNavigation
         currentStep={currentStep}
         completedSteps={completedSteps}
+        dirtySteps={dirtySteps}
         onStepClick={onStepClick}
         onNext={onNext}
         onBack={onBack}

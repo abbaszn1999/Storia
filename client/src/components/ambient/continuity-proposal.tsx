@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Link as LinkIcon, Sparkles, Check, X, Edit2, AlertTriangle, Lock } from "lucide-react";
+import { Link as LinkIcon, Sparkles, Check, X, Edit2, AlertTriangle, Lock, Loader2 } from "lucide-react";
 import type { Shot, ContinuityGroup, Scene } from "@/types/storyboard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
@@ -18,7 +18,9 @@ interface ContinuityProposalProps {
   onLock: () => void;
   onGenerateProposal: () => void;
   isGenerating?: boolean;
+  isLocking?: boolean;
   isLocked?: boolean;
+  continuityGenerated?: boolean; // Track if continuity has been analyzed (one-time only)
 }
 
 export function ContinuityProposal({
@@ -33,7 +35,9 @@ export function ContinuityProposal({
   onLock,
   onGenerateProposal,
   isGenerating = false,
+  isLocking = false,
   isLocked = false,
+  continuityGenerated = false,
 }: ContinuityProposalProps) {
 
   const getShotById = (sceneId: string, shotId: string) => {
@@ -64,7 +68,8 @@ export function ContinuityProposal({
   const totalDeclinedGroups = Object.values(declinedGroups).flat().length;
   const totalShots = Object.values(allShots).flat().length;
 
-  const canLock = totalApprovedGroups > 0;
+  // Lock button only enabled when ALL proposals are handled (none pending) AND at least one approved
+  const canLock = totalProposedGroups === 0 && totalApprovedGroups > 0;
 
   // Helper to render a group card with optional action buttons
   const renderGroupCard = (
@@ -158,7 +163,7 @@ export function ContinuityProposal({
     );
   };
 
-  // Show the generate button when there are no proposals
+  // Show the generate button when there are no proposals (only if not already generated)
   if (totalProposedGroups === 0 && totalApprovedGroups === 0 && !isGenerating) {
     return (
       <div className="flex items-center justify-between p-4 bg-white/[0.02] rounded-lg border border-dashed border-cyan-500/30">
@@ -167,16 +172,24 @@ export function ContinuityProposal({
             <Sparkles className="h-5 w-5 text-cyan-400" />
           </div>
           <div>
-            <p className="text-sm font-medium">Ready to analyze shot continuity</p>
+            <p className="text-sm font-medium">
+              {continuityGenerated 
+                ? "Continuity already analyzed" 
+                : "Ready to analyze shot continuity"}
+            </p>
             <p className="text-xs text-muted-foreground">
-              AI will suggest which shots should connect seamlessly across {scenes.length} scene{scenes.length !== 1 ? 's' : ''}
+              {continuityGenerated
+                ? "Continuity generation is one-time only. Review any existing proposals below."
+                : `AI will suggest which shots should connect seamlessly across ${scenes.length} scene${scenes.length !== 1 ? 's' : ''}`}
             </p>
           </div>
         </div>
-        <Button onClick={onGenerateProposal} variant="ghost" className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white" data-testid="button-generate-continuity">
-          <Sparkles className="h-4 w-4 mr-2" />
-          Analyze All Shots for Continuity
-        </Button>
+        {!continuityGenerated && (
+          <Button onClick={onGenerateProposal} variant="ghost" className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white" data-testid="button-generate-continuity">
+            <Sparkles className="h-4 w-4 mr-2" />
+            Analyze All Shots for Continuity
+          </Button>
+        )}
       </div>
     );
   }
@@ -231,17 +244,27 @@ export function ContinuityProposal({
             )}
           </div>
           
-          {/* Lock button */}
-          {!isLocked && totalApprovedGroups > 0 && (
+          {/* Lock button - show when there are approved groups (disabled if proposals still pending) */}
+          {!isLocked && (totalApprovedGroups > 0 || totalProposedGroups > 0) && (
             <Button 
               onClick={onLock} 
-              disabled={!canLock}
+              disabled={!canLock || isLocking}
               variant="ghost"
-              className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white" 
+              className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white disabled:opacity-50 disabled:cursor-not-allowed" 
               data-testid="button-lock-continuity"
+              title={!canLock ? "Review all proposed connections before locking" : undefined}
             >
-              <Lock className="h-4 w-4 mr-2" />
-              Lock & Continue
+              {isLocking ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Lock className="h-4 w-4 mr-2" />
+                  Lock & Continue
+                </>
+              )}
             </Button>
           )}
           

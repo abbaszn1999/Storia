@@ -122,6 +122,7 @@ export interface Scene {
   duration?: number | null;
   videoModel?: string | null;
   imageModel?: string | null;
+  cameraMotion?: string | null;
   lighting?: string | null;
   weather?: string | null;
   createdAt: Date;
@@ -148,18 +149,31 @@ export interface ShotVersion {
   id: string;
   shotId: string;
   versionNumber: number;
+  
+  // Prompt fields (from Agent 4.1: Video Prompt Engineer)
   imagePrompt?: string | null;
-  imageUrl?: string | null;
-  startFramePrompt?: string | null;
-  startFrameUrl?: string | null;
-  endFramePrompt?: string | null;
-  endFrameUrl?: string | null;
   videoPrompt?: string | null;
+  negativePrompt?: string | null;
+  startFramePrompt?: string | null;
+  endFramePrompt?: string | null;
+  
+  // Image URLs (from Agent 4.2: Video Image Generator)
+  imageUrl?: string | null;
+  startFrameUrl?: string | null;
+  endFrameUrl?: string | null;
+  startFrameInherited?: boolean;  // True if inherited from previous shot
+  
+  // Video URLs (from Agent 4.3: Video Clip Generator)
   videoUrl?: string | null;
   videoDuration?: number | null;
-  status: string;
+  
+  // Status tracking
+  status: string;  // 'pending' | 'prompt_generated' | 'images_generated' | 'completed' | 'failed'
   needsRerender: boolean;
+  errorMessage?: string | null;
+  
   createdAt: Date;
+  updatedAt?: Date;
 }
 
 export interface ContinuityGroup {
@@ -254,10 +268,91 @@ export interface Step3Data {
   shotVersions?: Record<string, ShotVersion[]>;
   continuityLocked: boolean;
   continuityGroups: Record<string, ContinuityGroup[]>;
+  continuityGenerated?: boolean; // Track if continuity has been analyzed (one-time only)
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// VIDEO PROMPT ENGINEER - AI INPUT/OUTPUT (Agent 4.1)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for video prompt engineer (Agent 4.1)
+ * Generates optimized prompts for image and video generation
+ */
+export interface VideoPromptEngineerInput {
+  // Shot context
+  shotId: string;
+  shotDescription: string;
+  shotType: string;
+  cameraMovement: string;
+  shotDuration: number;
+  
+  // Scene context
+  sceneId: string;
+  sceneTitle: string;
+  sceneDescription: string;
+  
+  // From Step 1 (Atmosphere)
+  moodDescription: string;
+  mood: string;
+  theme: string;
+  timeContext: string;
+  season: string;
+  aspectRatio: string;
+  
+  // From Step 2 (Visual World)
+  artStyle: string;
+  visualElements: string[];
+  visualRhythm: string;
+  referenceImageUrls?: string[];
+  imageCustomInstructions?: string;
+  
+  // Video Animation specific
+  animationMode: 'video-animation';
+  videoGenerationMode?: VideoGenerationMode;
+  motionPrompt?: string;
+  cameraMotion?: string;
+  
+  // For connected shots (Start-End Frame mode)
+  isFirstInGroup?: boolean;
+  isConnectedShot?: boolean;
+  previousShotEndFramePrompt?: string;  // End frame prompt from previous shot (for inheritance)
+}
+
+/**
+ * Output from video prompt engineer (Agent 4.1)
+ * Returns optimized prompts for downstream agents
+ */
+export interface VideoPromptEngineerOutput {
+  imagePrompt: string;        // Main image generation prompt
+  videoPrompt: string;        // Motion/animation instructions
+  negativePrompt: string;     // Elements to avoid
+  startFramePrompt: string;   // Specific prompt for start frame
+  endFramePrompt: string;     // Specific prompt for end frame
+  cost?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 4 DATA - Composition Phase
+// ═══════════════════════════════════════════════════════════════════════════════
+
 export interface Step4Data {
-  shotVersions?: Record<string, any[]>;
+  // Per-shot version data (keyed by shotId)
+  shotVersions: Record<string, ShotVersion[]>;
+  
+  // Per-scene settings overrides
+  sceneSettings?: Record<string, {
+    imageModel?: string;
+    videoModel?: string;
+    animationMode?: 'smooth-image' | 'animate';
+  }>;
+  
+  // Reference images uploaded during composition
+  shotReferenceImages?: Array<{
+    shotId: string;
+    imageUrl: string;
+    type: 'style' | 'character' | 'environment';
+  }>;
 }
 
 export interface Step5Data {

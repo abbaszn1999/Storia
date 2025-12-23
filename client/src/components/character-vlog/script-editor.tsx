@@ -241,131 +241,158 @@ export function CharacterVlogScriptEditor({
       >
         <ScrollArea className="flex-1 h-full">
           <div className="p-6 space-y-6 pb-4">
-            {/* AI Model Selection */}
+            {/* Character Personality */}
             <Card className="bg-[#252525] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="relative p-1 rounded-md">
                     <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
-                    <Wand2 className="w-4 h-4 text-white relative z-10" />
+                    <User className="w-4 h-4 text-white relative z-10" />
                   </div>
-                  <Label className="text-lg font-semibold text-white">AI Model</Label>
+                  <Label className="text-lg font-semibold text-white">Character Personality</Label>
                 </div>
-                <Select 
-                  value={selectedModel} 
-                  onValueChange={(value) => {
-                    setSelectedModel(value);
-                    onScriptModelChange?.(value);
-                  }}
-                >
-                  <SelectTrigger className="h-auto min-h-[48px] py-2.5 bg-[#0f0f0f] border-white/10 text-white">
-                    <SelectValue placeholder="Select AI model">
-                      {(() => {
-                        const model = AI_MODELS.find(m => m.value === selectedModel);
-                        if (!model) return "Select AI model";
-                        return (
-                          <div className="flex items-center gap-2 w-full">
-                            <div className="flex-1 text-left">
-                              <div className="text-sm font-medium text-white">{model.label}</div>
-                              <div className="text-xs text-white/50">{model.description}</div>
-                            </div>
-                            {model.badge && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-gradient-to-r from-[#FF4081]/20 to-[#FF6B4A]/20 border-[#FF4081]/50 text-white flex-shrink-0">
-                                {model.badge}
-                              </Badge>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[400px] bg-[#121212] border-white/10">
-                    {AI_MODELS.map((model) => (
-                      <SelectItem 
-                        key={model.value} 
-                        value={model.value}
-                        className="py-3 focus:bg-[#FF4081]/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-[#FF4081]/30 data-[state=checked]:to-[#FF6B4A]/30 data-[state=checked]:text-white"
+                <p className="text-sm text-white/50">Define your character's vibe and energy</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {PERSONALITIES.map((personality) => (
+                    <button
+                      key={personality.value}
+                      onClick={() => handlePersonalityChange(personality.value)}
+                      className={cn(
+                        "p-3 rounded-lg border text-left transition-all hover-elevate relative overflow-hidden",
+                        selectedPersonality === personality.value
+                          ? "border-white/20"
+                          : "bg-[#0f0f0f] border-white/10 hover:bg-white/10"
+                      )}
+                      style={selectedPersonality === personality.value ? {
+                        background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                      } : undefined}
+                    >
+                      <div className="font-medium text-sm text-white">{personality.label}</div>
+                      <div className="text-xs text-white/50 mt-1">{personality.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Narration Style */}
+            <Card className="bg-[#252525] border-white/[0.06]">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="relative p-1 rounded-md">
+                    <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
+                    <FileText className="w-4 h-4 text-white relative z-10" />
+                  </div>
+                  <Label className="text-lg font-semibold text-white">Narration Style</Label>
+                </div>
+                <div className="space-y-2">
+                  {NARRATION_STYLES.map((style) => (
+                    <button
+                      key={style.id}
+                      onClick={() => {
+                        setSelectedNarrationStyle(style.id as "third-person" | "first-person");
+                        onNarrationStyleChange?.(style.id as "third-person" | "first-person");
+                      }}
+                      className={cn(
+                        "w-full text-left p-3 rounded-lg border transition-all hover-elevate relative overflow-hidden",
+                        selectedNarrationStyle === style.id
+                          ? "border-white/20"
+                          : "bg-[#0f0f0f] border-white/10 hover:bg-white/10"
+                      )}
+                      style={selectedNarrationStyle === style.id ? {
+                        background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                      } : undefined}
+                      data-testid={`button-narration-${style.id}`}
+                    >
+                      <div className="font-medium text-sm text-white">{style.label}</div>
+                      <div className="text-xs text-white/50 mt-1">{style.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Theme / Environment */}
+            <Card className="bg-[#252525] border-white/[0.06]">
+              <CardContent className="p-6 space-y-3">
+                <Label className="text-base font-semibold text-white">Theme / Environment</Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {THEMES.map((themeOption) => {
+                    const Icon = themeOption.icon;
+                    return (
+                      <button
+                        key={themeOption.value}
+                        onClick={() => handleThemeChange(themeOption.value)}
+                        className={cn(
+                          "p-2.5 rounded-lg border text-center transition-all hover-elevate relative overflow-hidden",
+                          selectedTheme === themeOption.value
+                            ? "border-white/20"
+                            : "bg-[#0f0f0f] border-white/10 hover:bg-white/10"
+                        )}
+                        style={selectedTheme === themeOption.value ? {
+                          background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                        } : undefined}
                       >
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{model.label}</span>
-                            {model.badge && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-gradient-to-r from-[#FF4081]/20 to-[#FF6B4A]/20 border-[#FF4081]/50 text-white">
-                                {model.badge}
-                              </Badge>
-                            )}
-                          </div>
-                          <span className="text-xs text-white/50">{model.description}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
-
-            {/* Duration */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="relative p-1 rounded-md">
-                    <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
-                    <Clock className="w-4 h-4 text-white relative z-10" />
-                  </div>
-                  <Label className="text-lg font-semibold text-white">Target Duration</Label>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {DURATIONS.map((dur) => (
-                    <button
-                      key={dur.value}
-                      onClick={() => setDuration(dur.value)}
-                      className={cn(
-                        "px-3 py-2 rounded-lg border text-sm font-medium transition-all relative overflow-hidden",
-                        duration === dur.value
-                          ? "border-white/20 text-white"
-                          : "bg-[#0f0f0f] border-white/10 hover:bg-white/10 text-white/70"
-                      )}
-                      style={duration === dur.value ? {
-                        background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
-                      } : undefined}
-                      data-testid={`button-duration-${dur.value}`}
-                    >
-                      {dur.label}
-                    </button>
-                  ))}
+                        <Icon className="h-4 w-4 mx-auto mb-1 text-white" />
+                        <div className="text-[10px] font-medium text-white leading-tight">{themeOption.label}</div>
+                      </button>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Language */}
+            {/* Duration & Language */}
             <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="relative p-1 rounded-md">
-                    <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
-                    <Globe className="w-4 h-4 text-white relative z-10" />
-                  </div>
-                  <Label className="text-lg font-semibold text-white">Language</Label>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {LANGUAGES.map((lang) => (
-                    <button
-                      key={lang}
-                      onClick={() => setLanguage(lang)}
-                      className={cn(
-                        "px-3 py-1.5 rounded-lg border text-xs font-medium transition-all hover-elevate relative overflow-hidden",
-                        language === lang
-                          ? "border-white/20 text-white"
-                          : "bg-[#0f0f0f] border-white/10 hover:bg-white/10 text-white/70"
-                      )}
-                      style={language === lang ? {
-                        background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
-                      } : undefined}
-                      data-testid={`button-language-${lang.toLowerCase()}`}
+              <CardContent className="p-6">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Target Duration */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-white/70">Target Duration</Label>
+                    <Select 
+                      value={duration} 
+                      onValueChange={setDuration}
                     >
-                      {lang}
-                    </button>
-                  ))}
+                      <SelectTrigger className="h-10 bg-[#0f0f0f] border-white/10 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#121212] border-white/10">
+                        {DURATIONS.map((dur) => (
+                          <SelectItem 
+                            key={dur.value} 
+                            value={dur.value}
+                            className="text-white focus:bg-[#FF4081]/20 focus:text-white"
+                          >
+                            {dur.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Language */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-white/70">Language</Label>
+                    <Select 
+                      value={language} 
+                      onValueChange={setLanguage}
+                    >
+                      <SelectTrigger className="h-10 bg-[#0f0f0f] border-white/10 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#121212] border-white/10">
+                        {LANGUAGES.map((lang) => (
+                          <SelectItem 
+                            key={lang} 
+                            value={lang}
+                            className="text-white focus:bg-[#FF4081]/20 focus:text-white"
+                          >
+                            {lang}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -440,73 +467,6 @@ export function CharacterVlogScriptEditor({
                       {tone}
                     </button>
                   ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Narration Style */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="relative p-1 rounded-md">
-                    <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
-                    <FileText className="w-4 h-4 text-white relative z-10" />
-                  </div>
-                  <Label className="text-lg font-semibold text-white">Narration Style</Label>
-                </div>
-                <div className="space-y-2">
-                  {NARRATION_STYLES.map((style) => (
-                    <button
-                      key={style.id}
-                      onClick={() => {
-                        setSelectedNarrationStyle(style.id as "third-person" | "first-person");
-                        onNarrationStyleChange?.(style.id as "third-person" | "first-person");
-                      }}
-                      className={cn(
-                        "w-full text-left p-3 rounded-lg border transition-all hover-elevate relative overflow-hidden",
-                        selectedNarrationStyle === style.id
-                          ? "border-white/20"
-                          : "bg-[#0f0f0f] border-white/10 hover:bg-white/10"
-                      )}
-                      style={selectedNarrationStyle === style.id ? {
-                        background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
-                      } : undefined}
-                      data-testid={`button-narration-${style.id}`}
-                    >
-                      <div className="font-medium text-sm text-white">{style.label}</div>
-                      <div className="text-xs text-white/50 mt-1">{style.description}</div>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Theme / Environment */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6 space-y-3">
-                <Label className="text-base font-semibold text-white">Theme / Environment</Label>
-                <div className="grid grid-cols-4 gap-2">
-                  {THEMES.map((themeOption) => {
-                    const Icon = themeOption.icon;
-                    return (
-                      <button
-                        key={themeOption.value}
-                        onClick={() => handleThemeChange(themeOption.value)}
-                        className={cn(
-                          "p-2.5 rounded-lg border text-center transition-all hover-elevate relative overflow-hidden",
-                          selectedTheme === themeOption.value
-                            ? "border-white/20"
-                            : "bg-[#0f0f0f] border-white/10 hover:bg-white/10"
-                        )}
-                        style={selectedTheme === themeOption.value ? {
-                          background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
-                        } : undefined}
-                      >
-                        <Icon className="h-4 w-4 mx-auto mb-1 text-white" />
-                        <div className="text-[10px] font-medium text-white leading-tight">{themeOption.label}</div>
-                      </button>
-                    );
-                  })}
                 </div>
               </CardContent>
             </Card>
@@ -602,40 +562,6 @@ export function CharacterVlogScriptEditor({
                     </div>
                     <p className="text-xs text-white/40">AI will vary shot count per scene if set to Auto</p>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Character Personality */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="relative p-1 rounded-md">
-                    <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
-                    <User className="w-4 h-4 text-white relative z-10" />
-                  </div>
-                  <Label className="text-lg font-semibold text-white">Character Personality</Label>
-                </div>
-                <p className="text-sm text-white/50">Define your character's vibe and energy</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {PERSONALITIES.map((personality) => (
-                    <button
-                      key={personality.value}
-                      onClick={() => handlePersonalityChange(personality.value)}
-                      className={cn(
-                        "p-3 rounded-lg border text-left transition-all hover-elevate relative overflow-hidden",
-                        selectedPersonality === personality.value
-                          ? "border-white/20"
-                          : "bg-[#0f0f0f] border-white/10 hover:bg-white/10"
-                      )}
-                      style={selectedPersonality === personality.value ? {
-                        background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
-                      } : undefined}
-                    >
-                      <div className="font-medium text-sm text-white">{personality.label}</div>
-                      <div className="text-xs text-white/50 mt-1">{personality.description}</div>
-                    </button>
-                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -747,4 +673,5 @@ export function CharacterVlogScriptEditor({
     </div>
   );
 }
+
 

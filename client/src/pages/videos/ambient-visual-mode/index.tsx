@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { AmbientVisualWorkflow, type AmbientVisualWorkflowRef } from "@/components/ambient-visual-workflow";
+import { AmbientVisualWorkflow, type AmbientVisualWorkflowRef } from "@/components/ambient/ambient-visual-workflow";
 import { AmbientStudioLayout } from "@/components/ambient/studio";
 import { AmbientOnboarding } from "@/components/ambient/onboarding";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +38,8 @@ export default function AmbientVisualModePage() {
       id: existingVideo?.id,
       step1Data: existingVideo?.step1Data,
       step2Data: existingVideo?.step2Data,
+      step3Data: existingVideo?.step3Data,
+      step4Data: existingVideo?.step4Data,
     });
   }, [existingVideo]);
   
@@ -244,6 +246,8 @@ export default function AmbientVisualModePage() {
         videoId={videoId}
         initialStep1Data={existingVideo?.step1Data as Record<string, unknown> | undefined}
         initialStep2Data={existingVideo?.step2Data as Record<string, unknown> | undefined}
+        initialStep3Data={existingVideo?.step3Data as Record<string, unknown> | undefined}
+        initialStep4Data={existingVideo?.step4Data as Record<string, unknown> | undefined}
         initialAnimationMode={animationMode}
         initialVideoGenerationMode={videoGenerationMode}
       />

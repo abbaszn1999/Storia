@@ -6,8 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Upload, X, Loader2, Sparkles, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-const MAX_LOCATION_REFERENCES = 4;
+import { apiRequest } from "@/lib/queryClient";
+import { MAX_LOCATION_REFERENCES } from "@/lib/constants";
 
 interface LocationData {
   name: string;
@@ -15,18 +15,24 @@ interface LocationData {
   details: string;
   thumbnailUrl?: string | null;
   referenceImages?: string[];
+  id?: string; // Add id for existing locations
 }
 
 interface LocationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editingLocation: LocationData | null;
+  workspaceId: string;
+  selectedImageModel: string;
+  videoStyles: any[];
+  selectedArtStyle: string;
   onSave: (locationData: {
     name: string;
     description: string;
     details: string;
     thumbnailUrl: string | null;
     referenceImages: string[];
+    generatedLocationId?: string;
   }) => void;
 }
 
@@ -34,37 +40,70 @@ export function LocationDialog({
   open,
   onOpenChange,
   editingLocation,
+  workspaceId,
+  selectedImageModel,
+  videoStyles,
+  selectedArtStyle,
   onSave,
 }: LocationDialogProps) {
   const [newLocation, setNewLocation] = useState({ name: "", description: "", details: "" });
-  const [locationReferenceImages, setLocationReferenceImages] = useState<string[]>([]);
+  const [locationReferenceImages, setLocationReferenceImages] = useState<Array<{ tempId: string; previewUrl: string }>>([]);
   const [generatedLocationImage, setGeneratedLocationImage] = useState<string | null>(null);
+  const [generatedLocationId, setGeneratedLocationId] = useState<string | undefined>(undefined);
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
+  
+  // Map UI model to API model (from world-cast.tsx)
+  const IMAGE_MODEL_API_MAP: Record<string, string> = {
+    "flux": "flux-1.1-pro",
+    "midjourney": "midjourney-v6.1",
+    "nano-banana": "nano-banana",
+    "gpt-image": "dall-e-3",
+  };
 
+  // Track if we've initialized for this dialog open session
+  const [hasInitialized, setHasInitialized] = useState(false);
+  
   useEffect(() => {
-    if (open) {
+    if (open && !hasInitialized) {
+      // Only initialize once per dialog open
       if (editingLocation) {
         setNewLocation({
           name: editingLocation.name,
           description: editingLocation.description,
           details: editingLocation.details,
         });
-        setLocationReferenceImages(editingLocation.referenceImages || []);
+        // editingLocation.referenceImages are CDN URLs, not temp uploads, so start fresh
+        setLocationReferenceImages([]);
         setGeneratedLocationImage(editingLocation.thumbnailUrl || null);
+        setGeneratedLocationId(editingLocation.id || undefined);
       } else {
         setNewLocation({ name: "", description: "", details: "" });
         setLocationReferenceImages([]);
         setGeneratedLocationImage(null);
+        setGeneratedLocationId(undefined);
       }
+      setHasInitialized(true);
+    } else if (!open) {
+      // Reset initialization flag when dialog closes
+      setHasInitialized(false);
     }
-  }, [open, editingLocation]);
+  }, [open, editingLocation, hasInitialized]);
 
-  const handleGenerateLocation = () => {
-    if (!newLocation.details.trim()) {
+  const handleGenerateLocation = async () => {
+    if (!newLocation.name.trim()) {
       toast({
-        title: "Details Required",
-        description: "Please describe the location details before generating an image.",
+        title: "Name Required",
+        description: "Please enter a location name before generating.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!newLocation.description.trim()) {
+      toast({
+        title: "Description Required",
+        description: "Please describe the location before generating an image.",
         variant: "destructive",
       });
       return;
@@ -72,26 +111,81 @@ export function LocationDialog({
 
     setIsGenerating(true);
     
-    // Simulate AI generation
-    setTimeout(() => {
-      const samplePhotoIds = [
-        "1501339847302-ac426a4a7cbb", // coffee shop
-        "1568605117036-5fe5e7bab0b7", // park
-        "1497366811353-6870744d04b2", // office
-        "1555774698-0b77e0d4a85", // beach
-        "1506905925346-21bda4d32df4", // mountains
-      ];
-      const randomId = samplePhotoIds[Math.floor(Math.random() * samplePhotoIds.length)];
-      setGeneratedLocationImage(`https://images.unsplash.com/photo-${randomId}?w=400&q=80`);
-      setIsGenerating(false);
-      toast({
-        title: "Location Generated",
-        description: "AI has generated a location image based on your description.",
+    try {
+      // Get the API model name from the selected UI model
+      const apiModel = IMAGE_MODEL_API_MAP[selectedImageModel] || "nano-banana";
+      
+      // Get art style description from the selected art style
+      const artStyleDescription = selectedArtStyle !== "none" 
+        ? videoStyles.find((s: any) => s.id === selectedArtStyle)?.name 
+        : undefined;
+      
+      console.log('[location-dialog] Generating location image:', {
+        name: newLocation.name,
+        model: apiModel,
+        artStyle: artStyleDescription,
+        hasReferenceImages: locationReferenceImages.length > 0,
       });
-    }, 2000);
+
+      // Call Agent 2.4: Location Image Generator
+      // Pass locationId if editing an existing location with a real database ID
+      const locationId = editingLocation?.id && !editingLocation.id.startsWith('loc-') 
+        ? editingLocation.id 
+        : undefined;
+      
+      // Extract temp IDs for location references
+      const referenceTempIds = locationReferenceImages.map(img => img.tempId);
+      
+      const response = await apiRequest(
+        'POST', 
+        '/api/narrative/locations/generate-image', 
+        {
+          locationId, // Pass if exists to avoid creating duplicate
+          name: newLocation.name,
+          description: newLocation.description,
+          details: newLocation.details || undefined,
+          artStyleDescription,
+          model: apiModel,
+          referenceTempIds: referenceTempIds.length > 0 ? referenceTempIds : undefined,
+          workspaceId, // Pass workspaceId in body
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        throw new Error(data.error || data.details || 'Failed to generate image');
+      }
+
+      if (data.imageUrl) {
+        setGeneratedLocationImage(data.imageUrl);
+        
+        // Store the location ID returned from the API (location was created in DB during generation)
+        if (data.locationId) {
+          setGeneratedLocationId(data.locationId);
+          console.log('[location-dialog] Location created in DB during image generation:', data.locationId);
+        }
+        
+        toast({
+          title: "Location Generated",
+          description: `Location image for ${newLocation.name} has been created.`,
+        });
+      } else {
+        throw new Error('No image URL returned');
+      }
+    } catch (error) {
+      console.error('[location-dialog] Location image generation failed:', error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate location image.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
-  const handleUploadLocationReference = (file: File) => {
+  const handleUploadLocationReference = async (file: File) => {
     if (locationReferenceImages.length >= MAX_LOCATION_REFERENCES) {
       toast({
         title: "Maximum Reached",
@@ -101,12 +195,38 @@ export function LocationDialog({
       return;
     }
 
-    const url = URL.createObjectURL(file);
-    setLocationReferenceImages([...locationReferenceImages, url]);
-    toast({
-      title: "Reference Uploaded",
-      description: "Location reference image added.",
-    });
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/narrative/upload-reference', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload reference image');
+      }
+
+      const data = await response.json();
+      setLocationReferenceImages([...locationReferenceImages, {
+        tempId: data.tempId,
+        previewUrl: data.previewUrl,
+      }]);
+      
+      toast({
+        title: "Reference Uploaded",
+        description: "Location reference image added.",
+      });
+    } catch (error) {
+      console.error('[location-dialog] Reference upload error:', error);
+      toast({
+        title: "Upload Failed",
+        description: error instanceof Error ? error.message : "Failed to upload reference image.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleRemoveLocationReference = (index: number) => {
@@ -123,18 +243,25 @@ export function LocationDialog({
       return;
     }
 
+    // Pass the database location ID if it exists (not a temporary ID starting with 'loc-')
+    const dbLocationId = generatedLocationId && !generatedLocationId.startsWith('loc-') 
+      ? generatedLocationId 
+      : undefined;
+
     onSave({
       name: newLocation.name,
       description: newLocation.description,
       details: newLocation.details,
       thumbnailUrl: generatedLocationImage,
-      referenceImages: locationReferenceImages,
+      referenceImages: [], // Reference images are temp uploads, already used during generation
+      generatedLocationId: dbLocationId,
     });
 
     // Reset form
     setNewLocation({ name: "", description: "", details: "" });
     setLocationReferenceImages([]);
     setGeneratedLocationImage(null);
+    setGeneratedLocationId(undefined);
     onOpenChange(false);
   };
 
@@ -185,7 +312,7 @@ export function LocationDialog({
               <Button 
                 onClick={handleGenerateLocation} 
                 className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90"
-                disabled={isGenerating || !newLocation.details.trim()}
+                disabled={isGenerating || !newLocation.name.trim() || !newLocation.description.trim()}
                 data-testid="button-generate-location"
               >
                 {isGenerating ? (
@@ -207,10 +334,10 @@ export function LocationDialog({
                 <Label>Reference Images ({locationReferenceImages.length}/{MAX_LOCATION_REFERENCES})</Label>
                 {locationReferenceImages.length > 0 ? (
                   <div className="grid grid-cols-2 gap-2">
-                    {locationReferenceImages.map((url, index) => (
-                      <div key={index} className="relative aspect-square rounded-lg border bg-muted">
+                    {locationReferenceImages.map((img, index) => (
+                      <div key={img.tempId} className="relative aspect-square rounded-lg border bg-muted">
                         <div className="absolute inset-0 rounded-lg overflow-hidden">
-                          <img src={url} alt={`Reference ${index + 1}`} className="h-full w-full object-cover" />
+                          <img src={img.previewUrl} alt={`Reference ${index + 1}`} className="h-full w-full object-cover" />
                         </div>
                         <Button
                           size="icon"
@@ -250,18 +377,63 @@ export function LocationDialog({
               </div>
 
               <div className="space-y-2">
-                <Label>Generated Location Image</Label>
-                <div className="aspect-[4/3] rounded-lg border overflow-hidden bg-muted flex items-center justify-center">
+                <Label>Main Location Image</Label>
+                <div className="relative aspect-[4/3] rounded-lg border overflow-hidden bg-muted">
                   {generatedLocationImage ? (
-                    <img 
-                      src={generatedLocationImage} 
-                      alt="Generated location" 
-                      className="h-full w-full object-cover" 
-                    />
+                    <>
+                      <img 
+                        src={generatedLocationImage} 
+                        alt="Location" 
+                        className="h-full w-full object-cover" 
+                      />
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        className="absolute top-2 right-2 h-8 w-8 z-10"
+                        onClick={() => setGeneratedLocationImage(null)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </>
                   ) : (
-                    <div className="text-center p-4">
-                      <MapPin className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">Generated image will appear here</p>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <label className="flex flex-col items-center justify-center cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file && workspaceId) {
+                              try {
+                                setIsGenerating(true);
+                                const formData = new FormData();
+                                formData.append('file', file);
+                                const response = await fetch('/api/narrative/upload-reference', {
+                                  method: 'POST',
+                                  body: formData,
+                                  credentials: 'include',
+                                });
+                                const data = await response.json();
+                                if (response.ok && data.previewUrl) {
+                                  setGeneratedLocationImage(data.previewUrl);
+                                }
+                              } catch (error) {
+                                console.error('Upload failed:', error);
+                                toast({
+                                  title: "Upload Failed",
+                                  description: "Failed to upload main image",
+                                  variant: "destructive",
+                                });
+                              } finally {
+                                setIsGenerating(false);
+                              }
+                            }
+                          }}
+                        />
+                        <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                        <span className="text-sm text-muted-foreground">Upload Main Image</span>
+                      </label>
                     </div>
                   )}
                 </div>

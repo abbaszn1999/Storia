@@ -1,10 +1,10 @@
 import { Button } from "@/components/ui/button";
-import { CharacterVlogScriptEditor } from "@/components/narrative/character-vlog-script-editor";
+import { CharacterVlogScriptEditor } from "@/components/character-vlog/script-editor";
 import { CharacterVlogSceneBreakdown } from "@/components/character-vlog/scene-breakdown";
 import { ElementsTab } from "@/components/character-vlog/elements-tab";
-import { StoryboardEditor } from "@/components/narrative/storyboard-editor";
-import { AnimaticPreview } from "@/components/narrative/animatic-preview";
-import { ExportSettings, type ExportData } from "@/components/narrative/export-settings";
+import { StoryboardEditor } from "@/components/character-vlog/storyboard-editor";
+import { AnimaticPreview } from "@/components/character-vlog/animatic-preview";
+import { ExportSettings, type ExportData } from "@/components/character-vlog/export-settings";
 import { useToast } from "@/hooks/use-toast";
 import type { Character, Location } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
@@ -459,13 +459,13 @@ export function CharacterVlogWorkflow({
           theme={theme}
           scenes={scenes.map(s => ({
             id: s.id,
-            type: (s.title?.toLowerCase().includes("hook") ? "hook" : 
-                   s.title?.toLowerCase().includes("intro") ? "intro" :
-                   s.title?.toLowerCase().includes("outro") ? "outro" :
-                   s.title?.toLowerCase().includes("transition") ? "transition" : "main") as "hook" | "intro" | "main" | "transition" | "outro",
-            title: s.title || `Scene ${s.sceneNumber}`,
+            name: s.title || `Scene ${s.sceneNumber}`,
             description: s.description || "",
-            order: s.sceneNumber,
+            duration: s.duration || 5,
+            actType: (s.title?.toLowerCase().includes("hook") ? "hook" : 
+                     s.title?.toLowerCase().includes("intro") ? "intro" :
+                     s.title?.toLowerCase().includes("outro") ? "outro" : "main") as "hook" | "intro" | "main" | "outro",
+            shots: [],
           }))}
           shots={Object.fromEntries(
             Object.entries(shots).map(([sceneId, sceneShots]) => [
@@ -473,25 +473,27 @@ export function CharacterVlogWorkflow({
               sceneShots.map(shot => ({
                 id: shot.id,
                 sceneId: shot.sceneId,
-                shotNumber: shot.shotNumber,
-                shotType: shot.shotType || "talking",
+                name: `Shot ${shot.shotNumber}`,
                 description: shot.description || "",
-                dialogue: shot.soundEffects || "",
+                shotType: shot.shotType === "Medium" ? "start-end" : "start-end" as "image-ref" | "start-end",
+                cameraShot: shot.shotType || "Medium",
+                isLinkedToPrevious: false,
+                referenceTags: [],
               }))
             ])
           )}
           onScenesChange={(newScenes) => {
-            onScenesChange(newScenes.map(scene => ({
+            onScenesChange(newScenes.map((scene, idx) => ({
               id: scene.id,
               videoId: videoId,
-              sceneNumber: scene.order,
-              title: scene.title,
+              sceneNumber: idx + 1,
+              title: scene.name,
               description: scene.description,
               lighting: null,
               weather: null,
               imageModel: null,
               videoModel: null,
-              duration: null,
+              duration: scene.duration,
               createdAt: new Date(),
             })));
           }}
@@ -499,14 +501,14 @@ export function CharacterVlogWorkflow({
             onShotsChange(Object.fromEntries(
               Object.entries(newShots).map(([sceneId, sceneShots]) => [
                 sceneId,
-                sceneShots.map(shot => ({
+                sceneShots.map((shot, idx) => ({
                   id: shot.id,
                   sceneId: shot.sceneId,
-                  shotNumber: shot.shotNumber,
+                  shotNumber: idx + 1,
                   description: shot.description,
                   cameraMovement: "Static",
-                  shotType: shot.shotType,
-                  soundEffects: shot.dialogue,
+                  shotType: shot.cameraShot || "Medium",
+                  soundEffects: null,
                   duration: 3,
                   transition: "cut",
                   imageModel: null,
@@ -564,6 +566,7 @@ export function CharacterVlogWorkflow({
           voiceOverEnabled={voiceOverEnabled}
           continuityLocked={continuityLocked}
           continuityGroups={continuityGroups}
+          isCharacterVlogMode={true}
           onVoiceActorChange={onVoiceActorChange}
           onVoiceOverToggle={onVoiceOverToggle}
           onGenerateShot={handleGenerateShot}
@@ -599,3 +602,4 @@ export function CharacterVlogWorkflow({
     </div>
   );
 }
+

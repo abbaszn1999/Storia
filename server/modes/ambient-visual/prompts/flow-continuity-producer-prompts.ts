@@ -103,20 +103,24 @@ OUTPUT FORMAT
 
 Return ONLY valid JSON with this structure:
 {
-  "continuityGroups": {
-    "<sceneId>": [
-      {
-        "groupNumber": 1,
-        "shotIds": ["shot-id-1", "shot-id-2", "shot-id-3"],
-        "transitionType": "<from transition types>",
-        "description": "<why these shots connect well>"
-      }
-    ]
-  },
+  "sceneGroups": [
+    {
+      "sceneId": "<actual scene ID>",
+      "groups": [
+        {
+          "groupNumber": 1,
+          "shotIds": ["shot-id-1", "shot-id-2", "shot-id-3"],
+          "transitionType": "<from transition types>",
+          "description": "<why these shots connect well>"
+        }
+      ]
+    }
+  ],
   "analysis": "<brief overall continuity analysis>"
 }
 
 IMPORTANT:
+• Each scene gets its own entry in the sceneGroups array with its sceneId
 • Group shots by their sceneId (shots only connect within same scene)
 • Use actual shot IDs provided in the input
 • Shots must be CONSECUTIVE (no gaps in shotIds within a group)

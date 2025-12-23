@@ -1,11 +1,16 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { apiRequest } from "@/lib/queryClient";
+import { MAX_CHARACTER_REFERENCES } from "@/lib/constants";
+import { createCharacter as createCharacterInDB, updateCharacter as updateCharacterInDB } from "@/assets/characters";
+import { createLocation as createLocationInDB, updateLocation as updateLocationInDB } from "@/assets/locations";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,25 +52,16 @@ interface CharacterRecommendationModalProps {
   existingCharacters: Character[];
   videoId: string;
   workspaceId: string;
+  script?: string;  // Added for character analysis
 }
 
-const MOCK_RECOMMENDED_CHARACTERS = [
-  {
-    name: "Detective Sarah Chen",
-    description: "A sharp-witted private investigator haunted by an unsolved case from her past",
-    appearance: "Asian woman in her mid-30s, dark bobbed hair, always wears a trench coat, carries a vintage camera",
-  },
-  {
-    name: "Marcus 'The Shadow' Rodriguez",
-    description: "An enigmatic informant who operates from the city's underground network",
-    appearance: "Latino man, early 40s, lean build, slicked-back hair, distinctive scar across left eyebrow, wears all black",
-  },
-  {
-    name: "Dr. Emily Winters",
-    description: "A brilliant forensic pathologist with a photographic memory and obsessive attention to detail",
-    appearance: "Caucasian woman in her late 20s, red curly hair often in a messy bun, round glasses, lab coat over casual clothes",
-  },
-];
+type CharacterRecommendation = {
+  name: string;
+  description: string;
+  personality: string;
+  appearance: string;
+  importanceScore: number;
+};
 
 function CharacterRecommendationModal({
   open,
@@ -75,22 +71,48 @@ function CharacterRecommendationModal({
   existingCharacters,
   videoId,
   workspaceId,
+  script,
 }: CharacterRecommendationModalProps) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [recommendations, setRecommendations] = useState<typeof MOCK_RECOMMENDED_CHARACTERS>([]);
+  const [recommendations, setRecommendations] = useState<CharacterRecommendation[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
-    if (open && recommendations.length === 0) {
+    if (open && script && recommendations.length === 0) {
       setIsAnalyzing(true);
-      setTimeout(() => {
-        setRecommendations(MOCK_RECOMMENDED_CHARACTERS);
-        setIsAnalyzing(false);
-      }, 2000);
+      
+      // Call character analysis API
+      apiRequest('POST', '/api/narrative/characters/analyze', {
+        videoId,
+        script,
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.characters && Array.isArray(data.characters)) {
+            setRecommendations(data.characters);
+          } else {
+            toast({
+              title: "Analysis Failed",
+              description: "Could not analyze characters from script.",
+              variant: "destructive",
+            });
+          }
+        })
+        .catch(error => {
+          console.error('Character analysis error:', error);
+          toast({
+            title: "Analysis Failed",
+            description: "Failed to analyze characters. Please try again.",
+            variant: "destructive",
+          });
+        })
+        .finally(() => {
+          setIsAnalyzing(false);
+        });
     }
-  }, [open, recommendations.length]);
+  }, [open, script, recommendations.length, videoId, toast]);
 
-  const handleAddCharacter = (recChar: typeof MOCK_RECOMMENDED_CHARACTERS[0]) => {
+  const handleAddCharacter = async (recChar: CharacterRecommendation) => {
     const alreadyExists = existingCharacters.some(c => c.name === recChar.name);
     if (alreadyExists) {
       toast({
@@ -101,19 +123,45 @@ function CharacterRecommendationModal({
       return;
     }
 
+    // Save to database first
+    let savedCharacter;
+    let characterId = `char-${Date.now()}-${Math.random()}`;
+    
+    try {
+      savedCharacter = await createCharacterInDB({
+        workspaceId,
+        name: recChar.name,
+        description: recChar.description || undefined,
+        personality: recChar.personality || undefined,
+        appearance: recChar.appearance || undefined,
+      });
+      // Use the database ID
+      characterId = savedCharacter.id;
+    } catch (dbError) {
+      console.warn('[world-cast] Failed to save recommended character to database:', dbError);
+      // Continue with temp ID
+    }
+
     const character: Character = {
-      id: `char-${Date.now()}-${Math.random()}`,
+      id: characterId,
       workspaceId: workspaceId,
       name: recChar.name,
       description: recChar.description,
-      personality: null,
+      personality: recChar.personality,
       appearance: recChar.appearance,
       voiceSettings: null,
-      thumbnailUrl: null,
+      imageUrl: savedCharacter?.imageUrl || null,
+      referenceImages: null,
       createdAt: new Date(),
     };
 
     onAddCharacter(character);
+    
+    const savedToLibrary = savedCharacter ? " and saved to library" : "";
+    toast({
+      title: "Character Added",
+      description: `${recChar.name} has been added to your cast${savedToLibrary}.`,
+    });
   };
 
   return (
@@ -143,8 +191,17 @@ function CharacterRecommendationModal({
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 space-y-2">
-                        <h4 className="font-semibold text-base">{recChar.name}</h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-base">{recChar.name}</h4>
+                          <Badge variant="secondary" className="text-xs">
+                            ★ {recChar.importanceScore}/10
+                          </Badge>
+                        </div>
                         <p className="text-sm text-muted-foreground">{recChar.description}</p>
+                        <div className="pt-2">
+                          <Label className="text-xs font-medium text-muted-foreground">PERSONALITY</Label>
+                          <p className="text-sm mt-1">{recChar.personality}</p>
+                        </div>
                         <div className="pt-2">
                           <Label className="text-xs font-medium text-muted-foreground">APPEARANCE</Label>
                           <p className="text-sm mt-1">{recChar.appearance}</p>
@@ -192,6 +249,8 @@ interface WorldCastProps {
   locations?: Location[];
   imageInstructions?: string;
   videoInstructions?: string;
+  cinematicInspiration?: string;
+  script?: string;  // Added for character analysis
   onCharactersChange: (characters: Character[]) => void;
   onReferenceImagesChange: (images: ReferenceImage[]) => void;
   onWorldSettingsChange?: (settings: { 
@@ -201,6 +260,7 @@ interface WorldCastProps {
     locations: Location[];
     imageInstructions: string;
     videoInstructions: string;
+    cinematicInspiration?: string;
   }) => void;
   onNext: () => void;
   videoMode?: "narrative" | "character-vlog";
@@ -222,19 +282,28 @@ const VIDEO_STYLES = [
   { id: "anime", name: "Anime", imageUrl: animeImg },
 ];
 
-const MAX_CHARACTER_REFERENCES = 5;
-
 const IMAGE_MODELS = [
-  "Flux",
-  "Midjourney",
-  "Nano Banana",
-  "GPT Image",
+  { label: "FLUX.2 Dev", value: "flux-2-dev" },
+  { label: "FLUX.2 Pro", value: "flux-2-pro" },
+  { label: "FLUX.2 Flex", value: "flux-2-flex" },
+  { label: "Google Imagen 3.0", value: "imagen-3.0" },
+  { label: "Google Imagen 4.0 Ultra", value: "imagen-4-ultra" },
+  { label: "Google Imagen 4.0 Preview", value: "imagen-4.0-preview" },
+  { label: "Google Imagen 4.0 Fast", value: "imagen-4.0-fast" },
+  { label: "Nano Banana (Gemini Flash Image 2.5)", value: "nano-banana" },
+  { label: "Nano Banana 2 Pro (Gemini 3 Pro Image)", value: "nano-banana-2-pro" },
+  { label: "Midjourney V7", value: "midjourney-v7" },
+  { label: "Ideogram 3.0", value: "ideogram-3.0" },
+  { label: "GPT Image 1", value: "gpt-image-1" },
+  { label: "Seedream 4.0", value: "seedream-4.0" },
+  { label: "Seedream 4.5", value: "seedream-4.5" },
 ];
 
 interface Location {
   id: string;
   name: string;
   description: string;
+  details?: string;
   imageUrl?: string | null;
 }
 
@@ -244,11 +313,13 @@ export function WorldCast({
   characters, 
   referenceImages,
   artStyle = "none",
-  imageModel = "Flux",
+  imageModel = "flux-2-dev",
   worldDescription = "",
   locations = [],
   imageInstructions = "",
   videoInstructions = "",
+  cinematicInspiration: initialCinematicInspiration = "",
+  script,  // Added for character analysis
   onCharactersChange, 
   onReferenceImagesChange,
   onWorldSettingsChange,
@@ -262,15 +333,36 @@ export function WorldCast({
   const [isRecommendationModalOpen, setIsRecommendationModalOpen] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [newCharacter, setNewCharacter] = useState({ name: "", description: "", personality: "", appearance: "" });
-  const [characterReferenceImages, setCharacterReferenceImages] = useState<string[]>([]);
+  const [characterReferenceImages, setCharacterReferenceImages] = useState<Array<{ tempId: string; previewUrl: string }>>([]);
   const [generatedCharacterImage, setGeneratedCharacterImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [cinematicInspiration, setCinematicInspiration] = useState("");
+  const [cinematicInspiration, setCinematicInspiration] = useState(initialCinematicInspiration);
   const [selectedArtStyle, setSelectedArtStyle] = useState(artStyle);
   const [selectedImageModel, setSelectedImageModel] = useState(imageModel);
   const [selectedWorldDescription, setSelectedWorldDescription] = useState(worldDescription);
   const [locationsList, setLocationsList] = useState<Location[]>(locations);
+
+  // Sync props with state when they change
+  useEffect(() => {
+    setSelectedArtStyle(artStyle);
+  }, [artStyle]);
+
+  useEffect(() => {
+    setSelectedImageModel(imageModel);
+  }, [imageModel]);
+
+  useEffect(() => {
+    setSelectedWorldDescription(worldDescription);
+  }, [worldDescription]);
+
+  useEffect(() => {
+    setLocationsList(locations);
+  }, [locations]);
+
+  useEffect(() => {
+    setCinematicInspiration(initialCinematicInspiration);
+  }, [initialCinematicInspiration]);
   const [isAddLocationOpen, setIsAddLocationOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [isLocationRecommendationOpen, setIsLocationRecommendationOpen] = useState(false);
@@ -286,7 +378,7 @@ export function WorldCast({
     enabled: isLibraryOpen && !!workspaceId,
   });
 
-  const handleSaveCharacter = () => {
+  const handleSaveCharacter = async () => {
     if (!newCharacter.name.trim()) {
       toast({
         title: "Name Required",
@@ -296,80 +388,104 @@ export function WorldCast({
       return;
     }
 
-    if (editingCharacter) {
-      const updatedCharacters = characters.map(c => 
-        c.id === editingCharacter.id 
-          ? { 
-              ...c, 
-              name: newCharacter.name, 
-              description: newCharacter.description,
-              personality: newCharacter.personality || null,
-              appearance: newCharacter.appearance,
-              thumbnailUrl: generatedCharacterImage || c.thumbnailUrl
-            }
-          : c
-      );
-      onCharactersChange(updatedCharacters);
-      
-      // Update reference images for this character
-      const updatedRefs = characterReferenceImages.map((url, idx) => ({
-        id: `ref-${editingCharacter.id}-${idx}`,
-        videoId,
-        shotId: null,
-        characterId: editingCharacter.id,
-        type: "character" as const,
-        imageUrl: url,
-        description: null,
-        createdAt: new Date(),
-      }));
-      
-      // Remove old character refs and add new ones
-      const otherRefs = referenceImages.filter(r => r.characterId !== editingCharacter.id);
-      onReferenceImagesChange([...otherRefs, ...updatedRefs]);
-      
-      toast({
-        title: "Character Updated",
-        description: `${newCharacter.name} has been updated.`,
-      });
-    } else {
-      const characterId = `char-${Date.now()}`;
-      const character: Character = {
-        id: characterId,
-        workspaceId: workspaceId,
-        name: newCharacter.name,
-        description: newCharacter.description || null,
-        personality: newCharacter.personality || null,
-        appearance: newCharacter.appearance || null,
-        voiceSettings: null,
-        thumbnailUrl: generatedCharacterImage,
-        createdAt: new Date(),
-      };
+    try {
+      if (editingCharacter) {
+        // Update existing character in video state
+        const updatedCharacters = characters.map(c => 
+          c.id === editingCharacter.id 
+            ? { 
+                ...c, 
+                name: newCharacter.name, 
+                description: newCharacter.description,
+                personality: newCharacter.personality || null,
+                appearance: newCharacter.appearance,
+                imageUrl: generatedCharacterImage || c.imageUrl
+              }
+            : c
+        );
+        onCharactersChange(updatedCharacters);
+        
+        // Also update in database if it has a real database ID (not temp ID)
+        if (!editingCharacter.id.startsWith('char-')) {
+          try {
+            await updateCharacterInDB(editingCharacter.id, {
+              name: newCharacter.name,
+              description: newCharacter.description || undefined,
+              personality: newCharacter.personality || undefined,
+              appearance: newCharacter.appearance || undefined,
+              imageUrl: generatedCharacterImage || undefined,
+            });
+          } catch (dbError) {
+            console.warn('[world-cast] Failed to update character in database:', dbError);
+            // Continue anyway - local update succeeded
+          }
+        }
+        
+        // Note: Character reference images are now temp uploads used during generation
+        // They don't need to be saved separately as they're already uploaded to CDN during image generation
+        
+        toast({
+          title: "Character Updated",
+          description: `${newCharacter.name} has been updated.`,
+        });
+      } else {
+        // Create new character - save to database first
+        let savedCharacter;
+        let characterId = `char-${Date.now()}`;
+        
+        try {
+          savedCharacter = await createCharacterInDB({
+            workspaceId,
+            name: newCharacter.name,
+            description: newCharacter.description || undefined,
+            personality: newCharacter.personality || undefined,
+            appearance: newCharacter.appearance || undefined,
+            imageUrl: generatedCharacterImage || undefined,
+          });
+          // Use the database ID
+          characterId = savedCharacter.id;
+        } catch (dbError) {
+          console.warn('[world-cast] Failed to save character to database:', dbError);
+          // Continue with temp ID - character will only exist in video
+        }
 
-      onCharactersChange([...characters, character]);
-      
-      // In Character Vlog mode, if no mainCharacter exists, set this as primary
-      if (videoMode === "character-vlog" && !mainCharacter && onMainCharacterChange) {
-        onMainCharacterChange(character);
+        const character: Character = {
+          id: characterId,
+          workspaceId: workspaceId,
+          name: newCharacter.name,
+          description: newCharacter.description || null,
+          personality: newCharacter.personality || null,
+          appearance: newCharacter.appearance || null,
+          voiceSettings: null,
+          imageUrl: generatedCharacterImage || (savedCharacter?.imageUrl ?? null),
+          referenceImages: null,
+          createdAt: new Date(),
+        };
+
+        onCharactersChange([...characters, character]);
+        
+        // In Character Vlog mode, if no mainCharacter exists, set this as primary
+        if (videoMode === "character-vlog" && !mainCharacter && onMainCharacterChange) {
+          onMainCharacterChange(character);
+        }
+        
+        // Note: Character reference images are now temp uploads used during generation
+        // They don't need to be saved separately as they're already uploaded to CDN during image generation
+        
+        const savedToLibrary = savedCharacter ? " and saved to library" : "";
+        toast({
+          title: videoMode === "character-vlog" && !mainCharacter ? "Primary Character Added" : "Character Added",
+          description: `${character.name} has been added ${videoMode === "character-vlog" && !mainCharacter ? "as your primary character" : "to your cast"}${savedToLibrary}.`,
+        });
       }
-      
-      // Add reference images for this character
-      const newRefs = characterReferenceImages.map((url, idx) => ({
-        id: `ref-${characterId}-${idx}`,
-        videoId,
-        shotId: null,
-        characterId: characterId,
-        type: "character" as const,
-        imageUrl: url,
-        description: null,
-        createdAt: new Date(),
-      }));
-      
-      onReferenceImagesChange([...referenceImages, ...newRefs]);
-      
+    } catch (error) {
+      console.error('[world-cast] Failed to save character:', error);
       toast({
-        title: videoMode === "character-vlog" && !mainCharacter ? "Primary Character Added" : "Character Added",
-        description: `${character.name} has been added ${videoMode === "character-vlog" && !mainCharacter ? "as your primary character" : "to your cast"}.`,
+        title: "Save Failed",
+        description: error instanceof Error ? error.message : "Failed to save character.",
+        variant: "destructive",
       });
+      return; // Don't close dialog on error
     }
 
     setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
@@ -391,16 +507,16 @@ export function WorldCast({
     // Load existing reference images for this character
     const charRefs = referenceImages
       .filter(r => r.characterId === character.id)
-      .map(r => r.imageUrl);
+      .map(r => ({ tempId: r.id, previewUrl: r.imageUrl }));
     setCharacterReferenceImages(charRefs);
     
     // Load existing generated image
-    setGeneratedCharacterImage(character.thumbnailUrl);
+    setGeneratedCharacterImage(character.imageUrl || null);
     
     setIsAddCharacterOpen(true);
   };
 
-  const handleUploadCharacterReference = (file: File) => {
+  const handleUploadCharacterReference = async (file: File) => {
     if (characterReferenceImages.length >= MAX_CHARACTER_REFERENCES) {
       toast({
         title: "Maximum Reached",
@@ -410,19 +526,45 @@ export function WorldCast({
       return;
     }
 
-    const url = URL.createObjectURL(file);
-    setCharacterReferenceImages([...characterReferenceImages, url]);
-    toast({
-      title: "Reference Uploaded",
-      description: "Character reference image added.",
-    });
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/narrative/upload-reference', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload reference image');
+      }
+
+      const data = await response.json();
+      setCharacterReferenceImages([...characterReferenceImages, {
+        tempId: data.tempId,
+        previewUrl: data.previewUrl,
+      }]);
+      
+      toast({
+        title: "Reference Uploaded",
+        description: "Character reference image added.",
+      });
+    } catch (error) {
+      console.error('[world-cast] Reference upload error:', error);
+      toast({
+        title: "Upload Failed",
+        description: error instanceof Error ? error.message : "Failed to upload reference image.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleRemoveCharacterReference = (index: number) => {
     setCharacterReferenceImages(characterReferenceImages.filter((_, i) => i !== index));
   };
 
-  const handleGenerateCharacter = () => {
+  const handleGenerateCharacter = async () => {
     if (!newCharacter.appearance.trim()) {
       toast({
         title: "Appearance Required",
@@ -432,20 +574,112 @@ export function WorldCast({
       return;
     }
 
+    if (!newCharacter.name.trim()) {
+      toast({
+        title: "Name Required",
+        description: "Please enter a character name before generating.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsGenerating(true);
     
-    // Simulate AI generation
-    setTimeout(() => {
-      const generatedImageUrl = "https://placehold.co/400x600/1a472a/ffffff?text=AI+Generated";
+    try {
+      // The selectedImageModel is already the API model name
+      const apiModel = selectedImageModel || "flux-2-dev";
       
-      setGeneratedCharacterImage(generatedImageUrl);
-      setIsGenerating(false);
+      // Get art style description from the selected art style
+      const artStyleDescription = selectedArtStyle !== "none" 
+        ? VIDEO_STYLES.find(s => s.id === selectedArtStyle)?.name 
+        : undefined;
       
-      toast({
-        title: "Character Generated",
-        description: "Character image has been created.",
+      console.log('[world-cast] Generating character image:', {
+        name: newCharacter.name,
+        model: apiModel,
+        artStyle: artStyleDescription,
+        hasReferenceImages: characterReferenceImages.length > 0,
       });
-    }, 2000);
+
+      // Call Agent 2.3: Character Image Generator
+      // Pass characterId if editing an existing character with a real database ID
+      const characterId = editingCharacter && !editingCharacter.id.startsWith('char-') 
+        ? editingCharacter.id 
+        : undefined;
+      
+      // Extract temp IDs for character references
+      const referenceTempIds = characterReferenceImages.map(img => img.tempId);
+      
+      // Extract style reference temp ID if exists (the id IS the tempId now)
+      const styleRef = styleRefs[0];
+      const styleReferenceTempId = styleRef?.id;
+      
+      const response = await apiRequest(
+        'POST', 
+        '/api/narrative/characters/generate-image', 
+        {
+          characterId, // Pass if exists to avoid creating duplicate
+          name: newCharacter.name,
+          appearance: newCharacter.appearance,
+          personality: newCharacter.personality || undefined,
+          artStyleDescription,
+          model: apiModel,
+          referenceTempIds: referenceTempIds.length > 0 ? referenceTempIds : undefined,
+          styleReferenceTempId,
+          workspaceId, // Pass workspaceId in body instead of header
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        throw new Error(data.error || data.details || 'Failed to generate image');
+      }
+
+      if (data.imageUrl) {
+        setGeneratedCharacterImage(data.imageUrl);
+        
+        // If character was created during generation, update editingCharacter with the new ID
+        if (data.characterId && !editingCharacter) {
+          // Character was auto-created, update local state
+          const createdCharacter: Character = {
+            id: data.characterId,
+            workspaceId: workspaceId,
+            name: newCharacter.name,
+            description: newCharacter.description || null,
+            personality: newCharacter.personality || null,
+            appearance: newCharacter.appearance || null,
+            voiceSettings: null,
+            imageUrl: data.imageUrl,
+            referenceImages: null,
+            createdAt: new Date(),
+          };
+          setEditingCharacter(createdCharacter);
+        } else if (data.characterId && editingCharacter) {
+          // Update existing character with new image
+          setEditingCharacter({
+            ...editingCharacter,
+            imageUrl: data.imageUrl,
+          });
+        }
+        
+        toast({
+          title: "Character Generated",
+          description: `Character image for ${newCharacter.name} has been created.`,
+        });
+      } else {
+        throw new Error('No image URL returned');
+      }
+    } catch (error) {
+      console.error('[world-cast] Character image generation failed:', error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate character image. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleRemoveStyleReference = (refId: string) => {
@@ -469,6 +703,7 @@ export function WorldCast({
       return;
     }
 
+    // Library characters already have imageUrl field
     onCharactersChange([...characters, libraryCharacter]);
     toast({
       title: "Character Added",
@@ -477,7 +712,7 @@ export function WorldCast({
     setIsLibraryOpen(false);
   };
 
-  const handleUploadReference = (file: File) => {
+  const handleUploadReference = async (file: File) => {
     if (styleRefs.length >= 1) {
       toast({
         title: "Maximum Reached",
@@ -487,25 +722,75 @@ export function WorldCast({
       return;
     }
 
-    const refImage: ReferenceImage = {
-      id: `ref-${Date.now()}`,
-      videoId,
-      shotId: null,
-      characterId: null,
-      type: "style",
-      imageUrl: URL.createObjectURL(file),
-      description: null,
-      createdAt: new Date(),
-    };
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/narrative/upload-reference', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
 
-    onReferenceImagesChange([...referenceImages, refImage]);
-    toast({
-      title: "Reference Uploaded",
-      description: "Style reference image added.",
-    });
+      if (!response.ok) {
+        throw new Error('Failed to upload style reference image');
+      }
+
+      const data = await response.json();
+      
+      // Store the tempId as the reference ID so we can extract it later
+      const refImage: ReferenceImage = {
+        id: data.tempId, // Use tempId as the ID
+        videoId,
+        shotId: null,
+        characterId: null,
+        type: "style",
+        imageUrl: data.previewUrl, // Use base64 preview URL for display
+        description: null,
+        createdAt: new Date(),
+      };
+
+      onReferenceImagesChange([...referenceImages, refImage]);
+      
+      // Reset static style to "none" when uploading custom style reference
+      setSelectedArtStyle("none");
+      if (onWorldSettingsChange) {
+        onWorldSettingsChange({ 
+          artStyle: "none", 
+          imageModel: selectedImageModel,
+          worldDescription: selectedWorldDescription,
+          locations: locationsList,
+          imageInstructions: selectedImageInstructions,
+          videoInstructions: selectedVideoInstructions,
+          cinematicInspiration: cinematicInspiration
+        });
+      }
+      
+      toast({
+        title: "Reference Uploaded",
+        description: "Style reference image added. Static style selection disabled.",
+      });
+    } catch (error) {
+      console.error('[world-cast] Style reference upload error:', error);
+      toast({
+        title: "Upload Failed",
+        description: error instanceof Error ? error.message : "Failed to upload style reference image.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleArtStyleChange = (styleId: string) => {
+    // Don't allow changing style if there's a style reference uploaded
+    if (styleRefs.length > 0) {
+      toast({
+        title: "Remove Style Reference First",
+        description: "Remove the uploaded style reference to select a static style.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setSelectedArtStyle(styleId);
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
@@ -514,7 +799,8 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: locationsList,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions
+        videoInstructions: selectedVideoInstructions,
+        cinematicInspiration: cinematicInspiration
       });
     }
   };
@@ -528,7 +814,23 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: locationsList,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions
+        videoInstructions: selectedVideoInstructions,
+        cinematicInspiration: cinematicInspiration
+      });
+    }
+  };
+
+  const handleCinematicInspirationChange = (inspiration: string) => {
+    setCinematicInspiration(inspiration);
+    if (onWorldSettingsChange) {
+      onWorldSettingsChange({ 
+        artStyle: selectedArtStyle, 
+        imageModel: selectedImageModel,
+        worldDescription: selectedWorldDescription,
+        locations: locationsList,
+        imageInstructions: selectedImageInstructions,
+        videoInstructions: selectedVideoInstructions,
+        cinematicInspiration: inspiration
       });
     }
   };
@@ -542,35 +844,84 @@ export function WorldCast({
         worldDescription: description,
         locations: locationsList,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions
+        videoInstructions: selectedVideoInstructions,
+        cinematicInspiration: cinematicInspiration
       });
     }
   };
 
-  const handleSaveLocationFromDialog = (locationData: {
+  const handleSaveLocationFromDialog = async (locationData: {
     name: string;
     description: string;
     details: string;
     thumbnailUrl: string | null;
     referenceImages: string[];
+    generatedLocationId?: string;
   }) => {
     let updatedLocations: Location[];
+    let finalLocationId: string;
     
     if (editingLocation) {
+      finalLocationId = editingLocation.id;
+      
+      // If it's a database location (real UUID, not temp ID), update in DB
+      if (editingLocation.id && !editingLocation.id.startsWith('loc-')) {
+        try {
+          await updateLocationInDB(editingLocation.id, {
+            name: locationData.name,
+            description: locationData.description || undefined,
+            details: locationData.details || undefined,
+            imageUrl: locationData.thumbnailUrl || undefined,
+          });
+          console.log('[world-cast] Location updated in database:', editingLocation.id);
+        } catch (dbError) {
+          console.warn('[world-cast] Failed to update location in database:', dbError);
+        }
+      }
+      
       updatedLocations = locationsList.map(l => 
         l.id === editingLocation.id 
-          ? { ...l, name: locationData.name, description: locationData.description, imageUrl: locationData.thumbnailUrl || l.imageUrl }
+          ? { ...l, name: locationData.name, description: locationData.description, details: locationData.details, imageUrl: locationData.thumbnailUrl || l.imageUrl }
           : l
       );
+
       toast({
         title: "Location Updated",
         description: `${locationData.name} has been updated.`,
       });
     } else {
+      // Use the database ID if image was generated (location already exists in DB)
+      finalLocationId = locationData.generatedLocationId || `loc-${Date.now()}`;
+      
+      // If no generated location ID, create it in the database
+      if (!locationData.generatedLocationId && workspaceId) {
+        try {
+          const savedLocation = await createLocationInDB({
+            workspaceId,
+            name: locationData.name,
+            description: locationData.description || undefined,
+            details: locationData.details || undefined,
+          });
+          finalLocationId = savedLocation.id;
+          
+          // Update with image if provided
+          if (locationData.thumbnailUrl) {
+            await updateLocationInDB(finalLocationId, {
+              imageUrl: locationData.thumbnailUrl,
+            });
+          }
+          
+          console.log('[world-cast] Location saved to database:', finalLocationId);
+        } catch (dbError) {
+          console.warn('[world-cast] Failed to save location to database:', dbError);
+        }
+      }
+      
       const location: Location = {
-        id: `loc-${Date.now()}`,
+        id: finalLocationId,
         name: locationData.name,
         description: locationData.description,
+        details: locationData.details,
         imageUrl: locationData.thumbnailUrl,
       };
       updatedLocations = [...locationsList, location];
@@ -588,7 +939,8 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: updatedLocations,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions
+        videoInstructions: selectedVideoInstructions,
+        cinematicInspiration: cinematicInspiration
       });
     }
 
@@ -620,7 +972,8 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: updatedLocations,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions
+        videoInstructions: selectedVideoInstructions,
+        cinematicInspiration: cinematicInspiration
       });
     }
   };
@@ -645,7 +998,8 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: updatedLocations,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions
+        videoInstructions: selectedVideoInstructions,
+        cinematicInspiration: cinematicInspiration
       });
     }
   };
@@ -660,7 +1014,8 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: updatedLocations,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions
+        videoInstructions: selectedVideoInstructions,
+        cinematicInspiration: cinematicInspiration
       });
     }
     toast({
@@ -678,7 +1033,8 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: locationsList,
         imageInstructions: instructions,
-        videoInstructions: selectedVideoInstructions
+        videoInstructions: selectedVideoInstructions,
+        cinematicInspiration: cinematicInspiration
       });
     }
   };
@@ -692,7 +1048,8 @@ export function WorldCast({
         worldDescription: selectedWorldDescription,
         locations: locationsList,
         imageInstructions: selectedImageInstructions,
-        videoInstructions: instructions
+        videoInstructions: instructions,
+        cinematicInspiration: cinematicInspiration
       });
     }
   };
@@ -730,8 +1087,8 @@ export function WorldCast({
                 </SelectTrigger>
                 <SelectContent>
                   {IMAGE_MODELS.map((model) => (
-                    <SelectItem key={model} value={model}>
-                      {model}
+                    <SelectItem key={model.value} value={model.value}>
+                      {model.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -744,7 +1101,7 @@ export function WorldCast({
               <Input
                 placeholder='E.g. "Retro, gritty, eclectic, stylish, noir..."'
                 value={cinematicInspiration}
-                onChange={(e) => setCinematicInspiration(e.target.value)}
+                onChange={(e) => handleCinematicInspirationChange(e.target.value)}
                 data-testid="input-cinematic-inspiration"
               />
             </div>
@@ -803,8 +1160,10 @@ export function WorldCast({
 
             {/* Style */}
             <div className="space-y-3">
-              <Label className="text-sm font-medium text-white/70 uppercase tracking-wider">STYLE</Label>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+              <Label className="text-sm font-medium text-white/70 uppercase tracking-wider">
+                STYLE {styleRefs.length > 0 && <span className="text-xs text-purple-400">(Disabled - using uploaded reference)</span>}
+              </Label>
+              <div className={`grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 ${styleRefs.length > 0 ? 'opacity-50 pointer-events-none' : ''}`}>
                 {VIDEO_STYLES.map((style) => (
                   <Card
                     key={style.id}
@@ -981,7 +1340,7 @@ export function WorldCast({
                 <h4 className="text-sm font-semibold text-purple-400">Primary Character</h4>
                 <span className="text-xs text-white/50">(Required - the story is about this character)</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {/* Add Primary Character Card - only show if no main character */}
                 {!mainCharacter && (
                   <DropdownMenu>
@@ -1028,11 +1387,11 @@ export function WorldCast({
 
                 {/* Primary Character Card */}
                 {mainCharacter && (
-                  <Card className="relative aspect-[3/4] overflow-hidden group ring-2 ring-purple-500 bg-white/[0.02] border-white/[0.06]" data-testid={`primary-character-${mainCharacter.id}`}>
+                  <Card className="relative aspect-[3/4] overflow-hidden group hover-elevate ring-2 ring-purple-500 bg-white/[0.02] border-white/[0.06]" data-testid={`primary-character-${mainCharacter.id}`}>
                     <CardContent className="p-0 h-full">
                       <div className="h-full bg-muted flex items-center justify-center relative">
-                        {mainCharacter.thumbnailUrl ? (
-                          <img src={mainCharacter.thumbnailUrl} alt={mainCharacter.name} className="h-full w-full object-cover" />
+                        {mainCharacter.imageUrl ? (
+                          <img src={mainCharacter.imageUrl} alt={mainCharacter.name} className="h-full w-full object-cover" />
                         ) : (
                           <User className="h-16 w-16 text-muted-foreground" />
                         )}
@@ -1043,21 +1402,25 @@ export function WorldCast({
                         </div>
                         
                         {/* Edit Button */}
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => handleEditCharacter(mainCharacter)}
-                          data-testid={`button-edit-primary-character`}
-                        >
-                          <Pencil className="h-3 w-3 mr-1" />
-                          Edit
-                        </Button>
+                        <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            className="h-7 w-7"
+                            onClick={() => handleEditCharacter(mainCharacter)}
+                            data-testid={`button-edit-primary-character`}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                       
                       {/* Character Info */}
                       <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
-                        <p className="text-sm font-semibold text-white">{mainCharacter.name}</p>
+                        <div className="flex items-center gap-2 mb-1">
+                          <User className="h-4 w-4 text-white shrink-0" />
+                          <p className="text-sm font-semibold text-white">{mainCharacter.name}</p>
+                        </div>
                         {mainCharacter.description && (
                           <p className="text-xs text-white/80 line-clamp-2">{mainCharacter.description}</p>
                         )}
@@ -1074,7 +1437,7 @@ export function WorldCast({
                 <h4 className="text-sm font-semibold text-white/70">Secondary Characters</h4>
                 <span className="text-xs text-white/50">(Optional - up to 2 supporting characters)</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {/* Add Secondary Character Card - only show if less than 2 secondary */}
                 {characters.filter(c => c.id !== mainCharacter?.id).length < 2 && (
                   <DropdownMenu>
@@ -1123,38 +1486,51 @@ export function WorldCast({
                 {characters.filter(c => c.id !== mainCharacter?.id).map((character) => {
                   const charRefs = getCharacterReferenceImages(character.id);
                   return (
-                    <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30 transition-all" data-testid={`secondary-character-${character.id}`}>
+                    <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group hover-elevate bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30 transition-all" data-testid={`secondary-character-${character.id}`}>
                       <CardContent className="p-0 h-full">
                         <div className="h-full bg-muted flex items-center justify-center relative">
-                          {character.thumbnailUrl ? (
-                            <img src={character.thumbnailUrl} alt={character.name} className="h-full w-full object-cover" />
+                          {character.imageUrl ? (
+                            <img src={character.imageUrl} alt={character.name} className="h-full w-full object-cover" />
                           ) : (
                             <User className="h-16 w-16 text-muted-foreground" />
                           )}
                           
-                          {/* Reference Images Indicator */}
-                          {charRefs.length > 0 && (
-                            <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded">
-                              {charRefs.length} ref
-                            </div>
-                          )}
-                          
-                          {/* Edit Button */}
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => handleEditCharacter(character)}
-                            data-testid={`button-edit-secondary-character-${character.id}`}
-                          >
-                            <Pencil className="h-3 w-3 mr-1" />
-                            Edit
-                          </Button>
+                          {/* Edit and Delete Buttons */}
+                          <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              size="icon"
+                              variant="secondary"
+                              className="h-7 w-7"
+                              onClick={() => handleEditCharacter(character)}
+                              data-testid={`button-edit-secondary-character-${character.id}`}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="destructive"
+                              className="h-7 w-7"
+                              onClick={() => {
+                                const updatedCharacters = characters.filter(c => c.id !== character.id);
+                                onCharactersChange(updatedCharacters);
+                                toast({
+                                  title: "Character Deleted",
+                                  description: "Character has been removed.",
+                                });
+                              }}
+                              data-testid={`button-delete-secondary-character-${character.id}`}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </div>
                         
                         {/* Character Info */}
                         <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
-                          <p className="text-sm font-semibold text-white">{character.name}</p>
+                          <div className="flex items-center gap-2 mb-1">
+                            <User className="h-4 w-4 text-white shrink-0" />
+                            <p className="text-sm font-semibold text-white">{character.name}</p>
+                          </div>
                           {character.description && (
                             <p className="text-xs text-white/80 line-clamp-2">{character.description}</p>
                           )}
@@ -1168,72 +1544,91 @@ export function WorldCast({
           </div>
         ) : (
           /* Narrative Mode: Standard Cast Grid */
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {/* Add Character Card - Direct Dialog */}
-            <Card
-              className="cursor-pointer hover-elevate flex items-center justify-center aspect-[3/4] bg-white/[0.02] border-dashed border-purple-500/30 hover:border-purple-500/50 transition-all"
-              onClick={() => {
-                setEditingCharacter(null);
-                setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
-                setCharacterReferenceImages([]);
-                setGeneratedCharacterImage(null);
-                setIsAddCharacterOpen(true);
-              }}
-              data-testid="button-add-character-grid"
-            >
-              <CardContent className="flex flex-col items-center justify-center p-6">
-                <div className={`h-12 w-12 rounded-full bg-gradient-to-br ${accentClasses} bg-opacity-20 flex items-center justify-center mb-2`}>
-                  <Plus className="h-6 w-6 text-purple-400" />
-                </div>
-                <p className="text-sm font-medium text-white">Add character</p>
+          characters.length === 0 ? (
+            <Card className="border-dashed border-white/10 bg-white/[0.02]">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <User className="h-12 w-12 text-muted-foreground mb-3" />
+                <p className="text-sm text-muted-foreground text-center mb-4">
+                  No characters added yet. Define characters for your story.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEditingCharacter(null);
+                    setNewCharacter({ name: "", description: "", personality: "", appearance: "" });
+                    setCharacterReferenceImages([]);
+                    setGeneratedCharacterImage(null);
+                    setIsAddCharacterOpen(true);
+                  }}
+                  data-testid="button-add-first-character"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add First Character
+                </Button>
               </CardContent>
             </Card>
-
-            {/* Character Cards */}
-            {characters.map((character) => {
-              const charRefs = getCharacterReferenceImages(character.id);
-              return (
-                <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30 transition-all" data-testid={`character-${character.id}`}>
-                  <CardContent className="p-0 h-full">
-                    <div className="h-full bg-muted flex items-center justify-center relative">
-                      {character.thumbnailUrl ? (
-                        <img src={character.thumbnailUrl} alt={character.name} className="h-full w-full object-cover" />
-                      ) : (
-                        <User className="h-16 w-16 text-muted-foreground" />
-                      )}
-                      
-                      {/* Reference Images Indicator */}
-                      {charRefs.length > 0 && (
-                        <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded">
-                          {charRefs.length} ref
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {/* Character Cards */}
+              {characters.map((character) => {
+                const charRefs = getCharacterReferenceImages(character.id);
+                return (
+                  <Card key={character.id} className="relative aspect-[3/4] overflow-hidden group hover-elevate bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30 transition-all" data-testid={`character-${character.id}`}>
+                    <CardContent className="p-0 h-full">
+                      <div className="h-full bg-muted flex items-center justify-center relative">
+                        {character.imageUrl ? (
+                          <img src={character.imageUrl} alt={character.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <User className="h-16 w-16 text-muted-foreground" />
+                        )}
+                        
+                        {/* Edit and Delete Buttons */}
+                        <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            className="h-7 w-7"
+                            onClick={() => handleEditCharacter(character)}
+                            data-testid={`button-edit-character-${character.id}`}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="destructive"
+                            className="h-7 w-7"
+                            onClick={() => {
+                              const updatedCharacters = characters.filter(c => c.id !== character.id);
+                              onCharactersChange(updatedCharacters);
+                              toast({
+                                title: "Character Deleted",
+                                description: "Character has been removed.",
+                              });
+                            }}
+                            data-testid={`button-delete-character-${character.id}`}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
-                      )}
+                      </div>
                       
-                      {/* Edit Button */}
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => handleEditCharacter(character)}
-                        data-testid={`button-edit-character-${character.id}`}
-                      >
-                        <Pencil className="h-3 w-3 mr-1" />
-                        Edit
-                      </Button>
-                    </div>
-                    
-                    {/* Character Info */}
-                    <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
-                      <p className="text-sm font-semibold text-white">{character.name}</p>
-                      {character.description && (
-                        <p className="text-xs text-white/80 line-clamp-2">{character.description}</p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                      {/* Character Info */}
+                      <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                        <div className="flex items-center gap-2 mb-1">
+                          <User className="h-4 w-4 text-white shrink-0" />
+                          <p className="text-sm font-semibold text-white">{character.name}</p>
+                        </div>
+                        {character.description && (
+                          <p className="text-xs text-white/80 line-clamp-2">{character.description}</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )
         )}
       </div>
 
@@ -1367,11 +1762,16 @@ export function WorldCast({
       <LocationDialog
         open={isAddLocationOpen}
         onOpenChange={setIsAddLocationOpen}
+        workspaceId={workspaceId}
+        selectedImageModel={selectedImageModel}
+        videoStyles={VIDEO_STYLES}
+        selectedArtStyle={selectedArtStyle}
         onSave={handleSaveLocationFromDialog}
         editingLocation={editingLocation ? {
+          id: editingLocation.id,
           name: editingLocation.name,
           description: editingLocation.description,
-          details: "",
+          details: editingLocation.details || "",
           thumbnailUrl: editingLocation.imageUrl || null,
           referenceImages: [],
         } : null}
@@ -1457,10 +1857,10 @@ export function WorldCast({
                   <Label>Reference Images ({characterReferenceImages.length}/{MAX_CHARACTER_REFERENCES})</Label>
                   {characterReferenceImages.length > 0 ? (
                     <div className="grid grid-cols-2 gap-2">
-                      {characterReferenceImages.map((url, index) => (
-                        <div key={index} className="relative aspect-square rounded-lg border bg-muted">
+                      {characterReferenceImages.map((img, index) => (
+                        <div key={img.tempId} className="relative aspect-square rounded-lg border bg-muted">
                           <div className="absolute inset-0 rounded-lg overflow-hidden">
-                            <img src={url} alt={`Reference ${index + 1}`} className="h-full w-full object-cover" />
+                            <img src={img.previewUrl} alt={`Reference ${index + 1}`} className="h-full w-full object-cover" />
                           </div>
                           <Button
                             size="icon"
@@ -1500,18 +1900,63 @@ export function WorldCast({
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Generated Character Image</Label>
-                  <div className="aspect-[3/4] rounded-lg border overflow-hidden bg-muted flex items-center justify-center">
+                  <Label>Main Character Image</Label>
+                  <div className="relative aspect-[3/4] rounded-lg border overflow-hidden bg-muted">
                     {generatedCharacterImage ? (
-                      <img 
-                        src={generatedCharacterImage} 
-                        alt="Generated character" 
-                        className="h-full w-full object-cover" 
-                      />
+                      <>
+                        <img 
+                          src={generatedCharacterImage} 
+                          alt="Character" 
+                          className="h-full w-full object-cover" 
+                        />
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          className="absolute top-2 right-2 h-8 w-8 z-10"
+                          onClick={() => setGeneratedCharacterImage(null)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </>
                     ) : (
-                      <div className="text-center p-4">
-                        <User className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">Generated image will appear here</p>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <label className="flex flex-col items-center justify-center cursor-pointer">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (file && workspaceId) {
+                                try {
+                                  setIsGenerating(true);
+                                  const formData = new FormData();
+                                  formData.append('file', file);
+                                  const response = await fetch('/api/narrative/upload-reference', {
+                                    method: 'POST',
+                                    body: formData,
+                                    credentials: 'include',
+                                  });
+                                  const data = await response.json();
+                                  if (response.ok && data.previewUrl) {
+                                    setGeneratedCharacterImage(data.previewUrl);
+                                  }
+                                } catch (error) {
+                                  console.error('Upload failed:', error);
+                                  toast({
+                                    title: "Upload Failed",
+                                    description: "Failed to upload main image",
+                                    variant: "destructive",
+                                  });
+                                } finally {
+                                  setIsGenerating(false);
+                                }
+                              }
+                            }}
+                          />
+                          <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                          <span className="text-sm text-muted-foreground">Upload Main Image</span>
+                        </label>
                       </div>
                     )}
                   </div>
@@ -1559,8 +2004,8 @@ export function WorldCast({
                 >
                   <CardContent className="p-0 h-full">
                     <div className="h-full bg-muted flex items-center justify-center relative">
-                      {libraryChar.thumbnailUrl ? (
-                        <img src={libraryChar.thumbnailUrl} alt={libraryChar.name} className="h-full w-full object-cover" />
+                      {libraryChar.imageUrl ? (
+                        <img src={libraryChar.imageUrl} alt={libraryChar.name} className="h-full w-full object-cover" />
                       ) : (
                         <User className="h-16 w-16 text-muted-foreground" />
                       )}
@@ -1600,6 +2045,7 @@ export function WorldCast({
         existingCharacters={characters}
         videoId={videoId}
         workspaceId={workspaceId}
+        script={script}
       />
 
       {/* AI Location Recommendation Dialog */}
@@ -1608,6 +2054,8 @@ export function WorldCast({
         onOpenChange={setIsLocationRecommendationOpen}
         onAddLocation={handleAddLocationFromRecommendation}
         existingLocations={locationsList}
+        script={script}
+        videoId={videoId}
       />
 
       {/* Location Library Dialog */}

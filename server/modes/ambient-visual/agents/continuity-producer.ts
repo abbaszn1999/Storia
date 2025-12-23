@@ -40,17 +40,18 @@ const GROUP_LIMITS = {
 
 /**
  * Parse AI response into ContinuityGroup objects
+ * Note: Using array format because OpenAI strict JSON Schema doesn't support dynamic keys
  */
 interface AIContinuityResponse {
-  continuityGroups: Record<
-    string,
-    Array<{
+  sceneGroups: Array<{
+    sceneId: string;
+    groups: Array<{
       groupNumber: number;
       shotIds: string[];
       transitionType: string;
       description: string;
-    }>
-  >;
+    }>;
+  }>;
   analysis: string;
 }
 
@@ -135,30 +136,38 @@ export async function proposeContinuity(
               schema: {
                 type: "object",
                 properties: {
-                  continuityGroups: {
-                    type: "object",
-                    description: "Map of sceneId to array of continuity groups",
-                    additionalProperties: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          groupNumber: { type: "number" },
-                          shotIds: {
-                            type: "array",
-                            items: { type: "string" },
+                  sceneGroups: {
+                    type: "array",
+                    description: "Array of scene continuity data",
+                    items: {
+                      type: "object",
+                      properties: {
+                        sceneId: { type: "string", description: "The scene ID" },
+                        groups: {
+                          type: "array",
+                          items: {
+                            type: "object",
+                            properties: {
+                              groupNumber: { type: "number" },
+                              shotIds: {
+                                type: "array",
+                                items: { type: "string" },
+                              },
+                              transitionType: { type: "string" },
+                              description: { type: "string" },
+                            },
+                            required: ["groupNumber", "shotIds", "transitionType", "description"],
+                            additionalProperties: false,
                           },
-                          transitionType: { type: "string" },
-                          description: { type: "string" },
                         },
-                        required: ["groupNumber", "shotIds", "transitionType", "description"],
-                        additionalProperties: false,
                       },
+                      required: ["sceneId", "groups"],
+                      additionalProperties: false,
                     },
                   },
                   analysis: { type: "string" },
                 },
-                required: ["continuityGroups", "analysis"],
+                required: ["sceneGroups", "analysis"],
                 additionalProperties: false,
               },
             },
@@ -176,15 +185,17 @@ export async function proposeContinuity(
     const parsed: AIContinuityResponse = JSON.parse(response.output.trim());
 
     // Validate response structure
-    if (!parsed.continuityGroups || typeof parsed.continuityGroups !== "object") {
-      throw new Error("Invalid response: missing continuityGroups object");
+    if (!parsed.sceneGroups || !Array.isArray(parsed.sceneGroups)) {
+      throw new Error("Invalid response: missing sceneGroups array");
     }
 
-    // Convert to ContinuityGroup objects with validation
+    // Convert array format to Record<string, ContinuityGroup[]> with validation
     const continuityGroups: Record<string, ContinuityGroup[]> = {};
     const now = new Date();
 
-    for (const [sceneId, groups] of Object.entries(parsed.continuityGroups)) {
+    for (const sceneData of parsed.sceneGroups) {
+      const { sceneId, groups } = sceneData;
+      
       // Get shots for this scene
       const sceneShots = shots[sceneId] || [];
       if (sceneShots.length < 2) continue;

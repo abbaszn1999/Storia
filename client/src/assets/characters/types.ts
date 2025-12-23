@@ -13,6 +13,8 @@ export interface CreateCharacterRequest {
   description?: string;
   personality?: string;
   appearance?: string;
+  imageUrl?: string;
+  referenceImages?: string[];
   voiceSettings?: Record<string, unknown>;
 }
 

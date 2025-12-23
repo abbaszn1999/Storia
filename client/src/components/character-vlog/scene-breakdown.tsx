@@ -80,7 +80,8 @@ interface VlogShot {
   sceneId: string;
   name: string;
   description: string;
-  shotType: 'image-ref' | 'start-end';
+  shotType: 'image-ref' | 'start-end'; // Frames Type (1F or 2F)
+  cameraShot?: string; // Shot Type (camera angle)
   isLinkedToPrevious: boolean;
   referenceTags: string[];
 }
@@ -123,6 +124,19 @@ const ACT_TYPES = [
   { value: 'main', label: 'Main Content' },
   { value: 'outro', label: 'Outro (Closing)' },
   { value: 'custom', label: 'Custom' },
+];
+
+const CAMERA_SHOT_TYPES = [
+  "Extreme Close-up",
+  "Close-up",
+  "Medium Close-up",
+  "Medium Shot",
+  "Medium Wide Shot",
+  "Wide Shot",
+  "Extreme Wide Shot",
+  "Over-the-Shoulder",
+  "Point of View",
+  "Establishing Shot",
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -243,22 +257,25 @@ function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit
   const [name, setName] = useState(shot?.name || '');
   const [description, setDescription] = useState(shot?.description || '');
   const [shotType, setShotType] = useState<VlogShot['shotType']>(shot?.shotType || 'image-ref');
+  const [cameraShot, setCameraShot] = useState<string>(shot?.cameraShot || 'Medium Shot');
   
   useEffect(() => {
     if (shot) {
       setName(shot.name);
       setDescription(shot.description);
       setShotType(shot.shotType);
+      setCameraShot(shot.cameraShot || 'Medium Shot');
     } else {
       const sceneNum = parseInt(sceneId.split('-')[1]) || 1;
       setName(`Shot ${sceneNum}.${shotCount + 1}: New`);
       setDescription('');
       setShotType('image-ref');
+      setCameraShot('Medium Shot');
     }
   }, [shot, sceneId, shotCount]);
   
   const handleSubmit = () => {
-    onSubmit({ name, description, shotType });
+    onSubmit({ name, description, shotType, cameraShot });
     onOpenChange(false);
   };
   
@@ -284,7 +301,7 @@ function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit
           </div>
           
           <div className="space-y-2">
-            <Label className="text-white/70">Shot Type</Label>
+            <Label className="text-white/70">Frames Type</Label>
             <ToggleGroup
               type="single"
               value={shotType}
@@ -293,13 +310,29 @@ function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit
             >
               <ToggleGroupItem value="image-ref" className="text-xs data-[state=on]:bg-pink-500 flex-1">
                 <ImageIcon className="w-3 h-3 mr-1" />
-                Single (1F)
+                1F
               </ToggleGroupItem>
               <ToggleGroupItem value="start-end" className="text-xs data-[state=on]:bg-purple-500 flex-1">
                 <Video className="w-3 h-3 mr-1" />
-                Start/End (2F)
+                2F
               </ToggleGroupItem>
             </ToggleGroup>
+          </div>
+          
+          <div className="space-y-2">
+            <Label className="text-white/70">Shot Type</Label>
+            <Select value={cameraShot} onValueChange={setCameraShot}>
+              <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                <SelectValue placeholder="Select shot type" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#0a0a0a] border-white/10">
+                {CAMERA_SHOT_TYPES.map((type) => (
+                  <SelectItem key={type} value={type} className="text-white">
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           
           <div className="space-y-2">
@@ -346,8 +379,8 @@ export function CharacterVlogSceneBreakdown({
   shots: propShots,
   onScenesChange: propOnScenesChange,
   onShotsChange: propOnShotsChange,
-  onContinuityGroupsChange,
-  onContinuityLockedChange,
+  onContinuityGroupsChange: propOnContinuityGroupsChange,
+  onContinuityLockedChange: propOnContinuityLockedChange,
   onNext,
 }: CharacterVlogSceneBreakdownProps) {
   // Convert props to internal format
@@ -384,8 +417,9 @@ export function CharacterVlogSceneBreakdown({
             name: 'Shot 1.1: Opening',
             description: `${characterName} grabs attention with an engaging opening`,
             shotType: 'image-ref',
+            cameraShot: 'Medium Shot',
             isLinkedToPrevious: false,
-            referenceTags: ['@Character', '@Theme'],
+            referenceTags: ['@Character'],
           },
           {
             id: `scene${timestamp}-1-shot2`,
@@ -393,8 +427,9 @@ export function CharacterVlogSceneBreakdown({
             name: 'Shot 1.2: Hook Action',
             description: `Dynamic shot showing ${characterName} in action`,
             shotType: 'start-end',
+            cameraShot: 'Medium Close-up',
             isLinkedToPrevious: true,
-            referenceTags: ['@Character', '@Theme'],
+            referenceTags: ['@Character'],
           },
         ],
       },
@@ -411,8 +446,9 @@ export function CharacterVlogSceneBreakdown({
             name: 'Shot 2.1: Main Story',
             description: `${characterName} shares the main content`,
             shotType: 'start-end',
+            cameraShot: 'Medium Shot',
             isLinkedToPrevious: false,
-            referenceTags: ['@Character', '@Theme'],
+            referenceTags: ['@Character'],
           },
           {
             id: `scene${timestamp}-2-shot2`,
@@ -420,8 +456,9 @@ export function CharacterVlogSceneBreakdown({
             name: 'Shot 2.2: B-Roll',
             description: 'Supporting footage for the narrative',
             shotType: 'image-ref',
+            cameraShot: 'Wide Shot',
             isLinkedToPrevious: false,
-            referenceTags: ['@Theme'],
+            referenceTags: [],
           },
         ],
       },
@@ -437,6 +474,7 @@ export function CharacterVlogSceneBreakdown({
           name: 'Shot 3.1: Closing',
           description: `${characterName} wraps up and thanks viewers`,
           shotType: 'image-ref',
+          cameraShot: 'Medium Shot',
           isLinkedToPrevious: false,
           referenceTags: ['@Character'],
         }],
@@ -453,26 +491,69 @@ export function CharacterVlogSceneBreakdown({
       // Convert back to parent format
       propOnScenesChange(sceneManifest.scenes.map((s, idx) => ({
         id: s.id,
-        type: s.actType,
-        title: s.name,
+        name: s.name,
         description: s.description,
-        order: idx + 1,
+        duration: s.duration,
+        actType: s.actType,
+        shots: s.shots,
       })));
       
       const shotsMap: { [sceneId: string]: any[] } = {};
+      const continuityGroupsMap: { [sceneId: string]: any[] } = {};
+      let hasAnyLinks = false;
+
       sceneManifest.scenes.forEach((scene, sceneIdx) => {
         shotsMap[scene.id] = scene.shots.map((shot, shotIdx) => ({
           id: shot.id,
           sceneId: shot.sceneId,
           shotNumber: shotIdx + 1,
-          shotType: 'talking',
+          shotType: shot.cameraShot || 'Medium Shot',
           description: shot.description,
           dialogue: '',
+          cameraShot: shot.cameraShot || 'Medium Shot',
         }));
+
+        // Build continuity groups based on isLinkedToPrevious
+        const groups: any[] = [];
+        let currentGroup: string[] = [];
+
+        scene.shots.forEach((shot, shotIdx) => {
+          if (shotIdx === 0) {
+            // First shot always starts a potential group
+            currentGroup = [shot.id];
+          } else if (shot.isLinkedToPrevious) {
+            // This shot is linked to previous, add to current group
+            currentGroup.push(shot.id);
+            hasAnyLinks = true;
+          } else {
+            // This shot is NOT linked, so finalize the previous group if it has >1 shot
+            if (currentGroup.length > 1) {
+              groups.push({
+                id: `group-${scene.id}-${groups.length}`,
+                shotIds: [...currentGroup],
+              });
+            }
+            // Start a new potential group with this shot
+            currentGroup = [shot.id];
+          }
+        });
+
+        // Finalize the last group if it has >1 shot
+        if (currentGroup.length > 1) {
+          groups.push({
+            id: `group-${scene.id}-${groups.length}`,
+            shotIds: [...currentGroup],
+          });
+        }
+
+        continuityGroupsMap[scene.id] = groups;
       });
+
       propOnShotsChange(shotsMap);
+      propOnContinuityGroupsChange(continuityGroupsMap);
+      propOnContinuityLockedChange(hasAnyLinks);
     }
-  }, [sceneManifest]);
+  }, [sceneManifest, propOnScenesChange, propOnShotsChange, propOnContinuityGroupsChange, propOnContinuityLockedChange]);
 
   // Stats
   const totalShots = useMemo(() => 
@@ -523,7 +604,7 @@ export function CharacterVlogSceneBreakdown({
       scenes: [...sceneManifest.scenes, newScene],
     });
     
-    setExpandedScenes(prev => new Set([...prev, newScene.id]));
+    setExpandedScenes(prev => new Set(Array.from(prev).concat([newScene.id])));
   };
 
   const handleEditScene = (sceneId: string, data: { name: string; description: string; actType: VlogScene['actType'] }) => {
@@ -553,6 +634,7 @@ export function CharacterVlogSceneBreakdown({
       name: data.name || `Shot ${sceneNum}.${shotNum}: New`,
       description: data.description || '',
       shotType: data.shotType || 'image-ref',
+      cameraShot: data.cameraShot || 'Medium Shot',
       referenceTags: ['@Character'],
       isLinkedToPrevious: scene.shots.length > 0,
     };
@@ -741,14 +823,6 @@ export function CharacterVlogSceneBreakdown({
                         
                         {/* Scene Actions */}
                         <div className="flex items-center gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-white/40 hover:text-white hover:bg-white/10"
-                            onClick={(e) => { e.stopPropagation(); openSceneEdit(scene); }}
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </Button>
                           {sceneManifest.scenes.length > 1 && (
                             <Button
                               size="icon"
@@ -807,7 +881,7 @@ export function CharacterVlogSceneBreakdown({
                                 )}
                               >
                                 <CardContent className="p-3 space-y-2">
-                                  {/* Row 1: Shot Name + Shot Type Badge + Actions */}
+                                  {/* Row 1: Shot Name + Camera Shot Type + Frame Type Badge + Actions */}
                                   <div className="flex items-center gap-2">
                                     <Badge variant="outline" className={cn(
                                       "text-[10px] font-semibold px-2 py-0.5 cursor-pointer",
@@ -819,7 +893,17 @@ export function CharacterVlogSceneBreakdown({
                                       {shot.name}
                                     </Badge>
                                     
-                                    {/* SHOT TYPE BADGE */}
+                                    {/* CAMERA SHOT TYPE BADGE (from settings) */}
+                                    {shot.cameraShot && (
+                                      <Badge 
+                                        variant="outline" 
+                                        className="text-[10px] font-semibold px-2 py-0.5 bg-orange-500/20 border-orange-500/40 text-orange-200"
+                                      >
+                                        {shot.cameraShot}
+                                      </Badge>
+                                    )}
+                                    
+                                    {/* FRAME TYPE BADGE */}
                                     <Badge 
                                       variant="outline" 
                                       className={cn(
@@ -904,7 +988,7 @@ export function CharacterVlogSceneBreakdown({
                                   {/* Row 3: Reference Tags + Link Toggle */}
                                   <div className="flex items-center justify-between gap-3">
                                     <div className="flex flex-wrap gap-1">
-                                      {shot.referenceTags.map((tag) => (
+                                      {shot.referenceTags.filter(tag => tag !== '@Theme').map((tag) => (
                                         <Badge
                                           key={tag}
                                           variant="outline"
@@ -965,74 +1049,55 @@ export function CharacterVlogSceneBreakdown({
               </motion.div>
             );
           })}
-        </div>
-      </ScrollArea>
+          
+          {/* Stats Summary at end of scroll */}
+          <div className="mt-8 pt-6 border-t border-white/10">
+            <div className="flex items-center justify-center gap-8">
+              <div className="flex items-center gap-2">
+                {hasScenes ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                ) : (
+                  <div className="w-4 h-4 rounded-full border-2 border-white/20" />
+                )}
+                <span className={cn(
+                  "text-sm font-medium",
+                  hasScenes ? "text-white/70" : "text-white/40"
+                )}>
+                  {sceneManifest.scenes.length} Scenes
+                </span>
+              </div>
 
-      {/* COMPACT VALIDATION FOOTER */}
-      <div className="flex-shrink-0 px-6 py-3 border-t border-white/10 bg-white/[0.02]">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              {hasScenes ? (
-                <CheckCircle2 className="w-4 h-4 text-green-400" />
-              ) : (
-                <div className="w-4 h-4 rounded-full border-2 border-white/20" />
-              )}
-              <span className={cn(
-                "text-xs font-medium",
-                hasScenes ? "text-white/70" : "text-white/40"
-              )}>
-                {sceneManifest.scenes.length} Scenes
-              </span>
-            </div>
+              <div className="flex items-center gap-2">
+                {hasShots ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                ) : (
+                  <div className="w-4 h-4 rounded-full border-2 border-white/20" />
+                )}
+                <span className={cn(
+                  "text-sm font-medium",
+                  hasShots ? "text-white/70" : "text-white/40"
+                )}>
+                  {totalShots} Shots
+                </span>
+              </div>
 
-            <div className="flex items-center gap-2">
-              {hasShots ? (
-                <CheckCircle2 className="w-4 h-4 text-green-400" />
-              ) : (
-                <div className="w-4 h-4 rounded-full border-2 border-white/20" />
-              )}
-              <span className={cn(
-                "text-xs font-medium",
-                hasShots ? "text-white/70" : "text-white/40"
-              )}>
-                {totalShots} Shots
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {continuityLinks > 0 ? (
-                <CheckCircle2 className="w-4 h-4 text-green-400" />
-              ) : (
-                <div className="w-4 h-4 rounded-full border-2 border-white/20" />
-              )}
-              <span className={cn(
-                "text-xs font-medium",
-                continuityLinks > 0 ? "text-white/70" : "text-white/40"
-              )}>
-                {continuityLinks} Links
-              </span>
+              <div className="flex items-center gap-2">
+                {continuityLinks > 0 ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                ) : (
+                  <div className="w-4 h-4 rounded-full border-2 border-white/20" />
+                )}
+                <span className={cn(
+                  "text-sm font-medium",
+                  continuityLinks > 0 ? "text-white/70" : "text-white/40"
+                )}>
+                  {continuityLinks} Links
+                </span>
+              </div>
             </div>
           </div>
-
-          <Button
-            onClick={onNext}
-            disabled={!isValid}
-            size="sm"
-            className={cn(
-              "h-8 text-xs relative overflow-hidden",
-              isValid
-                ? "text-white hover:opacity-90"
-                : "bg-white/10 text-white/40 cursor-not-allowed"
-            )}
-            style={isValid ? {
-              background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
-            } : undefined}
-          >
-            Continue to Storyboard
-          </Button>
         </div>
-      </div>
+      </ScrollArea>
 
       {/* DIALOGS */}
       <SceneEditDialog

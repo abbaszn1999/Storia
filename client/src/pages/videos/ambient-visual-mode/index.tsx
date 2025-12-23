@@ -38,6 +38,8 @@ export default function AmbientVisualModePage() {
       id: existingVideo?.id,
       step1Data: existingVideo?.step1Data,
       step2Data: existingVideo?.step2Data,
+      step3Data: existingVideo?.step3Data,
+      step4Data: existingVideo?.step4Data,
     });
   }, [existingVideo]);
   
@@ -244,6 +246,8 @@ export default function AmbientVisualModePage() {
         videoId={videoId}
         initialStep1Data={existingVideo?.step1Data as Record<string, unknown> | undefined}
         initialStep2Data={existingVideo?.step2Data as Record<string, unknown> | undefined}
+        initialStep3Data={existingVideo?.step3Data as Record<string, unknown> | undefined}
+        initialStep4Data={existingVideo?.step4Data as Record<string, unknown> | undefined}
         initialAnimationMode={animationMode}
         initialVideoGenerationMode={videoGenerationMode}
       />

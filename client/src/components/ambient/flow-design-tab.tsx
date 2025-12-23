@@ -14,13 +14,13 @@ interface FlowDesignTabProps {
   shotVersions?: { [shotId: string]: ShotVersion[] };
   continuityLocked?: boolean;
   continuityGroups?: { [sceneId: string]: ContinuityGroup[] };
+  continuityGenerated?: boolean; // Track if continuity has been analyzed (one-time only)
   animationMode: 'image-transitions' | 'video-animation';
   autoGenerate?: boolean; // If true, automatically generate flow design on mount
   onScenesGenerated: (scenes: Scene[], shots: { [sceneId: string]: Shot[] }, shotVersions?: { [shotId: string]: ShotVersion[] }) => void;
   onContinuityLocked?: () => void;
   onContinuityGroupsChange?: (groups: { [sceneId: string]: ContinuityGroup[] }) => void;
   onGenerationComplete?: () => void; // Called when auto-generation finishes
-  onNext: () => void;
 }
 
 export function FlowDesignTab({
@@ -33,13 +33,13 @@ export function FlowDesignTab({
   shotVersions,
   continuityLocked,
   continuityGroups,
+  continuityGenerated,
   animationMode,
   autoGenerate = false,
   onScenesGenerated,
   onContinuityLocked,
   onContinuityGroupsChange,
   onGenerationComplete,
-  onNext,
 }: FlowDesignTabProps) {
   const { toast } = useToast();
   const [isAutoGenerating, setIsAutoGenerating] = useState(false);
@@ -167,10 +167,10 @@ export function FlowDesignTab({
       shotVersions={shotVersions}
       continuityLocked={continuityLocked}
       continuityGroups={continuityGroups}
+      continuityGenerated={continuityGenerated}
       onScenesGenerated={onScenesGenerated}
       onContinuityLocked={onContinuityLocked}
       onContinuityGroupsChange={onContinuityGroupsChange}
-      onNext={onNext}
     />
   );
 }

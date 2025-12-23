@@ -32,10 +32,10 @@ interface SceneBreakdownProps {
   shotVersions?: { [shotId: string]: ShotVersion[] };
   continuityLocked?: boolean;
   continuityGroups?: { [sceneId: string]: ContinuityGroup[] };
+  continuityGenerated?: boolean; // Track if continuity has been analyzed (one-time only)
   onScenesGenerated: (scenes: Scene[], shots: { [sceneId: string]: Shot[] }, shotVersions?: { [shotId: string]: ShotVersion[] }) => void;
   onContinuityLocked?: () => void;
   onContinuityGroupsChange?: (groups: { [sceneId: string]: ContinuityGroup[] }) => void;
-  onNext: () => void;
 }
 
 export function SceneBreakdown({ 
@@ -48,10 +48,10 @@ export function SceneBreakdown({
   shotVersions, 
   continuityLocked = false,
   continuityGroups: propsGroups = {},
+  continuityGenerated = false,
   onScenesGenerated, 
   onContinuityLocked,
   onContinuityGroupsChange,
-  onNext 
 }: SceneBreakdownProps) {
   const { toast } = useToast();
   const [sceneDialogOpen, setSceneDialogOpen] = useState(false);
@@ -75,9 +75,39 @@ export function SceneBreakdown({
   const [localApprovedGroups, setLocalApprovedGroups] = useState<{ [sceneId: string]: ContinuityGroup[] }>({});
   const [localProposalDraft, setLocalProposalDraft] = useState<{ [sceneId: string]: ContinuityGroup[] }>({});
   const [localDeclinedGroups, setLocalDeclinedGroups] = useState<{ [sceneId: string]: ContinuityGroup[] }>({});
+  const [continuityInitialized, setContinuityInitialized] = useState(false);
+  
+  // Create a stable key based on the total number of groups to detect data changes
+  const propsGroupCount = Object.values(propsGroups).flat().length;
+  const propsGroupsKey = `${Object.keys(propsGroups).join(',')}-${propsGroupCount}`;
   
   // Initialize from propsGroups by separating approved vs proposed vs declined
+  // This runs when propsGroups changes (e.g., restored from database)
   useEffect(() => {
+    const propsHaveData = propsGroupCount > 0;
+    
+    console.log('[SceneBreakdown] Continuity effect triggered:', {
+      propsHaveData,
+      propsGroupCount,
+      propsGroupsKey,
+      continuityInitialized,
+    });
+    
+    // Skip if already initialized and props are empty (user cleared them)
+    if (continuityInitialized && !propsHaveData) {
+      return; // Already initialized, don't reset
+    }
+    
+    // Skip if no data to initialize from yet
+    if (!propsHaveData) {
+      return;
+    }
+    
+    console.log('[SceneBreakdown] Initializing continuity groups from props:', {
+      groupCount: propsGroupCount,
+      scenes: Object.keys(propsGroups),
+    });
+    
     const approved: { [sceneId: string]: ContinuityGroup[] } = {};
     const proposed: { [sceneId: string]: ContinuityGroup[] } = {};
     const declined: { [sceneId: string]: ContinuityGroup[] } = {};
@@ -100,7 +130,14 @@ export function SceneBreakdown({
     setLocalApprovedGroups(approved);
     setLocalProposalDraft(proposed);
     setLocalDeclinedGroups(declined);
-  }, []); // Only run once on mount
+    setContinuityInitialized(true);
+    
+    console.log('[SceneBreakdown] Continuity groups initialized:', {
+      approved: Object.values(approved).flat().length,
+      proposed: Object.values(proposed).flat().length,
+      declined: Object.values(declined).flat().length,
+    });
+  }, [propsGroupsKey]); // Use stable key to detect changes
   
   // If parent provides callback, use props as source of truth; otherwise use local state
   const hasParentCallback = Boolean(onContinuityGroupsChange);
@@ -141,7 +178,7 @@ export function SceneBreakdown({
   
   const continuityGroups = mergeAllGroups(approvedGroups, proposalDraft, declinedGroups);
   
-  // Update all three maps and notify parent
+  // Update all three maps (local state only - do NOT notify parent during approvals)
   const updateAllGroupMaps = (
     approved: { [sceneId: string]: ContinuityGroup[] },
     proposed: { [sceneId: string]: ContinuityGroup[] },
@@ -152,10 +189,11 @@ export function SceneBreakdown({
     setLocalProposalDraft(proposed);
     setLocalDeclinedGroups(declined);
     
-    // Only pass approved groups to parent - Composition phase should only see approved connections
-    if (hasParentCallback) {
-      onContinuityGroupsChange!(approved);
-    }
+    // DO NOT notify parent here - only sync on Lock via API call
+    // This prevents re-initialization that wipes pending proposals
+    // The parent callback was causing the bug where approving one group
+    // would pass only approved groups to parent, which then re-initialized
+    // the local state from props, wiping out all pending proposals
   };
 
   // Sync local lock state with prop when it changes
@@ -166,77 +204,30 @@ export function SceneBreakdown({
   const handleGenerateContinuityProposal = async () => {
     setIsGeneratingContinuity(true);
     try {
-      // TODO: Call Agent 3.4 (Continuity Producer) to generate proposal for ALL scenes
-      // For now, create dummy proposals for each scene with enough shots
-      const newGroups: { [sceneId: string]: ContinuityGroup[] } = {};
-      
-      scenes.forEach((scene) => {
-        const sceneShots = shots[scene.id] || [];
-        if (sceneShots.length >= 2) {
-          const sceneGroups: ContinuityGroup[] = [];
-          let groupNumber = 1;
-          let currentIndex = 0;
-          
-          // Create varied-length groups to demonstrate the arrow visualization
-          // Mix of 2-shot, 3-shot, 4-shot, and 5-shot sequences
-          while (currentIndex < sceneShots.length - 1) {
-            // Determine group size based on remaining shots and variation
-            const remainingShots = sceneShots.length - currentIndex;
-            let groupSize: number;
-            
-            if (remainingShots >= 5 && Math.random() > 0.6) {
-              groupSize = 5; // 40% chance for 5-shot sequence
-            } else if (remainingShots >= 4 && Math.random() > 0.5) {
-              groupSize = 4; // 50% chance for 4-shot sequence
-            } else if (remainingShots >= 3 && Math.random() > 0.4) {
-              groupSize = 3; // 60% chance for 3-shot sequence
-            } else {
-              groupSize = Math.min(2, remainingShots); // Default to 2-shot
-            }
-            
-            // Create group with the determined size
-            const groupShotIds = sceneShots
-              .slice(currentIndex, currentIndex + groupSize)
-              .map(s => s.id);
-            
-            const transitionTypes = ["flow", "zoom", "pan", "cut"] as const;
-            const descriptions = [
-              "AI detected continuous camera movement between these shots",
-              "Seamless transition with consistent lighting and perspective",
-              "Connected sequence with matching visual elements",
-              "Smooth flow maintaining spatial continuity"
-            ];
-            
-            const dummyGroup: ContinuityGroup = {
-              id: `group-${scene.id}-${groupNumber}-${Date.now()}`,
-              sceneId: scene.id,
-              groupNumber: groupNumber,
-              shotIds: groupShotIds,
-              description: descriptions[Math.floor(Math.random() * descriptions.length)],
-              transitionType: transitionTypes[Math.floor(Math.random() * transitionTypes.length)],
-              status: "proposed",
-              editedBy: null,
-              editedAt: null,
-              approvedAt: null,
-              createdAt: new Date(),
-            };
-            
-            sceneGroups.push(dummyGroup);
-            currentIndex += groupSize;
-            groupNumber++;
-          }
-          
-          if (sceneGroups.length > 0) {
-            newGroups[scene.id] = sceneGroups;
-          }
-        }
+      // Call the AI Continuity Producer agent via API
+      const response = await fetch('/api/ambient-visual/flow-design/continuity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ videoId }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate continuity proposals');
+      }
+
+      const data = await response.json() as {
+        continuityGroups: { [sceneId: string]: ContinuityGroup[] };
+        cost?: number;
+      };
+
+      const newGroups = data.continuityGroups || {};
 
       if (Object.keys(newGroups).length === 0) {
         toast({
-          title: "Not enough shots",
-          description: "At least one scene needs 2 or more shots to create continuity connections.",
-          variant: "destructive",
+          title: "No Continuity Proposals",
+          description: "AI couldn't find suitable shot sequences for continuity connections. Try adding more shots or adjusting their descriptions.",
         });
         return;
       }
@@ -246,7 +237,7 @@ export function SceneBreakdown({
 
       toast({
         title: "Continuity Proposal Generated",
-        description: `Generated proposals for ${Object.keys(newGroups).length} scene${Object.keys(newGroups).length !== 1 ? 's' : ''}. Review and approve to proceed.`,
+        description: `AI generated proposals for ${Object.keys(newGroups).length} scene${Object.keys(newGroups).length !== 1 ? 's' : ''}. Review and approve to proceed.`,
       });
     } catch (error) {
       toast({
@@ -600,7 +591,9 @@ export function SceneBreakdown({
     });
   };
 
-  const handleLock = () => {
+  const [isLocking, setIsLocking] = useState(false);
+
+  const handleLock = async () => {
     // Lock the continuity (at least one group must be approved)
     const approvedGroupsArray = Object.values(approvedGroups) as ContinuityGroup[][];
     const hasApprovedGroups = approvedGroupsArray.some((groups) => groups.length > 0);
@@ -614,18 +607,44 @@ export function SceneBreakdown({
       return;
     }
 
-    // Set local lock state immediately for UI responsiveness
-    setLocalContinuityLocked(true);
-    
-    // Update parent state to lock continuity
-    if (onContinuityLocked) {
-      onContinuityLocked();
-    }
+    setIsLocking(true);
 
-    toast({
-      title: "Continuity Locked",
-      description: "Shot connections are now final. Proceeding to storyboard generation.",
-    });
+    try {
+      // Save approved continuity groups to database
+      const response = await fetch(`/api/ambient-visual/videos/${videoId}/continuity/lock`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ continuityGroups: approvedGroups }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to lock continuity');
+      }
+
+      // Set local lock state after successful save
+      setLocalContinuityLocked(true);
+      
+      // Update parent state to lock continuity
+      if (onContinuityLocked) {
+        onContinuityLocked();
+      }
+
+      toast({
+        title: "Continuity Locked",
+        description: "Shot connections saved and locked. Proceeding to storyboard generation.",
+      });
+    } catch (error) {
+      console.error('[SceneBreakdown] Failed to lock continuity:', error);
+      toast({
+        title: "Lock Failed",
+        description: error instanceof Error ? error.message : "Failed to save continuity. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLocking(false);
+    }
   };
 
   const moveScene = (sceneId: string, direction: 'up' | 'down') => {
@@ -809,11 +828,6 @@ export function SceneBreakdown({
     setDeleteShotId(null);
   };
 
-  const openAddSceneDialog = () => {
-    setEditingScene(undefined);
-    setSceneDialogOpen(true);
-  };
-
   const openEditSceneDialog = (scene: Scene) => {
     setEditingScene(scene);
     setSceneDialogOpen(true);
@@ -878,7 +892,7 @@ export function SceneBreakdown({
                     AI will analyze your atmosphere description and create visual segments with shots.
                   </p>
                 </div>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <div className="flex items-center justify-center">
                   <Button
                     size="lg"
                     variant="ghost"
@@ -902,16 +916,6 @@ export function SceneBreakdown({
                         Generate Flow Design
                       </>
                     )}
-                  </Button>
-                  <span className="text-sm text-muted-foreground">or</span>
-                  <Button
-                    variant="outline"
-                    onClick={openAddSceneDialog}
-                    className="border-white/10 hover:bg-white/5"
-                    data-testid="button-add-scene"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Segment Manually
                   </Button>
                 </div>
               </div>
@@ -947,7 +951,9 @@ export function SceneBreakdown({
               approvedGroups={approvedGroups}
               declinedGroups={declinedGroups}
               isGenerating={isGeneratingContinuity}
+              isLocking={isLocking}
               isLocked={localContinuityLocked}
+              continuityGenerated={continuityGenerated}
               onGenerateProposal={handleGenerateContinuityProposal}
               onGroupApprove={handleGroupApprove}
               onGroupDecline={handleGroupDecline}
@@ -1116,46 +1122,25 @@ export function SceneBreakdown({
               );
             })}
 
-            {/* Add Segment Button */}
-            <Button
-              variant="outline"
-              onClick={openAddSceneDialog}
-              className="w-full border-dashed border-white/10 hover:bg-cyan-500/5 hover:border-cyan-500/50"
-              data-testid="button-add-scene"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Segment
-            </Button>
           </div>
 
           {/* Summary Footer */}
           <Card className="bg-white/[0.02] border-white/[0.06]">
             <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Clock className="h-4 w-4 text-cyan-400" />
-                    <span className="text-muted-foreground">Total Duration:</span>
-                    <span className="font-semibold text-foreground">
-                      {Math.floor(totalDuration / 60)}:{String(totalDuration % 60).padStart(2, '0')}
-                    </span>
-                  </div>
-                  <div className="h-4 w-px bg-white/10" />
-                  <div className="flex items-center gap-2 text-sm">
-                    <Layers className="h-4 w-4 text-cyan-400" />
-                    <span className="text-muted-foreground">Shots:</span>
-                    <span className="font-semibold text-foreground">{totalShots}</span>
-                  </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 text-sm">
+                  <Clock className="h-4 w-4 text-cyan-400" />
+                  <span className="text-muted-foreground">Total Duration:</span>
+                  <span className="font-semibold text-foreground">
+                    {Math.floor(totalDuration / 60)}:{String(totalDuration % 60).padStart(2, '0')}
+                  </span>
                 </div>
-                <Button 
-                  onClick={onNext} 
-                  variant="ghost"
-                  className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
-                  data-testid="button-next"
-                >
-                  Continue
-                  <span className="ml-2">→</span>
-                </Button>
+                <div className="h-4 w-px bg-white/10" />
+                <div className="flex items-center gap-2 text-sm">
+                  <Layers className="h-4 w-4 text-cyan-400" />
+                  <span className="text-muted-foreground">Shots:</span>
+                  <span className="font-semibold text-foreground">{totalShots}</span>
+                </div>
               </div>
             </CardContent>
           </Card>

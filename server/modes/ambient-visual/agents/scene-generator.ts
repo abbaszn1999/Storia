@@ -173,6 +173,7 @@ export async function generateScenes(
       ),
       videoModel: null,
       imageModel: null,
+      cameraMotion: null,
       lighting: segment.lighting || null,
       weather: segment.weather || null,
       createdAt: new Date(),

@@ -5,6 +5,65 @@
  * videos.storyboard JSONB column if needed.
  */
 
+// Animation mode types
+export type AnimationMode = 'image-transitions' | 'video-animation';
+export type VideoGenerationMode = 'image-reference' | 'start-end-frame';
+export type LoopType = 'seamless' | 'fade' | 'hard-cut';
+
+/**
+ * Step1Data - Atmosphere phase settings
+ * Used for passing Phase 1 settings to Phase 4 for initialization
+ */
+export interface Step1Data {
+  // Animation Mode
+  animationMode: AnimationMode;
+  videoGenerationMode?: VideoGenerationMode;
+  
+  // Image Settings
+  imageModel: string;
+  imageResolution: string;
+  
+  // Video Settings
+  aspectRatio: string;
+  duration: string;
+  
+  // Mood & Theme
+  mood: string;
+  theme: string;
+  timeContext: string;
+  season: string;
+  userStory?: string;
+  moodDescription: string;
+  
+  // Animation-specific settings
+  defaultEasingStyle?: string;
+  videoModel?: string;
+  videoResolution?: string;
+  motionPrompt?: string;
+  transitionStyle?: string;
+  cameraMotion?: string;
+  
+  // Pacing & Flow
+  pacing: number;
+  segmentEnabled: boolean;
+  segmentCount: 'auto' | number;
+  shotsPerSegment: 'auto' | number;
+  
+  // Loop Settings
+  loopMode: boolean;
+  loopType: LoopType;
+  segmentLoopEnabled: boolean;
+  segmentLoopCount: 'auto' | number;
+  shotLoopEnabled: boolean;
+  shotLoopCount: 'auto' | number;
+  
+  // Voiceover
+  voiceoverEnabled: boolean;
+  language?: string;
+  textOverlayEnabled?: boolean;
+  textOverlayStyle?: string;
+}
+
 export interface Scene {
   id: string;
   videoId: string;
@@ -14,6 +73,7 @@ export interface Scene {
   duration?: number | null;
   videoModel?: string | null;
   imageModel?: string | null;
+  cameraMotion?: string | null;
   lighting?: string | null;
   weather?: string | null;
   createdAt: Date;
@@ -51,6 +111,8 @@ export interface ShotVersion {
   videoPrompt?: string | null;
   videoUrl?: string | null;
   videoDuration?: number | null;
+  negativePrompt?: string | null;
+  startFrameInherited?: boolean;  // True if start frame was inherited from previous shot
   status: string;
   needsRerender: boolean;
   createdAt: Date;

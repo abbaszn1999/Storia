@@ -15,8 +15,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, ChevronDown, Shirt, Eraser, Trash2, Play, Pause, Check, Link2, LayoutGrid, Clock, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Character } from "@shared/schema";
-import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
+import type { Scene, Shot, ShotVersion, ReferenceImage, Step1Data } from "@/types/storyboard";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
+import { VIDEO_MODELS as VIDEO_MODEL_CONFIGS, getVideoModelConfig } from "@/constants/video-models";
 import {
   DndContext,
   closestCenter,
@@ -35,29 +36,37 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-const VIDEO_MODELS = [
-  "Kling AI",
-  "Runway Gen-4",
-  "Luma Dream Machine",
-  "Pika 2.0",
-  "Veo 2",
-  "Minimax",
-];
+// Use actual video model values from config
+const VIDEO_MODELS = VIDEO_MODEL_CONFIGS.map(m => m.value);
+
+// Get display label for a video model value
+const getVideoModelLabel = (value: string): string => {
+  const config = getVideoModelConfig(value);
+  return config?.label || value;
+};
+
+// Get durations for a video model
+const getVideoModelDurations = (value: string): number[] => {
+  const config = getVideoModelConfig(value);
+  return config?.durations || [5, 10];
+};
 
 const IMAGE_MODELS = [
-  "Flux",
-  "Midjourney",
-  "Nano Banana",
-  "GPT Image",
+  "flux",
+  "midjourney",
+  "nano-banana",
+  "gpt-image",
 ];
 
-const VIDEO_MODEL_DURATIONS: { [key: string]: number[] } = {
-  "Kling AI": [5, 10],
-  "Runway Gen-4": [5, 10],
-  "Luma Dream Machine": [5],
-  "Pika 2.0": [3],
-  "Veo 2": [8],
-  "Minimax": [6],
+// Get display label for an image model value
+const getImageModelLabel = (value: string): string => {
+  const labels: Record<string, string> = {
+    "flux": "Flux",
+    "midjourney": "Midjourney",
+    "nano-banana": "Nano Banana",
+    "gpt-image": "GPT Image",
+  };
+  return labels[value] || value;
 };
 
 const ANIMATION_MODE_OPTIONS = [
@@ -85,6 +94,7 @@ const SHOT_TYPES = [
 ];
 
 const CAMERA_MOVEMENTS = [
+  "auto",
   "Static",
   "Pan Left",
   "Pan Right",
@@ -100,6 +110,12 @@ const CAMERA_MOVEMENTS = [
   "Handheld",
   "Steadicam",
 ];
+
+// Get display label for camera movement
+const getCameraMotionLabel = (value: string): string => {
+  if (value === "auto") return "Auto (AI Decides)";
+  return value;
+};
 
 const CAMERA_ANGLE_PRESETS = [
   { id: "rotate-left-45", label: "Rotate 45° Left", icon: "↺", rotation: -45, vertical: 0, zoom: 0 },
@@ -120,6 +136,7 @@ const TRANSITION_TYPES = [
 
 interface StoryboardEditorProps {
   videoId: string;
+  step1Data?: Step1Data;
   narrativeMode: "image-reference" | "start-end";
   animationMode: "image-transitions" | "video-animation";
   scenes: Scene[];
@@ -155,6 +172,7 @@ interface SortableShotCardProps {
   shotIndex: number;
   sceneModel: string | null;
   sceneImageModel: string | null;
+  sceneCameraMotion: string | null;
   version: ShotVersion | null;
   nextShotVersion: ShotVersion | null;
   referenceImage: ReferenceImage | null;
@@ -165,6 +183,7 @@ interface SortableShotCardProps {
   isConnectedToNext: boolean;
   showEndFrame: boolean;
   isPartOfConnection: boolean;
+  previousShotNumber: number | null;  // For showing "Inherited from Shot X"
   onSelectShot: (shot: Shot) => void;
   onRegenerateShot: (shotId: string) => void;
   onUpdatePrompt: (shotId: string, prompt: string) => void;
@@ -182,6 +201,7 @@ function SortableShotCard({
   shotIndex,
   sceneModel,
   sceneImageModel,
+  sceneCameraMotion,
   version,
   nextShotVersion,
   referenceImage,
@@ -192,6 +212,7 @@ function SortableShotCard({
   isConnectedToNext,
   showEndFrame,
   isPartOfConnection,
+  previousShotNumber,
   onSelectShot,
   onRegenerateShot,
   onUpdatePrompt,
@@ -223,14 +244,48 @@ function SortableShotCard({
   };
 
   const { toast } = useToast();
-  const [localPrompt, setLocalPrompt] = useState(shot.description || "");
   const [activeFrame, setActiveFrame] = useState<"start" | "end">("start");
   const [advancedImageOpen, setAdvancedImageOpen] = useState(false);
   const [advancedVideoOpen, setAdvancedVideoOpen] = useState(false);
   const [cameraPopoverOpen, setCameraPopoverOpen] = useState(false);
 
+  // Get the appropriate prompt based on active frame and mode
+  const getActivePrompt = (): string => {
+    if (narrativeMode === "start-end") {
+      // In Start-End mode, use frame-specific prompts
+      if (activeFrame === "start") {
+        return version?.startFramePrompt || "";
+      } else {
+        return version?.endFramePrompt || "";
+      }
+    } else {
+      // In Image-Reference mode, use the general imagePrompt
+      return version?.imagePrompt || "";
+    }
+  };
+
+  // Local prompt state switches based on active frame
+  const [localPrompt, setLocalPrompt] = useState(getActivePrompt());
+
+  // Update localPrompt when version changes OR when activeFrame changes
+  useEffect(() => {
+    const newPrompt = getActivePrompt();
+    console.log('[SortableShotCard] Prompt update:', {
+      shotId: shot.id,
+      versionId: version?.id,
+      narrativeMode,
+      activeFrame,
+      hasStartFramePrompt: !!version?.startFramePrompt,
+      hasEndFramePrompt: !!version?.endFramePrompt,
+      hasImagePrompt: !!version?.imagePrompt,
+      promptLength: newPrompt.length,
+    });
+    setLocalPrompt(newPrompt);
+  }, [version?.id, version?.imagePrompt, version?.startFramePrompt, version?.endFramePrompt, shot.id, activeFrame, narrativeMode]);
+
   const handlePromptBlur = () => {
-    if (localPrompt !== shot.description) {
+    const currentPrompt = getActivePrompt();
+    if (localPrompt !== currentPrompt) {
       onUpdatePrompt(shot.id, localPrompt);
     }
   };
@@ -428,13 +483,33 @@ function SortableShotCard({
 
           <TabsContent value="image" className="space-y-3 mt-0">
             <div className="space-y-2">
-              <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Prompt</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Prompt</Label>
+                {/* Show inheritance indicator for connected shots */}
+                {narrativeMode === "start-end" && activeFrame === "start" && version?.startFrameInherited && (
+                  <div className="flex items-center gap-1.5 text-xs text-cyan-400/80 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+                    <Link2 className="h-3 w-3" />
+                    <span>Inherited from Shot {previousShotNumber || "?"}</span>
+                  </div>
+                )}
+              </div>
               <Textarea
                 value={localPrompt}
-                onChange={(e) => setLocalPrompt(e.target.value)}
+                onChange={(e) => {
+                  // Don't allow changes if inherited
+                  if (narrativeMode === "start-end" && activeFrame === "start" && version?.startFrameInherited) {
+                    return;
+                  }
+                  setLocalPrompt(e.target.value);
+                }}
                 onBlur={handlePromptBlur}
                 placeholder="Describe the visual atmosphere (e.g., sunlight filtering through misty trees, calm water reflecting clouds...)"
-                className="min-h-20 text-xs resize-none bg-white/5 border-white/10"
+                readOnly={narrativeMode === "start-end" && activeFrame === "start" && version?.startFrameInherited}
+                className={`min-h-20 text-xs resize-none bg-white/5 border-white/10 ${
+                  narrativeMode === "start-end" && activeFrame === "start" && version?.startFrameInherited
+                    ? "opacity-70 cursor-not-allowed border-cyan-500/30"
+                    : ""
+                }`}
                 data-testid={`input-prompt-${shot.id}`}
               />
             </div>
@@ -467,11 +542,11 @@ function SortableShotCard({
                     </SelectTrigger>
                     <SelectContent className="bg-[#0a0a0a] border-white/10">
                       <SelectItem value="scene-default" className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
-                        Scene Default {sceneImageModel ? `(${sceneImageModel})` : ""}
+                        Scene Default {sceneImageModel ? `(${getImageModelLabel(sceneImageModel)})` : ""}
                       </SelectItem>
                       {IMAGE_MODELS.map((model) => (
                         <SelectItem key={model} value={model} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
-                          {model}
+                          {getImageModelLabel(model)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -609,11 +684,11 @@ function SortableShotCard({
                     </SelectTrigger>
                     <SelectContent className="bg-[#0a0a0a] border-white/10">
                       <SelectItem value="scene-default" className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
-                        Scene Default {sceneModel ? `(${sceneModel})` : ""}
+                        Scene Default {sceneModel ? `(${getVideoModelLabel(sceneModel)})` : ""}
                       </SelectItem>
                       {VIDEO_MODELS.map((model) => (
                         <SelectItem key={model} value={model} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
-                          {model}
+                          {getVideoModelLabel(model)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -631,14 +706,37 @@ function SortableShotCard({
                       <SelectValue placeholder="Select duration" />
                     </SelectTrigger>
                     <SelectContent className="bg-[#0a0a0a] border-white/10">
-                      {(shot.videoModel && VIDEO_MODEL_DURATIONS[shot.videoModel] 
-                        ? VIDEO_MODEL_DURATIONS[shot.videoModel]
-                        : sceneModel && VIDEO_MODEL_DURATIONS[sceneModel]
-                        ? VIDEO_MODEL_DURATIONS[sceneModel]
-                        : []
+                      {(shot.videoModel 
+                        ? getVideoModelDurations(shot.videoModel)
+                        : sceneModel 
+                        ? getVideoModelDurations(sceneModel)
+                        : [5, 10]
                       ).map((duration) => (
                         <SelectItem key={duration} value={duration.toString()} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
                           {duration}s
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Camera Movement - can override scene default */}
+                <div className="space-y-1">
+                  <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Camera Movement</Label>
+                  <Select
+                    value={shot.cameraMovement || "scene-default"}
+                    onValueChange={(value) => onUpdateShot(shot.id, { cameraMovement: value === "scene-default" ? sceneCameraMotion || CAMERA_MOVEMENTS[0] : value })}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-camera-movement-${shot.id}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0a0a0a] border-white/10">
+                      <SelectItem value="scene-default" className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
+                        Scene Default {sceneCameraMotion ? `(${getCameraMotionLabel(sceneCameraMotion)})` : ""}
+                      </SelectItem>
+                      {CAMERA_MOVEMENTS.map((movement) => (
+                        <SelectItem key={movement} value={movement} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
+                          {getCameraMotionLabel(movement)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -715,6 +813,7 @@ function SortableShotCard({
 
 export function StoryboardEditor({
   videoId,
+  step1Data,
   narrativeMode,
   animationMode,
   scenes,
@@ -763,7 +862,6 @@ export function StoryboardEditor({
   const [cameraWideAngle, setCameraWideAngle] = useState(false);
   const [viewMode, setViewMode] = useState<"cards" | "timeline">("cards");
   const [timelinePlayhead, setTimelinePlayhead] = useState(0);
-  const [sceneAnimationModes, setSceneAnimationModes] = useState<Record<string, string>>({});
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
   const editReferenceInputRef = useRef<HTMLInputElement>(null);
@@ -795,6 +893,80 @@ export function StoryboardEditor({
     }
   }, [selectedShot?.id, selectedShot?.currentVersionId]);
 
+  // Track which scenes have been initialized with step1Data defaults
+  const [initializedSceneIds, setInitializedSceneIds] = useState<Set<string>>(new Set());
+
+  // Initialize scene settings from step1Data when scenes first appear
+  useEffect(() => {
+    console.log('[StoryboardEditor] Init check:', { 
+      hasStep1Data: !!step1Data, 
+      scenesCount: scenes.length,
+      hasOnUpdateScene: !!onUpdateScene,
+      step1DataVideoModel: step1Data?.videoModel,
+      step1DataImageModel: step1Data?.imageModel,
+      step1DataCameraMotion: step1Data?.cameraMotion,
+    });
+    
+    if (!step1Data || scenes.length === 0 || !onUpdateScene) {
+      console.log('[StoryboardEditor] Skipping initialization - missing data');
+      return;
+    }
+
+    // Find scenes that haven't been initialized yet (check if ANY field is missing)
+    const uninitializedScenes = scenes.filter(
+      scene => !initializedSceneIds.has(scene.id) && 
+               (!scene.videoModel || !scene.imageModel || !scene.cameraMotion)
+    );
+
+    console.log('[StoryboardEditor] Scene states:', scenes.map(s => ({
+      id: s.id,
+      title: s.title,
+      videoModel: s.videoModel,
+      imageModel: s.imageModel,
+      cameraMotion: s.cameraMotion,
+      isInitialized: initializedSceneIds.has(s.id),
+    })));
+
+    if (uninitializedScenes.length === 0) {
+      console.log('[StoryboardEditor] All scenes already initialized');
+      return;
+    }
+
+    console.log('[StoryboardEditor] Initializing scene defaults from step1Data:', {
+      scenesToInit: uninitializedScenes.length,
+      videoModel: step1Data.videoModel,
+      imageModel: step1Data.imageModel,
+      cameraMotion: step1Data.cameraMotion,
+    });
+
+    // Initialize each uninitalized scene - only fill in missing fields
+    uninitializedScenes.forEach(scene => {
+      const updates: Partial<Scene> = {};
+      
+      if (!scene.videoModel) {
+        updates.videoModel = step1Data.videoModel || VIDEO_MODELS[0];
+      }
+      if (!scene.imageModel) {
+        updates.imageModel = step1Data.imageModel || IMAGE_MODELS[0];
+      }
+      if (!scene.cameraMotion) {
+        updates.cameraMotion = step1Data.cameraMotion || CAMERA_MOVEMENTS[0];
+      }
+      
+      if (Object.keys(updates).length > 0) {
+        console.log('[StoryboardEditor] Updating scene', scene.id, 'with:', updates);
+        onUpdateScene(scene.id, updates);
+      }
+    });
+
+    // Track which scenes we've initialized
+    setInitializedSceneIds(prev => {
+      const newSet = new Set(prev);
+      uninitializedScenes.forEach(scene => newSet.add(scene.id));
+      return newSet;
+    });
+  }, [scenes, step1Data, onUpdateScene, initializedSceneIds]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -812,9 +984,32 @@ export function StoryboardEditor({
 
   // Helper to get current version of a shot
   const getShotVersion = (shot: Shot): ShotVersion | null => {
-    if (!shot.currentVersionId) return null;
     const versions = shotVersions[shot.id] || [];
-    return versions.find((v) => v.id === shot.currentVersionId) || null;
+    
+    console.log('[getShotVersion]', {
+      shotId: shot.id,
+      currentVersionId: shot.currentVersionId,
+      versionsCount: versions.length,
+      hasImagePrompt: versions[0]?.imagePrompt ? 'yes' : 'no',
+    });
+    
+    // If shot has a currentVersionId, use that specific version
+    if (shot.currentVersionId) {
+      const found = versions.find((v) => v.id === shot.currentVersionId);
+      console.log('[getShotVersion] Found by currentVersionId:', found?.id, 'imagePrompt length:', found?.imagePrompt?.length);
+      return found || null;
+    }
+    
+    // Otherwise, return the latest version (last in array) if any exist
+    // This handles cases where Agent 4.1 generated prompts but currentVersionId wasn't set
+    if (versions.length > 0) {
+      const latest = versions[versions.length - 1];
+      console.log('[getShotVersion] Returning latest version:', latest?.id, 'imagePrompt length:', latest?.imagePrompt?.length);
+      return latest;
+    }
+    
+    console.log('[getShotVersion] No version found');
+    return null;
   };
 
   // Helper to get the version being previewed (or active version if no preview)
@@ -914,6 +1109,43 @@ export function StoryboardEditor({
       
       if (currentIdx !== -1 && nextIdx === currentIdx + 1) {
         return nextShot; // Return the next connected shot
+      }
+    }
+    
+    return null;
+  };
+
+  // Helper: Check if a shot is the FIRST in its continuity group (for inheritance display)
+  const isShotFirstInGroup = (sceneId: string, shotId: string): boolean => {
+    if (narrativeMode !== "start-end" || !continuityLocked) return false;
+    
+    const sceneGroups = continuityGroups[sceneId] || [];
+    
+    for (const group of sceneGroups) {
+      const shotIds = group.shotIds || [];
+      if (shotIds[0] === shotId) {
+        return true; // This shot is the first in the group
+      }
+    }
+    
+    return false;
+  };
+
+  // Helper: Get the previous shot in continuity group (for showing "Inherited from Shot X")
+  const getPreviousShotInGroup = (sceneId: string, shotId: string): Shot | null => {
+    if (narrativeMode !== "start-end" || !continuityLocked) return null;
+    
+    const sceneGroups = continuityGroups[sceneId] || [];
+    const sceneShots = localShots[sceneId] || [];
+    
+    for (const group of sceneGroups) {
+      const shotIds = group.shotIds || [];
+      const idx = shotIds.indexOf(shotId);
+      
+      if (idx > 0) {
+        // Found in group and not first - get previous shot
+        const previousShotId = shotIds[idx - 1];
+        return sceneShots.find(s => s.id === previousShotId) || null;
       }
     }
     
@@ -1202,40 +1434,22 @@ export function StoryboardEditor({
                         onValueChange={(value) => onUpdateScene?.(scene.id, { imageModel: value })}
                       >
                         <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-scene-image-model-${scene.id}`}>
-                          <SelectValue />
+                          <SelectValue placeholder="Select image model">
+                            {scene.imageModel ? getImageModelLabel(scene.imageModel) : getImageModelLabel(IMAGE_MODELS[0])}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent className="bg-[#0a0a0a] border-white/10">
                           {IMAGE_MODELS.map((model) => (
                             <SelectItem key={model} value={model} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
-                              {model}
+                              {getImageModelLabel(model)}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Animation Mode</Label>
-                      <Select
-                        value={sceneAnimationModes[scene.id] || "smooth-image"}
-                        onValueChange={(value) => {
-                          setSceneAnimationModes(prev => ({ ...prev, [scene.id]: value }));
-                        }}
-                      >
-                        <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-animation-mode-${scene.id}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#0a0a0a] border-white/10">
-                          {ANIMATION_MODE_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {(sceneAnimationModes[scene.id] || "smooth-image") === "animate" && (
+                    {/* Video Model - shown in video-animation mode */}
+                    {animationMode === "video-animation" && (
                       <div className="space-y-1">
                         <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Video Model</Label>
                         <Select
@@ -1243,18 +1457,42 @@ export function StoryboardEditor({
                           onValueChange={(value) => onUpdateScene?.(scene.id, { videoModel: value })}
                         >
                           <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-scene-video-model-${scene.id}`}>
-                            <SelectValue />
+                            <SelectValue placeholder="Select video model">
+                              {scene.videoModel ? getVideoModelLabel(scene.videoModel) : getVideoModelLabel(VIDEO_MODELS[0])}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent className="bg-[#0a0a0a] border-white/10">
                             {VIDEO_MODELS.map((model) => (
                               <SelectItem key={model} value={model} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
-                                {model}
+                                {getVideoModelLabel(model)}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
                     )}
+
+                    {/* Camera Motion - scene default for all shots */}
+                    <div className="space-y-1">
+                      <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Camera Motion</Label>
+                      <Select
+                        value={scene.cameraMotion || CAMERA_MOVEMENTS[0]}
+                        onValueChange={(value) => onUpdateScene?.(scene.id, { cameraMotion: value })}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-scene-camera-motion-${scene.id}`}>
+                          <SelectValue placeholder="Select camera motion">
+                            {scene.cameraMotion ? getCameraMotionLabel(scene.cameraMotion) : getCameraMotionLabel(CAMERA_MOVEMENTS[0])}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#0a0a0a] border-white/10">
+                          {CAMERA_MOVEMENTS.map((motion) => (
+                            <SelectItem key={motion} value={motion} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
+                              {getCameraMotionLabel(motion)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
                     <div className="space-y-1">
                       <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Motion Intensity</Label>
@@ -1319,6 +1557,10 @@ export function StoryboardEditor({
                           // Get next shot's version for connected shots
                           const nextShot = getNextConnectedShot(scene.id, shotIndex);
                           const nextShotVersion = nextShot ? getShotVersion(nextShot) : null;
+                          
+                          // Get previous shot number for inherited start frame display
+                          const previousShot = getPreviousShotInGroup(scene.id, shot.id);
+                          const previousShotNumber = previousShot ? previousShot.shotNumber : null;
 
                           return (
                             <>
@@ -1328,6 +1570,7 @@ export function StoryboardEditor({
                                 shotIndex={shotIndex}
                                 sceneModel={scene.videoModel || VIDEO_MODELS[0]}
                                 sceneImageModel={scene.imageModel || IMAGE_MODELS[0]}
+                                sceneCameraMotion={scene.cameraMotion || CAMERA_MOVEMENTS[0]}
                                 version={version}
                                 nextShotVersion={nextShotVersion}
                                 referenceImage={referenceImage}
@@ -1338,6 +1581,7 @@ export function StoryboardEditor({
                                 isConnectedToNext={isConnectedToNext}
                                 showEndFrame={showEndFrame}
                                 isPartOfConnection={isPartOfConnection}
+                                previousShotNumber={previousShotNumber}
                                 onSelectShot={handleSelectShot}
                                 onRegenerateShot={onRegenerateShot}
                                 onUpdatePrompt={handleUpdatePrompt}

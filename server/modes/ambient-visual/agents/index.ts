@@ -14,9 +14,12 @@ export { generateScenes } from './scene-generator';
 export { composeShots, composeShotsForScenes } from './shot-composer';
 export { proposeContinuity } from './continuity-producer';
 
+// Step 4: Composition Phase (Video Animation Mode)
+export { generateVideoPrompts } from './video-prompt-engineer';
+
 // Future agents:
 // Step 2: Visual World - Style descriptor, reference image processor
-// Step 4: Composition - Image generator, video generator
+// Step 4: Composition - Image generator (video-image-generator), Video generator (video-clip-generator)
 // Step 5: Preview - Animatic assembler
 // Step 6: Export - Final video processor
 

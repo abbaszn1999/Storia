@@ -15,7 +15,7 @@
 
 import { callAi } from '../../../../ai/service';
 import { runwareModelIdMap } from '../../../../ai/config';
-import { getImageDimensions } from '../../../../stories/shared/config/image-models';
+import { getImageDimensions } from '../../../../ai/config';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES

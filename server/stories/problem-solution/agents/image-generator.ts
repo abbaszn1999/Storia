@@ -24,8 +24,7 @@ import { randomUUID } from "crypto";
 import { callAi } from "../../../ai/service";
 import { runwareModelIdMap } from "../../../ai/config";
 import { enhanceImagePrompt } from "../prompts/image-prompts";
-import { getImageDimensions } from "../config";
-import { getImageModelConfig } from "../../shared/config/image-models";
+import { getImageDimensions, getImageModelConfig } from "../config";
 import type {
   ImageGeneratorInput,
   ImageGeneratorOutput,
@@ -99,6 +98,8 @@ function buildImagePayload(
   const modelConfig = getImageModelConfig(imageModel);
   const maxReferenceImages = modelConfig?.maxReferenceImages ?? 0;
   const supportsCharacterReference = modelConfig?.supportsCharacterReference ?? false;
+  const referenceImageFormat = modelConfig?.referenceImageFormat || 'direct';
+  const requiresReferenceImages = modelConfig?.requiresReferenceImages ?? false;
   
   // When custom style reference is provided, use original prompt without style modifiers
   // The reference image itself will guide the visual style
@@ -144,29 +145,87 @@ function buildImagePayload(
 
   // Build referenceImages array respecting model limits
   // Priority: Style Reference > Character Reference
+  
+  // Check if model requires reference images
+  if (requiresReferenceImages && !styleReferenceUrl && !characterReferenceUrl) {
+    throw new Error(
+      `Model "${imageModel}" requires at least one reference image (style or character). ` +
+      `Please upload a reference image before generating.`
+    );
+  }
+  
   if (maxReferenceImages > 0) {
     const referenceImages: string[] = [];
     
     // Add style reference first (highest priority)
     if (styleReferenceUrl) {
-      referenceImages.push(styleReferenceUrl);
-      console.log(`[image-generator] Scene ${scene.sceneNumber} using style reference (visual style modifiers disabled)`);
+      // Validate URL format before adding
+      if (!styleReferenceUrl || typeof styleReferenceUrl !== 'string' || styleReferenceUrl.trim() === '') {
+        console.error(`[image-generator] Scene ${scene.sceneNumber} invalid style reference URL:`, styleReferenceUrl);
+      } else if (!styleReferenceUrl.startsWith('http://') && !styleReferenceUrl.startsWith('https://')) {
+        console.error(`[image-generator] Scene ${scene.sceneNumber} style reference URL must be a full URL:`, styleReferenceUrl);
+      } else {
+        referenceImages.push(styleReferenceUrl);
+        console.log(`[image-generator] Scene ${scene.sceneNumber} using style reference (visual style modifiers disabled)`);
+      }
     }
     
     // Add character reference if supported and within limit
     if (characterReferenceUrl && supportsCharacterReference && referenceImages.length < maxReferenceImages) {
-      referenceImages.push(characterReferenceUrl);
-      console.log(`[image-generator] Scene ${scene.sceneNumber} using character reference`);
+      // Validate URL format before adding
+      if (!characterReferenceUrl || typeof characterReferenceUrl !== 'string' || characterReferenceUrl.trim() === '') {
+        console.error(`[image-generator] Scene ${scene.sceneNumber} invalid character reference URL:`, characterReferenceUrl);
+      } else if (!characterReferenceUrl.startsWith('http://') && !characterReferenceUrl.startsWith('https://')) {
+        console.error(`[image-generator] Scene ${scene.sceneNumber} character reference URL must be a full URL:`, characterReferenceUrl);
+      } else {
+        referenceImages.push(characterReferenceUrl);
+        console.log(`[image-generator] Scene ${scene.sceneNumber} using character reference`);
+      }
     } else if (characterReferenceUrl && !supportsCharacterReference) {
       console.log(`[image-generator] Scene ${scene.sceneNumber} character reference ignored (model doesn't support it)`);
     } else if (characterReferenceUrl && referenceImages.length >= maxReferenceImages) {
       console.log(`[image-generator] Scene ${scene.sceneNumber} character reference ignored (model limit: ${maxReferenceImages})`);
     }
     
-    // Add to payload if we have any references
+    // Final validation: if model requires reference images, ensure we have at least one valid reference
+    if (requiresReferenceImages && referenceImages.length === 0) {
+      throw new Error(
+        `Model "${imageModel}" requires at least one valid reference image. ` +
+        `Please ensure your reference image URLs are valid and accessible.`
+      );
+    }
+    
+    // Add to payload if we have any valid references
+    // Format depends on model's referenceImageFormat setting
     if (referenceImages.length > 0) {
-      payload.referenceImages = referenceImages;
-      console.log(`[image-generator] Scene ${scene.sceneNumber} using ${referenceImages.length}/${maxReferenceImages} reference images`);
+      if (referenceImageFormat === 'inputs-with-tags') {
+        // Runway Gen-4 Image & Turbo: need inputs.referenceImages with tags
+        // Tags: style reference = "style", character reference = "character"
+        payload.inputs = {
+          referenceImages: referenceImages.map((url) => {
+            // Determine tag based on which reference this URL belongs to
+            const isStyleRef = styleReferenceUrl && url === styleReferenceUrl;
+            const tag = isStyleRef ? 'style' : 'character';
+            return {
+              image: url,
+              tag: tag
+            };
+          })
+        };
+        console.log(`[image-generator] Scene ${scene.sceneNumber} using inputs.referenceImages with tags (${referenceImages.length}/${maxReferenceImages}):`, payload.inputs.referenceImages);
+      } else if (referenceImageFormat === 'inputs') {
+        // Kling IMAGE O1, Seedream 4.5, FLUX.2 [max]: need inputs.referenceImages (array of URLs)
+        payload.inputs = {
+          referenceImages: referenceImages
+        };
+        console.log(`[image-generator] Scene ${scene.sceneNumber} using inputs.referenceImages (${referenceImages.length}/${maxReferenceImages}):`, referenceImages);
+      } else {
+        // Direct format: OpenAI, Nano Banana, Seedream 4.0, FLUX.2 [dev/pro/flex]
+        payload.referenceImages = referenceImages;
+        console.log(`[image-generator] Scene ${scene.sceneNumber} using referenceImages directly (${referenceImages.length}/${maxReferenceImages}):`, referenceImages);
+      }
+    } else if (styleReferenceUrl || characterReferenceUrl) {
+      console.warn(`[image-generator] Scene ${scene.sceneNumber} reference images were provided but none were valid/added`);
     }
   } else if (styleReferenceUrl || characterReferenceUrl) {
     console.log(`[image-generator] Scene ${scene.sceneNumber} reference images ignored (model doesn't support them)`);

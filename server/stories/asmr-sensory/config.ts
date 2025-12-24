@@ -17,7 +17,7 @@ import {
   getDimensions,
   type VideoModelConfig,
   type VideoDimensions,
-} from '../shared/config';
+} from '../../ai/config';
 
 // Re-export shared configs for backward compatibility
 export {

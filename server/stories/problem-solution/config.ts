@@ -8,12 +8,15 @@ import {
   getDefaultImageModel,
   getDefaultVideoModel,
   getImageDimensions,
+  getImageModelConfig,
   getDimensions,
+  getVideoModelConstraints,
   type ImageModelConfig,
   type VideoModelConfig,
   type ImageDimensions,
   type VideoDimensions,
-} from '../shared/config';
+  type VideoModelConstraints,
+} from '../../ai/config';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MODE-SPECIFIC CONFIGURATION
@@ -57,6 +60,7 @@ export {
   IMAGE_MODEL_CONFIGS,
   getDefaultImageModel,
   getImageDimensions,
+  getImageModelConfig,
   type ImageModelConfig,
   type ImageDimensions,
   
@@ -64,6 +68,8 @@ export {
   VIDEO_MODEL_CONFIGS,
   getDefaultVideoModel,
   getDimensions,
+  getVideoModelConstraints,
   type VideoModelConfig,
   type VideoDimensions,
+  type VideoModelConstraints,
 };

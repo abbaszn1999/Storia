@@ -113,7 +113,34 @@ export async function generateVideo(
 
   // Add provider-specific settings for audio generation
   if (supportsAudio) {
-    if (modelId === "pixverse-v5.5") {
+    if (modelId === "seedance-1.5-pro") {
+      // Seedance 1.5 Pro audio settings (ByteDance)
+      payload.providerSettings = {
+        bytedance: {
+          audio: true,
+          cameraFixed: false,
+        },
+      };
+      console.log("[asmr-video-generator] Enabled Seedance 1.5 Pro native audio generation");
+    } else if (modelId === "kling-video-2.6-pro") {
+      // Kling VIDEO 2.6 Pro audio settings (KlingAI)
+      payload.providerSettings = {
+        klingai: {
+          sound: true,
+          cfgScale: 0.5,
+        },
+      };
+      console.log("[asmr-video-generator] Enabled Kling VIDEO 2.6 Pro native audio generation");
+    } else if (modelId === "veo-3.0" || modelId === "veo-3-fast" || modelId === "veo-3.1" || modelId === "veo-3.1-fast") {
+      // Google Veo audio settings (all variants)
+      payload.providerSettings = {
+        google: {
+          generateAudio: true,
+          enhancePrompt: true,
+        },
+      };
+      console.log(`[asmr-video-generator] Enabled ${modelId} native audio generation`);
+    } else if (modelId === "pixverse-v5.5") {
       // PixVerse v5.5 audio settings
       payload.providerSettings = {
         pixverse: {
@@ -122,47 +149,78 @@ export async function generateVideo(
         },
       };
       console.log("[asmr-video-generator] Enabled PixVerse audio generation");
-    } else if (modelId === "veo-3.0" || modelId === "veo-3.1") {
-      // Google Veo 3.0/3.1 audio settings (uses "google" key with "generateAudio")
-      payload.providerSettings = {
-        google: {
-          generateAudio: true,
-        },
-      };
-      console.log(`[asmr-video-generator] Enabled ${modelId} native audio generation`);
     } else if (modelId === "ltx-2-pro") {
       // LTX-2 Pro audio settings (Lightricks)
       payload.providerSettings = {
         lightricks: {
           generateAudio: true,
+          fps: 25,
         },
       };
       console.log("[asmr-video-generator] Enabled LTX-2 Pro audio generation");
+    } else if (modelId === "alibaba-wan-2.6") {
+      // Alibaba Wan 2.6 audio settings
+      payload.providerSettings = {
+        alibaba: {
+          audio: true,
+        },
+      };
+      console.log("[asmr-video-generator] Enabled Alibaba Wan 2.6 native audio generation");
     }
   }
 
   // Add frame images if provided (for I2V - Image to Video)
   // Note: frameImages is OPTIONAL - video can be generated without reference image
-  // Runware format: array of objects { inputImage: URL } - NO frame parameter needed!
+  // Some models require inputs.frameImages, others use frameImages directly
   if (firstFrameImage || lastFrameImage) {
-    const frameImages: { inputImage: string }[] = [];
+    const frameImagesData: { inputImage: string; frame: "first" | "last" }[] = [];
     
     if (firstFrameImage) {
       console.log("[asmr-video-generator] Raw firstFrameImage input:", firstFrameImage);
       
       // Use URL directly - Runware accepts full URL in inputImage
-      frameImages.push({ inputImage: firstFrameImage });
+      frameImagesData.push({ inputImage: firstFrameImage, frame: "first" });
       console.log("[asmr-video-generator] First frame URL:", firstFrameImage);
     }
     if (lastFrameImage) {
       console.log("[asmr-video-generator] Raw lastFrameImage input:", lastFrameImage);
       
-      frameImages.push({ inputImage: lastFrameImage });
+      frameImagesData.push({ inputImage: lastFrameImage, frame: "last" });
       console.log("[asmr-video-generator] Last frame URL:", lastFrameImage);
     }
     
-    payload.frameImages = frameImages;
-    console.log("[asmr-video-generator] Final frameImages payload:", JSON.stringify(frameImages));
+    // Models that require "inputs" wrapper for frameImages
+    // Note: Different models require different frameImages formats:
+    // - Runway, Hailuo, LTX-2 Pro: array of objects with { inputImage, frame }
+    // - Alibaba Wan 2.6: array of objects with { image: "url" } in inputs.frameImages
+    const modelsRequiringInputsWrapper = [
+      "runway:1@1",      // Runway Gen-4 Turbo
+      "runway:2@1",      // Runway Gen-4 (if exists)
+      "minimax:4@1",     // Hailuo 2.3
+      "lightricks:2@0",  // LTX-2 Pro
+      "alibaba:wan@2.6", // Alibaba Wan 2.6 - requires inputs.frameImages as array of objects with { image: "url" }
+    ];
+    
+    const useInputsWrapper = modelsRequiringInputsWrapper.includes(runwareModelId);
+    const isAlibabaWan = runwareModelId === "alibaba:wan@2.6";
+    
+    if (useInputsWrapper) {
+      if (isAlibabaWan) {
+        // Alibaba Wan 2.6: array of objects with { image: "url" }
+        const frameImagesForAlibaba = frameImagesData.map(item => ({ image: item.inputImage }));
+        payload.inputs = { frameImages: frameImagesForAlibaba };
+        console.log("[asmr-video-generator] Using inputs.frameImages format (Alibaba Wan 2.6 - array of objects with 'image' property)");
+      } else {
+        // Other models: array of objects with { inputImage, frame }
+        payload.inputs = { frameImages: frameImagesData };
+        console.log("[asmr-video-generator] Using inputs.frameImages format (array of objects)");
+      }
+    } else {
+      payload.frameImages = frameImagesData;
+      console.log("[asmr-video-generator] Using direct frameImages format");
+    }
+    const finalFrameImages = (payload.inputs as any)?.frameImages || (payload as any).frameImages;
+    console.log("[asmr-video-generator] Final frameImages payload:", JSON.stringify(finalFrameImages));
   } else {
     console.log("[asmr-video-generator] No reference image (T2V mode)");
   }

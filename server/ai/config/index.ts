@@ -26,8 +26,8 @@ export {
   getDefaultImageModel,
   getAvailableImageModels,
   getImageDimensions,
+  getImageModelConfig,
   aspectRatioToDimensions,
   type ImageModelConfig,
   type ImageDimensions,
 } from './image-models';
-

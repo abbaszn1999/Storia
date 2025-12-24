@@ -21,7 +21,7 @@
 
 import { callAi } from "../../../ai/service";
 import { runwareModelIdMap } from "../../../ai/config";
-import { getDimensions, VIDEO_MODEL_CONFIGS } from "../../shared/config";
+import { getDimensions, VIDEO_MODEL_CONFIGS } from "../config";
 import { randomUUID } from "crypto";
 import {
   buildVideoPrompt,
@@ -212,8 +212,36 @@ export async function generateVideos(
     throw new Error(`Unknown video model: ${videoModel}`);
   }
 
-  // Get dimensions for aspect ratio and resolution
-  const dimensions = getDimensions(aspectRatio, videoResolution, videoModel);
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SAFETY: Validate aspect ratio compatibility with video model
+  // If the model doesn't support the requested aspect ratio, use fallback
+  // ═══════════════════════════════════════════════════════════════════════════
+  let finalAspectRatio: typeof modelConfig.aspectRatios[number] = 
+    modelConfig.aspectRatios.includes(aspectRatio as any) 
+      ? (aspectRatio as typeof modelConfig.aspectRatios[number])
+      : modelConfig.aspectRatios[0];
+      
+  let finalResolution: typeof modelConfig.resolutions[number] = 
+    modelConfig.resolutions.includes(videoResolution as any)
+      ? (videoResolution as typeof modelConfig.resolutions[number])
+      : modelConfig.resolutions[0];
+  
+  if (finalAspectRatio !== aspectRatio) {
+    console.warn(
+      `[problem-solution:video-generator] ⚠️ Model "${videoModel}" doesn't support aspect ratio "${aspectRatio}". ` +
+      `Auto-correcting to "${finalAspectRatio}"`
+    );
+  }
+  
+  if (finalResolution !== videoResolution) {
+    console.warn(
+      `[problem-solution:video-generator] ⚠️ Model "${videoModel}" doesn't support resolution "${videoResolution}". ` +
+      `Auto-correcting to "${finalResolution}"`
+    );
+  }
+
+  // Get dimensions for validated aspect ratio and resolution
+  const dimensions = getDimensions(finalAspectRatio, finalResolution, videoModel);
 
   // Get Runware model ID
   const runwareModelId = runwareModelIdMap[videoModel];
@@ -224,8 +252,10 @@ export async function generateVideos(
   console.log("[problem-solution:video-generator] Starting video generation:", {
     sceneCount: scenes.length,
     videoModel,
-    videoResolution,
-    aspectRatio,
+    requestedAspectRatio: aspectRatio,
+    finalAspectRatio,
+    requestedResolution: videoResolution,
+    finalResolution,
     imageStyle,
     dimensions,
     supportedDurations: modelConfig.durations,
@@ -283,6 +313,63 @@ export async function generateVideos(
     });
 
     // Build Runware payload for video inference
+    // Note: Different models require different frameImages formats:
+    // - Runway, Hailuo, LTX-2 Pro: array of objects with { inputImage, frame }
+    // - Alibaba Wan 2.6: array of objects with { image: "url" } in inputs.frameImages
+    const modelsRequiringInputsWrapper = [
+      "runway:1@1",      // Runway Gen-4 Turbo
+      "runway:2@1",      // Runway Gen-4 (if exists)
+      "minimax:4@1",     // Hailuo 2.3
+      "lightricks:2@0",  // LTX-2 Pro
+      "alibaba:wan@2.6", // Alibaba Wan 2.6 - requires inputs.frameImages as array of strings
+    ];
+    
+    const useInputsWrapper = modelsRequiringInputsWrapper.includes(runwareModelId);
+    const isAlibabaWan = runwareModelId === "alibaba:wan@2.6";
+    
+    // Build frameImages payload based on model requirements
+    let frameImagesPayload: Record<string, any> = {};
+    if (useInputsWrapper) {
+      if (isAlibabaWan) {
+        // Alibaba Wan 2.6: array of objects with { image: "url" }
+        frameImagesPayload = { inputs: { frameImages: [{ image: scene.imageUrl }] } };
+      } else {
+        // Other models: array of objects with { inputImage, frame }
+        const frameImagesData = [{ 
+          inputImage: scene.imageUrl,
+          frame: "first" as const,
+        }];
+        frameImagesPayload = { inputs: { frameImages: frameImagesData } };
+      }
+    } else {
+      // Models that use frameImages directly (not in inputs)
+      const frameImagesData = [{ 
+        inputImage: scene.imageUrl,
+        frame: "first" as const,
+      }];
+      frameImagesPayload = { frameImages: frameImagesData };
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DISABLE AUDIO: Problem-solution mode should NOT generate audio
+    // Voiceover is handled separately via ElevenLabs
+    // ═══════════════════════════════════════════════════════════════════════════
+    let providerSettings: Record<string, any> | undefined;
+    
+    if (runwareModelId.startsWith("bytedance:")) {
+      providerSettings = { bytedance: { audio: false } };
+    } else if (runwareModelId.startsWith("google:3@")) {
+      providerSettings = { google: { generateAudio: false } };
+    } else if (runwareModelId.startsWith("lightricks:")) {
+      providerSettings = { lightricks: { generateAudio: false } };
+    } else if (runwareModelId.startsWith("pixverse:")) {
+      providerSettings = { pixverse: { audio: false } };
+    } else if (runwareModelId === "klingai:kling-video@2.6-pro") {
+      providerSettings = { klingai: { sound: false } };
+    } else if (runwareModelId.startsWith("alibaba:")) {
+      providerSettings = { alibaba: { audio: false } };
+    }
+    
     return {
       taskType: "videoInference",
       taskUUID,
@@ -291,7 +378,9 @@ export async function generateVideos(
       width: dimensions.width,
       height: dimensions.height,
       duration: matchedDuration,
-      frameImages: [{ inputImage: scene.imageUrl }],
+      ...frameImagesPayload,  // Spread the appropriate format
+      // Disable audio for all models that support it
+      ...(providerSettings && { providerSettings }),
       numberResults: 1,
       deliveryMethod: "async",
       includeCost: true,

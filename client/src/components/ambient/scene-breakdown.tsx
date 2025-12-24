@@ -626,6 +626,15 @@ export function SceneBreakdown({
       // Set local lock state after successful save
       setLocalContinuityLocked(true);
       
+      // IMPORTANT: Update parent state with approved groups before locking
+      // This ensures the parent's validation logic has access to the correct
+      // group statuses (approved vs proposed) for the Continue button
+      if (onContinuityGroupsChange) {
+        // Merge all groups with updated statuses for parent
+        const allGroupsForParent = mergeAllGroups(approvedGroups, {}, declinedGroups);
+        onContinuityGroupsChange(allGroupsForParent);
+      }
+      
       // Update parent state to lock continuity
       if (onContinuityLocked) {
         onContinuityLocked();

@@ -1403,7 +1403,14 @@ export function useStoryStudio(template: StoryTemplate | null) {
 
   // Completion check helpers
   const hasProjectName = state.projectName.trim().length > 0;
-  const isStep1Complete = state.topic.trim().length > 0 && hasProjectName;
+  
+  // Check if selected image model requires reference images
+  const selectedImageModel = getImageModelConfig(state.imageModel);
+  const requiresReferenceImages = selectedImageModel?.requiresReferenceImages ?? false;
+  const hasReferenceImage = !!(state.styleReferenceUrl || state.characterReferenceUrl);
+  const referenceImagesValid = !requiresReferenceImages || hasReferenceImage;
+  
+  const isStep1Complete = state.topic.trim().length > 0 && hasProjectName && referenceImagesValid;
   
   // Script step is complete only if scenes exist AND total duration matches target
   const totalSceneDuration = state.scenes.reduce((sum, scene) => sum + scene.duration, 0);

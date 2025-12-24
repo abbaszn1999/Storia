@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import narrativeRoutes from "./modes/narrative/routes";
 import { ambientVisualRoutes } from "./modes/ambient-visual";
+import { socialCommerceRoutes } from "./modes/social-commerce";
 import storiesRouter from "./stories";
 import { psRouter as problemSolutionRouter } from "./stories/problem-solution/routes";
 import { storageRoutes } from "./storage/index";
@@ -31,6 +32,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Feature routes
   app.use('/api/narrative', narrativeRoutes);
   app.use('/api/ambient-visual', ambientVisualRoutes);
+  app.use('/api/social-commerce', socialCommerceRoutes);
   app.use('/api/stories', storiesRouter);
   app.use('/api/problem-solution', problemSolutionRouter);
   app.use('/api/storage', storageRoutes);

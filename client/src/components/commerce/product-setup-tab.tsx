@@ -28,91 +28,65 @@ import {
   Globe,
   Wand2,
 } from "lucide-react";
+import { IMAGE_MODELS as CONSTANT_IMAGE_MODELS, RESOLUTION_LABELS as IMAGE_RESOLUTION_LABELS } from "@/constants/image-models";
+import { VIDEO_MODELS as CONSTANT_VIDEO_MODELS, VIDEO_RESOLUTION_LABELS } from "@/constants/video-models";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MODEL CONFIGURATIONS
 // ═══════════════════════════════════════════════════════════════════════════
 
-const IMAGE_MODELS = [
-  { 
-    value: "imagen-4", 
-    label: "Imagen 4", 
-    provider: "Google",
-    description: "High-quality product photography with excellent lighting",
-    badge: "Recommended",
-    cost: 0.04,
-    default: true,
-    aspectRatios: ["1:1", "9:16", "16:9", "3:4", "4:3"],
-    resolutions: ["1k", "2k", "4k"],
-  },
-  { 
-    value: "dalle-3", 
-    label: "DALL-E 3", 
-    provider: "OpenAI",
-    description: "Creative versatility for lifestyle and conceptual shots",
-    cost: 0.08,
-    aspectRatios: ["1:1", "9:16", "16:9"],
-    resolutions: ["1k"],
-  },
-  { 
-    value: "flux-1", 
-    label: "FLUX.1", 
-    provider: "Black Forest Labs",
-    description: "Photorealistic rendering for premium product visuals",
-    badge: "Pro",
-    cost: 0.12,
-    aspectRatios: ["1:1", "9:16", "16:9", "4:3", "3:4", "21:9"],
-    resolutions: ["2k", "4k"],
-  },
-];
-
-const VIDEO_MODELS = [
-  { 
-    value: "kling-o1", 
-    label: "Kling o1", 
-    provider: "KlingAI",
-    description: "Fast, dynamic motion ideal for product reveals",
-    badge: "Fast",
-    cost: 0.10,
-    estimatedTime: "2-3 min",
-    default: true,
-    durations: [5, 10, 15],
-    resolutions: ["720p", "1080p"],
-  },
-  { 
-    value: "runway-gen3", 
-    label: "Runway Gen-3", 
-    provider: "Runway",
-    description: "Cinematic quality for premium brand storytelling",
-    badge: "Cinematic",
-    cost: 0.15,
-    estimatedTime: "4-5 min",
-    durations: [5, 10, 15, 30],
-    resolutions: ["1080p", "4K Master"],
-  },
-  { 
-    value: "luma-ray2", 
-    label: "Luma Ray 2", 
-    provider: "Luma AI",
-    description: "Smooth camera movements and professional transitions",
-    cost: 0.12,
-    estimatedTime: "3-4 min",
-    durations: [5, 10, 15],
-    resolutions: ["720p", "1080p"],
-  },
-];
-
-const IMAGE_RESOLUTION_LABELS: Record<string, string> = {
-  "1k": "1K",
-  "2k": "2K",
-  "4k": "4K",
+// Cost estimates per image (approximate, based on model tier)
+const IMAGE_COST_MAP: Record<string, number> = {
+  "nano-banana": 0.01,
+  "nano-banana-2-pro": 0.03,
+  "imagen-4.0-preview": 0.04,
+  "imagen-4.0-ultra": 0.06,
+  "imagen-4.0-fast": 0.03,
+  "seedream-4.0": 0.05,
+  "seedream-4.5": 0.08,
+  "flux-2-dev": 0.10,
+  "flux-2-pro": 0.12,
+  "flux-2-flex": 0.12,
+  "midjourney-v7": 0.08,
+  "ideogram-3.0": 0.06,
 };
 
-const VIDEO_RESOLUTION_LABELS: Record<string, string> = {
-  "720p": "720p",
-  "1080p": "1080p",
-  "4K Master": "4K",
+// Cost estimates per video clip (approximate, based on model tier)
+const VIDEO_COST_MAP: Record<string, number> = {
+  "seedance-1.0-pro": 0.08,
+  "veo-3.0": 0.12,
+  "veo-3.1": 0.15,
+  "klingai-2.5-turbo-pro": 0.10,
+  "pixverse-v5.5": 0.12,
+  "hailuo-2.3": 0.10,
+  "sora-2-pro": 0.20,
+  "ltx-2-pro": 0.18,
 };
+
+// Estimated generation time based on model (approximate)
+const VIDEO_TIME_MAP: Record<string, string> = {
+  "seedance-1.0-pro": "2-3 min",
+  "veo-3.0": "3-4 min",
+  "veo-3.1": "4-5 min",
+  "klingai-2.5-turbo-pro": "2-3 min",
+  "pixverse-v5.5": "3-4 min",
+  "hailuo-2.3": "4-5 min",
+  "sora-2-pro": "5-6 min",
+  "ltx-2-pro": "4-5 min",
+};
+
+// Map constants models to component format with cost
+const IMAGE_MODELS = CONSTANT_IMAGE_MODELS.map(model => ({
+  ...model,
+  cost: IMAGE_COST_MAP[model.value] || 0.05, // Default cost if not mapped
+}));
+
+// Map constants models to component format with cost and estimatedTime
+const VIDEO_MODELS = CONSTANT_VIDEO_MODELS.map(model => ({
+  ...model,
+  cost: VIDEO_COST_MAP[model.value] || 0.10, // Default cost if not mapped
+  estimatedTime: VIDEO_TIME_MAP[model.value] || "3-4 min", // Default time if not mapped
+}));
 
 const ASPECT_RATIOS = [
   { value: "9:16", label: "9:16", description: "Stories / Reels", icon: RectangleVertical },

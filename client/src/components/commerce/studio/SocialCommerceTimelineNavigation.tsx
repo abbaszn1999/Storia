@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 interface SocialCommerceTimelineNavigationProps {
   currentStep: CommerceStepId;
   completedSteps: CommerceStepId[];
+  dirtySteps?: Set<CommerceStepId>;
   onStepClick: (step: CommerceStepId) => void;
   onNext: () => void;
   onBack: () => void;
@@ -20,6 +21,7 @@ interface SocialCommerceTimelineNavigationProps {
 export function SocialCommerceTimelineNavigation({
   currentStep,
   completedSteps,
+  dirtySteps = new Set(),
   onStepClick,
   onNext,
   onBack,
@@ -117,6 +119,15 @@ export function SocialCommerceTimelineNavigation({
                         } : undefined}
                         transition={{ duration: 2, repeat: Infinity }}
                       >
+                        {/* Dirty Step Indicator */}
+                        {dirtySteps.has(step.id) && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border-2 border-[#0a0a0a] z-10"
+                            title="Modified - will reset future steps"
+                          />
+                        )}
                         <AnimatePresence mode="wait">
                           {status === 'completed' ? (
                             <motion.div

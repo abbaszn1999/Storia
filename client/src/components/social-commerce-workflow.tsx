@@ -131,7 +131,22 @@ interface SocialCommerceWorkflowProps {
   includeHumanElement: boolean;
   characterMode: 'hand-model' | 'full-body' | 'silhouette' | null;
   characterReferenceUrl: string | null;
+  characterAssetId: string | null;
   characterDescription: string;
+  characterAIProfile: {
+    identity_id: string;
+    detailed_persona: string;
+    cultural_fit: string;
+    interaction_protocol: {
+      product_engagement: string;
+      motion_limitations: string;
+    };
+    identity_locking: {
+      strategy: string;
+      vfx_anchor_tags: string;
+    };
+  } | null;
+  isGeneratingCharacter: boolean;
   // Scene Manifest (Tab 4) props
   sceneManifest: {
     scenes: Array<{
@@ -209,11 +224,15 @@ interface SocialCommerceWorkflowProps {
     sideProfiles: string | null;
     macroTexture: string | null;
   }) => void;
+  onProductImageUpload?: (key: 'heroProfile' | 'macroDetail' | 'materialReference', file: File) => Promise<void>;
+  onProductImageDelete?: (key: 'heroProfile' | 'macroDetail' | 'materialReference') => Promise<void>;
   onMaterialPresetChange: (preset: string) => void;
   onObjectMassChange: (mass: number) => void;
   onSurfaceComplexityChange: (complexity: number) => void;
   onRefractionEnabledChange: (enabled: boolean) => void;
   onLogoUrlChange: (url: string | null) => void;
+  onLogoUpload?: (file: File) => Promise<void>;
+  onLogoDelete?: () => Promise<void>;
   onBrandPrimaryColorChange: (color: string) => void;
   onBrandSecondaryColorChange: (color: string) => void;
   onLogoIntegrityChange: (integrity: number) => void;
@@ -238,7 +257,26 @@ interface SocialCommerceWorkflowProps {
   onIncludeHumanElementChange: (include: boolean) => void;
   onCharacterModeChange: (mode: 'hand-model' | 'full-body' | 'silhouette' | null) => void;
   onCharacterReferenceUrlChange: (url: string | null) => void;
+  onCharacterImageUpload?: (file: File, name?: string, description?: string) => Promise<void>;
+  onCharacterDelete?: () => Promise<void>;
   onCharacterDescriptionChange: (description: string) => void;
+  onCharacterNameChange?: (name: string) => void;
+  onCharacterAssetIdChange?: (assetId: string | null) => void;
+  onCharacterReferenceFileChange?: (file: File | null) => void;
+  onCharacterAIProfileChange: (profile: {
+    identity_id: string;
+    detailed_persona: string;
+    cultural_fit: string;
+    interaction_protocol: {
+      product_engagement: string;
+      motion_limitations: string;
+    };
+    identity_locking: {
+      strategy: string;
+      vfx_anchor_tags: string;
+    };
+  } | null) => void;
+  onIsGeneratingCharacterChange: (generating: boolean) => void;
   // Shot Orchestrator handler
   onSceneManifestChange: (manifest: any) => void;
   onNext: () => void;
@@ -302,7 +340,10 @@ export function SocialCommerceWorkflow({
   includeHumanElement,
   characterMode,
   characterReferenceUrl,
+  characterAssetId,
   characterDescription,
+  characterAIProfile,
+  isGeneratingCharacter,
   sceneManifest,
   onScriptChange,
   onAspectRatioChange,
@@ -331,11 +372,15 @@ export function SocialCommerceWorkflow({
   onMotionPromptChange,
   onImageInstructionsChange,
   onProductImagesChange,
+  onProductImageUpload,
+  onProductImageDelete,
   onMaterialPresetChange,
   onObjectMassChange,
   onSurfaceComplexityChange,
   onRefractionEnabledChange,
   onLogoUrlChange,
+  onLogoUpload,
+  onLogoDelete,
   onBrandPrimaryColorChange,
   onBrandSecondaryColorChange,
   onLogoIntegrityChange,
@@ -357,7 +402,14 @@ export function SocialCommerceWorkflow({
   onIncludeHumanElementChange,
   onCharacterModeChange,
   onCharacterReferenceUrlChange,
+  onCharacterImageUpload,
+  onCharacterDelete,
   onCharacterDescriptionChange,
+  onCharacterNameChange,
+  onCharacterAssetIdChange,
+  onCharacterReferenceFileChange,
+  onCharacterAIProfileChange,
+  onIsGeneratingCharacterChange,
   onSceneManifestChange,
   onNext,
 }: SocialCommerceWorkflowProps) {
@@ -837,6 +889,7 @@ export function SocialCommerceWorkflow({
       {activeStep === "product-dna" && (
         <HookFormatTab
           workspaceId={workspaceId}
+          videoId={videoId}
           productImages={productImages}
           materialPreset={materialPreset}
           objectMass={objectMass}
@@ -852,14 +905,21 @@ export function SocialCommerceWorkflow({
           includeHumanElement={includeHumanElement}
           characterMode={characterMode}
           characterReferenceUrl={characterReferenceUrl}
+          characterAssetId={characterAssetId}
           characterDescription={characterDescription}
+          characterAIProfile={characterAIProfile}
+          isGeneratingCharacter={isGeneratingCharacter}
           targetAudience={targetAudience}
           onProductImagesChange={onProductImagesChange}
+          onProductImageUpload={onProductImageUpload}
+          onProductImageDelete={onProductImageDelete}
           onMaterialPresetChange={onMaterialPresetChange}
           onObjectMassChange={onObjectMassChange}
           onSurfaceComplexityChange={onSurfaceComplexityChange}
           onRefractionEnabledChange={onRefractionEnabledChange}
           onLogoUrlChange={onLogoUrlChange}
+          onLogoUpload={onLogoUpload}
+          onLogoDelete={onLogoDelete}
           onBrandPrimaryColorChange={onBrandPrimaryColorChange}
           onBrandSecondaryColorChange={onBrandSecondaryColorChange}
           onLogoIntegrityChange={onLogoIntegrityChange}
@@ -869,7 +929,14 @@ export function SocialCommerceWorkflow({
           onIncludeHumanElementChange={onIncludeHumanElementChange}
           onCharacterModeChange={onCharacterModeChange}
           onCharacterReferenceUrlChange={onCharacterReferenceUrlChange}
+          onCharacterImageUpload={onCharacterImageUpload}
+          onCharacterDelete={onCharacterDelete}
           onCharacterDescriptionChange={onCharacterDescriptionChange}
+          onCharacterNameChange={onCharacterNameChange}
+          onCharacterAssetIdChange={onCharacterAssetIdChange}
+          onCharacterReferenceFileChange={onCharacterReferenceFileChange}
+          onCharacterAIProfileChange={onCharacterAIProfileChange}
+          onIsGeneratingCharacterChange={onIsGeneratingCharacterChange}
           onNext={onNext}
         />
       )}
@@ -877,6 +944,7 @@ export function SocialCommerceWorkflow({
       {activeStep === "environment-story" && (
         <VisualStyleTab
           workspaceId={workspaceId}
+          videoId={videoId}
           environmentConcept={environmentConcept}
           cinematicLighting={cinematicLighting}
           atmosphericDensity={atmosphericDensity}

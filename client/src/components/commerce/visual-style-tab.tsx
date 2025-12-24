@@ -13,6 +13,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Lightbulb,
   Sparkles,
@@ -37,6 +38,7 @@ import { uploadFile } from "@/assets/uploads/routes";
 
 interface VisualStyleTabProps {
   workspaceId: string;
+  videoId?: string;
   environmentConcept: string;
   cinematicLighting: string;
   atmosphericDensity: number;
@@ -133,6 +135,7 @@ function SectionHeader({
 
 export function VisualStyleTab({
   workspaceId,
+  videoId,
   environmentConcept,
   cinematicLighting,
   atmosphericDensity,
@@ -156,9 +159,12 @@ export function VisualStyleTab({
   onCampaignObjectiveChange,
   onCtaTextChange,
 }: VisualStyleTabProps) {
+  const { toast } = useToast();
   const [beatsGenerated, setBeatsGenerated] = useState(false);
   const [uploadingReference, setUploadingReference] = useState(false);
   const [previewOverlayEnabled, setPreviewOverlayEnabled] = useState(false);
+  const [isGeneratingSpark, setIsGeneratingSpark] = useState(false);
+  const [isGeneratingBeats, setIsGeneratingBeats] = useState(false);
   const referenceInputRef = useRef<HTMLInputElement>(null);
 
   // Validation states (FIXED: removed targetAudience dependency)
@@ -168,9 +174,161 @@ export function VisualStyleTab({
   const beatsFilledCount = [visualBeats.beat1, visualBeats.beat2, visualBeats.beat3].filter(b => b.trim().length > 0).length;
 
   // Handlers
-  const handleGenerateBeats = () => {
-    setBeatsGenerated(true);
-    console.log('Generating beats for campaign objective:', campaignObjective);
+  const handleGenerateBeats = async () => {
+    if (!videoId) {
+      toast({
+        title: "Error",
+        description: "Video ID is required for generating beats",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!campaignSpark || campaignSpark.trim().length < 10) {
+      toast({
+        title: "Error",
+        description: "Creative Spark is required. Please fill in the Creative Spark field first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingBeats(true);
+    try {
+      console.log('[VisualStyleTab] Calling visual beats API for video:', videoId);
+      
+      const response = await fetch(`/api/social-commerce/videos/${videoId}/visual-beats/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          campaignSpark,
+          campaignObjective: campaignObjective || 'awareness',
+        }),
+      });
+
+      const responseData = await response.json();
+      console.log('[VisualStyleTab] Beats API Response:', {
+        ok: response.ok,
+        status: response.status,
+        hasScriptManifest: !!responseData.script_manifest,
+      });
+
+      if (!response.ok) {
+        const errorMessage = responseData.error || responseData.details || 'Failed to generate visual beats';
+        console.error('[VisualStyleTab] API Error:', errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      // Verify response structure
+      if (!responseData.script_manifest) {
+        console.error('[VisualStyleTab] Invalid response structure:', responseData);
+        throw new Error('Invalid response from server: missing script_manifest');
+      }
+
+      const scriptManifest = responseData.script_manifest;
+
+      // Extract beats from script manifest
+      const generatedBeats = {
+        beat1: scriptManifest.act_1_hook?.text || '',
+        beat2: scriptManifest.act_2_transform?.text || '',
+        beat3: scriptManifest.act_3_payoff?.text || '',
+      };
+
+      console.log('[VisualStyleTab] Setting generated beats:', {
+        beat1Length: generatedBeats.beat1.length,
+        beat2Length: generatedBeats.beat2.length,
+        beat3Length: generatedBeats.beat3.length,
+      });
+
+      // Update beats state
+      onVisualBeatsChange(generatedBeats);
+
+      // Update CTA text if available and not empty
+      if (scriptManifest.act_3_payoff?.cta_text && scriptManifest.act_3_payoff.cta_text.trim().length > 0) {
+        console.log('[VisualStyleTab] Setting CTA text:', scriptManifest.act_3_payoff.cta_text);
+        onCtaTextChange(scriptManifest.act_3_payoff.cta_text);
+      }
+
+      setBeatsGenerated(true);
+      
+      toast({
+        title: "Visual Beats Generated",
+        description: `AI has generated 3-act narrative beats for your campaign (cost: $${(responseData.cost || 0).toFixed(4)})`,
+      });
+    } catch (error) {
+      console.error('[VisualStyleTab] Error generating visual beats:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to generate visual beats. Please check the console for details.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingBeats(false);
+    }
+  };
+
+  const handleGenerateCreativeSpark = async () => {
+    if (!videoId) {
+      toast({
+        title: "Error",
+        description: "Video ID is required for AI Recommend",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingSpark(true);
+    try {
+      console.log('[VisualStyleTab] Calling creative spark API for video:', videoId);
+      
+      const response = await fetch(`/api/social-commerce/videos/${videoId}/creative-spark/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+
+      const responseData = await response.json();
+      console.log('[VisualStyleTab] API Response:', {
+        ok: response.ok,
+        status: response.status,
+        data: responseData,
+      });
+
+      if (!response.ok) {
+        const errorMessage = responseData.error || responseData.details || 'Failed to generate creative spark';
+        console.error('[VisualStyleTab] API Error:', errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      // Verify response structure
+      if (!responseData.creative_spark) {
+        console.error('[VisualStyleTab] Invalid response structure:', responseData);
+        throw new Error('Invalid response from server: missing creative_spark field');
+      }
+
+      // Verify it's not empty or placeholder
+      if (responseData.creative_spark.trim().length < 50) {
+        console.warn('[VisualStyleTab] Creative spark seems too short:', responseData.creative_spark);
+      }
+
+      console.log('[VisualStyleTab] Setting creative spark:', responseData.creative_spark.substring(0, 100) + '...');
+      onCampaignSparkChange(responseData.creative_spark);
+      
+      toast({
+        title: "Creative Spark Generated",
+        description: "AI has generated a creative spark for your campaign.",
+      });
+    } catch (error) {
+      console.error('[VisualStyleTab] Error generating creative spark:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to generate creative spark. Please check the console for details.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingSpark(false);
+    }
   };
 
   const handleReferenceUpload = async (file: File) => {
@@ -515,7 +673,11 @@ export function VisualStyleTab({
                     {OBJECTIVES.map((objective) => (
                       <button
                         key={objective.id}
-                        onClick={() => onCampaignObjectiveChange(objective.id)}
+                        onClick={() => {
+                          // Toggle: if already selected, deselect; otherwise select
+                          const newObjective = campaignObjective === objective.id ? '' : objective.id;
+                          onCampaignObjectiveChange(newObjective);
+                        }}
                         className={cn(
                           "p-2.5 rounded-lg border transition-all text-center",
                           campaignObjective === objective.id
@@ -532,16 +694,40 @@ export function VisualStyleTab({
 
                 {/* Campaign Spark */}
                 <div className="space-y-2">
-                  <Label className="text-xs text-white/50">Creative Spark</Label>
-                  <Input
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-white/50">Creative Spark</Label>
+                    {videoId && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleGenerateCreativeSpark}
+                        disabled={isGeneratingSpark}
+                        className="h-7 px-2 text-[10px] border-purple-500/50 hover:border-purple-500/80 hover:bg-purple-500/10"
+                      >
+                        {isGeneratingSpark ? (
+                          <>
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="mr-1 h-3 w-3" />
+                            AI Recommend
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                  <Textarea
                     value={campaignSpark}
                     onChange={(e) => onCampaignSparkChange(e.target.value)}
                     placeholder="e.g., The shoe hatches from a dragon egg in a dark cave"
-                    className="h-11 bg-white/5 border-white/10 text-white text-sm"
-                    maxLength={200}
+                    className="min-h-[80px] bg-white/5 border-white/10 text-white text-sm resize-none"
+                    maxLength={500}
                   />
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-white/40">{campaignSpark.length}/200</span>
+                    <span className="text-[10px] text-white/40">{campaignSpark.length}/500</span>
                     {isStoryReady ? (
                       <span className="text-[10px] text-green-400 flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" /> Valid
@@ -577,19 +763,28 @@ export function VisualStyleTab({
                 {!beatsGenerated && (
                   <Button
                     onClick={handleGenerateBeats}
-                    disabled={!isStoryReady}
+                    disabled={!isStoryReady || isGeneratingBeats}
                     className={cn(
                       "w-full h-12 font-semibold relative overflow-hidden",
-                      isStoryReady
+                      isStoryReady && !isGeneratingBeats
                         ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
                         : "bg-white/10 text-white/40 cursor-not-allowed"
                     )}
                   >
                     <span className="relative z-10 flex items-center gap-2">
-                      <Zap className="w-4 h-4" />
-                      Generate Visual Beats
+                      {isGeneratingBeats ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Generating Beats...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-4 h-4" />
+                          Generate Visual Beats
+                        </>
+                      )}
                     </span>
-                    {isStoryReady && (
+                    {isStoryReady && !isGeneratingBeats && (
                       <motion.div
                         className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
                         animate={{ x: ["-100%", "200%"] }}

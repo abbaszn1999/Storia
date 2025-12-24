@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import multer from 'multer';
 import { randomUUID } from 'crypto';
 import { storage } from '../../../storage';
 import { bunnyStorage, buildVideoModePath } from '../../../storage/bunny-storage';
@@ -13,6 +12,7 @@ import {
   proposeContinuity,
   generateVideoPrompts
 } from '../agents';
+import { generateAllShotImages, mergeResultsIntoShotVersions } from '../agents/video-image-generator-batch';
 import type { 
   CreateAmbientVideoRequest, 
   Step1Data,
@@ -28,62 +28,18 @@ import type {
   ContinuityGroup
 } from '../types';
 
+// Import shared utilities
+import { upload, tempUploads, getTempUpload, deleteTempUpload, TempUpload } from './shared';
+// Re-export for external use
+export { getTempUpload, deleteTempUpload };
+
+// Import modular routers
+import imageGenerationRouter from './image-generation';
+
 const router = Router();
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// TEMPORARY REFERENCE IMAGE STORAGE (Memory)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// Configure multer for memory storage (files stored in buffer)
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max for reference images
-  },
-  fileFilter: (_req, file, cb) => {
-    // Only allow image files
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'));
-    }
-  },
-});
-
-// In-memory storage for temporary uploads
-interface TempUpload {
-  buffer: Buffer;
-  mimetype: string;
-  originalName: string;
-  uploadedAt: number;
-}
-
-const tempUploads = new Map<string, TempUpload>();
-
-// Cleanup expired uploads every 30 minutes
-setInterval(() => {
-  const thirtyMinAgo = Date.now() - 30 * 60 * 1000;
-  let cleaned = 0;
-  const entries = Array.from(tempUploads.entries());
-  for (const [id, upload] of entries) {
-    if (upload.uploadedAt < thirtyMinAgo) {
-      tempUploads.delete(id);
-      cleaned++;
-    }
-  }
-  if (cleaned > 0) {
-    console.log(`[ambient-visual:routes] Cleaned up ${cleaned} expired temp uploads`);
-  }
-}, 30 * 60 * 1000);
-
-// Export for use in step/2/continue endpoint
-export function getTempUpload(tempId: string): TempUpload | undefined {
-  return tempUploads.get(tempId);
-}
-
-export function deleteTempUpload(tempId: string): void {
-  tempUploads.delete(tempId);
-}
+// Mount modular routers
+router.use(imageGenerationRouter);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // VIDEO CRUD OPERATIONS
@@ -710,6 +666,7 @@ router.post('/flow-design/generate', isAuthenticated, async (req: Request, res: 
         animationMode: step1Data.animationMode,
         artStyle: step2Data?.artStyle,
         visualElements: step2Data?.visualElements,
+        videoModel: step1Data.videoModel,
       },
       userId,
       workspaceId
@@ -1036,6 +993,7 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
     const step1Data = video.step1Data as Step1Data;
     const step2Data = video.step2Data as Step2Data;
     const step3Data = video.step3Data as Step3Data;
+    const existingStep4Data = video.step4Data as Step4Data | undefined;
 
     if (!step1Data) {
       return res.status(400).json({ error: 'No atmosphere data found. Complete Phase 1 first.' });
@@ -1049,17 +1007,86 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
       return res.status(400).json({ error: 'No shots found. Complete flow design first.' });
     }
 
-    // 2. Initialize step4Data
+    // 2. Check if prompts already exist - if so, preserve everything and skip generation
+    const existingShotVersions = existingStep4Data?.shotVersions;
+    const hasExistingPrompts = existingShotVersions && Object.keys(existingShotVersions).length > 0;
+    
+    if (hasExistingPrompts) {
+      // Prompts already exist - preserve all existing step4Data (including user-edited scenes/shots)
+      console.log('[ambient-visual:routes] Prompts already exist, preserving existing step4Data');
+      const preservedStep4Data: Step4Data = {
+        shotVersions: existingShotVersions,
+        scenes: existingStep4Data.scenes || step3Data.scenes.map(scene => ({
+          ...scene,
+          imageModel: scene.imageModel || step1Data.imageModel,
+          videoModel: scene.videoModel || step1Data.videoModel,
+          cameraMotion: scene.cameraMotion || step1Data.cameraMotion,
+        })),
+        shots: existingStep4Data.shots || Object.fromEntries(
+          Object.entries(step3Data.shots).map(([sceneId, sceneShots]) => [
+            sceneId,
+            sceneShots.map(shot => ({
+              ...shot,
+              imageModel: shot.imageModel || null,
+              videoModel: shot.videoModel || null,
+            }))
+          ])
+        ),
+      };
+      
+      // Save to ensure scenes/shots are preserved even if they weren't in existingStep4Data
+      await storage.updateVideo(videoId, { step4Data: preservedStep4Data });
+      
+      return res.json({
+        success: true,
+        promptsGenerated: 0,
+        failedShots: [],
+        totalCost: 0,
+        message: 'Prompts already exist, skipped generation',
+      });
+    }
+
+    // 3. Initialize step4Data - preserve existing scenes/shots if they exist (user edits), otherwise initialize from step3Data
+    let scenes: Scene[];
+    let shots: Record<string, Shot[]>;
+    
+    if (existingStep4Data?.scenes && existingStep4Data?.shots) {
+      // Preserve existing scenes and shots (they may have user-edited model settings)
+      console.log('[ambient-visual:routes] Preserving existing step4Data scenes and shots with user edits');
+      scenes = existingStep4Data.scenes;
+      shots = existingStep4Data.shots;
+    } else {
+      // Initialize from step3Data with defaults from step1Data
+      console.log('[ambient-visual:routes] Initializing step4Data scenes and shots from step3Data');
+      scenes = step3Data.scenes.map(scene => ({
+        ...scene,
+        imageModel: scene.imageModel || step1Data.imageModel,
+        videoModel: scene.videoModel || step1Data.videoModel,
+        cameraMotion: scene.cameraMotion || step1Data.cameraMotion,
+      }));
+      shots = Object.fromEntries(
+        Object.entries(step3Data.shots).map(([sceneId, sceneShots]) => [
+          sceneId,
+          sceneShots.map(shot => ({
+            ...shot,
+            imageModel: shot.imageModel || null,  // null = inherit from scene
+            videoModel: shot.videoModel || null,  // null = inherit from scene
+          }))
+        ])
+      );
+    }
+
     const step4Data: Step4Data = {
-      shotVersions: {},
-      sceneSettings: {},
+      shotVersions: existingShotVersions || {},
+      scenes,
+      shots,
     };
 
     let totalCost = 0;
     let successCount = 0;
     const failedShots: string[] = [];
 
-    // 3. Build continuity group lookup map for Start-End Frame mode
+    // 4. Build continuity group lookup map for Start-End Frame mode
     // Maps shotId -> { groupId, isFirst, previousShotId }
     // NOTE: A shot can appear in multiple overlapping groups (e.g., Shot 2 in [1,2] and [2,3])
     // When a shot appears in multiple groups, we prioritize the case where it INHERITS
@@ -1115,10 +1142,10 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
       })),
     });
 
-    // 4. Track generated endFramePrompts for inheritance
+    // 5. Track generated endFramePrompts for inheritance
     const generatedEndFramePrompts: Map<string, string> = new Map();
 
-    // 5. Loop through all shots
+    // 6. Loop through all shots
     for (const [sceneId, sceneShots] of Object.entries(step3Data.shots)) {
       const scene = step3Data.scenes.find(s => s.id === sceneId);
       if (!scene) {
@@ -1165,45 +1192,63 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
             visualRhythm: step2Data.visualRhythm,
             referenceImageUrls: step2Data.referenceImages,
             imageCustomInstructions: step2Data.imageCustomInstructions,
-            animationMode: 'video-animation',
+            animationMode: step1Data.animationMode,  // Use actual animation mode
             videoGenerationMode: step1Data.videoGenerationMode,
             motionPrompt: step1Data.motionPrompt,
             cameraMotion: step1Data.cameraMotion,
             isFirstInGroup,
             isConnectedShot,
-            previousShotEndFramePrompt,  // Pass to AI for context
+            previousShotEndFramePrompt,  // Pass to AI for context (video-animation only)
           };
 
           // Call Agent 4.1
           const result = await generateVideoPrompts(input, userId, video.workspaceId);
 
-          // Store end frame prompt for potential inheritance by next shot
-          generatedEndFramePrompts.set(shot.id, result.endFramePrompt);
-
-          // Determine the actual startFramePrompt to use
-          // For connected shots (not first): inherit from previous shot's endFramePrompt
-          const actualStartFramePrompt = (isConnectedShot && !isFirstInGroup && previousShotEndFramePrompt)
-            ? previousShotEndFramePrompt
-            : result.startFramePrompt;
-
-          const startFrameInherited = isConnectedShot && !isFirstInGroup && !!previousShotEndFramePrompt;
-
-          // Create version
+          // Create version based on animation mode
           const versionId = `version-${Date.now()}-${shot.id.slice(-8)}`;
-          const shotVersion: ShotVersion = {
-            id: versionId,
-            shotId: shot.id,
-            versionNumber: 1,
-            imagePrompt: result.imagePrompt,
-            videoPrompt: result.videoPrompt,
-            negativePrompt: result.negativePrompt,
-            startFramePrompt: actualStartFramePrompt,  // Use inherited or generated
-            endFramePrompt: result.endFramePrompt,
-            startFrameInherited,  // Mark if inherited
-            status: 'prompt_generated',
-            needsRerender: false,
-            createdAt: new Date(),
-          };
+          const isImageTransitions = step1Data.animationMode === 'image-transitions';
+          
+          let shotVersion: ShotVersion;
+          
+          if (isImageTransitions) {
+            // Image Transitions mode: only imagePrompt
+            shotVersion = {
+              id: versionId,
+              shotId: shot.id,
+              versionNumber: 1,
+              imagePrompt: result.imagePrompt,
+              status: 'prompt_generated',
+              needsRerender: false,
+              createdAt: new Date(),
+            };
+          } else {
+            // Video Animation mode: startFramePrompt, endFramePrompt, videoPrompt
+            // For connected shots (not first): Agent 4.1 generates endFramePrompt + videoPrompt (start is inherited)
+            // Store end frame prompt for potential inheritance by next shot
+            if (result.endFramePrompt) {
+              generatedEndFramePrompts.set(shot.id, result.endFramePrompt);
+            }
+
+            // Determine the actual startFramePrompt to use
+            // For connected shots (not first): inherit from previous shot's endFramePrompt
+            const startFrameInherited = isConnectedShot && !isFirstInGroup && !!previousShotEndFramePrompt;
+            const actualStartFramePrompt = startFrameInherited
+              ? previousShotEndFramePrompt
+              : result.startFramePrompt;
+
+            shotVersion = {
+              id: versionId,
+              shotId: shot.id,
+              versionNumber: 1,
+              startFramePrompt: actualStartFramePrompt,  // Use inherited or generated
+              endFramePrompt: result.endFramePrompt,
+              videoPrompt: result.videoPrompt,  // Always generated (even for connected shots)
+              startFrameInherited,  // Mark if inherited
+              status: 'prompt_generated',
+              needsRerender: false,
+              createdAt: new Date(),
+            };
+          }
 
           step4Data.shotVersions[shot.id] = [shotVersion];
           
@@ -1215,9 +1260,11 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
           console.log(`[ambient-visual:routes] Generated prompt for shot ${shot.id}:`, {
             shotNumber: shot.shotNumber,
             sceneTitle: scene.title,
-            isConnectedShot,
-            isFirstInGroup,
-            startFrameInherited,
+            animationMode: step1Data.animationMode,
+            isConnectedShot: isImageTransitions ? 'N/A' : isConnectedShot,
+            isFirstInGroup: isImageTransitions ? 'N/A' : isFirstInGroup,
+            startFrameInherited: isImageTransitions ? 'N/A' : shotVersion.startFrameInherited,
+            generatedFieldsOnly: isImageTransitions ? 'imagePrompt' : (isConnectedShot && !isFirstInGroup ? 'endFramePrompt + videoPrompt' : 'all 3'),
             cost: result.cost,
           });
 
@@ -1228,7 +1275,7 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
       }
     }
 
-    // 4. Update shots with currentVersionId in step3Data
+    // 7. Update shots with currentVersionId in step3Data
     const updatedShots: Record<string, Shot[]> = {};
     for (const [sceneId, sceneShots] of Object.entries(step3Data.shots)) {
       updatedShots[sceneId] = sceneShots.map(shot => {
@@ -1245,7 +1292,7 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
       shots: updatedShots,
     };
 
-    // 5. Save all data to database
+    // 8. Save all data to database
     await storage.updateVideo(videoId, { 
       step3Data: updatedStep3Data,
       step4Data 
@@ -1273,6 +1320,219 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
     });
   }
 });
+
+/**
+ * POST /api/ambient-visual/videos/:id/generate-all-images
+ * Generate keyframe images for ALL shots (Agent 4.2)
+ * 
+ * This endpoint handles batch image generation with continuity inheritance.
+ * Shots are processed IN ORDER to support the inheritance chain.
+ * 
+ * Flow:
+ * 1. Fetch prompts from step4Data.shotVersions
+ * 2. Build continuity info map (which shots inherit from which)
+ * 3. Process shots sequentially for continuity support
+ * 4. Generate images using Runware API
+ * 5. Store image URLs directly in step4Data (no Bunny CDN upload)
+ */
+router.post('/videos/:id/generate-all-images', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id: videoId } = req.params;
+
+    console.log('[ambient-visual:routes] Starting batch image generation:', { videoId });
+
+    // 1. Fetch video with all step data
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    const step1Data = video.step1Data as Step1Data;
+    const step3Data = video.step3Data as Step3Data;
+    const step4Data = video.step4Data as Step4Data;
+
+    if (!step1Data) {
+      return res.status(400).json({ error: 'No atmosphere data found. Complete Phase 1 first.' });
+    }
+
+    if (!step4Data?.shotVersions || Object.keys(step4Data.shotVersions).length === 0) {
+      return res.status(400).json({ error: 'No prompts found. Generate prompts first.' });
+    }
+
+    // Use step4Data.scenes/shots if available (with models), fallback to step3Data
+    const step4Scenes = step4Data.scenes || step3Data?.scenes || [];
+    const step4Shots = step4Data.shots || step3Data?.shots || {};
+
+    if (Object.keys(step4Shots).length === 0) {
+      return res.status(400).json({ error: 'No shots found. Complete flow design first.' });
+    }
+
+    // 2. Build shot list with prompts for batch generation
+    const shots: Array<{
+      shotId: string;
+      shotNumber: number;
+      sceneId: string;
+      versionId: string;
+      imageModel: string;  // Per-shot model from step4Data
+      imagePrompt?: string;
+      startFramePrompt?: string;
+      endFramePrompt?: string;
+      groupId?: string;
+      isFirstInGroup?: boolean;
+      previousShotId?: string;
+    }> = [];
+
+    // Create versionId map for result merging
+    const versionIdMap = new Map<string, string>();
+    
+    // Track skipped shots
+    let skippedCount = 0;
+
+    // Process all scenes/shots from step4Data (with models)
+    for (const [sceneId, sceneShots] of Object.entries(step4Shots)) {
+      const scene = step4Scenes.find(s => s.id === sceneId);
+      
+      for (const shot of sceneShots) {
+        const versions = step4Data.shotVersions[shot.id];
+        if (!versions || versions.length === 0) {
+          console.warn(`[ambient-visual:routes] No versions found for shot ${shot.id}, skipping`);
+          continue;
+        }
+
+        const latestVersion = versions[versions.length - 1];
+        
+        // Skip shots that already have images generated
+        const isImageTransitionsMode = step1Data.animationMode === 'image-transitions';
+        const hasExistingImage = isImageTransitionsMode
+          ? !!latestVersion.imageUrl
+          : (!!latestVersion.startFrameUrl && !!latestVersion.endFrameUrl);
+        
+        if (hasExistingImage) {
+          console.log(`[ambient-visual:routes] Skipping shot ${shot.id} - already has images`);
+          skippedCount++;
+          continue;
+        }
+        
+        versionIdMap.set(shot.id, latestVersion.id);
+
+        // Determine image model: shot → scene → step1Data (fallback)
+        const imageModel = shot.imageModel || scene?.imageModel || step1Data.imageModel;
+
+        shots.push({
+          shotId: shot.id,
+          shotNumber: shot.shotNumber,
+          sceneId,
+          versionId: latestVersion.id,
+          imageModel,
+          imagePrompt: latestVersion.imagePrompt || undefined,
+          startFramePrompt: latestVersion.startFramePrompt || undefined,
+          endFramePrompt: latestVersion.endFramePrompt || undefined,
+        });
+      }
+    }
+    
+    // If all shots have images, return early
+    if (shots.length === 0) {
+      console.log('[ambient-visual:routes] All shots already have images, nothing to generate');
+      return res.json({
+        success: true,
+        imagesGenerated: 0,
+        skippedShots: skippedCount,
+        failedShots: 0,
+        totalCost: 0,
+        message: 'All shots already have images generated',
+      });
+    }
+
+    // 3. Extract approved continuity groups
+    const allContinuityGroups: ContinuityGroup[] = [];
+    if (step3Data?.continuityGroups) {
+      for (const groups of Object.values(step3Data.continuityGroups)) {
+        allContinuityGroups.push(...groups.filter(g => g.status === 'approved'));
+      }
+    }
+
+    console.log('[ambient-visual:routes] Batch generation input:', {
+      shotCount: shots.length,
+      skippedCount,
+      continuityGroupCount: allContinuityGroups.length,
+      animationMode: step1Data.animationMode,
+      defaultImageModel: step1Data.imageModel,
+      usingPerShotModels: true,
+    });
+
+    // 4. Call batch generation (uses per-shot imageModel from shots array)
+    const batchResult = await generateAllShotImages(
+      {
+        videoId,
+        imageModel: step1Data.imageModel,  // Default fallback
+        aspectRatio: step1Data.aspectRatio,
+        imageResolution: step1Data.imageResolution,
+        animationMode: step1Data.animationMode,
+        videoGenerationMode: step1Data.videoGenerationMode,
+        shots,
+        continuityGroups: allContinuityGroups,
+      },
+      userId,
+      video.workspaceId
+    );
+
+    // 5. Merge results back into step4Data
+    const updatedShotVersions = mergeResultsIntoShotVersions(
+      step4Data.shotVersions as Record<string, Array<any>>,
+      batchResult.results,
+      versionIdMap
+    );
+
+    const updatedStep4Data: Step4Data = {
+      ...step4Data,
+      shotVersions: updatedShotVersions,
+    };
+
+    // 6. Save updated data
+    await storage.updateVideo(videoId, { step4Data: updatedStep4Data });
+
+    console.log('[ambient-visual:routes] Batch image generation complete:', {
+      videoId,
+      successCount: batchResult.successCount,
+      failureCount: batchResult.failureCount,
+      totalCost: batchResult.totalCost,
+    });
+
+    res.json({
+      success: true,
+      imagesGenerated: batchResult.successCount,
+      skippedShots: skippedCount,
+      failedShots: batchResult.failureCount,
+      totalCost: batchResult.totalCost,
+      results: batchResult.results.map(r => ({
+        shotId: r.shotId,
+        hasImage: !!r.imageUrl,
+        hasStartFrame: !!r.startFrameUrl,
+        hasEndFrame: !!r.endFrameUrl,
+        startFrameInherited: r.startFrameInherited,
+        error: r.error,
+      })),
+    });
+
+  } catch (error) {
+    console.error('[ambient-visual:routes] Batch image generation error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate images',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// NOTE: Single shot image generation routes have been moved to ./image-generation.ts
+// The following routes are now handled by the imageGenerationRouter:
+// - POST /videos/:id/shots/:shotId/generate-image
+// - POST /videos/:id/shots/:shotId/regenerate-image
 
 /**
  * PATCH /api/ambient-visual/videos/:id/step/4/continue
@@ -1331,6 +1591,63 @@ router.patch('/videos/:id/step/4/continue', isAuthenticated, async (req: Request
   } catch (error) {
     console.error('[ambient-visual:routes] Step 4 activation error:', error);
     res.status(500).json({ error: 'Failed to activate Phase 4' });
+  }
+});
+
+/**
+ * PATCH /api/ambient-visual/videos/:id/step4/settings
+ * Auto-save scene/shot model changes to step4Data
+ * Called from Compose phase when user changes model settings
+ */
+router.patch('/videos/:id/step4/settings', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      console.log('[ambient-visual:routes] Step 4 settings auto-save FAILED: No userId');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const videoId = req.params.id;
+    const { scenes, shots } = req.body;
+
+    console.log('[ambient-visual:routes] Step 4 settings auto-save START:', {
+      videoId,
+      userId,
+      hasScenes: !!scenes,
+      hasShots: !!shots,
+    });
+
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      console.log('[ambient-visual:routes] Step 4 settings auto-save FAILED: Video not found');
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Note: Videos are workspace-scoped, not user-scoped
+    // The isAuthenticated middleware ensures the user has access to the workspace
+
+    // Get existing step4Data
+    const existingStep4Data = video.step4Data as Step4Data || { shotVersions: {} };
+
+    // Update scenes and shots in step4Data (preserve shotVersions)
+    const updatedStep4Data: Step4Data = {
+      ...existingStep4Data,
+      scenes,
+      shots,
+    };
+
+    await storage.updateVideo(videoId, { step4Data: updatedStep4Data });
+
+    console.log('[ambient-visual:routes] Step 4 settings auto-saved:', {
+      videoId,
+      scenesCount: scenes?.length || 0,
+      shotsCount: Object.keys(shots || {}).length,
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[ambient-visual:routes] Auto-save settings error:', error);
+    res.status(500).json({ error: 'Failed to save settings' });
   }
 });
 

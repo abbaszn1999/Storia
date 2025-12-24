@@ -1,4 +1,4 @@
-import { useState, useImperativeHandle, forwardRef, useEffect } from "react";
+import { useState, useImperativeHandle, forwardRef, useEffect, useRef, useCallback } from "react";
 import { AtmosphereTab } from "./atmosphere-tab";
 import { VisualWorldTab, type TempReferenceImage } from "./visual-world-tab";
 import { FlowDesignTab } from "./flow-design-tab";
@@ -57,6 +57,10 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   const [shouldAutoGenerateFlow, setShouldAutoGenerateFlow] = useState(false);
   // Flag to show loading screen while generating prompts for Phase 4
   const [isGeneratingPrompts, setIsGeneratingPrompts] = useState(false);
+  // Flag to show loading state while generating keyframe images (Agent 4.2)
+  const [isGeneratingImages, setIsGeneratingImages] = useState(false);
+  // Track which individual shots are currently generating (for single shot generation)
+  const [generatingShotIds, setGeneratingShotIds] = useState<Set<string>>(new Set());
   
   // Atmosphere State
   const [mood, setMood] = useState("calm");
@@ -139,6 +143,9 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   const [shotReferenceImages, setShotReferenceImages] = useState<ReferenceImage[]>([]);
   const [characters, setCharacters] = useState<Character[]>([]);
   const [voiceActorId, setVoiceActorId] = useState<string | null>(null);
+  
+  // Debounce timer ref for auto-saving step4 settings
+  const step4SettingsSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Restore state from saved step1Data when video is reopened
   useEffect(() => {
@@ -287,20 +294,48 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     }
     
     const data = initialStep3Data;
-    console.log('[AmbientWorkflow] Restoring step3 data:', data);
+    const step4Data = initialStep4Data as Record<string, unknown> | undefined;
     
-    // Restore scenes
-    if (data.scenes && Array.isArray(data.scenes)) {
+    // Check if step4Data has scenes/shots (source of truth when available)
+    const hasStep4Scenes = step4Data?.scenes && Array.isArray(step4Data.scenes) && (step4Data.scenes as Scene[]).length > 0;
+    const hasStep4Shots = step4Data?.shots && typeof step4Data.shots === 'object' && Object.keys(step4Data.shots as object).length > 0;
+    
+    console.log('[AmbientWorkflow] Restoring step3 data:', { 
+      hasStep4Scenes, 
+      hasStep4Shots,
+      step3ScenesCount: data.scenes ? (data.scenes as Scene[]).length : 0,
+    });
+    
+    // Restore scenes - prefer step4Data (has model settings), fallback to step3Data
+    if (hasStep4Scenes) {
+      const restoredScenes = (step4Data.scenes as Scene[]).map(scene => ({
+        ...scene,
+        createdAt: scene.createdAt ? new Date(scene.createdAt) : new Date(),
+      }));
+      setScenes(restoredScenes);
+      console.log('[AmbientWorkflow] Restored scenes from step4Data (with models):', restoredScenes.length);
+    } else if (data.scenes && Array.isArray(data.scenes)) {
       const restoredScenes = (data.scenes as Scene[]).map(scene => ({
         ...scene,
         createdAt: scene.createdAt ? new Date(scene.createdAt) : new Date(),
       }));
       setScenes(restoredScenes);
-      console.log('[AmbientWorkflow] Restored scenes:', restoredScenes.length);
+      console.log('[AmbientWorkflow] Restored scenes from step3Data (fallback):', restoredScenes.length);
     }
     
-    // Restore shots
-    if (data.shots && typeof data.shots === 'object') {
+    // Restore shots - prefer step4Data (has model settings), fallback to step3Data
+    if (hasStep4Shots) {
+      const restoredShots: { [sceneId: string]: Shot[] } = {};
+      Object.entries(step4Data.shots as Record<string, Shot[]>).forEach(([sceneId, sceneShots]) => {
+        restoredShots[sceneId] = sceneShots.map(shot => ({
+          ...shot,
+          createdAt: shot.createdAt ? new Date(shot.createdAt) : new Date(),
+          updatedAt: shot.updatedAt ? new Date(shot.updatedAt) : new Date(),
+        }));
+      });
+      setShots(restoredShots);
+      console.log('[AmbientWorkflow] Restored shots from step4Data (with models):', Object.values(restoredShots).flat().length);
+    } else if (data.shots && typeof data.shots === 'object') {
       const restoredShots: { [sceneId: string]: Shot[] } = {};
       Object.entries(data.shots as Record<string, Shot[]>).forEach(([sceneId, sceneShots]) => {
         restoredShots[sceneId] = sceneShots.map(shot => ({
@@ -310,15 +345,10 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
         }));
       });
       setShots(restoredShots);
-      console.log('[AmbientWorkflow] Restored shots:', Object.values(restoredShots).flat().length);
+      console.log('[AmbientWorkflow] Restored shots from step3Data (fallback):', Object.values(restoredShots).flat().length);
     }
     
-    // NOTE: shotVersions with imagePrompts are restored from step4Data, not step3Data
-    // step3Data.shotVersions may exist but won't have Agent 4.1 generated prompts
-    // We ONLY restore shotVersions from step4Data to ensure we get the prompts
-    console.log('[AmbientWorkflow] Skipping step3 shotVersions - will use step4Data instead');
-    
-    // Restore continuity groups
+    // Restore continuity groups (always from step3Data)
     if (data.continuityGroups && typeof data.continuityGroups === 'object') {
       const restoredGroups: { [sceneId: string]: ContinuityGroup[] } = {};
       Object.entries(data.continuityGroups as Record<string, ContinuityGroup[]>).forEach(([sceneId, groups]) => {
@@ -336,10 +366,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
         statuses: Object.values(restoredGroups).flat().map(g => g.status),
       });
     } else {
-      console.log('[AmbientWorkflow] No continuity groups to restore:', {
-        hasData: !!data.continuityGroups,
-        type: typeof data.continuityGroups,
-      });
+      console.log('[AmbientWorkflow] No continuity groups to restore');
     }
     
     // Restore continuity locked state
@@ -356,11 +383,10 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     
     setStep3Initialized(true);
     console.log('[AmbientWorkflow] Step3 data restored successfully');
-  }, [initialStep3Data, videoId, initializedForVideoId, step3Initialized]);
+  }, [initialStep3Data, initialStep4Data, videoId, initializedForVideoId, step3Initialized]);
 
-  // Restore Step 4 (Composition) data when video is reopened
+  // Restore Step 4 (Composition) data - only shotVersions now (scenes/shots handled in step3 restore)
   useEffect(() => {
-    // Log the actual data structure to debug issues
     console.log('[AmbientWorkflow] Step4 restore check:', {
       hasInitialStep4Data: !!initialStep4Data,
       initialStep4DataKeys: initialStep4Data ? Object.keys(initialStep4Data) : [],
@@ -368,11 +394,12 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
       shotVersionsCount: (initialStep4Data as any)?.shotVersions ? Object.keys((initialStep4Data as any).shotVersions).length : 0,
       videoId,
       initializedForVideoId,
+      step3Initialized,
       step4Initialized,
     });
     
-    if (!initialStep4Data || !videoId) {
-      console.log('[AmbientWorkflow] No step4 data yet - waiting...', { hasData: !!initialStep4Data, videoId });
+    if (!videoId) {
+      console.log('[AmbientWorkflow] No videoId yet - waiting...');
       return;
     }
     
@@ -381,15 +408,28 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
       return;
     }
     
+    // Wait for step3Data to be initialized first (scenes/shots already restored there)
+    if (!step3Initialized) {
+      console.log('[AmbientWorkflow] Waiting for step3 to initialize before step4');
+      return;
+    }
+    
     if (step4Initialized) {
       console.log('[AmbientWorkflow] Step4 already initialized');
       return;
     }
     
-    const data = initialStep4Data;
-    console.log('[AmbientWorkflow] Restoring step4 data - raw:', JSON.stringify(data).substring(0, 500));
+    // Handle case where there's no step4Data yet (new video or prompts not generated)
+    if (!initialStep4Data || Object.keys(initialStep4Data).length === 0) {
+      console.log('[AmbientWorkflow] No step4 data yet - allowing defaults initialization');
+      setStep4Initialized(true);
+      return;
+    }
     
-    // Restore shot versions with prompts
+    const data = initialStep4Data;
+    console.log('[AmbientWorkflow] Restoring step4 shotVersions');
+    
+    // Restore shot versions with prompts (the main purpose of step4Data)
     if (data.shotVersions && typeof data.shotVersions === 'object') {
       const restoredVersions: { [shotId: string]: ShotVersion[] } = {};
       Object.entries(data.shotVersions as Record<string, ShotVersion[]>).forEach(([shotId, versions]) => {
@@ -403,15 +443,17 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
         count: Object.keys(restoredVersions).length,
         sampleShotId: Object.keys(restoredVersions)[0],
         sampleVersion: restoredVersions[Object.keys(restoredVersions)[0]]?.[0],
-        sampleImagePromptLength: restoredVersions[Object.keys(restoredVersions)[0]]?.[0]?.imagePrompt?.length,
       });
     } else {
       console.log('[AmbientWorkflow] No shotVersions found in step4Data');
     }
     
+    // NOTE: scenes/shots are already restored in step3 useEffect (preferring step4Data when available)
+    // No need to merge here - step4Data.scenes/shots are used directly
+    
     setStep4Initialized(true);
     console.log('[AmbientWorkflow] Step4 data restored successfully');
-  }, [initialStep4Data, videoId, initializedForVideoId, step4Initialized]);
+  }, [initialStep4Data, videoId, initializedForVideoId, step3Initialized, step4Initialized]);
 
   // Note: Prompt generation for Phase 4 is now handled directly in goToNextStep
   // when transitioning from Step 3 to Step 4. The loading screen shows during
@@ -623,19 +665,19 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   // canContinue depends on multiple state values, so it will recompute on any state change
   // We need to ensure all state dependencies that affect canContinue are properly tracked
   useEffect(() => {
-    console.log('[AmbientWorkflow] Validation state changed, notifying parent:', canContinue);
+    console.log('[AmbientWorkflow] Validation state changed, notifying parent:', {
+      canContinue,
+      activeStep,
+      continuityLocked,
+      totalProposedGroups,
+      totalApprovedGroups,
+      videoGenerationMode,
+    });
     onValidationChange?.(canContinue);
   }, [
+    // Only include the computed result to avoid redundant dependencies
     canContinue, 
     onValidationChange,
-    // Explicitly include all state that affects validation to ensure useEffect fires
-    continuityLocked,
-    continuityGroups, // Groups status affects validation (proposed vs approved)
-    continuityGenerated,
-    moodDescription,
-    settingsChangedSinceDescription,
-    activeStep,
-    videoGenerationMode,
   ]);
 
   useImperativeHandle(ref, () => ({
@@ -977,10 +1019,16 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   };
 
   const handleContinuityLocked = () => {
+    console.log('[AmbientWorkflow] handleContinuityLocked called');
     setContinuityLocked(true);
   };
 
   const handleContinuityGroupsChange = (groups: { [sceneId: string]: ContinuityGroup[] }) => {
+    console.log('[AmbientWorkflow] handleContinuityGroupsChange called with groups:', {
+      sceneCount: Object.keys(groups).length,
+      totalGroups: Object.values(groups).flat().length,
+      statuses: Object.values(groups).flat().map(g => g.status),
+    });
     setContinuityGroups(groups);
   };
 
@@ -1018,9 +1066,206 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     }
   };
 
-  const handleRegenerateShot = (shotId: string) => {
-    handleGenerateShot(shotId);
+  // Generate a single image for a specific frame (start or end)
+  const handleGenerateSingleImage = async (shotId: string, frame: 'start' | 'end') => {
+    if (!videoId || videoId === 'new') {
+      toast({
+        title: "Error",
+        description: "Please save the video first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Prevent double-click - check if already generating
+    if (generatingShotIds.has(shotId)) {
+      console.log(`[AmbientWorkflow] Shot ${shotId} is already generating, ignoring`);
+      return;
+    }
+
+    console.log(`[AmbientWorkflow] Generating ${frame} frame for shot:`, shotId);
+    
+    // Mark as generating
+    setGeneratingShotIds(prev => new Set(prev).add(shotId));
+    
+    try {
+      const response = await fetch(`/api/ambient-visual/videos/${videoId}/shots/${shotId}/generate-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ frame }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate image');
+      }
+      
+      const result = await response.json();
+      console.log(`[AmbientWorkflow] Image generated:`, result);
+      
+      // Update the shot version with the new image URL
+      if (result.shotVersion) {
+        setShotVersions(prev => ({
+          ...prev,
+          [shotId]: prev[shotId]?.map(v => 
+            v.id === result.shotVersion.id ? result.shotVersion : v
+          ) || [result.shotVersion]
+        }));
+      }
+      
+      // If next shot was updated (inherited start frame), update it too
+      if (result.nextShotId && result.nextShotVersion) {
+        setShotVersions(prev => ({
+          ...prev,
+          [result.nextShotId]: prev[result.nextShotId]?.map(v => 
+            v.id === result.nextShotVersion.id ? result.nextShotVersion : v
+          ) || [result.nextShotVersion]
+        }));
+        console.log(`[AmbientWorkflow] Updated next shot ${result.nextShotId} with inherited start frame`);
+      }
+      
+      toast({
+        title: "Image Generated",
+        description: `${frame === 'start' ? 'Start' : 'End'} frame generated successfully`,
+      });
+    } catch (error) {
+      console.error(`[AmbientWorkflow] Failed to generate ${frame} frame:`, error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive",
+      });
+    } finally {
+      // Remove from generating set
+      setGeneratingShotIds(prev => {
+        const next = new Set(prev);
+        next.delete(shotId);
+        return next;
+      });
+    }
   };
+
+  // Regenerate a shot's image - if regenerating start, regenerate both; if end, only end
+  const handleRegenerateShot = async (shotId: string, frame?: 'start' | 'end') => {
+    if (!videoId || videoId === 'new') {
+      // Fallback to mock for new videos
+      handleGenerateShot(shotId);
+      return;
+    }
+
+    // Prevent double-click - check if already generating
+    if (generatingShotIds.has(shotId)) {
+      console.log(`[AmbientWorkflow] Shot ${shotId} is already regenerating, ignoring`);
+      return;
+    }
+
+    console.log(`[AmbientWorkflow] Regenerating shot ${shotId}, frame: ${frame || 'both'}`);
+    
+    // Mark as generating
+    setGeneratingShotIds(prev => new Set(prev).add(shotId));
+    
+    try {
+      const response = await fetch(`/api/ambient-visual/videos/${videoId}/shots/${shotId}/regenerate-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ frame }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to regenerate image');
+      }
+      
+      const result = await response.json();
+      console.log(`[AmbientWorkflow] Image regenerated:`, result);
+      
+      // Update the shot version with the new image URLs
+      if (result.shotVersion) {
+        setShotVersions(prev => ({
+          ...prev,
+          [shotId]: prev[shotId]?.map(v => 
+            v.id === result.shotVersion.id ? result.shotVersion : v
+          ) || [result.shotVersion]
+        }));
+      }
+      
+      // If next shot was updated (inherited start frame), update it too
+      if (result.nextShotId && result.nextShotVersion) {
+        setShotVersions(prev => ({
+          ...prev,
+          [result.nextShotId]: prev[result.nextShotId]?.map(v => 
+            v.id === result.nextShotVersion.id ? result.nextShotVersion : v
+          ) || [result.nextShotVersion]
+        }));
+        console.log(`[AmbientWorkflow] Updated next shot ${result.nextShotId} with inherited start frame`);
+      }
+      
+      toast({
+        title: "Image Regenerated",
+        description: frame === 'end' ? 'End frame regenerated' : 'Start and end frames regenerated',
+      });
+    } catch (error) {
+      console.error(`[AmbientWorkflow] Failed to regenerate:`, error);
+      toast({
+        title: "Regeneration Failed",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive",
+      });
+    } finally {
+      // Remove from generating set
+      setGeneratingShotIds(prev => {
+        const next = new Set(prev);
+        next.delete(shotId);
+        return next;
+      });
+    }
+  };
+
+  // Debounced save for step4 settings (scenes/shots with model changes)
+  const debouncedSaveStep4Settings = useCallback((
+    scenesToSave: Scene[],
+    shotsToSave: { [sceneId: string]: Shot[] }
+  ) => {
+    // Clear existing timer
+    if (step4SettingsSaveTimerRef.current) {
+      clearTimeout(step4SettingsSaveTimerRef.current);
+    }
+    
+    // Skip if no videoId or new video
+    if (!videoId || videoId === 'new') {
+      return;
+    }
+    
+    // Debounce for 2 seconds
+    step4SettingsSaveTimerRef.current = setTimeout(async () => {
+      try {
+        console.log('[AmbientWorkflow] Auto-saving step4 settings:', {
+          scenesCount: scenesToSave.length,
+          shotsCount: Object.keys(shotsToSave).length,
+        });
+        
+        const response = await fetch(`/api/ambient-visual/videos/${videoId}/step4/settings`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ 
+            scenes: scenesToSave, 
+            shots: shotsToSave 
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to save settings');
+        }
+        
+        console.log('[AmbientWorkflow] Step4 settings auto-saved successfully');
+      } catch (error) {
+        console.error('[AmbientWorkflow] Step4 auto-save error:', error);
+      }
+    }, 2000);
+  }, [videoId]);
 
   const handleUpdateShot = (shotId: string, updates: Partial<Shot>) => {
     setShots(prev => {
@@ -1029,6 +1274,10 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
         newShots[sceneId] = newShots[sceneId].map(shot =>
           shot.id === shotId ? { ...shot, ...updates } : shot
         );
+      }
+      // Trigger debounced save for model changes
+      if (updates.imageModel !== undefined || updates.videoModel !== undefined) {
+        debouncedSaveStep4Settings(scenes, newShots);
       }
       return newShots;
     });
@@ -1044,9 +1293,16 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   };
 
   const handleUpdateScene = (sceneId: string, updates: Partial<Scene>) => {
-    setScenes(prev => prev.map(scene =>
-      scene.id === sceneId ? { ...scene, ...updates } : scene
-    ));
+    setScenes(prev => {
+      const newScenes = prev.map(scene =>
+        scene.id === sceneId ? { ...scene, ...updates } : scene
+      );
+      // Trigger debounced save for model changes
+      if (updates.imageModel !== undefined || updates.videoModel !== undefined) {
+        debouncedSaveStep4Settings(newScenes, shots);
+      }
+      return newScenes;
+    });
   };
 
   const handleReorderShots = (sceneId: string, shotIds: string[]) => {
@@ -1167,6 +1423,75 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
       delete newVersions[shotId];
       return newVersions;
     });
+  };
+
+  /**
+   * Handle batch image generation for all shots (Agent 4.2)
+   * Calls the backend endpoint to generate keyframe images using Runware
+   */
+  const handleGenerateAllImages = async () => {
+    if (!videoId) {
+      toast({
+        title: "Error",
+        description: "Video ID is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingImages(true);
+
+    try {
+      console.log('[AmbientWorkflow] Starting batch image generation for video:', videoId);
+
+      const response = await fetch(`/api/ambient-visual/videos/${videoId}/generate-all-images`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to generate images');
+      }
+
+      const result = await response.json();
+
+      console.log('[AmbientWorkflow] Batch image generation result:', result);
+
+      // Refresh data from server to get updated shot versions
+      if (videoId) {
+        const videoResponse = await fetch(`/api/videos/${videoId}`, {
+          credentials: 'include',
+        });
+
+        if (videoResponse.ok) {
+          const video = await videoResponse.json();
+          
+          // Update local state with new shot versions
+          if (video.step4Data?.shotVersions) {
+            console.log('[AmbientWorkflow] Updating shotVersions from server');
+            setShotVersions(video.step4Data.shotVersions);
+          }
+        }
+      }
+
+      toast({
+        title: "Images Generated",
+        description: `Successfully generated ${result.imagesGenerated} images. ${result.failedShots > 0 ? `${result.failedShots} failed.` : ''}`,
+        variant: result.failedShots > 0 ? "default" : "default",
+      });
+
+    } catch (error) {
+      console.error('[AmbientWorkflow] Image generation error:', error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate images",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingImages(false);
+    }
   };
 
   // Calculate total duration from all shots
@@ -1377,10 +1702,12 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
             voiceOverEnabled={voiceoverEnabled}
             continuityLocked={continuityLocked}
             continuityGroups={continuityGroups}
+            step4Initialized={step4Initialized}
             onVoiceActorChange={setVoiceActorId}
             onVoiceOverToggle={setVoiceoverEnabled}
             onGenerateShot={handleGenerateShot}
             onRegenerateShot={handleRegenerateShot}
+            onGenerateSingleImage={handleGenerateSingleImage}
             onUpdateShot={handleUpdateShot}
             onUpdateShotVersion={handleUpdateShotVersion}
             onUpdateScene={handleUpdateScene}
@@ -1393,6 +1720,9 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
             onAddShot={handleAddShot}
             onDeleteScene={handleDeleteScene}
             onDeleteShot={handleDeleteShot}
+            onGenerateAllImages={handleGenerateAllImages}
+            isGeneratingImages={isGeneratingImages}
+            generatingShotIds={generatingShotIds}
             onNext={goToNextStep}
           />
         );

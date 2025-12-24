@@ -113,14 +113,24 @@ export function buildShotComposerSystemPrompt(
   shotCount: number,
   sceneDuration: number,
   pacing: number,
-  animationMode: AnimationMode
+  animationMode: AnimationMode,
+  supportedDurations?: number[]
 ): string {
   const category = getPacingCategory(pacing);
   const avgDuration = Math.round(sceneDuration / shotCount);
   const movements = CAMERA_MOVEMENTS[animationMode];
   
+  const durationConstraint = supportedDurations && supportedDurations.length > 0
+    ? `\n\n═══════════════════════════════════════════════════════════════════════════════
+SUPPORTED DURATIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+IMPORTANT: Shot durations MUST be one of these values: ${supportedDurations.join(', ')} seconds
+The video model only supports these specific durations. Choose from this list when setting each shot's duration.`
+    : '';
+  
   return `You are an expert cinematographer specializing in ambient visual content.
-Your task is to compose ${shotCount} individual SHOTS for a ${sceneDuration}-second scene segment.
+Your task is to compose ${shotCount} individual SHOTS for a ${sceneDuration}-second scene segment.${durationConstraint}
 
 ═══════════════════════════════════════════════════════════════════════════════
 AMBIENT SHOT COMPOSITION PHILOSOPHY
@@ -196,7 +206,9 @@ CRITICAL CONSTRAINTS
 MUST:
 ✓ Generate EXACTLY ${shotCount} shots
 ✓ Total duration = EXACTLY ${sceneDuration} seconds
-✓ Each shot: 5-30 seconds (based on pacing)
+${supportedDurations && supportedDurations.length > 0 
+  ? `✓ Each shot duration MUST be one of: ${supportedDurations.join(', ')} seconds`
+  : `✓ Each shot: 5-30 seconds (based on pacing)`}
 ✓ Average duration: ~${avgDuration} seconds
 ✓ Vary shot types for visual interest
 ✓ Each description is visually specific
@@ -204,8 +216,10 @@ MUST:
 NEVER:
 ✗ Include people, characters, or actions
 ✗ Reference narrative or story elements
-✗ Create shots shorter than 5 seconds
-✗ Create shots longer than 30 seconds
+${supportedDurations && supportedDurations.length > 0 
+  ? `✗ Use durations not in the supported list: ${supportedDurations.join(', ')} seconds`
+  : `✗ Create shots shorter than 5 seconds
+✗ Create shots longer than 30 seconds`}
 ✗ Use the same camera movement for all shots
 
 ═══════════════════════════════════════════════════════════════════════════════

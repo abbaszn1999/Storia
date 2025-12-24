@@ -14,6 +14,7 @@ import {
   buildShotComposerUserPrompt,
   calculateOptimalShotCount,
 } from "../prompts/flow-shot-composer-prompts";
+import { VIDEO_MODEL_CONFIGS } from "../../../ai/config/video-models";
 import type {
   ShotComposerInput,
   ShotComposerOutput,
@@ -66,6 +67,11 @@ export async function composeShots(
     input.shotsPerSegment
   );
 
+  // Get video model durations (default to seedance-1.0-pro if not specified)
+  const videoModel = input.videoModel || 'seedance-1.0-pro';
+  const modelConfig = VIDEO_MODEL_CONFIGS[videoModel];
+  const supportedDurations = modelConfig?.durations || [5, 10];
+
   console.log("[ambient-visual:shot-composer] Composing shots:", {
     sceneId: scene.id,
     sceneTitle: scene.title,
@@ -73,15 +79,47 @@ export async function composeShots(
     targetShotCount: shotCount,
     pacing: input.pacing,
     animationMode: input.animationMode,
+    videoModel,
+    supportedDurations,
   });
 
   const systemPrompt = buildShotComposerSystemPrompt(
     shotCount,
     sceneDuration,
     input.pacing,
-    input.animationMode
+    input.animationMode,
+    supportedDurations
   );
   const userPrompt = buildShotComposerUserPrompt(input);
+
+  // Build JSON schema dynamically with duration enum constrained to model-supported values
+  const schema = {
+    type: "object",
+    properties: {
+      shots: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            shotNumber: { type: "number" },
+            shotType: { type: "string" },
+            cameraMovement: { type: "string" },
+            duration: { 
+              type: "number",
+              enum: supportedDurations  // Constrain to model-supported durations
+            },
+            description: { type: "string" },
+          },
+          required: ["shotNumber", "shotType", "cameraMovement", "duration", "description"],
+          additionalProperties: false,
+        },
+      },
+      totalShots: { type: "number" },
+      totalDuration: { type: "number" },
+    },
+    required: ["shots", "totalShots", "totalDuration"],
+    additionalProperties: false,
+  };
 
   try {
     const response = await callTextModel(
@@ -99,30 +137,7 @@ export async function composeShots(
               type: "json_schema",
               name: "shot_composition",
               strict: true,
-              schema: {
-                type: "object",
-                properties: {
-                  shots: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        shotNumber: { type: "number" },
-                        shotType: { type: "string" },
-                        cameraMovement: { type: "string" },
-                        duration: { type: "number" },
-                        description: { type: "string" },
-                      },
-                      required: ["shotNumber", "shotType", "cameraMovement", "duration", "description"],
-                      additionalProperties: false,
-                    },
-                  },
-                  totalShots: { type: "number" },
-                  totalDuration: { type: "number" },
-                },
-                required: ["shots", "totalShots", "totalDuration"],
-                additionalProperties: false,
-              },
+              schema,
             },
           },
         },
@@ -164,10 +179,7 @@ export async function composeShots(
       shotNumber: index + 1, // Ensure sequential numbering
       shotType: shot.shotType || "Wide Shot",
       cameraMovement: shot.cameraMovement || "static",
-      duration: Math.max(
-        SHOT_LIMITS.DURATION_MIN,
-        Math.min(SHOT_LIMITS.DURATION_MAX, shot.duration)
-      ),
+      duration: shot.duration,  // Already validated by JSON schema enum
       description: shot.description,
       videoModel: null,
       imageModel: null,
@@ -213,6 +225,7 @@ export async function composeShotsForScenes(
     animationMode: import("../types").AnimationMode;
     artStyle?: string;
     visualElements?: string[];
+    videoModel?: string;
   },
   userId?: string,
   workspaceId?: string
@@ -224,6 +237,7 @@ export async function composeShotsForScenes(
     sceneCount: scenes.length,
     pacing: settings.pacing,
     shotsPerSegment: settings.shotsPerSegment,
+    videoModel: settings.videoModel,
   });
 
   const results = await Promise.all(
@@ -235,6 +249,7 @@ export async function composeShotsForScenes(
         animationMode: settings.animationMode,
         artStyle: settings.artStyle,
         visualElements: settings.visualElements,
+        videoModel: settings.videoModel,
       };
       
       const result = await composeShots(input, userId, workspaceId);

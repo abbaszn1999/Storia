@@ -88,8 +88,8 @@ export function ContinuityProposal({
                 <Badge variant="outline" className="font-mono bg-white/5 border-white/10">
                   Group {idx + 1}
                 </Badge>
-                <Badge variant="outline" className={getConnectionTypeColor(group.transitionType)}>
-                  {getConnectionTypeIcon(group.transitionType)} {group.transitionType || 'Unknown'}
+                <Badge variant="outline" className={getConnectionTypeColor(group.transitionType ?? null)}>
+                  {getConnectionTypeIcon(group.transitionType ?? null)} {group.transitionType || 'Unknown'}
                 </Badge>
                 {isApprovedGroup && (
                   <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">

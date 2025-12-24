@@ -21,7 +21,7 @@
 
 import { callAi } from "../../../ai/service";
 import { runwareModelIdMap } from "../../../ai/config";
-import { getDimensions, VIDEO_MODEL_CONFIGS } from "../../shared/config";
+import { getDimensions, VIDEO_MODEL_CONFIGS } from "../config";
 import { randomUUID } from "crypto";
 import {
   buildVideoPrompt,

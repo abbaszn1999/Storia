@@ -15,7 +15,7 @@ import {
   type VideoModelConfig,
   type ImageDimensions,
   type VideoDimensions,
-} from '../shared/config';
+} from '../../ai/config';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MODE-SPECIFIC CONFIGURATION

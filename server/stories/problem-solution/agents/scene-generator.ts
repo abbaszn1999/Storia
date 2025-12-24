@@ -4,7 +4,7 @@ import {
   buildSceneUserPrompt,
   getOptimalSceneCount,
 } from "../prompts/scene-prompts";
-import { getVideoModelConstraints, getDefaultVideoModel } from "../../shared/config";
+import { getVideoModelConstraints, getDefaultVideoModel } from "../config";
 import type { SceneGeneratorInput, SceneGeneratorOutput, SceneOutput } from "../types";
 
 const SCENE_CONFIG = {

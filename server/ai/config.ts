@@ -807,3 +807,31 @@ export function isProviderEnabled(provider: AiProviderName): boolean {
   return Boolean(getProviderConfig(provider).enabled);
 }
 
+// Re-export video model configurations for backward compatibility
+export {
+  VIDEO_MODEL_CONFIGS,
+  DIMENSION_MAP,
+  MODEL_DIMENSIONS,
+  getDefaultVideoModel,
+  getAvailableVideoModels,
+  getDimensions,
+  getVideoModelConstraints,
+  type VideoModelConfig,
+  type VideoDimensions,
+  type VideoModelConstraints,
+} from './config/video-models';
+
+// Re-export image model configurations for backward compatibility
+export {
+  IMAGE_MODEL_CONFIGS,
+  IMAGE_DIMENSION_MAP,
+  MODEL_SPECIFIC_DIMENSIONS,
+  getImageModelConfig,
+  getDefaultImageModel,
+  getAvailableImageModels,
+  getImageDimensions,
+  aspectRatioToDimensions,
+  type ImageModelConfig,
+  type ImageDimensions,
+} from './config/image-models';
+

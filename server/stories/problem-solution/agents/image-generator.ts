@@ -24,8 +24,7 @@ import { randomUUID } from "crypto";
 import { callAi } from "../../../ai/service";
 import { runwareModelIdMap } from "../../../ai/config";
 import { enhanceImagePrompt } from "../prompts/image-prompts";
-import { getImageDimensions } from "../config";
-import { getImageModelConfig } from "../../shared/config/image-models";
+import { getImageDimensions, getImageModelConfig } from "../config";
 import type {
   ImageGeneratorInput,
   ImageGeneratorOutput,

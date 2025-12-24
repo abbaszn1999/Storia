@@ -6,6 +6,8 @@
  * System and user prompts for calculating timing, speed ramps, and duration budget.
  */
 
+import type { SceneDefinition } from '../../types';
+
 export const TIMING_SYSTEM_PROMPT = `═══════════════════════════════════════════════════════════════════════════════
 SYSTEM: AGENT 4.2 — TEMPORAL RHYTHMIC ORCHESTRATOR (THE EDITOR)
 ═══════════════════════════════════════════════════════════════════════════════
@@ -38,6 +40,33 @@ WHAT THIS MEANS FOR YOUR TIMING DECISIONS:
    - Fast-fast-fast gets exhausting
    - Best videos have CONTRAST: fast → slightly slower → fast → pause → impact
    - The pacing_profile guides the overall feel, but YOU create the micro-rhythm
+
+═══════════════════════════════════════════════════════════════════════════════
+PRIMARY CONSTRAINT: DURATION BUDGET (NON-NEGOTIABLE)
+═══════════════════════════════════════════════════════════════════════════════
+
+⚠️ **THIS IS A PRIORITY CONSTRAINT. YOU MUST FOLLOW IT.** ⚠️
+
+The sum of ALL rendered_durations MUST equal the target campaign duration (within ±0.5s variance).
+
+**THIS IS NOT OPTIONAL. THIS IS NOT A SUGGESTION. THIS IS MANDATORY.**
+
+BEFORE you set any individual shot duration, you MUST:
+1. Know the target campaign duration (provided in the user prompt)
+2. Calculate how much total time you have to work with
+3. Distribute that time across all shots intelligently
+4. AFTER setting all durations, SUM them and VERIFY they match the target
+5. IF they don't match, YOU MUST ITERATE and adjust until they do
+
+**WORKFLOW:**
+- First pass: Set durations based on motion_intensity and pacing
+- Second pass: SUM all durations → Compare to target
+- If over budget: Trim strategically (Scene 2 first, avoid hero moments)
+- If under budget: Add time strategically (hero/reveal shots, Scene 3 payoff)
+- Third pass: Verify again → If still off, adjust again
+- REPEAT until variance is ≤ 0.5s
+
+**YOU CANNOT OUTPUT A RESPONSE WHERE THE TOTAL DOESN'T MATCH THE TARGET.**
 
 ═══════════════════════════════════════════════════════════════════════════════
 YOUR CRITICAL TASK
@@ -231,25 +260,38 @@ POSITION CONTEXT:
 - Connected shots: "Flow" — continuous or complementary
 
 ═══════════════════════════════════════════════════════════════════════════════
-STEP 5: VALIDATE & BALANCE THE RHYTHM
+STEP 5: VALIDATE & BALANCE THE RHYTHM (MANDATORY FINAL CHECK)
 ═══════════════════════════════════════════════════════════════════════════════
+
+⚠️ **YOU MUST DO THIS BEFORE OUTPUTTING. NO EXCEPTIONS.** ⚠️
 
 After setting all durations, step back and evaluate the WHOLE:
 
-DURATION BUDGET CHECK:
-- Sum all rendered_durations
-- Compare to target_total
-- Acceptable variance: ±0.5s
+**DURATION BUDGET CHECK (MANDATORY):**
+1. Sum ALL rendered_durations: actual_total = Σ(rendered_duration for each shot)
+2. Compare to target_total (from campaign duration)
+3. Calculate variance: variance = actual_total - target_total
+4. **IF |variance| > 0.5s, YOU MUST ADJUST AND RE-CALCULATE**
 
-IF OVER BUDGET (need to trim time):
+**YOU CANNOT PROCEED IF THE VARIANCE EXCEEDS ±0.5s.**
+
+**IF OVER BUDGET (need to trim time):**
 - First look at Scene 2 (most flexible, longest scene)
 - Find shots that can lose 0.1-0.2s without losing impact
 - Avoid cutting from hero moments or the first hook shot
+- Recalculate: actual_total = Σ(adjusted durations)
+- If still over, trim more strategically
+- **REPEAT until variance ≤ 0.5s**
 
-IF UNDER BUDGET (have extra time):
+**IF UNDER BUDGET (have extra time):**
 - Add breathing room to hero/reveal shots
 - Let Scene 3 payoff breathe slightly longer
 - Don't just pad randomly — add time where it creates impact
+- Recalculate: actual_total = Σ(adjusted durations)
+- If still under, add more strategically
+- **REPEAT until variance ≤ 0.5s**
+
+**ITERATION IS REQUIRED. DO NOT OUTPUT UNTIL THE BUDGET MATCHES.**
 
 RHYTHM CHECK (equally important):
 Before finalizing, scan your temporal_map and ask:
@@ -322,11 +364,13 @@ YOUR OUTPUT WILL BE JUDGED BY:
 CONSTRAINTS
 ═══════════════════════════════════════════════════════════════════════════════
 
-HARD LIMITS:
+HARD LIMITS (NON-NEGOTIABLE):
 - rendered_duration: 0.3s minimum, 5.0s maximum
-- Total duration: within ±0.5s of target
+- **Total duration: MUST be within ±0.5s of target (THIS IS MANDATORY)**
 - Curves: only LINEAR, EASE_IN, or EASE_OUT
 - Output: JSON only, no explanations
+
+**CRITICAL: If your output's duration_budget.variance exceeds ±0.5s, your response is INVALID.**
 
 CALCULATIONS:
 - multiplier = 5.0 / rendered_duration
@@ -339,19 +383,7 @@ REQUIRED FIELDS:
 ═══════════════════════════════════════════════════════════════════════════════`;
 
 export interface TimingInput {
-  scenes: Array<{
-    scene_id: string;
-    scene_name: string;
-    shots: Array<{
-      shot_id: string;
-      technical_cinematography: {
-        motion_intensity: number;
-      };
-      generation_mode: {
-        shot_type: "IMAGE_REF" | "START_END";
-      };
-    }>;
-  }>;
+  scenes: SceneDefinition[];
   pacing_profile: string;
   total_campaign_duration: number;
   script_manifest: {
@@ -373,11 +405,57 @@ export interface TimingInput {
 export function buildTimingUserPrompt(input: TimingInput): string {
   const { scenes, pacing_profile, total_campaign_duration, script_manifest } = input;
 
+  // Build comprehensive, organized shot manifest
   let scenesText = '';
+  
   for (const scene of scenes) {
-    scenesText += `\nSCENE ${scene.scene_id}: ${scene.scene_name}`;
-    for (const shot of scene.shots) {
-      scenesText += `\n- ${shot.shot_id}: intensity=${shot.technical_cinematography.motion_intensity}`;
+    scenesText += `\n\n═══════════════════════════════════════════════════════════════════════════════\n`;
+    scenesText += `SCENE ${scene.scene_id}: ${scene.scene_name}\n`;
+    scenesText += `═══════════════════════════════════════════════════════════════════════════════\n`;
+    scenesText += `Description: ${scene.scene_description}\n\n`;
+    
+    for (let i = 0; i < scene.shots.length; i++) {
+      const shot = scene.shots[i];
+      const isFirst = i === 0;
+      const isLast = i === scene.shots.length - 1;
+      
+      scenesText += `--- SHOT ${shot.shot_id} ---\n`;
+      scenesText += `Cinematic Goal: ${shot.cinematic_goal}\n`;
+      scenesText += `Description: ${shot.brief_description}\n`;
+      scenesText += `Position: ${isFirst ? 'First' : isLast ? 'Last' : 'Middle'} shot in scene\n\n`;
+      
+      scenesText += `TECHNICAL CINEMATOGRAPHY:\n`;
+      scenesText += `  Camera Movement: ${shot.technical_cinematography.camera_movement}\n`;
+      scenesText += `  Lens: ${shot.technical_cinematography.lens}\n`;
+      scenesText += `  Depth of Field: ${shot.technical_cinematography.depth_of_field}\n`;
+      scenesText += `  Framing: ${shot.technical_cinematography.framing}\n`;
+      scenesText += `  Motion Intensity: ${shot.technical_cinematography.motion_intensity}/10\n\n`;
+      
+      scenesText += `GENERATION MODE:\n`;
+      scenesText += `  Type: ${shot.generation_mode.shot_type}\n`;
+      scenesText += `  Reason: ${shot.generation_mode.reason}\n\n`;
+      
+      scenesText += `IDENTITY REFERENCES:\n`;
+      scenesText += `  Product: ${shot.identity_references.refer_to_product ? `Yes (${shot.identity_references.product_image_ref || 'heroProfile'})` : 'No'}\n`;
+      scenesText += `  Character: ${shot.identity_references.refer_to_character ? 'Yes' : 'No'}\n`;
+      scenesText += `  Logo: ${shot.identity_references.refer_to_logo ? 'Yes' : 'No'}\n`;
+      if (shot.identity_references.refer_to_previous_outputs?.length > 0) {
+        scenesText += `  Previous Shot References: ${shot.identity_references.refer_to_previous_outputs.map((ref: any) => `${ref.shot_id} (${ref.reference_type})`).join(', ')}\n`;
+      }
+      scenesText += `\n`;
+      
+      scenesText += `CONTINUITY LOGIC:\n`;
+      scenesText += `  Connected to Previous: ${shot.continuity_logic.is_connected_to_previous ? 'Yes' : 'No'}\n`;
+      scenesText += `  Connected to Next: ${shot.continuity_logic.is_connected_to_next ? 'Yes' : 'No'}\n`;
+      scenesText += `  Handover Type: ${shot.continuity_logic.handover_type}\n\n`;
+      
+      scenesText += `COMPOSITION & LIGHTING:\n`;
+      scenesText += `  Safe Zones: ${shot.composition_safe_zones}\n`;
+      scenesText += `  Lighting Event: ${shot.lighting_event}\n`;
+      
+      if (i < scene.shots.length - 1) {
+        scenesText += `\n`;
+      }
     }
   }
 
@@ -386,7 +464,9 @@ CAMPAIGN CONTEXT
 ═══════════════════════════════════════════════════════════════════════════════
 
 PACING PROFILE: ${pacing_profile}
-TARGET DURATION: ${total_campaign_duration} seconds
+⚠️ TARGET DURATION: ${total_campaign_duration} seconds ⚠️
+
+**THIS IS A CONSTRAINT. THE SUM OF ALL RENDERED_DURATIONS MUST EQUAL ${total_campaign_duration}s (within ±0.5s).**
 
 ═══════════════════════════════════════════════════════════════════════════════
 SHOT MANIFEST (From Agent 4.1)
@@ -394,36 +474,34 @@ SHOT MANIFEST (From Agent 4.1)
 ${scenesText}
 
 ═══════════════════════════════════════════════════════════════════════════════
-STORY BEATS (From Tab 3)
-═══════════════════════════════════════════════════════════════════════════════
-
-ACT 1 - HOOK:
-Target Energy: ${script_manifest.act_1_hook.target_energy}
-SFX Cue: "${script_manifest.act_1_hook.sfx_cue}"
-
-ACT 2 - TRANSFORMATION:
-Target Energy: ${script_manifest.act_2_transform.target_energy}
-SFX Cue: "${script_manifest.act_2_transform.sfx_cue}"
-
-ACT 3 - PAYOFF:
-Target Energy: ${script_manifest.act_3_payoff.target_energy}
-SFX Cue: "${script_manifest.act_3_payoff.sfx_cue}"
-
-═══════════════════════════════════════════════════════════════════════════════
 TASK
 ═══════════════════════════════════════════════════════════════════════════════
 
 Calculate the temporal map for this ${total_campaign_duration}-second campaign.
 
-FOR EACH SHOT:
+**BEFORE YOU START:**
+- Count the total number of shots
+- Calculate average duration per shot: ${total_campaign_duration}s / number_of_shots
+- This gives you a rough target for each shot (but you'll vary based on importance)
+
+**FOR EACH SHOT:**
 1. Convert motion_intensity to base_duration
 2. Apply ${pacing_profile} modifier
-3. Calculate multiplier (5.0 / rendered_duration)
-4. Select speed_curve based on shot position and pacing
+3. Consider shot role (cinematic_goal, generation_mode, continuity_logic)
+4. Calculate multiplier (5.0 / rendered_duration)
+5. Select speed_curve based on shot position, pacing, and camera movement
+6. Generate sfx_hint based on shot description, lighting, and motion
 
-THEN:
-5. Validate total fits ${total_campaign_duration}s (±0.5s variance allowed)
-6. Adjust if needed (reduce high-intensity first, extend low-intensity first)
+**MANDATORY VALIDATION (YOU MUST DO THIS):**
+7. **SUM ALL rendered_durations**: actual_total = Σ(rendered_duration)
+8. **COMPARE TO TARGET**: variance = actual_total - ${total_campaign_duration}
+9. **IF |variance| > 0.5s, YOU MUST ADJUST:**
+   - If over: Reduce durations strategically (Scene 2 first, avoid hero moments)
+   - If under: Increase durations strategically (hero/reveal shots, Scene 3 payoff)
+10. **RECALCULATE AND VERIFY AGAIN**
+11. **REPEAT STEPS 9-10 UNTIL |variance| ≤ 0.5s**
+
+**YOU CANNOT OUTPUT UNTIL THE TOTAL MATCHES THE TARGET.**
 
 Return ONLY the JSON object — no explanation, no preamble.`;
 }

@@ -61,6 +61,74 @@ A WEAK Spark:
 ✗ Cliché ("Where tradition meets innovation")
 ✗ Overly abstract (no visual anchors)
 
+═══════════════════════════════════════════════════════════════════════════════
+CULTURAL CREATIVE INTELLIGENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+Adjust your creative lens based on region:
+
+MENA / ARAB REGION:
+- Metaphors: Desert, gold, light from darkness, timelessness, heritage
+- Values: Family pride, success, refined taste, legacy
+- Visual language: Dramatic contrasts, geometric perfection, warmth
+- Avoid: Overtly Western individualism, excessive minimalism
+
+WESTERN / EUROPEAN:
+- Metaphors: Craftsmanship, quiet confidence, understated power
+- Values: Authenticity, heritage, individuality through taste
+- Visual language: Negative space, subtle sophistication
+- Avoid: Flash, ostentation, obvious luxury signifiers
+
+GEN Z / YOUTH CULTURE:
+- Metaphors: Self-expression, rebellion, transformation, becoming
+- Values: Authenticity, identity, belonging, standing out
+- Visual language: Bold, unapologetic, raw, real
+- Avoid: Corporate polish, aspirational distance, "trying too hard"
+
+LUXURY / HIGH-END:
+- Metaphors: Time, craft, patience, legacy, mastery
+- Values: Exclusivity, connoisseurship, quiet power
+- Visual language: Slow revelation, intimate details, reverence
+- Avoid: Speed, mass-market appeal, obvious selling
+
+EAST ASIAN MARKETS:
+- Metaphors: Precision, future, harmony, aesthetic perfection
+- Values: Quality, status, taste, innovation
+- Visual language: Clean lines, vibrant accents, dynamic tension
+- Avoid: Dull colors, static compositions, outdated aesthetics
+
+═══════════════════════════════════════════════════════════════════════════════
+CREATIVE SPARK TEMPLATES (INSPIRATION ONLY)
+═══════════════════════════════════════════════════════════════════════════════
+
+Study these examples — don't copy them:
+
+WATCH (Luxury):
+"Time crystallized in titanium — each brushed grain captures a moment of 
+precision, revealed through light that dances across the surface like 
+memories forming. The watch doesn't just tell time; it embodies it."
+
+SNEAKER (Youth):
+"Velocity made visible. The mesh breathes like a living thing, each fiber 
+capturing the blur between launch and landing. Not just a shoe — a 
+frozen moment of becoming airborne."
+
+PERFUME (Feminine Luxury):
+"Glass holds liquid midnight. A single drop catches light like a falling 
+star — transformation from vessel to vapor, from scent to memory. 
+Elegance isn't worn; it's exhaled."
+
+TECH DEVICE (Premium):
+"Darkness yields to a single edge of light. Metal awakens. In this 
+moment between off and on, between silence and symphony, lies the 
+anticipation of everything possible."
+
+CAR (Performance):
+"Steel shaped by wind, painted by motion. The air itself becomes 
+sculptor — every curve a negotiation between power and grace. 
+Not driving. Dancing with physics."
+
+═══════════════════════════════════════════════════════════════════════════════
 OUTPUT REQUIREMENTS
 
 Return a JSON object with EXACTLY this structure:
@@ -95,10 +163,13 @@ export function buildCreativeSparkUserPrompt(input: {
   heroFeature: string;
   originMetaphor: string;
   includeHumanElement: boolean;
+  productCategory?: string;
   characterMode?: string;
   character_profile?: any;
 }): string {
-  return `STRATEGIC CONTEXT (From Agent 1.1)
+  return `═══════════════════════════════════════════════════════════════════════════════
+STRATEGIC CONTEXT (From Agent 1.1)
+═══════════════════════════════════════════════════════════════════════════════
 
 TARGET AUDIENCE: ${input.targetAudience}
 REGION: ${input.region}
@@ -108,9 +179,11 @@ PACING PROFILE: ${input.pacing_profile}
 STRATEGIC DIRECTIVES:
 ${input.strategic_directives}
 
+═══════════════════════════════════════════════════════════════════════════════
 PRODUCT DNA (From Agent 2.1)
+═══════════════════════════════════════════════════════════════════════════════
 
-GEOMETRY PROFILE:
+${input.productCategory ? `PRODUCT CATEGORY: ${input.productCategory}\n\n` : ''}GEOMETRY PROFILE:
 ${input.geometry_profile}
 
 MATERIAL SPECIFICATION:
@@ -120,15 +193,20 @@ HERO FEATURE: "${input.heroFeature}"
 
 ORIGIN METAPHOR: "${input.originMetaphor}"
 
+═══════════════════════════════════════════════════════════════════════════════
 CHARACTER CONTEXT (From Agent 2.2)
+═══════════════════════════════════════════════════════════════════════════════
 
 HUMAN ELEMENT INCLUDED: ${input.includeHumanElement}
 ${input.includeHumanElement && input.characterMode ? `CHARACTER TYPE: ${input.characterMode}` : ''}
 ${input.includeHumanElement && input.character_profile?.detailed_persona ? `CHARACTER PERSONA: ${input.character_profile.detailed_persona}` : ''}
 
+═══════════════════════════════════════════════════════════════════════════════
 TASK
+═══════════════════════════════════════════════════════════════════════════════
 
-Generate the Creative Spark — a singular, high-concept vision that will unify this entire campaign.
+Generate the Creative Spark — a singular, high-concept vision that will 
+unify this entire campaign.
 
 Your Spark should:
 1. Transform the material properties into visual metaphor

@@ -42,6 +42,7 @@ export default function SocialCommerceMode() {
   
   // State for auto-creation
   const [isCreating, setIsCreating] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false); // NEW: Track transition state
   const creationAttempted = useRef(false);
   
   // Video ID state (updated after creation)
@@ -196,10 +197,23 @@ export default function SocialCommerceMode() {
         cameraPath: 'orbit' | 'pan' | 'zoom' | 'dolly' | 'static';
         lens: 'macro' | 'wide' | '85mm' | 'telephoto';
         referenceTags: string[];
+        previousShotReferences: Array<{
+          shot_id: string;
+          reason: string;
+          reference_type: string;
+        }>;
         isLinkedToPrevious: boolean;
+        speedProfile: 'smooth' | 'linear';
+        multiplier: number;
+        sfxHint: string;
       }>;
     }>;
     continuityLinksEstablished: boolean;
+    durationBudget?: {
+      target_total: number;
+      actual_total: number;
+      variance: number;
+    };
   }>({
     scenes: [],
     continuityLinksEstablished: false,
@@ -506,61 +520,85 @@ export default function SocialCommerceMode() {
       // Restore step3Data if available
       const step3 = existingVideo.step3Data as any;
       if (step3) {
-        // Creative Spark
-        if (step3.creativeSpark?.creative_spark) {
-          setCampaignSpark(step3.creativeSpark.creative_spark);
-        } else if (typeof step3.campaignSpark === 'string') {
-          setCampaignSpark(step3.campaignSpark);
-        }
-        
-        // Campaign Objective (optional)
-        if (step3.campaignObjective) {
-          setCampaignObjective(step3.campaignObjective);
-        }
-        
-        // Visual Beats
-        if (step3.narrative?.script_manifest) {
-          const manifest = step3.narrative.script_manifest;
+        // NEW: Prioritize uiInputs if available (most complete)
+        if (step3.uiInputs) {
+          setEnvironmentConcept(step3.uiInputs.environmentConcept || '');
+          setAtmosphericDensity(step3.uiInputs.atmosphericDensity ?? 50);
+          setCinematicLighting(step3.uiInputs.cinematicLighting || '');
+          setVisualPreset(step3.uiInputs.visualPreset || '');
+          setStyleReferenceUrl(step3.uiInputs.styleReferenceUrl || null);
+          setCampaignSpark(step3.uiInputs.campaignSpark || '');
           setVisualBeats({
-            beat1: manifest.act_1_hook?.text || '',
-            beat2: manifest.act_2_transform?.text || '',
-            beat3: manifest.act_3_payoff?.text || '',
+            beat1: step3.uiInputs.visualBeats?.beat1 || '',
+            beat2: step3.uiInputs.visualBeats?.beat2 || '',
+            beat3: step3.uiInputs.visualBeats?.beat3 || '',
           });
-          // CTA Text
-          if (manifest.act_3_payoff?.cta_text) {
-            setCtaText(manifest.act_3_payoff.cta_text);
+          setCampaignObjective(step3.uiInputs.campaignObjective || '');
+          if (step3.uiInputs.environmentBrandPrimaryColor) {
+            setEnvironmentBrandPrimaryColor(step3.uiInputs.environmentBrandPrimaryColor);
           }
-        } else if (step3.visualBeats) {
-          setVisualBeats({
-            beat1: step3.visualBeats.beat1 || '',
-            beat2: step3.visualBeats.beat2 || '',
-            beat3: step3.visualBeats.beat3 || '',
-          });
-        }
-        
-        // Environment
-        if (step3.environment?.concept) {
-          setEnvironmentConcept(step3.environment.concept);
-        }
-        if (step3.environment?.cinematicLighting) {
-          setCinematicLighting(step3.environment.cinematicLighting);
-        }
-        if (step3.environment?.atmosphericDensity !== undefined) {
-          setAtmosphericDensity(step3.environment.atmosphericDensity);
-        }
-        if (step3.environment?.visualPreset) {
-          setVisualPreset(step3.environment.visualPreset);
-        }
-        
-        // Environment brand colors
-        if (step3.environment?.brandColors?.primary) {
-          setEnvironmentBrandPrimaryColor(step3.environment.brandColors.primary);
-        }
-        if (step3.environment?.brandColors?.secondary) {
-          setEnvironmentBrandSecondaryColor(step3.environment.brandColors.secondary);
+          if (step3.uiInputs.environmentBrandSecondaryColor) {
+            setEnvironmentBrandSecondaryColor(step3.uiInputs.environmentBrandSecondaryColor);
+          }
+        } else {
+          // Fallback to old structure (backward compatibility)
+          // Creative Spark
+          if (step3.creativeSpark?.creative_spark) {
+            setCampaignSpark(step3.creativeSpark.creative_spark);
+          } else if (typeof step3.campaignSpark === 'string') {
+            setCampaignSpark(step3.campaignSpark);
+          }
+          
+          // Campaign Objective (optional)
+          if (step3.campaignObjective) {
+            setCampaignObjective(step3.campaignObjective);
+          }
+          
+          // Visual Beats
+          if (step3.narrative?.script_manifest) {
+            const manifest = step3.narrative.script_manifest;
+            setVisualBeats({
+              beat1: manifest.act_1_hook?.text || '',
+              beat2: manifest.act_2_transform?.text || '',
+              beat3: manifest.act_3_payoff?.text || '',
+            });
+            // CTA Text
+            if (manifest.act_3_payoff?.cta_text) {
+              setCtaText(manifest.act_3_payoff.cta_text);
+            }
+          } else if (step3.visualBeats) {
+            setVisualBeats({
+              beat1: step3.visualBeats.beat1 || '',
+              beat2: step3.visualBeats.beat2 || '',
+              beat3: step3.visualBeats.beat3 || '',
+            });
+          }
+          
+          // Environment
+          if (step3.environment?.concept) {
+            setEnvironmentConcept(step3.environment.concept);
+          }
+          if (step3.environment?.cinematicLighting) {
+            setCinematicLighting(step3.environment.cinematicLighting);
+          }
+          if (step3.environment?.atmosphericDensity !== undefined) {
+            setAtmosphericDensity(step3.environment.atmosphericDensity);
+          }
+          if (step3.environment?.visualPreset) {
+            setVisualPreset(step3.environment.visualPreset);
+          }
+          
+          // Environment brand colors
+          if (step3.environment?.brandColors?.primary) {
+            setEnvironmentBrandPrimaryColor(step3.environment.brandColors.primary);
+          }
+          if (step3.environment?.brandColors?.secondary) {
+            setEnvironmentBrandSecondaryColor(step3.environment.brandColors.secondary);
+          }
         }
         
         console.log('[SocialCommerce] Restored step3Data:', {
+          hasUiInputs: !!step3.uiInputs,
           hasCreativeSpark: !!step3.creativeSpark || !!step3.campaignSpark,
           hasNarrative: !!step3.narrative,
           hasEnvironment: !!step3.environment,
@@ -588,6 +626,41 @@ export default function SocialCommerceMode() {
             actType: sceneIdx === 0 ? 'hook' : sceneIdx === 1 ? 'transformation' : 'payoff',
             shots: scene.shots.map((shot: any) => {
               const timing = timingMap.get(shot.shot_id);
+              
+              // Build reference tags based on identity_references
+              const referenceTags: string[] = [];
+              
+              // Product reference with variant
+              if (shot.identity_references.refer_to_product) {
+                const productRef = shot.identity_references.product_image_ref;
+                if (productRef === 'macroDetail') {
+                  referenceTags.push('@Product_Macro');
+                } else if (productRef === 'materialReference') {
+                  referenceTags.push('@Texture');
+                } else {
+                  referenceTags.push('@Product'); // Default to heroProfile
+                }
+              }
+              
+              // Character reference
+              if (shot.identity_references.refer_to_character) {
+                referenceTags.push('@Character');
+              }
+              
+              // Logo reference
+              if (shot.identity_references.refer_to_logo) {
+                referenceTags.push('@Logo');
+              }
+              
+              // Previous shot references
+              if (shot.identity_references.refer_to_previous_outputs?.length > 0) {
+                shot.identity_references.refer_to_previous_outputs.forEach((ref: any) => {
+                  // Format shot_id: "S1.1" -> "@Shot_1_1", "shot_1_1" -> "@Shot_1_1"
+                  const formattedId = ref.shot_id.replace(/^[Ss]/, '').replace(/[^0-9]/g, '_');
+                  referenceTags.push(`@Shot_${formattedId}`);
+                });
+              }
+              
               return {
                 id: shot.shot_id,
                 sceneId: scene.scene_id,
@@ -602,14 +675,13 @@ export default function SocialCommerceMode() {
                 lens: shot.technical_cinematography.lens.toLowerCase().includes('macro') ? 'macro' :
                       shot.technical_cinematography.lens.toLowerCase().includes('wide') ? 'wide' :
                       shot.technical_cinematography.lens.toLowerCase().includes('85') ? '85mm' : 'telephoto',
-                referenceTags: [
-                  ...(shot.identity_references.refer_to_product ? ['@Product'] : []),
-                  ...(shot.identity_references.refer_to_character ? ['@Character'] : []),
-                  ...(shot.identity_references.refer_to_logo ? ['@Logo'] : []),
-                ],
+                referenceTags,
+                previousShotReferences: shot.identity_references.refer_to_previous_outputs || [],
                 isLinkedToPrevious: shot.continuity_logic.is_connected_to_previous,
                 speedProfile: timing?.speed_curve === 'EASE_IN' ? 'smooth' :
                              timing?.speed_curve === 'EASE_OUT' ? 'smooth' : 'linear',
+                multiplier: timing?.multiplier || 1.0,
+                sfxHint: timing?.sfx_hint || '',
               };
             }),
           };
@@ -618,6 +690,11 @@ export default function SocialCommerceMode() {
         setSceneManifest({
           scenes: mappedScenes,
           continuityLinksEstablished: mappedScenes.some(s => s.shots.some((shot: any) => shot.isLinkedToPrevious)),
+          durationBudget: step4.timing?.duration_budget || {
+            target_total: 0,
+            actual_total: 0,
+            variance: 0,
+          },
         });
         
         console.log('[SocialCommerce] Restored step4Data:', {
@@ -1299,7 +1376,16 @@ export default function SocialCommerceMode() {
     }
 
     setDirection(step > activeStep ? 1 : -1);
-    setActiveStep(step);
+    transitionToStep(step, 200); // Smooth transition when clicking steps
+  };
+
+  // Helper function for smooth step transitions
+  const transitionToStep = (nextStep: CommerceStepId, delay: number = 300) => {
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setActiveStep(nextStep);
+      setTimeout(() => setIsTransitioning(false), 100); // Small delay for animation to complete
+    }, delay);
   };
 
   const handleNext = async () => {
@@ -1326,7 +1412,7 @@ export default function SocialCommerceMode() {
       if (completedSteps.includes(activeStep) && !dirtySteps.has(activeStep)) {
         console.log('[SocialCommerce] Step 1 already completed, no changes - navigating directly');
         setDirection(1);
-        setActiveStep(steps[nextIndex]);
+        transitionToStep(steps[nextIndex], 150); // Faster transition for skip
         return;
       }
       
@@ -1393,9 +1479,10 @@ export default function SocialCommerceMode() {
           setCompletedSteps([...completedSteps, activeStep]);
         }
         setDirection(1);
-        setActiveStep(steps[nextIndex]);
+        transitionToStep(steps[nextIndex], 300);
       } catch (error) {
         console.error('[SocialCommerce] Failed to save step 1:', error);
+        setIsTransitioning(false); // Reset transition state on error
         toast({
           title: "Error",
           description: error instanceof Error ? error.message : "Failed to save step 1. Please try again.",
@@ -1416,7 +1503,7 @@ export default function SocialCommerceMode() {
       if (completedSteps.includes(activeStep) && !dirtySteps.has(activeStep)) {
         console.log('[SocialCommerce] Step 2 already completed, no changes - navigating directly');
         setDirection(1);
-        setActiveStep(steps[nextIndex]);
+        transitionToStep(steps[nextIndex], 150); // Faster transition for skip
         return;
       }
       
@@ -1546,9 +1633,10 @@ export default function SocialCommerceMode() {
           setCompletedSteps([...completedSteps, activeStep]);
         }
         setDirection(1);
-        setActiveStep(steps[nextIndex]);
+        transitionToStep(steps[nextIndex], 300);
       } catch (error) {
         console.error('[SocialCommerce] Tab 2 error:', error);
+        setIsTransitioning(false); // Reset transition state on error
         toast({
           title: "Error",
           description: error instanceof Error ? error.message : "Failed to process Tab 2",
@@ -1569,7 +1657,7 @@ export default function SocialCommerceMode() {
       if (completedSteps.includes(activeStep) && !dirtySteps.has(activeStep)) {
         console.log('[SocialCommerce] Step 3 already completed, no changes - navigating directly');
         setDirection(1);
-        setActiveStep(steps[nextIndex]);
+        transitionToStep(steps[nextIndex], 150); // Faster transition for skip
         return;
       }
       
@@ -1619,6 +1707,7 @@ export default function SocialCommerceMode() {
             campaignSpark, // Use existing if filled, or let backend generate
             campaignObjective: campaignObjective || '', // Optional - empty string if not selected
             visualBeats,
+            ctaText, // Manual CTA text edits
             environmentBrandPrimaryColor,
             environmentBrandSecondaryColor,
           }),
@@ -1656,6 +1745,41 @@ export default function SocialCommerceMode() {
               actType: sceneIdx === 0 ? 'hook' : sceneIdx === 1 ? 'transformation' : 'payoff',
               shots: scene.shots.map((shot: any) => {
                 const timing = timingMap.get(shot.shot_id);
+                
+                // Build reference tags based on identity_references
+                const referenceTags: string[] = [];
+                
+                // Product reference with variant
+                if (shot.identity_references.refer_to_product) {
+                  const productRef = shot.identity_references.product_image_ref;
+                  if (productRef === 'macroDetail') {
+                    referenceTags.push('@Product_Macro');
+                  } else if (productRef === 'materialReference') {
+                    referenceTags.push('@Texture');
+                  } else {
+                    referenceTags.push('@Product'); // Default to heroProfile
+                  }
+                }
+                
+                // Character reference
+                if (shot.identity_references.refer_to_character) {
+                  referenceTags.push('@Character');
+                }
+                
+                // Logo reference
+                if (shot.identity_references.refer_to_logo) {
+                  referenceTags.push('@Logo');
+                }
+                
+                // Previous shot references
+                if (shot.identity_references.refer_to_previous_outputs?.length > 0) {
+                  shot.identity_references.refer_to_previous_outputs.forEach((ref: any) => {
+                    // Format shot_id: "S1.1" -> "@Shot_1_1", "shot_1_1" -> "@Shot_1_1"
+                    const formattedId = ref.shot_id.replace(/^[Ss]/, '').replace(/[^0-9]/g, '_');
+                    referenceTags.push(`@Shot_${formattedId}`);
+                  });
+                }
+                
                 return {
                   id: shot.shot_id,
                   sceneId: scene.scene_id,
@@ -1670,14 +1794,13 @@ export default function SocialCommerceMode() {
                   lens: shot.technical_cinematography.lens.toLowerCase().includes('macro') ? 'macro' :
                         shot.technical_cinematography.lens.toLowerCase().includes('wide') ? 'wide' :
                         shot.technical_cinematography.lens.toLowerCase().includes('85') ? '85mm' : 'telephoto',
-                  referenceTags: [
-                    ...(shot.identity_references.refer_to_product ? ['@Product'] : []),
-                    ...(shot.identity_references.refer_to_character ? ['@Character'] : []),
-                    ...(shot.identity_references.refer_to_logo ? ['@Logo'] : []),
-                  ],
+                  referenceTags,
+                  previousShotReferences: shot.identity_references.refer_to_previous_outputs || [],
                   isLinkedToPrevious: shot.continuity_logic.is_connected_to_previous,
                   speedProfile: timing?.speed_curve === 'EASE_IN' ? 'smooth' :
                                timing?.speed_curve === 'EASE_OUT' ? 'smooth' : 'linear',
+                  multiplier: timing?.multiplier || 1.0,
+                  sfxHint: timing?.sfx_hint || '',
                 };
               }),
             };
@@ -1686,6 +1809,11 @@ export default function SocialCommerceMode() {
           setSceneManifest({
             scenes: mappedScenes,
             continuityLinksEstablished: mappedScenes.some(s => s.shots.some((shot: any) => shot.isLinkedToPrevious)),
+            durationBudget: data.step4Data.timing?.duration_budget || {
+              target_total: 0,
+              actual_total: 0,
+              variance: 0,
+            },
           });
           
           console.log('[SocialCommerce] Mapped step4Data to sceneManifest:', {
@@ -1704,9 +1832,10 @@ export default function SocialCommerceMode() {
           setCompletedSteps([...completedSteps, activeStep]);
         }
         setDirection(1);
-        setActiveStep(steps[nextIndex]);
+        transitionToStep(steps[nextIndex], 300);
       } catch (error) {
         console.error('[SocialCommerce] Tab 3 error:', error);
+        setIsTransitioning(false); // Reset transition state on error
         toast({
           title: "Error",
           description: error instanceof Error ? error.message : "Failed to process Tab 3",
@@ -1720,7 +1849,72 @@ export default function SocialCommerceMode() {
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
-    // OTHER STEPS: Just advance (TODO: Implement save logic for other steps)
+    // TAB 4 (STORYBOARD): Save sceneManifest to step4Data
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (activeStep === "storyboard") {
+      if (videoId === "new") {
+        toast({
+          title: "Error",
+          description: "Video not created yet. Please refresh the page.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsCreating(true);
+
+      try {
+        console.log('[SocialCommerce] Saving step 4 (sceneManifest):', {
+          sceneCount: sceneManifest.scenes.length,
+          totalShots: sceneManifest.scenes.reduce((sum, s) => sum + s.shots.length, 0),
+        });
+
+        const response = await fetch(`/api/social-commerce/videos/${videoId}/step/4/continue`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ sceneManifest }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.details || errorData.error || 'Failed to save step 4');
+        }
+
+        const data = await response.json();
+        
+        console.log('[SocialCommerce] Step 4 saved successfully:', {
+          sceneCount: data.step4Data?.mediaPlanner?.scenes?.length || 0,
+        });
+
+        toast({
+          title: "Storyboard Saved",
+          description: "All scenes and shots have been saved successfully",
+        });
+
+        // Mark step as completed and advance
+        if (!completedSteps.includes(activeStep)) {
+          setCompletedSteps([...completedSteps, activeStep]);
+        }
+        setDirection(1);
+        transitionToStep(steps[nextIndex], 300);
+      } catch (error) {
+        console.error('[SocialCommerce] Step 4 save error:', error);
+        setIsTransitioning(false); // Reset transition state on error
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to save storyboard",
+          variant: "destructive",
+        });
+      } finally {
+        setIsCreating(false);
+      }
+      
+      return;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // OTHER STEPS: Just advance
     // ═══════════════════════════════════════════════════════════════════════════
     
     // Mark current step as completed when moving forward
@@ -1729,7 +1923,7 @@ export default function SocialCommerceMode() {
     }
     
     setDirection(1);
-    setActiveStep(steps[nextIndex]);
+    transitionToStep(steps[nextIndex], 200); // Faster for simple navigation
   };
 
   const handleBack = () => {
@@ -1739,7 +1933,7 @@ export default function SocialCommerceMode() {
     
     if (prevIndex >= 0) {
       setDirection(-1);
-      setActiveStep(steps[prevIndex]);
+      transitionToStep(steps[prevIndex], 200); // Smooth back transition
     }
   };
 
@@ -1880,7 +2074,7 @@ export default function SocialCommerceMode() {
         } else {
           // Direct navigation to target step
           setDirection(targetStep > activeStep ? 1 : -1);
-          setActiveStep(targetStep);
+          transitionToStep(targetStep, 200);
         }
       }
     } catch (error) {
@@ -1910,12 +2104,14 @@ export default function SocialCommerceMode() {
   };
 
   // Show loading while workspace is being loaded or video is being created
-  if (isWorkspaceLoading || (!isNewVideo && isVideoLoading) || isCreating) {
+  // Only show full-screen loader for initial video creation, not step transitions
+  const isInitialVideoCreation = isNewVideo && isCreating;
+  if (isWorkspaceLoading || (!isNewVideo && isVideoLoading) || isInitialVideoCreation) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
-          {isCreating && (
+          {isInitialVideoCreation && (
             <p className="text-muted-foreground">Creating your project...</p>
           )}
         </div>
@@ -1944,6 +2140,17 @@ export default function SocialCommerceMode() {
     );
   }
 
+  // Compute nextLabel based on current state
+  const computedNextLabel = isTransitioning 
+    ? "Loading..."
+    : (isCreating 
+      ? (activeStep === "setup" ? "Running Agent 1.1..." :
+         activeStep === "script" ? "Running Agents 2.1-2.3..." :
+         activeStep === "environment" ? "Running Agents 3.0-3.3 & 4.1-4.2..." :
+         activeStep === "storyboard" ? "Saving storyboard..." :
+         "Processing...")
+      : undefined);
+
   return (
     <SocialCommerceStudioLayout
       currentStep={activeStep}
@@ -1954,8 +2161,9 @@ export default function SocialCommerceMode() {
       onNext={handleNext}
       onBack={handleBack}
       videoTitle={videoTitle}
-      isNextDisabled={!canContinue || isCreating}
-      nextLabel={isCreating && activeStep === "setup" ? "Running Agent 1.1..." : undefined}
+      isNextDisabled={!canContinue || isCreating || isTransitioning}
+      nextLabel={computedNextLabel}
+      isTransitioning={isTransitioning || isCreating}
     >
       <SocialCommerceWorkflow 
               activeStep={workflowStepMap[activeStep]}

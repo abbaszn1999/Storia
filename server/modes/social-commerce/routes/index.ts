@@ -1337,26 +1337,17 @@ router.post('/videos/:id/characters/generate-image', isAuthenticated, async (req
 
     const { id } = req.params;
     const { 
-      prompt,
-      strategy = 'PROMPT_EMBEDDING',
-      vfxAnchorTags,
-      referenceImageUrl,
-      identityId,
-      characterName, // Character name from selected recommendation
+      recommendation,  // Full CharacterRecommendation object
+      referenceImageUrl,  // Optional reference image
     } = req.body;
 
-    // Debug logging for prompt validation
-    console.log('[social-commerce] Generate image request body:', {
-      hasPrompt: !!prompt,
-      promptType: typeof prompt,
-      promptLength: prompt?.length || 0,
-      promptPreview: typeof prompt === 'string' ? prompt.substring(0, 100) : 'N/A',
-    });
-
-    // Validate required fields
-    if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
-      console.log('[social-commerce] ❌ Prompt validation failed');
-      return res.status(400).json({ error: 'Image generation prompt is required' });
+    // Validate required field
+    if (!recommendation || !recommendation.character_profile || !recommendation.appearance) {
+      console.log('[social-commerce] ❌ Recommendation validation failed');
+      return res.status(400).json({ 
+        error: 'Character recommendation object is required',
+        message: 'Please provide the full recommendation object from Agent 2.2a'
+      });
     }
 
     // Get video for settings
@@ -1373,11 +1364,11 @@ router.post('/videos/:id/characters/generate-image', isAuthenticated, async (req
 
     console.log('[social-commerce] Generating character image...', {
       videoId: id,
-      strategy,
+      mode: recommendation.mode,
+      strategy: recommendation.identity_locking.strategy,
       imageModel,
       imageResolution,
       aspectRatio,
-      promptLength: prompt.length,
       hasReference: !!referenceImageUrl,
     });
 
@@ -1386,11 +1377,8 @@ router.post('/videos/:id/characters/generate-image', isAuthenticated, async (req
 
     const result = await generateCharacterImage(
       {
-        prompt,
-        strategy,
-        vfxAnchorTags,
+        recommendation,  // Pass full recommendation object
         referenceImageUrl,
-        identityId,
         imageModel,
         imageResolution,
         aspectRatio,
@@ -1459,12 +1447,15 @@ router.post('/videos/:id/characters/generate-image', isAuthenticated, async (req
       };
       const extension = extensionMap[contentType] || "jpg";
 
+      // Get character name from recommendation
+      const characterName = recommendation.name || 'AI Generated Character';
+      
       // Create character record first
       const character = await storage.createCharacter({
         workspaceId: video.workspaceId,
-        name: characterName || 'AI Generated Character',
-        description: '', // Can be enhanced later
-        appearance: '', // Can be enhanced later
+        name: characterName,
+        description: recommendation.character_profile.detailed_persona || '', // Use persona as description
+        appearance: `${recommendation.appearance.age_range}, ${recommendation.appearance.skin_tone}, ${recommendation.appearance.build}` || '', // Use appearance data
       });
       
       console.log('[social-commerce] Character record created:', {
@@ -1896,6 +1887,7 @@ router.post('/videos/:id/creative-spark/generate', isAuthenticated, async (req: 
       heroFeature: step2Data.product?.material?.heroFeature || '',
       originMetaphor: step2Data.product?.material?.originMetaphor || '',
       includeHumanElement: step2Data.character ? true : false,
+      productCategory: step1Data.productCategory || undefined,
       characterMode: step2Data.character?.mode,
       character_profile: step2Data.character?.aiProfile,
     };
@@ -1933,6 +1925,8 @@ router.post('/videos/:id/creative-spark/generate', isAuthenticated, async (req: 
         creative_spark: sparkOutput.creative_spark,
         cost: sparkOutput.cost || 0,
       },
+      // Preserve existing uiInputs if they exist
+      uiInputs: existingStep3Data.uiInputs,
     };
 
     await storage.updateVideo(id, {
@@ -2182,6 +2176,26 @@ router.patch('/videos/:id/step/3/continue', isAuthenticated, async (req: Request
       narrativeOutput = existingStep3Data.narrative;
       narrativeCost = existingStep3Data.narrative.cost || 0;
       console.log('[social-commerce] Reusing existing narrative output from "Generate Visual Beats"');
+      
+      // Merge manual visual beats edits if provided
+      if (requestData.visualBeats?.beat1 && requestData.visualBeats.beat1.trim() !== '') {
+        narrativeOutput.script_manifest.act_1_hook.text = requestData.visualBeats.beat1.trim();
+        console.log('[social-commerce] Using manually edited Act 1 beat');
+      }
+      if (requestData.visualBeats?.beat2 && requestData.visualBeats.beat2.trim() !== '') {
+        narrativeOutput.script_manifest.act_2_transform.text = requestData.visualBeats.beat2.trim();
+        console.log('[social-commerce] Using manually edited Act 2 beat');
+      }
+      if (requestData.visualBeats?.beat3 && requestData.visualBeats.beat3.trim() !== '') {
+        narrativeOutput.script_manifest.act_3_payoff.text = requestData.visualBeats.beat3.trim();
+        console.log('[social-commerce] Using manually edited Act 3 beat');
+      }
+      
+      // Merge manual CTA text if provided
+      if (requestData.ctaText !== undefined && requestData.ctaText.trim() !== '') {
+        narrativeOutput.script_manifest.act_3_payoff.cta_text = requestData.ctaText.trim();
+        console.log('[social-commerce] Using manually edited CTA text:', requestData.ctaText);
+      }
     } else {
       // Validate that beats are filled (required before Continue)
       const hasAllBeats = requestData.visualBeats?.beat1 && 
@@ -2221,6 +2235,26 @@ router.patch('/videos/:id/step/3/continue', isAuthenticated, async (req: Request
         act3Energy: narrativeOutput.script_manifest.act_3_payoff.target_energy,
         cost: narrativeCost,
       });
+      
+      // Merge manual visual beats edits if provided (user may have edited after generation)
+      if (requestData.visualBeats?.beat1 && requestData.visualBeats.beat1.trim() !== '') {
+        narrativeOutput.script_manifest.act_1_hook.text = requestData.visualBeats.beat1.trim();
+        console.log('[social-commerce] Using manually edited Act 1 beat');
+      }
+      if (requestData.visualBeats?.beat2 && requestData.visualBeats.beat2.trim() !== '') {
+        narrativeOutput.script_manifest.act_2_transform.text = requestData.visualBeats.beat2.trim();
+        console.log('[social-commerce] Using manually edited Act 2 beat');
+      }
+      if (requestData.visualBeats?.beat3 && requestData.visualBeats.beat3.trim() !== '') {
+        narrativeOutput.script_manifest.act_3_payoff.text = requestData.visualBeats.beat3.trim();
+        console.log('[social-commerce] Using manually edited Act 3 beat');
+      }
+      
+      // Merge manual CTA text if provided
+      if (requestData.ctaText !== undefined && requestData.ctaText.trim() !== '') {
+        narrativeOutput.script_manifest.act_3_payoff.cta_text = requestData.ctaText.trim();
+        console.log('[social-commerce] Using manually edited CTA text:', requestData.ctaText);
+      }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -2365,6 +2399,23 @@ router.patch('/videos/:id/step/3/continue', isAuthenticated, async (req: Request
       environment: environmentOutput,
       narrative: narrativeOutput,
       harmonizer: harmonizerOutput,
+      // Save all UI inputs
+      uiInputs: {
+        environmentConcept: requestData.environmentConcept || '',
+        atmosphericDensity: requestData.atmosphericDensity || 50,
+        cinematicLighting: requestData.cinematicLighting || '',
+        visualPreset: requestData.visualPreset || '',
+        styleReferenceUrl: requestData.styleReferenceUrl || null,
+        campaignSpark: creativeSpark, // Use the creative spark (from step3Data or requestData)
+        visualBeats: {
+          beat1: requestData.visualBeats?.beat1 || '',
+          beat2: requestData.visualBeats?.beat2 || '',
+          beat3: requestData.visualBeats?.beat3 || '',
+        },
+        campaignObjective: requestData.campaignObjective || '',
+        environmentBrandPrimaryColor: requestData.environmentBrandPrimaryColor,
+        environmentBrandSecondaryColor: requestData.environmentBrandSecondaryColor,
+      },
     };
 
     // Build step4Data
@@ -2421,7 +2472,227 @@ router.patch('/videos/:id/step/3/continue', isAuthenticated, async (req: Request
 // ═══════════════════════════════════════════════════════════════════════════════
 
 router.patch('/videos/:id/step/4/continue', isAuthenticated, async (req: Request, res: Response) => {
-  res.status(501).json({ error: 'Not implemented yet - Sprint 5' });
+  try {
+    const { id } = req.params;
+    const userId = (req as any).user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const video = await storage.getVideo(id);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Note: Video ownership check is handled by storage layer
+
+    const requestData = req.body;
+    const { sceneManifest } = requestData;
+
+    if (!sceneManifest || !sceneManifest.scenes) {
+      return res.status(400).json({ error: 'sceneManifest with scenes is required' });
+    }
+
+    console.log('[social-commerce] Step 4 continue - saving sceneManifest:', {
+      videoId: id,
+      sceneCount: sceneManifest.scenes.length,
+      totalShots: sceneManifest.scenes.reduce((sum: number, s: any) => sum + s.shots.length, 0),
+    });
+
+    // Get existing step4Data or create new
+    const existingStep4Data = (video.step4Data as any) || {};
+    
+    // Convert sceneManifest to Agent 4.1 format (SceneDefinition[])
+    const scenes: any[] = sceneManifest.scenes.map((scene: any, sceneIdx: number) => {
+      // Check if this scene already exists in step4Data (from Agent 4.1)
+      const existingScene = existingStep4Data.mediaPlanner?.scenes?.find((s: any) => s.scene_id === scene.id);
+      
+      if (existingScene) {
+        // Merge manual shots into existing scene
+        const existingShotIds = new Set(existingScene.shots.map((s: any) => s.shot_id));
+        const manualShots = scene.shots
+          .filter((shot: any) => !existingShotIds.has(shot.id))
+          .map((shot: any) => {
+            // Convert manual shot to ShotDefinition format
+            return {
+              shot_id: shot.id,
+              cinematic_goal: shot.name.split(':')[1]?.trim() || shot.description,
+              brief_description: shot.description,
+              technical_cinematography: {
+                camera_movement: shot.cameraPath === 'orbit' ? 'Orbital' :
+                               shot.cameraPath === 'pan' ? 'Pan' :
+                               shot.cameraPath === 'zoom' ? 'Zoom' :
+                               shot.cameraPath === 'dolly' ? 'Dolly-in' : 'Static',
+                lens: shot.lens === 'macro' ? 'Macro' :
+                      shot.lens === 'wide' ? 'Wide' :
+                      shot.lens === '85mm' ? '85mm' : 'Telephoto',
+                depth_of_field: 'Medium',
+                framing: shot.shotType === 'image-ref' ? 'CU' : 'MED',
+                motion_intensity: 5, // Default, will be updated by timing
+              },
+              generation_mode: {
+                shot_type: shot.shotType === 'image-ref' ? 'IMAGE_REF' : 'START_END',
+                reason: 'Manual shot added by user',
+              },
+              identity_references: {
+                refer_to_product: shot.referenceTags?.some((t: string) => t.startsWith('@Product')),
+                product_image_ref: shot.referenceTags?.includes('@Product_Macro') ? 'macroDetail' :
+                                  shot.referenceTags?.includes('@Texture') ? 'materialReference' : 'heroProfile',
+                refer_to_character: shot.referenceTags?.includes('@Character') || false,
+                refer_to_logo: shot.referenceTags?.includes('@Logo') || false,
+                refer_to_previous_outputs: shot.previousShotReferences || [],
+              },
+              continuity_logic: {
+                is_connected_to_previous: shot.isLinkedToPrevious || false,
+                is_connected_to_next: false,
+                handover_type: 'JUMP_CUT',
+              },
+              composition_safe_zones: 'Center safe zone',
+              lighting_event: 'Natural lighting',
+            };
+          });
+        
+        return {
+          ...existingScene,
+          shots: [...existingScene.shots, ...manualShots],
+        };
+      } else {
+        // New manual scene - convert to SceneDefinition format
+        return {
+          scene_id: scene.id,
+          scene_name: scene.name,
+          scene_description: scene.description,
+          shots: scene.shots.map((shot: any) => ({
+            shot_id: shot.id,
+            cinematic_goal: shot.name.split(':')[1]?.trim() || shot.description,
+            brief_description: shot.description,
+            technical_cinematography: {
+              camera_movement: shot.cameraPath === 'orbit' ? 'Orbital' :
+                             shot.cameraPath === 'pan' ? 'Pan' :
+                             shot.cameraPath === 'zoom' ? 'Zoom' :
+                             shot.cameraPath === 'dolly' ? 'Dolly-in' : 'Static',
+              lens: shot.lens === 'macro' ? 'Macro' :
+                    shot.lens === 'wide' ? 'Wide' :
+                    shot.lens === '85mm' ? '85mm' : 'Telephoto',
+              depth_of_field: 'Medium',
+              framing: shot.shotType === 'image-ref' ? 'CU' : 'MED',
+              motion_intensity: 5, // Default
+            },
+            generation_mode: {
+              shot_type: shot.shotType === 'image-ref' ? 'IMAGE_REF' : 'START_END',
+              reason: 'Manual shot added by user',
+            },
+            identity_references: {
+              refer_to_product: shot.referenceTags?.some((t: string) => t.startsWith('@Product')) || false,
+              product_image_ref: shot.referenceTags?.includes('@Product_Macro') ? 'macroDetail' :
+                                shot.referenceTags?.includes('@Texture') ? 'materialReference' : 'heroProfile',
+              refer_to_character: shot.referenceTags?.includes('@Character') || false,
+              refer_to_logo: shot.referenceTags?.includes('@Logo') || false,
+              refer_to_previous_outputs: shot.previousShotReferences || [],
+            },
+            continuity_logic: {
+              is_connected_to_previous: shot.isLinkedToPrevious || false,
+              is_connected_to_next: false,
+              handover_type: 'JUMP_CUT',
+            },
+            composition_safe_zones: 'Center safe zone',
+            lighting_event: 'Natural lighting',
+          })),
+        };
+      }
+    });
+
+    // Generate timing for manual shots (or reuse existing)
+    const existingTiming = existingStep4Data.timing;
+    let timingOutput = existingTiming;
+    
+    // If there are new shots without timing, generate default timing
+    const allShotIds = new Set<string>();
+    scenes.forEach((scene: any) => {
+      scene.shots.forEach((shot: any) => {
+        allShotIds.add(shot.shot_id);
+      });
+    });
+
+    const existingTimingMap = new Map(
+      (existingTiming?.temporal_map || []).map((t: any) => [t.shot_id, t])
+    );
+
+    const missingTimingShots = Array.from(allShotIds).filter(id => !existingTimingMap.has(id));
+    
+    if (missingTimingShots.length > 0) {
+      // Generate default timing for manual shots
+      const defaultTiming = missingTimingShots.map((shotId: string) => ({
+        shot_id: shotId,
+        rendered_duration: 1.0, // Default duration
+        multiplier: 5.0, // 5.0 / 1.0
+        speed_curve: 'LINEAR' as const,
+        sfx_hint: 'Natural sound',
+      }));
+
+      const updatedTemporalMap = [
+        ...(existingTiming?.temporal_map || []),
+        ...defaultTiming,
+      ];
+
+      // Recalculate duration budget
+      const totalDuration = updatedTemporalMap.reduce((sum, t) => sum + t.rendered_duration, 0);
+      const step1Data = video.step1Data as any;
+      const targetDuration = step1Data?.duration || 30;
+      
+      timingOutput = {
+        temporal_map: updatedTemporalMap,
+        duration_budget: {
+          target_total: targetDuration,
+          actual_total: totalDuration,
+          variance: totalDuration - targetDuration,
+        },
+        cost: existingTiming?.cost || 0,
+      };
+    }
+
+    // Build updated step4Data
+    const step4Data = {
+      mediaPlanner: {
+        scenes,
+        cost: existingStep4Data.mediaPlanner?.cost || 0,
+      },
+      timing: timingOutput,
+      vfxSeeds: existingStep4Data.vfxSeeds || [],
+    };
+
+    // Update completed steps
+    const completedSteps = Array.isArray(video.completedSteps) ? [...video.completedSteps] : [];
+    if (!completedSteps.includes(4)) {
+      completedSteps.push(4);
+    }
+
+    const updated = await storage.updateVideo(id, {
+      step4Data,
+      currentStep: 5,
+      completedSteps,
+    });
+
+    console.log('[social-commerce] Step 4 continue completed:', {
+      videoId: id,
+      sceneCount: scenes.length,
+      totalShots: scenes.reduce((sum, s) => sum + s.shots.length, 0),
+      missingTimingCount: missingTimingShots.length,
+    });
+
+    res.json({
+      success: true,
+      step4Data,
+      currentStep: 5,
+    });
+  } catch (error) {
+    console.error('[social-commerce] Step 4 continue error:', error);
+    res.status(500).json({
+      error: 'Failed to save step 4 data',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

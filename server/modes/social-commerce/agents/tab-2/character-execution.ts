@@ -16,26 +16,18 @@
 import { callAi } from '../../../../ai/service';
 import { runwareModelIdMap } from '../../../../ai/config';
 import { getImageDimensions } from '../../../../stories/shared/config/image-models';
+import type { CharacterRecommendation } from '../../types';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export interface CharacterExecutionInput {
-  /** Ready-to-use prompt from Agent 2.2a recommendation */
-  prompt: string;
-  
-  /** Identity locking strategy from recommendation */
-  strategy: 'IP_ADAPTER_STRICT' | 'PROMPT_EMBEDDING' | 'SEED_CONSISTENCY' | 'COMBINED';
-  
-  /** VFX anchor tags to append for consistency */
-  vfxAnchorTags?: string[];
+  /** Full character recommendation object from Agent 2.2a */
+  recommendation: CharacterRecommendation;
   
   /** Reference image URL (for IP_ADAPTER_STRICT or COMBINED strategies) */
   referenceImageUrl?: string;
-  
-  /** Identity ID for seed generation (for SEED_CONSISTENCY strategy) */
-  identityId?: string;
   
   /** Image model from Tab 1 settings */
   imageModel: string;
@@ -88,14 +80,146 @@ function hashToSeed(identityId: string): number {
 }
 
 /**
- * Enhance prompt with VFX anchor tags for consistency
+ * Build image generation prompt from character recommendation data
+ * Handles all 3 modes: hand-model, full-body, silhouette
  */
-function enhancePromptWithAnchors(prompt: string, anchors?: string[]): string {
-  if (!anchors || anchors.length === 0) return prompt;
+function buildImageGenerationPrompt(
+  recommendation: CharacterRecommendation,
+  imageModel: string
+): string {
+  const { 
+    character_profile, 
+    appearance, 
+    mode, 
+    identity_locking,
+  } = recommendation;
+
+  let prompt = '';
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MODE-SPECIFIC PROMPT CONSTRUCTION
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  if (mode === 'hand-model') {
+    // HAND-MODEL: Focus on hands and wrists only
+    prompt = `Close-up photograph of ${appearance.age_range} hands, ${appearance.skin_tone}. `;
+    prompt += `${character_profile.detailed_persona} `;
+    prompt += `${appearance.style_notes}. `;
+    prompt += `Professional product photography, macro lens, soft diffused lighting, `;
+    prompt += `high detail, sharp focus on hands and wrists, elegant composition, `;
+    prompt += `commercial quality, studio lighting setup`;
+    
+  } else if (mode === 'full-body') {
+    // FULL-BODY: Complete person visible
+    prompt = `Portrait of ${appearance.age_range} person, ${appearance.skin_tone}, ${appearance.build}. `;
+    prompt += `${character_profile.detailed_persona} `;
+    prompt += `${appearance.style_notes}. `;
+    prompt += `High-end fashion photography, 85mm lens, shallow depth of field, `;
+    prompt += `cinematic lighting, professional studio setup, commercial quality, `;
+    prompt += `sharp focus on subject, elegant composition`;
+    
+  } else if (mode === 'silhouette') {
+    // SILHOUETTE: Shape/outline only
+    prompt = `Dramatic silhouette of ${appearance.build} figure, ${appearance.age_range}. `;
+    prompt += `${character_profile.detailed_persona} `;
+    prompt += `High contrast lighting, figure completely in shadow against bright background, `;
+    prompt += `clean profile line, distinctive outline, dramatic cinematic lighting, `;
+    prompt += `studio setup, commercial quality, minimalist composition`;
+    
+  } else {
+    // Fallback (should not happen, but safety)
+    prompt = `${character_profile.detailed_persona} ${appearance.style_notes}. `;
+    prompt += `Professional photography, commercial quality`;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // APPEND VFX ANCHOR TAGS FOR CONSISTENCY
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  if (identity_locking.vfx_anchor_tags && identity_locking.vfx_anchor_tags.length > 0) {
+    const anchorString = identity_locking.vfx_anchor_tags.join(', ');
+    prompt += `, ${anchorString}`;
+  }
+
+  return prompt.trim();
+}
+
+/**
+ * Build thumbnail prompt (shorter version for preview cards)
+ */
+function buildThumbnailPrompt(recommendation: CharacterRecommendation): string {
+  const { appearance, mode } = recommendation;
   
-  // Append anchor tags to the end of the prompt
-  const anchorString = anchors.join(', ');
-  return `${prompt}, ${anchorString}`;
+  if (mode === 'hand-model') {
+    return `${appearance.age_range} hands, ${appearance.skin_tone}, ${appearance.style_notes}, professional photography`;
+  } else if (mode === 'full-body') {
+    return `${appearance.age_range} person, ${appearance.skin_tone}, ${appearance.build}, ${appearance.style_notes}, fashion photography`;
+  } else {
+    return `Silhouette of ${appearance.build} figure, ${appearance.age_range}, dramatic lighting`;
+  }
+}
+
+/**
+ * Prepare reference image for Runware API
+ * Runware accepts reference images in these formats:
+ * - UUID v4 string (previously uploaded image)
+ * - Data URI (data:image/png;base64,...)
+ * - Base64-encoded image
+ * - Publicly accessible URL (https://)
+ * 
+ * This function returns the URL as-is if it's already in an acceptable format,
+ * or converts it to a data URI if necessary.
+ */
+async function prepareReferenceImageForRunware(imageUrl: string): Promise<string> {
+  try {
+    // If already a data URI, return as-is
+    if (imageUrl.startsWith('data:')) {
+      console.log('[agent-2.2b] Reference image is already a data URI');
+      return imageUrl;
+    }
+
+    // If it's a public URL (https://), use it directly - Runware accepts public URLs
+    if (imageUrl.startsWith('https://')) {
+      console.log('[agent-2.2b] Reference image is a public URL, using directly:', {
+        url: imageUrl.substring(0, 80) + '...',
+      });
+      return imageUrl; // Runware can fetch public URLs directly - no conversion needed
+    }
+
+    // Only convert if it's not a public URL (e.g., blob URL, http://, or other)
+    // This shouldn't happen if frontend uploads to Bunny CDN first, but handle it as fallback
+    console.warn('[agent-2.2b] Reference image is not a public URL, converting to data URI...', {
+      url: imageUrl.substring(0, 80) + '...',
+    });
+
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download reference image: ${response.statusText}`);
+    }
+
+    // Get content type
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    
+    // Convert to buffer and then to base64
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const base64 = buffer.toString('base64');
+
+    // Create data URI
+    const dataUri = `data:${contentType};base64,${base64}`;
+
+    console.log('[agent-2.2b] Reference image converted to data URI (fallback):', {
+      originalUrl: imageUrl.substring(0, 80) + '...',
+      contentType,
+      dataUriLength: dataUri.length,
+      imageSize: `${(buffer.length / 1024).toFixed(2)}KB`,
+    });
+
+    return dataUri;
+  } catch (error) {
+    console.error('[agent-2.2b] Failed to prepare reference image:', error);
+    throw new Error(`Failed to prepare reference image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -119,24 +243,38 @@ export async function generateCharacterImage(
   workspaceId: string = 'system'
 ): Promise<CharacterExecutionOutput> {
   const {
-    prompt,
-    strategy,
-    vfxAnchorTags,
+    recommendation,
     referenceImageUrl,
-    identityId,
     imageModel,
     imageResolution,
     aspectRatio,
   } = input;
 
+  const { identity_locking, character_profile } = recommendation;
+  const strategy = identity_locking.strategy;
+  const vfxAnchorTags = identity_locking.vfx_anchor_tags;
+  const identityId = character_profile.identity_id;
+
   console.log('[agent-2.2b] Starting character image generation...', {
     strategy,
+    mode: recommendation.mode,
     imageModel,
     imageResolution,
     aspectRatio,
     hasReferenceImage: !!referenceImageUrl,
-    promptLength: prompt.length,
     anchorTagCount: vfxAnchorTags?.length || 0,
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BUILD PROMPT FROM RECOMMENDATION DATA
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const prompt = buildImageGenerationPrompt(recommendation, imageModel);
+  
+  console.log('[agent-2.2b] Prompt constructed:', {
+    promptLength: prompt.length,
+    mode: recommendation.mode,
+    preview: prompt.substring(0, 100) + '...',
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -171,13 +309,11 @@ export async function generateCharacterImage(
   // BUILD PAYLOAD BASED ON STRATEGY
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Enhance prompt with anchor tags for all strategies
-  const enhancedPrompt = enhancePromptWithAnchors(prompt, vfxAnchorTags);
-
+  // Note: VFX anchor tags are already included in the prompt from buildImageGenerationPrompt
   const payload: Record<string, unknown> = {
     taskType: 'imageInference',
     model: runwareModelId,
-    positivePrompt: enhancedPrompt,
+    positivePrompt: prompt,
     negativePrompt: CHARACTER_NEGATIVE_PROMPT,
     width: dimensions.width,
     height: dimensions.height,
@@ -186,15 +322,63 @@ export async function generateCharacterImage(
     outputType: 'URL',
   };
 
-  // Apply strategy-specific modifications
-  switch (strategy) {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PREPARE REFERENCE IMAGE FOR RUNWARE (if provided)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Runware accepts public URLs directly, so we use Bunny CDN URLs as-is
+  // Only convert to data URI if it's not a public URL (fallback)
+  
+  let referenceImageForRunware: string | null = null;
+  if (referenceImageUrl) {
+    try {
+      referenceImageForRunware = await prepareReferenceImageForRunware(referenceImageUrl);
+    } catch (error) {
+      console.error('[agent-2.2b] Failed to prepare reference image, continuing without it:', error);
+      // Continue without reference image - strategy will fall back to prompt-based
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UPGRADE STRATEGY IF REFERENCE IMAGE IS PROVIDED
+  // ═══════════════════════════════════════════════════════════════════════════
+  // If user uploads a reference image after selecting a recommendation,
+  // we should use it even if the original strategy was PROMPT_EMBEDDING
+  // This handles the case: Generate recommendations → Select → Upload reference → Generate image
+  
+  let effectiveStrategy = strategy;
+  if (referenceImageForRunware) {
+    // If user provided a reference image, upgrade strategy to use it
+    if (strategy === 'PROMPT_EMBEDDING') {
+      // Upgrade to IP_ADAPTER_STRICT if we have reference, or COMBINED if we also have identityId
+      effectiveStrategy = identityId ? 'COMBINED' : 'IP_ADAPTER_STRICT';
+      console.log('[agent-2.2b] Strategy upgraded due to reference image:', {
+        original: strategy,
+        upgraded: effectiveStrategy,
+        reason: 'User provided reference image after recommendation was generated',
+        hasIdentityId: !!identityId,
+      });
+    } else if (strategy === 'SEED_CONSISTENCY') {
+      // Upgrade to COMBINED to use both seed and reference
+      effectiveStrategy = 'COMBINED';
+      console.log('[agent-2.2b] Strategy upgraded due to reference image:', {
+        original: strategy,
+        upgraded: effectiveStrategy,
+        reason: 'User provided reference image - using COMBINED for maximum consistency',
+      });
+    }
+  }
+
+  // Apply strategy-specific modifications (use effectiveStrategy)
+  switch (effectiveStrategy) {
     case 'IP_ADAPTER_STRICT':
-      if (referenceImageUrl) {
+      if (referenceImageForRunware) {
         // Use reference image for identity preservation
-        payload.referenceImages = [referenceImageUrl];
-        console.log('[agent-2.2b] Using IP_ADAPTER_STRICT with reference image');
+        payload.referenceImages = [referenceImageForRunware];
+        console.log('[agent-2.2b] Using IP_ADAPTER_STRICT with reference image', {
+          format: referenceImageForRunware.startsWith('https://') ? 'public-url' : 'data-uri',
+        });
       } else {
-        console.warn('[agent-2.2b] IP_ADAPTER_STRICT requested but no reference image provided');
+        console.warn('[agent-2.2b] IP_ADAPTER_STRICT requested but no reference image available');
       }
       break;
 
@@ -208,13 +392,17 @@ export async function generateCharacterImage(
 
     case 'COMBINED':
       // Maximum consistency: Reference image + seed + anchor tags
-      if (referenceImageUrl) {
-        payload.referenceImages = [referenceImageUrl];
+      if (referenceImageForRunware) {
+        payload.referenceImages = [referenceImageForRunware];
       }
       if (identityId) {
         payload.seed = hashToSeed(identityId);
       }
-      console.log('[agent-2.2b] Using COMBINED strategy');
+      console.log('[agent-2.2b] Using COMBINED strategy', {
+        hasReference: !!referenceImageForRunware,
+        referenceFormat: referenceImageForRunware?.startsWith('https://') ? 'public-url' : 'data-uri',
+        hasSeed: !!identityId,
+      });
       break;
 
     case 'PROMPT_EMBEDDING':
@@ -231,7 +419,7 @@ export async function generateCharacterImage(
   try {
     console.log('[agent-2.2b] Calling Runware API...', {
       model: runwareModelId,
-      promptLength: enhancedPrompt.length,
+      promptLength: prompt.length,
     });
 
     const response = await callAi(

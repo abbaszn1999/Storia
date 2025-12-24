@@ -183,9 +183,7 @@ interface CharacterRecommendation {
     reference_image_required: boolean;
   };
   
-  // Ready-to-use prompts
-  image_generation_prompt: string;
-  thumbnail_prompt: string;
+  // NOTE: image_generation_prompt and thumbnail_prompt removed - Agent 2.2b constructs prompts algorithmically
 }
 
 // Fallback AI Recommendations based on audience (used if API fails)
@@ -640,67 +638,133 @@ export function HookFormatTab({
       return;
     }
     
-    // Get the prompt - from selected recommendation or characterAIProfile
-    const prompt = selectedRecommendation?.image_generation_prompt || 
-                   characterAIProfile?.image_generation_prompt ||
-                   characterAIProfile?.detailed_persona;
-    
-    // Debug logging to identify where the prompt is coming from
-    console.log('[HookFormatTab] Generate image debug:', {
-      hasSelectedRecommendation: !!selectedRecommendation,
-      selectedRecommendationPrompt: selectedRecommendation?.image_generation_prompt?.substring(0, 50),
-      hasCharacterAIProfile: !!characterAIProfile,
-      characterAIProfilePrompt: characterAIProfile?.image_generation_prompt?.substring(0, 50),
-      detailedPersona: characterAIProfile?.detailed_persona?.substring(0, 50),
-      finalPrompt: prompt?.substring(0, 50),
-    });
-    
-    if (!prompt) {
-      console.error('[HookFormatTab] Cannot generate character image: No prompt available');
-      return;
-    }
-    
     onIsGeneratingCharacterChange(true);
     
     try {
-      // Get identity locking parameters
-      const strategy = selectedRecommendation?.identity_locking.strategy || 
-                       characterAIProfile?.identity_locking?.strategy || 
-                       'PROMPT_EMBEDDING';
-      const vfxAnchorTags = selectedRecommendation?.identity_locking.vfx_anchor_tags || 
-                           (characterAIProfile?.identity_locking?.vfx_anchor_tags 
-                             ? characterAIProfile.identity_locking.vfx_anchor_tags.split(', ').filter(Boolean) 
-                             : []);
-      const identityId = selectedRecommendation?.character_profile.identity_id || 
-                        characterAIProfile?.identity_id;
+      // ═══════════════════════════════════════════════════════════════════════
+      // BUILD RECOMMENDATION OBJECT FOR AGENT 2.2b
+      // ═══════════════════════════════════════════════════════════════════════
       
-      // Check if reference image is required and available
-      const referenceImageUrl = selectedRecommendation?.identity_locking.reference_image_required 
-        ? referenceImagePreviewUrl 
-        : null;
+      let recommendation: CharacterRecommendation | null = null;
       
-      console.log('[HookFormatTab] Generating character image...', {
+      if (selectedRecommendation) {
+        // Use the full recommendation from Agent 2.2a (new format)
+        recommendation = selectedRecommendation;
+        console.log('[HookFormatTab] Using selected recommendation from Agent 2.2a:', {
+          id: recommendation.id,
+          name: recommendation.name,
+          mode: recommendation.mode,
+          strategy: recommendation.identity_locking.strategy,
+        });
+      } else if (characterAIProfile && characterMode) {
+        // Construct recommendation from legacy CharacterAIProfile (backward compatibility)
+        // This happens when user manually creates character without using AI Recommend
+        recommendation = {
+          id: `LEGACY_${characterAIProfile.identity_id}`,
+          name: characterName || characterAIProfile.identity_id.split('_').slice(0, -1).join(' '),
+          mode: characterMode as 'hand-model' | 'full-body' | 'silhouette',
+          character_profile: {
+            identity_id: characterAIProfile.identity_id,
+            detailed_persona: characterAIProfile.detailed_persona,
+            cultural_fit: characterAIProfile.cultural_fit,
+          },
+          appearance: {
+            age_range: '25-35', // Default - not in legacy format
+            skin_tone: 'warm', // Default - not in legacy format
+            build: 'athletic', // Default - not in legacy format
+            style_notes: characterAIProfile.detailed_persona.substring(0, 100), // Extract from persona
+          },
+          interaction_protocol: {
+            product_engagement: characterAIProfile.interaction_protocol.product_engagement,
+            motion_limitations: characterAIProfile.interaction_protocol.motion_limitations || 'Standard motion constraints',
+          },
+          identity_locking: {
+            strategy: (characterAIProfile.identity_locking.strategy as any) || 'PROMPT_EMBEDDING',
+            vfx_anchor_tags: Array.isArray(characterAIProfile.identity_locking.vfx_anchor_tags)
+              ? characterAIProfile.identity_locking.vfx_anchor_tags
+              : (characterAIProfile.identity_locking.vfx_anchor_tags || '').split(', ').filter(Boolean),
+            reference_image_required: characterAIProfile.identity_locking.reference_image_required || false,
+          },
+        };
+        console.log('[HookFormatTab] Constructed recommendation from legacy CharacterAIProfile:', {
+          id: recommendation.id,
+          name: recommendation.name,
+          mode: recommendation.mode,
+        });
+      } else {
+        throw new Error('Cannot generate character image: No recommendation or AI profile available');
+      }
+      
+      // Get reference image URL - use Bunny CDN URL if available, otherwise upload new file
+      // Runware accepts public URLs directly, so we prefer Bunny CDN URLs over base64
+      let referenceImageUrl: string | null = null;
+      
+      // First, check if we already have a Bunny CDN URL (from previously uploaded character)
+      if (characterReferenceUrl && characterReferenceUrl.startsWith('https://')) {
+        // Already a public URL - use it directly (Runware accepts public URLs)
+        referenceImageUrl = characterReferenceUrl;
+        console.log('[HookFormatTab] Using existing Bunny CDN URL for reference image');
+      } else if (referenceImageFile) {
+        // New file - upload to Bunny CDN first to get a public URL
+        try {
+          const formData = new FormData();
+          formData.append('file', referenceImageFile);
+          formData.append('category', 'style'); // Temporary upload for reference
+          formData.append('workspaceId', workspaceId || '');
+          formData.append('videoId', videoId || '');
+          
+          const uploadResponse = await fetch('/api/social-commerce/upload-temp', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData,
+          });
+          
+          if (uploadResponse.ok) {
+            const uploadData = await uploadResponse.json();
+            referenceImageUrl = uploadData.cdnUrl; // Use Bunny CDN URL (public URL)
+            console.log('[HookFormatTab] Reference image uploaded to Bunny CDN:', {
+              cdnUrl: uploadData.cdnUrl.substring(0, 80) + '...',
+              fileSize: `${(referenceImageFile.size / 1024).toFixed(2)}KB`,
+            });
+          } else {
+            throw new Error('Failed to upload reference image to Bunny CDN');
+          }
+        } catch (error) {
+          console.error('[HookFormatTab] Failed to upload reference image, falling back to base64:', error);
+          // Fallback: convert to base64 if upload fails (for blob URLs or if Bunny is unavailable)
+          try {
+            const reader = new FileReader();
+            referenceImageUrl = await new Promise<string>((resolve, reject) => {
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(referenceImageFile);
+            });
+            console.log('[HookFormatTab] Reference image converted to base64 (fallback)');
+          } catch (base64Error) {
+            console.error('[HookFormatTab] Failed to convert reference image to base64:', base64Error);
+            // Continue without reference image
+          }
+        }
+      }
+      
+      console.log('[HookFormatTab] Generating character image with Agent 2.2b...', {
         videoId,
-        strategy,
-        hasVfxTags: vfxAnchorTags.length > 0,
+        recommendationId: recommendation.id,
+        recommendationName: recommendation.name,
+        mode: recommendation.mode,
+        strategy: recommendation.identity_locking.strategy,
         hasReference: !!referenceImageUrl,
-        promptLength: prompt.length,
+        referenceFormat: referenceImageUrl?.startsWith('data:') ? 'data-uri' : 
+                        referenceImageUrl?.startsWith('https://') ? 'bunny-cdn-url' : 'none',
       });
-      
-      // Get character name from selected recommendation or state
-      const charName = selectedRecommendation?.name || characterName || 'AI Generated Character';
       
       const response = await fetch(`/api/social-commerce/videos/${videoId}/characters/generate-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          prompt,
-          strategy,
-          vfxAnchorTags,
-          referenceImageUrl,
-          identityId,
-          characterName: charName, // Send character name to backend
+          recommendation, // Send full recommendation object (Agent 2.2b constructs prompt from this)
+          referenceImageUrl, // Optional reference image (Bunny CDN URL or base64 data URI) for IP_ADAPTER_STRICT or COMBINED strategies
         }),
       });
       
@@ -722,13 +786,13 @@ export function HookFormatTab({
             onCharacterAssetIdChange(data.assetId);
           }
           
-          // Also update character name if available
-          if (onCharacterNameChange) {
-            onCharacterNameChange(charName);
+          // Also update character name if available (from recommendation)
+          if (onCharacterNameChange && recommendation) {
+            onCharacterNameChange(recommendation.name);
           }
           
           // Save to step2Data (backend already does this, but ensure it's synced)
-          if (videoId && videoId !== 'new') {
+          if (videoId && videoId !== 'new' && recommendation) {
             try {
               await fetch(`/api/social-commerce/videos/${videoId}/step/2/data`, {
                 method: 'PATCH',
@@ -738,7 +802,7 @@ export function HookFormatTab({
                   character: {
                     referenceUrl: data.imageUrl,
                     assetId: data.assetId,
-                    name: charName,
+                    name: recommendation.name,
                   },
                 }),
               });

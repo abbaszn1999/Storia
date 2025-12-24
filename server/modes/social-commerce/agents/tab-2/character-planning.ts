@@ -132,21 +132,10 @@ const CHARACTER_PLANNING_SCHEMA = {
             required: ["strategy", "vfx_anchor_tags", "reference_image_required"],
             additionalProperties: false
           },
-          image_generation_prompt: {
-            type: "string" as const,
-            description: "Ready-to-use prompt for AI image generation (100-150 words)",
-            minLength: 100,
-            maxLength: 1000
-          },
-          thumbnail_prompt: {
-            type: "string" as const,
-            description: "Concise prompt (50-80 words) for quick preview"
-          }
         },
         required: [
           "id", "name", "mode", "character_profile", "appearance",
-          "interaction_protocol", "identity_locking", 
-          "image_generation_prompt", "thumbnail_prompt"
+          "interaction_protocol", "identity_locking"
         ],
         additionalProperties: false
       },

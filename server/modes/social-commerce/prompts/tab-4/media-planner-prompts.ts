@@ -50,6 +50,28 @@ ANALYZE THESE IMAGES TO UNDERSTAND:
 DO NOT make generic decisions. Your shot planning must reflect the SPECIFIC product you're seeing.
 
 ═══════════════════════════════════════════════════════════════════════════════
+IMAGE REFERENCE MAPPING SYSTEM
+═══════════════════════════════════════════════════════════════════════════════
+
+The images you receive are labeled in the input. When making identity_references decisions, map them correctly:
+
+PRODUCT IMAGES:
+- Product Hero Profile → product_image_ref: "heroProfile" (use for most shots)
+- Product Macro Detail → product_image_ref: "macroDetail" (use for ECU/texture shots)
+- Product Material Reference → product_image_ref: "materialReference" (use for material-focused shots)
+
+CHARACTER IMAGE:
+- Character Reference → refer_to_character: true (use for interaction/lifestyle shots)
+
+LOGO IMAGE:
+- Brand Logo → refer_to_logo: true (use for branding moments)
+
+CRITICAL RULES:
+1. If refer_to_product = true, you MUST set product_image_ref to match the image you analyzed
+2. Only reference images that were actually provided (check the mapping header)
+3. Your identity_references output must match the images you see in the input
+
+═══════════════════════════════════════════════════════════════════════════════
 SCENE STRUCTURE: 3-ACT TRANSLATION
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -209,11 +231,6 @@ LOGO REFERENCES (@Logo):
 - Use for: Branding moments, hero shots, final payoff
 - Consider \`logo_integrity\` from Agent 2.3 when featuring
 
-FOCUS ANCHOR:
-- \`focus_anchor\`: What should the camera focus on?
-- Examples: "@Logo", "@Button", "@Edge", "@Dial", "@Crown", "@Screen"
-- Must relate to \`hero_anchor_points\` from Agent 2.1
-
 ═══════════════════════════════════════════════════════════════════════════════
 PREVIOUS OUTPUT REFERENCES (@Shot_X) — THE GAME CHANGER
 ═══════════════════════════════════════════════════════════════════════════════
@@ -238,6 +255,18 @@ GUARDRAILS:
 - Can ONLY reference shots with LOWER shot numbers (no circular dependencies)
 - Maximum 2 references per shot (prevent over-referencing)
 - Empty array [] if no references needed
+
+EXAMPLE:
+Shot S2.3 wants to callback to S1.1's lighting:
+\`\`\`json
+"refer_to_previous_outputs": [
+  {
+    "shot_id": "S1.1",
+    "reason": "Match the exact golden spotlight angle for visual bookend",
+    "reference_type": "LIGHTING_MATCH"
+  }
+]
+\`\`\`
 
 ═══════════════════════════════════════════════════════════════════════════════
 CONTINUITY LOGIC: SHOT CONNECTIONS
@@ -386,7 +415,6 @@ Return a JSON object with EXACTLY this structure:
             "product_image_ref": "heroProfile | macroDetail | materialReference",
             "refer_to_character": true|false,
             "refer_to_logo": true|false,
-            "focus_anchor": "String — @Feature to focus on",
             "refer_to_previous_outputs": [
               {
                 "shot_id": "String — Earlier shot ID",
@@ -509,11 +537,7 @@ export function buildMediaPlannerUserPrompt(input: MediaPlannerInput): string {
 VISUAL ASSETS (ANALYZE THESE IMAGES)
 ═══════════════════════════════════════════════════════════════════════════════
 
-[PRODUCT HERO IMAGE ATTACHED — Analyze geometry, key features, viable angles]
-${productImages.macroDetail ? '[PRODUCT MACRO DETAIL IMAGE ATTACHED — Analyze texture, material, micro-features]' : ''}
-${productImages.materialReference ? '[PRODUCT MATERIAL REFERENCE ATTACHED — Analyze surface properties, light interaction]' : ''}
-${characterReferenceUrl ? '[CHARACTER REFERENCE IMAGE ATTACHED — Analyze appearance, interaction possibilities]' : ''}
-${logoUrl ? '[BRAND LOGO IMAGE ATTACHED — Analyze shape, placement, integration options]' : ''}
+[Images are provided above with labels. Analyze them to understand product geometry, hero features, material properties, viable camera angles, character interaction points, and logo placement.]
 
 ═══════════════════════════════════════════════════════════════════════════════
 STRATEGIC CONTEXT (From Tab 1)
@@ -743,10 +767,6 @@ export const MEDIA_PLANNER_SCHEMA = {
                     refer_to_logo: {
                       type: "boolean" as const
                     },
-                    focus_anchor: {
-                      type: "string" as const,
-                      description: "@Feature to focus on"
-                    },
                     refer_to_previous_outputs: {
                       type: "array" as const,
                       items: {
@@ -772,7 +792,7 @@ export const MEDIA_PLANNER_SCHEMA = {
                       description: "References to earlier shot outputs (max 2)"
                     }
                   },
-                  required: ["refer_to_product", "product_image_ref", "refer_to_character", "refer_to_logo", "focus_anchor", "refer_to_previous_outputs"],
+                  required: ["refer_to_product", "product_image_ref", "refer_to_character", "refer_to_logo", "refer_to_previous_outputs"],
                   additionalProperties: false
                 },
                 continuity_logic: {

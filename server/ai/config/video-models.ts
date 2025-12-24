@@ -1126,3 +1126,25 @@ export function getDimensions(
     DIMENSION_MAP[aspectRatio]?.[resolution] || { width: 1248, height: 704 }
   );
 }
+
+/**
+ * Get supported resolutions for a specific model and aspect ratio
+ * Returns resolutions that are actually supported (from MODEL_DIMENSIONS)
+ * Falls back to model's general resolutions if not in MODEL_DIMENSIONS
+ */
+export function getSupportedResolutionsForAspectRatio(
+  modelId: string,
+  aspectRatio: string
+): Resolution[] {
+  const config = VIDEO_MODEL_CONFIGS[modelId];
+  if (!config) return [];
+
+  // If model has specific dimensions for this aspect ratio, use those
+  if (MODEL_DIMENSIONS[modelId] && MODEL_DIMENSIONS[modelId][aspectRatio as AspectRatio]) {
+    const supportedResolutions = Object.keys(MODEL_DIMENSIONS[modelId][aspectRatio as AspectRatio]) as Resolution[];
+    return supportedResolutions;
+  }
+
+  // Otherwise, return all resolutions from config (no restrictions for this aspect ratio)
+  return config.resolutions;
+}

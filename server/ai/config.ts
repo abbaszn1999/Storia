@@ -284,65 +284,6 @@ const runwareImageModels: AiModelConfig[] = [
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
-  // Midjourney (AIR: midjourney:3@1)
-  // ─────────────────────────────────────────────────────────────────────────────
-  {
-    name: "midjourney-v7",
-    provider: "runware",
-    metadata: {
-      label: "Midjourney V7",
-      description: "Next-gen with cinematic imagery, fluid brushwork, atmospheric tone. Improved visual realism, texture fidelity, lighting",
-      supports: ["image-generation", "image-to-image"],
-      defaultResolution: "1024x1024",
-    },
-  },
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Ideogram (AIR: ideogram:4@1)
-  // ─────────────────────────────────────────────────────────────────────────────
-  {
-    name: "ideogram-3.0",
-    provider: "runware",
-    metadata: {
-      label: "Ideogram 3.0",
-      description: "Design-level generation with exceptional text rendering and better composition. Magic Prompt feature. Perfect for typography",
-      supports: ["image-generation"],
-      defaultResolution: "1024x1024",
-    },
-  },
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Google Imagen 4.0 (AIR: google:2@1, google:2@2, google:2@3)
-  // ─────────────────────────────────────────────────────────────────────────────
-  {
-    name: "imagen-4.0-preview",
-    provider: "runware",
-    metadata: {
-      label: "Imagen 4.0 Preview",
-      description: "Improved textures, lighting, and typography. Perfect for design-heavy or detail-focused work",
-      supports: ["image-generation"],
-      defaultResolution: "1024x1024",
-    },
-  },
-  {
-    name: "imagen-4.0-ultra",
-    provider: "runware",
-    metadata: {
-      label: "Imagen 4.0 Ultra",
-      description: "Google's most advanced image model. Exceptional detail, color accuracy, and prompt adherence. Ideal for demanding commercial use",
-      supports: ["image-generation"],
-      defaultResolution: "1024x1024",
-    },
-  },
-  {
-    name: "imagen-4.0-fast",
-    provider: "runware",
-    metadata: {
-      label: "Imagen 4.0 Fast",
-      description: "Speed and quality optimized for quicker inference with minimal quality loss. Supports negative prompts",
-      supports: ["image-generation"],
-      defaultResolution: "1024x1024",
-    },
-  },
-  // ─────────────────────────────────────────────────────────────────────────────
   // Seedream / ByteDance (AIR: bytedance:5@0, bytedance:seedream@4.5)
   // ─────────────────────────────────────────────────────────────────────────────
   {
@@ -724,17 +665,6 @@ export const runwareModelIdMap: Record<string, string> = {
   "nano-banana": "google:4@1",
   "nano-banana-2-pro": "google:4@2",
 
-  // Midjourney (AIR: midjourney:3@1)
-  "midjourney-v7": "midjourney:3@1",
-
-  // Ideogram (AIR: ideogram:4@1)
-  "ideogram-3.0": "ideogram:4@1",
-
-  // Google Imagen 4.0 (AIR: google:2@1, google:2@2, google:2@3)
-  "imagen-4.0-preview": "google:2@1",
-  "imagen-4.0-ultra": "google:2@2",
-  "imagen-4.0-fast": "google:2@3",
-
   // Seedream / ByteDance (AIR: bytedance:5@0, bytedance:seedream@4.5)
   "seedream-4.0": "bytedance:5@0",
   "seedream-4.5": "bytedance:seedream@4.5",
@@ -876,6 +806,7 @@ export {
   getAvailableVideoModels,
   getDimensions,
   getVideoModelConstraints,
+  getSupportedResolutionsForAspectRatio,
   type VideoModelConfig,
   type VideoDimensions,
   type VideoModelConstraints,

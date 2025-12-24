@@ -1,7 +1,7 @@
 // Concept Step - Redesigned Layout
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { GlassPanel } from "../shared/GlassPanel";
@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getImageModelConfig, getDefaultImageModel } from "@/constants/image-models";
-import { getVideoModelConfig, getDefaultVideoModel } from "@/constants/video-models";
+import { getVideoModelConfig, getDefaultVideoModel, getCompatibleVideoModel, isModelCompatibleWithAspectRatio, getSupportedResolutionsForAspectRatio } from "@/constants/video-models";
 import { 
   Ratio,
   Clock,
@@ -92,7 +92,7 @@ const ASPECT_RATIOS = [
   { value: '9:16', label: 'Vertical', desc: 'TikTok, Reels', icon: '📱' },
   { value: '16:9', label: 'Horizontal', desc: 'YouTube', icon: '💻' },
   { value: '1:1', label: 'Square', desc: 'Instagram', icon: '🔲' },
-  { value: '4:5', label: 'Portrait', desc: 'Feed Posts', icon: '🖼️' },
+  { value: '4:3', label: 'Classic', desc: 'Traditional', icon: '🖼️' },
 ];
 
 const DURATIONS = [15, 30, 45, 60];
@@ -191,10 +191,52 @@ export function ConceptStep({
   // Get current video model config with fallback to default
   const selectedVideoModel = getVideoModelConfig(videoModel) || getDefaultVideoModel();
 
+  // Auto-correct video model when aspect ratio changes (if current model doesn't support it)
+  useEffect(() => {
+    if (animationMode === 'video' && aspectRatio && videoModel) {
+      if (!isModelCompatibleWithAspectRatio(videoModel, aspectRatio)) {
+        // Current video model doesn't support the aspect ratio, auto-select a compatible one
+        const compatibleModel = getCompatibleVideoModel(aspectRatio);
+        console.log(`[ConceptStep] Auto-correcting video model: ${videoModel} → ${compatibleModel.value} (${aspectRatio} not supported)`);
+        onVideoModelChange(compatibleModel.value);
+      }
+    }
+  }, [aspectRatio, animationMode]);
+
+  // Auto-correct aspect ratio when image model changes (if current aspect ratio is not supported)
+  useEffect(() => {
+    if (selectedImageModel && aspectRatio) {
+      const supportedRatios = selectedImageModel.aspectRatios || [];
+      if (!supportedRatios.includes(aspectRatio)) {
+        // Current aspect ratio is not supported by the selected model, auto-select the first supported one
+        const fallbackRatio = supportedRatios[0] || '16:9';
+        console.log(`[ConceptStep] Auto-correcting aspect ratio: ${aspectRatio} → ${fallbackRatio} (not supported by ${imageModel})`);
+        onAspectRatioChange(fallbackRatio);
+      }
+    }
+  }, [imageModel, selectedImageModel, aspectRatio, onAspectRatioChange]);
+
+  // Auto-correct video resolution when aspect ratio or video model changes (if current resolution is not supported)
+  useEffect(() => {
+    if (animationMode === 'video' && selectedVideoModel && aspectRatio && videoResolution) {
+      const supportedResolutions = getSupportedResolutionsForAspectRatio(videoModel, aspectRatio);
+      if (supportedResolutions.length > 0 && !supportedResolutions.includes(videoResolution)) {
+        // Current resolution is not supported for this aspect ratio, auto-select the first supported one
+        const fallbackResolution = supportedResolutions[0];
+        console.log(`[ConceptStep] Auto-correcting video resolution: ${videoResolution} → ${fallbackResolution} (not supported for ${aspectRatio} with ${videoModel})`);
+        onVideoResolutionChange(fallbackResolution);
+      }
+    }
+  }, [animationMode, selectedVideoModel, aspectRatio, videoModel, videoResolution, onVideoResolutionChange]);
+
+  // Note: 4:3 aspect ratio is supported by video models, so no auto-correction needed
+
   // Check if current model supports reference images
   const supportsStyleReference = selectedImageModel?.supportsStyleReference ?? false;
   const supportsCharacterReference = selectedImageModel?.supportsCharacterReference ?? false;
   const maxReferenceImages = selectedImageModel?.maxReferenceImages ?? 0;
+  const requiresReferenceImages = selectedImageModel?.requiresReferenceImages ?? false;
+  const hasReferenceImage = !!(styleReferenceUrl || characterReferenceUrl);
 
   // Style reference upload state
   const { toast } = useToast();
@@ -223,14 +265,105 @@ export function ConceptStep({
       return;
     }
 
-    // Max 10MB
-    if (file.size > 10 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Please upload an image smaller than 10MB",
-        variant: "destructive",
-      });
-      return;
+    // Get model requirements
+    const modelConfig = selectedImageModel;
+    const requirements = modelConfig?.inputImageRequirements;
+    
+    // Check file size
+    if (requirements) {
+      const maxSizeMB = parseInt(requirements.maxFileSize.replace('MB', ''));
+      if (file.size > maxSizeMB * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: `Please upload an image smaller than ${requirements.maxFileSize}`,
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      // Default: 10MB
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please upload an image smaller than 10MB",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    // Check image dimensions
+    if (requirements) {
+      try {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
+        
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            const width = img.width;
+            const height = img.height;
+            
+            // Check width
+            if (width < requirements.minWidth || width > requirements.maxWidth) {
+              toast({
+                title: "Invalid image width",
+                description: `Image width must be between ${requirements.minWidth} and ${requirements.maxWidth} pixels. Current: ${width}px`,
+                variant: "destructive",
+              });
+              reject(new Error('Invalid width'));
+              return;
+            }
+            
+            // Check height
+            if (height < requirements.minHeight || height > requirements.maxHeight) {
+              toast({
+                title: "Invalid image height",
+                description: `Image height must be between ${requirements.minHeight} and ${requirements.maxHeight} pixels. Current: ${height}px`,
+                variant: "destructive",
+              });
+              reject(new Error('Invalid height'));
+              return;
+            }
+            
+            // Check aspect ratio range (for Seedream 4.5)
+            if (requirements.aspectRatioRange) {
+              const aspectRatio = width / height;
+              const [minRatio, maxRatio] = requirements.aspectRatioRange.min.split(':').map(Number);
+              const [maxRatioW, maxRatioH] = requirements.aspectRatioRange.max.split(':').map(Number);
+              const minAspectRatio = minRatio / maxRatio;
+              const maxAspectRatio = maxRatioW / maxRatioH;
+              
+              if (aspectRatio < minAspectRatio || aspectRatio > maxAspectRatio) {
+                toast({
+                  title: "Invalid aspect ratio",
+                  description: `Image aspect ratio must be between ${requirements.aspectRatioRange.min} and ${requirements.aspectRatioRange.max}. Current: ${width}:${height} (${(aspectRatio).toFixed(2)})`,
+                  variant: "destructive",
+                });
+                reject(new Error('Invalid aspect ratio'));
+                return;
+              }
+            }
+            
+            resolve();
+          };
+          
+          img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            toast({
+              title: "Invalid image",
+              description: "Could not read image dimensions. Please try a different image.",
+              variant: "destructive",
+            });
+            reject(new Error('Failed to load image'));
+          };
+          
+          img.src = objectUrl;
+        });
+      } catch (error) {
+        // Error already handled in toast
+        return;
+      }
     }
 
     setIsUploadingStyle(true);
@@ -296,14 +429,105 @@ export function ConceptStep({
       return;
     }
 
-    // Max 10MB
-    if (file.size > 10 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Please upload an image smaller than 10MB",
-        variant: "destructive",
-      });
-      return;
+    // Get model requirements
+    const modelConfig = selectedImageModel;
+    const requirements = modelConfig?.inputImageRequirements;
+    
+    // Check file size
+    if (requirements) {
+      const maxSizeMB = parseInt(requirements.maxFileSize.replace('MB', ''));
+      if (file.size > maxSizeMB * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: `Please upload an image smaller than ${requirements.maxFileSize}`,
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      // Default: 10MB
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please upload an image smaller than 10MB",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    // Check image dimensions
+    if (requirements) {
+      try {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
+        
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            const width = img.width;
+            const height = img.height;
+            
+            // Check width
+            if (width < requirements.minWidth || width > requirements.maxWidth) {
+              toast({
+                title: "Invalid image width",
+                description: `Image width must be between ${requirements.minWidth} and ${requirements.maxWidth} pixels. Current: ${width}px`,
+                variant: "destructive",
+              });
+              reject(new Error('Invalid width'));
+              return;
+            }
+            
+            // Check height
+            if (height < requirements.minHeight || height > requirements.maxHeight) {
+              toast({
+                title: "Invalid image height",
+                description: `Image height must be between ${requirements.minHeight} and ${requirements.maxHeight} pixels. Current: ${height}px`,
+                variant: "destructive",
+              });
+              reject(new Error('Invalid height'));
+              return;
+            }
+            
+            // Check aspect ratio range (for Seedream 4.5)
+            if (requirements.aspectRatioRange) {
+              const aspectRatio = width / height;
+              const [minRatio, maxRatio] = requirements.aspectRatioRange.min.split(':').map(Number);
+              const [maxRatioW, maxRatioH] = requirements.aspectRatioRange.max.split(':').map(Number);
+              const minAspectRatio = minRatio / maxRatio;
+              const maxAspectRatio = maxRatioW / maxRatioH;
+              
+              if (aspectRatio < minAspectRatio || aspectRatio > maxAspectRatio) {
+                toast({
+                  title: "Invalid aspect ratio",
+                  description: `Image aspect ratio must be between ${requirements.aspectRatioRange.min} and ${requirements.aspectRatioRange.max}. Current: ${width}:${height} (${(aspectRatio).toFixed(2)})`,
+                  variant: "destructive",
+                });
+                reject(new Error('Invalid aspect ratio'));
+                return;
+              }
+            }
+            
+            resolve();
+          };
+          
+          img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            toast({
+              title: "Invalid image",
+              description: "Could not read image dimensions. Please try a different image.",
+              variant: "destructive",
+            });
+            reject(new Error('Failed to load image'));
+          };
+          
+          img.src = objectUrl;
+        });
+      } catch (error) {
+        // Error already handled in toast
+        return;
+      }
     }
 
     setIsUploadingCharacter(true);
@@ -421,6 +645,81 @@ export function ConceptStep({
               />
             )}
 
+            {/* Aspect Ratio */}
+            <div className="space-y-2">
+              <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Aspect Ratio</label>
+              <div className="grid grid-cols-4 gap-3">
+                {ASPECT_RATIOS
+                  .filter(ratio => {
+                    // Filter based on selected image model's supported aspect ratios
+                    if (!selectedImageModel?.aspectRatios) return true; // Show all if model config not available
+                    return selectedImageModel.aspectRatios.includes(ratio.value);
+                  })
+                  .map(ratio => (
+                    <button
+                      key={ratio.value}
+                      onClick={() => onAspectRatioChange(ratio.value)}
+                      className={cn(
+                        "flex flex-col items-center gap-2 p-3 rounded-xl border transition-all duration-200",
+                        aspectRatio === ratio.value 
+                          ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
+                          : "bg-white/5 border-white/10 hover:bg-white/10"
+                      )}
+                    >
+                      <div className={cn(
+                        "rounded border border-white/30 transition-all",
+                        ratio.value === '9:16' && "w-3 h-5",
+                        ratio.value === '16:9' && "w-5 h-3",
+                        ratio.value === '1:1' && "w-4 h-4",
+                        ratio.value === '4:3' && "w-4 h-3",
+                        aspectRatio === ratio.value && "border-white bg-white/20"
+                      )} />
+                      <div className="text-center">
+                        <span className="block text-xs font-medium text-white">{ratio.label}</span>
+                        <span className="block text-[10px] text-white/40 mt-0.5">{ratio.desc}</span>
+                      </div>
+                    </button>
+                  ))}
+              </div>
+            </div>
+
+            {/* Resolution - Always show if model has resolutions */}
+            {selectedImageModel && selectedImageModel.resolutions.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Resolution</label>
+                <div className={cn(
+                  "grid gap-3",
+                  selectedImageModel.resolutions.length === 1 ? "grid-cols-1" :
+                  selectedImageModel.resolutions.length === 2 ? "grid-cols-2" :
+                  selectedImageModel.resolutions.length === 3 ? "grid-cols-3" :
+                  "grid-cols-4"
+                )}>
+                  {selectedImageModel.resolutions.map(res => {
+                    const labels: Record<string, string> = {
+                      "1k": "1K",
+                      "2k": "2K",
+                      "4k": "4K",
+                      "custom": "Auto",
+                    };
+                    return (
+                      <button
+                        key={res}
+                        onClick={() => onImageResolutionChange(res)}
+                        className={cn(
+                          "flex items-center justify-center gap-2 p-3 rounded-xl border transition-all duration-200",
+                          imageResolution === res 
+                            ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
+                            : "bg-white/5 border-white/10 hover:bg-white/10"
+                        )}
+                      >
+                        <span className="text-sm font-medium text-white">{labels[res] || res}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Image Style - Disabled when custom style reference is uploaded */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -477,7 +776,21 @@ export function ConceptStep({
             {/* Custom Style Reference Upload - Only show if model supports it */}
             {supportsStyleReference ? (
               <div className="space-y-3">
-                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Style Reference (Optional)</label>
+                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">
+                  Style Reference {requiresReferenceImages ? '(Required)' : '(Optional)'}
+                </label>
+                
+                {/* Warning message if reference is required but not provided */}
+                {requiresReferenceImages && !hasReferenceImage && (
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                    <p className="text-xs text-amber-400 font-medium">
+                      ⚠️ This model requires at least one reference image (Style or Character) to generate images.
+                    </p>
+                    <p className="text-[10px] text-amber-400/70 mt-1">
+                      Please upload a reference image before proceeding to the next step.
+                    </p>
+                  </div>
+                )}
                 
                 {styleReferenceUrl ? (
                 // Show uploaded image preview
@@ -551,7 +864,9 @@ export function ConceptStep({
             {/* Character Reference Upload - Only show if model supports it */}
             {supportsCharacterReference && (
               <div className="space-y-3">
-                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Character Reference (Optional)</label>
+                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">
+                  Character Reference {requiresReferenceImages ? '(Required)' : '(Optional)'}
+                </label>
                 
                 {characterReferenceUrl ? (
                 // Show uploaded character preview
@@ -615,75 +930,6 @@ export function ConceptStep({
                   )}
                 </div>
               )}
-              </div>
-            )}
-
-            {/* Aspect Ratio */}
-            <div className="space-y-2">
-              <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Aspect Ratio</label>
-              <div className="grid grid-cols-4 gap-3">
-                {ASPECT_RATIOS.map(ratio => (
-                  <button
-                    key={ratio.value}
-                    onClick={() => onAspectRatioChange(ratio.value)}
-                    className={cn(
-                      "flex flex-col items-center gap-2 p-3 rounded-xl border transition-all duration-200",
-                      aspectRatio === ratio.value 
-                        ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                        : "bg-white/5 border-white/10 hover:bg-white/10"
-                    )}
-                  >
-                    <div className={cn(
-                      "rounded border border-white/30 transition-all",
-                      ratio.value === '9:16' && "w-3 h-5",
-                      ratio.value === '16:9' && "w-5 h-3",
-                      ratio.value === '1:1' && "w-4 h-4",
-                      ratio.value === '4:5' && "w-3.5 h-4.5",
-                      aspectRatio === ratio.value && "border-white bg-white/20"
-                    )} />
-                    <div className="text-center">
-                      <span className="block text-xs font-medium text-white">{ratio.label}</span>
-                      <span className="block text-[10px] text-white/40 mt-0.5">{ratio.desc}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Resolution - Always show if model has resolutions */}
-            {selectedImageModel && selectedImageModel.resolutions.length > 0 && (
-              <div className="space-y-2">
-                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Resolution</label>
-                <div className={cn(
-                  "grid gap-3",
-                  selectedImageModel.resolutions.length === 1 ? "grid-cols-1" :
-                  selectedImageModel.resolutions.length === 2 ? "grid-cols-2" :
-                  selectedImageModel.resolutions.length === 3 ? "grid-cols-3" :
-                  "grid-cols-4"
-                )}>
-                  {selectedImageModel.resolutions.map(res => {
-                    const labels: Record<string, string> = {
-                      "1k": "1K",
-                      "2k": "2K",
-                      "4k": "4K",
-                      "custom": "Auto",
-                    };
-                    return (
-                      <button
-                        key={res}
-                        onClick={() => onImageResolutionChange(res)}
-                        className={cn(
-                          "flex items-center justify-center gap-2 p-3 rounded-xl border transition-all duration-200",
-                          imageResolution === res 
-                            ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                            : "bg-white/5 border-white/10 hover:bg-white/10"
-                        )}
-                      >
-                        <span className="text-sm font-medium text-white">{labels[res] || res}</span>
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
             )}
           </div>
@@ -962,37 +1208,50 @@ export function ConceptStep({
                         value={videoModel}
                         onChange={onVideoModelChange}
                         selectedModelInfo={selectedVideoModel}
+                        aspectRatio={aspectRatio}
                       />
                     )}
 
                     {/* Video Resolution */}
-                    {selectedVideoModel && selectedVideoModel.resolutions.length > 0 && (
-                      <div className="space-y-2">
-                        <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Video Resolution</label>
-                        <div className={cn(
-                          "grid gap-3",
-                          selectedVideoModel.resolutions.length === 1 ? "grid-cols-1" :
-                          selectedVideoModel.resolutions.length === 2 ? "grid-cols-2" :
-                          selectedVideoModel.resolutions.length === 3 ? "grid-cols-3" :
-                          "grid-cols-4"
-                        )}>
-                          {selectedVideoModel.resolutions.map(res => (
-                            <button
-                              key={res}
-                              onClick={() => onVideoResolutionChange(res)}
-                              className={cn(
-                                "flex items-center justify-center gap-2 p-2.5 rounded-xl border transition-all duration-200",
-                                videoResolution === res 
-                                  ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                                  : "bg-white/5 border-white/10 hover:bg-white/10"
-                              )}
-                            >
-                              <span className="text-sm font-medium text-white">{res}</span>
-                            </button>
-                          ))}
+                    {selectedVideoModel && selectedVideoModel.resolutions.length > 0 && (() => {
+                      // Get supported resolutions for current aspect ratio
+                      const supportedResolutions = aspectRatio 
+                        ? getSupportedResolutionsForAspectRatio(videoModel, aspectRatio)
+                        : selectedVideoModel.resolutions;
+                      
+                      // If no specific constraints, use all resolutions from model
+                      const resolutionsToShow = supportedResolutions.length > 0 
+                        ? supportedResolutions 
+                        : selectedVideoModel.resolutions;
+                      
+                      return (
+                        <div className="space-y-2">
+                          <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Video Resolution</label>
+                          <div className={cn(
+                            "grid gap-3",
+                            resolutionsToShow.length === 1 ? "grid-cols-1" :
+                            resolutionsToShow.length === 2 ? "grid-cols-2" :
+                            resolutionsToShow.length === 3 ? "grid-cols-3" :
+                            "grid-cols-4"
+                          )}>
+                            {resolutionsToShow.map(res => (
+                              <button
+                                key={res}
+                                onClick={() => onVideoResolutionChange(res)}
+                                className={cn(
+                                  "flex items-center justify-center gap-2 p-2.5 rounded-xl border transition-all duration-200",
+                                  videoResolution === res 
+                                    ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
+                                    : "bg-white/5 border-white/10 hover:bg-white/10"
+                                )}
+                              >
+                                <span className="text-sm font-medium text-white">{res}</span>
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 )}
               </motion.div>

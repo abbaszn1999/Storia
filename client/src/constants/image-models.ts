@@ -15,6 +15,15 @@ export interface ImageModelConfig {
   supportsStyleReference: boolean; // Whether model supports style reference images
   supportsCharacterReference: boolean; // Whether model supports character reference images
   maxReferenceImages: number; // Maximum number of reference images (0 = not supported)
+  requiresReferenceImages?: boolean; // Whether reference images are REQUIRED (e.g., Runway Gen-4 Image Turbo)
+  inputImageRequirements?: {
+    minWidth: number;
+    maxWidth: number;
+    minHeight: number;
+    maxHeight: number;
+    maxFileSize: string; // e.g., "20MB"
+    aspectRatioRange?: { min: string; max: string }; // e.g., { min: "1:16", max: "16:1" }
+  };
   default?: boolean;
   badge?: string;
 }
@@ -36,6 +45,13 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     supportsStyleReference: true,
     supportsCharacterReference: true,
     maxReferenceImages: 16,
+    inputImageRequirements: {
+      minWidth: 300,
+      maxWidth: 2048,
+      minHeight: 300,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
     badge: "16 Refs",
   },
   {
@@ -51,6 +67,13 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     supportsStyleReference: true,
     supportsCharacterReference: true,
     maxReferenceImages: 16,
+    inputImageRequirements: {
+      minWidth: 300,
+      maxWidth: 2048,
+      minHeight: 300,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
     badge: "New + Fast",
   },
 
@@ -70,6 +93,13 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     supportsStyleReference: true,
     supportsCharacterReference: true,
     maxReferenceImages: 3,
+    inputImageRequirements: {
+      minWidth: 300,
+      maxWidth: 2048,
+      minHeight: 300,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
   },
   {
     value: "runway-gen-4-image-turbo",
@@ -84,6 +114,14 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     supportsStyleReference: true,
     supportsCharacterReference: true,
     maxReferenceImages: 3,
+    requiresReferenceImages: true, // Reference images are REQUIRED for this model
+    inputImageRequirements: {
+      minWidth: 300,
+      maxWidth: 2048,
+      minHeight: 300,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
     badge: "Turbo",
   },
 
@@ -103,6 +141,13 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     supportsStyleReference: true,
     supportsCharacterReference: true,
     maxReferenceImages: 10,
+    inputImageRequirements: {
+      minWidth: 300,
+      maxWidth: 2048,
+      minHeight: 300,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
     badge: "Character",
   },
 
@@ -122,6 +167,13 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     supportsStyleReference: true,
     supportsCharacterReference: true,
     maxReferenceImages: 8,
+    inputImageRequirements: {
+      minWidth: 300,
+      maxWidth: 2048,
+      minHeight: 300,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
     default: true,
     badge: "Default",
   },
@@ -138,89 +190,14 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     supportsStyleReference: true,
     supportsCharacterReference: true,
     maxReferenceImages: 14,
+    inputImageRequirements: {
+      minWidth: 300,
+      maxWidth: 2048,
+      minHeight: 300,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
     badge: "Pro",
-  },
-  {
-    value: "imagen-4.0-preview",
-    label: "Imagen 4.0 Preview",
-    provider: "Google",
-    description: "Improved textures, lighting, and typography",
-    aspectRatios: ["1:1", "9:16", "16:9", "3:4", "4:3"],
-    resolutions: ["custom"],
-    maxPromptLength: 3000,
-    supportsSeed: false,
-    supportsNegativePrompt: false,
-    supportsStyleReference: false,
-    supportsCharacterReference: false,
-    maxReferenceImages: 0,
-  },
-  {
-    value: "imagen-4.0-ultra",
-    label: "Imagen 4.0 Ultra",
-    provider: "Google",
-    description: "Exceptional detail, color accuracy, best quality",
-    aspectRatios: ["1:1", "9:16", "16:9", "3:4", "4:3"],
-    resolutions: ["custom"],
-    maxPromptLength: 3000,
-    supportsSeed: false,
-    supportsNegativePrompt: false,
-    supportsStyleReference: false,
-    supportsCharacterReference: false,
-    maxReferenceImages: 0,
-    badge: "Ultra",
-  },
-  {
-    value: "imagen-4.0-fast",
-    label: "Imagen 4.0 Fast",
-    provider: "Google",
-    description: "Speed optimized with minimal quality loss",
-    aspectRatios: ["1:1", "9:16", "16:9", "3:4", "4:3"],
-    resolutions: ["custom"],
-    maxPromptLength: 3000,
-    supportsSeed: false,
-    supportsNegativePrompt: true,
-    supportsStyleReference: false,
-    supportsCharacterReference: false,
-    maxReferenceImages: 0,
-    badge: "Fast",
-  },
-  
-  // ─────────────────────────────────────────────────────────────────────────
-  // Midjourney
-  // ─────────────────────────────────────────────────────────────────────────
-  {
-    value: "midjourney-v7",
-    label: "Midjourney V7",
-    provider: "Midjourney",
-    description: "Cinematic realism, photographic quality",
-    aspectRatios: ["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"],
-    resolutions: ["custom"],
-    maxPromptLength: 2000,
-    supportsSeed: false,
-    supportsNegativePrompt: false,
-    supportsStyleReference: true,
-    supportsCharacterReference: false,
-    maxReferenceImages: 1,
-    badge: "Cinematic",
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Ideogram
-  // ─────────────────────────────────────────────────────────────────────────
-  {
-    value: "ideogram-3.0",
-    label: "Ideogram 3.0",
-    provider: "Ideogram",
-    description: "Sharp text, graphic design specialist",
-    aspectRatios: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "5:4", "4:5", "8:5", "5:8", "3:1", "1:3"],
-    resolutions: ["custom"],
-    maxPromptLength: 2000,
-    supportsSeed: false,
-    supportsNegativePrompt: true,
-    supportsStyleReference: true,
-    supportsCharacterReference: true,
-    maxReferenceImages: 999,
-    badge: "Design",
   },
   
   // ─────────────────────────────────────────────────────────────────────────
@@ -239,6 +216,13 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     supportsStyleReference: true,
     supportsCharacterReference: true,
     maxReferenceImages: 14,
+    inputImageRequirements: {
+      minWidth: 300,
+      maxWidth: 2048,
+      minHeight: 300,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
     badge: "Sequential",
   },
   {
@@ -254,6 +238,14 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     supportsStyleReference: true,
     supportsCharacterReference: true,
     maxReferenceImages: 14,
+    inputImageRequirements: {
+      minWidth: 14,
+      maxWidth: 6000,
+      minHeight: 14,
+      maxHeight: 6000,
+      maxFileSize: "10MB",
+      aspectRatioRange: { min: "1:16", max: "16:1" },
+    },
     badge: "Reliable",
   },
   
@@ -273,6 +265,13 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     supportsStyleReference: true,
     supportsCharacterReference: true,
     maxReferenceImages: 4,
+    inputImageRequirements: {
+      minWidth: 512,
+      maxWidth: 2048,
+      minHeight: 512,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
     badge: "Dev",
   },
   {
@@ -288,6 +287,13 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     supportsStyleReference: true,
     supportsCharacterReference: true,
     maxReferenceImages: 9,
+    inputImageRequirements: {
+      minWidth: 256,
+      maxWidth: 2048,
+      minHeight: 256,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
     badge: "Pro",
   },
   {
@@ -303,6 +309,13 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     supportsStyleReference: true,
     supportsCharacterReference: true,
     maxReferenceImages: 10,
+    inputImageRequirements: {
+      minWidth: 256,
+      maxWidth: 2048,
+      minHeight: 256,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
     badge: "Typography",
   },
   {
@@ -318,6 +331,13 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     supportsStyleReference: true,
     supportsCharacterReference: true,
     maxReferenceImages: 8,
+    inputImageRequirements: {
+      minWidth: 256,
+      maxWidth: 2048,
+      minHeight: 256,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
     badge: "Max",
   },
 ];

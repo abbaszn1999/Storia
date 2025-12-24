@@ -20,6 +20,16 @@ export interface ImageModelConfig {
   supportsStyleReference: boolean; // Whether model supports seedImage for style transfer
   maxReferenceImages: number; // Maximum number of reference images (0 = not supported)
   supportsCharacterReference: boolean; // Whether model supports character reference separately
+  referenceImageFormat?: 'direct' | 'inputs' | 'inputs-with-tags'; // Format for sending reference images to API
+  requiresReferenceImages?: boolean; // Whether reference images are REQUIRED (e.g., Runway Gen-4 Image Turbo)
+  inputImageRequirements?: {
+    minWidth: number;
+    maxWidth: number;
+    minHeight: number;
+    maxHeight: number;
+    maxFileSize: string; // e.g., "20MB"
+    aspectRatioRange?: { min: string; max: string }; // e.g., { min: "1:16", max: "16:1" } for Seedream 4.5
+  };
   default?: boolean;
 }
 
@@ -78,6 +88,14 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsStyleReference: true, // Supports image-to-image (up to 16 reference images)
     maxReferenceImages: 16, // Highest reference image capacity across all models!
     supportsCharacterReference: true,
+    referenceImageFormat: 'direct', // Uses referenceImages directly
+    inputImageRequirements: {
+      minWidth: 300,
+      maxWidth: 2048,
+      minHeight: 300,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -129,7 +147,15 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsNegativePrompt: false,
     supportsStyleReference: true, // Supports image-to-image and editing (up to 16 reference images)
     maxReferenceImages: 16, // Highest reference image capacity across all models!
+    inputImageRequirements: {
+      minWidth: 300,
+      maxWidth: 2048,
+      minHeight: 300,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
     supportsCharacterReference: true,
+    referenceImageFormat: 'direct', // Uses referenceImages directly
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -193,6 +219,14 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsStyleReference: true, // Supports image-to-image (up to 3 reference images with tags)
     maxReferenceImages: 3, // Via inputs.referenceImages with optional tags
     supportsCharacterReference: true, // Via reference tags system
+    referenceImageFormat: 'inputs-with-tags', // Uses inputs.referenceImages with tag support
+    inputImageRequirements: {
+      minWidth: 300,
+      maxWidth: 2048,
+      minHeight: 300,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -258,6 +292,15 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsStyleReference: true, // Image-to-image ONLY - reference images REQUIRED (1-3 with tags)
     maxReferenceImages: 3, // Via inputs.referenceImages with tags - REQUIRED for this model
     supportsCharacterReference: true, // Via reference tags system
+    referenceImageFormat: 'inputs-with-tags', // Uses inputs.referenceImages with tag support
+    requiresReferenceImages: true, // Reference images are REQUIRED for this model
+    inputImageRequirements: {
+      minWidth: 300,
+      maxWidth: 2048,
+      minHeight: 300,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -316,6 +359,14 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsStyleReference: true, // Supports image-to-image (up to 10 reference images)
     maxReferenceImages: 10, // Via inputs.referenceImages
     supportsCharacterReference: true, // Excellent for character consistency
+    referenceImageFormat: 'inputs', // Uses inputs.referenceImages
+    inputImageRequirements: {
+      minWidth: 300,
+      maxWidth: 2048,
+      minHeight: 300,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -355,6 +406,14 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
   supportsStyleReference: true, // Supports up to 8 reference images
   maxReferenceImages: 8,
   supportsCharacterReference: true,
+  referenceImageFormat: 'direct', // Uses referenceImages directly
+  inputImageRequirements: {
+    minWidth: 300,
+    maxWidth: 2048,
+    minHeight: 300,
+    maxHeight: 2048,
+    maxFileSize: "20MB",
+  },
   default: true,
 },
 
@@ -403,243 +462,15 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
   supportsStyleReference: true, // Supports up to 14 reference images
   maxReferenceImages: 14,
   supportsCharacterReference: true,
+  referenceImageFormat: 'direct', // Uses referenceImages directly
+  inputImageRequirements: {
+    minWidth: 300,
+    maxWidth: 2048,
+    minHeight: 300,
+    maxHeight: 2048,
+    maxFileSize: "20MB",
+  },
 },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Midjourney V7
-  // Model AIR ID: midjourney:3@1
-  // Next-generation release emphasizing realism and control
-  // Grand, cinematic imagery with fluid brushwork and deeply atmospheric tone
-  // Supports: Text-to-image, image-to-image (1 reference image)
-  // 
-  // Key Features:
-  // - Significant improvements in visual realism and photographic quality
-  // - Enhanced texture fidelity and lighting accuracy
-  // - Superior natural-language understanding for complex prompts
-  // - Cinematic composition with fluid brushwork and atmospheric depth
-  // 
-  // Technical Specifications:
-  // - Positive prompt: 1-2000 characters
-  // - Reference images: Supports 1 image via inputs.referenceImages
-  // - Number of results: Must be multiple of 4 (4, 8, 12, 16, 20, Default: 4)
-  // - Supported dimensions: Fixed per aspect ratio (see MODEL_SPECIFIC_DIMENSIONS)
-  //   16:9 (1456×816), 9:16 (816×1456), 1:1 (1024×1024), 4:3 (1232×928),
-  //   3:4 (928×1232), 3:2 (1344×896), 2:3 (896×1344), 21:9 (1680×720)
-  // 
-  // Provider-Specific Settings (providerSettings.midjourney):
-  // - quality: Image quality level (higher = more detail)
-  // - stylize: Artistic interpretation strength (0-1000, default: 100)
-  // - chaos: Variation and unpredictability (0-100, default: 0)
-  // - weird: Unconventional and experimental results (0-3000, default: 0)
-  // - niji: Anime/illustration style mode (boolean)
-  // 
-  // Workflows:
-  // 1. Text-to-image: Cinematic, photorealistic generation
-  // 2. Image-to-image: Style transfer with atmospheric consistency
-  // 3. Editorial photography: Portrait and fashion with natural lighting
-  // 4. Landscape photography: Atmospheric scenes with depth and mood
-  // ─────────────────────────────────────────────────────────────────────────
-  "midjourney-v7": {
-    id: "midjourney-v7",
-    label: "Midjourney V7",
-    provider: "runware",
-    model: "midjourney:3@1",
-    aspectRatios: ["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"],
-    resolutions: ["custom"],  // Fixed dimensions per aspect ratio
-    maxPromptLength: 2000, // 1-2000 characters
-    supportsSeed: false,
-    supportsNegativePrompt: false,
-    supportsStyleReference: true, // Supports image-to-image (1 reference image only via inputs.referenceImages)
-    maxReferenceImages: 1,
-    supportsCharacterReference: false, // Only supports 1 image total - no separate character reference
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Ideogram 3.0
-  // Model AIR ID: ideogram:4@1
-  // Design-level generation with sharper text rendering and better composition
-  // Perfect for graphic-driven content with superior stylistic control
-  // Supports: Text-to-image only
-  // 
-  // Key Features:
-  // - Exceptional text rendering quality for logos, posters, and typography
-  // - Enhanced composition and layout control for professional designs
-  // - Greater stylistic control with multiple presets and style types
-  // - Ideal for graphic design, branding, and marketing materials
-  // - Magic Prompt feature for automatic prompt enhancement
-  // 
-  // Technical Specifications:
-  // - Positive prompt: 1-2000 characters
-  // - Negative prompt: 1-2000 characters (optional)
-  // - Supported dimensions: 60+ fixed dimension combinations across 13 aspect ratios
-  //   (See MODEL_SPECIFIC_DIMENSIONS for complete list)
-  // - Wide aspect ratio support: 1:1, 3:2, 2:3, 4:3, 3:4, 16:9, 9:16, 5:4, 4:5, 
-  //   8:5, 5:8, 3:1, 1:3, plus many intermediate ratios
-  // 
-  // Provider-Specific Settings (providerSettings.ideogram):
-  // - renderingSpeed: "QUALITY" (slower, higher quality) or "FAST" (faster generation)
-  // - magicPrompt: "ON" or "OFF" - Auto-enhances prompts for better results
-  // - styleType: Style category (e.g., "DESIGN", "PHOTO", "3D", "ILLUSTRATION")
-  // - stylePreset: Specific style (e.g., "ART_DECO", "MINIMALIST", "VINTAGE")
-  // - styleReferenceImages: Array of image UUIDs for style transfer
-  // - characterReferenceImages: Array of image UUIDs for character consistency
-  // - characterReferenceImagesMask: Masks for character reference images
-  // 
-  // Workflows:
-  // 1. Text-to-image: Professional graphic design with precise text rendering
-  // 2. Style-guided generation: Use styleReferenceImages for consistent aesthetics
-  // 3. Character consistency: Use characterReferenceImages for brand mascots/characters
-  // 4. Typography-focused: Posters, logos, diagrams with readable text
-  // 5. Marketing materials: Social media graphics, advertisements, presentations
-  // ─────────────────────────────────────────────────────────────────────────
-  "ideogram-3.0": {
-    id: "ideogram-3.0",
-    label: "Ideogram 3.0",
-    provider: "runware",
-    model: "ideogram:4@1",
-    aspectRatios: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "5:4", "4:5", "8:5", "5:8", "3:1", "1:3"],
-    resolutions: ["custom"],  // 60+ fixed dimensions per aspect ratio
-    maxPromptLength: 2000, // 1-2000 characters
-    supportsSeed: false,
-    supportsNegativePrompt: true, // Supports negative prompts (1-2000 characters)
-    supportsStyleReference: true, // Supports via providerSettings.ideogram.styleReferenceImages
-    maxReferenceImages: 999, // No documented limit, uses providerSettings for style + character references
-    supportsCharacterReference: true, // Via providerSettings.ideogram.characterReferenceImages
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Imagen 4.0 Preview - Google
-  // Model AIR ID: google:2@1
-  // Improved textures, lighting, and typography
-  // Perfect for design-heavy or detail-focused work
-  // Supports: Text-to-image only
-  // 
-  // Key Features:
-  // - Enhanced texture rendering for realistic materials and surfaces
-  // - Superior lighting accuracy for natural and studio lighting scenarios
-  // - Improved typography rendering for text-inclusive designs
-  // - Balanced quality and speed for professional workflows
-  // - Excellent for product photography and detailed illustrations
-  // 
-  // Technical Specifications:
-  // - Positive prompt: 2-3000 characters
-  // - Negative prompt: Not supported
-  // - Supported dimensions (fixed per aspect ratio):
-  //   1:1 (1024×1024), 9:16 (768×1408), 16:9 (1408×768),
-  //   3:4 (896×1280), 4:3 (1280×896)
-  // 
-  // Workflows:
-  // 1. Text-to-image: High-quality photorealistic generation
-  // 2. Product photography: Detailed textures and accurate lighting
-  // 3. Portrait photography: Natural skin tones and lighting
-  // 4. Architectural visualization: Realistic materials and lighting
-  // 5. Design mockups: Typography and layout-focused imagery
-  // ─────────────────────────────────────────────────────────────────────────
-  "imagen-4.0-preview": {
-    id: "imagen-4.0-preview",
-    label: "Imagen 4.0 Preview",
-    provider: "runware",
-    model: "google:2@1",
-    aspectRatios: ["1:1", "9:16", "16:9", "3:4", "4:3"],
-    resolutions: ["custom"],  // Fixed dimensions per aspect ratio
-    maxPromptLength: 3000, // 2-3000 characters
-    supportsSeed: false,
-    supportsNegativePrompt: false,
-    supportsStyleReference: false, // Text-to-image only
-    maxReferenceImages: 0,
-    supportsCharacterReference: false,
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Imagen 4.0 Ultra - Google
-  // Model AIR ID: google:2@2
-  // Google's most advanced image model available
-  // Exceptional detail, color accuracy, and prompt adherence
-  // Ideal for demanding use cases where quality and consistency matter most
-  // Supports: Text-to-image only
-  // 
-  // Key Features:
-  // - Exceptional detail rendering for ultra-high-quality outputs
-  // - Superior color accuracy and vibrancy for professional color work
-  // - Outstanding prompt adherence for precise creative control
-  // - Best-in-class consistency across multiple generations
-  // - Perfect for commercial work requiring maximum quality
-  // - Ideal for macro photography, fine art, and premium content
-  // 
-  // Technical Specifications:
-  // - Positive prompt: 2-3000 characters
-  // - Negative prompt: Not supported
-  // - Supported dimensions (fixed per aspect ratio):
-  //   1:1 (1024×1024), 9:16 (768×1408), 16:9 (1408×768),
-  //   3:4 (896×1280), 4:3 (1280×896)
-  // 
-  // Workflows:
-  // 1. Text-to-image: Premium photorealistic generation
-  // 2. Commercial photography: Product shots with perfect color accuracy
-  // 3. Fine art: Museum-quality digital art with exceptional detail
-  // 4. Macro photography: Intricate patterns and textures with perfect focus
-  // 5. Professional portraits: Studio-quality with accurate skin tones
-  // 6. Advertising: High-end visuals for premium brand campaigns
-  // ─────────────────────────────────────────────────────────────────────────
-  "imagen-4.0-ultra": {
-    id: "imagen-4.0-ultra",
-    label: "Imagen 4.0 Ultra",
-    provider: "runware",
-    model: "google:2@2",
-    aspectRatios: ["1:1", "9:16", "16:9", "3:4", "4:3"],
-    resolutions: ["custom"],  // Fixed dimensions per aspect ratio
-    maxPromptLength: 3000, // 2-3000 characters
-    supportsSeed: false,
-    supportsNegativePrompt: false,
-    supportsStyleReference: false, // Text-to-image only
-    maxReferenceImages: 0,
-    supportsCharacterReference: false,
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Imagen 4.0 Fast - Google
-  // Model AIR ID: google:2@3
-  // Speed and quality optimized for quicker inference
-  // Minimal quality loss with fast generation
-  // Supports: Text-to-image only (with negative prompt support)
-  // 
-  // Key Features:
-  // - Optimized for rapid generation without significant quality loss
-  // - Maintains Imagen 4 quality standards with faster inference
-  // - Supports negative prompts for better control over unwanted elements
-  // - Ideal for iterative workflows and rapid prototyping
-  // - Excellent balance of speed and fine detail retention
-  // - Perfect for high-volume content generation
-  // 
-  // Technical Specifications:
-  // - Positive prompt: 2-3000 characters
-  // - Negative prompt: 2-3000 characters (optional) - Unique to Fast variant
-  // - Supported dimensions (fixed per aspect ratio):
-  //   1:1 (1024×1024), 9:16 (768×1408), 16:9 (1408×768),
-  //   3:4 (896×1280), 4:3 (1280×896)
-  // 
-  // Workflows:
-  // 1. Text-to-image: Fast photorealistic generation with quality retention
-  // 2. Rapid prototyping: Quick iterations for concept development
-  // 3. Content at scale: High-volume generation for social media, blogs
-  // 4. A/B testing: Fast generation of multiple variations
-  // 5. Real-time applications: Interactive image generation workflows
-  // 6. Negative prompt refinement: Use negativePrompt to exclude unwanted elements
-  // ─────────────────────────────────────────────────────────────────────────
-  "imagen-4.0-fast": {
-    id: "imagen-4.0-fast",
-    label: "Imagen 4.0 Fast",
-    provider: "runware",
-    model: "google:2@3",
-    aspectRatios: ["1:1", "9:16", "16:9", "3:4", "4:3"],
-    resolutions: ["custom"],  // Fixed dimensions per aspect ratio
-    maxPromptLength: 3000, // 2-3000 characters
-    supportsSeed: false,
-    supportsNegativePrompt: true, // 2-3000 characters (unique to Fast variant)
-    supportsStyleReference: false, // Text-to-image only
-    maxReferenceImages: 0,
-    supportsCharacterReference: false,
-  },
 
   // ─────────────────────────────────────────────────────────────────────────
   // Seedream 4.0 - ByteDance
@@ -695,6 +526,14 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsStyleReference: true, // Supports image-to-image (up to 14 reference images)
     maxReferenceImages: 14, // Combined with sequential images, total ≤ 15
     supportsCharacterReference: true,
+    referenceImageFormat: 'direct', // Uses referenceImages directly
+    inputImageRequirements: {
+      minWidth: 300,
+      maxWidth: 2048,
+      minHeight: 300,
+      maxHeight: 2048,
+      maxFileSize: "20MB",
+    },
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -767,6 +606,15 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsStyleReference: true, // Supports image-to-image (up to 14 reference images via inputs.referenceImages)
     maxReferenceImages: 14, // Combined with sequential images, total ≤ 15
     supportsCharacterReference: true,
+    referenceImageFormat: 'inputs', // Uses inputs.referenceImages
+    inputImageRequirements: {
+      minWidth: 14,
+      maxWidth: 6000,
+      minHeight: 14,
+      maxHeight: 6000,
+      maxFileSize: "10MB",
+      aspectRatioRange: { min: "1:16", max: "16:1" }, // Aspect ratio between 1:16 and 16:1
+    },
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -821,6 +669,14 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsStyleReference: true, // Supports reference-to-image (up to 4 reference images)
     maxReferenceImages: 4,
     supportsCharacterReference: true,
+    referenceImageFormat: 'direct', // Uses referenceImages directly
+    inputImageRequirements: {
+      minWidth: 512,
+      maxWidth: 2048,
+      minHeight: 512,
+      maxHeight: 2048,
+      maxFileSize: "20MB", // Not specified in docs, using common limit
+    },
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -871,6 +727,14 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsStyleReference: true, // Supports reference-to-image (up to 9 reference images)
     maxReferenceImages: 9, // Total input capacity: 9 megapixels
     supportsCharacterReference: true,
+    referenceImageFormat: 'direct', // Uses referenceImages directly
+    inputImageRequirements: {
+      minWidth: 256,
+      maxWidth: 2048,
+      minHeight: 256,
+      maxHeight: 2048,
+      maxFileSize: "20MB", // Not specified in docs, using common limit
+    },
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -929,6 +793,14 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsStyleReference: true, // Supports reference-to-image (up to 10 reference images)
     maxReferenceImages: 10, // Highest in FLUX family, 14 megapixels total capacity
     supportsCharacterReference: true,
+    referenceImageFormat: 'direct', // Uses referenceImages directly
+    inputImageRequirements: {
+      minWidth: 256,
+      maxWidth: 2048,
+      minHeight: 256,
+      maxHeight: 2048,
+      maxFileSize: "20MB", // Not specified in docs, using common limit
+    },
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -983,6 +855,14 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsStyleReference: true, // Supports reference-to-image (up to 8 reference images via inputs.referenceImages)
     maxReferenceImages: 8,
     supportsCharacterReference: true,
+    referenceImageFormat: 'inputs', // Uses inputs.referenceImages
+    inputImageRequirements: {
+      minWidth: 256,
+      maxWidth: 2048,
+      minHeight: 256,
+      maxHeight: 2048,
+      maxFileSize: "20MB", // Not specified in docs, using common limit
+    },
   },
 
 };
@@ -1136,35 +1016,6 @@ export const MODEL_SPECIFIC_DIMENSIONS: Record<string, Record<string, ImageDimen
     "21:9": { width: 3104, height: 1312 },
   },
   
-  // Midjourney V7 - Fixed dimensions per aspect ratio
-  "midjourney-v7": {
-    "16:9": { width: 1456, height: 816 },
-    "9:16": { width: 816, height: 1456 },
-    "1:1": { width: 1024, height: 1024 },
-    "4:3": { width: 1232, height: 928 },
-    "3:4": { width: 928, height: 1232 },
-    "3:2": { width: 1344, height: 896 },
-    "2:3": { width: 896, height: 1344 },
-    "21:9": { width: 1680, height: 720 },
-  },
-  
-  // Ideogram 3.0 - Multiple dimensions per aspect ratio (using most common/balanced)
-  "ideogram-3.0": {
-    "1:1": { width: 1024, height: 1024 },
-    "3:2": { width: 1248, height: 832 },
-    "2:3": { width: 832, height: 1248 },
-    "4:3": { width: 1152, height: 864 },
-    "3:4": { width: 864, height: 1152 },
-    "16:9": { width: 1344, height: 768 },
-    "9:16": { width: 768, height: 1344 },
-    "5:4": { width: 1120, height: 896 },
-    "4:5": { width: 896, height: 1120 },
-    "8:5": { width: 1280, height: 800 },
-    "5:8": { width: 800, height: 1280 },
-    "3:1": { width: 1536, height: 512 },
-    "1:3": { width: 512, height: 1536 },
-  },
-  
   // ─────────────────────────────────────────────────────────────────────────
   // Nano Banana (Gemini Flash Image 2.5) - google:4@1
   // Fixed dimensions - different from Nano Banana 2 Pro!
@@ -1181,33 +1032,6 @@ export const MODEL_SPECIFIC_DIMENSIONS: Record<string, Record<string, ImageDimen
     "9:16": { width: 768, height: 1344 },
     "16:9": { width: 1344, height: 768 },
     "21:9": { width: 1536, height: 672 },
-  },
-  
-  // Imagen 4.0 Preview - Fixed dimensions (same for all Imagen 4.0 variants)
-  "imagen-4.0-preview": {
-    "1:1": { width: 1024, height: 1024 },
-    "9:16": { width: 768, height: 1408 },
-    "16:9": { width: 1408, height: 768 },
-    "3:4": { width: 896, height: 1280 },
-    "4:3": { width: 1280, height: 896 },
-  },
-  
-  // Imagen 4.0 Ultra - Same dimensions as Preview
-  "imagen-4.0-ultra": {
-    "1:1": { width: 1024, height: 1024 },
-    "9:16": { width: 768, height: 1408 },
-    "16:9": { width: 1408, height: 768 },
-    "3:4": { width: 896, height: 1280 },
-    "4:3": { width: 1280, height: 896 },
-  },
-  
-  // Imagen 4.0 Fast - Same dimensions as Preview & Ultra
-  "imagen-4.0-fast": {
-    "1:1": { width: 1024, height: 1024 },
-    "9:16": { width: 768, height: 1408 },
-    "16:9": { width: 1408, height: 768 },
-    "3:4": { width: 896, height: 1280 },
-    "4:3": { width: 1280, height: 896 },
   },
   
   // Seedream 4.0 - ByteDance (1K dimension)
@@ -1289,8 +1113,8 @@ export const MODEL_SPECIFIC_DIMENSIONS: Record<string, Record<string, ImageDimen
   // FLUX.2 [flex] - Black Forest Labs (Recommended dimensions: 256-1920px)
   "flux-2-flex": {
     "1:1": { width: 1024, height: 1024 },
-    "16:9": { width: 1024, height: 1440 },  // Poster format
-    "9:16": { width: 720, height: 1280 },
+    "16:9":{ width: 1920, height: 1088 },  // Fixed: was incorrectly 1024×1440 (9:16)
+    "9:16":{ width: 1088, height: 1920 },  // Fixed: was incorrectly 720×1280
     "4:3": { width: 1152, height: 864 },
     "3:4": { width: 864, height: 1152 },
     "3:2": { width: 1248, height: 832 },
@@ -1300,8 +1124,8 @@ export const MODEL_SPECIFIC_DIMENSIONS: Record<string, Record<string, ImageDimen
   // FLUX.2 [max] - Black Forest Labs (Recommended dimensions: 256-2048px)
   "flux-2-max": {
     "1:1": { width: 1024, height: 1024 },
-    "16:9": { width: 1920, height: 1080 },  // Full HD
-    "9:16": { width: 1080, height: 1920 },
+    "16:9": { width: 1920, height: 1088 },  // Full HD (1088 = 68×16, closest to 1080)
+    "9:16": { width: 1088, height: 1920 },  // 1088 = 68×16 (closest to 1080)
     "4:3": { width: 1280, height: 960 },
     "3:4": { width: 960, height: 1280 },
     "3:2": { width: 1440, height: 960 },

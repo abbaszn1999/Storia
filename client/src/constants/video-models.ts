@@ -379,6 +379,42 @@ export function isModelCompatible(
 }
 
 /**
+ * Get video models that support a specific aspect ratio
+ * @param aspectRatio - The aspect ratio to filter by (e.g., "9:16", "16:9")
+ * @returns Filtered list of models that support the aspect ratio
+ */
+export function getVideoModelsByAspectRatio(aspectRatio: string): VideoModelConfig[] {
+  return VIDEO_MODELS.filter(m => m.aspectRatios.includes(aspectRatio));
+}
+
+/**
+ * Check if a model supports a specific aspect ratio
+ */
+export function isModelCompatibleWithAspectRatio(
+  modelValue: string,
+  aspectRatio: string
+): boolean {
+  const model = getVideoModelConfig(modelValue);
+  if (!model) return false;
+  return model.aspectRatios.includes(aspectRatio);
+}
+
+/**
+ * Get the first compatible video model for an aspect ratio
+ * Falls back to default model if no compatible model found
+ */
+export function getCompatibleVideoModel(aspectRatio: string): VideoModelConfig {
+  const compatible = getVideoModelsByAspectRatio(aspectRatio);
+  if (compatible.length > 0) {
+    // Prefer default model if it's compatible
+    const defaultModel = compatible.find(m => m.default);
+    return defaultModel || compatible[0];
+  }
+  // Fallback to default model
+  return getDefaultVideoModel();
+}
+
+/**
  * Resolution labels for display
  */
 export const VIDEO_RESOLUTION_LABELS: Record<string, string> = {
@@ -393,4 +429,82 @@ export const VIDEO_RESOLUTION_LABELS: Record<string, string> = {
   "1440p": "1440p (2K)",
   "2160p": "2160p (4K)",
 };
+
+/**
+ * Model-specific resolution constraints by aspect ratio
+ * Maps modelId -> aspectRatio -> supported resolutions
+ * If a model/aspectRatio combination is not listed here, all resolutions from config are supported
+ */
+const MODEL_RESOLUTION_CONSTRAINTS: Record<string, Record<string, string[]>> = {
+  "seedance-1.5-pro": {
+    "16:9": ["480p", "720p"],  // No 1080p
+    "9:16": ["480p", "720p"],  // No 1080p
+    "1:1": ["480p", "720p"],   // No 1080p
+    "4:3": ["480p", "720p"],   // No 1080p
+    "3:4": ["480p", "720p"],   // No 1080p
+    "21:9": ["480p", "720p"],  // No 1080p
+  },
+  "veo-3.0": {
+    "16:9": ["720p", "1080p"],
+    "9:16": ["720p", "1080p"],
+  },
+  "veo-3-fast": {
+    "16:9": ["720p", "1080p"],
+    "9:16": ["720p", "1080p"],
+  },
+  "klingai-2.5-turbo-pro": {
+    "16:9": ["720p"],  // Only 720p
+    "1:1": ["720p"],   // Only 720p
+    "9:16": ["720p"],  // Only 720p
+  },
+  "klingai-2.1-pro": {
+    "16:9": ["1080p"],  // Only 1080p
+    "1:1": ["1080p"],   // Only 1080p
+    "9:16": ["1080p"],  // Only 1080p
+  },
+  "kling-video-2.6-pro": {
+    "16:9": ["1080p"],  // Only 1080p
+    "1:1": ["1080p"],   // Only 1080p
+    "9:16": ["1080p"],  // Only 1080p
+  },
+  "kling-video-o1": {
+    "16:9": ["1080p"],  // Only 1080p
+    "1:1": ["1080p"],   // Only 1080p
+    "9:16": ["1080p"],  // Only 1080p
+  },
+  "hailuo-2.3": {
+    "16:9": ["768p", "1080p"],  // Only 16:9 supported
+  },
+  "sora-2-pro": {
+    "16:9": ["720p"],
+    "9:16": ["720p"],
+    "7:4": ["720p"],
+    "4:7": ["720p"],
+  },
+  "veo-3.1": {
+    "16:9": ["720p", "1080p"],
+    "9:16": ["720p", "1080p"],
+  },
+};
+
+/**
+ * Get supported resolutions for a specific model and aspect ratio
+ * Returns resolutions that are actually supported (from MODEL_RESOLUTION_CONSTRAINTS)
+ * Falls back to model's general resolutions if not constrained
+ */
+export function getSupportedResolutionsForAspectRatio(
+  modelId: string,
+  aspectRatio: string
+): string[] {
+  const model = getVideoModelConfig(modelId);
+  if (!model) return [];
+
+  // If model has specific constraints for this aspect ratio, use those
+  if (MODEL_RESOLUTION_CONSTRAINTS[modelId] && MODEL_RESOLUTION_CONSTRAINTS[modelId][aspectRatio]) {
+    return MODEL_RESOLUTION_CONSTRAINTS[modelId][aspectRatio];
+  }
+
+  // Otherwise, return all resolutions from config (no restrictions for this aspect ratio)
+  return model.resolutions;
+}
 

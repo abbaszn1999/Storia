@@ -171,26 +171,56 @@ export async function generateVideo(
 
   // Add frame images if provided (for I2V - Image to Video)
   // Note: frameImages is OPTIONAL - video can be generated without reference image
-  // Runware format: array of objects { inputImage: URL } - NO frame parameter needed!
+  // Some models require inputs.frameImages, others use frameImages directly
   if (firstFrameImage || lastFrameImage) {
-    const frameImages: { inputImage: string }[] = [];
+    const frameImagesData: { inputImage: string; frame: "first" | "last" }[] = [];
     
     if (firstFrameImage) {
       console.log("[asmr-video-generator] Raw firstFrameImage input:", firstFrameImage);
       
       // Use URL directly - Runware accepts full URL in inputImage
-      frameImages.push({ inputImage: firstFrameImage });
+      frameImagesData.push({ inputImage: firstFrameImage, frame: "first" });
       console.log("[asmr-video-generator] First frame URL:", firstFrameImage);
     }
     if (lastFrameImage) {
       console.log("[asmr-video-generator] Raw lastFrameImage input:", lastFrameImage);
       
-      frameImages.push({ inputImage: lastFrameImage });
+      frameImagesData.push({ inputImage: lastFrameImage, frame: "last" });
       console.log("[asmr-video-generator] Last frame URL:", lastFrameImage);
     }
     
-    payload.frameImages = frameImages;
-    console.log("[asmr-video-generator] Final frameImages payload:", JSON.stringify(frameImages));
+    // Models that require "inputs" wrapper for frameImages
+    // Note: Different models require different frameImages formats:
+    // - Runway, Hailuo, LTX-2 Pro: array of objects with { inputImage, frame }
+    // - Alibaba Wan 2.6: array of objects with { image: "url" } in inputs.frameImages
+    const modelsRequiringInputsWrapper = [
+      "runway:1@1",      // Runway Gen-4 Turbo
+      "runway:2@1",      // Runway Gen-4 (if exists)
+      "minimax:4@1",     // Hailuo 2.3
+      "lightricks:2@0",  // LTX-2 Pro
+      "alibaba:wan@2.6", // Alibaba Wan 2.6 - requires inputs.frameImages as array of objects with { image: "url" }
+    ];
+    
+    const useInputsWrapper = modelsRequiringInputsWrapper.includes(runwareModelId);
+    const isAlibabaWan = runwareModelId === "alibaba:wan@2.6";
+    
+    if (useInputsWrapper) {
+      if (isAlibabaWan) {
+        // Alibaba Wan 2.6: array of objects with { image: "url" }
+        const frameImagesForAlibaba = frameImagesData.map(item => ({ image: item.inputImage }));
+        payload.inputs = { frameImages: frameImagesForAlibaba };
+        console.log("[asmr-video-generator] Using inputs.frameImages format (Alibaba Wan 2.6 - array of objects with 'image' property)");
+      } else {
+        // Other models: array of objects with { inputImage, frame }
+        payload.inputs = { frameImages: frameImagesData };
+        console.log("[asmr-video-generator] Using inputs.frameImages format (array of objects)");
+      }
+    } else {
+      payload.frameImages = frameImagesData;
+      console.log("[asmr-video-generator] Using direct frameImages format");
+    }
+    const finalFrameImages = (payload.inputs as any)?.frameImages || (payload as any).frameImages;
+    console.log("[asmr-video-generator] Final frameImages payload:", JSON.stringify(finalFrameImages));
   } else {
     console.log("[asmr-video-generator] No reference image (T2V mode)");
   }

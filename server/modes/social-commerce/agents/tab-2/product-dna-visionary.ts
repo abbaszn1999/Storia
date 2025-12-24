@@ -20,24 +20,30 @@ const PRODUCT_DNA_SCHEMA = {
   properties: {
     geometry_profile: {
       type: "string" as const,
-      description: "Mathematical description of product shape, silhouette, proportions, and component relationships"
+      description: "Precise physical description of product form: dimensions, ratios, shapes, edge treatments, component positions. Must be specific enough to reconstruct the silhouette.",
+      minLength: 150,
+      maxLength: 600
     },
     material_spec: {
       type: "string" as const,
-      description: "Technical texture specifications including surface type, PBR properties, and micro-details"
+      description: "PBR-compliant material description: roughness values, metalness, texture patterns, grain direction, transparency properties. Uses technical rendering terminology.",
+      minLength: 150,
+      maxLength: 600
     },
     hero_anchor_points: {
       type: "array" as const,
       items: {
         type: "string" as const
       },
-      description: "Array of 3-5 key visual landmarks with position and camera affinity",
-      minItems: 3,
-      maxItems: 5
+      description: "Key visual landmarks for camera focus. Each entry specifies position and visual characteristic.",
+      minItems: 4,
+      maxItems: 6
     },
     lighting_response: {
       type: "string" as const,
-      description: "Physics-based rules for how the product interacts with light"
+      description: "How product materials react to light: specular behavior, shadow characteristics, caustics, warnings for difficult lighting scenarios.",
+      minLength: 150,
+      maxLength: 600
     }
   },
   required: ["geometry_profile", "material_spec", "hero_anchor_points", "lighting_response"],
@@ -69,44 +75,77 @@ export async function analyzeProductDNA(
   });
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // BUILD IMAGE MESSAGES FOR VISION API (OpenAI Responses API format)
+  // BUILD INTERLEAVED CONTENT ARRAY (Best Practice: Label + Image pattern)
   // ═══════════════════════════════════════════════════════════════════════════
   
-  const imageMessages: Array<{ type: "input_image"; image_url: string }> = [];
+  // Count images for mapping header
+  const imageCount = 1 + (input.macroDetail ? 1 : 0) + (input.materialReference ? 1 : 0);
   
-  // Always include hero profile (required)
-  imageMessages.push({
+  // Build image mapping header
+  let mappingText = "I am providing product images for analysis. Map: Image 1 = Hero Profile (primary product view showing overall shape, proportions, and main features)";
+  if (input.macroDetail) {
+    mappingText += ", Image 2 = Macro Detail (close-up view showing surface texture, micro-features, and craftsmanship details)";
+  }
+  if (input.materialReference) {
+    mappingText += ", Image 3 = Material Reference (texture and material focus showing surface properties and material behavior)";
+  }
+  mappingText += ".";
+  
+  // Build interleaved content array
+  const contentArray: Array<{ type: "input_text"; text: string } | { type: "input_image"; image_url: string }> = [];
+  
+  // STEP 1: Image Mapping Header
+  contentArray.push({
+    type: "input_text",
+    text: mappingText
+  });
+  
+  // STEP 2: Image 1 - Hero Profile (ALWAYS PRESENT)
+  contentArray.push({
+    type: "input_text",
+    text: "--- Image 1: HERO PROFILE ---\nPrimary product view showing overall shape, proportions, and main features."
+  });
+  contentArray.push({
     type: "input_image",
     image_url: input.heroProfile
   });
   
-  // Include macro detail if provided
+  // STEP 3: Image 2 - Macro Detail (CONDITIONAL)
   if (input.macroDetail) {
-    imageMessages.push({
+    contentArray.push({
+      type: "input_text",
+      text: "--- Image 2: MACRO DETAIL ---\nClose-up view showing surface texture, micro-features, and craftsmanship details."
+    });
+    contentArray.push({
       type: "input_image",
       image_url: input.macroDetail
     });
   }
   
-  // Include material reference if provided
+  // STEP 4: Image 3 - Material Reference (CONDITIONAL)
   if (input.materialReference) {
-    imageMessages.push({
+    contentArray.push({
+      type: "input_text",
+      text: "--- Image 3: MATERIAL REFERENCE ---\nTexture and material focus showing surface properties and material behavior."
+    });
+    contentArray.push({
       type: "input_image",
       image_url: input.materialReference
     });
   }
   
-  console.log(`[agent-2.1] Sending ${imageMessages.length} image(s) to GPT-4o Vision`);
+  // STEP 5: Main Analysis Instructions (after all images)
+  const userPrompt = PRODUCT_DNA_USER_PROMPT(input);
+  contentArray.push({
+    type: "input_text",
+    text: userPrompt
+  });
+  
+  console.log(`[agent-2.1] Sending ${imageCount} image(s) to GPT-4o Vision with interleaved pattern`);
   
   // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/dce8bcc2-d9cf-48dc-80b9-5e2289140a64',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-dna-visionary.ts:99',message:'imageMessages structure',data:{imageMessages,imageCount:imageMessages.length,firstImageType:imageMessages[0]?.type,firstImageKeys:imageMessages[0]?Object.keys(imageMessages[0]):null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  fetch('http://127.0.0.1:7242/ingest/dce8bcc2-d9cf-48dc-80b9-5e2289140a64',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-dna-visionary.ts:99',message:'Interleaved content array structure',data:{contentArrayLength:contentArray.length,imageCount,contentTypes:contentArray.map((c:any)=>c?.type),firstContentItem:contentArray[0]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
   // #endregion
-  
-  // ═══════════════════════════════════════════════════════════════════════════
-  // BUILD USER PROMPT
-  // ═══════════════════════════════════════════════════════════════════════════
-  
-  const userPrompt = PRODUCT_DNA_USER_PROMPT(input);
   
   // ═══════════════════════════════════════════════════════════════════════════
   // CALL GPT-4O VISION WITH JSON SCHEMA
@@ -117,10 +156,7 @@ export async function analyzeProductDNA(
       { role: 'system', content: PRODUCT_DNA_SYSTEM_PROMPT },
       {
         role: 'user',
-        content: [
-          ...imageMessages,
-          { type: "input_text", text: userPrompt }
-        ]
+        content: contentArray
       }
     ],
     text: {
@@ -131,7 +167,7 @@ export async function analyzeProductDNA(
         schema: PRODUCT_DNA_SCHEMA
       }
     },
-    temperature: 0.7,
+    temperature: 0.3,
     max_output_tokens: 2000,
   };
   

@@ -123,7 +123,7 @@ export async function optimizeStrategicContext(
                     },
                     pacing_profile: {
                       type: 'string',
-                      enum: ['FAST_CUT', 'RHYTHMIC', 'LUXURY_SLOW', 'DYNAMIC'],
+                      enum: ['FAST_CUT', 'LUXURY_SLOW', 'KINETIC_RAMP', 'STEADY_CINEMATIC'],
                       description: 'Rhythmic profile determining shot durations and transitions',
                     },
                     optimized_motion_dna: {
@@ -201,11 +201,13 @@ export async function optimizeStrategicContext(
  */
 export function getDefaultStrategicContext(input: StrategicContextInput): StrategicContextOutput {
   // Determine pacing based on duration
-  let pacingProfile: PacingProfile = 'RHYTHMIC';
+  let pacingProfile: PacingProfile = 'STEADY_CINEMATIC';
   if (input.duration <= 15) {
     pacingProfile = 'FAST_CUT';
   } else if (input.duration <= 30) {
-    pacingProfile = 'DYNAMIC';
+    pacingProfile = 'KINETIC_RAMP';
+  } else if (input.duration >= 20) {
+    pacingProfile = 'STEADY_CINEMATIC';
   }
 
   return {

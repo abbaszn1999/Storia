@@ -435,6 +435,7 @@ export default function SocialCommerceMode() {
         if (step1.videoModel) setVideoModel(step1.videoModel);
         if (step1.videoResolution) setVideoResolution(step1.videoResolution);
         if (step1.language) setLanguage(step1.language);
+        if (step1.voiceOverEnabled !== undefined) setVoiceOverEnabled(step1.voiceOverEnabled);
       }
       
       // Restore step2Data if available (NEW: Nested structure)
@@ -454,6 +455,7 @@ export default function SocialCommerceMode() {
           // Material settings
           if (step2.product.material) {
             if (step2.product.material.preset) setMaterialPreset(step2.product.material.preset);
+            if (step2.product.material.objectMass !== undefined) setObjectMass(step2.product.material.objectMass);
             if (step2.product.material.surfaceComplexity !== undefined) setSurfaceComplexity(step2.product.material.surfaceComplexity);
             if (step2.product.material.refractionEnabled !== undefined) setRefractionEnabled(step2.product.material.refractionEnabled);
             if (step2.product.material.heroFeature) setHeroFeature(step2.product.material.heroFeature);
@@ -1238,6 +1240,41 @@ export default function SocialCommerceMode() {
         targetAudience,
       };
     }
+    if (step === "script") {
+      return {
+        productImages: { ...productImages },
+        materialPreset,
+        surfaceComplexity,
+        refractionEnabled,
+        heroFeature,
+        originMetaphor,
+        includeHumanElement,
+        characterMode,
+        characterReferenceUrl,
+        characterName,
+        characterDescription,
+        logoUrl,
+        brandPrimaryColor,
+        brandSecondaryColor,
+        logoIntegrity,
+        logoDepth,
+        styleReferenceUrl,
+      };
+    }
+    if (step === "environment") {
+      return {
+        environmentConcept,
+        cinematicLighting,
+        atmosphericDensity,
+        visualPreset,
+        styleReferenceUrl,
+        campaignSpark,
+        visualBeats: { ...visualBeats },
+        campaignObjective,
+        environmentBrandPrimaryColor,
+        environmentBrandSecondaryColor,
+      };
+    }
     // Add other steps as they are implemented
     return {};
   };
@@ -1322,6 +1359,7 @@ export default function SocialCommerceMode() {
           videoModel,
           videoResolution,
           language,
+          voiceOverEnabled,
         };
         
         console.log('[SocialCommerce] Saving step 1 and running Agent 1.1:', step1Data);
@@ -1457,6 +1495,7 @@ export default function SocialCommerceMode() {
             
             // Material settings
             materialPreset,
+            objectMass,
             surfaceComplexity,
             refractionEnabled,
             heroFeature,
@@ -1704,6 +1743,73 @@ export default function SocialCommerceMode() {
     }
   };
 
+  // Helper: Reset frontend state for cleared steps
+  const resetStepState = (stepNumber: number) => {
+    console.log('[SocialCommerce] Resetting frontend state for step:', stepNumber);
+    
+    // Reset Step 2 state (Product DNA, Character, Brand)
+    if (stepNumber <= 2) {
+      setProductImages({
+        heroProfile: null,
+        macroDetail: null,
+        materialReference: null,
+      });
+      setProductImageAssetIds({
+        heroProfile: null,
+        macroDetail: null,
+        materialReference: null,
+      });
+      setCharacterAssetId(null);
+      setCharacterReferenceUrl(null);
+      setCharacterReferenceFile(null);
+      setCharacterName('');
+      setCharacterDescription('');
+      setCharacterAIProfile(null);
+      setCharacterMode(null);
+      setIncludeHumanElement(false);
+      setBrandkitAssetId(null);
+      setLogoUrl(null);
+      setBrandName('');
+      setBrandPrimaryColor("#FF006E");
+      setBrandSecondaryColor("#FB5607");
+      setLogoIntegrity(7);
+      setLogoDepth(5);
+      setMaterialPreset("");
+      setObjectMass(50);
+      setSurfaceComplexity(50);
+      setRefractionEnabled(false);
+      setHeroFeature("");
+      setOriginMetaphor("");
+      setStyleReferenceUrl(null);
+    }
+    
+    // Reset Step 3 state (Environment & Story)
+    if (stepNumber <= 3) {
+      setCampaignSpark("");
+      setVisualBeats({
+        beat1: "",
+        beat2: "",
+        beat3: "",
+      });
+      setCtaText("");
+      setCampaignObjective("");
+      setEnvironmentConcept("");
+      setCinematicLighting("");
+      setAtmosphericDensity(50);
+      setVisualPreset("");
+      setEnvironmentBrandPrimaryColor(brandPrimaryColor);
+      setEnvironmentBrandSecondaryColor(brandSecondaryColor);
+    }
+    
+    // Reset Step 4 state (Scene Timeline)
+    if (stepNumber <= 4) {
+      setSceneManifest({
+        scenes: [],
+        continuityLinksEstablished: false,
+      });
+    }
+  };
+
   // Handle accepting the reset warning and clearing future data
   const handleAcceptReset = async () => {
     if (videoId === "new") {
@@ -1723,10 +1829,11 @@ export default function SocialCommerceMode() {
         completedSteps: completedSteps.filter(s => stepToNumber(s) < currentStepNumber),
       };
 
-      // Clear all future step data
-      const stepNumbers = [2, 3, 4, 5, 6];
+      // Clear current step's data AND all future step data
+      // This ensures that when user changes a completed step, that step and all future steps are reset
+      const stepNumbers = [1, 2, 3, 4, 5, 6];
       stepNumbers.forEach(num => {
-        if (num > currentStepNumber) {
+        if (num >= currentStepNumber) {
           updatePayload[`step${num}Data`] = null;
         }
       });
@@ -1744,6 +1851,9 @@ export default function SocialCommerceMode() {
       if (!response.ok) {
         throw new Error('Failed to reset video data');
       }
+
+      // ✨ Reset frontend state for cleared steps
+      resetStepState(currentStepNumber);
 
       // Update local state
       setCompletedSteps(updatePayload.completedSteps);
@@ -1916,22 +2026,22 @@ export default function SocialCommerceMode() {
               onMotionPromptChange={(value) => { setMotionPrompt(value); markStepDirty('setup'); }}
               onImageInstructionsChange={(value) => { setImageInstructions(value); markStepDirty('setup'); }}
               imageInstructions={imageInstructions}
-              onProductImagesChange={setProductImages}
+              onProductImagesChange={(value) => { setProductImages(value); markStepDirty('script'); }}
               onProductImageUpload={handleProductImageUpload}
               onProductImageDelete={handleDeleteProductImage}
-              onMaterialPresetChange={setMaterialPreset}
+              onMaterialPresetChange={(value) => { setMaterialPreset(value); markStepDirty('script'); }}
               onObjectMassChange={setObjectMass}
-              onSurfaceComplexityChange={setSurfaceComplexity}
-              onRefractionEnabledChange={setRefractionEnabled}
-              onLogoUrlChange={setLogoUrl}
+              onSurfaceComplexityChange={(value) => { setSurfaceComplexity(value); markStepDirty('script'); }}
+              onRefractionEnabledChange={(value) => { setRefractionEnabled(value); markStepDirty('script'); }}
+              onLogoUrlChange={(value) => { setLogoUrl(value); markStepDirty('script'); }}
               onLogoUpload={handleLogoUpload}
               onLogoDelete={handleDeleteLogo}
-              onBrandPrimaryColorChange={setBrandPrimaryColor}
-              onBrandSecondaryColorChange={setBrandSecondaryColor}
-              onLogoIntegrityChange={setLogoIntegrity}
-              onLogoDepthChange={setLogoDepth}
-              onHeroFeatureChange={setHeroFeature}
-              onOriginMetaphorChange={setOriginMetaphor}
+              onBrandPrimaryColorChange={(value) => { setBrandPrimaryColor(value); markStepDirty('script'); }}
+              onBrandSecondaryColorChange={(value) => { setBrandSecondaryColor(value); markStepDirty('script'); }}
+              onLogoIntegrityChange={(value) => { setLogoIntegrity(value); markStepDirty('script'); }}
+              onLogoDepthChange={(value) => { setLogoDepth(value); markStepDirty('script'); }}
+              onHeroFeatureChange={(value) => { setHeroFeature(value); markStepDirty('script'); }}
+              onOriginMetaphorChange={(value) => { setOriginMetaphor(value); markStepDirty('script'); }}
               environmentConcept={environmentConcept}
               cinematicLighting={cinematicLighting}
               atmosphericDensity={atmosphericDensity}
@@ -1952,26 +2062,26 @@ export default function SocialCommerceMode() {
               isGeneratingCharacter={isGeneratingCharacter}
               onCharacterAIProfileChange={setCharacterAIProfile}
               onIsGeneratingCharacterChange={setIsGeneratingCharacter}
-              onEnvironmentConceptChange={setEnvironmentConcept}
-              onCinematicLightingChange={setCinematicLighting}
-              onAtmosphericDensityChange={setAtmosphericDensity}
-              onStyleReferenceUrlChange={setStyleReferenceUrl}
-              onVisualPresetChange={setVisualPreset}
-              onCampaignSparkChange={setCampaignSpark}
-              onVisualBeatsChange={setVisualBeats}
-              onEnvironmentBrandPrimaryColorChange={setEnvironmentBrandPrimaryColor}
-              onEnvironmentBrandSecondaryColorChange={setEnvironmentBrandSecondaryColor}
+              onEnvironmentConceptChange={(value) => { setEnvironmentConcept(value); markStepDirty('environment'); }}
+              onCinematicLightingChange={(value) => { setCinematicLighting(value); markStepDirty('environment'); }}
+              onAtmosphericDensityChange={(value) => { setAtmosphericDensity(value); markStepDirty('environment'); }}
+              onStyleReferenceUrlChange={(value) => { setStyleReferenceUrl(value); markStepDirty('environment'); }}
+              onVisualPresetChange={(value) => { setVisualPreset(value); markStepDirty('environment'); }}
+              onCampaignSparkChange={(value) => { setCampaignSpark(value); markStepDirty('environment'); }}
+              onVisualBeatsChange={(value) => { setVisualBeats(value); markStepDirty('environment'); }}
+              onEnvironmentBrandPrimaryColorChange={(value) => { setEnvironmentBrandPrimaryColor(value); markStepDirty('environment'); }}
+              onEnvironmentBrandSecondaryColorChange={(value) => { setEnvironmentBrandSecondaryColor(value); markStepDirty('environment'); }}
               campaignObjective={campaignObjective}
-              onCampaignObjectiveChange={setCampaignObjective}
+              onCampaignObjectiveChange={(value) => { setCampaignObjective(value); markStepDirty('environment'); }}
               onTargetAudienceChange={(value) => { setTargetAudience(value); markStepDirty('setup'); }}
               onCtaTextChange={setCtaText}
-              onIncludeHumanElementChange={setIncludeHumanElement}
-              onCharacterModeChange={setCharacterMode}
-              onCharacterReferenceUrlChange={setCharacterReferenceUrl}
+              onIncludeHumanElementChange={(value) => { setIncludeHumanElement(value); markStepDirty('script'); }}
+              onCharacterModeChange={(value) => { setCharacterMode(value); markStepDirty('script'); }}
+              onCharacterReferenceUrlChange={(value) => { setCharacterReferenceUrl(value); markStepDirty('script'); }}
               onCharacterImageUpload={handleCharacterImageUpload}
               onCharacterDelete={handleDeleteCharacter}
-              onCharacterDescriptionChange={setCharacterDescription}
-              onCharacterNameChange={setCharacterName}
+              onCharacterDescriptionChange={(value) => { setCharacterDescription(value); markStepDirty('script'); }}
+              onCharacterNameChange={(value) => { setCharacterName(value); markStepDirty('script'); }}
               onCharacterAssetIdChange={setCharacterAssetId}
               onCharacterReferenceFileChange={setCharacterReferenceFile}
               sceneManifest={sceneManifest}

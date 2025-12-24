@@ -290,10 +290,224 @@ router.delete('/upload-temp/:tempId', isAuthenticated, async (req: Request, res:
  */
 function extractFilePathFromUrl(cdnUrl: string): string {
   const BUNNY_CDN_URL = process.env.BUNNY_CDN_URL || '';
-  if (!BUNNY_CDN_URL || !cdnUrl) return '';
+  if (!BUNNY_CDN_URL || !cdnUrl) {
+    console.warn('[social-commerce] Missing BUNNY_CDN_URL or cdnUrl:', { 
+      hasBunnyUrl: !!BUNNY_CDN_URL, 
+      hasCdnUrl: !!cdnUrl 
+    });
+    return '';
+  }
   
   const cdnBase = BUNNY_CDN_URL.replace(/\/+$/, '');
-  return cdnUrl.replace(`${cdnBase}/`, '');
+  const filePath = cdnUrl.replace(`${cdnBase}/`, '');
+  
+  console.log('[social-commerce] Extracted file path:', {
+    originalUrl: cdnUrl,
+    cdnBase,
+    extractedPath: filePath,
+  });
+  
+  return filePath;
+}
+
+/**
+ * Helper: Find and delete upload by storageUrl
+ */
+async function cleanupUploadByUrl(
+  storageUrl: string,
+  videoId: string
+): Promise<void> {
+  try {
+    console.log('[social-commerce] cleanupUploadByUrl called:', { storageUrl, videoId });
+    
+    // Get all uploads for the workspace (we need workspaceId from video)
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      console.warn(`[social-commerce] Video not found: ${videoId}`);
+      return;
+    }
+
+    const uploads = await storage.getUploadsByWorkspaceId(video.workspaceId);
+    console.log(`[social-commerce] Found ${uploads.length} uploads in workspace`);
+    
+    // Find upload matching this URL
+    const upload = uploads.find(u => u.storageUrl === storageUrl);
+    if (!upload) {
+      console.warn(`[social-commerce] Upload not found for URL: ${storageUrl}`);
+      return;
+    }
+
+    console.log(`[social-commerce] Found upload record: ${upload.id}`);
+
+    // Delete from Bunny CDN
+    if (upload.storageUrl) {
+      const filePath = extractFilePathFromUrl(upload.storageUrl);
+      if (filePath) {
+        try {
+          await bunnyStorage.deleteFile(filePath);
+          console.log(`[social-commerce] ✓ Deleted upload from Bunny CDN: ${filePath}`);
+        } catch (bunnyError) {
+          console.error('[social-commerce] Failed to delete from Bunny CDN:', bunnyError);
+          // Continue with DB deletion even if Bunny fails
+        }
+      } else {
+        console.warn(`[social-commerce] Could not extract file path from URL: ${upload.storageUrl}`);
+      }
+    }
+
+    // Delete from database
+    await storage.deleteUpload(upload.id);
+    console.log(`[social-commerce] ✓ Cleaned up upload from database: ${upload.id}`);
+  } catch (error) {
+    console.error('[social-commerce] Failed to cleanup upload:', error);
+    // Don't throw - we want to continue with other cleanup operations
+  }
+}
+
+/**
+ * Helper: Delete all assets from a step's data (Bunny CDN + Database)
+ */
+async function cleanupStepAssets(
+  stepData: any,
+  videoId: string,
+  userId: string
+): Promise<void> {
+  if (!stepData) {
+    console.log('[social-commerce] cleanupStepAssets: stepData is null/undefined, skipping');
+    return;
+  }
+
+  console.log('[social-commerce] cleanupStepAssets called:', {
+    videoId,
+    userId,
+    hasProduct: !!stepData.product,
+    hasCharacter: !!stepData.character,
+    hasBrand: !!stepData.brand,
+    hasStyle: !!stepData.style,
+  });
+
+  const cleanupPromises: Promise<void>[] = [];
+
+  // Cleanup product images (from step2Data)
+  if (stepData.product?.images) {
+    const productImages = stepData.product.images;
+    console.log('[social-commerce] Cleaning up product images:', {
+      heroProfile: !!productImages.heroProfile,
+      macroDetail: !!productImages.macroDetail,
+      materialReference: !!productImages.materialReference,
+    });
+    
+    if (productImages.heroProfile) {
+      cleanupPromises.push(cleanupUploadByUrl(productImages.heroProfile, videoId));
+    }
+    if (productImages.macroDetail) {
+      cleanupPromises.push(cleanupUploadByUrl(productImages.macroDetail, videoId));
+    }
+    if (productImages.materialReference) {
+      cleanupPromises.push(cleanupUploadByUrl(productImages.materialReference, videoId));
+    }
+  }
+
+  // Cleanup character (from step2Data)
+  if (stepData.character?.assetId) {
+    console.log('[social-commerce] Cleaning up character:', stepData.character.assetId);
+    cleanupPromises.push(
+      (async () => {
+        try {
+          const character = await storage.getCharacter(stepData.character.assetId);
+          if (!character) {
+            console.warn(`[social-commerce] Character not found: ${stepData.character.assetId}`);
+            return;
+          }
+          
+          if (character.imageUrl) {
+            const filePath = extractFilePathFromUrl(character.imageUrl);
+            if (filePath) {
+              try {
+                await bunnyStorage.deleteFile(filePath);
+                console.log(`[social-commerce] ✓ Deleted character image from Bunny CDN: ${filePath}`);
+                
+                // Also delete folder
+                const folderPath = filePath.substring(0, filePath.lastIndexOf('/'));
+                if (folderPath) {
+                  try {
+                    await bunnyStorage.deleteFolder(folderPath);
+                    console.log(`[social-commerce] ✓ Deleted character folder: ${folderPath}`);
+                  } catch (e) {
+                    console.warn('[social-commerce] Failed to delete character folder (may not exist):', e);
+                  }
+                }
+              } catch (bunnyError) {
+                console.error('[social-commerce] Failed to delete character image from Bunny CDN:', bunnyError);
+              }
+            } else {
+              console.warn(`[social-commerce] Could not extract file path from character.imageUrl: ${character.imageUrl}`);
+            }
+          }
+          
+          await storage.deleteCharacter(stepData.character.assetId);
+          console.log(`[social-commerce] ✓ Cleaned up character from database: ${stepData.character.assetId}`);
+        } catch (error) {
+          console.error('[social-commerce] Failed to cleanup character:', error);
+        }
+      })()
+    );
+  }
+
+  // Cleanup brandkit/logo (from step2Data)
+  if (stepData.brand?.assetId) {
+    console.log('[social-commerce] Cleaning up brandkit:', stepData.brand.assetId);
+    cleanupPromises.push(
+      (async () => {
+        try {
+          const brandkit = await storage.getBrandkit(stepData.brand.assetId);
+          if (!brandkit) {
+            console.warn(`[social-commerce] Brandkit not found: ${stepData.brand.assetId}`);
+            return;
+          }
+          
+          if (brandkit.logoUrl) {
+            const filePath = extractFilePathFromUrl(brandkit.logoUrl);
+            if (filePath) {
+              try {
+                await bunnyStorage.deleteFile(filePath);
+                console.log(`[social-commerce] ✓ Deleted logo from Bunny CDN: ${filePath}`);
+              } catch (bunnyError) {
+                console.error('[social-commerce] Failed to delete logo from Bunny CDN:', bunnyError);
+              }
+            } else {
+              console.warn(`[social-commerce] Could not extract file path from brandkit.logoUrl: ${brandkit.logoUrl}`);
+            }
+          }
+          
+          await storage.deleteBrandkit(stepData.brand.assetId);
+          console.log(`[social-commerce] ✓ Cleaned up brandkit from database: ${stepData.brand.assetId}`);
+        } catch (error) {
+          console.error('[social-commerce] Failed to cleanup brandkit:', error);
+        }
+      })()
+    );
+  }
+
+  // Cleanup style reference (from step2Data or step3Data)
+  if (stepData.style?.referenceUrl) {
+    console.log('[social-commerce] Cleaning up style reference:', stepData.style.referenceUrl);
+    cleanupPromises.push(cleanupUploadByUrl(stepData.style.referenceUrl, videoId));
+  }
+
+  // Wait for all cleanup operations and log results
+  const results = await Promise.allSettled(cleanupPromises);
+  const succeeded = results.filter(r => r.status === 'fulfilled').length;
+  const failed = results.filter(r => r.status === 'rejected').length;
+  
+  console.log(`[social-commerce] Cleanup completed: ${succeeded} succeeded, ${failed} failed`);
+  
+  // Log any failures
+  results.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      console.error(`[social-commerce] Cleanup promise ${index} failed:`, result.reason);
+    }
+  });
 }
 
 /**
@@ -648,6 +862,28 @@ router.patch('/videos/:id', isAuthenticated, async (req: Request, res: Response)
     // Verify it's a social commerce video
     if (video.mode !== SOCIAL_COMMERCE_CONFIG.mode) {
       return res.status(400).json({ error: 'Not a social commerce video' });
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ASSET CLEANUP: Delete assets from Bunny CDN before clearing step data
+    // ═══════════════════════════════════════════════════════════════
+    
+    // Check if step2Data is being cleared
+    if (updates.step2Data === null && video.step2Data) {
+      console.log('[social-commerce] Cleaning up step2Data assets before reset...');
+      await cleanupStepAssets(video.step2Data, id, userId);
+    }
+
+    // Check if step3Data is being cleared
+    if (updates.step3Data === null && video.step3Data) {
+      console.log('[social-commerce] Cleaning up step3Data assets before reset...');
+      // Step3Data might have style reference URL
+      await cleanupStepAssets(video.step3Data, id, userId);
+    }
+
+    // Check if step4Data is being cleared (no assets, but log it)
+    if (updates.step4Data === null && video.step4Data) {
+      console.log('[social-commerce] Clearing step4Data (no assets to cleanup)');
     }
     
     // Update video with provided fields
@@ -1480,6 +1716,7 @@ router.patch('/videos/:id/step/2/continue', isAuthenticated, async (req: Request
         images: productImageUrls,
         material: {
           preset: requestData.materialPreset || 'metallic',
+          objectMass: requestData.objectMass || 50,
           surfaceComplexity: requestData.surfaceComplexity || 50,
           refractionEnabled: requestData.refractionEnabled || false,
           heroFeature: requestData.heroFeature || '',

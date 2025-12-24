@@ -83,6 +83,7 @@ export interface Step1Data {
   videoModel?: string;
   videoResolution?: string;
   language?: 'ar' | 'en';
+  voiceOverEnabled?: boolean;
   
   // Agent 1.1 output
   strategicContext?: StrategicContextOutput;
@@ -161,6 +162,7 @@ export interface Step2Data {
     };
     material?: {
       preset?: string;
+      objectMass?: number;
       surfaceComplexity?: number;
       refractionEnabled?: boolean;
       heroFeature?: string;

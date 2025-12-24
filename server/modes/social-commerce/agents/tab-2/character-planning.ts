@@ -53,14 +53,18 @@ const CHARACTER_PLANNING_SCHEMA = {
                 type: "string" as const,
                 description: "Unique reference code (e.g., 'LUXURY_ELEGANT_F1')"
               },
-              detailed_persona: {
-                type: "string" as const,
-                description: "Complete physical specification (4-6 sentences)"
-              },
-              cultural_fit: {
-                type: "string" as const,
-                description: "How character matches target audience (2-3 sentences)"
-              }
+          detailed_persona: {
+            type: "string" as const,
+            description: "Complete physical specification (4-6 sentences)",
+            minLength: 200,
+            maxLength: 600
+          },
+          cultural_fit: {
+            type: "string" as const,
+            description: "How character matches target audience (2-3 sentences)",
+            minLength: 80,
+            maxLength: 300
+          }
             },
             required: ["identity_id", "detailed_persona", "cultural_fit"],
             additionalProperties: false
@@ -93,11 +97,15 @@ const CHARACTER_PLANNING_SCHEMA = {
             properties: {
               product_engagement: {
                 type: "string" as const,
-                description: "Technical rules for product interaction (2-4 sentences)"
+                description: "Technical rules for product interaction (2-4 sentences)",
+                minLength: 80,
+                maxLength: 400
               },
               motion_limitations: {
                 type: "string" as const,
-                description: "AI-safe movement constraints (2-4 sentences)"
+                description: "AI-safe movement constraints (2-4 sentences)",
+                minLength: 80,
+                maxLength: 400
               }
             },
             required: ["product_engagement", "motion_limitations"],
@@ -126,7 +134,9 @@ const CHARACTER_PLANNING_SCHEMA = {
           },
           image_generation_prompt: {
             type: "string" as const,
-            description: "Ready-to-use prompt for AI image generation (100-150 words)"
+            description: "Ready-to-use prompt for AI image generation (100-150 words)",
+            minLength: 100,
+            maxLength: 1000
           },
           thumbnail_prompt: {
             type: "string" as const,
@@ -212,11 +222,15 @@ export async function generateCharacterRecommendations(
   ];
   
   if (hasReference) {
-    // Include reference image for vision analysis
-    console.log('[agent-2.2a] Including reference image in request');
+    // Include reference image with interleaved pattern (best practice)
+    console.log('[agent-2.2a] Including reference image in request with interleaved pattern');
     inputMessages.push({
       role: 'user',
       content: [
+        {
+          type: "input_text",
+          text: "--- CHARACTER REFERENCE IMAGE ---\nAnalyze this reference image for physical characteristics (skin tone, build, age indicators), style elements (attire, accessories, grooming), mood and energy conveyed, and any distinctive features to incorporate."
+        },
         {
           type: "input_image",
           image_url: input.referenceImageUrl!
@@ -254,7 +268,7 @@ export async function generateCharacterRecommendations(
             schema: CHARACTER_PLANNING_SCHEMA
           }
         },
-        temperature: 0.85, // Higher temperature for creative diversity
+        temperature: 0.6, // Balanced creativity with consistency (as per finalized document)
         max_output_tokens: 4000,  // Longer output for 3 detailed recommendations
       },
     });

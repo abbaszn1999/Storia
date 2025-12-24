@@ -386,3 +386,4 @@ The system supports **legacy CharacterAIProfile** format:
 
 **The reference image is always sent if provided**, but Agent 2.2b only uses it when the strategy requires it.
 
+

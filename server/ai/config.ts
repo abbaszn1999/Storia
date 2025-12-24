@@ -197,95 +197,65 @@ const geminiModels: AiModelConfig[] = [
  */
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// IMAGE MODELS
+// IMAGE MODELS (Synced with server/ai/config/image-models.ts)
 // ═══════════════════════════════════════════════════════════════════════════════
 const runwareImageModels: AiModelConfig[] = [
   // ─────────────────────────────────────────────────────────────────────────────
-  // FLUX.2 Series (Black Forest Labs)
+  // OpenAI GPT Image (AIR: openai:1@1, openai:4@1)
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    name: "flux-2-dev",
+    name: "openai-gpt-image-1",
     provider: "runware",
-    default: true,
     metadata: {
-      label: "FLUX.2 Dev",
-      description: "Latest FLUX.2 with medium acceleration",
-      supports: ["image-generation"],
-      defaultSteps: 28,
+      label: "OpenAI GPT Image 1",
+      description: "GPT-4o architecture for high-fidelity images with enhanced prompt following, superior text rendering. Supports up to 16 reference images",
+      supports: ["image-generation", "image-to-image", "inpainting"],
       defaultResolution: "1024x1024",
     },
   },
   {
-    name: "flux-2-pro",
+    name: "openai-gpt-image-1.5",
     provider: "runware",
     metadata: {
-      label: "FLUX.2 Pro",
-      description: "Professional quality FLUX.2 generation",
-      supports: ["image-generation"],
-      defaultResolution: "1024x1024",
-    },
-  },
-  {
-    name: "flux-2-flex",
-    provider: "runware",
-    metadata: {
-      label: "FLUX.2 Flex",
-      description: "Strongest text rendering accuracy in FLUX family. Designed for branded design, posters, and typography-driven work",
+      label: "OpenAI GPT Image 1.5",
+      description: "Newest flagship powering ChatGPT Images. Faster with enhanced instruction following and precise edits. Supports up to 16 reference images",
       supports: ["image-generation", "image-to-image"],
-      defaultSteps: 50,
       defaultResolution: "1024x1024",
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
-  // Google Imagen (AIR: google:1@1, google:2@2)
+  // Runway Gen-4 Image (AIR: runway:4@1, runway:4@2)
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    name: "imagen-3.0",
+    name: "runway-gen-4-image",
     provider: "runware",
     metadata: {
-      label: "Google Imagen 3.0",
-      description: "Detailed, high-quality images with better lighting and fewer artifacts. Works for realistic and stylized visuals",
-      supports: ["image-generation"],
-      defaultResolution: "1024x1024",
+      label: "Runway Gen-4 Image",
+      description: "High-fidelity with advanced stylistic control and visual consistency. Reference tags system (@tag). Supports up to 3 reference images",
+      supports: ["image-generation", "image-to-image"],
+      defaultResolution: "1920x1080",
     },
   },
   {
-    name: "imagen-4-ultra",
+    name: "runway-gen-4-image-turbo",
     provider: "runware",
     metadata: {
-      label: "Google Imagen 4.0 Ultra",
-      description: "Google's most advanced image model. Exceptional detail, color accuracy, and prompt adherence",
-      supports: ["image-generation"],
-      defaultResolution: "1024x1024",
+      label: "Runway Gen-4 Image Turbo",
+      description: "Faster variant for rapid iterations. Requires 1-3 reference images. Reference tags system (@tag) supported",
+      supports: ["image-to-image"],
+      defaultResolution: "1920x1080",
     },
   },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Kling IMAGE O1 (AIR: klingai:kling-image@o1)
+  // ─────────────────────────────────────────────────────────────────────────────
   {
-    name: "imagen-4.0-preview",
+    name: "kling-image-o1",
     provider: "runware",
     metadata: {
-      label: "Google Imagen 4.0 Preview",
-      description: "Improved textures, lighting, and typography—especially useful for design-heavy or detail-focused work",
-      supports: ["image-generation"],
-      defaultResolution: "1024x1024",
-    },
-  },
-  {
-    name: "imagen-4.0-ultra",
-    provider: "runware",
-    metadata: {
-      label: "Google Imagen 4.0 Ultra",
-      description: "Google's most advanced image model. Exceptional detail, color accuracy, and prompt adherence",
-      supports: ["image-generation"],
-      defaultResolution: "1024x1024",
-    },
-  },
-  {
-    name: "imagen-4.0-fast",
-    provider: "runware",
-    metadata: {
-      label: "Google Imagen 4.0 Fast",
-      description: "Speed and quality optimized for quicker inference with minimal quality loss",
-      supports: ["image-generation"],
+      label: "Kling IMAGE O1",
+      description: "High-control for consistent character handling, precise modification. Strong stylization. Supports up to 10 reference images",
+      supports: ["image-generation", "image-to-image"],
       defaultResolution: "1024x1024",
     },
   },
@@ -295,9 +265,10 @@ const runwareImageModels: AiModelConfig[] = [
   {
     name: "nano-banana",
     provider: "runware",
+    default: true,
     metadata: {
-      label: "Nano Banana (Gemini Flash Image 2.5)",
-      description: "Rapid, interactive image workflows with multi-image fusion and conversational editing. Includes SynthID watermark",
+      label: "Nano Banana (Gemini Flash 2.5)",
+      description: "Rapid, interactive workflows with multi-image fusion and conversational editing. Supports up to 8 reference images. SynthID watermark",
       supports: ["image-generation", "image-to-image"],
       defaultResolution: "1024x1024",
     },
@@ -306,8 +277,8 @@ const runwareImageModels: AiModelConfig[] = [
     name: "nano-banana-2-pro",
     provider: "runware",
     metadata: {
-      label: "Nano Banana 2 Pro (Gemini 3 Pro Image)",
-      description: "Professional-grade with advanced text rendering, up to 4K. Supports 14 reference images. Includes SynthID watermark",
+      label: "Nano Banana 2 Pro (Gemini 3 Pro)",
+      description: "Professional-grade with advanced text rendering, up to 4K. Supports 14 reference images. SynthID watermark",
       supports: ["image-generation", "image-to-image"],
       defaultResolution: "1024x1024",
     },
@@ -320,7 +291,7 @@ const runwareImageModels: AiModelConfig[] = [
     provider: "runware",
     metadata: {
       label: "Midjourney V7",
-      description: "Next-gen Midjourney with cinematic imagery, fluid brushwork, atmospheric tone. Improvements in realism, texture, lighting, and photographic quality",
+      description: "Next-gen with cinematic imagery, fluid brushwork, atmospheric tone. Improved visual realism, texture fidelity, lighting",
       supports: ["image-generation", "image-to-image"],
       defaultResolution: "1024x1024",
     },
@@ -333,21 +304,41 @@ const runwareImageModels: AiModelConfig[] = [
     provider: "runware",
     metadata: {
       label: "Ideogram 3.0",
-      description: "Design-level generation with sharper text rendering and better composition. Perfect for graphic-driven content",
+      description: "Design-level generation with exceptional text rendering and better composition. Magic Prompt feature. Perfect for typography",
       supports: ["image-generation"],
       defaultResolution: "1024x1024",
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
-  // OpenAI GPT Image (AIR: openai:1@1)
+  // Google Imagen 4.0 (AIR: google:2@1, google:2@2, google:2@3)
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    name: "gpt-image-1",
+    name: "imagen-4.0-preview",
     provider: "runware",
     metadata: {
-      label: "GPT Image 1",
-      description: "GPT-4o architecture for high-fidelity images with enhanced prompt following, superior text rendering, and precise inpainting",
-      supports: ["image-generation", "image-to-image", "inpainting"],
+      label: "Imagen 4.0 Preview",
+      description: "Improved textures, lighting, and typography. Perfect for design-heavy or detail-focused work",
+      supports: ["image-generation"],
+      defaultResolution: "1024x1024",
+    },
+  },
+  {
+    name: "imagen-4.0-ultra",
+    provider: "runware",
+    metadata: {
+      label: "Imagen 4.0 Ultra",
+      description: "Google's most advanced image model. Exceptional detail, color accuracy, and prompt adherence. Ideal for demanding commercial use",
+      supports: ["image-generation"],
+      defaultResolution: "1024x1024",
+    },
+  },
+  {
+    name: "imagen-4.0-fast",
+    provider: "runware",
+    metadata: {
+      label: "Imagen 4.0 Fast",
+      description: "Speed and quality optimized for quicker inference with minimal quality loss. Supports negative prompts",
+      supports: ["image-generation"],
       defaultResolution: "1024x1024",
     },
   },
@@ -359,7 +350,7 @@ const runwareImageModels: AiModelConfig[] = [
     provider: "runware",
     metadata: {
       label: "Seedream 4.0",
-      description: "Ultra-fast 2K/4K rendering with sequential image capabilities. Maintains character consistency across outputs. Supports up to 14 reference images",
+      description: "Ultra-fast 2K/4K rendering with sequential image capabilities. Maintains character consistency. Supports up to 14 reference images",
       supports: ["image-generation", "image-to-image"],
       defaultResolution: "1024x1024",
     },
@@ -369,9 +360,54 @@ const runwareImageModels: AiModelConfig[] = [
     provider: "runware",
     metadata: {
       label: "Seedream 4.5",
-      description: "Production-focused with improved face rendering and text quality. Better multi-image fusion, sharp 2K/4K output",
+      description: "Production-focused with fixed face distortion and improved text rendering. Sharp 2K/4K output. Supports up to 14 reference images",
       supports: ["image-generation", "image-to-image"],
       defaultResolution: "2048x2048",
+    },
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // FLUX.2 Series (Black Forest Labs) - AIR: runware:400@1, bfl:5@1, bfl:6@1, bfl:7@1
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    name: "flux-2-dev",
+    provider: "runware",
+    metadata: {
+      label: "FLUX.2 [dev]",
+      description: "Open weights release with full architectural control. Supports seed for reproducible results. Up to 4 reference images",
+      supports: ["image-generation", "image-to-image"],
+      defaultSteps: 28,
+      defaultResolution: "1024x1024",
+    },
+  },
+  {
+    name: "flux-2-pro",
+    provider: "runware",
+    metadata: {
+      label: "FLUX.2 [pro]",
+      description: "Production-ready with robust reference-image editing. Built for reliability and speed. Up to 9 reference images",
+      supports: ["image-generation", "image-to-image"],
+      defaultResolution: "1024x1024",
+    },
+  },
+  {
+    name: "flux-2-flex",
+    provider: "runware",
+    metadata: {
+      label: "FLUX.2 [flex]",
+      description: "Strongest text rendering accuracy in FLUX family. Fine-grained control for branded design, posters, typography. Up to 10 reference images",
+      supports: ["image-generation", "image-to-image"],
+      defaultSteps: 50,
+      defaultResolution: "1024x1024",
+    },
+  },
+  {
+    name: "flux-2-max",
+    provider: "runware",
+    metadata: {
+      label: "FLUX.2 [max]",
+      description: "Pinnacle of FLUX.2 family. Professional-grade visual intelligence with grounded generation (real-world context). Up to 8 reference images",
+      supports: ["image-generation", "image-to-image"],
+      defaultResolution: "1920x1080",
     },
   },
 ];
@@ -381,19 +417,8 @@ const runwareImageModels: AiModelConfig[] = [
 // ═══════════════════════════════════════════════════════════════════════════════
 const runwareVideoModels: AiModelConfig[] = [
   // ─────────────────────────────────────────────────────────────────────────────
-  // OpenAI Sora 2 (AIR: openai:3@1, openai:3@2)
+  // OpenAI Sora 2 Pro (AIR: openai:3@2)
   // ─────────────────────────────────────────────────────────────────────────────
-  {
-    name: "sora-2",
-    provider: "runware",
-    metadata: {
-      label: "Sora 2",
-      description: "OpenAI's next-gen video with accurate physics, synchronized dialogue, high-fidelity visuals. T2V/I2V, 4/8/12s duration",
-      supports: ["video-generation", "image-to-video"],
-      defaultResolution: "720p",
-      defaultDuration: 8,
-    },
-  },
   {
     name: "sora-2-pro",
     provider: "runware",
@@ -406,7 +431,7 @@ const runwareVideoModels: AiModelConfig[] = [
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
-  // Runway (AIR: runway:1@1, runway:2@1)
+  // Runway Gen-4 Turbo (AIR: runway:1@1)
   // ─────────────────────────────────────────────────────────────────────────────
   {
     name: "runway-gen4-turbo",
@@ -417,44 +442,6 @@ const runwareVideoModels: AiModelConfig[] = [
       supports: ["video-generation", "image-to-video"],
       defaultResolution: "720p",
       defaultDuration: 10,
-    },
-  },
-  {
-    name: "runway-aleph",
-    provider: "runware",
-    metadata: {
-      label: "Runway Aleph",
-      description: "Flagship V2V model for realism and storytelling. Transforms videos with cinematic precision. Supports 1 reference image",
-      supports: ["video-generation", "video-to-video"],
-      defaultResolution: "720p",
-      defaultDuration: 8,
-    },
-  },
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Vidu (AIR: vidu:3@1)
-  // ─────────────────────────────────────────────────────────────────────────────
-  {
-    name: "vidu-q2-pro",
-    provider: "runware",
-    metadata: {
-      label: "Vidu Q2 Pro",
-      description: "Extremely high-quality with delicate motion portrayal. Ideal for professional film/TV. Supports first/last frame and 7 reference images. 24 FPS, 1-8s",
-      supports: ["video-generation", "image-to-video"],
-      defaultResolution: "1080p",
-      defaultDuration: 8,
-    },
-  },
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Riverflow (AIR: sourceful:2@3)
-  // ─────────────────────────────────────────────────────────────────────────────
-  {
-    name: "riverflow-2-max",
-    provider: "runware",
-    metadata: {
-      label: "Riverflow 2 Preview Max",
-      description: "Highest-quality Riverflow 2 focused on maximum detail, lighting control, and accuracy for demanding commercial work",
-      supports: ["image-generation", "image-to-image"],
-      defaultResolution: "1024x1024",
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
@@ -486,39 +473,72 @@ const runwareVideoModels: AiModelConfig[] = [
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
-  // KlingAI (AIR: klingai:5@3, klingai:6@1)
+  // KlingAI (AIR: klingai:5@2, klingai:5@3, klingai:6@1, klingai:kling-video@2.6-pro, klingai:kling@o1)
   // ─────────────────────────────────────────────────────────────────────────────
+  {
+    name: "klingai-2.1-pro",
+    provider: "runware",
+    metadata: {
+      label: "KlingAI 2.1 Pro",
+      description: "Full HD 1080p with higher frame fidelity. Image-to-video only. First/last frame control. 24 FPS, 5/10s",
+      supports: ["image-to-video"],
+      defaultResolution: "1080p",
+      defaultDuration: 5,
+    },
+  },
   {
     name: "klingai-2.5-turbo-pro",
     provider: "runware",
     metadata: {
       label: "KlingAI 2.5 Turbo Pro",
-      description: "Next-level creativity with turbocharged motion and cinematic visuals. Enhanced motion fluidity with professional-grade capabilities. 30 FPS, 5/10s",
+      description: "Turbocharged motion with cinematic visuals. 720p only. First/last frame control. 30 FPS, 5/10s",
+      supports: ["video-generation", "image-to-video"],
+      defaultResolution: "720p",
+      defaultDuration: 5,
+    },
+  },
+  {
+    name: "kling-video-2.6-pro",
+    provider: "runware",
+    metadata: {
+      label: "Kling VIDEO 2.6 Pro",
+      description: "Native synchronized audio (dialogue, SFX, ambience). 1080p. First frame control. 30 FPS, 5/10s",
       supports: ["video-generation", "image-to-video"],
       defaultResolution: "1080p",
       defaultDuration: 5,
     },
   },
   {
-    name: "klingai-2.1-master",
+    name: "kling-video-o1",
     provider: "runware",
     metadata: {
-      label: "KlingAI 2.1 Master",
-      description: "Peak of KlingAI stack. Full HD I2V, ultra-fluid motion, exceptional prompt precision for VFX-grade output. 24 FPS, 5/10s duration",
+      label: "Kling VIDEO O1",
+      description: "Unified multimodal foundation model. High-control with generation + editing + visual compositing. 1-7 reference images. 30 FPS, 3-10s",
       supports: ["video-generation", "image-to-video"],
       defaultResolution: "1080p",
       defaultDuration: 5,
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
-  // Google Veo (AIR: google:3@0, google:3@2)
+  // Google Veo (AIR: google:3@0, google:3@1, google:3@2, google:3@3)
   // ─────────────────────────────────────────────────────────────────────────────
   {
     name: "veo-3.0",
     provider: "runware",
     metadata: {
       label: "Google Veo 3.0",
-      description: "Native audio generation with synchronized dialogue, music, and sound effects. T2V/I2V, 8s duration, 24 FPS. enhancePrompt always enabled",
+      description: "Native audio (dialogue, music, SFX). First frame control. 24 FPS, 8s duration. enhancePrompt always enabled",
+      supports: ["video-generation", "image-to-video"],
+      defaultResolution: "720p",
+      defaultDuration: 8,
+    },
+  },
+  {
+    name: "veo-3-fast",
+    provider: "runware",
+    metadata: {
+      label: "Google Veo 3 Fast",
+      description: "Fast & affordable variant with native audio. First/last frame control. 24 FPS, 8s duration",
       supports: ["video-generation", "image-to-video"],
       defaultResolution: "720p",
       defaultDuration: 8,
@@ -529,23 +549,46 @@ const runwareVideoModels: AiModelConfig[] = [
     provider: "runware",
     metadata: {
       label: "Google Veo 3.1",
-      description: "Newest Veo for cinematic video. Realistic, story-driven scenes with natural sound and smooth motion. Supports typed image roles (asset/style)",
+      description: "Cinematic with natural sound. First/last frame + video extension. Typed image roles (asset/style). 24 FPS, 8s",
+      supports: ["video-generation", "image-to-video"],
+      defaultResolution: "720p",
+      defaultDuration: 8,
+    },
+  },
+  {
+    name: "veo-3.1-fast",
+    provider: "runware",
+    metadata: {
+      label: "Google Veo 3.1 Fast",
+      description: "Ultra-low latency variant. Natural sound + video extension. First/last frame control. 24 FPS, 8s",
       supports: ["video-generation", "image-to-video"],
       defaultResolution: "720p",
       defaultDuration: 8,
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
-  // ByteDance Seedance (AIR: bytedance:2@1)
+  // ByteDance Seedance (AIR: bytedance:2@1, bytedance:seedance@1.5-pro)
   // ─────────────────────────────────────────────────────────────────────────────
   {
     name: "seedance-1.0-pro",
     provider: "runware",
+    default: true,
     metadata: {
       label: "Seedance 1.0 Pro",
-      description: "ByteDance flagship video with cinematic storytelling, multi-shot support, up to 1080p. First/last frame control. 24 FPS, 1.2-12s duration",
+      description: "ByteDance flagship video with cinematic storytelling, multi-shot support, up to 1080p. First/last frame control. 24 FPS, 2-12s duration",
       supports: ["video-generation", "image-to-video"],
       defaultResolution: "1080p",
+      defaultDuration: 5,
+    },
+  },
+  {
+    name: "seedance-1.5-pro",
+    provider: "runware",
+    metadata: {
+      label: "Seedance 1.5 Pro",
+      description: "Next-gen ByteDance with native synchronized audio. First/last frame control. 24 FPS, 4-12s duration",
+      supports: ["video-generation", "image-to-video"],
+      defaultResolution: "720p",
       defaultDuration: 5,
     },
   },
@@ -564,16 +607,17 @@ const runwareVideoModels: AiModelConfig[] = [
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
-  // Ideogram (AIR: ideogram:4@1) - Image model
+  // Alibaba Wan (AIR: alibaba:wan@2.6)
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    name: "ideogram-3.0",
+    name: "alibaba-wan-2.6",
     provider: "runware",
     metadata: {
-      label: "Ideogram 3.0",
-      description: "Design-level generation with sharper text rendering and better composition. Greater stylistic control for graphic-driven content",
-      supports: ["image-generation"],
-      defaultResolution: "1024x1024",
+      label: "Alibaba Wan 2.6",
+      description: "Multimodal with native audio + custom audio input. Multi-shot sequencing. Reference videos up to 3. 24 FPS, 5/10/15s",
+      supports: ["video-generation", "image-to-video"],
+      defaultResolution: "720p",
+      defaultDuration: 5,
     },
   },
 ];
@@ -662,65 +706,81 @@ const elevenlabsModels: AiModelConfig[] = [
  */
 export const runwareModelIdMap: Record<string, string> = {
   // ═══════════════════════════════════════════════════════════════════════════
-  // IMAGE MODELS
+  // IMAGE MODELS (Synced with server/ai/config/image-models.ts)
   // ═══════════════════════════════════════════════════════════════════════════
-  // FLUX.2 Series
-  "flux-2-dev": "runware:400@1",
-  "flux-2-pro": "bfl:5@1",
-  "flux-2-flex": "bfl:6@1",
+  
+  // OpenAI GPT Image (AIR: openai:1@1, openai:4@1)
+  "openai-gpt-image-1": "openai:1@1",
+  "openai-gpt-image-1.5": "openai:4@1",
 
-  // Google Imagen
-  "imagen-3.0": "google:1@1",
-  "imagen-4.0-preview": "google:2@1",  // ✅ Added
-  "imagen-4.0-ultra": "google:2@2",
-  "imagen-4-ultra": "google:2@2",      // Alias for backwards compatibility
-  "imagen-4.0-fast": "google:2@3",     // ✅ Added
+  // Runway Gen-4 Image (AIR: runway:4@1, runway:4@2)
+  "runway-gen-4-image": "runway:4@1",
+  "runway-gen-4-image-turbo": "runway:4@2",
 
-  // Gemini Image (Nano Banana)
+  // Kling IMAGE O1 (AIR: klingai:kling-image@o1)
+  "kling-image-o1": "klingai:kling-image@o1",
+
+  // Gemini Image / Nano Banana (AIR: google:4@1, google:4@2)
   "nano-banana": "google:4@1",
   "nano-banana-2-pro": "google:4@2",
 
-  // Midjourney
+  // Midjourney (AIR: midjourney:3@1)
   "midjourney-v7": "midjourney:3@1",
 
-  // Ideogram
-  "ideogram-3.0": "ideogram:4@1",      // ✅ Added
+  // Ideogram (AIR: ideogram:4@1)
+  "ideogram-3.0": "ideogram:4@1",
 
-  // OpenAI GPT Image
-  "gpt-image-1": "openai:1@1",
+  // Google Imagen 4.0 (AIR: google:2@1, google:2@2, google:2@3)
+  "imagen-4.0-preview": "google:2@1",
+  "imagen-4.0-ultra": "google:2@2",
+  "imagen-4.0-fast": "google:2@3",
 
-  // Seedream (ByteDance) - Image
+  // Seedream / ByteDance (AIR: bytedance:5@0, bytedance:seedream@4.5)
   "seedream-4.0": "bytedance:5@0",
   "seedream-4.5": "bytedance:seedream@4.5",
+
+  // FLUX.2 Series (AIR: runware:400@1, bfl:5@1, bfl:6@1, bfl:7@1)
+  "flux-2-dev": "runware:400@1",
+  "flux-2-pro": "bfl:5@1",
+  "flux-2-flex": "bfl:6@1",
+  "flux-2-max": "bfl:7@1",
 
   // ═══════════════════════════════════════════════════════════════════════════
   // VIDEO MODELS
   // ═══════════════════════════════════════════════════════════════════════════
   // ByteDance Seedance - Video
   "seedance-1.0-pro": "bytedance:2@1",
+  "seedance-1.5-pro": "bytedance:seedance@1.5-pro",  // ✅ Added - Next-gen with native audio
+
+  // KlingAI Video Models
+  "klingai-2.1-pro": "klingai:5@2",
+  "klingai-2.5-turbo-pro": "klingai:6@1",
+  "kling-video-2.6-pro": "klingai:kling-video@2.6-pro",
+  "kling-video-o1": "klingai:kling@o1",
+
+  // Google Veo Models
+  "veo-3.0": "google:3@0",
+  "veo-3-fast": "google:3@1",                        // ✅ Added - Fast & affordable variant
+  "veo-3.1": "google:3@2",
+  "veo-3.1-fast": "google:3@3",                      // ✅ Added - Ultra-low latency
 
   // OpenAI Sora 2
-  "sora-2": "openai:3@1",
   "sora-2-pro": "openai:3@2",
+
   // Runway
   "runway-gen4-turbo": "runway:1@1",
-  "runway-aleph": "runway:2@1",
-  // Vidu
-  "vidu-q2-pro": "vidu:3@1",
-  // Riverflow
-  "riverflow-2-max": "sourceful:2@3",
+
   // PixVerse
   "pixverse-v5.5": "pixverse:1@6",
+
   // MiniMax Hailuo
   "hailuo-2.3": "minimax:4@1",
-  // KlingAI
-  "klingai-2.5-turbo-pro": "klingai:6@1",
-  "klingai-2.1-master": "klingai:5@3",
-  // Google Veo
-  "veo-3.0": "google:3@0",
-  "veo-3.1": "google:3@2",
+
   // LTX (Lightricks)
   "ltx-2-pro": "lightricks:2@0",
+
+  // Alibaba Wan
+  "alibaba-wan-2.6": "alibaba:wan@2.6",
 };
 
 /**

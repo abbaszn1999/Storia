@@ -21,6 +21,92 @@ export interface ImageModelConfig {
 
 export const IMAGE_MODELS: ImageModelConfig[] = [
   // ─────────────────────────────────────────────────────────────────────────
+  // OpenAI Models
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    value: "openai-gpt-image-1",
+    label: "OpenAI GPT Image 1",
+    provider: "OpenAI",
+    description: "GPT-4o architecture, superior text rendering, up to 16 refs",
+    aspectRatios: ["1:1", "3:2", "2:3"],
+    resolutions: ["custom"],
+    maxPromptLength: 32000,
+    supportsSeed: false,
+    supportsNegativePrompt: false,
+    supportsStyleReference: true,
+    supportsCharacterReference: true,
+    maxReferenceImages: 16,
+    badge: "16 Refs",
+  },
+  {
+    value: "openai-gpt-image-1.5",
+    label: "OpenAI GPT Image 1.5",
+    provider: "OpenAI",
+    description: "Newest flagship, faster with precise edits, up to 16 refs",
+    aspectRatios: ["1:1", "3:2", "2:3"],
+    resolutions: ["custom"],
+    maxPromptLength: 32000,
+    supportsSeed: false,
+    supportsNegativePrompt: false,
+    supportsStyleReference: true,
+    supportsCharacterReference: true,
+    maxReferenceImages: 16,
+    badge: "New + Fast",
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Runway Models
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    value: "runway-gen-4-image",
+    label: "Runway Gen-4 Image",
+    provider: "Runway",
+    description: "High-fidelity, advanced stylistic control, up to 3 refs",
+    aspectRatios: ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9"],
+    resolutions: ["custom"],
+    maxPromptLength: 1000,
+    supportsSeed: false,
+    supportsNegativePrompt: false,
+    supportsStyleReference: true,
+    supportsCharacterReference: true,
+    maxReferenceImages: 3,
+  },
+  {
+    value: "runway-gen-4-image-turbo",
+    label: "Runway Gen-4 Image Turbo",
+    provider: "Runway",
+    description: "Fast iterations, requires 1-3 reference images",
+    aspectRatios: ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9"],
+    resolutions: ["custom"],
+    maxPromptLength: 1000,
+    supportsSeed: false,
+    supportsNegativePrompt: false,
+    supportsStyleReference: true,
+    supportsCharacterReference: true,
+    maxReferenceImages: 3,
+    badge: "Turbo",
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // KlingAI Models
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    value: "kling-image-o1",
+    label: "Kling IMAGE O1",
+    provider: "KlingAI",
+    description: "High-control character handling, up to 10 refs",
+    aspectRatios: ["1:1", "3:2", "2:3", "4:3", "3:4", "9:16", "16:9", "21:9"],
+    resolutions: ["1k", "2k"],
+    maxPromptLength: 2500,
+    supportsSeed: false,
+    supportsNegativePrompt: false,
+    supportsStyleReference: true,
+    supportsCharacterReference: true,
+    maxReferenceImages: 10,
+    badge: "Character",
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Google Models
   // ─────────────────────────────────────────────────────────────────────────
   {
@@ -37,7 +123,7 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     supportsCharacterReference: true,
     maxReferenceImages: 8,
     default: true,
-    badge: "Fast",
+    badge: "Default",
   },
   {
     value: "nano-banana-2-pro",
@@ -100,6 +186,44 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
   },
   
   // ─────────────────────────────────────────────────────────────────────────
+  // Midjourney
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    value: "midjourney-v7",
+    label: "Midjourney V7",
+    provider: "Midjourney",
+    description: "Cinematic realism, photographic quality",
+    aspectRatios: ["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"],
+    resolutions: ["custom"],
+    maxPromptLength: 2000,
+    supportsSeed: false,
+    supportsNegativePrompt: false,
+    supportsStyleReference: true,
+    supportsCharacterReference: false,
+    maxReferenceImages: 1,
+    badge: "Cinematic",
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Ideogram
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    value: "ideogram-3.0",
+    label: "Ideogram 3.0",
+    provider: "Ideogram",
+    description: "Sharp text, graphic design specialist",
+    aspectRatios: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "5:4", "4:5", "8:5", "5:8", "3:1", "1:3"],
+    resolutions: ["custom"],
+    maxPromptLength: 2000,
+    supportsSeed: false,
+    supportsNegativePrompt: true,
+    supportsStyleReference: true,
+    supportsCharacterReference: true,
+    maxReferenceImages: 999,
+    badge: "Design",
+  },
+  
+  // ─────────────────────────────────────────────────────────────────────────
   // ByteDance Models
   // ─────────────────────────────────────────────────────────────────────────
   {
@@ -143,7 +267,7 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     description: "Open weights, full architectural control",
     aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "21:9"],
     resolutions: ["custom"],
-    maxPromptLength: 10000,
+    maxPromptLength: 32000,
     supportsSeed: true,
     supportsNegativePrompt: false,
     supportsStyleReference: true,
@@ -158,7 +282,7 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     description: "Production-ready, robust editing",
     aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
     resolutions: ["custom"],
-    maxPromptLength: 3000,
+    maxPromptLength: 32000,
     supportsSeed: false,
     supportsNegativePrompt: false,
     supportsStyleReference: true,
@@ -173,47 +297,28 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     description: "Best text rendering, typography specialist",
     aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
     resolutions: ["custom"],
-    maxPromptLength: 3000,
+    maxPromptLength: 32000,
     supportsSeed: false,
     supportsNegativePrompt: false,
     supportsStyleReference: true,
     supportsCharacterReference: true,
-    maxReferenceImages: 4,
+    maxReferenceImages: 10,
     badge: "Typography",
   },
-  
-  // ─────────────────────────────────────────────────────────────────────────
-  // Other Providers
-  // ─────────────────────────────────────────────────────────────────────────
   {
-    value: "midjourney-v7",
-    label: "Midjourney V7",
-    provider: "Midjourney",
-    description: "Cinematic realism, photographic quality",
-    aspectRatios: ["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"],
+    value: "flux-2-max",
+    label: "FLUX.2 [max]",
+    provider: "Black Forest Labs",
+    description: "Professional-grade, grounded generation",
+    aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
     resolutions: ["custom"],
-    maxPromptLength: 2000,
+    maxPromptLength: 32000,
     supportsSeed: false,
     supportsNegativePrompt: false,
     supportsStyleReference: true,
-    supportsCharacterReference: false, // Only 1 image supported - no character reference
-    maxReferenceImages: 1,
-    badge: "Cinematic",
-  },
-  {
-    value: "ideogram-3.0",
-    label: "Ideogram 3.0",
-    provider: "Ideogram",
-    description: "Sharp text, graphic design specialist",
-    aspectRatios: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "5:4", "4:5", "8:5", "5:8", "3:1", "1:3"],
-    resolutions: ["custom"],
-    maxPromptLength: 2000,
-    supportsSeed: false,
-    supportsNegativePrompt: true,
-    supportsStyleReference: true,
     supportsCharacterReference: true,
-    maxReferenceImages: 999, // Uses providerSettings - no documented limit
-    badge: "Design",
+    maxReferenceImages: 8,
+    badge: "Max",
   },
 ];
 

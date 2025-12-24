@@ -139,85 +139,305 @@ export interface VideoModelConfig {
 }
 
 export const VIDEO_MODELS: VideoModelConfig[] = [
+  // ─────────────────────────────────────────────────────────────────────────
+  // Seedance 1.0 Pro (Default) - ByteDance
+  // Model AIR ID: bytedance:2@1
+  // Duration: 1.2-12 seconds (0.1s increments) | FPS: 24 | Prompt: 2-3000 chars
+  // Supports: Text-to-video, Image-to-video
+  // Frame Images: ✅ First AND Last frame supported
+  // ─────────────────────────────────────────────────────────────────────────
   {
     value: 'seedance-1.0-pro',
     label: 'Seedance 1.0 Pro',
     generatesAudio: false,
-    description: 'ByteDance flagship • 24 FPS • 2-12s • No audio',
+    description: 'ByteDance flagship • 24 FPS • 2-12s • First & Last frame support',
     durations: [2, 4, 5, 6, 8, 10, 12],
     aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9', '9:21'],
     resolutions: ['480p', '720p', '1080p'],
     supportsFrameImages: true,
     default: true,
   },
+  
+  // ─────────────────────────────────────────────────────────────────────────
+  // Seedance 1.5 Pro - ByteDance (Next Generation)
+  // Model AIR ID: bytedance:seedance@1.5-pro
+  // Duration: 4-12 seconds or "auto" | FPS: 24 | Prompt: 2-3000 chars
+  // Supports: Text-to-video, Image-to-video
+  // Frame Images: ✅ First AND Last frame supported
+  // Audio: ✅ Native synchronized audio generation
+  // ─────────────────────────────────────────────────────────────────────────
   {
-    value: 'veo-3.0',
-    label: 'Google Veo 3.0',
+    value: 'seedance-1.5-pro',
+    label: 'Seedance 1.5 Pro',
     generatesAudio: true,
-    description: 'Native audio (dialogue, music, SFX) • 24 FPS • 4-8s',
-    durations: [4, 6, 8],
-    aspectRatios: ['16:9', '9:16'],
-    resolutions: ['720p', '1080p'],
+    description: 'Next-gen ByteDance • Native audio • 24 FPS • 4-12s • First & Last frame',
+    durations: [4, 5, 6, 8, 10, 12],
+    aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9'],
+    resolutions: ['480p', '720p'],
     supportsFrameImages: true,
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // KlingAI 2.1 Pro - Higher Frame Fidelity & Full HD
+  // Model AIR ID: klingai:5@2 | Image-to-video ONLY | 24 FPS
+  // Dimensions: 1920×1080, 1080×1080, 1080×1920 (Full HD 1080p)
+  // Frame Images: ✅ First AND Last frame supported
+  // CFG Scale: 0-1 (default: 0.5) for prompt adherence control
+  // ─────────────────────────────────────────────────────────────────────────
   {
-    value: 'pixverse-v5.5',
-    label: 'PixVerse v5.5',
-    generatesAudio: true,
-    description: 'Native audio • Multi-image fusion • 5-8s',
-    durations: [5, 8],
-    aspectRatios: ['16:9', '4:3', '1:1', '3:4', '9:16'],
-    resolutions: ['360p', '540p', '720p', '1080p'],
+    value: 'klingai-2.1-pro',
+    label: 'KlingAI 2.1 Pro',
+    generatesAudio: false,
+    description: 'Full HD 1080p • Image-to-video only • 24 FPS • 5-10s • First & Last frame',
+    durations: [5, 10],
+    aspectRatios: ['16:9', '1:1', '9:16'],
+    resolutions: ['1080p'],
     supportsFrameImages: true,
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // KlingAI 2.5 Turbo Pro
+  // Model AIR ID: klingai:6@1 | Prompt: 2-2500 chars | 30 FPS
+  // Dimensions: 1280×720, 720×720, 720×1280 (720p only)
+  // Frame Images: ✅ First AND Last frame supported
+  // CFG Scale: 0-1 (default: 0.5) for prompt adherence control
+  // ─────────────────────────────────────────────────────────────────────────
   {
     value: 'klingai-2.5-turbo-pro',
     label: 'KlingAI 2.5 Turbo Pro',
     generatesAudio: false,
-    description: 'Turbo motion • 30 FPS • 720p only • 5-10s',
+    description: 'Turbo motion • 30 FPS • 720p only • 5-10s • First & Last frame',
     durations: [5, 10],
     aspectRatios: ['16:9', '1:1', '9:16'],
     resolutions: ['720p'],
     supportsFrameImages: true,
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Kling VIDEO 2.6 Pro - Next Generation with Native Audio
+  // Model AIR ID: klingai:kling-video@2.6-pro | Prompt: 2-2500 chars
+  // Dimensions: 1920×1080, 1080×1080, 1080×1920 (1080p)
+  // Frame Images: ✅ First frame supported
+  // Audio: ✅ Native synchronized audio (dialogue, sound effects, ambience)
+  // CFG Scale: 0-1 (default: 0.5) for prompt adherence control
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    value: 'kling-video-2.6-pro',
+    label: 'Kling VIDEO 2.6 Pro',
+    generatesAudio: true,
+    description: 'Native audio (dialogue, SFX) • 30 FPS • 1080p • 5-10s • First frame',
+    durations: [5, 10],
+    aspectRatios: ['16:9', '1:1', '9:16'],
+    resolutions: ['1080p'],
+    supportsFrameImages: true,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Kling VIDEO O1 - Unified Multimodal Video Foundation Model
+  // Model AIR ID: klingai:kling@o1 | Prompt: 2-2500 chars
+  // Dimensions: 1920×1080, 1080×1080, 1080×1920 (1080p)
+  // Frame Images: ✅ First AND Last frame (image-to-video only)
+  // Reference Images: 1-7 images (reference-to-video), up to 4 (video-edit)
+  // High-control workflows: generation + editing + visual compositing
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    value: 'kling-video-o1',
+    label: 'Kling VIDEO O1',
+    generatesAudio: false,
+    description: 'High-control multimodal • 30 FPS • 1080p • 3-10s • First & Last frame',
+    durations: [3, 5, 7, 10],
+    aspectRatios: ['16:9', '1:1', '9:16'],
+    resolutions: ['1080p'],
+    supportsFrameImages: true,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Google Veo 3.0 (Has Native Audio - generateAudio)
+  // Model AIR ID: google:3@0 | Duration: 8s | FPS: 24 | Prompt: 2-3000 chars
+  // Native audio: dialogue, music, sound effects | enhancePrompt always ON
+  // Frame Images: ✅ First frame supported
+  // Image input: 300-2048px, 20MB max
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    value: 'veo-3.0',
+    label: 'Google Veo 3.0',
+    generatesAudio: true,
+    description: 'Native audio (dialogue, music, SFX) • 24 FPS • 8s • First frame',
+    durations: [8],
+    aspectRatios: ['16:9', '9:16'],
+    resolutions: ['720p', '1080p'],
+    supportsFrameImages: true,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Google Veo 3 Fast - Faster & Cost-Effective Variant
+  // Model AIR ID: google:3@1 | Duration: 8s | FPS: 24 | Prompt: 2-3000 chars
+  // Native audio: dialogue, music, sound effects | enhancePrompt always ON
+  // Frame Images: ✅ First AND Last frame supported
+  // Optimized for speed and affordability
+  // Image input: 300-2048px, 20MB max
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    value: 'veo-3-fast',
+    label: 'Google Veo 3 Fast',
+    generatesAudio: true,
+    description: 'Fast & affordable • Native audio • 24 FPS • 8s • First & Last frame',
+    durations: [8],
+    aspectRatios: ['16:9', '9:16'],
+    resolutions: ['720p', '1080p'],
+    supportsFrameImages: true,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Google Veo 3.1 (Has Native Audio - Natural Sound)
+  // Model AIR ID: google:3@2 | Prompt: 2-3000 chars | 24 FPS
+  // Duration: 8 seconds (or 7s for video extension)
+  // Frame Images: ✅ First AND Last frame supported
+  // Reference Images: ✅ Asset (up to 3) or Style (1) images
+  // Video Extension: ✅ Extend videos by 7 seconds
+  // Cinematic, story-driven with natural sound and smooth motion
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    value: 'veo-3.1',
+    label: 'Google Veo 3.1',
+    generatesAudio: true,
+    description: 'Cinematic • Natural sound • 24 FPS • 8s • First & Last frame • Video extension',
+    durations: [8],
+    aspectRatios: ['16:9', '9:16'],
+    resolutions: ['720p', '1080p'],
+    supportsFrameImages: true,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Google Veo 3.1 Fast - Ultra-Low Latency Variant
+  // Model AIR ID: google:3@3 | Prompt: 2-3000 chars | 24 FPS
+  // Duration: 8 seconds (or 7s for video extension)
+  // Frame Images: ✅ First AND Last frame supported
+  // Video Extension: ✅ Extend videos by 7 seconds
+  // Optimized for high-speed generation with rapid creative iteration
+  // Cinematic quality with ultra-low latency
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    value: 'veo-3.1-fast',
+    label: 'Google Veo 3.1 Fast',
+    generatesAudio: true,
+    description: 'Ultra-low latency • Natural sound • 24 FPS • 8s • First & Last frame',
+    durations: [8],
+    aspectRatios: ['16:9', '9:16'],
+    resolutions: ['720p', '1080p'],
+    supportsFrameImages: true,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PixVerse v5.5 (Has Native Audio + Multi-Image Fusion)
+  // Model AIR ID: pixverse:1@6 | Prompt: 2-2048 chars
+  // Duration: 5, 8s (10s unavailable at 1080p)
+  // Frame Images: ✅ First AND Last frame supported
+  // Audio: ✅ Background music, sound effects, dialogue
+  // Multi-Shot: Camera control for dynamic cinematography
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    value: 'pixverse-v5.5',
+    label: 'PixVerse v5.5',
+    generatesAudio: true,
+    description: 'Native audio • Multi-image fusion • 5-10s • First & Last frame',
+    durations: [5, 8, 10],
+    aspectRatios: ['16:9', '4:3', '1:1', '3:4', '9:16'],
+    resolutions: ['360p', '540p', '720p', '1080p'],
+    supportsFrameImages: true,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // MiniMax Hailuo 2.3 - Cinematic Storytelling
+  // Model AIR ID: minimax:4@1 | Prompt: 2-2000 chars (optional with frameImages)
+  // Duration: 6 or 10s (1366×768), 6s only (1920×1080) | FPS: 25
+  // Frame Images: ✅ First frame supported
+  // Lifelike human physics, expressive motion, precise prompt adherence
+  // ─────────────────────────────────────────────────────────────────────────
   {
     value: 'hailuo-2.3',
     label: 'MiniMax Hailuo 2.3',
     generatesAudio: false,
-    description: 'Cinematic storytelling • 6-10s • No audio',
+    description: 'Cinematic storytelling • 25 FPS • 6-10s • First frame',
     durations: [6, 10],
-    aspectRatios: ['16:9', '4:3'],
+    aspectRatios: ['16:9'],
     resolutions: ['768p', '1080p'],
     supportsFrameImages: true,
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // OpenAI Sora 2 Pro - Higher Quality Professional Variant
+  // Model AIR ID: openai:3@2 | Prompt: 1-4000 chars
+  // Duration: 4, 8, or 12 seconds | Refined control, better consistency
+  // Frame Images: ✅ First frame supported (dimensions must match output)
+  // Higher quality for demanding professional use cases
+  // ─────────────────────────────────────────────────────────────────────────
   {
     value: 'sora-2-pro',
     label: 'Sora 2 Pro',
     generatesAudio: false,
-    description: 'OpenAI Pro • 4-12s • Cinematic 7:4',
+    description: 'OpenAI Pro • 30 FPS • 4-12s • Cinematic 7:4 • First frame',
     durations: [4, 8, 12],
     aspectRatios: ['16:9', '9:16', '7:4', '4:7'],
     resolutions: ['720p'],
     supportsFrameImages: true,
   },
-  {
-    value: 'veo-3.1',
-    label: 'Google Veo 3.1',
-    generatesAudio: true,
-    description: 'Native audio • Cinematic • 24 FPS • 4-8s',
-    durations: [4, 6, 8],
-    aspectRatios: ['16:9', '9:16'],
-    resolutions: ['720p', '1080p'],
-    supportsFrameImages: true,
-  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // LTX-2 Pro (Lightricks) - Professional Cinematic
+  // Model AIR ID: lightricks:2@0 | Prompt: 2-10000 chars | 25/50 FPS
+  // Duration: 6, 8, or 10 seconds (default: 6)
+  // Realistic motion, precise lighting control
+  // Supports up to 4K (2160p) | Only 16:9 aspect ratio
+  // Frame Images: ✅ First frame supported (max 7MB)
+  // Audio: ✅ Native audio generation via generateAudio
+  // ─────────────────────────────────────────────────────────────────────────
   {
     value: 'ltx-2-pro',
     label: 'LTX-2 Pro',
     generatesAudio: true,
-    description: 'Pro cinematic • Up to 4K • 25/50 FPS • 6-10s',
+    description: 'Pro cinematic • Native audio • Up to 4K • 25/50 FPS • 6-10s • First frame',
     durations: [6, 8, 10],
     aspectRatios: ['16:9'],
     resolutions: ['1080p', '1440p', '2160p'],
+    supportsFrameImages: true,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Runway Gen-4 Turbo - High-Speed Image-to-Video
+  // Model AIR ID: runway:1@1 | Prompt: 1-1000 chars (optional)
+  // Duration: 2-10 seconds (default: 10) | Image-to-video ONLY
+  // Frame Images: ✅ First frame REQUIRED
+  // Instant creative experimentation with exceptional fluidity and detail
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    value: 'runway-gen4-turbo',
+    label: 'Runway Gen-4 Turbo',
+    generatesAudio: false,
+    description: 'High-speed I2V • 24 FPS • 2-10s • First frame required',
+    durations: [2, 3, 4, 5, 6, 7, 8, 9, 10],
+    aspectRatios: ['16:9', '9:16', '1:1', '21:9', '4:3'],
+    resolutions: ['720p', '832p', '960p'],
+    supportsFrameImages: true,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Alibaba Wan 2.6 - Multimodal Video Generation with Native Audio
+  // Model AIR ID: alibaba:wan@2.6 | Prompt: 1-1500 chars (EN/CN)
+  // Duration: 5, 10, or 15 seconds (default: 5)
+  // Frame Images: ✅ First frame (image-to-video only)
+  // Reference Videos: ✅ Up to 3 videos (reference-to-video)
+  // Audio: ✅ Native audio support + custom audio input
+  // Multi-shot sequencing with temporal stability
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    value: 'alibaba-wan-2.6',
+    label: 'Alibaba Wan 2.6',
+    generatesAudio: true,
+    description: 'Native audio • Multi-shot • 24 FPS • 5-15s • First frame • Reference videos',
+    durations: [5, 10, 15],
+    aspectRatios: ['16:9', '9:16', '1:1', '17:13', '13:17'],
+    resolutions: ['720p', '1080p'],
     supportsFrameImages: true,
   },
 ];

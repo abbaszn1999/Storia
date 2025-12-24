@@ -113,7 +113,34 @@ export async function generateVideo(
 
   // Add provider-specific settings for audio generation
   if (supportsAudio) {
-    if (modelId === "pixverse-v5.5") {
+    if (modelId === "seedance-1.5-pro") {
+      // Seedance 1.5 Pro audio settings (ByteDance)
+      payload.providerSettings = {
+        bytedance: {
+          audio: true,
+          cameraFixed: false,
+        },
+      };
+      console.log("[asmr-video-generator] Enabled Seedance 1.5 Pro native audio generation");
+    } else if (modelId === "kling-video-2.6-pro") {
+      // Kling VIDEO 2.6 Pro audio settings (KlingAI)
+      payload.providerSettings = {
+        klingai: {
+          sound: true,
+          cfgScale: 0.5,
+        },
+      };
+      console.log("[asmr-video-generator] Enabled Kling VIDEO 2.6 Pro native audio generation");
+    } else if (modelId === "veo-3.0" || modelId === "veo-3-fast" || modelId === "veo-3.1" || modelId === "veo-3.1-fast") {
+      // Google Veo audio settings (all variants)
+      payload.providerSettings = {
+        google: {
+          generateAudio: true,
+          enhancePrompt: true,
+        },
+      };
+      console.log(`[asmr-video-generator] Enabled ${modelId} native audio generation`);
+    } else if (modelId === "pixverse-v5.5") {
       // PixVerse v5.5 audio settings
       payload.providerSettings = {
         pixverse: {
@@ -122,22 +149,23 @@ export async function generateVideo(
         },
       };
       console.log("[asmr-video-generator] Enabled PixVerse audio generation");
-    } else if (modelId === "veo-3.0" || modelId === "veo-3.1") {
-      // Google Veo 3.0/3.1 audio settings (uses "google" key with "generateAudio")
-      payload.providerSettings = {
-        google: {
-          generateAudio: true,
-        },
-      };
-      console.log(`[asmr-video-generator] Enabled ${modelId} native audio generation`);
     } else if (modelId === "ltx-2-pro") {
       // LTX-2 Pro audio settings (Lightricks)
       payload.providerSettings = {
         lightricks: {
           generateAudio: true,
+          fps: 25,
         },
       };
       console.log("[asmr-video-generator] Enabled LTX-2 Pro audio generation");
+    } else if (modelId === "alibaba-wan-2.6") {
+      // Alibaba Wan 2.6 audio settings
+      payload.providerSettings = {
+        alibaba: {
+          audio: true,
+        },
+      };
+      console.log("[asmr-video-generator] Enabled Alibaba Wan 2.6 native audio generation");
     }
   }
 

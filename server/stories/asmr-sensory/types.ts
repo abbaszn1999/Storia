@@ -120,27 +120,8 @@ export interface ASMRTaskStatusResponse {
 // MODEL CONFIGURATION TYPES
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Configuration for a video generation model
- */
-export interface VideoModelConfig {
-  /** Model ID (matches config.ts key) */
-  id: string;
-  /** Display name */
-  label: string;
-  /** Supported durations in seconds */
-  durations: number[];
-  /** Supported aspect ratios */
-  aspectRatios: ("16:9" | "9:16" | "1:1" | "4:3" | "3:4" | "21:9" | "9:21" | "7:4" | "4:7")[];
-  /** Supported resolutions */
-  resolutions: ("360p" | "480p" | "540p" | "720p" | "768p" | "1080p" | "1440p" | "2160p")[];
-  /** Whether model generates audio natively */
-  hasAudio: boolean;
-  /** Whether this is the default model */
-  default?: boolean;
-  /** Supports first/last frame for I2V */
-  supportsFrameImages?: boolean;
-}
+// Re-export VideoModelConfig from the shared config
+export type { VideoModelConfig, AspectRatio, Resolution } from "../../ai/config/video-models";
 
 /**
  * Dimension mapping for video generation

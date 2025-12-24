@@ -7,13 +7,16 @@ export interface VideoDimensions {
   height: number;
 }
 
+export type AspectRatio = "16:9" | "9:16" | "1:1" | "4:3" | "3:4" | "21:9" | "9:21" | "7:4" | "4:7" | "17:13" | "13:17";
+export type Resolution = "360p" | "480p" | "540p" | "720p" | "768p" | "832p" | "960p" | "1080p" | "1440p" | "2160p";
+
 export interface VideoModelConfig {
   id: string;
   label: string;
   modelAirId?: string;  // Runware model AIR ID (e.g., "bytedance:2@1")
   durations: number[];
-  aspectRatios: string[];
-  resolutions: string[];
+  aspectRatios: AspectRatio[];
+  resolutions: Resolution[];
   hasAudio: boolean;
   supportsFrameImages: boolean;
   frameImageSupport?: {

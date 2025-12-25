@@ -402,12 +402,12 @@ function SortableShotCard({
             </Badge>
           )}
           {/* Dual Timer Display (Commerce Mode) */}
-          {shot.renderDuration && shot.renderDuration !== shot.duration && (
+          {shot.duration && (
             <div className="flex items-center gap-1.5 bg-background/80 rounded px-2 py-0.5 text-[10px]">
               <Clock className="w-3 h-3 text-muted-foreground" />
-              <span className="text-foreground">{shot.duration}s</span>
+              <span className="text-muted-foreground">Original: 5.0s</span>
               <span className="text-muted-foreground">/</span>
-              <span className="text-orange-400">{shot.renderDuration}s</span>
+              <span className="text-orange-400">Render: {shot.duration.toFixed(1)}s</span>
             </div>
           )}
         </div>

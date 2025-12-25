@@ -36,10 +36,10 @@ export const SOCIAL_COMMERCE_CONFIG = {
   
   // Pacing profiles
   pacingProfiles: [
-    'FAST_CUT',      // High energy, rapid cuts
-    'RHYTHMIC',      // Musical, beat-synced
-    'LUXURY_SLOW',   // Premium, deliberate
-    'DYNAMIC',       // Varied energy
+    'FAST_CUT',         // High energy, rapid cuts (≤15s, Gen Z, Social Media)
+    'LUXURY_SLOW',      // Premium, deliberate (Any duration, High-end, Premium)
+    'KINETIC_RAMP',     // Speed ramping, dynamic acceleration (≤30s, Action-oriented, Sports)
+    'STEADY_CINEMATIC', // Consistent film-like pacing (≥20s, Brand-focused, Storytelling)
   ] as const,
   
   // Shot types

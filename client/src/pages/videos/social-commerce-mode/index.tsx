@@ -42,6 +42,7 @@ export default function SocialCommerceMode() {
   
   // State for auto-creation
   const [isCreating, setIsCreating] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false); // NEW: Track transition state
   const creationAttempted = useRef(false);
   
   // Video ID state (updated after creation)
@@ -196,10 +197,23 @@ export default function SocialCommerceMode() {
         cameraPath: 'orbit' | 'pan' | 'zoom' | 'dolly' | 'static';
         lens: 'macro' | 'wide' | '85mm' | 'telephoto';
         referenceTags: string[];
+        previousShotReferences: Array<{
+          shot_id: string;
+          reason: string;
+          reference_type: string;
+        }>;
         isLinkedToPrevious: boolean;
+        speedProfile: 'smooth' | 'linear';
+        multiplier: number;
+        sfxHint: string;
       }>;
     }>;
     continuityLinksEstablished: boolean;
+    durationBudget?: {
+      target_total: number;
+      actual_total: number;
+      variance: number;
+    };
   }>({
     scenes: [],
     continuityLinksEstablished: false,
@@ -435,6 +449,7 @@ export default function SocialCommerceMode() {
         if (step1.videoModel) setVideoModel(step1.videoModel);
         if (step1.videoResolution) setVideoResolution(step1.videoResolution);
         if (step1.language) setLanguage(step1.language);
+        if (step1.voiceOverEnabled !== undefined) setVoiceOverEnabled(step1.voiceOverEnabled);
       }
       
       // Restore step2Data if available (NEW: Nested structure)
@@ -454,6 +469,7 @@ export default function SocialCommerceMode() {
           // Material settings
           if (step2.product.material) {
             if (step2.product.material.preset) setMaterialPreset(step2.product.material.preset);
+            if (step2.product.material.objectMass !== undefined) setObjectMass(step2.product.material.objectMass);
             if (step2.product.material.surfaceComplexity !== undefined) setSurfaceComplexity(step2.product.material.surfaceComplexity);
             if (step2.product.material.refractionEnabled !== undefined) setRefractionEnabled(step2.product.material.refractionEnabled);
             if (step2.product.material.heroFeature) setHeroFeature(step2.product.material.heroFeature);
@@ -504,61 +520,85 @@ export default function SocialCommerceMode() {
       // Restore step3Data if available
       const step3 = existingVideo.step3Data as any;
       if (step3) {
-        // Creative Spark
-        if (step3.creativeSpark?.creative_spark) {
-          setCampaignSpark(step3.creativeSpark.creative_spark);
-        } else if (typeof step3.campaignSpark === 'string') {
-          setCampaignSpark(step3.campaignSpark);
-        }
-        
-        // Campaign Objective (optional)
-        if (step3.campaignObjective) {
-          setCampaignObjective(step3.campaignObjective);
-        }
-        
-        // Visual Beats
-        if (step3.narrative?.script_manifest) {
-          const manifest = step3.narrative.script_manifest;
+        // NEW: Prioritize uiInputs if available (most complete)
+        if (step3.uiInputs) {
+          setEnvironmentConcept(step3.uiInputs.environmentConcept || '');
+          setAtmosphericDensity(step3.uiInputs.atmosphericDensity ?? 50);
+          setCinematicLighting(step3.uiInputs.cinematicLighting || '');
+          setVisualPreset(step3.uiInputs.visualPreset || '');
+          setStyleReferenceUrl(step3.uiInputs.styleReferenceUrl || null);
+          setCampaignSpark(step3.uiInputs.campaignSpark || '');
           setVisualBeats({
-            beat1: manifest.act_1_hook?.text || '',
-            beat2: manifest.act_2_transform?.text || '',
-            beat3: manifest.act_3_payoff?.text || '',
+            beat1: step3.uiInputs.visualBeats?.beat1 || '',
+            beat2: step3.uiInputs.visualBeats?.beat2 || '',
+            beat3: step3.uiInputs.visualBeats?.beat3 || '',
           });
-          // CTA Text
-          if (manifest.act_3_payoff?.cta_text) {
-            setCtaText(manifest.act_3_payoff.cta_text);
+          setCampaignObjective(step3.uiInputs.campaignObjective || '');
+          if (step3.uiInputs.environmentBrandPrimaryColor) {
+            setEnvironmentBrandPrimaryColor(step3.uiInputs.environmentBrandPrimaryColor);
           }
-        } else if (step3.visualBeats) {
-          setVisualBeats({
-            beat1: step3.visualBeats.beat1 || '',
-            beat2: step3.visualBeats.beat2 || '',
-            beat3: step3.visualBeats.beat3 || '',
-          });
-        }
-        
-        // Environment
-        if (step3.environment?.concept) {
-          setEnvironmentConcept(step3.environment.concept);
-        }
-        if (step3.environment?.cinematicLighting) {
-          setCinematicLighting(step3.environment.cinematicLighting);
-        }
-        if (step3.environment?.atmosphericDensity !== undefined) {
-          setAtmosphericDensity(step3.environment.atmosphericDensity);
-        }
-        if (step3.environment?.visualPreset) {
-          setVisualPreset(step3.environment.visualPreset);
-        }
-        
-        // Environment brand colors
-        if (step3.environment?.brandColors?.primary) {
-          setEnvironmentBrandPrimaryColor(step3.environment.brandColors.primary);
-        }
-        if (step3.environment?.brandColors?.secondary) {
-          setEnvironmentBrandSecondaryColor(step3.environment.brandColors.secondary);
+          if (step3.uiInputs.environmentBrandSecondaryColor) {
+            setEnvironmentBrandSecondaryColor(step3.uiInputs.environmentBrandSecondaryColor);
+          }
+        } else {
+          // Fallback to old structure (backward compatibility)
+          // Creative Spark
+          if (step3.creativeSpark?.creative_spark) {
+            setCampaignSpark(step3.creativeSpark.creative_spark);
+          } else if (typeof step3.campaignSpark === 'string') {
+            setCampaignSpark(step3.campaignSpark);
+          }
+          
+          // Campaign Objective (optional)
+          if (step3.campaignObjective) {
+            setCampaignObjective(step3.campaignObjective);
+          }
+          
+          // Visual Beats
+          if (step3.narrative?.script_manifest) {
+            const manifest = step3.narrative.script_manifest;
+            setVisualBeats({
+              beat1: manifest.act_1_hook?.text || '',
+              beat2: manifest.act_2_transform?.text || '',
+              beat3: manifest.act_3_payoff?.text || '',
+            });
+            // CTA Text
+            if (manifest.act_3_payoff?.cta_text) {
+              setCtaText(manifest.act_3_payoff.cta_text);
+            }
+          } else if (step3.visualBeats) {
+            setVisualBeats({
+              beat1: step3.visualBeats.beat1 || '',
+              beat2: step3.visualBeats.beat2 || '',
+              beat3: step3.visualBeats.beat3 || '',
+            });
+          }
+          
+          // Environment
+          if (step3.environment?.concept) {
+            setEnvironmentConcept(step3.environment.concept);
+          }
+          if (step3.environment?.cinematicLighting) {
+            setCinematicLighting(step3.environment.cinematicLighting);
+          }
+          if (step3.environment?.atmosphericDensity !== undefined) {
+            setAtmosphericDensity(step3.environment.atmosphericDensity);
+          }
+          if (step3.environment?.visualPreset) {
+            setVisualPreset(step3.environment.visualPreset);
+          }
+          
+          // Environment brand colors
+          if (step3.environment?.brandColors?.primary) {
+            setEnvironmentBrandPrimaryColor(step3.environment.brandColors.primary);
+          }
+          if (step3.environment?.brandColors?.secondary) {
+            setEnvironmentBrandSecondaryColor(step3.environment.brandColors.secondary);
+          }
         }
         
         console.log('[SocialCommerce] Restored step3Data:', {
+          hasUiInputs: !!step3.uiInputs,
           hasCreativeSpark: !!step3.creativeSpark || !!step3.campaignSpark,
           hasNarrative: !!step3.narrative,
           hasEnvironment: !!step3.environment,
@@ -586,6 +626,41 @@ export default function SocialCommerceMode() {
             actType: sceneIdx === 0 ? 'hook' : sceneIdx === 1 ? 'transformation' : 'payoff',
             shots: scene.shots.map((shot: any) => {
               const timing = timingMap.get(shot.shot_id);
+              
+              // Build reference tags based on identity_references
+              const referenceTags: string[] = [];
+              
+              // Product reference with variant
+              if (shot.identity_references.refer_to_product) {
+                const productRef = shot.identity_references.product_image_ref;
+                if (productRef === 'macroDetail') {
+                  referenceTags.push('@Product_Macro');
+                } else if (productRef === 'materialReference') {
+                  referenceTags.push('@Texture');
+                } else {
+                  referenceTags.push('@Product'); // Default to heroProfile
+                }
+              }
+              
+              // Character reference
+              if (shot.identity_references.refer_to_character) {
+                referenceTags.push('@Character');
+              }
+              
+              // Logo reference
+              if (shot.identity_references.refer_to_logo) {
+                referenceTags.push('@Logo');
+              }
+              
+              // Previous shot references
+              if (shot.identity_references.refer_to_previous_outputs?.length > 0) {
+                shot.identity_references.refer_to_previous_outputs.forEach((ref: any) => {
+                  // Format shot_id: "S1.1" -> "@Shot_1_1", "shot_1_1" -> "@Shot_1_1"
+                  const formattedId = ref.shot_id.replace(/^[Ss]/, '').replace(/[^0-9]/g, '_');
+                  referenceTags.push(`@Shot_${formattedId}`);
+                });
+              }
+              
               return {
                 id: shot.shot_id,
                 sceneId: scene.scene_id,
@@ -600,14 +675,13 @@ export default function SocialCommerceMode() {
                 lens: shot.technical_cinematography.lens.toLowerCase().includes('macro') ? 'macro' :
                       shot.technical_cinematography.lens.toLowerCase().includes('wide') ? 'wide' :
                       shot.technical_cinematography.lens.toLowerCase().includes('85') ? '85mm' : 'telephoto',
-                referenceTags: [
-                  ...(shot.identity_references.refer_to_product ? ['@Product'] : []),
-                  ...(shot.identity_references.refer_to_character ? ['@Character'] : []),
-                  ...(shot.identity_references.refer_to_logo ? ['@Logo'] : []),
-                ],
+                referenceTags,
+                previousShotReferences: shot.identity_references.refer_to_previous_outputs || [],
                 isLinkedToPrevious: shot.continuity_logic.is_connected_to_previous,
                 speedProfile: timing?.speed_curve === 'EASE_IN' ? 'smooth' :
                              timing?.speed_curve === 'EASE_OUT' ? 'smooth' : 'linear',
+                multiplier: timing?.multiplier || 1.0,
+                sfxHint: timing?.sfx_hint || '',
               };
             }),
           };
@@ -616,6 +690,11 @@ export default function SocialCommerceMode() {
         setSceneManifest({
           scenes: mappedScenes,
           continuityLinksEstablished: mappedScenes.some(s => s.shots.some((shot: any) => shot.isLinkedToPrevious)),
+          durationBudget: step4.timing?.duration_budget || {
+            target_total: 0,
+            actual_total: 0,
+            variance: 0,
+          },
         });
         
         console.log('[SocialCommerce] Restored step4Data:', {
@@ -1238,6 +1317,41 @@ export default function SocialCommerceMode() {
         targetAudience,
       };
     }
+    if (step === "script") {
+      return {
+        productImages: { ...productImages },
+        materialPreset,
+        surfaceComplexity,
+        refractionEnabled,
+        heroFeature,
+        originMetaphor,
+        includeHumanElement,
+        characterMode,
+        characterReferenceUrl,
+        characterName,
+        characterDescription,
+        logoUrl,
+        brandPrimaryColor,
+        brandSecondaryColor,
+        logoIntegrity,
+        logoDepth,
+        styleReferenceUrl,
+      };
+    }
+    if (step === "environment") {
+      return {
+        environmentConcept,
+        cinematicLighting,
+        atmosphericDensity,
+        visualPreset,
+        styleReferenceUrl,
+        campaignSpark,
+        visualBeats: { ...visualBeats },
+        campaignObjective,
+        environmentBrandPrimaryColor,
+        environmentBrandSecondaryColor,
+      };
+    }
     // Add other steps as they are implemented
     return {};
   };
@@ -1262,7 +1376,16 @@ export default function SocialCommerceMode() {
     }
 
     setDirection(step > activeStep ? 1 : -1);
-    setActiveStep(step);
+    transitionToStep(step, 200); // Smooth transition when clicking steps
+  };
+
+  // Helper function for smooth step transitions
+  const transitionToStep = (nextStep: CommerceStepId, delay: number = 300) => {
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setActiveStep(nextStep);
+      setTimeout(() => setIsTransitioning(false), 100); // Small delay for animation to complete
+    }, delay);
   };
 
   const handleNext = async () => {
@@ -1289,7 +1412,7 @@ export default function SocialCommerceMode() {
       if (completedSteps.includes(activeStep) && !dirtySteps.has(activeStep)) {
         console.log('[SocialCommerce] Step 1 already completed, no changes - navigating directly');
         setDirection(1);
-        setActiveStep(steps[nextIndex]);
+        transitionToStep(steps[nextIndex], 150); // Faster transition for skip
         return;
       }
       
@@ -1322,6 +1445,7 @@ export default function SocialCommerceMode() {
           videoModel,
           videoResolution,
           language,
+          voiceOverEnabled,
         };
         
         console.log('[SocialCommerce] Saving step 1 and running Agent 1.1:', step1Data);
@@ -1355,9 +1479,10 @@ export default function SocialCommerceMode() {
           setCompletedSteps([...completedSteps, activeStep]);
         }
         setDirection(1);
-        setActiveStep(steps[nextIndex]);
+        transitionToStep(steps[nextIndex], 300);
       } catch (error) {
         console.error('[SocialCommerce] Failed to save step 1:', error);
+        setIsTransitioning(false); // Reset transition state on error
         toast({
           title: "Error",
           description: error instanceof Error ? error.message : "Failed to save step 1. Please try again.",
@@ -1378,7 +1503,7 @@ export default function SocialCommerceMode() {
       if (completedSteps.includes(activeStep) && !dirtySteps.has(activeStep)) {
         console.log('[SocialCommerce] Step 2 already completed, no changes - navigating directly');
         setDirection(1);
-        setActiveStep(steps[nextIndex]);
+        transitionToStep(steps[nextIndex], 150); // Faster transition for skip
         return;
       }
       
@@ -1457,6 +1582,7 @@ export default function SocialCommerceMode() {
             
             // Material settings
             materialPreset,
+            objectMass,
             surfaceComplexity,
             refractionEnabled,
             heroFeature,
@@ -1507,9 +1633,10 @@ export default function SocialCommerceMode() {
           setCompletedSteps([...completedSteps, activeStep]);
         }
         setDirection(1);
-        setActiveStep(steps[nextIndex]);
+        transitionToStep(steps[nextIndex], 300);
       } catch (error) {
         console.error('[SocialCommerce] Tab 2 error:', error);
+        setIsTransitioning(false); // Reset transition state on error
         toast({
           title: "Error",
           description: error instanceof Error ? error.message : "Failed to process Tab 2",
@@ -1530,7 +1657,7 @@ export default function SocialCommerceMode() {
       if (completedSteps.includes(activeStep) && !dirtySteps.has(activeStep)) {
         console.log('[SocialCommerce] Step 3 already completed, no changes - navigating directly');
         setDirection(1);
-        setActiveStep(steps[nextIndex]);
+        transitionToStep(steps[nextIndex], 150); // Faster transition for skip
         return;
       }
       
@@ -1580,6 +1707,7 @@ export default function SocialCommerceMode() {
             campaignSpark, // Use existing if filled, or let backend generate
             campaignObjective: campaignObjective || '', // Optional - empty string if not selected
             visualBeats,
+            ctaText, // Manual CTA text edits
             environmentBrandPrimaryColor,
             environmentBrandSecondaryColor,
           }),
@@ -1617,6 +1745,41 @@ export default function SocialCommerceMode() {
               actType: sceneIdx === 0 ? 'hook' : sceneIdx === 1 ? 'transformation' : 'payoff',
               shots: scene.shots.map((shot: any) => {
                 const timing = timingMap.get(shot.shot_id);
+                
+                // Build reference tags based on identity_references
+                const referenceTags: string[] = [];
+                
+                // Product reference with variant
+                if (shot.identity_references.refer_to_product) {
+                  const productRef = shot.identity_references.product_image_ref;
+                  if (productRef === 'macroDetail') {
+                    referenceTags.push('@Product_Macro');
+                  } else if (productRef === 'materialReference') {
+                    referenceTags.push('@Texture');
+                  } else {
+                    referenceTags.push('@Product'); // Default to heroProfile
+                  }
+                }
+                
+                // Character reference
+                if (shot.identity_references.refer_to_character) {
+                  referenceTags.push('@Character');
+                }
+                
+                // Logo reference
+                if (shot.identity_references.refer_to_logo) {
+                  referenceTags.push('@Logo');
+                }
+                
+                // Previous shot references
+                if (shot.identity_references.refer_to_previous_outputs?.length > 0) {
+                  shot.identity_references.refer_to_previous_outputs.forEach((ref: any) => {
+                    // Format shot_id: "S1.1" -> "@Shot_1_1", "shot_1_1" -> "@Shot_1_1"
+                    const formattedId = ref.shot_id.replace(/^[Ss]/, '').replace(/[^0-9]/g, '_');
+                    referenceTags.push(`@Shot_${formattedId}`);
+                  });
+                }
+                
                 return {
                   id: shot.shot_id,
                   sceneId: scene.scene_id,
@@ -1631,14 +1794,13 @@ export default function SocialCommerceMode() {
                   lens: shot.technical_cinematography.lens.toLowerCase().includes('macro') ? 'macro' :
                         shot.technical_cinematography.lens.toLowerCase().includes('wide') ? 'wide' :
                         shot.technical_cinematography.lens.toLowerCase().includes('85') ? '85mm' : 'telephoto',
-                  referenceTags: [
-                    ...(shot.identity_references.refer_to_product ? ['@Product'] : []),
-                    ...(shot.identity_references.refer_to_character ? ['@Character'] : []),
-                    ...(shot.identity_references.refer_to_logo ? ['@Logo'] : []),
-                  ],
+                  referenceTags,
+                  previousShotReferences: shot.identity_references.refer_to_previous_outputs || [],
                   isLinkedToPrevious: shot.continuity_logic.is_connected_to_previous,
                   speedProfile: timing?.speed_curve === 'EASE_IN' ? 'smooth' :
                                timing?.speed_curve === 'EASE_OUT' ? 'smooth' : 'linear',
+                  multiplier: timing?.multiplier || 1.0,
+                  sfxHint: timing?.sfx_hint || '',
                 };
               }),
             };
@@ -1647,6 +1809,11 @@ export default function SocialCommerceMode() {
           setSceneManifest({
             scenes: mappedScenes,
             continuityLinksEstablished: mappedScenes.some(s => s.shots.some((shot: any) => shot.isLinkedToPrevious)),
+            durationBudget: data.step4Data.timing?.duration_budget || {
+              target_total: 0,
+              actual_total: 0,
+              variance: 0,
+            },
           });
           
           console.log('[SocialCommerce] Mapped step4Data to sceneManifest:', {
@@ -1665,9 +1832,10 @@ export default function SocialCommerceMode() {
           setCompletedSteps([...completedSteps, activeStep]);
         }
         setDirection(1);
-        setActiveStep(steps[nextIndex]);
+        transitionToStep(steps[nextIndex], 300);
       } catch (error) {
         console.error('[SocialCommerce] Tab 3 error:', error);
+        setIsTransitioning(false); // Reset transition state on error
         toast({
           title: "Error",
           description: error instanceof Error ? error.message : "Failed to process Tab 3",
@@ -1681,7 +1849,72 @@ export default function SocialCommerceMode() {
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
-    // OTHER STEPS: Just advance (TODO: Implement save logic for other steps)
+    // TAB 4 (STORYBOARD): Save sceneManifest to step4Data
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (activeStep === "storyboard") {
+      if (videoId === "new") {
+        toast({
+          title: "Error",
+          description: "Video not created yet. Please refresh the page.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsCreating(true);
+
+      try {
+        console.log('[SocialCommerce] Saving step 4 (sceneManifest):', {
+          sceneCount: sceneManifest.scenes.length,
+          totalShots: sceneManifest.scenes.reduce((sum, s) => sum + s.shots.length, 0),
+        });
+
+        const response = await fetch(`/api/social-commerce/videos/${videoId}/step/4/continue`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ sceneManifest }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.details || errorData.error || 'Failed to save step 4');
+        }
+
+        const data = await response.json();
+        
+        console.log('[SocialCommerce] Step 4 saved successfully:', {
+          sceneCount: data.step4Data?.mediaPlanner?.scenes?.length || 0,
+        });
+
+        toast({
+          title: "Storyboard Saved",
+          description: "All scenes and shots have been saved successfully",
+        });
+
+        // Mark step as completed and advance
+        if (!completedSteps.includes(activeStep)) {
+          setCompletedSteps([...completedSteps, activeStep]);
+        }
+        setDirection(1);
+        transitionToStep(steps[nextIndex], 300);
+      } catch (error) {
+        console.error('[SocialCommerce] Step 4 save error:', error);
+        setIsTransitioning(false); // Reset transition state on error
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to save storyboard",
+          variant: "destructive",
+        });
+      } finally {
+        setIsCreating(false);
+      }
+      
+      return;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // OTHER STEPS: Just advance
     // ═══════════════════════════════════════════════════════════════════════════
     
     // Mark current step as completed when moving forward
@@ -1690,7 +1923,7 @@ export default function SocialCommerceMode() {
     }
     
     setDirection(1);
-    setActiveStep(steps[nextIndex]);
+    transitionToStep(steps[nextIndex], 200); // Faster for simple navigation
   };
 
   const handleBack = () => {
@@ -1700,7 +1933,74 @@ export default function SocialCommerceMode() {
     
     if (prevIndex >= 0) {
       setDirection(-1);
-      setActiveStep(steps[prevIndex]);
+      transitionToStep(steps[prevIndex], 200); // Smooth back transition
+    }
+  };
+
+  // Helper: Reset frontend state for cleared steps
+  const resetStepState = (stepNumber: number) => {
+    console.log('[SocialCommerce] Resetting frontend state for step:', stepNumber);
+    
+    // Reset Step 2 state (Product DNA, Character, Brand)
+    if (stepNumber <= 2) {
+      setProductImages({
+        heroProfile: null,
+        macroDetail: null,
+        materialReference: null,
+      });
+      setProductImageAssetIds({
+        heroProfile: null,
+        macroDetail: null,
+        materialReference: null,
+      });
+      setCharacterAssetId(null);
+      setCharacterReferenceUrl(null);
+      setCharacterReferenceFile(null);
+      setCharacterName('');
+      setCharacterDescription('');
+      setCharacterAIProfile(null);
+      setCharacterMode(null);
+      setIncludeHumanElement(false);
+      setBrandkitAssetId(null);
+      setLogoUrl(null);
+      setBrandName('');
+      setBrandPrimaryColor("#FF006E");
+      setBrandSecondaryColor("#FB5607");
+      setLogoIntegrity(7);
+      setLogoDepth(5);
+      setMaterialPreset("");
+      setObjectMass(50);
+      setSurfaceComplexity(50);
+      setRefractionEnabled(false);
+      setHeroFeature("");
+      setOriginMetaphor("");
+      setStyleReferenceUrl(null);
+    }
+    
+    // Reset Step 3 state (Environment & Story)
+    if (stepNumber <= 3) {
+      setCampaignSpark("");
+      setVisualBeats({
+        beat1: "",
+        beat2: "",
+        beat3: "",
+      });
+      setCtaText("");
+      setCampaignObjective("");
+      setEnvironmentConcept("");
+      setCinematicLighting("");
+      setAtmosphericDensity(50);
+      setVisualPreset("");
+      setEnvironmentBrandPrimaryColor(brandPrimaryColor);
+      setEnvironmentBrandSecondaryColor(brandSecondaryColor);
+    }
+    
+    // Reset Step 4 state (Scene Timeline)
+    if (stepNumber <= 4) {
+      setSceneManifest({
+        scenes: [],
+        continuityLinksEstablished: false,
+      });
     }
   };
 
@@ -1723,10 +2023,11 @@ export default function SocialCommerceMode() {
         completedSteps: completedSteps.filter(s => stepToNumber(s) < currentStepNumber),
       };
 
-      // Clear all future step data
-      const stepNumbers = [2, 3, 4, 5, 6];
+      // Clear current step's data AND all future step data
+      // This ensures that when user changes a completed step, that step and all future steps are reset
+      const stepNumbers = [1, 2, 3, 4, 5, 6];
       stepNumbers.forEach(num => {
-        if (num > currentStepNumber) {
+        if (num >= currentStepNumber) {
           updatePayload[`step${num}Data`] = null;
         }
       });
@@ -1744,6 +2045,9 @@ export default function SocialCommerceMode() {
       if (!response.ok) {
         throw new Error('Failed to reset video data');
       }
+
+      // ✨ Reset frontend state for cleared steps
+      resetStepState(currentStepNumber);
 
       // Update local state
       setCompletedSteps(updatePayload.completedSteps);
@@ -1770,7 +2074,7 @@ export default function SocialCommerceMode() {
         } else {
           // Direct navigation to target step
           setDirection(targetStep > activeStep ? 1 : -1);
-          setActiveStep(targetStep);
+          transitionToStep(targetStep, 200);
         }
       }
     } catch (error) {
@@ -1800,12 +2104,14 @@ export default function SocialCommerceMode() {
   };
 
   // Show loading while workspace is being loaded or video is being created
-  if (isWorkspaceLoading || (!isNewVideo && isVideoLoading) || isCreating) {
+  // Only show full-screen loader for initial video creation, not step transitions
+  const isInitialVideoCreation = isNewVideo && isCreating;
+  if (isWorkspaceLoading || (!isNewVideo && isVideoLoading) || isInitialVideoCreation) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
-          {isCreating && (
+          {isInitialVideoCreation && (
             <p className="text-muted-foreground">Creating your project...</p>
           )}
         </div>
@@ -1834,6 +2140,17 @@ export default function SocialCommerceMode() {
     );
   }
 
+  // Compute nextLabel based on current state
+  const computedNextLabel = isTransitioning 
+    ? "Loading..."
+    : (isCreating 
+      ? (activeStep === "setup" ? "Running Agent 1.1..." :
+         activeStep === "script" ? "Running Agents 2.1-2.3..." :
+         activeStep === "environment" ? "Running Agents 3.0-3.3 & 4.1-4.2..." :
+         activeStep === "storyboard" ? "Saving storyboard..." :
+         "Processing...")
+      : undefined);
+
   return (
     <SocialCommerceStudioLayout
       currentStep={activeStep}
@@ -1844,8 +2161,9 @@ export default function SocialCommerceMode() {
       onNext={handleNext}
       onBack={handleBack}
       videoTitle={videoTitle}
-      isNextDisabled={!canContinue || isCreating}
-      nextLabel={isCreating && activeStep === "setup" ? "Running Agent 1.1..." : undefined}
+      isNextDisabled={!canContinue || isCreating || isTransitioning}
+      nextLabel={computedNextLabel}
+      isTransitioning={isTransitioning || isCreating}
     >
       <SocialCommerceWorkflow 
               activeStep={workflowStepMap[activeStep]}
@@ -1916,22 +2234,22 @@ export default function SocialCommerceMode() {
               onMotionPromptChange={(value) => { setMotionPrompt(value); markStepDirty('setup'); }}
               onImageInstructionsChange={(value) => { setImageInstructions(value); markStepDirty('setup'); }}
               imageInstructions={imageInstructions}
-              onProductImagesChange={setProductImages}
+              onProductImagesChange={(value) => { setProductImages(value); markStepDirty('script'); }}
               onProductImageUpload={handleProductImageUpload}
               onProductImageDelete={handleDeleteProductImage}
-              onMaterialPresetChange={setMaterialPreset}
+              onMaterialPresetChange={(value) => { setMaterialPreset(value); markStepDirty('script'); }}
               onObjectMassChange={setObjectMass}
-              onSurfaceComplexityChange={setSurfaceComplexity}
-              onRefractionEnabledChange={setRefractionEnabled}
-              onLogoUrlChange={setLogoUrl}
+              onSurfaceComplexityChange={(value) => { setSurfaceComplexity(value); markStepDirty('script'); }}
+              onRefractionEnabledChange={(value) => { setRefractionEnabled(value); markStepDirty('script'); }}
+              onLogoUrlChange={(value) => { setLogoUrl(value); markStepDirty('script'); }}
               onLogoUpload={handleLogoUpload}
               onLogoDelete={handleDeleteLogo}
-              onBrandPrimaryColorChange={setBrandPrimaryColor}
-              onBrandSecondaryColorChange={setBrandSecondaryColor}
-              onLogoIntegrityChange={setLogoIntegrity}
-              onLogoDepthChange={setLogoDepth}
-              onHeroFeatureChange={setHeroFeature}
-              onOriginMetaphorChange={setOriginMetaphor}
+              onBrandPrimaryColorChange={(value) => { setBrandPrimaryColor(value); markStepDirty('script'); }}
+              onBrandSecondaryColorChange={(value) => { setBrandSecondaryColor(value); markStepDirty('script'); }}
+              onLogoIntegrityChange={(value) => { setLogoIntegrity(value); markStepDirty('script'); }}
+              onLogoDepthChange={(value) => { setLogoDepth(value); markStepDirty('script'); }}
+              onHeroFeatureChange={(value) => { setHeroFeature(value); markStepDirty('script'); }}
+              onOriginMetaphorChange={(value) => { setOriginMetaphor(value); markStepDirty('script'); }}
               environmentConcept={environmentConcept}
               cinematicLighting={cinematicLighting}
               atmosphericDensity={atmosphericDensity}
@@ -1952,26 +2270,26 @@ export default function SocialCommerceMode() {
               isGeneratingCharacter={isGeneratingCharacter}
               onCharacterAIProfileChange={setCharacterAIProfile}
               onIsGeneratingCharacterChange={setIsGeneratingCharacter}
-              onEnvironmentConceptChange={setEnvironmentConcept}
-              onCinematicLightingChange={setCinematicLighting}
-              onAtmosphericDensityChange={setAtmosphericDensity}
-              onStyleReferenceUrlChange={setStyleReferenceUrl}
-              onVisualPresetChange={setVisualPreset}
-              onCampaignSparkChange={setCampaignSpark}
-              onVisualBeatsChange={setVisualBeats}
-              onEnvironmentBrandPrimaryColorChange={setEnvironmentBrandPrimaryColor}
-              onEnvironmentBrandSecondaryColorChange={setEnvironmentBrandSecondaryColor}
+              onEnvironmentConceptChange={(value) => { setEnvironmentConcept(value); markStepDirty('environment'); }}
+              onCinematicLightingChange={(value) => { setCinematicLighting(value); markStepDirty('environment'); }}
+              onAtmosphericDensityChange={(value) => { setAtmosphericDensity(value); markStepDirty('environment'); }}
+              onStyleReferenceUrlChange={(value) => { setStyleReferenceUrl(value); markStepDirty('environment'); }}
+              onVisualPresetChange={(value) => { setVisualPreset(value); markStepDirty('environment'); }}
+              onCampaignSparkChange={(value) => { setCampaignSpark(value); markStepDirty('environment'); }}
+              onVisualBeatsChange={(value) => { setVisualBeats(value); markStepDirty('environment'); }}
+              onEnvironmentBrandPrimaryColorChange={(value) => { setEnvironmentBrandPrimaryColor(value); markStepDirty('environment'); }}
+              onEnvironmentBrandSecondaryColorChange={(value) => { setEnvironmentBrandSecondaryColor(value); markStepDirty('environment'); }}
               campaignObjective={campaignObjective}
-              onCampaignObjectiveChange={setCampaignObjective}
+              onCampaignObjectiveChange={(value) => { setCampaignObjective(value); markStepDirty('environment'); }}
               onTargetAudienceChange={(value) => { setTargetAudience(value); markStepDirty('setup'); }}
               onCtaTextChange={setCtaText}
-              onIncludeHumanElementChange={setIncludeHumanElement}
-              onCharacterModeChange={setCharacterMode}
-              onCharacterReferenceUrlChange={setCharacterReferenceUrl}
+              onIncludeHumanElementChange={(value) => { setIncludeHumanElement(value); markStepDirty('script'); }}
+              onCharacterModeChange={(value) => { setCharacterMode(value); markStepDirty('script'); }}
+              onCharacterReferenceUrlChange={(value) => { setCharacterReferenceUrl(value); markStepDirty('script'); }}
               onCharacterImageUpload={handleCharacterImageUpload}
               onCharacterDelete={handleDeleteCharacter}
-              onCharacterDescriptionChange={setCharacterDescription}
-              onCharacterNameChange={setCharacterName}
+              onCharacterDescriptionChange={(value) => { setCharacterDescription(value); markStepDirty('script'); }}
+              onCharacterNameChange={(value) => { setCharacterName(value); markStepDirty('script'); }}
               onCharacterAssetIdChange={setCharacterAssetId}
               onCharacterReferenceFileChange={setCharacterReferenceFile}
               sceneManifest={sceneManifest}

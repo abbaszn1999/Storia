@@ -83,6 +83,7 @@ export interface Step1Data {
   videoModel?: string;
   videoResolution?: string;
   language?: 'ar' | 'en';
+  voiceOverEnabled?: boolean;
   
   // Agent 1.1 output
   strategicContext?: StrategicContextOutput;
@@ -161,6 +162,7 @@ export interface Step2Data {
     };
     material?: {
       preset?: string;
+      objectMass?: number;
       surfaceComplexity?: number;
       refractionEnabled?: boolean;
       heroFeature?: string;
@@ -283,12 +285,6 @@ export interface CharacterRecommendation {
     vfx_anchor_tags: string[];     // Keywords for shot-to-shot consistency
     reference_image_required: boolean;
   };
-  
-  // Ready-to-use prompt for Agent 2.2b execution
-  image_generation_prompt: string; // 100-150 words, includes all details + anchor tags
-  
-  // Quick preview (for UI cards)
-  thumbnail_prompt: string;        // Concise prompt (50-80 words) for preview generation
 }
 
 /**
@@ -401,6 +397,24 @@ export interface Step3Data {
   
   // Agent 3.3 output
   harmonizer?: HarmonizerOutput;
+  
+  // UI Inputs (user-entered settings)
+  uiInputs?: {
+    environmentConcept: string;
+    atmosphericDensity: number;
+    cinematicLighting: string;
+    visualPreset: string;
+    styleReferenceUrl?: string | null;
+    campaignSpark: string;
+    visualBeats: {
+      beat1: string;
+      beat2: string;
+      beat3: string;
+    };
+    campaignObjective: string;
+    environmentBrandPrimaryColor?: string;
+    environmentBrandSecondaryColor?: string;
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -436,7 +450,6 @@ export interface ShotDefinition {
     product_image_ref?: "heroProfile" | "macroDetail" | "materialReference";
     refer_to_character: boolean;
     refer_to_logo: boolean;
-    focus_anchor: string;
     refer_to_previous_outputs: Array<{
       shot_id: string;
       reason: string;

@@ -83,13 +83,6 @@ FAST_CUT:
 - Feel: Rapid transitions, 0.3-0.8s shots, high energy
 - Use when: Attention must be captured instantly
 
-RHYTHMIC:
-- Duration: Any
-- Audience: Music-oriented, Lifestyle, Brand storytelling
-- Product: Any product with emotional appeal
-- Feel: Beat-synced cuts, musical flow, 1-2s rhythmic patterns
-- Use when: Music/audio will drive the edit
-
 LUXURY_SLOW:
 - Duration: Any
 - Audience: High-end, Premium, Mature
@@ -97,12 +90,19 @@ LUXURY_SLOW:
 - Feel: Deliberate 3-8s shots, contemplative, elegant
 - Use when: Product deserves reverent showcase
 
-DYNAMIC:
+KINETIC_RAMP:
 - Duration: ≤30s
-- Audience: Action-oriented, Sports, Youth, Mixed demographics
+- Audience: Action-oriented, Sports, Youth
 - Product: Sports gear, Energy drinks, Tech, Cars
-- Feel: Speed ramping, varied energy, tension-release, acceleration
-- Use when: Energy and impact are paramount or varied pacing needed
+- Feel: Speed ramping, dynamic acceleration, tension-release
+- Use when: Energy and impact are paramount
+
+STEADY_CINEMATIC:
+- Duration: ≥20s
+- Audience: Brand-focused, Storytelling
+- Product: Any premium product
+- Feel: Consistent film-like pacing, 2-4s shots
+- Use when: Narrative and emotion take priority
 
 ═══════════════════════════════════════════════════════════════════════════════
 MOTION DNA TRANSLATION GUIDE
@@ -185,7 +185,7 @@ Return a JSON object with EXACTLY these fields:
 {
   "strategic_directives": "String — 4-8 sentences covering cultural laws, visual hierarchy, emotional targeting, and quality standards",
   
-  "pacing_profile": "FAST_CUT | RHYTHMIC | LUXURY_SLOW | DYNAMIC",
+  "pacing_profile": "FAST_CUT | LUXURY_SLOW | KINETIC_RAMP | STEADY_CINEMATIC",
   
   "optimized_motion_dna": "String — Professional cinematic movement description with technical specifications (3-5 sentences)",
   
@@ -244,10 +244,8 @@ export function buildStrategicContextUserPrompt(input: StrategicContextInput): s
 CAMPAIGN BRIEF
 ═══════════════════════════════════════════════════════════════════════════════
 
-PRODUCT: ${input.productTitle}${input.productDescription ? `\nPRODUCT DESCRIPTION: ${input.productDescription}` : ''}${input.productCategory ? `\nPRODUCT CATEGORY: ${input.productCategory}` : ''}
 TARGET AUDIENCE: ${input.targetAudience}${input.region ? `\nREGION: ${input.region}` : ''}
 CAMPAIGN DURATION: ${input.duration} seconds
-ASPECT RATIO: ${input.aspectRatio}
 
 ═══════════════════════════════════════════════════════════════════════════════
 USER MOTION PREFERENCES
@@ -273,7 +271,7 @@ Return ONLY the JSON object — no explanation, no preamble.`;
 // VALIDATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const VALID_PACING_PROFILES = ['FAST_CUT', 'RHYTHMIC', 'LUXURY_SLOW', 'DYNAMIC'] as const;
+const VALID_PACING_PROFILES = ['FAST_CUT', 'LUXURY_SLOW', 'KINETIC_RAMP', 'STEADY_CINEMATIC'] as const;
 
 /**
  * Validate Agent 1.1 output matches expected schema

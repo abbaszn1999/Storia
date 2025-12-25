@@ -14,6 +14,7 @@ import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -83,13 +84,17 @@ interface Shot {
   sceneId: string;
   name: string;
   description: string;
-  duration: number;
+  duration: number; // This is rendered_duration from Agent 4.2
   shotType: 'image-ref' | 'start-end';
   cameraPath: 'orbit' | 'pan' | 'zoom' | 'dolly' | 'static';
   lens: 'macro' | 'wide' | '85mm' | 'telephoto';
   referenceTags: string[];
   isLinkedToPrevious: boolean;
   speedProfile: 'linear' | 'speed-ramp' | 'slow-motion' | 'kinetic' | 'smooth';
+  // Optional fields from Agent 4.2
+  multiplier?: number;
+  sfxHint?: string;
+  previousShotReferences?: Array<{ shot_id: string; reason: string; reference_type: string }>;
 }
 
 interface SceneManifest {
@@ -417,6 +422,23 @@ function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit
   const [cameraPath, setCameraPath] = useState<Shot['cameraPath']>(shot?.cameraPath || 'static');
   const [lens, setLens] = useState<Shot['lens']>(shot?.lens || '85mm');
   const [speedProfile, setSpeedProfile] = useState<Shot['speedProfile']>(shot?.speedProfile || 'linear');
+  // NEW: Additional comprehensive fields
+  const [cinematicGoal, setCinematicGoal] = useState(shot?.name?.split(': ')[1] || '');
+  const [motionIntensity, setMotionIntensity] = useState(5);
+  const [framing, setFraming] = useState<'ECU' | 'CU' | 'MCU' | 'MED' | 'WIDE'>('MED');
+  const [referToProduct, setReferToProduct] = useState(shot?.referenceTags?.includes('@Product') || shot?.referenceTags?.includes('@Product_Macro') || shot?.referenceTags?.includes('@Texture') || false);
+  const [productImageRef, setProductImageRef] = useState<'heroProfile' | 'macroDetail' | 'materialReference'>(
+    shot?.referenceTags?.includes('@Product_Macro') ? 'macroDetail' :
+    shot?.referenceTags?.includes('@Texture') ? 'materialReference' : 'heroProfile'
+  );
+  const [referToCharacter, setReferToCharacter] = useState(shot?.referenceTags?.includes('@Character') || false);
+  const [referToLogo, setReferToLogo] = useState(shot?.referenceTags?.includes('@Logo') || false);
+  const [depthOfField, setDepthOfField] = useState<'Ultra-shallow' | 'Shallow' | 'Medium' | 'Deep'>('Medium');
+  const [handoverType, setHandoverType] = useState<'SEAMLESS_FLOW' | 'MATCH_CUT' | 'JUMP_CUT'>('JUMP_CUT');
+  const [isConnectedToPrevious, setIsConnectedToPrevious] = useState(shot?.isLinkedToPrevious || false);
+  const [isConnectedToNext, setIsConnectedToNext] = useState(false);
+  const [compositionSafeZones, setCompositionSafeZones] = useState('Center safe zone');
+  const [lightingEvent, setLightingEvent] = useState('Natural lighting');
   
   useEffect(() => {
     if (shot) {
@@ -427,6 +449,21 @@ function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit
       setCameraPath(shot.cameraPath);
       setLens(shot.lens);
       setSpeedProfile(shot.speedProfile);
+      // Extract cinematic goal from name (format: "Shot X.Y: Goal")
+      const goalMatch = shot.name?.match(/: (.+)$/);
+      setCinematicGoal(goalMatch ? goalMatch[1] : '');
+      // Restore reference tags
+      setReferToProduct(shot.referenceTags?.includes('@Product') || shot.referenceTags?.includes('@Product_Macro') || shot.referenceTags?.includes('@Texture') || false);
+      if (shot.referenceTags?.includes('@Product_Macro')) {
+        setProductImageRef('macroDetail');
+      } else if (shot.referenceTags?.includes('@Texture')) {
+        setProductImageRef('materialReference');
+      } else {
+        setProductImageRef('heroProfile');
+      }
+      setReferToCharacter(shot.referenceTags?.includes('@Character') || false);
+      setReferToLogo(shot.referenceTags?.includes('@Logo') || false);
+      setIsConnectedToPrevious(shot.isLinkedToPrevious || false);
     } else {
       const sceneNum = parseInt(sceneId.split('-')[1]) || 1;
       setName(`Shot ${sceneNum}.${shotCount + 1}: New`);
@@ -436,61 +473,153 @@ function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit
       setCameraPath('static');
       setLens('85mm');
       setSpeedProfile('linear');
+      setCinematicGoal('');
+      setMotionIntensity(5);
+      setFraming('MED');
+      setReferToProduct(false);
+      setProductImageRef('heroProfile');
+      setReferToCharacter(false);
+      setReferToLogo(false);
+      setDepthOfField('Medium');
+      setHandoverType('JUMP_CUT');
+      setIsConnectedToPrevious(false);
+      setIsConnectedToNext(false);
+      setCompositionSafeZones('Center safe zone');
+      setLightingEvent('Natural lighting');
     }
   }, [shot, sceneId, shotCount]);
   
   const handleSubmit = () => {
-    onSubmit({ name, description, duration, shotType, cameraPath, lens, speedProfile });
+    // Build reference tags array
+    const referenceTags: string[] = [];
+    if (referToProduct) {
+      if (productImageRef === 'macroDetail') {
+        referenceTags.push('@Product_Macro');
+      } else if (productImageRef === 'materialReference') {
+        referenceTags.push('@Texture');
+      } else {
+        referenceTags.push('@Product');
+      }
+    }
+    if (referToCharacter) referenceTags.push('@Character');
+    if (referToLogo) referenceTags.push('@Logo');
+    
+    // Update name with cinematic goal if provided
+    const finalName = cinematicGoal ? `${name.split(':')[0]}: ${cinematicGoal}` : name;
+    
+    onSubmit({ 
+      name: finalName,
+      description, 
+      duration, 
+      shotType, 
+      cameraPath, 
+      lens, 
+      speedProfile,
+      referenceTags,
+      isLinkedToPrevious: isConnectedToPrevious,
+    });
     onOpenChange(false);
   };
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] bg-[#0a0a0a] border-white/10">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto bg-[#0a0a0a] border-white/10">
         <DialogHeader>
           <DialogTitle className="text-white">{shot ? 'Edit Shot' : 'Add Shot'}</DialogTitle>
           <DialogDescription className="text-white/50">
-            {shot ? 'Update shot details and directives' : 'Create a new shot for this scene'}
+            {shot ? 'Update shot details and directives' : 'Create a new shot with all required cinematography details'}
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4 py-4">
+          {/* Cinematic Goal & Motion Intensity */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-white/70">Shot Name</Label>
+              <Label className="text-white/70">Cinematic Goal *</Label>
               <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Shot 1.1: Macro"
+                value={cinematicGoal}
+                onChange={(e) => setCinematicGoal(e.target.value)}
+                placeholder="e.g., Capture attention with mysterious reveal"
                 className="bg-white/5 border-white/10 text-white"
               />
             </div>
-            
             <div className="space-y-2">
-              <Label className="text-white/70">Duration: {duration.toFixed(1)}s</Label>
-              <Slider
-                value={[duration]}
-                onValueChange={([v]) => setDuration(v)}
-                min={0.5}
-                max={10}
-                step={0.5}
+              <Label className="text-white/70">Motion Intensity *</Label>
+              <Input
+                type="number"
+                min="1"
+                max="10"
+                value={motionIntensity}
+                onChange={(e) => setMotionIntensity(parseInt(e.target.value) || 5)}
+                className="bg-white/5 border-white/10 text-white"
               />
+              <p className="text-xs text-white/40">1 (slow) to 10 (fast)</p>
             </div>
           </div>
           
+          {/* Description */}
           <div className="space-y-2">
-            <Label className="text-white/70">Description</Label>
+            <Label className="text-white/70">Shot Description *</Label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe the shot composition and action..."
+              placeholder="Describe the shot in detail..."
               className="bg-white/5 border-white/10 text-white min-h-[80px]"
             />
           </div>
           
-          <div className="grid grid-cols-3 gap-4">
+          {/* Camera, Lens, Framing, Shot Type */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-white/70">Shot Type</Label>
+              <Label className="text-white/70">Camera Movement *</Label>
+              <Select value={cameraPath} onValueChange={(v) => setCameraPath(v as Shot['cameraPath'])}>
+                <SelectTrigger className="bg-white/5 border-white/10 text-white h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0a0a0a] border-white/10">
+                  {CAMERA_PATHS.map((path) => (
+                    <SelectItem key={path.value} value={path.value} className="text-white">
+                      {path.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-white/70">Lens *</Label>
+              <Select value={lens} onValueChange={(v) => setLens(v as Shot['lens'])}>
+                <SelectTrigger className="bg-white/5 border-white/10 text-white h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0a0a0a] border-white/10">
+                  {LENSES.map((l) => (
+                    <SelectItem key={l.value} value={l.value} className="text-white">
+                      {l.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-white/70">Framing *</Label>
+              <Select value={framing} onValueChange={(v) => setFraming(v as 'ECU' | 'CU' | 'MCU' | 'MED' | 'WIDE')}>
+                <SelectTrigger className="bg-white/5 border-white/10 text-white h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0a0a0a] border-white/10">
+                  <SelectItem value="ECU" className="text-white">ECU (Extreme Close-Up)</SelectItem>
+                  <SelectItem value="CU" className="text-white">CU (Close-Up)</SelectItem>
+                  <SelectItem value="MCU" className="text-white">MCU (Medium Close-Up)</SelectItem>
+                  <SelectItem value="MED" className="text-white">MED (Medium)</SelectItem>
+                  <SelectItem value="WIDE" className="text-white">WIDE</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-white/70">Shot Type *</Label>
               <ToggleGroup
                 type="single"
                 value={shotType}
@@ -507,37 +636,127 @@ function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit
                 </ToggleGroupItem>
               </ToggleGroup>
             </div>
-            
+          </div>
+          
+          {/* Identity References */}
+          <div className="space-y-2">
+            <Label className="text-white/70">Identity References</Label>
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  checked={referToProduct}
+                  onCheckedChange={setReferToProduct}
+                  className="data-[state=checked]:bg-pink-500"
+                />
+                <Label className="text-white/70">Include Product</Label>
+              </div>
+              {referToProduct && (
+                <div className="ml-6 space-y-2">
+                  <Label className="text-white/70 text-sm">Product Image Reference</Label>
+                  <Select value={productImageRef} onValueChange={(v) => setProductImageRef(v as any)}>
+                    <SelectTrigger className="bg-white/5 border-white/10 text-white h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0a0a0a] border-white/10">
+                      <SelectItem value="heroProfile" className="text-white">Hero Profile</SelectItem>
+                      <SelectItem value="macroDetail" className="text-white">Macro Detail</SelectItem>
+                      <SelectItem value="materialReference" className="text-white">Material Reference</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="flex items-center space-x-2">
+                <Switch
+                  checked={referToCharacter}
+                  onCheckedChange={setReferToCharacter}
+                  className="data-[state=checked]:bg-pink-500"
+                />
+                <Label className="text-white/70">Include Character</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  checked={referToLogo}
+                  onCheckedChange={setReferToLogo}
+                  className="data-[state=checked]:bg-pink-500"
+                />
+                <Label className="text-white/70">Include Logo</Label>
+              </div>
+            </div>
+          </div>
+          
+          {/* Depth of Field & Handover Type */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-white/70">Camera Path</Label>
-              <Select value={cameraPath} onValueChange={(v) => setCameraPath(v as Shot['cameraPath'])}>
+              <Label className="text-white/70">Depth of Field</Label>
+              <Select value={depthOfField} onValueChange={(v) => setDepthOfField(v as any)}>
                 <SelectTrigger className="bg-white/5 border-white/10 text-white h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#0a0a0a] border-white/10">
-                  {CAMERA_PATHS.map((path) => (
-                    <SelectItem key={path.value} value={path.value} className="text-white">
-                      {path.label}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="Ultra-shallow" className="text-white">Ultra-shallow</SelectItem>
+                  <SelectItem value="Shallow" className="text-white">Shallow</SelectItem>
+                  <SelectItem value="Medium" className="text-white">Medium</SelectItem>
+                  <SelectItem value="Deep" className="text-white">Deep</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            
             <div className="space-y-2">
-              <Label className="text-white/70">Lens</Label>
-              <Select value={lens} onValueChange={(v) => setLens(v as Shot['lens'])}>
+              <Label className="text-white/70">Handover Type</Label>
+              <Select value={handoverType} onValueChange={(v) => setHandoverType(v as any)}>
                 <SelectTrigger className="bg-white/5 border-white/10 text-white h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#0a0a0a] border-white/10">
-                  {LENSES.map((l) => (
-                    <SelectItem key={l.value} value={l.value} className="text-white">
-                      {l.label}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="SEAMLESS_FLOW" className="text-white">Seamless Flow</SelectItem>
+                  <SelectItem value="MATCH_CUT" className="text-white">Match Cut</SelectItem>
+                  <SelectItem value="JUMP_CUT" className="text-white">Jump Cut</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+          
+          {/* Continuity */}
+          <div className="space-y-2">
+            <Label className="text-white/70">Continuity</Label>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  checked={isConnectedToPrevious}
+                  onCheckedChange={setIsConnectedToPrevious}
+                  className="data-[state=checked]:bg-pink-500"
+                />
+                <Label className="text-white/70">Connected to Previous</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  checked={isConnectedToNext}
+                  onCheckedChange={setIsConnectedToNext}
+                  className="data-[state=checked]:bg-pink-500"
+                />
+                <Label className="text-white/70">Connected to Next</Label>
+              </div>
+            </div>
+          </div>
+          
+          {/* Composition & Lighting */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-white/70">Composition Safe Zones</Label>
+              <Input
+                value={compositionSafeZones}
+                onChange={(e) => setCompositionSafeZones(e.target.value)}
+                placeholder="e.g., Center safe zone"
+                className="bg-white/5 border-white/10 text-white"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-white/70">Lighting Event</Label>
+              <Input
+                value={lightingEvent}
+                onChange={(e) => setLightingEvent(e.target.value)}
+                placeholder="e.g., Natural lighting"
+                className="bg-white/5 border-white/10 text-white"
+              />
             </div>
           </div>
           
@@ -1224,12 +1443,12 @@ export function SceneContinuityTab({
                                     <div className="flex items-center gap-2 text-[10px] text-white/50 bg-white/5 rounded-md px-2 py-1">
                                       <Timer className="w-3 h-3 text-white/40" />
                                       <span>
-                                        Target: <span className="text-white/70 font-mono">{shot.duration.toFixed(1)}s</span>
+                                        Original: <span className="text-white/70 font-mono">5.0s</span>
                                       </span>
                                       <span className="text-white/20">/</span>
                                       <span>
                                         Render: <span className="text-orange-400 font-mono">
-                                          {calculateRenderDuration(shot.duration, shot.speedProfile, shot.shotType).toFixed(1)}s
+                                          {shot.duration.toFixed(1)}s
                                         </span>
                                       </span>
                                     </div>

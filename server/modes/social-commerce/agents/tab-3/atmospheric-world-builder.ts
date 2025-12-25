@@ -68,23 +68,28 @@ export async function buildEnvironment(
 
   const userPrompt = buildWorldBuilderUserPrompt(input);
 
-  // Build input array - include image if style reference provided
+  // Build input array - include image if style reference provided (interleaved pattern)
   const inputArray: Array<{ role: string; content: string | Array<{ type: string; image_url?: string; text?: string }> }> = [
     { role: 'system', content: WORLD_BUILDER_SYSTEM_PROMPT },
   ];
 
   if (input.styleReferenceUrl) {
-    // Multi-modal input with image
+    // Multi-modal input with interleaved pattern (label + image + prompt)
+    console.log('[social-commerce:agent-3.1] Including style reference image with interleaved pattern');
     inputArray.push({
       role: 'user',
       content: [
         {
           type: 'input_text',
-          text: userPrompt,
+          text: '--- STYLE REFERENCE IMAGE ---\nAnalyze this image for color extraction, lighting analysis, atmospheric observation, mood interpretation, and render style.',
         },
         {
           type: 'input_image',
           image_url: input.styleReferenceUrl,
+        },
+        {
+          type: 'input_text',
+          text: userPrompt,
         },
       ],
     });

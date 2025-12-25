@@ -49,6 +49,7 @@ export interface CreativeSparkInput {
   heroFeature: string;
   originMetaphor: string;
   includeHumanElement: boolean;
+  productCategory?: string;
   characterMode?: string;
   character_profile?: any;
 }

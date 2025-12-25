@@ -1,12 +1,12 @@
 // Social Commerce Studio Layout - Main container with step transitions
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { COMMERCE_STEPS, CommerceStepId } from "./types";
 import { SocialCommerceStudioBackground } from "./SocialCommerceStudioBackground";
 import { SocialCommerceTimelineNavigation } from "./SocialCommerceTimelineNavigation";
-import { ArrowLeft, ShoppingBag } from "lucide-react";
+import { ArrowLeft, ShoppingBag, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { ReactNode } from "react";
 
@@ -21,6 +21,7 @@ interface SocialCommerceStudioLayoutProps {
   videoTitle: string;
   isNextDisabled?: boolean;
   nextLabel?: string;
+  isTransitioning?: boolean; // NEW: Track transition state
   children: ReactNode;
 }
 
@@ -35,12 +36,32 @@ export function SocialCommerceStudioLayout({
   videoTitle,
   isNextDisabled,
   nextLabel,
+  isTransitioning = false, // NEW: Default to false
   children
 }: SocialCommerceStudioLayoutProps) {
   const [, navigate] = useLocation();
   
   const currentStepIndex = COMMERCE_STEPS.findIndex(s => s.id === currentStep);
   const currentStepInfo = COMMERCE_STEPS[currentStepIndex];
+
+  // Animation variants for smooth transitions
+  const contentVariants = {
+    initial: (dir: number) => ({
+      opacity: 0,
+      x: dir > 0 ? 20 : -20,
+      scale: 0.98,
+    }),
+    animate: {
+      opacity: 1,
+      x: 0,
+      scale: 1,
+    },
+    exit: (dir: number) => ({
+      opacity: 0,
+      x: dir > 0 ? -20 : 20,
+      scale: 0.98,
+    }),
+  };
 
   return (
     <div className="h-screen flex flex-col bg-[#0a0a0a] text-white overflow-hidden">
@@ -76,6 +97,7 @@ export function SocialCommerceStudioLayout({
               key={currentStep}
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
               className="flex items-center gap-2"
             >
               <span className="text-2xl">{currentStepInfo.icon}</span>
@@ -90,10 +112,58 @@ export function SocialCommerceStudioLayout({
         </div>
       </header>
 
-      {/* Main Content Area - Scrollable */}
+      {/* Main Content Area - Scrollable with Smooth Transitions */}
       <main className="relative z-10 flex-1 overflow-y-auto pb-24 custom-scrollbar">
-        <div className="px-6 pb-6">
-          {children}
+        <div className="relative px-6 pb-6 min-h-full">
+          {/* Loading Overlay */}
+          <AnimatePresence>
+            {isTransitioning && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0 z-50 bg-[#0a0a0a]/90 backdrop-blur-md flex items-center justify-center"
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="flex flex-col items-center gap-4"
+                >
+                  <Loader2 className="w-10 h-10 text-pink-500 animate-spin" />
+                  <motion.p
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="text-sm text-white/80 font-medium"
+                  >
+                    {nextLabel || "Loading..."}
+                  </motion.p>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Content with Smooth Transitions */}
+          <AnimatePresence mode="wait" custom={direction}>
+            <motion.div
+              key={currentStep}
+              custom={direction}
+              variants={contentVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{
+                duration: 0.4,
+                ease: [0.4, 0, 0.2, 1], // Custom easing for smooth feel
+              }}
+              className="w-full"
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </main>
 

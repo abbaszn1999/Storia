@@ -44,148 +44,9 @@ import {
   Video,
   ImageIcon,
 } from "lucide-react";
+import { IMAGE_MODELS, getImageModelConfig } from "@/constants/image-models";
 
-const IMAGE_MODELS = [
-  // Google Models
-  { 
-    value: "nano-banana", 
-    label: "Nano Banana", 
-    provider: "Google", 
-    description: "Gemini Flash 2.5 - Fast, interactive workflows", 
-    badge: "Fast", 
-    default: true,
-    aspectRatios: ["1:1", "3:2", "2:3", "4:3", "3:4", "5:4", "4:5", "16:9", "9:16", "21:9"],
-    resolutions: ["1k"],
-    maxPromptLength: 3000,
-    supportsNegativePrompt: false,
-  },
-  { 
-    value: "nano-banana-2-pro", 
-    label: "Nano Banana 2 Pro", 
-    provider: "Google", 
-    description: "Gemini 3 Pro - Professional-grade, up to 4K", 
-    badge: "Pro",
-    aspectRatios: ["1:1", "3:2", "2:3", "4:3", "3:4", "4:5", "5:4", "9:16", "16:9", "21:9"],
-    resolutions: ["1k", "2k", "4k"],
-    maxPromptLength: 45000,
-    supportsNegativePrompt: false,
-  },
-  { 
-    value: "imagen-4.0-preview", 
-    label: "Imagen 4.0 Preview", 
-    provider: "Google", 
-    description: "Improved textures, lighting, and typography",
-    aspectRatios: ["1:1", "9:16", "16:9", "3:4", "4:3"],
-    resolutions: ["custom"],
-    maxPromptLength: 3000,
-    supportsNegativePrompt: false,
-  },
-  { 
-    value: "imagen-4.0-ultra", 
-    label: "Imagen 4.0 Ultra", 
-    provider: "Google", 
-    description: "Exceptional detail, color accuracy, best quality", 
-    badge: "Ultra",
-    aspectRatios: ["1:1", "9:16", "16:9", "3:4", "4:3"],
-    resolutions: ["custom"],
-    maxPromptLength: 3000,
-    supportsNegativePrompt: false,
-  },
-  { 
-    value: "imagen-4.0-fast", 
-    label: "Imagen 4.0 Fast", 
-    provider: "Google", 
-    description: "Speed optimized with minimal quality loss", 
-    badge: "Fast",
-    aspectRatios: ["1:1", "9:16", "16:9", "3:4", "4:3"],
-    resolutions: ["custom"],
-    maxPromptLength: 3000,
-    supportsNegativePrompt: true,
-  },
-  
-  // ByteDance Models
-  { 
-    value: "seedream-4.0", 
-    label: "Seedream 4.0", 
-    provider: "ByteDance", 
-    description: "Ultra-fast 2K/4K with sequential images", 
-    badge: "Sequential",
-    aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"],
-    resolutions: ["1k", "2k", "4k"],
-    maxPromptLength: 2000,
-    supportsNegativePrompt: false,
-  },
-  { 
-    value: "seedream-4.5", 
-    label: "Seedream 4.5", 
-    provider: "ByteDance", 
-    description: "Production reliability, sharp 2K/4K", 
-    badge: "Reliable",
-    aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"],
-    resolutions: ["2k", "4k"],
-    maxPromptLength: 2000,
-    supportsNegativePrompt: false,
-  },
-  
-  // Black Forest Labs - FLUX.2 Series
-  { 
-    value: "flux-2-dev", 
-    label: "FLUX.2 [dev]", 
-    provider: "Black Forest Labs", 
-    description: "Open weights, full architectural control", 
-    badge: "Dev",
-    aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "21:9"],
-    resolutions: ["custom"],
-    maxPromptLength: 10000,
-    supportsNegativePrompt: false,
-  },
-  { 
-    value: "flux-2-pro", 
-    label: "FLUX.2 [pro]", 
-    provider: "Black Forest Labs", 
-    description: "Production-ready, robust editing", 
-    badge: "Pro",
-    aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
-    resolutions: ["custom"],
-    maxPromptLength: 3000,
-    supportsNegativePrompt: false,
-  },
-  { 
-    value: "flux-2-flex", 
-    label: "FLUX.2 [flex]", 
-    provider: "Black Forest Labs", 
-    description: "Best text rendering, typography specialist", 
-    badge: "Typography",
-    aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
-    resolutions: ["custom"],
-    maxPromptLength: 3000,
-    supportsNegativePrompt: false,
-  },
-  
-  // Other Providers
-  { 
-    value: "midjourney-v7", 
-    label: "Midjourney V7", 
-    provider: "Midjourney", 
-    description: "Cinematic realism, photographic quality", 
-    badge: "Cinematic",
-    aspectRatios: ["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"],
-    resolutions: ["custom"],
-    maxPromptLength: 2000,
-    supportsNegativePrompt: false,
-  },
-  { 
-    value: "ideogram-3.0", 
-    label: "Ideogram 3.0", 
-    provider: "Ideogram", 
-    description: "Sharp text, graphic design specialist", 
-    badge: "Design",
-    aspectRatios: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "5:4", "4:5", "8:5", "5:8", "3:1", "1:3"],
-    resolutions: ["custom"],
-    maxPromptLength: 2000,
-    supportsNegativePrompt: true,
-  },
-];
+// IMAGE_MODELS imported from @/constants/image-models
 
 const MOODS = [
   { id: "calm", label: "Calm", description: "Peaceful and serene" },
@@ -338,7 +199,14 @@ const EASING_STYLES = [
 ];
 
 // Video Animation - Import from shared constants
-import { VIDEO_MODELS as IMPORTED_VIDEO_MODELS, getVideoModelConfig, getDefaultVideoModel, VIDEO_RESOLUTION_LABELS } from "@/constants/video-models";
+import { 
+  VIDEO_MODELS as IMPORTED_VIDEO_MODELS, 
+  getVideoModelConfig, 
+  getDefaultVideoModel, 
+  getAvailableVideoModels,
+  isModelCompatible,
+  VIDEO_RESOLUTION_LABELS 
+} from "@/constants/video-models";
 
 const TRANSITION_STYLES = [
   { id: "auto", label: "Auto", description: "AI selects best transition per scene" },
@@ -595,6 +463,9 @@ export function AtmosphereTab({
   const timeContexts = getTimeContexts();
   const seasons = getSeasons();
 
+  // Get filtered video models based on video generation mode
+  const availableVideoModels = getAvailableVideoModels(videoGenerationMode);
+
   // Auto-adjust time and season when theme changes
   useEffect(() => {
     const validTimeIds = timeContexts.map((t) => t.id);
@@ -610,6 +481,33 @@ export function AtmosphereTab({
       onSeasonChange(seasons[0].id);
     }
   }, [theme]); // Only run when theme changes
+
+  // Auto-adjust video model when video generation mode changes
+  useEffect(() => {
+    if (animationMode === 'video-animation' && videoGenerationMode && videoModel) {
+      // Check if current model is compatible with the mode
+      if (!isModelCompatible(videoModel, videoGenerationMode)) {
+        console.log(`[AtmosphereTab] Video model ${videoModel} incompatible with ${videoGenerationMode}, switching to compatible model`);
+        
+        // Find a compatible model
+        const compatibleModels = getAvailableVideoModels(videoGenerationMode);
+        if (compatibleModels.length > 0) {
+          const newModel = compatibleModels.find(m => m.default) || compatibleModels[0];
+          onVideoModelChange?.(newModel.value);
+          
+          // Also reset resolution to first available for new model
+          if (!newModel.resolutions.includes(videoResolution)) {
+            onVideoResolutionChange?.(newModel.resolutions[0]);
+          }
+          
+          toast({
+            title: "Video Model Changed",
+            description: `Switched to ${newModel.label} (compatible with ${videoGenerationMode === 'start-end-frame' ? 'Start/End Frame' : 'Image Reference'} mode)`,
+          });
+        }
+      }
+    }
+  }, [videoGenerationMode]); // Only run when video generation mode changes
 
   const handleGenerateIdea = async () => {
     if (!aiPrompt.trim()) return;
@@ -1083,13 +981,26 @@ export function AtmosphereTab({
 
                 {/* Video Generation Mode (only for video animation) */}
                 {animationMode === 'video-animation' && videoGenerationMode && (
-                  <div className="p-3 rounded-lg bg-white/5 border border-white/10">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-white/50">Generation Method:</span>
-                      <span className="text-sm font-medium text-white">
-                        {videoGenerationMode === 'image-reference' ? 'Image Reference Mode' : 'Start/End Frame Mode'}
-                      </span>
+                  <div className="space-y-2">
+                    <div className="p-3 rounded-lg bg-white/5 border border-white/10">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-white/50">Generation Method:</span>
+                        <span className="text-sm font-medium text-white">
+                          {videoGenerationMode === 'image-reference' ? 'Image Reference Mode' : 'Start/End Frame Mode'}
+                        </span>
+                      </div>
                     </div>
+                    
+                    {/* Show compatibility info for start-end-frame mode */}
+                    {videoGenerationMode === 'start-end-frame' && (
+                      <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                        <div className="text-amber-400 mt-0.5">ℹ️</div>
+                        <div className="flex-1 text-xs text-amber-200/90">
+                          <span className="font-semibold">{availableVideoModels.length} of 16 models compatible</span> with Start/End Frame mode.
+                          Models need both start and end frame support.
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1190,7 +1101,7 @@ export function AtmosphereTab({
                           })()}
                         </SelectTrigger>
                         <SelectContent className="max-h-[400px] bg-[#0a0a0a] border-white/10">
-                          {IMPORTED_VIDEO_MODELS.map((model) => (
+                          {availableVideoModels.map((model) => (
                             <SelectItem 
                               key={model.value} 
                               value={model.value}
@@ -1203,6 +1114,11 @@ export function AtmosphereTab({
                                     {model.default && (
                                       <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-amber-500/50 text-amber-300">
                                         Default
+                                      </Badge>
+                                    )}
+                                    {model.hasAudio && (
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/50 text-purple-300">
+                                        🎵 Audio
                                       </Badge>
                                     )}
                                     {model.badge && !model.default && (

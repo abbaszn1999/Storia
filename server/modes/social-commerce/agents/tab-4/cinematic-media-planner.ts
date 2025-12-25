@@ -63,7 +63,6 @@ export interface MediaPlannerOutput {
         product_image_ref?: "heroProfile" | "macroDetail" | "materialReference";
         refer_to_character: boolean;
         refer_to_logo: boolean;
-        focus_anchor: string;
         refer_to_previous_outputs: Array<{
           shot_id: string;
           reason: string;
@@ -101,58 +100,108 @@ export async function planShots(
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // BUILD IMAGE MESSAGES FOR VISION API (OpenAI Responses API format)
+  // BUILD INTERLEAVED CONTENT ARRAY (Best Practice: Label + Image pattern)
   // ═══════════════════════════════════════════════════════════════════════════
   
-  const imageMessages: Array<{ type: "input_image"; image_url: string }> = [];
+  // Build interleaved content array with labels
+  const contentArray: Array<{ type: "input_text"; text: string } | { type: "input_image"; image_url: string }> = [];
   
-  // Always include hero profile (required)
+  // STEP 1: Image Mapping Header
+  let mappingText = "I am providing visual assets for shot planning. Map: ";
+  const imageLabels: string[] = [];
+  let imageIndex = 1;
+  
   if (input.productImages.heroProfile) {
-    imageMessages.push({
+    imageLabels.push(`Image ${imageIndex} = Product Hero Profile (primary product view for most shots)`);
+    imageIndex++;
+  }
+  if (input.productImages.macroDetail) {
+    imageLabels.push(`Image ${imageIndex} = Product Macro Detail (close-up texture for ECU shots)`);
+    imageIndex++;
+  }
+  if (input.productImages.materialReference) {
+    imageLabels.push(`Image ${imageIndex} = Product Material Reference (surface properties for texture shots)`);
+    imageIndex++;
+  }
+  if (input.characterReferenceUrl) {
+    imageLabels.push(`Image ${imageIndex} = Character Reference (for interaction and lifestyle shots)`);
+    imageIndex++;
+  }
+  if (input.logoUrl) {
+    imageLabels.push(`Image ${imageIndex} = Brand Logo (for branding moments and hero shots)`);
+    imageIndex++;
+  }
+  
+  contentArray.push({
+    type: "input_text",
+    text: mappingText + imageLabels.join(", ") + "."
+  });
+  
+  // STEP 2: Interleave each image with its label
+  if (input.productImages.heroProfile) {
+    contentArray.push({
+      type: "input_text",
+      text: "--- PRODUCT HERO PROFILE (product_image_ref: \"heroProfile\") ---\nPrimary product view showing overall shape, proportions, and main features. Use this for most product shots. When you set refer_to_product=true and product_image_ref=\"heroProfile\", this is the image to reference."
+    });
+    contentArray.push({
       type: "input_image",
       image_url: input.productImages.heroProfile
     });
   }
   
-  // Include macro detail if provided
   if (input.productImages.macroDetail) {
-    imageMessages.push({
+    contentArray.push({
+      type: "input_text",
+      text: "--- PRODUCT MACRO DETAIL (product_image_ref: \"macroDetail\") ---\nClose-up view showing surface texture, micro-features, and craftsmanship details. Use this for ECU shots and texture focus. When you set refer_to_product=true and product_image_ref=\"macroDetail\", this is the image to reference."
+    });
+    contentArray.push({
       type: "input_image",
       image_url: input.productImages.macroDetail
     });
   }
   
-  // Include material reference if provided
   if (input.productImages.materialReference) {
-    imageMessages.push({
+    contentArray.push({
+      type: "input_text",
+      text: "--- PRODUCT MATERIAL REFERENCE (product_image_ref: \"materialReference\") ---\nTexture and material focus showing surface properties and material behavior. Use this for material-specific shots. When you set refer_to_product=true and product_image_ref=\"materialReference\", this is the image to reference."
+    });
+    contentArray.push({
       type: "input_image",
       image_url: input.productImages.materialReference
     });
   }
   
-  // Include character reference if provided
   if (input.characterReferenceUrl) {
-    imageMessages.push({
+    contentArray.push({
+      type: "input_text",
+      text: "--- CHARACTER REFERENCE (refer_to_character: true) ---\nCharacter reference image showing appearance, interaction possibilities, and physical characteristics. Use when refer_to_character is true for interaction shots, lifestyle moments, and product-in-use scenes."
+    });
+    contentArray.push({
       type: "input_image",
       image_url: input.characterReferenceUrl
     });
   }
   
-  // Include logo if provided
   if (input.logoUrl) {
-    imageMessages.push({
+    contentArray.push({
+      type: "input_text",
+      text: "--- BRAND LOGO (refer_to_logo: true) ---\nBrand logo image showing shape, placement, and integration options. Use when refer_to_logo is true for branding moments, hero shots, and final payoff scenes."
+    });
+    contentArray.push({
       type: "input_image",
       image_url: input.logoUrl
     });
   }
   
-  console.log(`[social-commerce:agent-4.1] Sending ${imageMessages.length} image(s) to GPT-4o Vision`);
-  
-  // ═══════════════════════════════════════════════════════════════════════════
-  // BUILD USER PROMPT
-  // ═══════════════════════════════════════════════════════════════════════════
-  
+  // STEP 3: Main user prompt (after all images)
   const userPrompt = buildMediaPlannerUserPrompt(input);
+  contentArray.push({
+    type: "input_text",
+    text: userPrompt
+  });
+  
+  const imageCount = imageIndex - 1;
+  console.log(`[social-commerce:agent-4.1] Sending ${imageCount} image(s) to GPT-4o Vision with interleaved pattern`);
   
   // ═══════════════════════════════════════════════════════════════════════════
   // CALL GPT-4O VISION WITH JSON SCHEMA
@@ -163,10 +212,7 @@ export async function planShots(
       { role: 'system', content: MEDIA_PLANNER_SYSTEM_PROMPT },
       {
         role: 'user',
-        content: [
-          ...imageMessages,
-          { type: "input_text", text: userPrompt }
-        ]
+        content: contentArray
       }
     ],
     text: {

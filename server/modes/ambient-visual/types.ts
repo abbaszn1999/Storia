@@ -234,6 +234,7 @@ export interface ShotComposerInput {
   animationMode: AnimationMode;
   artStyle?: string;
   visualElements?: string[];
+  videoModel?: string;  // Video model from step1Data
 }
 
 export interface ShotComposerOutput {
@@ -278,6 +279,10 @@ export interface Step3Data {
 /**
  * Input for video prompt engineer (Agent 4.1)
  * Generates optimized prompts for image and video generation
+ * 
+ * Conditional output based on animationMode:
+ * - image-transitions: outputs imagePrompt only
+ * - video-animation: outputs startFramePrompt, endFramePrompt, videoPrompt
  */
 export interface VideoPromptEngineerInput {
   // Shot context
@@ -307,13 +312,13 @@ export interface VideoPromptEngineerInput {
   referenceImageUrls?: string[];
   imageCustomInstructions?: string;
   
-  // Video Animation specific
-  animationMode: 'video-animation';
-  videoGenerationMode?: VideoGenerationMode;
+  // Animation mode determines output format
+  animationMode: AnimationMode;  // 'image-transitions' | 'video-animation'
+  videoGenerationMode?: VideoGenerationMode;  // Only used for video-animation
   motionPrompt?: string;
   cameraMotion?: string;
   
-  // For connected shots (Start-End Frame mode)
+  // For connected shots (Start-End Frame mode in video-animation)
   isFirstInGroup?: boolean;
   isConnectedShot?: boolean;
   previousShotEndFramePrompt?: string;  // End frame prompt from previous shot (for inheritance)
@@ -322,14 +327,128 @@ export interface VideoPromptEngineerInput {
 /**
  * Output from video prompt engineer (Agent 4.1)
  * Returns optimized prompts for downstream agents
+ * 
+ * Conditional fields based on animationMode:
+ * - image-transitions: imagePrompt only
+ * - video-animation: startFramePrompt, endFramePrompt, videoPrompt only
  */
 export interface VideoPromptEngineerOutput {
-  imagePrompt: string;        // Main image generation prompt
-  videoPrompt: string;        // Motion/animation instructions
-  negativePrompt: string;     // Elements to avoid
-  startFramePrompt: string;   // Specific prompt for start frame
-  endFramePrompt: string;     // Specific prompt for end frame
+  // For Image Transitions mode only
+  imagePrompt?: string;        // Main image generation prompt (image-transitions only)
+  
+  // For Video Animation mode only (both image-reference and start-end-frame)
+  startFramePrompt?: string;   // Specific prompt for start frame
+  endFramePrompt?: string;     // Specific prompt for end frame
+  videoPrompt?: string;        // Motion/animation instructions
+  
   cost?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VIDEO IMAGE GENERATOR - AI INPUT/OUTPUT (Agent 4.2)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for video image generator (Agent 4.2)
+ * Generates keyframe images using Runware API
+ * 
+ * Conditional behavior based on animationMode and continuity:
+ * - image-transitions: Generate single image from imagePrompt
+ * - video-animation (standalone/first): Generate START frame, then END frame using START as reference
+ * - video-animation (continuity subsequent): Inherit START from previous END, generate END only
+ */
+export interface VideoImageGeneratorInput {
+  // Shot identification
+  shotId: string;
+  shotNumber: number;
+  sceneId: string;
+  
+  // Prompts from Agent 4.1
+  imagePrompt?: string;          // For image-transitions mode
+  startFramePrompt?: string;     // For video-animation mode
+  endFramePrompt?: string;       // For video-animation mode
+  
+  // Animation mode (determines generation logic)
+  animationMode: AnimationMode;
+  videoGenerationMode?: VideoGenerationMode;
+  
+  // Image generation settings (from Step 1 Atmosphere)
+  imageModel: string;            // e.g., "flux-2-dev", "midjourney-v7"
+  aspectRatio: string;           // e.g., "16:9", "9:16", "1:1"
+  imageResolution: string;       // e.g., "1k", "2k", "4k"
+  
+  // Continuity context
+  isFirstInGroup?: boolean;      // True if first shot in continuity group
+  isConnectedShot?: boolean;     // True if part of a continuity group
+  previousShotEndFrameUrl?: string;  // URL of previous shot's end frame (for inheritance)
+  inheritStartFrame?: boolean;   // True if should inherit start from previous shot's end
+}
+
+/**
+ * Output from video image generator (Agent 4.2)
+ * Returns generated image URLs to be stored in ShotVersion
+ */
+export interface VideoImageGeneratorOutput {
+  shotId: string;
+  
+  // For image-transitions mode
+  imageUrl?: string;             // Single generated image
+  
+  // For video-animation mode
+  startFrameUrl?: string;        // Generated or inherited start frame
+  endFrameUrl?: string;          // Generated end frame
+  startFrameInherited?: boolean; // True if start was inherited from previous shot
+  
+  // Generation metadata
+  width?: number;
+  height?: number;
+  seed?: number;
+  cost?: number;
+  error?: string;                // Error message if generation failed
+}
+
+/**
+ * Batch input for generating all images for a video
+ */
+export interface VideoImageGeneratorBatchInput {
+  videoId: string;
+  
+  // Settings from Step 1 (Atmosphere)
+  imageModel: string;
+  aspectRatio: string;
+  imageResolution: string;
+  animationMode: AnimationMode;
+  videoGenerationMode?: VideoGenerationMode;
+  
+  // Shots to process (in order for continuity)
+  shots: Array<{
+    shotId: string;
+    shotNumber: number;
+    sceneId: string;
+    versionId: string;
+    imagePrompt?: string;
+    startFramePrompt?: string;
+    endFramePrompt?: string;
+    
+    // Continuity info
+    groupId?: string;
+    isFirstInGroup?: boolean;
+    previousShotId?: string;
+  }>;
+  
+  // Approved continuity groups
+  continuityGroups?: ContinuityGroup[];
+}
+
+/**
+ * Batch output from image generation
+ */
+export interface VideoImageGeneratorBatchOutput {
+  videoId: string;
+  results: VideoImageGeneratorOutput[];
+  totalCost?: number;
+  successCount: number;
+  failureCount: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -340,7 +459,15 @@ export interface Step4Data {
   // Per-shot version data (keyed by shotId)
   shotVersions: Record<string, ShotVersion[]>;
   
-  // Per-scene settings overrides
+  // Scenes with model settings (initialized from step1Data by Agent 4.1)
+  // Same structure as Scene, used for model overrides in Compose phase
+  scenes?: Scene[];
+  
+  // Shots with model settings (initialized from step1Data by Agent 4.1)
+  // Same structure as Shot, keyed by sceneId
+  shots?: Record<string, Shot[]>;
+  
+  // Per-scene settings overrides (deprecated, use scenes[] instead)
   sceneSettings?: Record<string, {
     imageModel?: string;
     videoModel?: string;

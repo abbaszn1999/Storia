@@ -489,6 +489,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
           aspectRatio: state.aspectRatio,
           imageStyle: state.imageStyle,
           styleReferenceUrl: state.styleReferenceUrl || undefined, // Custom style reference
+          characterReferenceUrl: state.characterReferenceUrl || undefined, // Character reference
           imageModel: state.imageModel,
           imageResolution: state.imageResolution,
           projectName: state.projectFolder,

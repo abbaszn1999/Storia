@@ -196,7 +196,7 @@ function buildImagePayload(
     }
     
     // Add to payload if we have any valid references
-    // Format depends on model's referenceImageFormat setting
+    // All models now use inputs.referenceImages format
     if (referenceImages.length > 0) {
       if (referenceImageFormat === 'inputs-with-tags') {
         // Runway Gen-4 Image & Turbo: need inputs.referenceImages with tags
@@ -213,16 +213,12 @@ function buildImagePayload(
           })
         };
         console.log(`[image-generator] Scene ${scene.sceneNumber} using inputs.referenceImages with tags (${referenceImages.length}/${maxReferenceImages}):`, payload.inputs.referenceImages);
-      } else if (referenceImageFormat === 'inputs') {
-        // Kling IMAGE O1, Seedream 4.5, FLUX.2 [max]: need inputs.referenceImages (array of URLs)
+      } else {
+        // All other models: use inputs.referenceImages (array of URLs)
         payload.inputs = {
           referenceImages: referenceImages
         };
         console.log(`[image-generator] Scene ${scene.sceneNumber} using inputs.referenceImages (${referenceImages.length}/${maxReferenceImages}):`, referenceImages);
-      } else {
-        // Direct format: OpenAI, Nano Banana, Seedream 4.0, FLUX.2 [dev/pro/flex]
-        payload.referenceImages = referenceImages;
-        console.log(`[image-generator] Scene ${scene.sceneNumber} using referenceImages directly (${referenceImages.length}/${maxReferenceImages}):`, referenceImages);
       }
     } else if (styleReferenceUrl || characterReferenceUrl) {
       console.warn(`[image-generator] Scene ${scene.sceneNumber} reference images were provided but none were valid/added`);

@@ -15,10 +15,20 @@ import { bunnyStorage } from '../../../storage/bunny-storage';
 import { isAuthenticated, getCurrentUserId } from '../../../auth';
 import { SOCIAL_COMMERCE_CONFIG } from '../config';
 import { optimizeStrategicContext } from '../agents';
+import { generateShotPrompts, detectCondition, postProcessPrompts } from '../agents/tab-5/prompt-architect';
 import type {
   CreateVideoRequest,
   Step1Data,
   StrategicContextInput,
+  PromptArchitectInput,
+  ShotPrompts,
+  SceneDefinition,
+  ShotDefinition,
+  Step1Data as Step1DataType,
+  Step2Data,
+  Step3Data,
+  Step4Data,
+  Step5Data,
 } from '../types';
 
 const router = Router();
@@ -2474,7 +2484,7 @@ router.patch('/videos/:id/step/3/continue', isAuthenticated, async (req: Request
 router.patch('/videos/:id/step/4/continue', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user?.id;
+    const userId = getCurrentUserId(req);
     
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -2696,8 +2706,522 @@ router.patch('/videos/:id/step/4/continue', isAuthenticated, async (req: Request
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// STEP 5: MEDIA PLANNING & GENERATION (Placeholder - Sprint 6)
+// STEP 5: PROMPT GENERATION (Agent 5.1)
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/social-commerce/videos/:id/step/5/generate-prompts
+ * Generate prompts for all shots using Agent 5.1
+ */
+router.post('/videos/:id/step/5/generate-prompts', isAuthenticated, async (req: Request, res: Response) => {
+  const startTime = Date.now();
+  let currentShotId: string | null = null;
+  
+  try {
+    const { id } = req.params;
+    const userId = getCurrentUserId(req);
+
+    console.log('[social-commerce:agent-5.1] Starting prompt generation request:', {
+      videoId: id,
+      userId,
+      timestamp: new Date().toISOString(),
+    });
+
+    if (!userId) {
+      console.error('[social-commerce:agent-5.1] Unauthorized request - no userId');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const video = await storage.getVideo(id);
+    if (!video) {
+      console.error('[social-commerce:agent-5.1] Video not found:', id);
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    const workspaceId = video.workspaceId;
+    console.log('[social-commerce:agent-5.1] Video loaded:', {
+      videoId: id,
+      workspaceId,
+      hasStep1Data: !!video.step1Data,
+      hasStep2Data: !!video.step2Data,
+      hasStep3Data: !!video.step3Data,
+      hasStep4Data: !!video.step4Data,
+    });
+
+    // Validate prerequisites
+    if (!video.step1Data || !video.step2Data || !video.step3Data || !video.step4Data) {
+      const missing = [
+        !video.step1Data && 'step1Data',
+        !video.step2Data && 'step2Data',
+        !video.step3Data && 'step3Data',
+        !video.step4Data && 'step4Data',
+      ].filter(Boolean);
+      
+      console.error('[social-commerce:agent-5.1] Missing prerequisite data:', { missing });
+      return res.status(400).json({
+        error: 'Missing prerequisite data',
+        missing,
+        details: 'Please complete all previous steps before generating prompts',
+      });
+    }
+
+    const step1Data = video.step1Data as Step1DataType;
+    const step2Data = video.step2Data as Step2Data;
+    const step3Data = video.step3Data as Step3Data;
+    const step4Data = video.step4Data as Step4Data;
+
+    // Validate step4Data structure
+    if (!step4Data.mediaPlanner || !step4Data.timing) {
+      console.error('[social-commerce:agent-5.1] Missing step4Data structure:', {
+        hasMediaPlanner: !!step4Data.mediaPlanner,
+        hasTiming: !!step4Data.timing,
+      });
+      return res.status(400).json({
+        error: 'Missing step4Data.mediaPlanner or step4Data.timing',
+        details: 'Step 4 data is incomplete. Please regenerate scenes and timing.',
+      });
+    }
+
+    if (!Array.isArray(step4Data.mediaPlanner.scenes) || step4Data.mediaPlanner.scenes.length === 0) {
+      console.error('[social-commerce:agent-5.1] No scenes found in step4Data');
+      return res.status(400).json({
+        error: 'No scenes found',
+        details: 'Step 4 must contain at least one scene with shots.',
+      });
+    }
+
+    if (!step4Data.timing.temporal_map || !Array.isArray(step4Data.timing.temporal_map)) {
+      console.error('[social-commerce:agent-5.1] Missing or invalid temporal_map');
+      return res.status(400).json({
+        error: 'Missing timing data',
+        details: 'Step 4 timing data is missing or invalid.',
+      });
+    }
+
+    const scenes = step4Data.mediaPlanner.scenes;
+    const timing = step4Data.timing;
+
+    console.log('[social-commerce:agent-5.1] Step 4 data validated:', {
+      sceneCount: scenes.length,
+      timingEntryCount: timing.temporal_map.length,
+    });
+
+    // Flatten all shots in timeline order
+    const allShots: Array<{ shot: ShotDefinition; timing: any; scene: SceneDefinition }> = [];
+    const shotsWithoutTiming: string[] = [];
+    
+    for (const scene of scenes) {
+      if (!Array.isArray(scene.shots)) {
+        console.warn(`[social-commerce:agent-5.1] Scene ${scene.scene_id} has no shots array`);
+        continue;
+      }
+      
+      for (const shot of scene.shots) {
+        const shotTiming = timing.temporal_map.find((t) => t.shot_id === shot.shot_id);
+        if (shotTiming) {
+          allShots.push({ shot, timing: shotTiming, scene });
+        } else {
+          shotsWithoutTiming.push(shot.shot_id);
+          console.warn(`[social-commerce:agent-5.1] Shot ${shot.shot_id} has no timing entry`);
+        }
+      }
+    }
+
+    if (shotsWithoutTiming.length > 0) {
+      console.error('[social-commerce:agent-5.1] Shots missing timing data:', shotsWithoutTiming);
+      return res.status(400).json({
+        error: 'Some shots are missing timing data',
+        details: `${shotsWithoutTiming.length} shot(s) do not have timing entries. Please regenerate timing.`,
+        missingShots: shotsWithoutTiming,
+      });
+    }
+
+    if (allShots.length === 0) {
+      console.error('[social-commerce:agent-5.1] No shots found with valid timing');
+      return res.status(400).json({
+        error: 'No shots found',
+        details: 'No shots with valid timing data were found. Please ensure scenes have shots and timing is generated.',
+      });
+    }
+
+    // Sort by scene_id and shot_id to ensure timeline order
+    allShots.sort((a, b) => {
+      const sceneCompare = a.scene.scene_id.localeCompare(b.scene.scene_id);
+      if (sceneCompare !== 0) return sceneCompare;
+      return a.shot.shot_id.localeCompare(b.shot.shot_id);
+    });
+
+    console.log(`[social-commerce:agent-5.1] Processing ${allShots.length} shots sequentially`, {
+      shotIds: allShots.map(s => s.shot.shot_id),
+    });
+
+    // Sequential processing: one shot at a time
+    const shotPrompts: Record<string, ShotPrompts> = {};
+    const step5Data: Step5Data = video.step5Data || {};
+
+    for (let i = 0; i < allShots.length; i++) {
+      const { shot, timing: shotTiming, scene } = allShots[i];
+      currentShotId = shot.shot_id;
+      
+      console.log(`[social-commerce:agent-5.1] Processing shot ${shot.shot_id} (${i + 1}/${allShots.length})`, {
+        shotType: shot.generation_mode?.shot_type,
+        isConnected: shot.continuity_logic?.is_connected_to_previous,
+        sceneId: scene.scene_id,
+        duration: shotTiming?.rendered_duration,
+      });
+
+      try {
+        // Get previous shot prompts if connected
+        let previousShotPrompts: ShotPrompts | undefined;
+        if (shot.continuity_logic?.is_connected_to_previous && i > 0) {
+          const previousShot = allShots[i - 1];
+          previousShotPrompts = shotPrompts[previousShot.shot.shot_id];
+          if (!previousShotPrompts) {
+            throw new Error(`Previous shot ${previousShot.shot.shot_id} prompts not found for connected shot`);
+          }
+          console.log(`[social-commerce:agent-5.1] Using previous shot prompts from ${previousShot.shot.shot_id}`);
+        }
+
+        // Assemble input (pass all shots with their timing)
+        console.log(`[social-commerce:agent-5.1] Assembling input for shot ${shot.shot_id}...`);
+        const input = assemblePromptArchitectInput(
+          shot,
+          shotTiming,
+          scene,
+          scenes,
+          allShots,
+          step1Data,
+          step2Data,
+          step3Data,
+          previousShotPrompts
+        );
+
+        // Generate prompts
+        console.log(`[social-commerce:agent-5.1] Calling generateShotPrompts for shot ${shot.shot_id}...`);
+        const prompts = await generateShotPrompts(input, userId, workspaceId);
+
+        // Post-process: Auto-append @Style if style uploaded
+        const hasStyleUploaded = step3Data.uiInputs?.styleReferenceUrl != null;
+        const processedPrompts = postProcessPrompts(prompts, hasStyleUploaded);
+
+        // Store result
+        shotPrompts[shot.shot_id] = processedPrompts;
+        console.log(`[social-commerce:agent-5.1] Successfully generated prompts for shot ${shot.shot_id}`);
+
+        // Save to database after each shot (for recovery)
+        const updatedStep5Data: Step5Data = {
+          ...step5Data,
+          shotPrompts: {
+            ...(step5Data.shotPrompts || {}),
+            [shot.shot_id]: processedPrompts,
+          },
+        };
+
+        await storage.updateVideo(id, {
+          step5Data: updatedStep5Data,
+        });
+
+        step5Data.shotPrompts = updatedStep5Data.shotPrompts;
+      } catch (shotError) {
+        const errorMessage = shotError instanceof Error ? shotError.message : String(shotError);
+        console.error(`[social-commerce:agent-5.1] Error processing shot ${shot.shot_id}:`, {
+          error: errorMessage,
+          shotId: shot.shot_id,
+          shotIndex: i + 1,
+          totalShots: allShots.length,
+          stack: shotError instanceof Error ? shotError.stack : undefined,
+        });
+        
+        // Return detailed error with context
+        return res.status(500).json({
+          error: 'Failed to generate prompts',
+          details: errorMessage,
+          shotId: shot.shot_id,
+          shotIndex: i + 1,
+          totalShots: allShots.length,
+          step: 'generation',
+          completedShots: Object.keys(shotPrompts).length,
+        });
+      }
+    }
+
+    // Update completed steps
+    const completedSteps = Array.isArray(video.completedSteps) ? [...video.completedSteps] : [];
+    if (!completedSteps.includes(5)) {
+      completedSteps.push(5);
+    }
+
+    const finalUpdate = await storage.updateVideo(id, {
+      step5Data,
+      currentStep: 5,
+      completedSteps,
+    });
+
+    const duration = Date.now() - startTime;
+    console.log('[social-commerce:agent-5.1] Successfully generated prompts for all shots:', {
+      videoId: id,
+      shotCount: allShots.length,
+      durationMs: duration,
+      durationSeconds: (duration / 1000).toFixed(2),
+    });
+
+    res.json({
+      success: true,
+      step5Data,
+      currentStep: 5,
+      shotCount: allShots.length,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    console.error('[social-commerce:agent-5.1] Error generating prompts:', {
+      error: errorMessage,
+      stack: errorStack,
+      videoId: req.params.id,
+      currentShotId,
+      timestamp: new Date().toISOString(),
+    });
+    
+    res.status(500).json({
+      error: 'Failed to generate prompts',
+      details: errorMessage,
+      shotId: currentShotId || undefined,
+      step: 'generation',
+    });
+  }
+});
+
+/**
+ * Assemble PromptArchitectInput from all context sources
+ */
+function assemblePromptArchitectInput(
+  shot: ShotDefinition,
+  shotTiming: any,
+  currentScene: SceneDefinition,
+  allScenes: SceneDefinition[],
+  allShotsWithTiming: Array<{ shot: ShotDefinition; timing: any; scene: SceneDefinition }>,
+  step1Data: Step1DataType,
+  step2Data: Step2Data,
+  step3Data: Step3Data,
+  previousShotPrompts?: ShotPrompts
+): PromptArchitectInput {
+  // Validate required fields
+  if (!shot?.shot_id) {
+    throw new Error('Shot is missing shot_id');
+  }
+  if (!shot.generation_mode?.shot_type) {
+    throw new Error(`Shot ${shot.shot_id} is missing shot_type`);
+  }
+  if (!shotTiming?.rendered_duration) {
+    throw new Error(`Shot ${shot.shot_id} is missing timing.rendered_duration`);
+  }
+  if (!currentScene?.scene_id) {
+    throw new Error('Current scene is missing scene_id');
+  }
+
+  // Section 1: Strategic Foundation
+  const strategic_foundation = {
+    target_audience: step1Data.targetAudience || '',
+    campaign_objective: (step3Data.uiInputs?.campaignObjective || 'brand-awareness') as
+      | 'brand-awareness'
+      | 'feature-showcase'
+      | 'sales-cta',
+  };
+
+  // Section 2: Narrative Vision
+  const narrative_vision = {
+    creative_spark: step3Data.uiInputs?.campaignSpark || step3Data.creativeSpark?.spark || '',
+    visual_beat_1: step3Data.uiInputs?.visualBeats?.beat1 || '',
+    visual_beat_2: step3Data.uiInputs?.visualBeats?.beat2 || '',
+    visual_beat_3: step3Data.uiInputs?.visualBeats?.beat3 || '',
+  };
+
+  // Section 3: Visual Identity
+  const visual_identity = {
+    style_source: (step3Data.uiInputs?.styleReferenceUrl ? 'uploaded' : 'preset') as
+      | 'preset'
+      | 'uploaded',
+    visual_preset: step3Data.uiInputs?.visualPreset,
+    environment_concept: step3Data.uiInputs?.environmentConcept || step3Data.environment?.concept || '',
+    lighting_preset: step3Data.uiInputs?.cinematicLighting || '',
+    atmospheric_density: step3Data.uiInputs?.atmosphericDensity || 50,
+    environment_primary_color: step3Data.uiInputs?.environmentBrandPrimaryColor || '',
+    environment_secondary_color: step3Data.uiInputs?.environmentBrandSecondaryColor || '',
+  };
+
+  // Section 4: Subject Assets
+  const subject_assets: PromptArchitectInput['subject_assets'] = {};
+
+  if (shot.identity_references.refer_to_product && step2Data.product) {
+    const productImageRef = shot.identity_references.product_image_ref || 'heroProfile';
+    let imageUrl: string | undefined;
+    
+    if (productImageRef === 'heroProfile') {
+      imageUrl = step2Data.product.images?.heroProfile || undefined;
+    } else if (productImageRef === 'macroDetail') {
+      imageUrl = step2Data.product.images?.macroDetail || undefined;
+    } else if (productImageRef === 'materialReference') {
+      imageUrl = step2Data.product.images?.materialReference || undefined;
+    }
+
+    if (imageUrl) {
+      subject_assets.product = {
+        image_url: imageUrl,
+        image_ref: productImageRef,
+        material_preset: step2Data.product.material?.preset || 'metallic',
+        object_mass: step2Data.product.material?.objectMass || 50,
+        surface_complexity: step2Data.product.material?.surfaceComplexity || 50,
+        refraction_enabled: step2Data.product.material?.refractionEnabled || false,
+        hero_feature: step2Data.product.material?.heroFeature || '',
+        origin_metaphor: step2Data.product.material?.originMetaphor || '',
+      };
+    }
+  }
+
+  if (shot.identity_references.refer_to_logo && step2Data.brand?.logoUrl) {
+    subject_assets.logo = {
+      image_url: step2Data.brand.logoUrl,
+      brand_primary_color: step2Data.brand.colors?.primary || '',
+      brand_secondary_color: step2Data.brand.colors?.secondary || '',
+      logo_integrity: step2Data.brand.logo?.integrity || 5,
+      logo_depth: step2Data.brand.logo?.depth?.toString() || 'flat',
+    };
+  }
+
+  if (shot.identity_references.refer_to_character && step2Data.character?.referenceUrl) {
+    subject_assets.character = {
+      image_url: step2Data.character.referenceUrl,
+      character_mode: step2Data.character.mode || 'hand-model',
+      character_description: step2Data.character.description || '',
+    };
+  }
+
+  if (step3Data.uiInputs?.styleReferenceUrl) {
+    subject_assets.style_reference = {
+      image_url: step3Data.uiInputs.styleReferenceUrl,
+    };
+  }
+
+  // Previous shot outputs (@Shot_X references)
+  if (
+    shot.identity_references.refer_to_previous_outputs &&
+    shot.identity_references.refer_to_previous_outputs.length > 0
+  ) {
+    // Note: These will be populated by Agent 5.2 when it generates outputs
+    // For now, we'll leave them empty - Agent 5.2 will handle @Shot_X references
+    subject_assets.previous_shots = shot.identity_references.refer_to_previous_outputs.map((ref) => ({
+      shot_id: ref.shot_id,
+      shot_image_url: '', // Will be populated by Agent 5.2
+      reference_type: ref.reference_type,
+      reason: ref.reason,
+    }));
+  }
+
+  // Section 5: Scene Context
+  const scene_context: PromptArchitectInput['scene_context'] = {
+    all_scenes: allScenes.map((s) => ({
+      scene_id: s.scene_id,
+      scene_name: s.scene_name,
+      scene_description: s.scene_description,
+    })),
+    all_shots: allShotsWithTiming.map((s) => ({
+      scene_id: s.scene?.scene_id || '',
+      shot_id: s.shot?.shot_id || '',
+      shot_name: s.shot?.brief_description || '',
+      shot_description: s.shot?.brief_description || '',
+      shot_type: s.shot?.generation_mode?.shot_type || 'IMAGE_REF',
+      camera_path: s.shot?.technical_cinematography?.camera_movement || 'static',
+      lens: s.shot?.technical_cinematography?.lens || '50mm',
+      framing: s.shot?.technical_cinematography?.framing || 'medium',
+      motion_intensity: s.shot?.technical_cinematography?.motion_intensity || 50,
+      duration: s.timing?.rendered_duration || 5.0,
+      is_connected_to_previous: s.shot?.continuity_logic?.is_connected_to_previous || false,
+      connects_to_next: s.shot?.continuity_logic?.is_connected_to_next || false,
+    })),
+    current_scene: {
+      scene_id: currentScene.scene_id,
+      scene_name: currentScene.scene_name,
+      scene_description: currentScene.scene_description,
+      scene_position: `${allScenes.indexOf(currentScene) + 1} of ${allScenes.length}`,
+      is_first_scene: allScenes.indexOf(currentScene) === 0,
+      is_last_scene: allScenes.indexOf(currentScene) === allScenes.length - 1,
+    },
+  };
+
+  // Section 6: Target Shot
+  const sceneShots = currentScene.shots || [];
+  const shotIndex = sceneShots.findIndex(s => s.shot_id === shot.shot_id);
+  const target_shot: PromptArchitectInput['target_shot'] = {
+    shot_id: shot.shot_id,
+    shot_name: shot.brief_description || '',
+    description: shot.brief_description || '',
+    framing: shot.technical_cinematography?.framing || 'medium',
+    camera_path: shot.technical_cinematography?.camera_movement || 'static',
+    lens: shot.technical_cinematography?.lens || '50mm',
+    motion_intensity: shot.technical_cinematography?.motion_intensity || 50,
+    shot_type: shot.generation_mode?.shot_type || 'IMAGE_REF',
+    shot_type_reason: shot.generation_mode?.reason || '',
+    is_connected_to_previous: shot.continuity_logic?.is_connected_to_previous || false,
+    connects_to_next: shot.continuity_logic?.is_connected_to_next || false,
+    rendered_duration: shotTiming?.rendered_duration || 5.0,
+    multiplier: shotTiming?.multiplier || 1.0,
+    curve_type: shotTiming?.speed_curve || 'linear',
+    frame_consistency_scale: 0.8, // Default, can be from vfxSeeds
+    motion_blur_intensity: 0.5, // Default
+    temporal_coherence_weight: 0.8, // Default
+    shot_position_in_scene: `${shotIndex >= 0 ? shotIndex + 1 : 1} of ${sceneShots.length}`,
+    is_first_in_scene: shotIndex === 0,
+    is_last_in_scene: shotIndex === sceneShots.length - 1,
+    previous_shot_summary:
+      shotIndex > 0 && sceneShots[shotIndex - 1]?.brief_description
+        ? sceneShots[shotIndex - 1].brief_description
+        : undefined,
+    next_shot_summary:
+      shotIndex < sceneShots.length - 1 && sceneShots[shotIndex + 1]?.brief_description
+        ? sceneShots[shotIndex + 1].brief_description
+        : undefined,
+    // Identity references - which @ tags to use in prompts
+    refer_to_product: shot.identity_references?.refer_to_product || false,
+    product_image_ref: shot.identity_references?.product_image_ref,
+    refer_to_logo: shot.identity_references?.refer_to_logo || false,
+    refer_to_character: shot.identity_references?.refer_to_character || false,
+    refer_to_previous_outputs: shot.identity_references?.refer_to_previous_outputs?.map(ref => ({
+      shot_id: ref.shot_id,
+      reference_type: ref.reference_type,
+    })),
+  };
+
+  // Section 7: Custom Instructions
+  const custom_instructions: PromptArchitectInput['custom_instructions'] = {
+    custom_image_instructions: step1Data.customImageInstructions,
+    global_motion_dna: step1Data.customMotionInstructions,
+  };
+
+  // Previous Shot Context (Condition 3 & 4 only)
+  let previous_shot_context: PromptArchitectInput['previous_shot_context'] | undefined;
+  if (previousShotPrompts && shot.continuity_logic?.is_connected_to_previous) {
+    previous_shot_context = {
+      previous_shot_id: previousShotPrompts.shot_id || '',
+      previous_end_frame_prompt:
+        previousShotPrompts.prompts?.end_frame?.text ||
+        previousShotPrompts.prompts?.image?.text ||
+        '',
+      previous_video_prompt: previousShotPrompts.prompts?.video?.text || '',
+    };
+  }
+
+  return {
+    strategic_foundation,
+    narrative_vision,
+    visual_identity,
+    subject_assets,
+    scene_context,
+    target_shot,
+    custom_instructions,
+    previous_shot_context,
+  };
+}
 
 router.patch('/videos/:id/step/5/continue', isAuthenticated, async (req: Request, res: Response) => {
   res.status(501).json({ error: 'Not implemented yet - Sprint 6' });

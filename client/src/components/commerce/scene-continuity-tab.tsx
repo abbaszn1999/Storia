@@ -1640,20 +1640,6 @@ export function SceneContinuityTab({
                 <Clock className="w-3.5 h-3.5 text-orange-400" />
                 <span className="font-mono">{totalDuration.toFixed(1)}s total</span>
               </div>
-              
-              <Button
-                onClick={onNext}
-                disabled={!isValid}
-                size="sm"
-                className={cn(
-                  "h-8 text-xs",
-                  isValid
-                    ? "bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600"
-                    : "bg-white/10 text-white/40 cursor-not-allowed"
-                )}
-              >
-                Continue to Storyboard
-              </Button>
             </div>
           </div>
         </div>

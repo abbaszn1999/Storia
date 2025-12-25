@@ -535,8 +535,157 @@ export interface Step4Data {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// STEP 5: MEDIA PLANNING & GENERATION
+// STEP 5: PROMPT ARCHITECT (AGENT 5.1)
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for Agent 5.1: Prompt Architect
+ */
+export interface PromptArchitectInput {
+  // Section 1: Strategic Foundation
+  strategic_foundation: {
+    target_audience: string;
+    campaign_objective: 'brand-awareness' | 'feature-showcase' | 'sales-cta';
+  };
+  
+  // Section 2: Narrative Vision
+  narrative_vision: {
+    creative_spark: string;
+    visual_beat_1: string;
+    visual_beat_2: string;
+    visual_beat_3: string;
+  };
+  
+  // Section 3: Visual Identity
+  visual_identity: {
+    style_source: 'preset' | 'uploaded';
+    visual_preset?: string;
+    environment_concept: string;
+    lighting_preset: string;
+    atmospheric_density: number;
+    environment_primary_color: string;
+    environment_secondary_color: string;
+  };
+  
+  // Section 4: Subject Assets (images handled separately)
+  subject_assets: {
+    product?: {
+      image_url: string;
+      image_ref: 'heroProfile' | 'macroDetail' | 'materialReference';
+      material_preset: string;
+      object_mass: number;
+      surface_complexity: number;
+      refraction_enabled: boolean;
+      hero_feature: string;
+      origin_metaphor: string;
+    };
+    logo?: {
+      image_url: string;
+      brand_primary_color: string;
+      brand_secondary_color: string;
+      logo_integrity: number;
+      logo_depth: string;
+    };
+    character?: {
+      image_url: string;
+      character_mode: string;
+      character_description: string;
+    };
+    style_reference?: {
+      image_url: string;
+    };
+    previous_shots?: Array<{
+      shot_id: string;
+      shot_image_url: string;
+      reference_type: string;
+      reason: string;
+    }>;
+  };
+  
+  // Section 5: Scene Context
+  scene_context: {
+    // All scenes overview
+    all_scenes: Array<{
+      scene_id: string;
+      scene_name: string;
+      scene_description: string;
+    }>;
+    
+    // All shots in all scenes (complete details, not summaries)
+    all_shots: Array<{
+      scene_id: string;
+      shot_id: string;
+      shot_name: string;
+      shot_description: string;
+      shot_type: 'IMAGE_REF' | 'START_END';
+      camera_path: string;
+      lens: string;
+      framing: string;
+      motion_intensity: number;
+      duration: number;
+      is_connected_to_previous: boolean;
+      connects_to_next: boolean;
+    }>;
+    
+    // Current scene (for context only)
+    current_scene: {
+      scene_id: string;
+      scene_name: string;
+      scene_description: string;
+      scene_position: string;
+      is_first_scene: boolean;
+      is_last_scene: boolean;
+    };
+  };
+  
+  // Section 6: Target Shot
+  target_shot: {
+    shot_id: string;
+    shot_name: string;
+    description: string;
+    framing: string;
+    camera_path: string;
+    lens: string;
+    motion_intensity: number;
+    shot_type: 'IMAGE_REF' | 'START_END';
+    shot_type_reason: string;
+    is_connected_to_previous: boolean;
+    connects_to_next: boolean;
+    rendered_duration: number;
+    multiplier: number;
+    curve_type: string;
+    frame_consistency_scale: number;
+    motion_blur_intensity: number;
+    temporal_coherence_weight: number;
+    shot_position_in_scene: string;
+    is_first_in_scene: boolean;
+    is_last_in_scene: boolean;
+    previous_shot_summary?: string;
+    next_shot_summary?: string;
+    // Identity references - which @ tags to use
+    refer_to_product?: boolean;
+    product_image_ref?: 'heroProfile' | 'macroDetail' | 'materialReference';
+    refer_to_logo?: boolean;
+    refer_to_character?: boolean;
+    refer_to_previous_outputs?: Array<{
+      shot_id: string;
+      reference_type: string;
+    }>;
+  };
+  
+  // Section 7: Custom Instructions
+  custom_instructions: {
+    custom_image_instructions?: string;
+    global_motion_dna?: string;
+  };
+  
+  // Previous Shot Context (Condition 3 & 4 only)
+  previous_shot_context?: {
+    previous_shot_id: string;
+    previous_end_frame_prompt: string;  // Text only - how inherited image was described
+    previous_video_prompt: string;      // Text only - motion that led to end frame
+  };
+}
 
 /**
  * Prompt set from Agent 5.1
@@ -548,9 +697,9 @@ export interface ShotPrompts {
   is_connected: boolean;
   
   prompts: {
-    image: { text: string; tags_used: string[] } | null;
-    start_frame: { text: string; tags_used: string[] } | null;
-    end_frame: { text: string; tags_used: string[] } | null;
+    image: { text: string } | null;
+    start_frame: { text: string } | null;
+    end_frame: { text: string } | null;
     video: { text: string };
   };
   

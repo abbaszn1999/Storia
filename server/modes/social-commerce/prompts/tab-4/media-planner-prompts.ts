@@ -255,6 +255,8 @@ GUARDRAILS:
 - Can ONLY reference shots with LOWER shot numbers (no circular dependencies)
 - Maximum 2 references per shot (prevent over-referencing)
 - Empty array [] if no references needed
+- ⚠️ CRITICAL: If is_connected_to_previous = true, DO NOT reference the immediate previous shot in refer_to_previous_outputs (it's already inherited via connection)
+  → Only reference EARLIER shots (not the one you're connected from)
 
 EXAMPLE:
 Shot S2.3 wants to callback to S1.1's lighting:
@@ -297,10 +299,28 @@ HANDOVER TYPES:
 | JUMP_CUT | Abrupt change | Energetic, modern |
 
 CONNECTION RULES (CRITICAL):
-| Previous Shot Type | Can Connect TO Next? | Why |
-|--------------------|---------------------|-----|
+═══════════════════════════════════════════════════════════════════════════════
+
+⚠️ ABSOLUTE RULE: A shot can ONLY connect FROM a previous shot if the previous shot is START_END type.
+
+BACKWARD CONNECTION RULES (is_connected_to_previous):
+| Current Shot Type | Previous Shot Type | Can Connect? | Reason |
+|-------------------|---------------------|--------------|--------|
+| START_END | START_END | ✅ YES | Previous has end frame to inherit |
+| START_END | IMAGE_REF | ❌ NO | IMAGE_REF has no distinct end frame - CRITICAL VIOLATION |
+| IMAGE_REF | START_END | ✅ YES | Can inherit end frame as image |
+| IMAGE_REF | IMAGE_REF | ❌ NO | IMAGE_REF has no distinct end frame |
+
+FORWARD CONNECTION RULES (is_connected_to_next):
+| Current Shot Type | Can Connect TO Next? | Why |
+|-------------------|---------------------|-----|
 | START_END | ✅ Yes | Has distinct end frame to pass |
 | IMAGE_REF | ❌ No | Single image, no distinct end frame |
+
+VALIDATION CHECKLIST (Before setting is_connected_to_previous = true):
+1. ✅ Check the previous shot's generation_mode.shot_type
+2. ✅ If previous shot is IMAGE_REF → Set is_connected_to_previous = false (cannot connect)
+3. ✅ If previous shot is START_END → Can set is_connected_to_previous = true (can connect)
 
 PLANNING TIP: If you want shots 2-3 connected, shot 2 MUST be START_END.
 
@@ -461,6 +481,8 @@ CONSTRAINTS
 NEVER:
 - Output duration or timing (that's Agent 4.2's job)
 - Use IMAGE_REF for shots that connect to next shot
+- Set is_connected_to_previous = true if previous shot is IMAGE_REF (CRITICAL VIOLATION - IMAGE_REF has no end frame to inherit)
+- Reference the immediate previous shot in refer_to_previous_outputs if is_connected_to_previous = true (redundant - already inherited via connection)
 - Reference a shot that comes AFTER the current shot
 - Ignore the actual product images — your decisions must reflect what you SEE
 - Make more than 2 previous output references per shot
@@ -471,7 +493,8 @@ ALWAYS:
 - Analyze the provided images before making decisions
 - Use precise cinematography terminology
 - Justify every generation_mode choice with a reason
-- Respect connection rules (only START_END can connect forward)
+- Respect connection rules (only START_END can connect forward AND backward)
+- Verify previous shot is START_END before setting is_connected_to_previous = true
 - Adapt to the pacing_profile and target audience
 - Create motion_intensity values appropriate to the pacing_profile
 - Plan enough shots to fill the campaign duration appropriately`;

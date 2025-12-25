@@ -76,11 +76,18 @@ export { calculateVfxSeeds } from './tab-4/vfx-seeds-calculator';
 export type { VfxSeeds, ShotForVfx } from './tab-4/vfx-seeds-calculator';
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TAB 5: MEDIA PLANNING & GENERATION
+// TAB 5: PROMPT GENERATION & EXECUTION
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // Agent 5.1: Prompt Architect
-// export { generatePrompts } from './tab-5/prompt-architect';
+export { 
+  generateShotPrompts, 
+  detectCondition, 
+  postProcessPrompts, 
+  buildImageAttachments, 
+  validateShotPromptsOutput 
+} from './tab-5/prompt-architect';
+export type { PromptArchitectInput, ShotPrompts } from '../../types';
 
 // Agent 5.2: Execution Orchestrator (Algorithmic)
 // export { executeGeneration } from './tab-5/execution-orchestrator';

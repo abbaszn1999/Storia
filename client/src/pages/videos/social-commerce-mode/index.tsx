@@ -309,7 +309,7 @@ export default function SocialCommerceMode() {
           id: shot.id,
           sceneId: scene.id,
           shotNumber: shotIdx + 1,
-          shotType: shot.name.split(':')[1]?.trim() || 'Product View',
+          shotType: shot.shotType || 'image-ref', // Use shotType from sceneManifest (image-ref or start-end)
           cameraMovement: shot.cameraPath,
           duration: shot.duration,
           description: shot.description,
@@ -417,6 +417,67 @@ export default function SocialCommerceMode() {
   useEffect(() => {
     updateValidation();
   }, [activeStep, imageModel, videoModel, aspectRatio, duration, motionPrompt, targetAudience, productImages, materialPreset, includeHumanElement, characterMode, environmentConcept, campaignSpark, sceneManifest]);
+
+  // Helper function to determine condition from shot
+  const determineCondition = (shot: any): 1 | 2 | 3 | 4 => {
+    const isImageRef = shot.shotType === 'image-ref';
+    const isConnected = shot.isLinkedToPrevious;
+    
+    if (isImageRef && !isConnected) return 1;
+    if (!isImageRef && !isConnected) return 2;
+    if (!isImageRef && isConnected) return 3;
+    if (isImageRef && isConnected) return 4;
+    return 1; // Default fallback
+  };
+  
+  // Helper function to create ShotVersion from Agent 5.1 prompts
+  const createShotVersionFromPrompts = (
+    shotId: string,
+    shotPrompts: any,
+    condition: 1 | 2 | 3 | 4
+  ): ShotVersion => {
+    const baseVersion: ShotVersion = {
+      id: `version-${shotId}-1`,
+      shotId: shotId,
+      versionNumber: 1,
+      status: 'pending',
+      needsRerender: false,
+      createdAt: new Date(),
+    };
+    
+    // Map prompts based on condition
+    switch (condition) {
+      case 1:
+        return {
+          ...baseVersion,
+          imagePrompt: shotPrompts.prompts?.image?.text || null,
+          videoPrompt: shotPrompts.prompts?.video?.text || null,
+        };
+      case 2:
+        return {
+          ...baseVersion,
+          startFramePrompt: shotPrompts.prompts?.start_frame?.text || null,
+          endFramePrompt: shotPrompts.prompts?.end_frame?.text || null,
+          videoPrompt: shotPrompts.prompts?.video?.text || null,
+        };
+      case 3:
+        return {
+          ...baseVersion,
+          startFramePrompt: null, // Inherited - will be set from previous shot
+          startFrameInherited: true,
+          endFramePrompt: shotPrompts.prompts?.end_frame?.text || null,
+          videoPrompt: shotPrompts.prompts?.video?.text || null,
+        };
+      case 4:
+        return {
+          ...baseVersion,
+          imagePrompt: null, // Inherited
+          videoPrompt: shotPrompts.prompts?.video?.text || null,
+        };
+      default:
+        return baseVersion;
+    }
+  };
 
   // Capture snapshot when navigating to a completed step
   useEffect(() => {
@@ -607,9 +668,10 @@ export default function SocialCommerceMode() {
       
       // ✨ NEW: Restore step4Data if available
       const step4 = existingVideo.step4Data as any;
+      let mappedScenes: any[] | null = null;
       if (step4?.mediaPlanner?.scenes) {
         // Map Agent 4.1 output to sceneManifest format
-        const mappedScenes = step4.mediaPlanner.scenes.map((scene: any, sceneIdx: number) => {
+        mappedScenes = step4.mediaPlanner.scenes.map((scene: any, sceneIdx: number) => {
           // Map timing data by shot_id
           const timingMap = new Map(
             (step4.timing?.temporal_map || []).map((t: any) => [t.shot_id, t])
@@ -700,6 +762,75 @@ export default function SocialCommerceMode() {
         console.log('[SocialCommerce] Restored step4Data:', {
           sceneCount: mappedScenes.length,
           totalShots: mappedScenes.reduce((sum: number, s: any) => sum + s.shots.length, 0),
+        });
+      }
+      
+      // ✨ NEW: Restore step5Data if available (Agent 5.1 prompts)
+      const step5 = existingVideo.step5Data as any;
+      if (step5?.shotPrompts) {
+        // Map prompts to ShotVersion objects
+        const initialVersions: { [shotId: string]: ShotVersion[] } = {};
+        
+        // Use mappedScenes if step4Data was just restored, otherwise use sceneManifest
+        const scenesToUse = (mappedScenes && mappedScenes.length > 0) ? mappedScenes : sceneManifest.scenes;
+        
+        // Iterate through all scenes and shots
+        if (scenesToUse.length > 0) {
+          scenesToUse.forEach((scene: any) => {
+            scene.shots.forEach((shot: any) => {
+              const shotPrompts = step5.shotPrompts[shot.id];
+              if (shotPrompts) {
+                // Determine condition from shot type and connection
+                const condition = determineCondition(shot);
+                
+                // Create ShotVersion with prompts based on condition
+                const version = createShotVersionFromPrompts(shot.id, shotPrompts, condition);
+                initialVersions[shot.id] = [version];
+              }
+            });
+          });
+        }
+        
+        // Merge with existing shotVersions and update shot.currentVersionId
+        setShotVersions(prev => {
+          const merged = { ...prev };
+          const updatedShots: { [sceneId: string]: Shot[] } = {};
+          
+          Object.entries(initialVersions).forEach(([shotId, versions]) => {
+            if (!merged[shotId] || merged[shotId].length === 0) {
+              merged[shotId] = versions;
+              
+              // ✨ CRITICAL: Update shot.currentVersionId so getShotVersion() can find the version
+              // Find which scene contains this shot and update it
+              Object.entries(shots).forEach(([sceneId, sceneShots]) => {
+                const shot = sceneShots.find(s => s.id === shotId);
+                if (shot && versions.length > 0) {
+                  if (!updatedShots[sceneId]) {
+                    updatedShots[sceneId] = [...sceneShots];
+                  }
+                  const shotIndex = updatedShots[sceneId].findIndex(s => s.id === shotId);
+                  if (shotIndex >= 0) {
+                    updatedShots[sceneId][shotIndex] = {
+                      ...updatedShots[sceneId][shotIndex],
+                      currentVersionId: versions[0].id,
+                    };
+                  }
+                }
+              });
+            }
+          });
+          
+          // Update shots state with currentVersionId set
+          if (Object.keys(updatedShots).length > 0) {
+            setShots(prev => ({ ...prev, ...updatedShots }));
+          }
+          
+          return merged;
+        });
+        
+        console.log('[SocialCommerce] Restored step5Data:', {
+          shotPromptsCount: Object.keys(step5.shotPrompts || {}).length,
+          versionsCreated: Object.keys(initialVersions).length,
         });
       }
       
@@ -1851,7 +1982,7 @@ export default function SocialCommerceMode() {
     // ═══════════════════════════════════════════════════════════════════════════
     // TAB 4 (STORYBOARD): Save sceneManifest to step4Data
     // ═══════════════════════════════════════════════════════════════════════════
-    if (activeStep === "storyboard") {
+    if (activeStep === "world") {
       if (videoId === "new") {
         toast({
           title: "Error",
@@ -1892,18 +2023,169 @@ export default function SocialCommerceMode() {
           description: "All scenes and shots have been saved successfully",
         });
 
-        // Mark step as completed and advance
+        // Mark step as completed
         if (!completedSteps.includes(activeStep)) {
           setCompletedSteps([...completedSteps, activeStep]);
         }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // TAB 5: Generate prompts using Agent 5.1
+        // ═══════════════════════════════════════════════════════════════════════
+        const sceneCount = sceneManifest.scenes.length;
+        const shotCount = sceneManifest.scenes.reduce((sum, s) => sum + s.shots.length, 0);
+        
+        console.log('[SocialCommerce] Starting prompt generation...', {
+          videoId,
+          sceneCount,
+          shotCount,
+          url: `/api/social-commerce/videos/${videoId}/step/5/generate-prompts`,
+        });
+        
+        let promptsResponse: Response;
+        try {
+          promptsResponse = await fetch(`/api/social-commerce/videos/${videoId}/step/5/generate-prompts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+          });
+        } catch (networkError) {
+          console.error('[SocialCommerce] Network error during prompt generation:', networkError);
+          throw new Error(
+            networkError instanceof Error 
+              ? `Network error: ${networkError.message}` 
+              : 'Failed to connect to server. Please check your internet connection.'
+          );
+        }
+
+        console.log('[SocialCommerce] Prompt generation response status:', {
+          status: promptsResponse.status,
+          statusText: promptsResponse.statusText,
+          ok: promptsResponse.ok,
+        });
+
+        if (!promptsResponse.ok) {
+          let errorData: any = {};
+          try {
+            const errorText = await promptsResponse.text();
+            errorData = errorText ? JSON.parse(errorText) : {};
+            console.error('[SocialCommerce] Prompt generation error response:', {
+              status: promptsResponse.status,
+              errorData,
+            });
+          } catch (parseError) {
+            console.error('[SocialCommerce] Failed to parse error response:', parseError);
+            errorData = { error: 'Failed to parse error response' };
+          }
+          
+          const errorMessage = errorData.details || errorData.error || `Server error (${promptsResponse.status})`;
+          throw new Error(errorMessage);
+        }
+
+        let promptsData: any;
+        try {
+          const responseText = await promptsResponse.text();
+          promptsData = responseText ? JSON.parse(responseText) : {};
+          console.log('[SocialCommerce] Prompts generated successfully:', {
+            shotCount: promptsData.shotCount,
+            hasStep5Data: !!promptsData.step5Data,
+            currentStep: promptsData.currentStep,
+          });
+        } catch (parseError) {
+          console.error('[SocialCommerce] Failed to parse success response:', parseError);
+          throw new Error('Failed to parse server response. Please try again.');
+        }
+
+        toast({
+          title: "Prompts Generated",
+          description: `Successfully generated prompts for ${promptsData.shotCount || 0} shots`,
+        });
+
+        // ✨ NEW: Sync prompts to shotVersions when step5Data is returned
+        if (promptsData.step5Data?.shotPrompts) {
+          // Helper to find shot by ID from sceneManifest
+          const findShotById = (shotId: string): any => {
+            for (const scene of sceneManifest.scenes) {
+              const shot = scene.shots.find(s => s.id === shotId);
+              if (shot) return shot;
+            }
+            return null;
+          };
+          
+          // Update shotVersions with new prompts and set currentVersionId on shots
+          setShotVersions(prev => {
+            const updatedVersions = { ...prev };
+            const updatedShots: { [sceneId: string]: Shot[] } = {};
+            
+            Object.entries(promptsData.step5Data.shotPrompts).forEach(([shotId, shotPrompts]: [string, any]) => {
+              const shot = findShotById(shotId);
+              if (shot) {
+                const condition = determineCondition(shot);
+                const version = createShotVersionFromPrompts(shotId, shotPrompts, condition);
+                updatedVersions[shotId] = [version];
+                
+                // ✨ CRITICAL: Update shot.currentVersionId so getShotVersion() can find the version
+                // Find which scene contains this shot and update it
+                Object.entries(shots).forEach(([sceneId, sceneShots]) => {
+                  const foundShot = sceneShots.find(s => s.id === shotId);
+                  if (foundShot) {
+                    if (!updatedShots[sceneId]) {
+                      updatedShots[sceneId] = [...sceneShots];
+                    }
+                    const shotIndex = updatedShots[sceneId].findIndex(s => s.id === shotId);
+                    if (shotIndex >= 0) {
+                      updatedShots[sceneId][shotIndex] = {
+                        ...updatedShots[sceneId][shotIndex],
+                        currentVersionId: version.id,
+                      };
+                    }
+                  }
+                });
+              }
+            });
+            
+            // Update shots state with currentVersionId set
+            if (Object.keys(updatedShots).length > 0) {
+              setShots(prev => ({ ...prev, ...updatedShots }));
+            }
+            
+            return updatedVersions;
+          });
+          
+          console.log('[SocialCommerce] Synced prompts to shotVersions:', {
+            shotCount: Object.keys(promptsData.step5Data.shotPrompts).length,
+          });
+        }
+
+        // Advance to next step
         setDirection(1);
         transitionToStep(steps[nextIndex], 300);
       } catch (error) {
-        console.error('[SocialCommerce] Step 4 save error:', error);
+        console.error('[SocialCommerce] Error in storyboard step:', {
+          error,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+          videoId,
+          activeStep,
+        });
         setIsTransitioning(false); // Reset transition state on error
+        
+        const errorMessage = error instanceof Error 
+          ? error.message 
+          : "An unexpected error occurred";
+        
+        // Determine which step failed based on error message
+        let errorTitle = "Error";
+        if (errorMessage.includes('step 4') || errorMessage.includes('storyboard')) {
+          errorTitle = "Failed to Save Storyboard";
+        } else if (errorMessage.includes('prompt') || errorMessage.includes('Agent 5.1')) {
+          errorTitle = "Failed to Generate Prompts";
+        } else if (errorMessage.includes('Network') || errorMessage.includes('connect')) {
+          errorTitle = "Connection Error";
+        }
+        
         toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to save storyboard",
+          title: errorTitle,
+          description: errorMessage,
           variant: "destructive",
         });
       } finally {

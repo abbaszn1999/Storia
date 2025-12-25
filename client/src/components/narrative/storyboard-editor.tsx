@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -178,6 +178,7 @@ interface SortableShotCardProps {
   isGenerating: boolean;
   voiceOverEnabled: boolean;
   narrativeMode: "image-reference" | "start-end";
+  isCommerceMode?: boolean; // For commerce mode, use shot.shotType instead of narrativeMode
   isConnectedToNext: boolean;
   showEndFrame: boolean;
   isPartOfConnection: boolean;
@@ -204,6 +205,7 @@ function SortableShotCard({
   isGenerating,
   voiceOverEnabled,
   narrativeMode,
+  isCommerceMode = false,
   isConnectedToNext,
   showEndFrame,
   isPartOfConnection,
@@ -238,14 +240,48 @@ function SortableShotCard({
   };
 
   const { toast } = useToast();
-  const [localPrompt, setLocalPrompt] = useState(shot.description || "");
+  
   const [activeFrame, setActiveFrame] = useState<"start" | "end">("start");
   const [advancedImageOpen, setAdvancedImageOpen] = useState(false);
   const [advancedVideoOpen, setAdvancedVideoOpen] = useState(false);
   const [cameraPopoverOpen, setCameraPopoverOpen] = useState(false);
 
+  // ✨ For commerce mode, use shot.shotType instead of global narrativeMode
+  // In commerce mode, each shot can have its own type (image-ref or start-end)
+  const effectiveMode = isCommerceMode 
+    ? (shot.shotType === 'start-end' ? 'start-end' : 'image-reference')
+    : narrativeMode;
+
+  // Get prompt based on active frame, effective mode, and version
+  const getPromptFromVersion = (): string => {
+    if (!version) return shot.description || "";
+    
+    if (effectiveMode === "image-reference") {
+      // Condition 1 or 4: Use imagePrompt (or null if inherited)
+      return version.imagePrompt || "";
+    } else {
+      // Condition 2 or 3: Use start_frame or end_frame prompt
+      if (activeFrame === "start") {
+        // For Condition 3, start frame is inherited (null)
+        return version.startFramePrompt || "";
+      } else {
+        return version.endFramePrompt || "";
+      }
+    }
+  };
+  
+  const [localPrompt, setLocalPrompt] = useState(getPromptFromVersion());
+
+  // Update localPrompt when activeFrame, version, effectiveMode changes
+  useEffect(() => {
+    setLocalPrompt(getPromptFromVersion());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFrame, version, effectiveMode]);
+
   const handlePromptBlur = () => {
-    if (localPrompt !== shot.description) {
+    // Only update if prompt actually changed
+    const currentPrompt = getPromptFromVersion();
+    if (localPrompt !== currentPrompt) {
       onUpdatePrompt(shot.id, localPrompt);
     }
   };
@@ -266,13 +302,24 @@ function SortableShotCard({
   const hasNextShotStartFrame = nextShotVersion?.startFrameUrl || nextShotVersion?.imageUrl;
   
   // Enable End tab for standalone/last shots OR connected shots (which will show next shot's start)
-  const shouldShowEndTab = narrativeMode === "start-end" && (showEndFrame || isConnectedToNext);
+  const shouldShowEndTab = effectiveMode === "start-end" && (showEndFrame || isConnectedToNext);
+  
+  // Check if current frame is inherited (Condition 3 & 4)
+  const isInherited = (() => {
+    if (effectiveMode === "image-reference" && version?.imagePrompt === null && isPartOfConnection) {
+      return true; // Condition 4: Image is inherited
+    }
+    if (effectiveMode === "start-end" && activeFrame === "start" && version?.startFrameInherited) {
+      return true; // Condition 3: Start frame is inherited
+    }
+    return false;
+  })();
   
   // Calculate display image URL with proper fallbacks
   let displayImageUrl: string | null | undefined;
   let actualFrameShown: "start" | "end" | null = null;
   
-  if (narrativeMode === "start-end") {
+  if (effectiveMode === "start-end") {
     if (activeFrame === "start") {
       displayImageUrl = version?.startFrameUrl || version?.imageUrl;
       actualFrameShown = "start";
@@ -305,7 +352,7 @@ function SortableShotCard({
     >
       <div className="aspect-video bg-muted relative group rounded-t-lg overflow-hidden">
         {/* Start/End Frame Tab Selector (Start-End Mode Only) */}
-        {narrativeMode === "start-end" && (
+        {effectiveMode === "start-end" && (
           <div className="absolute top-2 left-2 flex gap-1 bg-background/90 backdrop-blur-sm rounded-md p-1 z-10">
             <button
               onClick={() => setActiveFrame("start")}
@@ -358,7 +405,7 @@ function SortableShotCard({
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-card/50 gap-2">
             <ImageIcon className="h-12 w-12 text-muted-foreground" />
-            {narrativeMode === "start-end" && activeFrame === "end" && (
+            {effectiveMode === "start-end" && activeFrame === "end" && (
               <p className="text-xs text-muted-foreground">End frame not generated</p>
             )}
           </div>
@@ -482,13 +529,29 @@ function SortableShotCard({
 
           <TabsContent value="image" className="space-y-3 mt-0">
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Prompt</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">Prompt</Label>
+                {/* Show inheritance indicator for inherited prompts */}
+                {isInherited && (
+                  <div className="flex items-center gap-1.5 text-xs text-cyan-400/80 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+                    <Link2 className="h-3 w-3" />
+                    <span>Inherited</span>
+                  </div>
+                )}
+              </div>
               <Textarea
                 value={localPrompt}
-                onChange={(e) => setLocalPrompt(e.target.value)}
+                onChange={(e) => {
+                  if (!isInherited) {
+                    setLocalPrompt(e.target.value);
+                  }
+                }}
                 onBlur={handlePromptBlur}
-                placeholder="Describe the shot..."
-                className="min-h-20 text-xs resize-none bg-white/[0.02] border-white/[0.06] focus:border-purple-500/50"
+                readOnly={isInherited}
+                placeholder={isInherited ? "Inherited from previous shot" : "Describe the shot..."}
+                className={`min-h-20 text-xs resize-none bg-white/[0.02] border-white/[0.06] focus:border-purple-500/50 ${
+                  isInherited ? "opacity-70 cursor-not-allowed border-cyan-500/30" : ""
+                }`}
                 data-testid={`input-prompt-${shot.id}`}
               />
             </div>
@@ -1448,7 +1511,7 @@ export function StoryboardEditor({
                           const nextShotVersion = nextShot ? getShotVersion(nextShot) : null;
 
                           return (
-                            <>
+                            <React.Fragment key={shot.id}>
                               <SortableShotCard
                                 key={shot.id}
                                 shot={shot}
@@ -1461,6 +1524,7 @@ export function StoryboardEditor({
                                 isGenerating={isGenerating}
                                 voiceOverEnabled={voiceOverEnabled}
                                 narrativeMode={narrativeMode}
+                                isCommerceMode={isCommerceMode}
                                 isConnectedToNext={isConnectedToNext}
                                 showEndFrame={showEndFrame}
                                 isPartOfConnection={isPartOfConnection}
@@ -1476,9 +1540,9 @@ export function StoryboardEditor({
                                 shotsCount={sceneShots.length}
                               />
                               {/* Connection Link Icon and Add Shot Button */}
-                              <div className="relative shrink-0 w-8 flex items-center justify-center">
+                              <div key={`connection-${shot.id}`} className="relative shrink-0 w-8 flex items-center justify-center">
                                 {/* Connection Link Icon - Always visible when connected (Start-End Mode Only) */}
-                                {narrativeMode === "start-end" && isConnectedToNext ? (
+                                {((isCommerceMode && shot.shotType === 'start-end') || (!isCommerceMode && narrativeMode === "start-end")) && isConnectedToNext ? (
                                   <div 
                                     className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-storia text-white shadow-md"
                                     data-testid={`connection-link-${shot.id}`}
@@ -1542,7 +1606,7 @@ export function StoryboardEditor({
                                   </div>
                                 ) : null}
                               </div>
-                            </>
+                            </React.Fragment>
                           );
                         })}
                         

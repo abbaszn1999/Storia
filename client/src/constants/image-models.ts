@@ -150,6 +150,28 @@ export const IMAGE_MODELS: ImageModelConfig[] = [
     },
     badge: "Character",
   },
+  {
+    value: "ideogram-3.0",
+    label: "Ideogram 3.0",
+    provider: "Ideogram",
+    description: "Design-level generation, superior text rendering",
+    aspectRatios: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "21:9", "9:21", "2:1", "1:2", "5:3", "3:5", "8:5", "5:8", "7:4", "4:7"],
+    resolutions: ["custom"],
+    maxPromptLength: 2000,
+    supportsSeed: false,
+    supportsNegativePrompt: true,
+    supportsStyleReference: true,
+    supportsCharacterReference: true,
+    maxReferenceImages: 0, // Via providerSettings, not inputs.referenceImages
+    inputImageRequirements: {
+      minWidth: 512,
+      maxWidth: 1536,
+      minHeight: 512,
+      maxHeight: 1536,
+      maxFileSize: "20MB",
+    },
+    badge: "Design",
+  },
 
   // ─────────────────────────────────────────────────────────────────────────
   // Google Models

@@ -88,7 +88,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsStyleReference: true, // Supports image-to-image (up to 16 reference images)
     maxReferenceImages: 16, // Highest reference image capacity across all models!
     supportsCharacterReference: true,
-    referenceImageFormat: 'direct', // Uses referenceImages directly
+    referenceImageFormat: 'inputs', // Uses inputs.referenceImages (array of URLs)
     inputImageRequirements: {
       minWidth: 300,
       maxWidth: 2048,
@@ -155,7 +155,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
       maxFileSize: "20MB",
     },
     supportsCharacterReference: true,
-    referenceImageFormat: 'direct', // Uses referenceImages directly
+    referenceImageFormat: 'inputs', // Uses inputs.referenceImages (array of URLs)
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -406,7 +406,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
   supportsStyleReference: true, // Supports up to 8 reference images
   maxReferenceImages: 8,
   supportsCharacterReference: true,
-  referenceImageFormat: 'direct', // Uses referenceImages directly
+  referenceImageFormat: 'inputs', // Uses inputs.referenceImages (array of URLs)
   inputImageRequirements: {
     minWidth: 300,
     maxWidth: 2048,
@@ -462,7 +462,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
   supportsStyleReference: true, // Supports up to 14 reference images
   maxReferenceImages: 14,
   supportsCharacterReference: true,
-  referenceImageFormat: 'direct', // Uses referenceImages directly
+  referenceImageFormat: 'inputs', // Uses inputs.referenceImages (array of URLs)
   inputImageRequirements: {
     minWidth: 300,
     maxWidth: 2048,
@@ -526,7 +526,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsStyleReference: true, // Supports image-to-image (up to 14 reference images)
     maxReferenceImages: 14, // Combined with sequential images, total ≤ 15
     supportsCharacterReference: true,
-    referenceImageFormat: 'direct', // Uses referenceImages directly
+    referenceImageFormat: 'inputs', // Uses inputs.referenceImages (array of URLs)
     inputImageRequirements: {
       minWidth: 300,
       maxWidth: 2048,
@@ -669,7 +669,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsStyleReference: true, // Supports reference-to-image (up to 4 reference images)
     maxReferenceImages: 4,
     supportsCharacterReference: true,
-    referenceImageFormat: 'direct', // Uses referenceImages directly
+    referenceImageFormat: 'inputs', // Uses inputs.referenceImages (array of URLs)
     inputImageRequirements: {
       minWidth: 512,
       maxWidth: 2048,
@@ -727,7 +727,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsStyleReference: true, // Supports reference-to-image (up to 9 reference images)
     maxReferenceImages: 9, // Total input capacity: 9 megapixels
     supportsCharacterReference: true,
-    referenceImageFormat: 'direct', // Uses referenceImages directly
+    referenceImageFormat: 'inputs', // Uses inputs.referenceImages (array of URLs)
     inputImageRequirements: {
       minWidth: 256,
       maxWidth: 2048,
@@ -793,7 +793,7 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     supportsStyleReference: true, // Supports reference-to-image (up to 10 reference images)
     maxReferenceImages: 10, // Highest in FLUX family, 14 megapixels total capacity
     supportsCharacterReference: true,
-    referenceImageFormat: 'direct', // Uses referenceImages directly
+    referenceImageFormat: 'inputs', // Uses inputs.referenceImages (array of URLs)
     inputImageRequirements: {
       minWidth: 256,
       maxWidth: 2048,

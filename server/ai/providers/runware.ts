@@ -232,9 +232,12 @@ const runwareAdapter: AiProviderAdapter = {
     
     let results = initialPayload?.data ?? [];
 
+    // Only poll if there are tasks still processing (not for already completed/failed tasks)
+    // "processing" means the task is still being worked on
+    // "failed" or undefined status with imageURL means the task is complete
     const needsPolling =
       tasks.some((task) => task.deliveryMethod === "async") ||
-      results.some((item: any) => item?.status && item.status !== "success");
+      results.some((item: any) => item?.status === "processing");
 
     if (needsPolling) {
       const refs = tasks.map((task, idx) => ({

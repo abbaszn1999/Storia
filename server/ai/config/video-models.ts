@@ -271,7 +271,7 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
     id: "kling-video-o1",
     label: "Kling VIDEO O1",
     modelAirId: "klingai:kling@o1",
-    durations: [3, 5, 7, 10],  // 3-10s for reference-to-video, 5 or 10s for others
+    durations: [5, 10],   // Image-to-video: 5 or 10 seconds only (text-to-video also 5 or 10)
     aspectRatios: ["16:9", "1:1", "9:16"],
     resolutions: ["1080p"],  // Only 1080p supported (1920×1080, 1080×1080, 1080×1920)
     hasAudio: false,
@@ -424,8 +424,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
       google: {
         generateAudio: true,    // Enable natural sound generation
         enhancePrompt: true,    // Always enabled, cannot be disabled
-        supportsReferences: true,  // Supports asset (up to 3) or style (1) images
-        supportsVideoExtension: true,  // Can extend videos by 7 seconds
       },
     },
   },
@@ -469,7 +467,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
       google: {
         generateAudio: true,    // Enable natural sound generation
         enhancePrompt: true,    // Always enabled, cannot be disabled
-        supportsVideoExtension: true,  // Can extend videos by 7 seconds
       },
     },
   },

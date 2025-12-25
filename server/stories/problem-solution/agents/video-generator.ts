@@ -314,18 +314,27 @@ export async function generateVideos(
 
     // Build Runware payload for video inference
     // Note: Different models require different frameImages formats:
-    // - Runway, Hailuo, LTX-2 Pro: array of objects with { inputImage, frame }
+    // - Runway Gen-4 Turbo, Kling VIDEO 2.6 Pro, Kling VIDEO O1: array of objects with { image } in inputs.frameImages
+    // - Hailuo, LTX-2 Pro: array of objects with { inputImage, frame } in inputs.frameImages
     // - Alibaba Wan 2.6: array of objects with { image: "url" } in inputs.frameImages
     const modelsRequiringInputsWrapper = [
       "runway:1@1",      // Runway Gen-4 Turbo
       "runway:2@1",      // Runway Gen-4 (if exists)
       "minimax:4@1",     // Hailuo 2.3
       "lightricks:2@0",  // LTX-2 Pro
-      "alibaba:wan@2.6", // Alibaba Wan 2.6 - requires inputs.frameImages as array of strings
+      "alibaba:wan@2.6", // Alibaba Wan 2.6
+      "klingai:kling-video@2.6-pro", // Kling VIDEO 2.6 Pro
+      "klingai:kling@o1", // Kling VIDEO O1
     ];
     
     const useInputsWrapper = modelsRequiringInputsWrapper.includes(runwareModelId);
     const isAlibabaWan = runwareModelId === "alibaba:wan@2.6";
+    const modelsUsingImageProperty = [
+      "runway:1@1",              // Runway Gen-4 Turbo
+      "klingai:kling-video@2.6-pro", // Kling VIDEO 2.6 Pro
+      "klingai:kling@o1",       // Kling VIDEO O1
+    ];
+    const usesImageProperty = modelsUsingImageProperty.includes(runwareModelId);
     
     // Build frameImages payload based on model requirements
     let frameImagesPayload: Record<string, any> = {};
@@ -333,8 +342,20 @@ export async function generateVideos(
       if (isAlibabaWan) {
         // Alibaba Wan 2.6: array of objects with { image: "url" }
         frameImagesPayload = { inputs: { frameImages: [{ image: scene.imageUrl }] } };
+      } else if (usesImageProperty) {
+        // Runway Gen-4 Turbo, Kling VIDEO 2.6 Pro, Kling VIDEO O1: 
+        // array of objects with { image } in inputs.frameImages
+        // Note: Uses "image" (not "inputImage") per documentation and playground
+        frameImagesPayload = { 
+          inputs: { 
+            frameImages: [{ 
+              image: scene.imageUrl,
+              // frame: "first" is optional for Runway Gen-4 Turbo (works without it in playground)
+            }] 
+          } 
+        };
       } else {
-        // Other models: array of objects with { inputImage, frame }
+        // Other models (Hailuo, LTX-2 Pro): array of objects with { inputImage, frame }
         const frameImagesData = [{ 
           inputImage: scene.imageUrl,
           frame: "first" as const,
@@ -370,13 +391,20 @@ export async function generateVideos(
       providerSettings = { alibaba: { audio: false } };
     }
     
-    return {
+    // ═══════════════════════════════════════════════════════════════════════════
+    // BUILD PAYLOAD: Some models don't support width/height in image-to-video mode
+    // Kling VIDEO O1: dimensions are inferred from frame image (only text-to-video supports width/height)
+    // ═══════════════════════════════════════════════════════════════════════════
+    const modelsWithoutDimensionsInImageToVideo = [
+      "klingai:kling@o1", // Kling VIDEO O1: dimensions inferred from frame image in image-to-video mode
+    ];
+    const shouldOmitDimensions = modelsWithoutDimensionsInImageToVideo.includes(runwareModelId) && useInputsWrapper;
+    
+    const payload: Record<string, any> = {
       taskType: "videoInference",
       taskUUID,
       model: runwareModelId,
       positivePrompt: enhancedPrompt,
-      width: dimensions.width,
-      height: dimensions.height,
       duration: matchedDuration,
       ...frameImagesPayload,  // Spread the appropriate format
       // Disable audio for all models that support it
@@ -385,6 +413,14 @@ export async function generateVideos(
       deliveryMethod: "async",
       includeCost: true,
     };
+    
+    // Only add width/height if the model supports them in image-to-video mode
+    if (!shouldOmitDimensions) {
+      payload.width = dimensions.width;
+      payload.height = dimensions.height;
+    }
+    
+    return payload;
   });
 
   // ═══════════════════════════════════════════════════════════════════════════

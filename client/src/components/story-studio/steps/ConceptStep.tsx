@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getImageModelConfig, getDefaultImageModel } from "@/constants/image-models";
-import { getVideoModelConfig, getDefaultVideoModel, getCompatibleVideoModel, isModelCompatibleWithAspectRatio, getSupportedResolutionsForAspectRatio } from "@/constants/video-models";
+import { getVideoModelConfig, getDefaultVideoModel, getCompatibleVideoModel, isModelCompatibleWithAspectRatio, getSupportedResolutionsForAspectRatio, getVideoModelsByAspectRatio } from "@/constants/video-models";
 import { 
   Ratio,
   Clock,
@@ -93,6 +93,8 @@ const ASPECT_RATIOS = [
   { value: '16:9', label: 'Horizontal', desc: 'YouTube', icon: '💻' },
   { value: '1:1', label: 'Square', desc: 'Instagram', icon: '🔲' },
   { value: '4:3', label: 'Classic', desc: 'Traditional', icon: '🖼️' },
+  { value: '3:2', label: 'Landscape', desc: 'Photo', icon: '📷' }, // For OpenAI GPT Image
+  { value: '2:3', label: 'Portrait', desc: 'Photo', icon: '📸' }, // For OpenAI GPT Image
 ];
 
 const DURATIONS = [15, 30, 45, 60];
@@ -235,6 +237,10 @@ export function ConceptStep({
   const supportsStyleReference = selectedImageModel?.supportsStyleReference ?? false;
   const supportsCharacterReference = selectedImageModel?.supportsCharacterReference ?? false;
   const maxReferenceImages = selectedImageModel?.maxReferenceImages ?? 0;
+  
+  // Check if current aspect ratio is supported by any video model (for disabling "Image to Video" button)
+  const videoModelsForAspectRatio = aspectRatio ? getVideoModelsByAspectRatio(aspectRatio) : [];
+  const isAspectRatioSupportedByAnyVideoModel = videoModelsForAspectRatio.length > 0;
   const requiresReferenceImages = selectedImageModel?.requiresReferenceImages ?? false;
   const hasReferenceImage = !!(styleReferenceUrl || characterReferenceUrl);
 
@@ -282,13 +288,13 @@ export function ConceptStep({
       }
     } else {
       // Default: 10MB
-      if (file.size > 10 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Please upload an image smaller than 10MB",
-          variant: "destructive",
-        });
-        return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload an image smaller than 10MB",
+        variant: "destructive",
+      });
+      return;
       }
     }
 
@@ -446,13 +452,13 @@ export function ConceptStep({
       }
     } else {
       // Default: 10MB
-      if (file.size > 10 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Please upload an image smaller than 10MB",
-          variant: "destructive",
-        });
-        return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload an image smaller than 10MB",
+        variant: "destructive",
+      });
+      return;
       }
     }
 
@@ -655,15 +661,30 @@ export function ConceptStep({
                     if (!selectedImageModel?.aspectRatios) return true; // Show all if model config not available
                     return selectedImageModel.aspectRatios.includes(ratio.value);
                   })
-                  .map(ratio => (
+                  .map(ratio => {
+                    // Check if this aspect ratio is supported by video model (when Animation Mode is video)
+                    const isSupportedByVideoModel = animationMode !== 'video' || 
+                      !selectedVideoModel || 
+                      selectedVideoModel.aspectRatios.includes(ratio.value);
+                    
+                    return (
                     <button
                       key={ratio.value}
-                      onClick={() => onAspectRatioChange(ratio.value)}
+                      onClick={(e) => {
+                        if (!isSupportedByVideoModel) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          return;
+                        }
+                        onAspectRatioChange(ratio.value);
+                      }}
+                      disabled={!isSupportedByVideoModel}
                       className={cn(
                         "flex flex-col items-center gap-2 p-3 rounded-xl border transition-all duration-200",
                         aspectRatio === ratio.value 
                           ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                          : "bg-white/5 border-white/10 hover:bg-white/10"
+                          : "bg-white/5 border-white/10 hover:bg-white/10",
+                        !isSupportedByVideoModel && "opacity-40 cursor-not-allowed hover:bg-white/5 pointer-events-none"
                       )}
                     >
                       <div className={cn(
@@ -672,6 +693,8 @@ export function ConceptStep({
                         ratio.value === '16:9' && "w-5 h-3",
                         ratio.value === '1:1' && "w-4 h-4",
                         ratio.value === '4:3' && "w-4 h-3",
+                        ratio.value === '3:2' && "w-5 h-3.5", // Landscape photo ratio
+                        ratio.value === '2:3' && "w-3.5 h-5", // Portrait photo ratio
                         aspectRatio === ratio.value && "border-white bg-white/20"
                       )} />
                       <div className="text-center">
@@ -679,7 +702,8 @@ export function ConceptStep({
                         <span className="block text-[10px] text-white/40 mt-0.5">{ratio.desc}</span>
                       </div>
                     </button>
-                  ))}
+                  );
+                  })}
               </div>
             </div>
 
@@ -1186,12 +1210,21 @@ export function ConceptStep({
                       Transition
                     </button>
                     <button
-                      onClick={() => onAnimationModeChange('video')}
+                      onClick={(e) => {
+                        if (!isAspectRatioSupportedByAnyVideoModel) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          return;
+                        }
+                        onAnimationModeChange('video');
+                      }}
+                      disabled={!isAspectRatioSupportedByAnyVideoModel}
                       className={cn(
                         "py-2.5 px-3 rounded-lg text-sm font-medium border text-center transition-all",
                         animationMode === 'video'
                           ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                          : "bg-white/5 border-white/10 hover:bg-white/10"
+                          : "bg-white/5 border-white/10 hover:bg-white/10",
+                        !isAspectRatioSupportedByAnyVideoModel && "opacity-40 cursor-not-allowed hover:bg-white/5 pointer-events-none"
                       )}
                     >
                       Image to Video
@@ -1225,31 +1258,31 @@ export function ConceptStep({
                         : selectedVideoModel.resolutions;
                       
                       return (
-                        <div className="space-y-2">
-                          <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Video Resolution</label>
-                          <div className={cn(
-                            "grid gap-3",
+                      <div className="space-y-2">
+                        <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Video Resolution</label>
+                        <div className={cn(
+                          "grid gap-3",
                             resolutionsToShow.length === 1 ? "grid-cols-1" :
                             resolutionsToShow.length === 2 ? "grid-cols-2" :
                             resolutionsToShow.length === 3 ? "grid-cols-3" :
-                            "grid-cols-4"
-                          )}>
+                          "grid-cols-4"
+                        )}>
                             {resolutionsToShow.map(res => (
-                              <button
-                                key={res}
-                                onClick={() => onVideoResolutionChange(res)}
-                                className={cn(
-                                  "flex items-center justify-center gap-2 p-2.5 rounded-xl border transition-all duration-200",
-                                  videoResolution === res 
-                                    ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                                    : "bg-white/5 border-white/10 hover:bg-white/10"
-                                )}
-                              >
-                                <span className="text-sm font-medium text-white">{res}</span>
-                              </button>
-                            ))}
-                          </div>
+                            <button
+                              key={res}
+                              onClick={() => onVideoResolutionChange(res)}
+                              className={cn(
+                                "flex items-center justify-center gap-2 p-2.5 rounded-xl border transition-all duration-200",
+                                videoResolution === res 
+                                  ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
+                                  : "bg-white/5 border-white/10 hover:bg-white/10"
+                              )}
+                            >
+                              <span className="text-sm font-medium text-white">{res}</span>
+                            </button>
+                          ))}
                         </div>
+                      </div>
                       );
                     })()}
                   </div>

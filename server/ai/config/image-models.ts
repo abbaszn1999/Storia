@@ -865,6 +865,67 @@ export const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     },
   },
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Ideogram 3.0
+  // Model AIR ID: ideogram:4@1
+  // Design-level generation with sharper text rendering and better composition
+  // Enhanced stylistic control, perfect for graphic-driven content
+  // Supports: Text-to-image only
+  // 
+  // Key Features:
+  // - Design-level generation with superior text rendering
+  // - Better composition for graphic-driven content
+  // - Enhanced stylistic control for creative workflows
+  // - Perfect for posters, logos, and typography-heavy designs
+  // - Supports style and character references via providerSettings
+  // 
+  // Technical Specifications:
+  // - Positive prompt: 1-2000 characters
+  // - Negative prompt: 1-2000 characters (optional)
+  // - Supported dimensions: Extensive list of fixed dimensions (50+ options)
+  //   Common aspect ratios: 1:1, 3:2, 2:3, 4:3, 3:4, 16:9, 9:16, and many more
+  // 
+  // Provider-Specific Settings (providerSettings.ideogram):
+  // - renderingSpeed: "QUALITY" or "FAST" - Controls generation speed vs quality
+  // - magicPrompt: "ON" or "OFF" - Automatically enhance prompts
+  // - styleType: "DESIGN", "PHOTO", "ART" - Controls output style category
+  // - styleReferenceImages: Array of image URLs for style transfer
+  // - stylePreset: Style preset name (e.g., "ART_DECO", "CINEMATIC")
+  // - characterReferenceImages: Array of image URLs for character consistency
+  // - characterReferenceImagesMask: Array of mask images for character reference
+  // 
+  // Workflows:
+  // 1. Text-to-image: Design-focused generation with superior text rendering
+  // 2. Typography: Create posters, logos, and text-heavy designs
+  // 3. Graphic design: Professional graphic-driven content
+  // 4. Style transfer: Use styleReferenceImages for style application
+  // 5. Character consistency: Use characterReferenceImages for consistent characters
+  // 6. Composition: Better composition for complex graphic layouts
+  // ─────────────────────────────────────────────────────────────────────────
+  "ideogram-3.0": {
+    id: "ideogram-3.0",
+    label: "Ideogram 3.0",
+    provider: "runware",
+    model: "ideogram:4@1",
+    aspectRatios: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "21:9", "9:21", "2:1", "1:2", "5:3", "3:5", "8:5", "5:8", "7:4", "4:7"],
+    resolutions: ["custom"],  // Fixed dimensions per aspect ratio
+    maxPromptLength: 2000, // 1-2000 characters
+    supportsSeed: false,
+    supportsNegativePrompt: true, // Supports negative prompt (1-2000 characters)
+    supportsStyleReference: true, // Supports styleReferenceImages via providerSettings
+    maxReferenceImages: 0, // Reference images via providerSettings, not inputs.referenceImages
+    supportsCharacterReference: true, // Supports characterReferenceImages via providerSettings
+    // Note: Reference images are sent via providerSettings.ideogram.styleReferenceImages/characterReferenceImages
+    // Not via inputs.referenceImages, so referenceImageFormat is not applicable
+    inputImageRequirements: {
+      minWidth: 512,
+      maxWidth: 1536,
+      minHeight: 512,
+      maxHeight: 1536,
+      maxFileSize: "20MB", // Not specified in docs, using common limit
+    },
+  },
+
 };
 
 /**
@@ -1130,6 +1191,27 @@ export const MODEL_SPECIFIC_DIMENSIONS: Record<string, Record<string, ImageDimen
     "3:4": { width: 960, height: 1280 },
     "3:2": { width: 1440, height: 960 },
     "2:3": { width: 960, height: 1440 },
+  },
+  
+  // Ideogram 3.0 - Fixed dimensions (extensive list, selecting most common)
+  "ideogram-3.0": {
+    "1:1": { width: 1024, height: 1024 },
+    "3:2": { width: 1248, height: 832 },
+    "2:3": { width: 832, height: 1248 },
+    "4:3": { width: 1152, height: 864 },
+    "3:4": { width: 864, height: 1152 },
+    "16:9": { width: 1536, height: 864 },  // Also: 1408×800, 1280×720
+    "9:16": { width: 864, height: 1536 },  // Also: 800×1408, 720×1280
+    "21:9": { width: 1536, height: 640 },  // Also: 1472×640, 1408×640
+    "9:21": { width: 640, height: 1536 },   // Also: 640×1472, 640×1408
+    "2:1": { width: 1408, height: 704 },
+    "1:2": { width: 704, height: 1408 },
+    "5:3": { width: 1280, height: 768 },
+    "3:5": { width: 768, height: 1280 },
+    "8:5": { width: 1280, height: 800 },
+    "5:8": { width: 800, height: 1280 },
+    "7:4": { width: 1344, height: 768 },
+    "4:7": { width: 768, height: 1344 },
   },
 };
 

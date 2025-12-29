@@ -276,6 +276,19 @@ const runwareImageModels: AiModelConfig[] = [
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
+  // Ideogram 3.0 (AIR: ideogram:4@1)
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    name: "ideogram-3.0",
+    provider: "runware",
+    metadata: {
+      label: "Ideogram 3.0",
+      description: "Design-level generation with sharper text rendering and better composition. Enhanced stylistic control for graphic-driven content",
+      supports: ["image-generation"],
+      defaultResolution: "1024x1024",
+    },
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
   // Gemini Image / Nano Banana (AIR: google:4@1, google:4@2)
   // ─────────────────────────────────────────────────────────────────────────────
   {
@@ -676,6 +689,9 @@ export const runwareModelIdMap: Record<string, string> = {
 
   // Kling IMAGE O1 (AIR: klingai:kling-image@o1)
   "kling-image-o1": "klingai:kling-image@o1",
+
+  // Ideogram 3.0 (AIR: ideogram:4@1)
+  "ideogram-3.0": "ideogram:4@1",
 
   // Gemini Image / Nano Banana (AIR: google:4@1, google:4@2)
   "nano-banana": "google:4@1",

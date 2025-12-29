@@ -556,3 +556,38 @@ Parameters supported: promptUpsampling, safetyTolerance.
   "width": 1280,
   "height": 720
 }
+
+--------------------------------------------------------------------------------------------------------------------------
+
+Ideogram 3.0
+Ideogram 3.0 pushes design-level generation to new heights, with sharper text rendering and better composition. It also adds greater stylistic control, perfect for graphic-driven content.
+
+Model AIR ID: ideogram:4@1.
+
+Supported workflows: Text-to-image.
+
+Technical specifications:
+
+Positive prompt: 1-2000 characters.
+Negative prompt: 1-2000 characters (optional).
+Supported dimensions: 1536×512 (3:1), 1536×576 (8:3), 1472×576 (23:9), 1408×576 (22:9), 1536×640 (12:5), 1472×640 (23:10), 1408×640 (11:5), 1344×640 (21:10), 1472×704 (23:11), 1408×704 (2:1), 1344×704 (21:11), 1280×704 (20:11), 1312×736 (41:23), 1344×768 (7:4), 1216×704 (19:11), 1280×768 (5:3), 1152×704 (18:11), 1280×800 (8:5), 1216×768 (19:12), 1248×832 (3:2), 1216×832 (19:13), 1088×768 (17:12), 1152×832 (18:13), 1152×864 (4:3), 1088×832 (17:13), 1152×896 (9:7), 1120×896 (5:4), 1024×832 (16:13), 1088×896 (17:14), 960×832 (15:13), 1024×896 (8:7), 1088×960 (17:15), 960×896 (15:14), 1024×960 (16:15), 1024×1024 (1:1), 960×1024 (15:16), 896×960 (14:15), 960×1088 (15:17), 896×1024 (7:8), 832×960 (13:15), 896×1088 (14:17), 832×1024 (13:16), 896×1120 (4:5), 896×1152 (7:9), 832×1088 (13:17), 864×1152 (3:4), 832×1152 (13:18), 768×1088 (12:17), 832×1216 (13:19), 832×1248 (2:3), 768×1216 (12:19), 800×1280 (5:8), 704×1152 (11:18), 768×1280 (3:5), 704×1216 (11:19), 768×1344 (4:7), 736×1312 (23:41), 704×1280 (11:20), 704×1344 (11:21), 704×1408 (1:2), 704×1472 (11:23), 640×1344 (10:21), 640×1408 (5:11), 640×1472 (10:23), 640×1536 (5:12), 576×1408 (9:22), 576×1472 (9:23), 576×1536 (3:8), 512×1536 (1:3).
+Provider-specific settings:
+
+Parameters supported: renderingSpeed, magicPrompt, styleType, styleReferenceImages, stylePreset, characterReferenceImages, characterReferenceImagesMask.
+
+{
+  "taskType": "imageInference",
+  "taskUUID": "f47ac10b-58cc-4372-a567-0e02b2c3d487",
+  "model": "ideogram:4@1",
+  "positivePrompt": "Sophisticated art deco poster design with elegant typography and geometric patterns",
+  "width": 1024,
+  "height": 1024,
+  "providerSettings": {
+    "ideogram": {
+      "renderingSpeed": "QUALITY",
+      "styleType": "DESIGN",
+      "stylePreset": "ART_DECO",
+      "magicPrompt": "ON"
+    }
+  }
+}

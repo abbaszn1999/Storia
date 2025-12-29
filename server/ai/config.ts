@@ -41,6 +41,22 @@ function buildModelRecord(models: AiModelConfig[]): Record<string, AiModelConfig
 
 const openAiModels: AiModelConfig[] = [
   {
+    name: "gpt-5.2",
+    provider: "openai",
+    metadata: {
+      label: "GPT-5.2",
+      description: "Latest flagship reasoning model with enhanced capabilities and 400K context window",
+      supports: ["text-generation", "function-calling"],
+      reasoning: true,
+    },
+    pricing: {
+      currency: "usd",
+      inputCostPer1KTokens: 0.00125,
+      outputCostPer1KTokens: 0.01,
+      cacheInputCostPer1KTokens: 0.000125,
+    },
+  },
+  {
     name: "gpt-5.1",
     provider: "openai",
     metadata: {

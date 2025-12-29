@@ -17,6 +17,7 @@
  */
 
 import { callTextModel } from '../../../../ai/service';
+import { getModelConfig } from '../../../../ai/config';
 import {
   TIMING_SYSTEM_PROMPT,
   buildTimingUserPrompt,
@@ -30,7 +31,7 @@ import {
 
 const AGENT_CONFIG = {
   provider: 'openai' as const,
-  model: 'gpt-4o',
+  model: 'gpt-5.2', // High reasoning for complex timing calculations
   temperature: 0.3, // Precise timing, minimal creativity
   maxRetries: 2,
 };
@@ -77,6 +78,19 @@ export async function calculateTiming(
 
   const userPrompt = buildTimingUserPrompt(input);
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CHECK REASONING SUPPORT
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  // Check if model supports reasoning
+  let supportsReasoning = false;
+  try {
+    const modelConfig = getModelConfig(AGENT_CONFIG.provider, AGENT_CONFIG.model);
+    supportsReasoning = modelConfig.metadata?.reasoning === true;
+  } catch {
+    // Model not found in config, assume no reasoning support
+  }
+
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= AGENT_CONFIG.maxRetries; attempt++) {
@@ -88,7 +102,6 @@ export async function calculateTiming(
           provider: AGENT_CONFIG.provider,
           model: AGENT_CONFIG.model,
           payload: {
-            temperature: AGENT_CONFIG.temperature,
             input: [
               { role: 'system', content: TIMING_SYSTEM_PROMPT },
               { role: 'user', content: userPrompt },
@@ -101,6 +114,8 @@ export async function calculateTiming(
                 schema: TIMING_SCHEMA,
               },
             },
+            // Conditionally add reasoning if supported (temperature not supported with reasoning)
+            ...(supportsReasoning ? { reasoning: { effort: "high" } } : { temperature: AGENT_CONFIG.temperature }),
           },
           userId,
           workspaceId,

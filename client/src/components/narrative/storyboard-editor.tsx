@@ -194,6 +194,323 @@ interface SortableShotCardProps {
   shotsCount: number;
 }
 
+// Helper function to parse prompt text and identify @ tags
+interface TextSegment {
+  text: string;
+  isTag: boolean;
+}
+
+function parsePromptWithTags(prompt: string): TextSegment[] {
+  if (!prompt) return [];
+  
+  const segments: TextSegment[] = [];
+  // Regex to match @ tags: @ followed by letters, underscores, and numbers
+  const tagRegex = /@[A-Za-z_][A-Za-z0-9_]*/g;
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = tagRegex.exec(prompt)) !== null) {
+    // Add text before the tag
+    if (match.index > lastIndex) {
+      segments.push({
+        text: prompt.substring(lastIndex, match.index),
+        isTag: false,
+      });
+    }
+    
+    // Add the tag
+    segments.push({
+      text: match[0],
+      isTag: true,
+    });
+    
+    lastIndex = tagRegex.lastIndex;
+  }
+  
+  // Add remaining text after the last tag
+  if (lastIndex < prompt.length) {
+    segments.push({
+      text: prompt.substring(lastIndex),
+      isTag: false,
+    });
+  }
+  
+  return segments;
+}
+
+// Styled prompt display component for commerce mode
+interface StyledPromptDisplayProps {
+  prompt: string;
+  isInherited: boolean;
+  isEditable: boolean;
+  placeholder?: string;
+  className?: string;
+  onChange?: (value: string) => void;
+  onBlur?: () => void;
+}
+
+function StyledPromptDisplay({
+  prompt,
+  isInherited,
+  isEditable,
+  placeholder = "Describe the shot...",
+  className = "",
+  onChange,
+  onBlur,
+}: StyledPromptDisplayProps) {
+  const contentEditableRef = useRef<HTMLDivElement>(null);
+  const segments = parsePromptWithTags(prompt);
+
+  // For read-only prompts, render as a simple div with styled spans
+  if (isInherited || !isEditable) {
+    return (
+      <div
+        className={`min-h-20 text-xs resize-none bg-white/[0.02] border-white/[0.06] rounded-md p-3 whitespace-pre-wrap ${
+          isInherited ? "opacity-70 cursor-not-allowed border-cyan-500/30" : ""
+        } ${className}`}
+      >
+        {segments.length === 0 ? (
+          <span className="text-muted-foreground">{placeholder}</span>
+        ) : (
+          segments.map((segment, index) => {
+            if (segment.isTag) {
+              return (
+                <span key={index} className="font-bold text-blue-500">
+                  {segment.text}
+                </span>
+              );
+            }
+            return <span key={index}>{segment.text}</span>;
+          })
+        )}
+      </div>
+    );
+  }
+
+  // For editable prompts, use contentEditable div with styled rendering
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [lastPrompt, setLastPrompt] = useState(prompt);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
+    if (isUpdating) return;
+    
+    const text = e.currentTarget.textContent || "";
+    onChange?.(text);
+    
+    // Debounce re-styling to avoid cursor issues while typing
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+    
+    updateTimeoutRef.current = setTimeout(() => {
+      if (contentEditableRef.current) {
+        const currentText = contentEditableRef.current.textContent || "";
+        if (currentText !== text) {
+          // Text might have changed, use the latest
+          const latestText = contentEditableRef.current.textContent || "";
+          const newSegments = parsePromptWithTags(latestText);
+          const html = newSegments
+            .map((segment) => {
+              if (segment.isTag) {
+                return `<span class="font-bold text-blue-500">${segment.text}</span>`;
+              }
+              return segment.text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/\n/g, "<br>");
+            })
+            .join("");
+          
+          // Save cursor position
+          const selection = window.getSelection();
+          let cursorOffset = 0;
+          if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            const preCaretRange = range.cloneRange();
+            preCaretRange.selectNodeContents(contentEditableRef.current);
+            preCaretRange.setEnd(range.endContainer, range.endOffset);
+            cursorOffset = preCaretRange.toString().length;
+          }
+          
+          contentEditableRef.current.innerHTML = html || "";
+          
+          // Restore cursor
+          if (selection && cursorOffset > 0 && contentEditableRef.current) {
+            try {
+              const walker = document.createTreeWalker(
+                contentEditableRef.current,
+                NodeFilter.SHOW_TEXT,
+                null
+              );
+              let currentOffset = 0;
+              let targetNode: Node | null = null;
+              let targetOffset = 0;
+
+              while (walker.nextNode()) {
+                const node = walker.currentNode;
+                const nodeLength = node.textContent?.length || 0;
+                if (currentOffset + nodeLength >= cursorOffset) {
+                  targetNode = node;
+                  targetOffset = cursorOffset - currentOffset;
+                  break;
+                }
+                currentOffset += nodeLength;
+              }
+
+              if (targetNode) {
+                const newRange = document.createRange();
+                const safeOffset = Math.min(targetOffset, targetNode.textContent?.length || 0);
+                newRange.setStart(targetNode, safeOffset);
+                newRange.setEnd(targetNode, safeOffset);
+                selection.removeAllRanges();
+                selection.addRange(newRange);
+              }
+            } catch (err) {
+              // Ignore cursor restoration errors
+            }
+          }
+        }
+      }
+    }, 300); // 300ms debounce
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Allow all keys for normal editing
+    if (e.key === "Escape") {
+      contentEditableRef.current?.blur();
+    }
+  };
+
+  // Re-render styled content when prompt changes externally
+  useEffect(() => {
+    if (contentEditableRef.current && prompt !== lastPrompt && !isUpdating) {
+      setIsUpdating(true);
+      
+      // Save cursor position
+      const selection = window.getSelection();
+      let cursorOffset = 0;
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const preCaretRange = range.cloneRange();
+        preCaretRange.selectNodeContents(contentEditableRef.current);
+        preCaretRange.setEnd(range.endContainer, range.endOffset);
+        cursorOffset = preCaretRange.toString().length;
+      }
+
+      // Rebuild styled content
+      const newSegments = parsePromptWithTags(prompt);
+      const html = newSegments
+        .map((segment) => {
+          if (segment.isTag) {
+            return `<span class="font-bold text-blue-500">${segment.text}</span>`;
+          }
+          // Escape HTML in regular text
+          return segment.text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\n/g, "<br>");
+        })
+        .join("");
+
+      contentEditableRef.current.innerHTML = html || "";
+
+      // Restore cursor position
+      if (selection && cursorOffset > 0 && contentEditableRef.current) {
+        try {
+          const walker = document.createTreeWalker(
+            contentEditableRef.current,
+            NodeFilter.SHOW_TEXT,
+            null
+          );
+          let currentOffset = 0;
+          let targetNode: Node | null = null;
+          let targetOffset = 0;
+
+          while (walker.nextNode()) {
+            const node = walker.currentNode;
+            const nodeLength = node.textContent?.length || 0;
+            if (currentOffset + nodeLength >= cursorOffset) {
+              targetNode = node;
+              targetOffset = cursorOffset - currentOffset;
+              break;
+            }
+            currentOffset += nodeLength;
+          }
+
+          if (targetNode) {
+            const newRange = document.createRange();
+            const safeOffset = Math.min(targetOffset, targetNode.textContent?.length || 0);
+            newRange.setStart(targetNode, safeOffset);
+            newRange.setEnd(targetNode, safeOffset);
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+          }
+        } catch (err) {
+          // Ignore cursor restoration errors
+        }
+      }
+
+      setLastPrompt(prompt);
+      setIsUpdating(false);
+    }
+  }, [prompt, lastPrompt, isUpdating]);
+
+  // Initial render
+  useEffect(() => {
+    if (contentEditableRef.current && !contentEditableRef.current.innerHTML) {
+      const newSegments = parsePromptWithTags(prompt);
+      const html = newSegments
+        .map((segment) => {
+          if (segment.isTag) {
+            return `<span class="font-bold text-blue-500">${segment.text}</span>`;
+          }
+          return segment.text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\n/g, "<br>");
+        })
+        .join("");
+      contentEditableRef.current.innerHTML = html || "";
+      setLastPrompt(prompt);
+    }
+  }, []);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Add placeholder styling
+  const showPlaceholder = !prompt;
+
+  return (
+    <div className="relative">
+      <div
+        ref={contentEditableRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        onBlur={onBlur}
+        onKeyDown={handleKeyDown}
+        className={`min-h-20 text-xs resize-none bg-white/[0.02] border-white/[0.06] rounded-md p-3 focus:border-purple-500/50 focus:outline-none whitespace-pre-wrap ${className}`}
+      />
+      {showPlaceholder && (
+        <div className="absolute top-3 left-3 text-xs text-muted-foreground pointer-events-none">
+          {placeholder}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SortableShotCard({ 
   shot, 
   shotIndex,
@@ -539,21 +856,37 @@ function SortableShotCard({
                   </div>
                 )}
               </div>
-              <Textarea
-                value={localPrompt}
-                onChange={(e) => {
-                  if (!isInherited) {
-                    setLocalPrompt(e.target.value);
-                  }
-                }}
-                onBlur={handlePromptBlur}
-                readOnly={isInherited}
-                placeholder={isInherited ? "Inherited from previous shot" : "Describe the shot..."}
-                className={`min-h-20 text-xs resize-none bg-white/[0.02] border-white/[0.06] focus:border-purple-500/50 ${
-                  isInherited ? "opacity-70 cursor-not-allowed border-cyan-500/30" : ""
-                }`}
-                data-testid={`input-prompt-${shot.id}`}
-              />
+              {isCommerceMode ? (
+                <StyledPromptDisplay
+                  prompt={localPrompt}
+                  isInherited={isInherited}
+                  isEditable={!isInherited}
+                  placeholder={isInherited ? "Inherited from previous shot" : "Describe the shot..."}
+                  onChange={(value) => {
+                    if (!isInherited) {
+                      setLocalPrompt(value);
+                    }
+                  }}
+                  onBlur={handlePromptBlur}
+                  className={isInherited ? "opacity-70 cursor-not-allowed border-cyan-500/30" : ""}
+                />
+              ) : (
+                <Textarea
+                  value={localPrompt}
+                  onChange={(e) => {
+                    if (!isInherited) {
+                      setLocalPrompt(e.target.value);
+                    }
+                  }}
+                  onBlur={handlePromptBlur}
+                  readOnly={isInherited}
+                  placeholder={isInherited ? "Inherited from previous shot" : "Describe the shot..."}
+                  className={`min-h-20 text-xs resize-none bg-white/[0.02] border-white/[0.06] focus:border-purple-500/50 ${
+                    isInherited ? "opacity-70 cursor-not-allowed border-cyan-500/30" : ""
+                  }`}
+                  data-testid={`input-prompt-${shot.id}`}
+                />
+              )}
             </div>
 
             <Collapsible open={advancedImageOpen} onOpenChange={setAdvancedImageOpen}>

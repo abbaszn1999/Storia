@@ -16,6 +16,7 @@
  */
 
 import { callTextModel } from '../../../../ai/service';
+import { getModelConfig } from '../../../../ai/config';
 import {
   MEDIA_PLANNER_SYSTEM_PROMPT,
   buildMediaPlannerUserPrompt,
@@ -29,7 +30,7 @@ import {
 
 const AGENT_CONFIG = {
   provider: 'openai' as const,
-  model: 'gpt-4o', // Vision capable
+  model: 'gpt-5.2', // Vision capable with high reasoning
   temperature: 0.6, // Creative shot planning with structural discipline
   maxRetries: 2,
 };
@@ -201,10 +202,23 @@ export async function planShots(
   });
   
   const imageCount = imageIndex - 1;
-  console.log(`[social-commerce:agent-4.1] Sending ${imageCount} image(s) to GPT-4o Vision with interleaved pattern`);
+  console.log(`[social-commerce:agent-4.1] Sending ${imageCount} image(s) to GPT-5.2 Vision with interleaved pattern`);
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // CALL GPT-4O VISION WITH JSON SCHEMA
+  // CHECK REASONING SUPPORT
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  // Check if model supports reasoning
+  let supportsReasoning = false;
+  try {
+    const modelConfig = getModelConfig(AGENT_CONFIG.provider, AGENT_CONFIG.model);
+    supportsReasoning = modelConfig.metadata?.reasoning === true;
+  } catch {
+    // Model not found in config, assume no reasoning support
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CALL GPT-5.2 VISION WITH JSON SCHEMA
   // ═══════════════════════════════════════════════════════════════════════════
   
   const payload = {
@@ -223,8 +237,8 @@ export async function planShots(
         schema: MEDIA_PLANNER_SCHEMA
       }
     },
-    temperature: AGENT_CONFIG.temperature,
-    max_output_tokens: 4000, // Large output for multiple scenes and shots
+    // Conditionally add reasoning if supported (temperature not supported with reasoning)
+    ...(supportsReasoning ? { reasoning: { effort: "high" } } : { temperature: AGENT_CONFIG.temperature }),
   };
   
   let lastError: Error | null = null;

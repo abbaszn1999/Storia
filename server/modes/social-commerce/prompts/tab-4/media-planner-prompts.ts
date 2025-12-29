@@ -29,6 +29,53 @@ For each shot, you must decide:
 5. WHY this shot exists (cinematic goal in the narrative)
 
 ═══════════════════════════════════════════════════════════════════════════════
+MASTER WORKFLOW — Follow This Exact Process
+═══════════════════════════════════════════════════════════════════════════════
+
+STEP 1: VISION ANALYSIS (Do This First)
+  → Analyze ALL provided images (product, character, logo)
+  → Extract: Product geometry, hero features, material properties
+  → Identify: Viable camera angles, character interaction points, logo placement
+  → Document: Specific details you see (not generic descriptions)
+
+STEP 2: CONTEXT SYNTHESIS
+  → Combine insights from: Strategic Context, Product DNA, Character DNA, 
+    Brand Identity, Environment, Narrative Structure, VFX Modifiers
+  → Determine: Target audience expectations, pacing profile requirements, 
+    creative vision, technical constraints
+  → Plan: How to translate 3-act narrative into scenes and shots
+
+STEP 3: SCENE PLANNING
+  → Translate 3-act structure into 3 scenes (Hook, Transform, Payoff)
+  → Calculate shot count based on duration + pacing profile
+  → Distribute shots across scenes (30% / 50% / 20%)
+  → Plan scene-level energy progression
+
+STEP 4: SHOT PLANNING (For Each Shot)
+  → Determine cinematic goal (why this shot exists)
+  → Choose shot type (IMAGE_REF vs START_END) using decision matrix
+  → Plan technical cinematography (camera, lens, DOF, framing, motion_intensity)
+  → Decide identity references (product, character, logo, previous outputs)
+  → Establish continuity logic (connections, handover types)
+  → Specify composition and lighting
+
+STEP 5: QUALITY VALIDATION (Before Output)
+  → Check: All connection rules followed (previous shot type validation)
+  → Check: Shot type decisions are correct (IMAGE_REF vs START_END)
+  → Check: Identity references match provided images
+  → Check: Previous output references are valid (lower shot numbers, max 2)
+  → Check: Motion intensity aligns with pacing profile
+  → Check: Shot count matches duration + pacing requirements
+  → Check: All shots have specific, executable descriptions
+
+YOUR PROCESS (Simplified):
+1. ANALYZE images deeply (vision-based)
+2. SYNTHESIZE all context sections
+3. PLAN scenes (3-act translation)
+4. PLAN shots (for each shot: type, cinematography, references, continuity)
+5. VALIDATE quality before output
+
+═══════════════════════════════════════════════════════════════════════════════
 CRITICAL: VISION-BASED ANALYSIS
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -204,15 +251,88 @@ DECISION MATRIX:
 | Beauty/hero moment with no motion | IMAGE_REF | Perfect stillness |
 | Product rotation or reveal | START_END | Different angles at start and end |
 
-IMPORTANT RULES:
+DECISION TREE FOR SHOT TYPE:
+
+Start: What is the camera movement?
+├─ Static or micro-drift only?
+│  └─ → IMAGE_REF (single moment, no distinct start/end)
+│
+├─ Any significant movement (dolly, orbit, pan, zoom)?
+│  └─ → START_END (needs start and end positions)
+│
+├─ Does shot connect TO the next shot?
+│  └─ → START_END (MUST have end frame to pass)
+│
+└─ Is it a beauty/hero moment with perfect stillness?
+   └─ → IMAGE_REF (single frame captures it)
+
+VALIDATION CHECKLIST (Before setting shot_type):
+□ Step 1: Determine camera movement type
+□ Step 2: Check if shot connects to next (is_connected_to_next)
+   - If is_connected_to_next = true → MUST be START_END
+□ Step 3: Apply decision tree based on camera movement
+□ Step 4: Verify shot_type matches camera movement requirements
+□ Step 5: Document reason in generation_mode.reason field
+
+CRITICAL RULES:
 - If \`is_connected_to_next: true\`, shot MUST be START_END (needs end frame to pass)
 - IMAGE_REF shots CANNOT connect to the next shot (no distinct end frame)
+- Always justify shot_type choice with specific reason in generation_mode.reason
+
+EXAMPLES:
+
+✅ CORRECT: Static beauty shot
+Camera: Static, no movement
+Shot Type: IMAGE_REF
+Reason: "Static beauty shot with no camera movement - single frame captures the moment"
+
+✅ CORRECT: Dolly-in reveal
+Camera: Dolly-in from wide to close-up
+Shot Type: START_END
+Reason: "Dolly-in movement requires distinct start (wide) and end (close-up) positions"
+
+✅ CORRECT: Shot connecting to next
+Camera: Orbital movement
+is_connected_to_next: true
+Shot Type: START_END
+Reason: "Orbital movement with connection to next shot - requires end frame to pass"
+
+❌ INCORRECT: Connecting IMAGE_REF
+Camera: Static
+is_connected_to_next: true
+Shot Type: IMAGE_REF
+→ Invalid: IMAGE_REF cannot connect to next (no distinct end frame)
 
 ═══════════════════════════════════════════════════════════════════════════════
 IDENTITY REFERENCE SYSTEM (DYNAMIC DECISIONS)
 ═══════════════════════════════════════════════════════════════════════════════
 
 You decide WHICH assets to reference for EACH shot. This is creative decision-making.
+
+DECISION TREE FOR IDENTITY REFERENCES:
+
+PRODUCT REFERENCES (@Product):
+Start: Does this shot need the product?
+├─ No → refer_to_product = false, product_image_ref = ""
+└─ Yes → refer_to_product = true
+   └─ Which product image matches the shot?
+      ├─ Most shots, general product view → "heroProfile"
+      ├─ ECU/texture shots, detail focus → "macroDetail"
+      └─ Material-focused shots, surface emphasis → "materialReference"
+
+CHARACTER REFERENCES (@Character):
+Start: Is human element included in campaign? (includeHumanElement)
+├─ No → refer_to_character = false (not available)
+└─ Yes → Does this shot need character?
+   ├─ No → refer_to_character = false
+   └─ Yes → refer_to_character = true
+      (Use for: interaction shots, lifestyle moments, product-in-use)
+
+LOGO REFERENCES (@Logo):
+Start: Does this shot need brand logo?
+├─ No → refer_to_logo = false
+└─ Yes → refer_to_logo = true
+   (Use for: branding moments, hero shots, final payoff)
 
 PRODUCT REFERENCES (@Product):
 - \`refer_to_product\`: Should this shot include the product?
@@ -230,6 +350,32 @@ LOGO REFERENCES (@Logo):
 - \`refer_to_logo\`: Should this shot feature the brand logo?
 - Use for: Branding moments, hero shots, final payoff
 - Consider \`logo_integrity\` from Agent 2.3 when featuring
+
+VALIDATION CHECKLIST (For identity_references):
+□ Step 1: Check if product image was provided (heroProfile, macroDetail, or materialReference)
+□ Step 2: If refer_to_product = true, verify product_image_ref matches provided image
+□ Step 3: If refer_to_product = false, set product_image_ref = "" (empty string)
+□ Step 4: Check if character is available (includeHumanElement = true)
+□ Step 5: If refer_to_character = true, verify character image was provided
+□ Step 6: Check if logo image was provided
+□ Step 7: If refer_to_logo = true, verify logo image was provided
+
+EXAMPLES:
+
+✅ CORRECT: Hero product shot
+refer_to_product: true
+product_image_ref: "heroProfile"
+→ Valid: Using hero profile for general product shot
+
+✅ CORRECT: Texture detail shot
+refer_to_product: true
+product_image_ref: "macroDetail"
+→ Valid: Using macro detail for ECU texture shot
+
+❌ INCORRECT: Referencing unavailable image
+refer_to_product: true
+product_image_ref: "macroDetail"
+→ Invalid if macroDetail image was not provided
 
 ═══════════════════════════════════════════════════════════════════════════════
 PREVIOUS OUTPUT REFERENCES (@Shot_X) — THE GAME CHANGER
@@ -251,24 +397,60 @@ REFERENCE TYPES:
 | PRODUCT_STATE | Product in specific state | Crown position from earlier |
 | COMPOSITION_ECHO | Similar framing/composition | Bookend effect |
 
-GUARDRAILS:
 - Can ONLY reference shots with LOWER shot numbers (no circular dependencies)
 - Maximum 2 references per shot (prevent over-referencing)
 - Empty array [] if no references needed
-- ⚠️ CRITICAL: If is_connected_to_previous = true, DO NOT reference the immediate previous shot in refer_to_previous_outputs (it's already inherited via connection)
-  → Only reference EARLIER shots (not the one you're connected from)
+- ⚠️ CRITICAL: If is_connected_to_previous = true, the immediate previous shot is ALREADY inherited via connection
+  → DO NOT include ANY shots in refer_to_previous_outputs (set to empty array [])
+  → Connection handles all inheritance automatically - no explicit references needed
 
-EXAMPLE:
-Shot S2.3 wants to callback to S1.1's lighting:
-\`\`\`json
-"refer_to_previous_outputs": [
+DECISION TREE FOR PREVIOUS OUTPUT REFERENCES:
+
+Start: Does this shot need to reference earlier shot outputs?
+├─ No → refer_to_previous_outputs = [] (empty array)
+└─ Yes → Check connection status
+   ├─ If is_connected_to_previous = true → refer_to_previous_outputs = [] (CRITICAL: connection handles inheritance)
+   └─ If is_connected_to_previous = false → Can reference earlier shots
+      ├─ Identify which earlier shots to reference (max 2)
+      ├─ Verify shot_id is LOWER than current shot (no circular dependencies)
+      ├─ Choose reference_type (VISUAL_CALLBACK, LIGHTING_MATCH, PRODUCT_STATE, COMPOSITION_ECHO)
+      └─ Document reason for each reference
+
+VALIDATION CHECKLIST (For refer_to_previous_outputs):
+□ Step 1: Check is_connected_to_previous status
+   - If true → Set refer_to_previous_outputs = [] (CRITICAL: connection handles inheritance)
+□ Step 2: If is_connected_to_previous = false, identify if references are needed
+□ Step 3: Verify all referenced shot_ids are LOWER than current shot (no circular dependencies)
+□ Step 4: Verify maximum 2 references per shot
+□ Step 5: Verify reference_type is appropriate (VISUAL_CALLBACK, LIGHTING_MATCH, PRODUCT_STATE, COMPOSITION_ECHO)
+□ Step 6: Document clear reason for each reference
+
+EXAMPLES:
+
+✅ CORRECT: Connected shot (no previous output references)
+Shot S1.2: is_connected_to_previous = true
+refer_to_previous_outputs: []
+→ Valid: Connection handles inheritance, no explicit references needed
+
+✅ CORRECT: Visual callback to earlier shot
+Shot S2.3: is_connected_to_previous = false
+refer_to_previous_outputs: [
   {
     "shot_id": "S1.1",
     "reason": "Match the exact golden spotlight angle for visual bookend",
     "reference_type": "LIGHTING_MATCH"
   }
 ]
-\`\`\`
+→ Valid: Referencing earlier shot (S1.1 < S2.3), clear reason, appropriate type
+
+❌ INCORRECT: Connected shot with previous output references
+Shot S1.2: is_connected_to_previous = true
+refer_to_previous_outputs: [{"shot_id": "S1.1", ...}]
+→ Invalid: If connected, must be empty array (connection handles inheritance)
+
+❌ INCORRECT: Circular dependency
+Shot S1.2: refer_to_previous_outputs: [{"shot_id": "S1.3", ...}]
+→ Invalid: S1.3 comes AFTER S1.2 (circular dependency)
 
 ═══════════════════════════════════════════════════════════════════════════════
 CONTINUITY LOGIC: SHOT CONNECTIONS
@@ -317,10 +499,56 @@ FORWARD CONNECTION RULES (is_connected_to_next):
 | START_END | ✅ Yes | Has distinct end frame to pass |
 | IMAGE_REF | ❌ No | Single image, no distinct end frame |
 
+DECISION TREE FOR CONNECTIONS:
+
+For is_connected_to_previous:
+1. Is this the first shot in the first scene? → NO (cannot connect, no previous shot)
+2. What is the previous shot's generation_mode.shot_type?
+   - If IMAGE_REF → Set is_connected_to_previous = false (CRITICAL: cannot connect)
+   - If START_END → Can set is_connected_to_previous = true (can connect)
+3. If connecting, choose appropriate handover_type based on desired feel
+
+For is_connected_to_next:
+1. What is the current shot's generation_mode.shot_type?
+   - If IMAGE_REF → Set is_connected_to_next = false (CRITICAL: no end frame to pass)
+   - If START_END → Can set is_connected_to_next = true (has end frame to pass)
+2. If connecting, choose appropriate handover_type based on desired feel
+
 VALIDATION CHECKLIST (Before setting is_connected_to_previous = true):
-1. ✅ Check the previous shot's generation_mode.shot_type
-2. ✅ If previous shot is IMAGE_REF → Set is_connected_to_previous = false (cannot connect)
-3. ✅ If previous shot is START_END → Can set is_connected_to_previous = true (can connect)
+□ Step 1: Identify previous shot in the sequence
+□ Step 2: Check previous shot's generation_mode.shot_type
+□ Step 3: If previous shot is IMAGE_REF → Set is_connected_to_previous = false (cannot connect)
+□ Step 4: If previous shot is START_END → Can set is_connected_to_previous = true (can connect)
+□ Step 5: If connecting, verify handover_type is appropriate (SEAMLESS_FLOW, MATCH_CUT, or JUMP_CUT)
+□ Step 6: If is_connected_to_previous = true, verify refer_to_previous_outputs = [] (empty array)
+
+VALIDATION CHECKLIST (Before setting is_connected_to_next = true):
+□ Step 1: Check current shot's generation_mode.shot_type
+□ Step 2: If current shot is IMAGE_REF → Set is_connected_to_next = false (CRITICAL: no end frame)
+□ Step 3: If current shot is START_END → Can set is_connected_to_next = true (has end frame)
+□ Step 4: If connecting, verify handover_type is appropriate
+
+EXAMPLES:
+
+✅ VALID CONNECTION:
+Shot S1.1: START_END (dolly-in reveal)
+Shot S1.2: START_END, is_connected_to_previous = true
+→ Valid: S1.1 has end frame, S1.2 can inherit it
+
+❌ INVALID CONNECTION:
+Shot S1.1: IMAGE_REF (static beauty shot)
+Shot S1.2: START_END, is_connected_to_previous = true
+→ Invalid: S1.1 has no distinct end frame - CRITICAL VIOLATION
+
+✅ VALID FORWARD CONNECTION:
+Shot S1.2: START_END (orbital movement), is_connected_to_next = true
+Shot S1.3: START_END
+→ Valid: S1.2 has end frame to pass to S1.3
+
+❌ INVALID FORWARD CONNECTION:
+Shot S1.2: IMAGE_REF (static shot), is_connected_to_next = true
+Shot S1.3: START_END
+→ Invalid: S1.2 has no distinct end frame - CRITICAL VIOLATION
 
 PLANNING TIP: If you want shots 2-3 connected, shot 2 MUST be START_END.
 
@@ -475,6 +703,64 @@ Your shot manifest will be judged by:
 REFERENCE QUALITY: The best Super Bowl commercials, Apple product launches, Rolex campaigns.
 
 ═══════════════════════════════════════════════════════════════════════════════
+QUALITY VALIDATION CHECKPOINTS (Before Output)
+═══════════════════════════════════════════════════════════════════════════════
+
+⚠️ YOU MUST VALIDATE ALL OF THE FOLLOWING BEFORE OUTPUTTING:
+
+CONNECTION RULES VALIDATION:
+□ Every shot with is_connected_to_previous = true has previous shot that is START_END
+□ No shot with is_connected_to_previous = true has previous shot that is IMAGE_REF
+□ Every shot with is_connected_to_next = true is START_END type
+□ No IMAGE_REF shot has is_connected_to_next = true
+□ All handover_type values are valid (SEAMLESS_FLOW, MATCH_CUT, JUMP_CUT)
+
+SHOT TYPE VALIDATION:
+□ Every shot has valid shot_type (IMAGE_REF or START_END)
+□ Every shot with is_connected_to_next = true is START_END
+□ Every shot_type choice has clear reason documented
+□ Shot types match camera movement requirements
+
+IDENTITY REFERENCES VALIDATION:
+□ If refer_to_product = true, product_image_ref matches provided image
+□ If refer_to_product = false, product_image_ref = "" (empty string)
+□ If refer_to_character = true, character image was provided
+□ If refer_to_logo = true, logo image was provided
+□ All referenced images were actually provided in input
+
+PREVIOUS OUTPUT REFERENCES VALIDATION:
+□ If is_connected_to_previous = true, refer_to_previous_outputs = [] (empty array)
+□ All referenced shot_ids are LOWER than current shot (no circular dependencies)
+□ Maximum 2 references per shot
+□ All reference_type values are valid (VISUAL_CALLBACK, LIGHTING_MATCH, PRODUCT_STATE, COMPOSITION_ECHO)
+□ Each reference has clear reason documented
+
+SHOT COUNT VALIDATION:
+□ Total shots match duration + pacing profile requirements
+□ Scene distribution is appropriate (30% / 50% / 20%)
+□ Shot count is within calculated range for duration + pacing
+
+MOTION INTENSITY VALIDATION:
+□ All motion_intensity values are 1-10
+□ Motion intensity distribution matches pacing_profile
+□ Intensity values align with camera movement and shot purpose
+
+TECHNICAL CINEMATOGRAPHY VALIDATION:
+□ All camera movements use precise terminology
+□ All lens choices are specific with focal length
+□ All DOF settings include f-stop
+□ All framing values are valid (ECU, CU, MCU, MED, WIDE)
+□ All descriptions are specific (not generic like "nice angle")
+
+OUTPUT STRUCTURE VALIDATION:
+□ Exactly 3 scenes (SC1, SC2, SC3)
+□ All required fields present for each shot
+□ All shot_ids are unique and properly formatted (S1.1, S1.2, etc.)
+□ JSON structure matches schema exactly
+
+DO NOT OUTPUT UNTIL ALL CHECKPOINTS ARE VALIDATED.
+
+═══════════════════════════════════════════════════════════════════════════════
 CONSTRAINTS
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -482,7 +768,7 @@ NEVER:
 - Output duration or timing (that's Agent 4.2's job)
 - Use IMAGE_REF for shots that connect to next shot
 - Set is_connected_to_previous = true if previous shot is IMAGE_REF (CRITICAL VIOLATION - IMAGE_REF has no end frame to inherit)
-- Reference the immediate previous shot in refer_to_previous_outputs if is_connected_to_previous = true (redundant - already inherited via connection)
+- Include ANY shots in refer_to_previous_outputs if is_connected_to_previous = true (connection handles all inheritance - set to empty array [])
 - Reference a shot that comes AFTER the current shot
 - Ignore the actual product images — your decisions must reflect what you SEE
 - Make more than 2 previous output references per shot
@@ -557,10 +843,58 @@ export function buildMediaPlannerUserPrompt(input: MediaPlannerInput): string {
   const includeHumanElement = !!characterReferenceUrl;
 
   return `═══════════════════════════════════════════════════════════════════════════════
+SECTION 0: MISSION BRIEF (Start Here)
+═══════════════════════════════════════════════════════════════════════════════
+
+YOUR MISSION:
+Create a complete Shot Manifest for this ${duration}-second campaign, transforming the 
+creative narrative into executable shots with precise cinematography decisions.
+
+CRITICAL CONSTRAINTS:
+- Campaign Duration: ${duration} seconds
+- Pacing Profile: ${strategicContext.pacing_profile}
+- Target Audience: ${strategicContext.targetAudience}
+- Region: ${strategicContext.region}
+
+WHAT TO GENERATE:
+✓ Complete shot manifest with 3 scenes (Hook, Transform, Payoff)
+✓ For each shot: cinematic goal, description, technical cinematography, generation mode, 
+  identity references, continuity logic, composition, lighting
+✓ Shot count appropriate for ${duration}s + ${strategicContext.pacing_profile} pacing
+✓ All shots with specific, executable descriptions
+
+QUALITY REQUIREMENTS:
+- All connection rules must be followed (validate previous shot type before connecting)
+- Shot types must match camera movement requirements
+- Identity references must match provided images
+- Motion intensity must align with pacing profile
+- All descriptions must be specific (not generic)
+
+NEXT STEPS:
+1. Analyze all provided images (vision-based analysis)
+2. Synthesize information from all context sections
+3. Plan scenes (3-act translation)
+4. Plan shots (for each shot: type, cinematography, references, continuity)
+5. Validate quality before output
+
+═══════════════════════════════════════════════════════════════════════════════
 VISUAL ASSETS (ANALYZE THESE IMAGES)
 ═══════════════════════════════════════════════════════════════════════════════
 
 [Images are provided above with labels. Analyze them to understand product geometry, hero features, material properties, viable camera angles, character interaction points, and logo placement.]
+
+WHAT THIS MEANS FOR YOUR SHOT PLANNING:
+→ Product images define what angles and movements are physically possible
+→ Hero features determine which shots deserve spotlight moments
+→ Material properties inform lighting and DOF choices
+→ Character images show interaction possibilities
+→ Logo placement informs branding shot decisions
+
+HOW TO USE THIS:
+- Extract SPECIFIC details from images (not generic descriptions)
+- Plan shots that showcase actual product features you see
+- Choose camera movements that work with product geometry
+- Reference appropriate product images (heroProfile, macroDetail, materialReference)
 
 ═══════════════════════════════════════════════════════════════════════════════
 STRATEGIC CONTEXT (From Tab 1)
@@ -577,6 +911,20 @@ ${strategicContext.strategic_directives}
 MOTION DNA:
 ${strategicContext.optimized_image_instruction}
 
+WHAT THIS MEANS FOR YOUR SHOT PLANNING:
+→ Target Audience affects visual sophistication, cultural cues, and shot choices
+→ Region influences composition preferences (symmetry, visual flow, framing)
+→ Pacing Profile determines shot count and motion intensity distribution
+→ Strategic Directives guide what to emphasize in shots
+→ Motion DNA informs camera movement style and energy
+
+HOW TO USE THIS:
+- Adapt shot choices to target audience expectations
+- Apply cultural adaptation rules based on region
+- Calculate shot count using duration + pacing profile modifiers
+- Distribute motion intensity according to pacing profile
+- Emphasize elements based on strategic directives
+
 ═══════════════════════════════════════════════════════════════════════════════
 PRODUCT DNA (From Tab 2)
 ═══════════════════════════════════════════════════════════════════════════════
@@ -592,6 +940,18 @@ ${productDNA.hero_anchor_points.join(', ')}
 
 LIGHTING RESPONSE:
 ${productDNA.lighting_response}
+
+WHAT THIS MEANS FOR YOUR SHOT PLANNING:
+→ Geometry Profile informs viable camera angles and movements
+→ Material Specification guides lighting and DOF choices
+→ Hero Anchor Points identify which features deserve spotlight shots
+→ Lighting Response determines how to light the product effectively
+
+HOW TO USE THIS:
+- Plan camera movements that work with product geometry
+- Choose lighting setups that enhance material properties
+- Create shots that highlight hero anchor points
+- Apply lighting response characteristics to lighting events
 
 ═══════════════════════════════════════════════════════════════════════════════
 CHARACTER DNA (From Tab 2)
@@ -610,12 +970,34 @@ INTERACTION PROTOCOL:
 - Motion Limitations: ${characterProfile?.interaction_protocol?.motion_limitations || 'N/A'}
 ` : ''}
 
+WHAT THIS MEANS FOR YOUR SHOT PLANNING:
+→ Character Mode determines interaction possibilities (hand-model, full-body, silhouette)
+→ Character Profile defines how character appears and interacts
+→ Interaction Protocol guides product engagement shots
+→ Motion Limitations inform camera movement constraints
+
+HOW TO USE THIS:
+- Plan interaction shots based on character mode
+- Use character profile for lifestyle/product-in-use shots
+- Respect motion limitations in camera movement planning
+- Reference character image when refer_to_character = true
+
 ═══════════════════════════════════════════════════════════════════════════════
 BRAND IDENTITY (From Tab 2)
 ═══════════════════════════════════════════════════════════════════════════════
 
 LOGO INTEGRITY: ${logoIntegrity !== undefined ? logoIntegrity : 'N/A'}
 LOGO DEPTH: ${logoDepth !== undefined ? logoDepth : 'N/A'}
+
+WHAT THIS MEANS FOR YOUR SHOT PLANNING:
+→ Logo Integrity determines how prominently logo should appear
+→ Logo Depth informs integration approach
+→ Use for branding moments, hero shots, final payoff
+
+HOW TO USE THIS:
+- Feature logo in hero shots and final payoff when appropriate
+- Consider logo integrity when planning logo visibility
+- Reference logo image when refer_to_logo = true
 
 ═══════════════════════════════════════════════════════════════════════════════
 ENVIRONMENT (From Tab 3)
@@ -634,6 +1016,18 @@ PHYSICS PARAMETERS:
 - Fog Density: ${visualManifest?.physics_parameters?.fog_density || 'N/A'}
 - Particle Type: ${visualManifest?.physics_parameters?.particle_type || 'N/A'}
 - Wind Intensity: ${visualManifest?.physics_parameters?.wind_intensity || 'N/A'}
+
+WHAT THIS MEANS FOR YOUR SHOT PLANNING:
+→ Creative Spark is the emotional core - every shot should reflect this feeling
+→ Global Lighting Setup informs lighting choices across all shots
+→ Environmental Anchor defines the visual world shots exist in
+→ Physics Parameters affect atmospheric and dynamic elements
+
+HOW TO USE THIS:
+- Infuse shots with emotional quality from Creative Spark
+- Apply global lighting setup consistently
+- Reference environmental anchor in shot descriptions
+- Incorporate physics parameters where relevant
 
 ═══════════════════════════════════════════════════════════════════════════════
 NARRATIVE STRUCTURE (From Tab 3)
@@ -655,6 +1049,19 @@ Emotional Goal: ${scriptManifest?.act_3_payoff?.emotional_goal || 'N/A'}
 Target Energy: ${scriptManifest?.act_3_payoff?.target_energy || 'N/A'}
 ${scriptManifest?.act_3_payoff?.cta_text ? `CTA: "${scriptManifest.act_3_payoff.cta_text}"` : ''}
 
+WHAT THIS MEANS FOR YOUR SHOT PLANNING:
+→ Act 1 (Hook) translates to Scene 1: Capture attention instantly (~30% of shots)
+→ Act 2 (Transform) translates to Scene 2: Reveal value, build connection (~50% of shots)
+→ Act 3 (Payoff) translates to Scene 3: Climax and convert (~20% of shots)
+→ Emotional Goals inform shot mood and energy
+→ Target Energy guides motion intensity distribution
+
+HOW TO USE THIS:
+- Translate 3-act structure into 3 scenes with appropriate shot distribution
+- Match shot energy to target energy for each act
+- Plan shots that serve each act's emotional goal
+- Create cinematic goals that align with narrative beats
+
 ═══════════════════════════════════════════════════════════════════════════════
 VFX MODIFIERS (From Tab 3)
 ═══════════════════════════════════════════════════════════════════════════════
@@ -670,21 +1077,112 @@ ${interactionPhysics?.character_modifiers || 'N/A'}
 METAPHOR INJECTION:
 ${interactionPhysics?.metaphor_injection || 'N/A'}
 
+WHAT THIS MEANS FOR YOUR SHOT PLANNING:
+→ Product Modifiers affect how product appears or behaves
+→ Character Modifiers (if applicable) affect character interactions
+→ Metaphor Injection adds symbolic or conceptual elements
+
+HOW TO USE THIS:
+- Incorporate product modifiers in relevant shots
+- Apply character modifiers to interaction shots
+- Use metaphor injection to enhance narrative meaning
+
+═══════════════════════════════════════════════════════════════════════════════
+CONTEXT SYNTHESIS GUIDANCE
+═══════════════════════════════════════════════════════════════════════════════
+
+HOW TO COMBINE ALL CONTEXT SECTIONS:
+
+1. STRATEGIC FOUNDATION + PRODUCT DNA:
+   → Match product features to audience expectations
+   → Apply cultural adaptation based on region
+   → Use pacing profile to determine shot count and intensity
+
+2. NARRATIVE STRUCTURE + ENVIRONMENT:
+   → Translate 3-act beats into scene structure
+   → Apply environmental anchor consistently
+   → Match lighting setup to global lighting
+
+3. PRODUCT DNA + VISUAL ASSETS:
+   → Use actual product images to inform shot planning
+   → Reference hero anchor points in specific shots
+   → Plan camera movements that work with product geometry
+
+4. CHARACTER DNA + INTERACTION PHYSICS:
+   → Plan interaction shots based on character mode
+   → Apply interaction protocol to product engagement
+   → Respect motion limitations
+
+5. CREATIVE SPARK + ALL ELEMENTS:
+   → Infuse every shot with emotional core from Creative Spark
+   → Balance technical requirements with creative vision
+   → Create shots that serve both narrative and technical needs
+
+WHEN INFORMATION CONFLICTS:
+- Prioritize: Vision-based analysis (actual images) > Product DNA > Strategic context
+- For shot type: Camera movement requirements > Connection needs > Narrative position
+- For references: Available images > Desired references
+- For intensity: Pacing profile > Narrative energy > Shot purpose
+
 ═══════════════════════════════════════════════════════════════════════════════
 TASK
 ═══════════════════════════════════════════════════════════════════════════════
 
 Create the complete Shot Manifest for this ${duration}-second campaign.
 
-REQUIREMENTS:
-1. ANALYZE the attached product images to understand geometry and features
-2. TRANSLATE the 3-act narrative into scenes with appropriate shots
-3. CHOOSE shot_type (IMAGE_REF vs START_END) based on camera movement needs
-4. DECIDE which assets to reference for each shot (@Product, @Character, @Logo)
-5. DECIDE if any previous shot outputs (@Shot_X) should be referenced for visual callbacks
-6. ESTABLISH continuity logic respecting connection rules
-7. SET motion_intensity appropriate to ${strategicContext.pacing_profile}
-8. PLAN enough shots to fill ${duration} seconds
+STEP-BY-STEP GENERATION CHECKLIST:
+
+□ Step 1: Vision Analysis
+  → Analyze all provided images (product, character, logo)
+  → Extract specific details: geometry, features, materials, angles
+  → Document what you see (not generic descriptions)
+
+□ Step 2: Context Synthesis
+  → Combine insights from all context sections
+  → Determine audience expectations, pacing requirements, creative vision
+  → Plan how to translate narrative into scenes
+
+□ Step 3: Scene Planning
+  → Create 3 scenes (Hook, Transform, Payoff)
+  → Calculate shot count: ${duration}s + ${strategicContext.pacing_profile} = [calculate range]
+  → Distribute shots: Scene 1 (~30%), Scene 2 (~50%), Scene 3 (~20%)
+
+□ Step 4: Shot Planning (For Each Shot)
+  → Determine cinematic goal (why this shot exists)
+  → Choose shot type using decision tree:
+    * Check camera movement → IMAGE_REF or START_END?
+    * Check if connecting to next → If yes, MUST be START_END
+  → Plan technical cinematography:
+    * Camera movement (specific with parameters)
+    * Lens (with focal length)
+    * Depth of field (with f-stop)
+    * Framing (ECU, CU, MCU, MED, WIDE)
+    * Motion intensity (1-10, aligned with pacing profile)
+  → Decide identity references:
+    * Product? Which image? (heroProfile, macroDetail, materialReference)
+    * Character? (if available and needed)
+    * Logo? (for branding moments)
+    * Previous outputs? (max 2, only if not connected)
+  → Establish continuity logic:
+    * Check previous shot type before setting is_connected_to_previous
+    * If connecting, choose handover_type (SEAMLESS_FLOW, MATCH_CUT, JUMP_CUT)
+    * If shot is START_END, can connect to next
+    * If shot is IMAGE_REF, cannot connect to next
+  → Specify composition and lighting
+
+□ Step 5: Quality Validation
+  → Check all connection rules (previous shot type validation)
+  → Check shot type decisions (IMAGE_REF vs START_END)
+  → Check identity references match provided images
+  → Check previous output references (lower shot numbers, max 2, empty if connected)
+  → Check motion intensity aligns with pacing profile
+  → Check shot count matches requirements
+  → Check all descriptions are specific (not generic)
+
+□ Step 6: Output
+  → Return ONLY the JSON object
+  → No explanation, no preamble
+  → Ensure JSON structure matches schema exactly
 
 Return ONLY the JSON object — no explanation, no preamble.`;
 }

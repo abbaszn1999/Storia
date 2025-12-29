@@ -165,11 +165,23 @@ const DURATIONS = [
   { value: "2hours", label: "2 hours" },
 ];
 
-const ASPECT_RATIOS = [
-  { value: "16:9", label: "16:9", description: "YouTube", icon: RectangleHorizontal },
+// All possible aspect ratios with metadata for UI display
+const ALL_ASPECT_RATIOS = [
+  { value: "16:9", label: "16:9", description: "YouTube, Landscape", icon: RectangleHorizontal },
   { value: "9:16", label: "9:16", description: "TikTok, Reels", icon: RectangleVertical },
-  { value: "1:1", label: "1:1", description: "Instagram", icon: Square },
+  { value: "1:1", label: "1:1", description: "Instagram Square", icon: Square },
+  { value: "4:3", label: "4:3", description: "Classic TV", icon: RectangleHorizontal },
+  { value: "3:4", label: "3:4", description: "Portrait Classic", icon: RectangleVertical },
   { value: "4:5", label: "4:5", description: "Feed Posts", icon: RectangleVertical },
+  { value: "5:4", label: "5:4", description: "Large Format", icon: RectangleHorizontal },
+  { value: "3:2", label: "3:2", description: "Photo Standard", icon: RectangleHorizontal },
+  { value: "2:3", label: "2:3", description: "Photo Portrait", icon: RectangleVertical },
+  { value: "21:9", label: "21:9", description: "Ultra-Wide Cinema", icon: RectangleHorizontal },
+  { value: "9:21", label: "9:21", description: "Ultra-Tall", icon: RectangleVertical },
+  { value: "7:4", label: "7:4", description: "Wide Landscape", icon: RectangleHorizontal },
+  { value: "4:7", label: "4:7", description: "Tall Portrait", icon: RectangleVertical },
+  { value: "17:13", label: "17:13", description: "Custom Wide", icon: RectangleHorizontal },
+  { value: "13:17", label: "13:17", description: "Custom Tall", icon: RectangleVertical },
 ];
 
 const TEXT_OVERLAY_STYLES = [
@@ -228,6 +240,33 @@ const CAMERA_MOTIONS = [
   { id: "pull-out", label: "Pull Out" },
   { id: "float", label: "Floating" },
 ];
+
+/**
+ * Get compatible aspect ratios based on selected image and video models
+ * For Image Transitions mode: returns image model's aspect ratios
+ * For Video Animation mode: returns intersection of both models
+ */
+const getCompatibleAspectRatios = (
+  imageModel: string,
+  videoModel: string,
+  animationMode: 'image-transitions' | 'video-animation'
+): string[] => {
+  const imageConfig = IMAGE_MODELS.find(m => m.value === imageModel);
+  const videoConfig = getVideoModelConfig(videoModel);
+  
+  if (animationMode === 'image-transitions') {
+    // Image Transitions mode: use image model ratios only
+    return imageConfig?.aspectRatios || [];
+  }
+  
+  // Video Animation mode: intersection of both
+  const imageRatios = new Set(imageConfig?.aspectRatios || []);
+  const videoRatios = videoConfig?.aspectRatios || [];
+  
+  // Return intersection - only ratios supported by BOTH models
+  // If no intersection, return empty array (UI will show error message)
+  return videoRatios.filter(r => imageRatios.has(r));
+};
 
 interface AtmosphereTabProps {
   // Video ID for API calls
@@ -319,7 +358,7 @@ export function AtmosphereTab({
   userStory,
   moodDescription,
   imageModel = "nano-banana",
-  imageResolution = "auto",
+  imageResolution = "1k",
   aspectRatio = "16:9",
   voiceoverEnabled = false,
   language = 'en',
@@ -388,6 +427,19 @@ export function AtmosphereTab({
       setAiPrompt(userStory);
     }
   }, [userStory]);
+
+  // Auto-convert "auto" resolution to first available resolution (for backward compatibility)
+  useEffect(() => {
+    if (imageResolution === "auto" && imageModel && onImageResolutionChange) {
+      const selectedModel = IMAGE_MODELS.find(m => m.value === imageModel);
+      const availableResolutions = selectedModel?.resolutions || ["1k"];
+      const actualResolutions = availableResolutions.filter(r => r !== "custom");
+      
+      if (actualResolutions.length > 0) {
+        onImageResolutionChange(actualResolutions[0]);
+      }
+    }
+  }, [imageResolution, imageModel, onImageResolutionChange]);
 
   const accentClasses = "from-cyan-500 to-teal-500";
 
@@ -509,6 +561,24 @@ export function AtmosphereTab({
     }
   }, [videoGenerationMode]); // Only run when video generation mode changes
 
+  // Auto-adjust aspect ratio when animation mode or models change
+  useEffect(() => {
+    if (animationMode && imageModel && videoModel) {
+      const compatibleRatios = getCompatibleAspectRatios(
+        imageModel,
+        videoModel,
+        animationMode as 'image-transitions' | 'video-animation'
+      );
+      
+      // If current aspect ratio is not in compatible list, auto-adjust (only if there are compatible ratios)
+      if (compatibleRatios.length > 0 && !compatibleRatios.includes(aspectRatio)) {
+        console.log(`[AtmosphereTab] Aspect ratio ${aspectRatio} incompatible with model combination, switching to ${compatibleRatios[0]}`);
+        onAspectRatioChange?.(compatibleRatios[0]);
+      }
+      // If no compatible ratios, don't auto-adjust - let the error message show
+    }
+  }, [animationMode, imageModel, videoModel]); // Run when mode or models change
+
   const handleGenerateIdea = async () => {
     if (!aiPrompt.trim()) return;
     
@@ -626,196 +696,634 @@ export function AtmosphereTab({
         {/* Scrollable Content */}
         <ScrollArea className="flex-1 h-full">
           <div className="p-6 space-y-6 pb-12">
-            {/* Image Settings */}
+            {/* Animation Mode - First setting at the top */}
             <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <ImageIcon className="w-5 h-5 text-cyan-400" />
-                  <Label className="text-lg font-semibold text-white">Image Settings</Label>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <Video className="w-5 h-5 text-cyan-400" />
+                    <Label className="text-lg font-semibold text-white">Animation Mode</Label>
+                  </div>
+                  <div className="px-3 py-1 rounded-lg bg-gradient-to-r from-cyan-500/20 to-teal-500/20 border border-cyan-500/30">
+                    <span className="text-sm font-medium text-cyan-400">
+                      {animationMode === 'image-transitions' ? 'Image Transitions' : 'Video Animation'}
+                    </span>
+                  </div>
                 </div>
+                
+                <p className="text-xs text-white/40">
+                  Selected during project setup. This mode determines how your visuals will be generated.
+                </p>
 
-                {/* Image Model Selection */}
-                <div className="space-y-2">
-                  <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Image Model</label>
-                  <Select value={imageModel} onValueChange={onImageModelChange}>
-                    <SelectTrigger className="h-auto min-h-[48px] py-2.5 bg-white/5 border-white/10 text-white">
-                      <SelectValue placeholder="Select image model">
-                        {(() => {
-                          const selectedModel = IMAGE_MODELS.find(m => m.value === imageModel);
-                          if (!selectedModel) return "Select image model";
-                          return (
-                            <div className="flex items-center gap-2 w-full">
-                              <div className="flex-1 text-left">
-                                <div className="text-sm font-medium text-white">{selectedModel.label}</div>
-                                <div className="text-xs text-white/50">{selectedModel.provider}</div>
-                              </div>
-                              {selectedModel.badge && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-cyan-500/20 border-cyan-500/50 text-cyan-300 flex-shrink-0">
-                                  {selectedModel.badge}
-                                </Badge>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[400px] bg-[#0a0a0a] border-white/10">
-                      {IMAGE_MODELS.map((model) => (
-                        <SelectItem 
-                          key={model.value} 
-                          value={model.value} 
-                          className="py-3 focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
-                        >
-                          <div className="flex items-start justify-between gap-3 w-full">
-                            <div className="flex flex-col flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-medium text-sm">{model.label}</span>
-                                {model.default && (
-                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-cyan-500/20 border-cyan-500/50 text-cyan-300">
-                                    Default
-                                  </Badge>
-                                )}
-                                {model.badge && (
-                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-white/10 border-white/20">
-                                    {model.badge}
-                                  </Badge>
-                                )}
-                              </div>
-                              <span className="text-[10px] text-muted-foreground mt-0.5">
-                                {model.provider}
-                              </span>
-                              <span className="text-xs text-muted-foreground/80 mt-1">
-                                {model.description}
-                              </span>
-                            </div>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-white/50">
-                    AI model used to generate images from your prompts
-                  </p>
-                </div>
-
-                {/* Resolution Selector */}
-                <div className="space-y-2">
-                  <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Resolution</label>
-                  {(() => {
-                    const selectedModel = IMAGE_MODELS.find(m => m.value === imageModel);
-                    const availableResolutions = selectedModel?.resolutions || ["1k"];
-                    const hasMultipleResolutions = availableResolutions.length > 1 || (availableResolutions.length === 1 && availableResolutions[0] !== "custom");
+                {/* Video Generation Mode (only for video animation) */}
+                {animationMode === 'video-animation' && videoGenerationMode && (
+                  <div className="space-y-2">
+                    <div className="p-3 rounded-lg bg-white/5 border border-white/10">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-white/50">Generation Method:</span>
+                        <span className="text-sm font-medium text-white">
+                          {videoGenerationMode === 'image-reference' ? 'Image Reference Mode' : 'Start/End Frame Mode'}
+                        </span>
+                      </div>
+                    </div>
                     
-                    // If model has "custom" only, show auto
-                    if (availableResolutions.length === 1 && availableResolutions[0] === "custom") {
-                      return (
-                        <div className="flex items-center gap-2">
-                          <button
-                            className={cn(
-                              "flex-1 px-4 py-3 rounded-lg border transition-all",
-                              "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
-                            )}
-                          >
-                            Auto
-                          </button>
-                          <p className="text-xs text-white/40">Model uses optimal resolution automatically</p>
+                    {/* Show compatibility info for start-end-frame mode */}
+                    {videoGenerationMode === 'start-end-frame' && (
+                      <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                        <div className="text-amber-400 mt-0.5">ℹ️</div>
+                        <div className="flex-1 text-xs text-amber-200/90">
+                          <span className="font-semibold">{availableVideoModels.length} of 16 models compatible</span> with Start/End Frame mode.
+                          Models need both start and end frame support.
                         </div>
-                      );
-                    }
-                    
-                    // Show resolution buttons for models with specific resolutions
-                    return (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => onImageResolutionChange?.("auto")}
-                          className={cn(
-                            "flex-1 px-4 py-3 rounded-lg border transition-all text-sm font-medium",
-                            imageResolution === "auto"
-                              ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
-                              : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70"
-                          )}
-                        >
-                          Auto
-                        </button>
-                        {availableResolutions.filter(r => r !== "custom").map((res) => (
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Image Transitions Settings */}
+                {animationMode === 'image-transitions' && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    className="space-y-4"
+                  >
+                    {/* Default Easing / Motion Style */}
+                    <div className="space-y-2">
+                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Default Easing Style</label>
+                      <p className="text-xs text-white/40">
+                        This will be the default easing for all segments (can be customized per segment in Composition)
+                      </p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {EASING_STYLES.map((style) => (
                           <button
-                            key={res}
-                            onClick={() => onImageResolutionChange?.(res)}
+                            key={style.value}
+                            onClick={() => onDefaultEasingStyleChange?.(style.value)}
                             className={cn(
-                              "flex-1 px-4 py-3 rounded-lg border transition-all text-sm font-medium",
-                              imageResolution === res
-                                ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
-                                : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70"
+                              "py-2.5 px-3 rounded-lg border text-sm font-medium transition-all",
+                              defaultEasingStyle === style.value
+                                ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
+                                : "bg-white/5 border-white/10 hover:bg-white/10"
                             )}
                           >
-                            {res.toUpperCase()}
+                            {style.label}
                           </button>
                         ))}
                       </div>
-                    );
-                  })()}
-                  <p className="text-xs text-white/50">
-                    Higher resolution = more detail but slower generation
-                  </p>
-                </div>
+                    </div>
+                  </motion.div>
+                )}
 
-                {/* Model Capabilities Info */}
-                <div className="flex items-center gap-2 text-xs text-white/40 pt-2">
-                  {(() => {
-                    const selectedModel = IMAGE_MODELS.find(m => m.value === imageModel);
-                    if (!selectedModel) return null;
-                    
-                    return (
-                      <>
-                        <span>{selectedModel.aspectRatios.length} aspect ratios</span>
-                        <span>•</span>
-                        <span>{selectedModel.resolutions.join(", ")}</span>
-                        {selectedModel.supportsNegativePrompt && (
-                          <>
-                            <span>•</span>
-                            <span className="text-emerald-400">Negative prompt</span>
-                          </>
-                        )}
-                        <span>•</span>
-                        <span>{selectedModel.maxPromptLength >= 10000 ? '10K+' : `${Math.floor(selectedModel.maxPromptLength / 1000)}K`} chars</span>
-                      </>
-                    );
-                  })()}
-                </div>
+                {/* Video Animation Settings */}
+                {animationMode === 'video-animation' && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    className="space-y-4"
+                  >
+                    {/* Image Model - Enhanced UI (for generating keyframes) */}
+                    <div className="space-y-3">
+                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Image Model</label>
+                      <p className="text-xs text-white/40">
+                        AI model used to generate keyframe images for video generation
+                      </p>
+                      
+                      <Select value={imageModel} onValueChange={(value) => {
+                        onImageModelChange?.(value);
+                        // Check if current aspect ratio is compatible with new model combination
+                        const compatibleRatios = getCompatibleAspectRatios(value, videoModel, 'video-animation');
+                        if (compatibleRatios.length > 0 && !compatibleRatios.includes(aspectRatio)) {
+                          // Auto-adjust to first compatible ratio
+                          onAspectRatioChange?.(compatibleRatios[0]);
+                        }
+                      }}>
+                        <SelectTrigger className="h-auto p-0 border-0 bg-transparent [&>svg]:hidden">
+                          {(() => {
+                            const selectedModel = IMAGE_MODELS.find(m => m.value === imageModel);
+                            if (!selectedModel) return <SelectValue placeholder="Select image model" />;
+                            
+                            return (
+                              <div className="w-full p-4 rounded-lg bg-white/5 border border-white/10 hover:bg-white/[0.07] transition-colors text-left">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500/20 to-teal-500/20">
+                                      <ImageIcon className="w-5 h-5 text-cyan-400" />
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-white">{selectedModel.label}</span>
+                                        {selectedModel.default && (
+                                          <Badge 
+                                            variant="outline" 
+                                            className="text-[10px] px-1.5 py-0 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-amber-500/50 text-amber-300"
+                                          >
+                                            Default
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <span className="text-xs text-white/50">{selectedModel.provider}</span>
+                                    </div>
+                                  </div>
+                                  <svg className="w-5 h-5 text-white/40 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </div>
+                                <div className="mt-2 text-xs text-white/40">
+                                  {selectedModel.aspectRatios.length} aspect ratios • {selectedModel.resolutions.join(", ")}
+                                  {selectedModel.maxPromptLength && <span> • {(selectedModel.maxPromptLength / 1000).toFixed(0)}K chars</span>}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[400px] bg-[#0a0a0a] border-white/10">
+                          {IMAGE_MODELS.map((model) => (
+                            <SelectItem 
+                              key={model.value} 
+                              value={model.value}
+                              className="py-3 focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                            >
+                              <div className="flex items-start justify-between gap-3 w-full">
+                                <div className="flex flex-col flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium text-sm">{model.label}</span>
+                                    {model.default && (
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-amber-500/50 text-amber-300">
+                                        Default
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground mt-0.5">
+                                    {model.provider}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground/80 mt-1">
+                                    {model.description}
+                                  </span>
+                                  <span className="text-[10px] text-white/40 mt-1">
+                                    {model.aspectRatios.length} ratios • {model.resolutions.join(", ")}
+                                  </span>
+                                </div>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Image Resolution - Dynamic based on selected model */}
+                    <div className="space-y-2">
+                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Image Resolution</label>
+                      {(() => {
+                        const selectedModel = IMAGE_MODELS.find(m => m.value === imageModel);
+                        const availableResolutions = selectedModel?.resolutions || ['1k'];
+                        
+                        // Filter out "custom" resolution - models with "custom" use optimal resolution automatically
+                        const actualResolutions = availableResolutions.filter(r => r !== "custom");
+                        
+                        // If only "custom" is available, show informational message
+                        if (actualResolutions.length === 0) {
+                          return (
+                            <div className="p-3 rounded-lg bg-white/5 border border-white/10">
+                              <p className="text-xs text-white/70">
+                                This model uses optimal resolution automatically based on your settings.
+                              </p>
+                            </div>
+                          );
+                        }
+                        
+                        return (
+                          <div className={cn(
+                            "grid gap-2",
+                            actualResolutions.length <= 3 ? "grid-cols-3" : "grid-cols-4"
+                          )}>
+                            {actualResolutions.map((res) => (
+                              <button
+                                key={res}
+                                onClick={() => onImageResolutionChange?.(res)}
+                                className={cn(
+                                  "py-3 px-3 rounded-lg text-sm font-medium border transition-all",
+                                  imageResolution === res
+                                    ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
+                                    : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70"
+                                )}
+                              >
+                                {res.toUpperCase()}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                      <p className="text-xs text-white/40">
+                        Higher resolution = more detail but slower generation
+                      </p>
+                    </div>
+
+                    {/* Video Model - Enhanced UI */}
+                    <div className="space-y-3">
+                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Video Model</label>
+                      
+                      <Select value={videoModel} onValueChange={(value) => {
+                        onVideoModelChange?.(value);
+                        // Reset resolution to first available for new model
+                        const newModel = getVideoModelConfig(value);
+                        if (newModel && !newModel.resolutions.includes(videoResolution)) {
+                          onVideoResolutionChange?.(newModel.resolutions[0]);
+                        }
+                        // Check if current aspect ratio is compatible with new model combination
+                        const compatibleRatios = getCompatibleAspectRatios(imageModel, value, 'video-animation');
+                        if (compatibleRatios.length > 0 && !compatibleRatios.includes(aspectRatio)) {
+                          // Auto-adjust to first compatible ratio
+                          onAspectRatioChange?.(compatibleRatios[0]);
+                        }
+                      }}>
+                        <SelectTrigger className="h-auto p-0 border-0 bg-transparent [&>svg]:hidden">
+                          {/* Custom styled trigger that looks like a card */}
+                          {(() => {
+                            const selectedVideoModel = getVideoModelConfig(videoModel);
+                            if (!selectedVideoModel) return <SelectValue placeholder="Select video model" />;
+                            
+                            return (
+                              <div className="w-full p-4 rounded-lg bg-white/5 border border-white/10 hover:bg-white/[0.07] transition-colors text-left">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500/20 to-teal-500/20">
+                                      <Video className="w-5 h-5 text-cyan-400" />
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-white">{selectedVideoModel.label}</span>
+                                        {selectedVideoModel.badge && (
+                                          <Badge 
+                                            variant="outline" 
+                                            className={cn(
+                                              "text-[10px] px-1.5 py-0",
+                                              selectedVideoModel.default 
+                                                ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-amber-500/50 text-amber-300"
+                                                : "bg-white/10 border-white/20 text-white/70"
+                                            )}
+                                          >
+                                            {selectedVideoModel.badge}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <span className="text-xs text-white/50">{selectedVideoModel.provider}</span>
+                                    </div>
+                                  </div>
+                                  <svg className="w-5 h-5 text-white/40 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </div>
+                                <div className="mt-2 text-xs text-white/40">
+                                  {selectedVideoModel.durations.join(', ')}s • {selectedVideoModel.resolutions.join(', ')}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[400px] bg-[#0a0a0a] border-white/10">
+                          {availableVideoModels.map((model) => (
+                            <SelectItem 
+                              key={model.value} 
+                              value={model.value}
+                              className="py-3 focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                            >
+                              <div className="flex items-start justify-between gap-3 w-full">
+                                <div className="flex flex-col flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium text-sm">{model.label}</span>
+                                    {model.default && (
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-amber-500/50 text-amber-300">
+                                        Default
+                                      </Badge>
+                                    )}
+                                    {model.hasAudio && (
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/50 text-purple-300">
+                                        🎵 Audio
+                                      </Badge>
+                                    )}
+                                    {model.badge && !model.default && (
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-white/10 border-white/20">
+                                        {model.badge}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground mt-0.5">
+                                    {model.provider}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground/80 mt-1">
+                                    {model.description}
+                                  </span>
+                                  <span className="text-[10px] text-white/40 mt-1">
+                                    {model.durations.join(', ')}s • {model.resolutions.join(', ')}
+                                  </span>
+                                </div>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Video Resolution - Dynamic based on selected model */}
+                    <div className="space-y-2">
+                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Video Resolution</label>
+                      {(() => {
+                        const selectedVideoModel = getVideoModelConfig(videoModel);
+                        const availableResolutions = selectedVideoModel?.resolutions || ['720p'];
+                        
+                        return (
+                          <div className={cn(
+                            "grid gap-2",
+                            availableResolutions.length <= 3 ? "grid-cols-3" : "grid-cols-4"
+                          )}>
+                            {availableResolutions.map((res) => (
+                              <button
+                                key={res}
+                                onClick={() => onVideoResolutionChange?.(res)}
+                                className={cn(
+                                  "py-3 px-3 rounded-lg text-sm font-medium border transition-all",
+                                  videoResolution === res
+                                    ? "bg-gradient-to-br from-amber-500/20 to-orange-500/20 border-amber-500/50 text-white"
+                                    : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70"
+                                )}
+                              >
+                                {VIDEO_RESOLUTION_LABELS[res] || res}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Motion Prompt */}
+                    <div className="space-y-2">
+                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Motion Prompt</label>
+                      <p className="text-xs text-white/40">
+                        Global instructions for AI video generation (camera motion can be customized per segment in Composition)
+                      </p>
+                      <Textarea
+                        value={motionPrompt}
+                        onChange={(e) => onMotionPromptChange?.(e.target.value)}
+                        placeholder="e.g., Gentle floating particles, subtle light rays moving slowly, soft ambient movements..."
+                        className="min-h-[80px] resize-none bg-white/5 border-white/10 text-white placeholder:text-white/30"
+                      />
+                    </div>
+                  </motion.div>
+                )}
               </CardContent>
             </Card>
+
+            {/* Image Settings - Only show in Image Transitions mode (in Video Animation, image model is inside Animation Mode card) */}
+            {animationMode === 'image-transitions' && (
+              <Card className="bg-white/[0.02] border-white/[0.06]">
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ImageIcon className="w-5 h-5 text-cyan-400" />
+                    <Label className="text-lg font-semibold text-white">Image Settings</Label>
+                  </div>
+
+                  {/* Image Model Selection */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Image Model</label>
+                    <Select value={imageModel} onValueChange={onImageModelChange}>
+                      <SelectTrigger className="h-auto min-h-[48px] py-2.5 bg-white/5 border-white/10 text-white">
+                        <SelectValue placeholder="Select image model">
+                          {(() => {
+                            const selectedModel = IMAGE_MODELS.find(m => m.value === imageModel);
+                            if (!selectedModel) return "Select image model";
+                            return (
+                              <div className="flex items-center gap-2 w-full">
+                                <div className="flex-1 text-left">
+                                  <div className="text-sm font-medium text-white">{selectedModel.label}</div>
+                                  <div className="text-xs text-white/50">{selectedModel.provider}</div>
+                                </div>
+                                {selectedModel.badge && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-cyan-500/20 border-cyan-500/50 text-cyan-300 flex-shrink-0">
+                                    {selectedModel.badge}
+                                  </Badge>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[400px] bg-[#0a0a0a] border-white/10">
+                        {IMAGE_MODELS.map((model) => (
+                          <SelectItem 
+                            key={model.value} 
+                            value={model.value} 
+                            className="py-3 focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                          >
+                            <div className="flex items-start justify-between gap-3 w-full">
+                              <div className="flex flex-col flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium text-sm">{model.label}</span>
+                                  {model.default && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-cyan-500/20 border-cyan-500/50 text-cyan-300">
+                                      Default
+                                    </Badge>
+                                  )}
+                                  {model.badge && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-white/10 border-white/20">
+                                      {model.badge}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-muted-foreground mt-0.5">
+                                  {model.provider}
+                                </span>
+                                <span className="text-xs text-muted-foreground/80 mt-1">
+                                  {model.description}
+                                </span>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-white/50">
+                      AI model used to generate images from your prompts
+                    </p>
+                  </div>
+
+                  {/* Resolution Selector */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Resolution</label>
+                    {(() => {
+                      const selectedModel = IMAGE_MODELS.find(m => m.value === imageModel);
+                      const availableResolutions = selectedModel?.resolutions || ["1k"];
+                      
+                      // Filter out "custom" and only show actual resolution options
+                      const actualResolutions = availableResolutions.filter(r => r !== "custom");
+                      
+                      // If no actual resolutions available, show message
+                      if (actualResolutions.length === 0) {
+                        return (
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-white/40">Model uses optimal resolution automatically</p>
+                          </div>
+                        );
+                      }
+                      
+                      // Show resolution buttons (no "Auto" option)
+                      // Use first resolution if current is "auto" or invalid
+                      const currentResolution = (imageResolution === "auto" || !actualResolutions.includes(imageResolution))
+                        ? actualResolutions[0]
+                        : imageResolution;
+                      
+                      return (
+                        <div className={cn(
+                          "grid gap-2",
+                          actualResolutions.length === 1 ? "grid-cols-1" :
+                          actualResolutions.length === 2 ? "grid-cols-2" :
+                          actualResolutions.length === 3 ? "grid-cols-3" :
+                          "grid-cols-4"
+                        )}>
+                          {actualResolutions.map((res) => {
+                            const labels: Record<string, string> = {
+                              "1k": "1K",
+                              "2k": "2K",
+                              "4k": "4K",
+                            };
+                            return (
+                              <button
+                                key={res}
+                                onClick={() => onImageResolutionChange?.(res)}
+                                className={cn(
+                                  "px-4 py-3 rounded-lg border transition-all text-sm font-medium",
+                                  currentResolution === res
+                                    ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
+                                    : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70"
+                                )}
+                              >
+                                {labels[res] || res.toUpperCase()}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                    <p className="text-xs text-white/50">
+                      Higher resolution = more detail but slower generation
+                    </p>
+                  </div>
+
+                  {/* Model Capabilities Info */}
+                  <div className="flex items-center gap-2 text-xs text-white/40 pt-2">
+                    {(() => {
+                      const selectedModel = IMAGE_MODELS.find(m => m.value === imageModel);
+                      if (!selectedModel) return null;
+                      
+                      return (
+                        <>
+                          <span>{selectedModel.aspectRatios.length} aspect ratios</span>
+                          <span>•</span>
+                          <span>{selectedModel.resolutions.join(", ")}</span>
+                          {selectedModel.supportsNegativePrompt && (
+                            <>
+                              <span>•</span>
+                              <span className="text-emerald-400">Negative prompt</span>
+                            </>
+                          )}
+                          <span>•</span>
+                          <span>{selectedModel.maxPromptLength >= 10000 ? '10K+' : `${Math.floor(selectedModel.maxPromptLength / 1000)}K`} chars</span>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Aspect Ratio */}
             <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
                 <Label className="text-lg font-semibold text-white">Aspect Ratio</Label>
                 <p className="text-sm text-white/50">
-                  Choose the dimensions for your ambient visual
+                  {animationMode === 'video-animation' 
+                    ? 'Showing ratios supported by both image and video models'
+                    : 'Choose the dimensions for your ambient visual'}
                 </p>
-                <div className="grid grid-cols-2 gap-3">
-                  {ASPECT_RATIOS.map((ratio) => {
-                    const Icon = ratio.icon;
-                    return (
-                      <button
-                        key={ratio.value}
-                        onClick={() => onAspectRatioChange?.(ratio.value)}
-                        className={cn(
-                          "p-4 rounded-lg border transition-all hover-elevate text-left",
-                          aspectRatio === ratio.value
-                            ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                            : "bg-white/5 border-white/10 hover:bg-white/10"
-                        )}
-                        data-testid={`button-aspect-${ratio.value}`}
-                      >
-                        <div className="flex items-center gap-3 mb-2">
-                          <Icon className="h-5 w-5 text-white" />
-                          <span className="font-semibold text-white">{ratio.label}</span>
-                        </div>
-                        <div className="text-xs text-white/40">{ratio.description}</div>
-                      </button>
+                <div className="grid grid-cols-3 gap-3">
+                  {(() => {
+                    // Get compatible aspect ratios based on animation mode and selected models
+                    const compatibleRatios = getCompatibleAspectRatios(
+                      imageModel,
+                      videoModel,
+                      animationMode as 'image-transitions' | 'video-animation'
                     );
-                  })}
+                    
+                    // Filter ALL_ASPECT_RATIOS to only show compatible ones
+                    const ratiosToShow = ALL_ASPECT_RATIOS.filter(ratio => 
+                      compatibleRatios.includes(ratio.value)
+                    );
+                    
+                    // If no ratios found (models are incompatible), show error message
+                    if (ratiosToShow.length === 0 && animationMode === 'video-animation') {
+                      const imageModelName = IMAGE_MODELS.find(m => m.value === imageModel)?.label || 'image model';
+                      const videoModelName = getVideoModelConfig(videoModel)?.label || 'video model';
+                      
+                      return (
+                        <div className="col-span-2">
+                          <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
+                            <div className="flex items-start gap-3">
+                              <div className="text-red-400 mt-0.5">⚠️</div>
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold text-red-300 mb-1">
+                                  Models Not Compatible
+                                </p>
+                                <p className="text-xs text-red-200/80">
+                                  <span className="font-medium">{imageModelName}</span> and <span className="font-medium">{videoModelName}</span> do not share any compatible aspect ratios. 
+                                  Please select different models to continue.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    return ratiosToShow.map((ratio) => {
+                      const Icon = ratio.icon;
+                      return (
+                        <button
+                          key={ratio.value}
+                          onClick={() => onAspectRatioChange?.(ratio.value)}
+                          className={cn(
+                            "p-4 rounded-lg border transition-all hover-elevate text-left",
+                            aspectRatio === ratio.value
+                              ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
+                              : "bg-white/5 border-white/10 hover:bg-white/10"
+                          )}
+                          data-testid={`button-aspect-${ratio.value}`}
+                        >
+                          <div className="flex items-center gap-3 mb-2">
+                            <Icon className="h-5 w-5 text-white" />
+                            <span className="font-semibold text-white">{ratio.label}</span>
+                          </div>
+                          <div className="text-xs text-white/40">{ratio.description}</div>
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
+                {animationMode === 'video-animation' && (() => {
+                  const compatibleRatios = getCompatibleAspectRatios(
+                    imageModel,
+                    videoModel,
+                    animationMode as 'image-transitions' | 'video-animation'
+                  );
+                  
+                  // Only show info message if there are compatible ratios
+                  if (compatibleRatios.length > 0) {
+                    return (
+                      <p className="text-xs text-amber-400/70 flex items-center gap-1.5">
+                        <span className="text-amber-400">ℹ</span>
+                        Only showing ratios supported by both {IMAGE_MODELS.find(m => m.value === imageModel)?.label || 'image model'} and {getVideoModelConfig(videoModel)?.label || 'video model'}
+                      </p>
+                    );
+                  }
+                  return null;
+                })()}
               </CardContent>
             </Card>
 
@@ -957,239 +1465,6 @@ export function AtmosphereTab({
                     );
                   })}
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Animation Mode */}
-            <Card className="bg-white/[0.02] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2">
-                    <Video className="w-5 h-5 text-cyan-400" />
-                    <Label className="text-lg font-semibold text-white">Animation Mode</Label>
-                  </div>
-                  <div className="px-3 py-1 rounded-lg bg-gradient-to-r from-cyan-500/20 to-teal-500/20 border border-cyan-500/30">
-                    <span className="text-sm font-medium text-cyan-400">
-                      {animationMode === 'image-transitions' ? 'Image Transitions' : 'Video Animation'}
-                    </span>
-                  </div>
-                </div>
-                
-                <p className="text-xs text-white/40">
-                  Selected during project setup. This mode determines how your visuals will be generated.
-                </p>
-
-                {/* Video Generation Mode (only for video animation) */}
-                {animationMode === 'video-animation' && videoGenerationMode && (
-                  <div className="space-y-2">
-                    <div className="p-3 rounded-lg bg-white/5 border border-white/10">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-white/50">Generation Method:</span>
-                        <span className="text-sm font-medium text-white">
-                          {videoGenerationMode === 'image-reference' ? 'Image Reference Mode' : 'Start/End Frame Mode'}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {/* Show compatibility info for start-end-frame mode */}
-                    {videoGenerationMode === 'start-end-frame' && (
-                      <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                        <div className="text-amber-400 mt-0.5">ℹ️</div>
-                        <div className="flex-1 text-xs text-amber-200/90">
-                          <span className="font-semibold">{availableVideoModels.length} of 16 models compatible</span> with Start/End Frame mode.
-                          Models need both start and end frame support.
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Image Transitions Settings */}
-                {animationMode === 'image-transitions' && (
-                  <motion.div 
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    className="space-y-4"
-                  >
-                    {/* Default Easing / Motion Style */}
-                    <div className="space-y-2">
-                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Default Easing Style</label>
-                      <p className="text-xs text-white/40">
-                        This will be the default easing for all segments (can be customized per segment in Composition)
-                      </p>
-                      <div className="grid grid-cols-4 gap-2">
-                        {EASING_STYLES.map((style) => (
-                          <button
-                            key={style.value}
-                            onClick={() => onDefaultEasingStyleChange?.(style.value)}
-                            className={cn(
-                              "py-2.5 px-3 rounded-lg border text-sm font-medium transition-all",
-                              defaultEasingStyle === style.value
-                                ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                                : "bg-white/5 border-white/10 hover:bg-white/10"
-                            )}
-                          >
-                            {style.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {/* Video Animation Settings */}
-                {animationMode === 'video-animation' && (
-                  <motion.div 
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    className="space-y-4"
-                  >
-                    {/* Video Model - Enhanced UI */}
-                    <div className="space-y-3">
-                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Video Model</label>
-                      
-                      <Select value={videoModel} onValueChange={(value) => {
-                        onVideoModelChange?.(value);
-                        // Reset resolution to first available for new model
-                        const newModel = getVideoModelConfig(value);
-                        if (newModel && !newModel.resolutions.includes(videoResolution)) {
-                          onVideoResolutionChange?.(newModel.resolutions[0]);
-                        }
-                      }}>
-                        <SelectTrigger className="h-auto p-0 border-0 bg-transparent [&>svg]:hidden">
-                          {/* Custom styled trigger that looks like a card */}
-                          {(() => {
-                            const selectedVideoModel = getVideoModelConfig(videoModel);
-                            if (!selectedVideoModel) return <SelectValue placeholder="Select video model" />;
-                            
-                            return (
-                              <div className="w-full p-4 rounded-lg bg-white/5 border border-white/10 hover:bg-white/[0.07] transition-colors text-left">
-                                <div className="flex items-start justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500/20 to-teal-500/20">
-                                      <Video className="w-5 h-5 text-cyan-400" />
-                                    </div>
-                                    <div>
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-semibold text-white">{selectedVideoModel.label}</span>
-                                        {selectedVideoModel.badge && (
-                                          <Badge 
-                                            variant="outline" 
-                                            className={cn(
-                                              "text-[10px] px-1.5 py-0",
-                                              selectedVideoModel.default 
-                                                ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-amber-500/50 text-amber-300"
-                                                : "bg-white/10 border-white/20 text-white/70"
-                                            )}
-                                          >
-                                            {selectedVideoModel.badge}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      <span className="text-xs text-white/50">{selectedVideoModel.provider}</span>
-                                    </div>
-                                  </div>
-                                  <svg className="w-5 h-5 text-white/40 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                  </svg>
-                                </div>
-                                <div className="mt-2 text-xs text-white/40">
-                                  {selectedVideoModel.durations.join(', ')}s • {selectedVideoModel.resolutions.join(', ')}
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </SelectTrigger>
-                        <SelectContent className="max-h-[400px] bg-[#0a0a0a] border-white/10">
-                          {availableVideoModels.map((model) => (
-                            <SelectItem 
-                              key={model.value} 
-                              value={model.value}
-                              className="py-3 focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
-                            >
-                              <div className="flex items-start justify-between gap-3 w-full">
-                                <div className="flex flex-col flex-1">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-medium text-sm">{model.label}</span>
-                                    {model.default && (
-                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-amber-500/50 text-amber-300">
-                                        Default
-                                      </Badge>
-                                    )}
-                                    {model.hasAudio && (
-                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/50 text-purple-300">
-                                        🎵 Audio
-                                      </Badge>
-                                    )}
-                                    {model.badge && !model.default && (
-                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-white/10 border-white/20">
-                                        {model.badge}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <span className="text-[10px] text-muted-foreground mt-0.5">
-                                    {model.provider}
-                                  </span>
-                                  <span className="text-xs text-muted-foreground/80 mt-1">
-                                    {model.description}
-                                  </span>
-                                  <span className="text-[10px] text-white/40 mt-1">
-                                    {model.durations.join(', ')}s • {model.resolutions.join(', ')}
-                                  </span>
-                                </div>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Video Resolution - Dynamic based on selected model */}
-                    <div className="space-y-2">
-                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Video Resolution</label>
-                      {(() => {
-                        const selectedVideoModel = getVideoModelConfig(videoModel);
-                        const availableResolutions = selectedVideoModel?.resolutions || ['720p'];
-                        
-                        return (
-                          <div className={cn(
-                            "grid gap-2",
-                            availableResolutions.length <= 3 ? "grid-cols-3" : "grid-cols-4"
-                          )}>
-                            {availableResolutions.map((res) => (
-                              <button
-                                key={res}
-                                onClick={() => onVideoResolutionChange?.(res)}
-                                className={cn(
-                                  "py-3 px-3 rounded-lg text-sm font-medium border transition-all",
-                                  videoResolution === res
-                                    ? "bg-gradient-to-br from-amber-500/20 to-orange-500/20 border-amber-500/50 text-white"
-                                    : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70"
-                                )}
-                              >
-                                {VIDEO_RESOLUTION_LABELS[res] || res}
-                              </button>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Motion Prompt */}
-                    <div className="space-y-2">
-                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Motion Prompt</label>
-                      <p className="text-xs text-white/40">
-                        Global instructions for AI video generation (camera motion can be customized per segment in Composition)
-                      </p>
-                      <Textarea
-                        value={motionPrompt}
-                        onChange={(e) => onMotionPromptChange?.(e.target.value)}
-                        placeholder="e.g., Gentle floating particles, subtle light rays moving slowly, soft ambient movements..."
-                        className="min-h-[80px] resize-none bg-white/5 border-white/10 text-white placeholder:text-white/30"
-                      />
-                    </div>
-                  </motion.div>
-                )}
               </CardContent>
             </Card>
 

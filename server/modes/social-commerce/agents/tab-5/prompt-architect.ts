@@ -4,7 +4,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
  * The Prompt Architect agent that writes generation-ready prompts for each shot.
- * Uses GPT-4o Vision to analyze visual assets and create prompts with @ tag placeholders.
+ * Uses GPT-5.2 Vision with high reasoning to analyze visual assets and create prompts with @ tag placeholders.
  * 
  * INPUT:
  * - Shot context from Agent 4.1 and 4.2
@@ -18,6 +18,7 @@
  */
 
 import { callTextModel } from '../../../../ai/service';
+import { getModelConfig } from '../../../../ai/config';
 import {
   PROMPT_ARCHITECT_SYSTEM_PROMPT,
   buildPromptArchitectUserPrompt,
@@ -35,7 +36,7 @@ import type {
 
 const AGENT_CONFIG = {
   provider: 'openai' as const,
-  model: 'gpt-4o', // Vision capable
+  model: 'gpt-5.2', // Vision capable with high reasoning
   temperature: 0.5, // Balanced creativity and precision
   maxRetries: 2,
 };
@@ -553,11 +554,24 @@ export async function generateShotPrompts(
 
   const imageCount = imageAttachments.filter((item) => item.type === 'input_image').length;
   console.log(
-    `[social-commerce:agent-5.1] Sending ${imageCount} image(s) to GPT-4o Vision with interleaved pattern`
+    `[social-commerce:agent-5.1] Sending ${imageCount} image(s) to GPT-5.2 Vision with interleaved pattern`
   );
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // CALL GPT-4O VISION WITH JSON SCHEMA
+  // CHECK REASONING SUPPORT
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  // Check if model supports reasoning
+  let supportsReasoning = false;
+  try {
+    const modelConfig = getModelConfig(AGENT_CONFIG.provider, AGENT_CONFIG.model);
+    supportsReasoning = modelConfig.metadata?.reasoning === true;
+  } catch {
+    // Model not found in config, assume no reasoning support
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CALL GPT-5.2 VISION WITH JSON SCHEMA
   // ═══════════════════════════════════════════════════════════════════════════
 
   const payload = {
@@ -576,8 +590,8 @@ export async function generateShotPrompts(
         schema: PROMPT_ARCHITECT_SCHEMA,
       },
     },
-    temperature: AGENT_CONFIG.temperature,
-    max_output_tokens: 4000,
+    // Conditionally add reasoning if supported (temperature not supported with reasoning)
+    ...(supportsReasoning ? { reasoning: { effort: "high" } } : { temperature: AGENT_CONFIG.temperature }),
   };
 
   let lastError: Error | null = null;

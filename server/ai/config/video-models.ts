@@ -83,11 +83,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
         maxFileSize: "10MB",
       },
     },
-    providerSettings: {
-      bytedance: {
-        cameraFixed: false,  // Set to true to lock camera movement
-      },
-    },
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -122,12 +117,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
         minHeight: 300,
         maxHeight: 6000,
         maxFileSize: "10MB",
-      },
-    },
-    providerSettings: {
-      bytedance: {
-        audio: true,         // Enable native synchronized audio
-        cameraFixed: false,  // Set to true to lock camera movement
       },
     },
   },
@@ -166,11 +155,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
         maxFileSize: "20MB",
       },
     },
-    providerSettings: {
-      klingai: {
-        cfgScale: 0.5,  // 0-1 range, controls prompt adherence (default: 0.5)
-      },
-    },
   },
 
 
@@ -206,11 +190,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
         minHeight: 300,
         maxHeight: 2048,
         maxFileSize: "20MB",
-      },
-    },
-    providerSettings: {
-      klingai: {
-        cfgScale: 0.5,  // 0-1 range, controls prompt adherence (default: 0.5)
       },
     },
   },
@@ -251,12 +230,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
         maxFileSize: "20MB",
       },
     },
-    providerSettings: {
-      klingai: {
-        sound: true,    // Enable native synchronized audio
-        cfgScale: 0.5,  // 0-1 range, controls prompt adherence (default: 0.5)
-      },
-    },
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -293,12 +266,8 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
         maxFileSize: "32MB",  // 32MB limit
       },
     },
-    providerSettings: {
-      klingai: {
-        keepOriginalSound: false,  // Keep original sound in video-edit mode
-        fast: false,               // Enable fast mode (6-20s video-edit)
-      },
-    },
+    // No provider settings - Kling VIDEO O1 does not support providerSettings parameters
+    // Allowed values are empty according to Runware API
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -312,7 +281,7 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
     id: "veo-3.0",
     label: "Google Veo 3.0",
     modelAirId: "google:3@0",
-    durations: [8],                          // 8 seconds only
+    durations: [4, 6, 8],                      // 4, 6, or 8 seconds
     aspectRatios: ["16:9", "9:16"],          // Only these two
     resolutions: ["720p", "1080p"],          // 1280×720, 1920×1080, 720×1280, 1080×1920
     hasAudio: true,                          // Native audio via providerSettings.google.generateAudio
@@ -334,12 +303,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
         maxFileSize: "20MB",
       },
     },
-    providerSettings: {
-      google: {
-        generateAudio: true,   // Enable native synchronized audio
-        enhancePrompt: true,   // Always enabled, cannot be disabled
-      },
-    },
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -354,7 +317,7 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
     id: "veo-3-fast",
     label: "Google Veo 3 Fast",
     modelAirId: "google:3@1",
-    durations: [8],                          // 8 seconds only
+    durations: [4, 6, 8],                      // 4, 6, or 8 seconds
     aspectRatios: ["16:9", "9:16"],          // Only these two
     resolutions: ["720p", "1080p"],          // 1280×720, 1920×1080, 720×1280, 1080×1920
     hasAudio: true,                          // Native audio via providerSettings.google.generateAudio
@@ -376,12 +339,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
         maxFileSize: "20MB",
       },
     },
-    providerSettings: {
-      google: {
-        generateAudio: true,   // Enable native synchronized audio
-        enhancePrompt: true,   // Always enabled, cannot be disabled
-      },
-    },
   },
 
 
@@ -398,7 +355,7 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
     id: "veo-3.1",
     label: "Google Veo 3.1",
     modelAirId: "google:3@2",
-    durations: [8],  // 8 seconds (7s for video extension)
+    durations: [4, 6, 8],                      // 4, 6, or 8 seconds
     aspectRatios: ["16:9", "9:16"],
     resolutions: ["720p", "1080p"],  // 1280×720, 1920×1080, 720×1280, 1080×1920
     hasAudio: true,  // Natural sound
@@ -418,12 +375,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
         minHeight: 300,
         maxHeight: 2048,
         maxFileSize: "20MB",
-      },
-    },
-    providerSettings: {
-      google: {
-        generateAudio: true,    // Enable natural sound generation
-        enhancePrompt: true,    // Always enabled, cannot be disabled
       },
     },
   },
@@ -441,7 +392,7 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
     id: "veo-3.1-fast",
     label: "Google Veo 3.1 Fast",
     modelAirId: "google:3@3",
-    durations: [8],  // 8 seconds (7s for video extension)
+    durations: [4, 6, 8],                      // 4, 6, or 8 seconds
     aspectRatios: ["16:9", "9:16"],
     resolutions: ["720p", "1080p"],  // 1280×720, 1920×1080, 720×1280, 1080×1920
     hasAudio: true,  // Natural sound
@@ -461,12 +412,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
         minHeight: 300,
         maxHeight: 2048,
         maxFileSize: "20MB",
-      },
-    },
-    providerSettings: {
-      google: {
-        generateAudio: true,    // Enable natural sound generation
-        enhancePrompt: true,    // Always enabled, cannot be disabled
       },
     },
   },
@@ -507,14 +452,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
         maxFileSize: "20MB",
       },
     },
-    providerSettings: {
-      pixverse: {
-        style: "realistic",      // Options: "realistic", "3d_animation", etc.
-        audio: true,             // Enable comprehensive audio generation
-        multiClip: false,        // Enable multi-shot camera control
-        thinking: "auto",        // Thinking mode: "auto", "on", "off"
-      },
-    },
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -548,11 +485,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
         minHeight: 300,
         maxHeight: 2048,
         maxFileSize: "20MB",
-      },
-    },
-    providerSettings: {
-      minimax: {
-        promptOptimizer: true,  // Enable prompt optimization
       },
     },
   },
@@ -628,12 +560,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
         maxFileSize: "7MB",  // Note: 7MB, not 20MB like others
       },
     },
-    providerSettings: {
-      lightricks: {
-        generateAudio: true,  // Enable native audio generation
-        fps: 25,              // 25 or 50 FPS (default: 25)
-      },
-    },
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -667,13 +593,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
         minHeight: 672,
         maxHeight: 1280,
         maxFileSize: "20MB",
-      },
-    },
-    providerSettings: {
-      runway: {
-        contentModeration: {
-          publicFigureThreshold: 0.5,  // Content moderation threshold
-        },
       },
     },
   },
@@ -711,13 +630,6 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
         minHeight: 360,
         maxHeight: 2000,
         maxFileSize: "10MB",
-      },
-    },
-    providerSettings: {
-      alibaba: {
-        promptExtend: true,   // Enable prompt extension/enhancement
-        audio: true,          // Enable native audio generation
-        shotType: "single",   // "single" or "multi" for multi-shot sequencing
       },
     },
   },

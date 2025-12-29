@@ -52,6 +52,28 @@ const getVideoModelDurations = (value: string): number[] => {
   return config?.durations || [5, 10];
 };
 
+// Get nearest supported duration for a model, with priority for higher values
+// Example: currentDuration=10, supportedDurations=[8, 12] → returns 12
+const getNearestDuration = (currentDuration: number, supportedDurations: number[]): number => {
+  if (supportedDurations.length === 0) return currentDuration;
+  if (supportedDurations.includes(currentDuration)) return currentDuration;
+  
+  // Find durations below and above current
+  const below = supportedDurations.filter(d => d < currentDuration).sort((a, b) => b - a)[0]; // Highest below
+  const above = supportedDurations.filter(d => d > currentDuration).sort((a, b) => a - b)[0]; // Lowest above
+  
+  if (below === undefined && above !== undefined) return above;
+  if (above === undefined && below !== undefined) return below;
+  if (below === undefined && above === undefined) return supportedDurations[0];
+  
+  // Both exist - calculate distances, prioritize higher (above) on tie
+  const distBelow = currentDuration - below;
+  const distAbove = above - currentDuration;
+  
+  // Priority for higher: if equal distance, choose above; otherwise choose nearest
+  return distAbove <= distBelow ? above : below;
+};
+
 // Use actual image model values from config
 const IMAGE_MODELS = IMAGE_MODEL_CONFIGS.map(m => m.value);
 
@@ -192,6 +214,10 @@ interface StoryboardEditorProps {
   onGenerateAllImages?: () => Promise<void>;  // Batch image generation for all shots
   isGeneratingImages?: boolean;  // True when batch image generation is in progress
   generatingShotIds?: Set<string>;  // Shot IDs currently being generated
+  onGenerateAllVideos?: () => Promise<void>;  // Batch video generation for all shots
+  isGeneratingVideos?: boolean;  // True when batch video generation is in progress
+  generatingVideoShotIds?: Set<string>;  // Shot IDs currently generating videos
+  onGenerateSingleVideo?: (shotId: string) => void;  // Generate/regenerate video for single shot
   onNext: () => void;
 }
 
@@ -206,6 +232,7 @@ interface SortableShotCardProps {
   previousShotVersion: ShotVersion | null;  // Previous shot's version for continuity checks
   referenceImage: ReferenceImage | null;
   isGenerating: boolean;
+  isGeneratingVideo: boolean;  // True when video is being generated for this shot
   voiceOverEnabled: boolean;
   narrativeMode: "image-reference" | "start-end";
   animationMode: "smooth-image" | "animate";
@@ -215,9 +242,11 @@ interface SortableShotCardProps {
   isFirstInGroup: boolean;  // True if this shot is the first in its continuity group
   previousShotNumber: number | null;  // For showing "Inherited from Shot X"
   filteredVideoModels: string[];  // Video models filtered by narrative mode
+  filteredImageModels: typeof IMAGE_MODEL_CONFIGS;  // Image models filtered by aspect ratio
   onSelectShot: (shot: Shot) => void;
   onRegenerateShot: (shotId: string, frame?: 'start' | 'end') => void;
   onGenerateSingleImage: (shotId: string, frame: 'start' | 'end') => void;
+  onGenerateSingleVideo?: (shotId: string) => void;  // Generate/regenerate video for single shot
   onUpdatePrompt: (shotId: string, prompt: string) => void;
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
   onUploadReference: (shotId: string, file: File) => void;
@@ -239,6 +268,7 @@ function SortableShotCard({
   previousShotVersion,
   referenceImage,
   isGenerating,
+  isGeneratingVideo,
   voiceOverEnabled,
   narrativeMode,
   animationMode,
@@ -248,9 +278,11 @@ function SortableShotCard({
   isFirstInGroup,
   previousShotNumber,
   filteredVideoModels,
+  filteredImageModels,
   onSelectShot,
   onRegenerateShot,
   onGenerateSingleImage,
+  onGenerateSingleVideo,
   onUpdatePrompt,
   onUpdateShot,
   onUploadReference,
@@ -281,6 +313,7 @@ function SortableShotCard({
 
   const { toast } = useToast();
   const [activeFrame, setActiveFrame] = useState<"start" | "end">("start");
+  const [activeTab, setActiveTab] = useState<"image" | "video">("image");
   const [advancedImageOpen, setAdvancedImageOpen] = useState(false);
   const [advancedVideoOpen, setAdvancedVideoOpen] = useState(false);
   const [cameraPopoverOpen, setCameraPopoverOpen] = useState(false);
@@ -436,8 +469,8 @@ function SortableShotCard({
       data-testid={`card-shot-${shot.id}`}
     >
       <div className="aspect-video bg-black/30 relative group rounded-t-lg overflow-hidden">
-        {/* Start/End Frame Tab Selector (Video Animation Mode Only) */}
-        {isVideoAnimationMode && (
+        {/* Start/End Frame Tab Selector (Video Animation Mode Only - hidden in Video tab) */}
+        {isVideoAnimationMode && activeTab === "image" && (
           <div className="absolute top-2 left-2 flex gap-1 bg-black/80 backdrop-blur-sm rounded-md p-1 z-10 border border-white/10">
             <button
               onClick={() => setActiveFrame("start")}
@@ -465,23 +498,48 @@ function SortableShotCard({
           </div>
         )}
         
-        {displayImageUrl ? (
-          <img
-            src={displayImageUrl}
-            alt={`Shot ${shotIndex + 1}${actualFrameShown ? ` - ${actualFrameShown} frame` : ""}`}
-            className="w-full h-full object-cover"
-          />
-        ) : isGenerating ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
-          </div>
+        {/* Video Preview (when Video tab is active) */}
+        {activeTab === "video" ? (
+          version?.videoUrl ? (
+            <video
+              src={version.videoUrl}
+              className="w-full h-full object-cover"
+              controls
+              loop
+              muted
+              playsInline
+            />
+          ) : isGeneratingVideo ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 gap-3">
+              <Loader2 className="h-10 w-10 animate-spin text-cyan-400" />
+              <p className="text-sm text-white/70">Generating video...</p>
+            </div>
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 gap-2">
+              <Video className="h-12 w-12 text-white/30" />
+              <p className="text-xs text-white/50">No video generated yet</p>
+            </div>
+          )
         ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 gap-2">
-            <ImageIcon className="h-12 w-12 text-white/30" />
-            {isVideoAnimationMode && activeFrame === "end" && (
-              <p className="text-xs text-white/50">End frame not generated</p>
-            )}
-          </div>
+          /* Image Preview (when Image tab is active) */
+          displayImageUrl ? (
+            <img
+              src={displayImageUrl}
+              alt={`Shot ${shotIndex + 1}${actualFrameShown ? ` - ${actualFrameShown} frame` : ""}`}
+              className="w-full h-full object-cover"
+            />
+          ) : isGenerating ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
+            </div>
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 gap-2">
+              <ImageIcon className="h-12 w-12 text-white/30" />
+              {isVideoAnimationMode && activeFrame === "end" && (
+                <p className="text-xs text-white/50">End frame not generated</p>
+              )}
+            </div>
+          )
         )}
         
         <div className="absolute bottom-2 left-2 flex items-center gap-2">
@@ -561,7 +619,7 @@ function SortableShotCard({
       </div>
 
       <CardContent className="p-4">
-        <Tabs defaultValue="image" className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "image" | "video")} className="w-full">
           {/* Image tab always shown, Video tab shown in animate mode */}
           <TabsList className={`grid w-full mb-3 bg-white/5 border border-white/10 ${
             animationMode === "animate" ? "grid-cols-2" : "grid-cols-1"
@@ -639,11 +697,17 @@ function SortableShotCard({
                       <SelectItem value="scene-default" className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
                         Scene Default {sceneImageModel ? `(${getImageModelLabel(sceneImageModel)})` : ""}
                       </SelectItem>
-                      {IMAGE_MODELS.map((model) => (
-                        <SelectItem key={model} value={model} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
-                          {getImageModelLabel(model)}
-                        </SelectItem>
-                      ))}
+                      {filteredImageModels.length === 0 ? (
+                        <div className="px-2 py-4 text-center text-xs text-white/50">
+                          No image models support the selected aspect ratio
+                        </div>
+                      ) : (
+                        filteredImageModels.map((model) => (
+                          <SelectItem key={model.value} value={model.value} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
+                            {model.label}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -813,7 +877,22 @@ function SortableShotCard({
                   <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Video Model</Label>
                   <Select
                     value={shot.videoModel || "scene-default"}
-                    onValueChange={(value) => onUpdateShot(shot.id, { videoModel: value === "scene-default" ? null : value })}
+                    onValueChange={(value) => {
+                      const newModel = value === "scene-default" ? null : value;
+                      const updates: Partial<Shot> = { videoModel: newModel };
+                      
+                      // When model changes, adjust duration if needed
+                      const effectiveModel = newModel || sceneModel;
+                      if (effectiveModel) {
+                        const supportedDurations = getVideoModelDurations(effectiveModel);
+                        const currentDuration = shot.duration || 5;
+                        if (!supportedDurations.includes(currentDuration)) {
+                          updates.duration = getNearestDuration(currentDuration, supportedDurations);
+                        }
+                      }
+                      
+                      onUpdateShot(shot.id, updates);
+                    }}
                   >
                     <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-video-model-${shot.id}`}>
                       <SelectValue />
@@ -822,11 +901,17 @@ function SortableShotCard({
                       <SelectItem value="scene-default" className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
                         Scene Default {sceneModel ? `(${getVideoModelLabel(sceneModel)})` : ""}
                       </SelectItem>
-                      {filteredVideoModels.map((model) => (
-                        <SelectItem key={model} value={model} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
-                          {getVideoModelLabel(model)}
-                        </SelectItem>
-                      ))}
+                      {filteredVideoModels.length === 0 ? (
+                        <div className="px-2 py-4 text-center text-xs text-white/50">
+                          No video models support the selected aspect ratio
+                        </div>
+                      ) : (
+                        filteredVideoModels.map((model) => (
+                          <SelectItem key={model} value={model} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
+                            {getVideoModelLabel(model)}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                   {narrativeMode === 'start-end' && (
@@ -920,33 +1005,47 @@ function SortableShotCard({
             </Collapsible>
 
             <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="flex-1 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
-                onClick={() => {
-                  const hasVideo = version?.videoUrl;
-                  toast({
-                    title: hasVideo ? "Video Regeneration" : "Video Generation",
-                    description: hasVideo 
-                      ? "Video regeneration will be available after implementing the AI video generation pipeline."
-                      : "Video generation will be implemented in the next phase with AI model integration (Kling/Veo/Runway).",
-                  });
-                }}
-                data-testid={`button-generate-video-${shot.id}`}
-              >
-                {version?.videoUrl ? (
-                  <>
-                    <RefreshCw className="mr-2 h-3 w-3" />
-                    Regenerate
-                  </>
-                ) : (
-                  <>
-                    <Video className="mr-2 h-3 w-3" />
-                    Generate Video
-                  </>
-                )}
-              </Button>
+              {(() => {
+                const hasVideo = version?.videoUrl;
+                const hasRequiredImages = isVideoAnimationMode 
+                  ? version?.startFrameUrl 
+                  : version?.imageUrl;
+                const canGenerateVideo = hasRequiredImages && onGenerateSingleVideo;
+                
+                return (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="flex-1 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white disabled:opacity-50"
+                    onClick={() => canGenerateVideo && onGenerateSingleVideo(shot.id)}
+                    disabled={!canGenerateVideo || isGeneratingVideo || isGenerating}
+                    title={!hasRequiredImages ? "Generate images first before creating video" : undefined}
+                    data-testid={`button-generate-video-${shot.id}`}
+                  >
+                    {isGeneratingVideo ? (
+                      <>
+                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                        Generating Video...
+                      </>
+                    ) : hasVideo ? (
+                      <>
+                        <RefreshCw className="mr-2 h-3 w-3" />
+                        Regenerate Video
+                      </>
+                    ) : !hasRequiredImages ? (
+                      <>
+                        <Video className="mr-2 h-3 w-3" />
+                        Generate Images First
+                      </>
+                    ) : (
+                      <>
+                        <Video className="mr-2 h-3 w-3" />
+                        Generate Video
+                      </>
+                    )}
+                  </Button>
+                );
+              })()}
             </div>
           </TabsContent>
         </Tabs>
@@ -990,6 +1089,10 @@ export function StoryboardEditor({
   onGenerateAllImages,
   isGeneratingImages,
   generatingShotIds,
+  onGenerateAllVideos,
+  isGeneratingVideos,
+  generatingVideoShotIds,
+  onGenerateSingleVideo,
   onNext,
 }: StoryboardEditorProps) {
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null);
@@ -1017,11 +1120,37 @@ export function StoryboardEditor({
   const { toast } = useToast();
   const [isScrolled, setIsScrolled] = useState(false);
 
-  // Calculate filtered video models based on narrative mode (Start/End Frame compatibility)
+  // Get aspect ratio from step1Data
+  const aspectRatio = step1Data?.aspectRatio;
+
+  // Calculate filtered video models based on narrative mode (Start/End Frame compatibility) AND aspect ratio
   const filteredVideoModels = useMemo(() => {
     const mode = narrativeMode === 'start-end' ? 'start-end-frame' : 'image-reference';
-    return getAvailableVideoModels(mode).map(m => m.value);
-  }, [narrativeMode]);
+    let models = getAvailableVideoModels(mode);
+    
+    // Filter by aspect ratio if available
+    if (aspectRatio) {
+      models = models.filter(model => {
+        const config = getVideoModelConfig(model.value);
+        return config?.aspectRatios?.includes(aspectRatio);
+      });
+    }
+    
+    return models.map(m => m.value);
+  }, [narrativeMode, aspectRatio]);
+
+  // Calculate filtered image models based on aspect ratio
+  const filteredImageModels = useMemo(() => {
+    if (!aspectRatio) {
+      // If no aspect ratio, return all models
+      return IMAGE_MODEL_CONFIGS;
+    }
+    
+    // Filter image models that support the selected aspect ratio
+    return IMAGE_MODEL_CONFIGS.filter(model => 
+      model.aspectRatios.includes(aspectRatio)
+    );
+  }, [aspectRatio]);
 
   // Track scroll position for header blur effect
   useEffect(() => {
@@ -1146,7 +1275,11 @@ export function StoryboardEditor({
         updates.videoModel = modelToSet;
       }
       if (!scene.imageModel) {
-        updates.imageModel = step1Data.imageModel || IMAGE_MODELS[0];
+        // Use filtered image models (respecting aspect ratio) or fallback to step1Data
+        const defaultImageModel = filteredImageModels.length > 0 
+          ? filteredImageModels[0].value 
+          : (step1Data.imageModel || IMAGE_MODELS[0]);
+        updates.imageModel = defaultImageModel;
       }
       if (!scene.cameraMotion) {
         const defaultCameraMotion = step1Data.cameraMotion || getCameraMovements(animationMode)[0];
@@ -1165,7 +1298,7 @@ export function StoryboardEditor({
       uninitializedScenes.forEach(scene => newSet.add(scene.id));
       return newSet;
     });
-  }, [scenes, step1Data, onUpdateScene, initializedSceneIds, filteredVideoModels, narrativeMode, toast, step4Initialized]);
+  }, [scenes, step1Data, onUpdateScene, initializedSceneIds, filteredVideoModels, filteredImageModels, narrativeMode, toast, step4Initialized]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1588,31 +1721,86 @@ export function StoryboardEditor({
           </div>
           
           <div className="flex items-center gap-3">
-              {/* Generate All Images Button */}
-              {(generatedCount < totalCount || !allShots.every(s => {
-                const v = shotVersions[s.id]?.[shotVersions[s.id]?.length - 1];
-                return animationMode === 'image-transitions' ? v?.imageUrl : (v?.startFrameUrl && v?.endFrameUrl);
-              })) && (
-                <Button
-                  variant="outline"
-                  className="border-white/10 hover:bg-white/5"
-                  onClick={handleGenerateAll}
-                  disabled={isGeneratingImages}
-                  data-testid="button-generate-all"
-                >
-                  {isGeneratingImages ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Generate All Images
-                    </>
-                  )}
-                </Button>
-              )}
+              {/* Calculate image and video generation status */}
+              {(() => {
+                // Check if all shots have required images
+                const allImagesReady = allShots.every(s => {
+                  const v = shotVersions[s.id]?.[shotVersions[s.id]?.length - 1];
+                  return animationMode === 'image-transitions' 
+                    ? v?.imageUrl 
+                    : v?.startFrameUrl; // For start-end mode, at minimum need start frame
+                });
+                
+                // Count shots ready for video (have images) but no video yet
+                const shotsWithoutVideo = allShots.filter(s => {
+                  const v = shotVersions[s.id]?.[shotVersions[s.id]?.length - 1];
+                  const hasRequiredImages = animationMode === 'image-transitions' 
+                    ? v?.imageUrl 
+                    : v?.startFrameUrl;
+                  return hasRequiredImages && !v?.videoUrl;
+                });
+                const videosToGenerate = shotsWithoutVideo.length;
+                
+                // Count shots that already have videos
+                const shotsWithVideo = allShots.filter(s => {
+                  const v = shotVersions[s.id]?.[shotVersions[s.id]?.length - 1];
+                  return !!v?.videoUrl;
+                });
+                const existingVideos = shotsWithVideo.length;
+                
+                return (
+                  <>
+                    {/* Generate All Images Button - show when images not complete */}
+                    {!allImagesReady && (
+                      <Button
+                        variant="outline"
+                        className="border-white/10 hover:bg-white/5"
+                        onClick={handleGenerateAll}
+                        disabled={isGeneratingImages || isGeneratingVideos}
+                        data-testid="button-generate-all-images"
+                      >
+                        {isGeneratingImages ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Generating Images...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            Generate All Images
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    
+                    {/* Generate All Videos Button - show when images ready but videos not complete */}
+                    {allImagesReady && videosToGenerate > 0 && onGenerateAllVideos && (
+                      <Button
+                        variant="outline"
+                        className="border-white/10 hover:bg-white/5"
+                        onClick={onGenerateAllVideos}
+                        disabled={isGeneratingVideos || isGeneratingImages}
+                        data-testid="button-generate-all-videos"
+                      >
+                        {isGeneratingVideos ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Generating Videos...
+                          </>
+                        ) : (
+                          <>
+                            <Video className="mr-2 h-4 w-4" />
+                            {existingVideos > 0 
+                              ? `Generate Remaining Videos (${videosToGenerate})`
+                              : `Generate All Videos (${videosToGenerate})`
+                            }
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </>
+                );
+              })()}
               
               {/* View Mode Toggle */}
               <div className="flex items-center rounded-lg p-1 bg-white/5 border border-white/10">
@@ -1683,27 +1871,33 @@ export function StoryboardEditor({
                     <div className="space-y-1">
                       <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Image Model</Label>
                       <Select
-                        value={scene.imageModel || IMAGE_MODELS[0]}
+                        value={scene.imageModel || filteredImageModels[0]?.value}
                         onValueChange={(value) => onUpdateScene?.(scene.id, { imageModel: value })}
                       >
                         <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-scene-image-model-${scene.id}`}>
                           <SelectValue placeholder="Select image model">
-                            {scene.imageModel ? getImageModelLabel(scene.imageModel) : getImageModelLabel(IMAGE_MODELS[0])}
+                            {scene.imageModel ? getImageModelLabel(scene.imageModel) : (filteredImageModels[0] ? getImageModelLabel(filteredImageModels[0].value) : "No compatible models")}
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent className="bg-[#0a0a0a] border-white/10 max-h-[300px]">
-                          {IMAGE_MODEL_CONFIGS.map((model) => (
-                            <SelectItem key={model.value} value={model.value} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
-                              <div className="flex items-center gap-2">
-                                <span>{model.label}</span>
-                                {model.badge && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-cyan-500/50 text-cyan-400">
-                                    {model.badge}
-                                  </Badge>
-                                )}
-                              </div>
-                            </SelectItem>
-                          ))}
+                          {filteredImageModels.length === 0 ? (
+                            <div className="px-2 py-4 text-center text-xs text-white/50">
+                              No image models support aspect ratio {aspectRatio || 'selected'}
+                            </div>
+                          ) : (
+                            filteredImageModels.map((model) => (
+                              <SelectItem key={model.value} value={model.value} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
+                                <div className="flex items-center gap-2">
+                                  <span>{model.label}</span>
+                                  {model.badge && (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-cyan-500/50 text-cyan-400">
+                                      {model.badge}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1721,7 +1915,23 @@ export function StoryboardEditor({
                         </div>
                       <Select
                           value={scene.videoModel || filteredVideoModels[0]}
-                          onValueChange={(value) => onUpdateScene?.(scene.id, { videoModel: value })}
+                          onValueChange={(value) => {
+                            // Update scene video model
+                            onUpdateScene?.(scene.id, { videoModel: value });
+                            
+                            // Update shot durations to be compatible with new model
+                            const newModelDurations = getVideoModelDurations(value);
+                            sceneShots.forEach((shot) => {
+                              // Only update shots that don't have their own video model override
+                              if (!shot.videoModel) {
+                                const currentDuration = shot.duration || 5;
+                                if (!newModelDurations.includes(currentDuration)) {
+                                  const nearestDuration = getNearestDuration(currentDuration, newModelDurations);
+                                  onUpdateShot(shot.id, { duration: nearestDuration });
+                                }
+                              }
+                            });
+                          }}
                       >
                           <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-scene-video-model-${scene.id}`}>
                             <SelectValue placeholder="Select video model">
@@ -1729,11 +1939,17 @@ export function StoryboardEditor({
                             </SelectValue>
                         </SelectTrigger>
                           <SelectContent className="bg-[#0a0a0a] border-white/10">
-                            {filteredVideoModels.map((model) => (
-                              <SelectItem key={model} value={model} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
-                                {getVideoModelLabel(model)}
-                            </SelectItem>
-                          ))}
+                            {filteredVideoModels.length === 0 ? (
+                              <div className="px-2 py-4 text-center text-xs text-white/50">
+                                No video models support aspect ratio {aspectRatio || 'selected'}
+                              </div>
+                            ) : (
+                              filteredVideoModels.map((model) => (
+                                <SelectItem key={model} value={model} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
+                                  {getVideoModelLabel(model)}
+                                </SelectItem>
+                              ))
+                            )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1840,13 +2056,14 @@ export function StoryboardEditor({
                                 shot={shot}
                                 shotIndex={shotIndex}
                                 sceneModel={scene.videoModel || filteredVideoModels[0]}
-                                sceneImageModel={scene.imageModel || IMAGE_MODELS[0]}
+                                sceneImageModel={scene.imageModel || (filteredImageModels[0]?.value || IMAGE_MODELS[0])}
                                 sceneCameraMotion={scene.cameraMotion || getCameraMovements(animationMode)[0]}
                                 version={version}
                                 nextShotVersion={nextShotVersion}
                                 previousShotVersion={previousShotVersion}
                                 referenceImage={referenceImage}
                                 isGenerating={isGenerating}
+                                isGeneratingVideo={generatingVideoShotIds?.has(shot.id) ?? false}
                                 voiceOverEnabled={voiceOverEnabled}
                                 narrativeMode={narrativeMode}
                                 animationMode={animationMode === "video-animation" ? "animate" : "smooth-image"}
@@ -1856,9 +2073,11 @@ export function StoryboardEditor({
                                 isFirstInGroup={isFirstInGroup}
                                 previousShotNumber={previousShotNumber}
                                 filteredVideoModels={filteredVideoModels}
+                                filteredImageModels={filteredImageModels}
                                 onSelectShot={handleSelectShot}
                                 onRegenerateShot={onRegenerateShot}
                                 onGenerateSingleImage={onGenerateSingleImage || ((shotId, frame) => onGenerateShot(shotId))}
+                                onGenerateSingleVideo={onGenerateSingleVideo}
                                 onUpdatePrompt={handleUpdatePrompt}
                                 onUpdateShot={onUpdateShot}
                                 onUploadReference={handleUploadReference}

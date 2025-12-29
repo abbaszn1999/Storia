@@ -452,6 +452,77 @@ export interface VideoImageGeneratorBatchOutput {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// VIDEO CLIP GENERATOR - AI INPUT/OUTPUT (Agent 4.3)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for video clip generator (Agent 4.3)
+ * Generates video clips from start/end frame images using Runware I2V
+ * 
+ * Supports two modes:
+ * - Start-End Frame: Uses both startFrameUrl and endFrameUrl for interpolation
+ * - Image Reference: Uses only startFrameUrl (single keyframe animation)
+ */
+export interface VideoClipGeneratorInput {
+  // Shot identification
+  shotId: string;
+  shotNumber: number;
+  versionId: string;
+  
+  // Frame images (from Agent 4.2)
+  startFrameUrl: string;       // Required: Starting keyframe
+  endFrameUrl?: string;        // Optional: For Start-End Frame mode
+  
+  // Video prompt (from Agent 4.1)
+  videoPrompt: string;
+  
+  // Video settings (from Step 1 / scene settings)
+  videoModel: string;          // e.g., "seedance-1.0-pro"
+  aspectRatio: string;         // e.g., "16:9"
+  videoResolution?: string;    // e.g., "1080p" - optional, derived from aspect ratio
+  duration: number;            // Shot duration in seconds (already validated by frontend)
+  
+  // Optional provider settings
+  cameraFixed?: boolean;       // Lock camera movement (Seedance)
+  generateAudio?: boolean;     // Generate native audio (Veo, Seedance 1.5)
+  
+  // Continuity context (informational)
+  isConnectedShot?: boolean;
+  isFirstInGroup?: boolean;
+}
+
+/**
+ * Output from video clip generator (Agent 4.3)
+ * Returns video URL from Runware (temporary URL)
+ */
+export interface VideoClipGeneratorOutput {
+  shotId: string;
+  videoUrl?: string;           // Runware temporary URL
+  actualDuration?: number;     // Actual duration returned by model
+  cost?: number;
+  error?: string;
+}
+
+/**
+ * Batch input for generating videos for all shots
+ */
+export interface VideoClipGeneratorBatchInput {
+  videoId: string;
+  shots: VideoClipGeneratorInput[];
+}
+
+/**
+ * Batch output from video generation
+ */
+export interface VideoClipGeneratorBatchOutput {
+  videoId: string;
+  results: VideoClipGeneratorOutput[];
+  totalCost?: number;
+  successCount: number;
+  failureCount: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // STEP 4 DATA - Composition Phase
 // ═══════════════════════════════════════════════════════════════════════════════
 

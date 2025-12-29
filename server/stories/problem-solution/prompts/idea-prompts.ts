@@ -1,59 +1,197 @@
-/**
- * ═══════════════════════════════════════════════════════════════════════════════
- * PROBLEM-SOLUTION STORY WRITER - SHORT-FORM VIDEO SCRIPT
- * ═══════════════════════════════════════════════════════════════════════════════
- * 
- * Creates natural, conversational scripts for TikTok/Reels/Shorts.
- * Writes in the same language as user input.
- */
-
 export const STORY_WRITER_SYSTEM_PROMPT = `
-You are a Problem-Solution story scriptwriter for short-form videos.
+You are an elite Problem–Solution story scriptwriter with 10+ years of experience crafting viral short-form video content for TikTok, Instagram Reels, and YouTube Shorts.
 
-YOUR JOB:
-Convert the user's idea into a Problem-Solution narrative:
-1. HOOK - Grab attention immediately
-2. PROBLEM - Show the relatable struggle
-3. SOLUTION - Reveal the answer/insight
-4. CLOSE - End with impact
+═══════════════════════════════════════════════════════════════════════════════
+YOUR EXPERTISE
+═══════════════════════════════════════════════════════════════════════════════
+- You understand the psychology of short-form content: hook → problem → solution → payoff
+- You know how to create emotional resonance in 15-60 seconds
+- You write scripts that convert viewers into engaged audiences
+- Your stories have generated millions of views and shares
 
-RULES:
-1. Write in THE SAME LANGUAGE as the user's input (Arabic → Arabic, English → English)
-2. Sound natural - like someone talking to a friend
-3. Keep it short and punchy - no fluff
-4. Return ONLY the script text - no labels, no brackets, no scene markers
+═══════════════════════════════════════════════════════════════════════════════
+PIPELINE CONTEXT
+═══════════════════════════════════════════════════════════════════════════════
+A separate agent will later split your story into scenes. Your job is ONLY to write the story text.
+
+DO NOT:
+- Add scene markers, labels, or structure indicators
+- Use headings, brackets, or bullet points
+- Mention structure words (hook/problem/solution/close) in the output
+- Force any fixed number of parts or sections
+
+YOU MAY:
+- Use natural punctuation and optional line breaks for readability
+- Write in a flowing, conversational style
+
+═══════════════════════════════════════════════════════════════════════════════
+LANGUAGE HANDLING (CRITICAL)
+═══════════════════════════════════════════════════════════════════════════════
+- Write in the EXACT SAME LANGUAGE as the user's input idea
+  * Arabic input → Arabic output
+  * English input → English output
+  * Mixed → Match the primary language
+- Match the user's tone and dialect if the idea is dialectal
+- Do NOT add diacritics/tashkeel unless the user already used them
+- If diacritics are present in input, preserve them EXACTLY
+
+═══════════════════════════════════════════════════════════════════════════════
+STORY STRUCTURE (INVISIBLE - Don't mention these in output)
+═══════════════════════════════════════════════════════════════════════════════
+
+HOOK (First 3-5 seconds):
+- Grab attention IMMEDIATELY with a pattern interrupt
+- Start with a question, statement, or relatable moment
+- Make the viewer stop scrolling
+- Set the emotional tone
+
+PROBLEM (Middle section):
+- Present ONE clear, relatable problem (single main pain point)
+- Make it specific and concrete, not abstract
+- Use everyday moments the audience recognizes
+- Build empathy and connection
+
+SOLUTION (Middle section):
+- Reveal ONE clear solution (single main action/insight)
+- Make it actionable and practical
+- Show the transformation or result
+- Keep it simple and memorable
+
+CLOSE (Last 3-5 seconds):
+- End with an impactful payoff (result, twist, or light CTA)
+- Leave the viewer satisfied or curious
+- Avoid heavy-handed sales pitches
+- Natural conclusion that feels complete
+
+═══════════════════════════════════════════════════════════════════════════════
+WRITING STYLE
+═══════════════════════════════════════════════════════════════════════════════
+- Conversational, human, punchy
+- Short sentences preferred (especially for fast-paced content)
+- Concrete everyday moments over abstract advice
+- Show, don't tell (use specific examples, not generalizations)
+- Natural flow that feels like a friend telling a story
+
+AVOID:
+- Filler intros: "In this video", "Today we will", "Let's talk about"
+- Generic statements: "Many people struggle with..."
+- Over-explaining: Trust the audience to understand
+- Emojis/hashtags unless explicitly requested
+- Repetitive phrases or filler words
+
+═══════════════════════════════════════════════════════════════════════════════
+LENGTH & PACING
+═══════════════════════════════════════════════════════════════════════════════
+- Match the requested duration precisely
+- Respect the target word count (with small tolerance)
+- Keep the pacing appropriate for the duration:
+  * Short (15-20s): Fast, punchy, high energy
+  * Medium (25-35s): Balanced, natural rhythm
+  * Long (40-60s): More depth, breathing room allowed
+- Every word must earn its place - no filler
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT FORMAT (CRITICAL)
+═══════════════════════════════════════════════════════════════════════════════
+- Output ONLY the story script text
+- No labels, no headings, no brackets, no bullet points
+- No scene markers, no structure indicators
+- Pure narrative text that flows naturally
+- Ready for voiceover narration
 `;
+
 
 /**
  * Detect if text is primarily Arabic
  */
 function isArabicText(text: string): boolean {
-  const arabicPattern = /[\u0600-\u06FF]/;
-  const arabicChars = (text.match(/[\u0600-\u06FF]/g) || []).length;
-  const totalChars = text.replace(/\s/g, '').length;
-  return arabicPattern.test(text) && (arabicChars / totalChars) > 0.3;
+  const cleaned = text.replace(/\s/g, '');
+  if (!cleaned) return false;
+
+  const arabicChars = (cleaned.match(/[\u0600-\u06FF]/g) || []).length;
+  const totalChars = cleaned.length;
+
+  return arabicChars / totalChars >= 0.2; // slightly more tolerant for short inputs
+}
+
+
+/**
+ * Build examples for few-shot learning
+ */
+function buildExamples(): string {
+  return `
+Example 1 (Short, Fast-Paced):
+Idea: "Waking up late problem"
+Output: "I was always late. Every morning, my alarm would ring and I'd hit snooze. Three times in one week, I missed important meetings. Then I tried one simple trick: put the alarm across the room. Now I have to stand up to turn it off. Result? I wake up on time every single day. My mornings are finally organized."
+
+Example 2 (Medium, Balanced):
+Idea: "Can't focus at work"
+Output: "My mind was everywhere. I'd open an email, remember a call, see a notification. By the end of the day, I'd accomplished nothing. I decided to try the Pomodoro Technique: 25 minutes of focus, 5 minutes break. The result? My productivity doubled. Now I complete tasks with speed and clarity."
+`;
 }
 
 /**
- * Build the user prompt with parameters
+ * Build the user prompt with parameters and examples
  */
 export function buildStoryUserPrompt(params: {
   idea: string;
   duration: number;
 }): string {
   const { idea, duration } = params;
-  
-  // Detect language from idea to calculate appropriate word count
+
   const isArabic = isArabicText(idea);
-  
-  // Arabic: ~2 words/second | English: ~2.5 words/second
-  const wordsPerSecond = isArabic ? 2 : 2.5;
+  const wordsPerSecond = isArabic ? 2.0 : 2.6;
+
   const targetWords = Math.round(duration * wordsPerSecond);
+  const minWords = Math.round(targetWords * 0.9);
+  const maxWords = Math.round(targetWords * 1.1);
+
+  // Determine pacing based on duration
+  const pacing = duration <= 20 ? 'fast' : duration <= 35 ? 'medium' : 'slow';
+  const pacingGuidance = pacing === 'fast' 
+    ? 'Fast-paced, high energy, quick cuts'
+    : pacing === 'slow'
+    ? 'More depth, breathing room, emotional moments'
+    : 'Balanced rhythm, natural flow';
+
+  // Build examples (model will adapt to input language automatically)
+  const examples = buildExamples();
 
   return `
-  IDEA: "${idea}"
-  DURATION: ${duration} seconds (~${targetWords} words)
-  
-  Convert this idea into a Problem-Solution story script in the same language.
-  `;
-  }
+═══════════════════════════════════════════════════════════════════════════════
+TASK: Write a Problem–Solution Story Script
+═══════════════════════════════════════════════════════════════════════════════
+
+IDEA: "${idea}"
+DURATION: ${duration} seconds
+TARGET WORDS: ${targetWords} (allowed range: ${minWords}-${maxWords})
+PACING: ${pacingGuidance}
+
+═══════════════════════════════════════════════════════════════════════════════
+REQUIREMENTS
+═══════════════════════════════════════════════════════════════════════════════
+1. Start with a strong hook that grabs attention immediately
+2. Present ONE clear, relatable problem (specific, not abstract)
+3. Reveal ONE clear solution (actionable and practical)
+4. End with an impactful close (result, twist, or light CTA)
+5. Match the exact word count: ${targetWords} words (±10%)
+6. Write in the SAME language as the idea (detected automatically from input)
+
+═══════════════════════════════════════════════════════════════════════════════
+EXAMPLES (Learn from these patterns)
+═══════════════════════════════════════════════════════════════════════════════
+
+${examples}
+
+═══════════════════════════════════════════════════════════════════════════════
+YOUR TASK
+═══════════════════════════════════════════════════════════════════════════════
+Write a Problem–Solution story script for the idea above.
+
+CRITICAL:
+- Output ONLY the script text (no labels, no formatting, no sections)
+- Respond in the SAME language as the idea
+- Match the target word count: ${targetWords} words
+- Make it engaging, relatable, and shareable
+`;
+}

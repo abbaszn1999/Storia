@@ -414,6 +414,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
         textOverlay: state.voiceoverEnabled ? state.textOverlay : undefined,
         animationMode: isAnimationOn,
         animationType: animationType,
+        styleReferenceUrl: state.styleReferenceUrl || undefined,
+        characterReferenceUrl: state.characterReferenceUrl || undefined,
       });
 
       const data = await res.json();
@@ -1413,9 +1415,10 @@ export function useStoryStudio(template: StoryTemplate | null) {
   
   const isStep1Complete = state.topic.trim().length > 0 && hasProjectName && referenceImagesValid;
   
-  // Script step is complete only if scenes exist AND total duration matches target
+  // Script step is complete only if scenes exist AND total duration matches target (with ±3s tolerance)
   const totalSceneDuration = state.scenes.reduce((sum, scene) => sum + scene.duration, 0);
-  const isStepScriptComplete = state.scenes.length > 0 && totalSceneDuration === state.duration;
+  const durationDifference = Math.abs(totalSceneDuration - state.duration);
+  const isStepScriptComplete = state.scenes.length > 0 && durationDifference <= 3;
   
   const isStep2Complete = state.scenes.length > 0;
   const isStep3Complete = state.selectedVoice.length > 0;

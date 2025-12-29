@@ -209,6 +209,10 @@ export function ScriptStep({
   }[accentColor] || "from-primary to-violet-500";
 
   const totalDuration = scenes.reduce((sum, s) => sum + s.duration, 0);
+  
+  // Calculate duration difference with ±3s tolerance
+  const durationDifference = Math.abs(totalDuration - (duration || 0));
+  const isDurationValid = durationDifference <= 3;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // VIDEO MODEL CONSTRAINTS
@@ -470,14 +474,14 @@ export function ScriptStep({
               <span className={cn(
                 "ml-2 font-semibold",
                 scenesWithIssues.length > 0 ? "text-red-400" :
-                totalDuration === duration ? "text-green-400" : "text-yellow-400"
+                isDurationValid ? "text-green-400" : "text-yellow-400"
               )}>
                 {totalDuration}s
               </span>
             </p>
-            {duration && totalDuration !== duration && scenesWithIssues.length === 0 && (
+            {duration && !isDurationValid && scenesWithIssues.length === 0 && (
               <span className="text-sm text-yellow-400/80">
-                (Target: {duration}s)
+                (Target: {duration}s, difference: {durationDifference > 0 ? '+' : ''}{durationDifference}s)
               </span>
             )}
             {scenesWithIssues.length > 0 ? (
@@ -485,7 +489,7 @@ export function ScriptStep({
                 <AlertTriangle className="w-3 h-3" />
                 {scenesWithIssues.length} scene{scenesWithIssues.length > 1 ? 's' : ''} need attention
               </span>
-            ) : totalDuration === duration ? (
+            ) : isDurationValid ? (
               <span className="text-xs text-green-400 flex items-center gap-1 px-2 py-1 rounded-md bg-green-500/10">
                 ✓ Ready to proceed
               </span>

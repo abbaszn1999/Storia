@@ -89,13 +89,23 @@ interface ConceptStepProps {
 }
 
 const ASPECT_RATIOS = [
-  { value: '9:16', label: 'Vertical', desc: 'TikTok, Reels', icon: '📱' },
-  { value: '16:9', label: 'Horizontal', desc: 'YouTube', icon: '💻' },
-  { value: '1:1', label: 'Square', desc: 'Instagram', icon: '🔲' },
-  { value: '4:3', label: 'Classic', desc: 'Traditional', icon: '🖼️' },
-  { value: '3:2', label: 'Landscape', desc: 'Photo', icon: '📷' }, // For OpenAI GPT Image
-  { value: '2:3', label: 'Portrait', desc: 'Photo', icon: '📸' }, // For OpenAI GPT Image
+  { value: '9:16', label: 'Vertical', icon: '📱' },
+  { value: '16:9', label: 'Horizontal', icon: '💻' },
+  { value: '1:1', label: 'Square', icon: '🔲' },
+  { value: '4:3', label: 'Classic', icon: '🖼️' },
+  { value: '3:2', label: 'Landscape', icon: '📷' }, // For OpenAI GPT Image
+  { value: '2:3', label: 'Portrait', icon: '📸' }, // For OpenAI GPT Image
 ];
+
+// Supported platforms for each aspect ratio
+const ASPECT_RATIO_PLATFORMS: Record<string, string[]> = {
+  '9:16': ['TikTok', 'Instagram Reels', 'YouTube Shorts', 'Facebook Reels'],
+  '16:9': ['YouTube', 'Facebook'],
+  '1:1': ['Instagram', 'Facebook'],
+  '4:3': ['YouTube', 'Facebook'],
+  '3:2': ['Instagram', 'Facebook'],
+  '2:3': ['Instagram', 'Facebook'],
+};
 
 const DURATIONS = [15, 30, 45, 60];
 
@@ -192,6 +202,9 @@ export function ConceptStep({
   
   // Get current video model config with fallback to default
   const selectedVideoModel = getVideoModelConfig(videoModel) || getDefaultVideoModel();
+
+  // Hover state for aspect ratio tooltips
+  const [hoveredAspectRatio, setHoveredAspectRatio] = useState<string | null>(null);
 
   // Auto-correct video model when aspect ratio changes (if current model doesn't support it)
   useEffect(() => {
@@ -661,47 +674,110 @@ export function ConceptStep({
                     if (!selectedImageModel?.aspectRatios) return true; // Show all if model config not available
                     return selectedImageModel.aspectRatios.includes(ratio.value);
                   })
-                  .map(ratio => {
+                  .map((ratio, index, filteredArray) => {
                     // Check if this aspect ratio is supported by video model (when Animation Mode is video)
                     const isSupportedByVideoModel = animationMode !== 'video' || 
                       !selectedVideoModel || 
                       selectedVideoModel.aspectRatios.includes(ratio.value);
                     
+                    const platforms = ASPECT_RATIO_PLATFORMS[ratio.value] || [];
+                    const isHovered = hoveredAspectRatio === ratio.value;
+                    
+                    // Determine tooltip position based on button position in grid
+                    // Grid has 4 columns, so we calculate position
+                    const columnIndex = index % 4;
+                    const isFirstColumn = columnIndex === 0;
+                    const isLastColumn = columnIndex === 3 || (index === filteredArray.length - 1 && filteredArray.length % 4 !== 0);
+                    const isMiddle = !isFirstColumn && !isLastColumn;
+                    
+                    // Tooltip positioning classes
+                    const tooltipPositionClass = isFirstColumn 
+                      ? "left-0" 
+                      : isLastColumn 
+                      ? "right-0" 
+                      : "left-1/2 -translate-x-1/2";
+                    
+                    const arrowPositionClass = isFirstColumn
+                      ? "left-4"
+                      : isLastColumn
+                      ? "right-4"
+                      : "left-1/2 -translate-x-1/2";
+                    
                     return (
-                    <button
+                    <div
                       key={ratio.value}
-                      onClick={(e) => {
-                        if (!isSupportedByVideoModel) {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          return;
-                        }
-                        onAspectRatioChange(ratio.value);
-                      }}
-                      disabled={!isSupportedByVideoModel}
-                      className={cn(
-                        "flex flex-col items-center gap-2 p-3 rounded-xl border transition-all duration-200",
-                        aspectRatio === ratio.value 
-                          ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                          : "bg-white/5 border-white/10 hover:bg-white/10",
-                        !isSupportedByVideoModel && "opacity-40 cursor-not-allowed hover:bg-white/5 pointer-events-none"
-                      )}
+                      className="relative group"
+                      onMouseEnter={() => setHoveredAspectRatio(ratio.value)}
+                      onMouseLeave={() => setHoveredAspectRatio(null)}
                     >
-                      <div className={cn(
-                        "rounded border border-white/30 transition-all",
-                        ratio.value === '9:16' && "w-3 h-5",
-                        ratio.value === '16:9' && "w-5 h-3",
-                        ratio.value === '1:1' && "w-4 h-4",
-                        ratio.value === '4:3' && "w-4 h-3",
-                        ratio.value === '3:2' && "w-5 h-3.5", // Landscape photo ratio
-                        ratio.value === '2:3' && "w-3.5 h-5", // Portrait photo ratio
-                        aspectRatio === ratio.value && "border-white bg-white/20"
-                      )} />
-                      <div className="text-center">
-                        <span className="block text-xs font-medium text-white">{ratio.label}</span>
-                        <span className="block text-[10px] text-white/40 mt-0.5">{ratio.desc}</span>
-                      </div>
-                    </button>
+                      <button
+                        onClick={(e) => {
+                          if (!isSupportedByVideoModel) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            return;
+                          }
+                          onAspectRatioChange(ratio.value);
+                        }}
+                        disabled={!isSupportedByVideoModel}
+                        className={cn(
+                          "flex flex-col items-center gap-2 p-3 rounded-xl border transition-all duration-200 w-full",
+                          aspectRatio === ratio.value 
+                            ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
+                            : "bg-white/5 border-white/10 hover:bg-white/10",
+                          !isSupportedByVideoModel && "opacity-40 cursor-not-allowed hover:bg-white/5 pointer-events-none"
+                        )}
+                      >
+                        <div className={cn(
+                          "rounded border border-white/30 transition-all",
+                          ratio.value === '9:16' && "w-3 h-5",
+                          ratio.value === '16:9' && "w-5 h-3",
+                          ratio.value === '1:1' && "w-4 h-4",
+                          ratio.value === '4:3' && "w-4 h-3",
+                          ratio.value === '3:2' && "w-5 h-3.5", // Landscape photo ratio
+                          ratio.value === '2:3' && "w-3.5 h-5", // Portrait photo ratio
+                          aspectRatio === ratio.value && "border-white bg-white/20"
+                        )} />
+                        <div className="text-center">
+                          <span className="block text-xs font-medium text-white">{ratio.label}</span>
+                          <span className="block text-[10px] text-white/60 mt-0.5 font-mono">{ratio.value}</span>
+                        </div>
+                      </button>
+                      
+                      {/* Tooltip */}
+                      {isHovered && platforms.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                          transition={{ duration: 0.15 }}
+                          className={cn(
+                            "absolute z-50 bottom-full mb-2 w-48",
+                            tooltipPositionClass
+                          )}
+                        >
+                          <div className="bg-gradient-to-br from-gray-900/95 to-gray-800/95 backdrop-blur-md border border-white/20 rounded-lg shadow-2xl p-3">
+                            <div className="text-xs font-semibold text-white/90 mb-2 text-center">
+                              Supports
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 justify-center">
+                              {platforms.map((platform, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center px-2 py-1 rounded-md bg-white/10 text-[10px] font-medium text-white/80 border border-white/10"
+                                >
+                                  {platform}
+                                </span>
+                              ))}
+                            </div>
+                            {/* Arrow */}
+                            <div className={cn("absolute top-full -mt-1", arrowPositionClass)}>
+                              <div className="w-2 h-2 bg-gray-900/95 border-r border-b border-white/20 rotate-45"></div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
                   );
                   })}
               </div>

@@ -21,12 +21,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { renderTextWithMentions } from "./mention-renderer";
 
 interface SceneBreakdownProps {
   videoId: string;
+  workspaceId?: string;  // Workspace ID for API calls
   script: string;
   scriptModel?: string;
-  narrativeMode?: "image-reference" | "start-end";
+  narrativeMode?: "image-reference" | "start-end" | "auto";
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions?: { [shotId: string]: ShotVersion[] };
@@ -34,6 +37,13 @@ interface SceneBreakdownProps {
   continuityGroups?: { [sceneId: string]: ContinuityGroup[] };
   isLogoMode?: boolean;
   isCommerceMode?: boolean;
+  numberOfScenes?: number | 'auto';  // From Structure Settings in Script page
+  shotsPerScene?: number | 'auto';  // From Structure Settings in Script page
+  targetDuration?: number;  // Target duration in seconds
+  genre?: string;  // Video genre
+  tone?: string;  // Video tone
+  characters?: Array<{ id: string; name: string; description?: string }>;  // Available characters
+  locations?: Array<{ id: string; name: string; description?: string }>;  // Available locations
   onScenesGenerated?: (scenes: Scene[], shots: { [sceneId: string]: Shot[] }, shotVersions?: { [shotId: string]: ShotVersion[] }) => void;
   onScenesChange?: (scenes: Scene[]) => void;
   onShotsChange?: (shots: { [sceneId: string]: Shot[] }) => void;
@@ -44,7 +54,8 @@ interface SceneBreakdownProps {
 }
 
 export function SceneBreakdown({ 
-  videoId, 
+  videoId,
+  workspaceId,
   script, 
   scriptModel = "gpt-4o", 
   narrativeMode,
@@ -55,6 +66,13 @@ export function SceneBreakdown({
   continuityGroups: propsGroups = {},
   isLogoMode = false,
   isCommerceMode = false,
+  numberOfScenes = 'auto',
+  shotsPerScene = 'auto',
+  targetDuration,
+  genre,
+  tone,
+  characters = [],
+  locations = [],
   onScenesGenerated, 
   onScenesChange,
   onShotsChange,
@@ -664,6 +682,12 @@ export function SceneBreakdown({
     if (scenes.length > 0 || Object.keys(shots).length > 0) return;
     if (propsGroups && Object.keys(propsGroups).length > 0) return;
     
+    // Don't load dummy data if we have a script and are about to auto-generate
+    if (script && script.trim().length > 0 && targetDuration && genre) {
+      // Will be auto-generated, don't show dummy data
+      return;
+    }
+
     const dummyScenes: Scene[] = [
         {
           id: "scene-1",
@@ -1042,7 +1066,7 @@ export function SceneBreakdown({
     onScenesGenerated?.(dummyScenes, dummyShots, dummyShotVersions);
     onScenesChange?.(dummyScenes);
     onShotsChange?.(dummyShots);
-  }, []);
+  }, [scenes.length, Object.keys(shots).length, script, targetDuration, genre]);
 
   const moveScene = (sceneId: string, direction: 'up' | 'down') => {
     const sceneIndex = scenes.findIndex(s => s.id === sceneId);
@@ -1113,37 +1137,135 @@ export function SceneBreakdown({
   };
 
   const handleGenerateBreakdown = async () => {
+    if (!script || script.trim().length === 0) {
+      toast({
+        title: "No Script",
+        description: "Please generate or enter a script first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!targetDuration || targetDuration <= 0) {
+      toast({
+        title: "Invalid Duration",
+        description: "Please set a valid target duration.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!genre) {
+      toast({
+        title: "Missing Genre",
+        description: "Please select a genre for the video.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingBreakdown(true);
     try {
       const response = await fetch('/api/narrative/breakdown', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId && { 'x-workspace-id': workspaceId }),
+        },
+        credentials: 'include',
         body: JSON.stringify({
           videoId,
           script,
           model: scriptModel,
+          targetDuration: parseInt(String(targetDuration)),
+          genre: genre || 'Adventure',
+          tone: tone || undefined,
+          numberOfScenes: numberOfScenes || 'auto',
+          shotsPerScene: shotsPerScene || 'auto',
+          narrativeMode: narrativeMode || 'image-reference',
+          characters: characters.map(c => ({
+            id: c.id,
+            name: c.name,
+            description: c.description,
+          })),
+          locations: locations.map(l => ({
+            id: l.id,
+            name: l.name,
+            description: l.description,
+          })),
         }),
       });
-      if (!response.ok) throw new Error('Failed to generate breakdown');
-      const data = await response.json() as { scenes: Scene[]; shots: { [sceneId: string]: Shot[] } };
-      
-      onScenesGenerated?.(data.scenes, data.shots);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to generate breakdown');
+      }
+
+      const data = await response.json() as {
+        scenes: Scene[];
+        shots: { [sceneId: string]: Shot[] };
+        continuityGroups?: { [sceneId: string]: ContinuityGroup[] };
+        shotVersions?: { [shotId: string]: ShotVersion[] };
+        totalDuration?: number;
+        cost?: number;
+      };
+
+      onScenesGenerated?.(data.scenes, data.shots, data.shotVersions);
       onScenesChange?.(data.scenes);
       onShotsChange?.(data.shots);
+
+      // Handle continuity groups from breakdown response
+      if (data.continuityGroups && Object.keys(data.continuityGroups).length > 0) {
+        // Convert date strings back to Date objects for local state
+        const continuityGroupsWithDates: { [sceneId: string]: ContinuityGroup[] } = {};
+        for (const [sceneId, groups] of Object.entries(data.continuityGroups)) {
+          continuityGroupsWithDates[sceneId] = groups.map(group => ({
+            ...group,
+            createdAt: typeof group.createdAt === 'string' ? new Date(group.createdAt) : group.createdAt,
+            editedAt: group.editedAt && typeof group.editedAt === 'string' ? new Date(group.editedAt) : group.editedAt,
+            approvedAt: group.approvedAt && typeof group.approvedAt === 'string' ? new Date(group.approvedAt) : group.approvedAt,
+          }));
+        }
+
+        // Initialize continuity groups as proposals
+        updateAllGroupMaps(approvedGroups, continuityGroupsWithDates, declinedGroups);
+
+        toast({
+          title: "Continuity Groups Generated",
+          description: `Generated ${Object.values(continuityGroupsWithDates).flat().length} continuity group proposals. Review and approve to proceed.`,
+        });
+      }
       setSynopsis(script.substring(0, 200));
       toast({
         title: "Breakdown Complete",
-        description: `Generated ${data.scenes.length} scenes with shots.`,
+        description: `Generated ${data.scenes.length} scenes${data.shots ? ` with ${Object.values(data.shots).flat().length} shots` : ''}.`,
       });
     } catch (error) {
+      console.error('[SceneBreakdown] Breakdown generation error:', error);
       toast({
         title: "Breakdown Failed",
-        description: "Failed to analyze script. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to analyze script. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsGeneratingBreakdown(false);
     }
   };
   
   const [isGeneratingBreakdown, setIsGeneratingBreakdown] = useState(false);
+
+  // Auto-generate breakdown on mount if no scenes exist and script is available
+  useEffect(() => {
+    if (scenes.length === 0 && script && script.trim().length > 0 && !isGeneratingBreakdown && targetDuration && genre) {
+      // Small delay to ensure component is fully mounted
+      const timer = setTimeout(() => {
+        console.log('[SceneBreakdown] Auto-generating breakdown on mount');
+        handleGenerateBreakdown();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount - intentionally not including all dependencies
 
   const handleSceneSubmit = async (data: any): Promise<void> => {
     if (editingScene) {
@@ -1266,38 +1388,47 @@ export function SceneBreakdown({
     <div className="space-y-6">
       {!hasBreakdown ? (
         <div className="space-y-6">
-          <div className="text-center py-16">
-            <div className={cn("h-16 w-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br flex items-center justify-center", accentClasses)}>
-              <Film className="h-8 w-8 text-white" />
+          {isGeneratingBreakdown ? (
+            <div className="text-center py-16">
+              <div className={cn("h-16 w-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br flex items-center justify-center", accentClasses)}>
+                <Loader2 className="h-8 w-8 text-white animate-spin" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2">Generating Scene Breakdown</h3>
+              <p className="text-white/50 mb-8 max-w-md mx-auto">
+                AI is analyzing your script and breaking it down into scenes and shots...
+              </p>
+              <div className="mb-4 space-y-2 text-sm text-white/70">
+                <div className="flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Analyzing Script...</span>
+                </div>
+              </div>
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Generate Scene Breakdown</h3>
-            <p className="text-white/50 mb-8 max-w-md mx-auto">
-              AI will analyze your script and break it down into scenes and shots for your storyboard.
-            </p>
-            <Button
-              size="lg"
-              onClick={async () => {
-                setIsGeneratingBreakdown(true);
-                await handleGenerateBreakdown();
-                setIsGeneratingBreakdown(false);
-              }}
-              disabled={isGeneratingBreakdown}
-              className={cn("bg-gradient-to-br text-white hover:opacity-90", accentClasses)}
-              data-testid="button-generate-breakdown"
-            >
-              {isGeneratingBreakdown ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Analyzing Script...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Generate Scene Breakdown
-                </>
-              )}
-            </Button>
-          </div>
+          ) : (
+            <div className="text-center py-16">
+              <div className={cn("h-16 w-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br flex items-center justify-center", accentClasses)}>
+                <Film className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2">Generate Scene Breakdown</h3>
+              <p className="text-white/50 mb-8 max-w-md mx-auto">
+                AI will analyze your script and break it down into scenes and shots for your storyboard.
+              </p>
+              <Button
+                size="lg"
+                onClick={async () => {
+                  setIsGeneratingBreakdown(true);
+                  await handleGenerateBreakdown();
+                  setIsGeneratingBreakdown(false);
+                }}
+                disabled={isGeneratingBreakdown}
+                className={cn("bg-gradient-to-br text-white hover:opacity-90", accentClasses)}
+                data-testid="button-generate-breakdown"
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                Generate Scene Breakdown
+              </Button>
+            </div>
+          )}
           
           <div className="text-center">
             <p className="text-sm text-white/40 mb-4">or</p>
@@ -1329,8 +1460,8 @@ export function SceneBreakdown({
             </Card>
           )}
 
-          {/* Continuity Proposal for Start-End Mode - Top of Page */}
-          {narrativeMode === "start-end" && (
+          {/* Continuity Proposal for Start-End Mode and Auto Mode - Top of Page */}
+          {(narrativeMode === "start-end" || narrativeMode === "auto") && (
             <ContinuityProposal
               scenes={scenes}
               allShots={shots}
@@ -1433,8 +1564,8 @@ export function SceneBreakdown({
                     </div>
 
                     <div className="relative space-y-2">
-                      {/* Render continuity arrows for start-end mode */}
-                      {narrativeMode === "start-end" && sceneShots.length > 0 && (
+                      {/* Render continuity arrows for start-end and auto modes */}
+                      {(narrativeMode === "start-end" || narrativeMode === "auto") && sceneShots.length > 0 && (
                         <ShotContinuityArrows
                           sceneId={scene.id}
                           sceneShots={sceneShots}
@@ -1461,8 +1592,32 @@ export function SceneBreakdown({
                           <div className={cn("h-2 w-2 rounded-full bg-gradient-to-br mt-2 shrink-0", accentClasses)}>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className="text-sm font-medium text-white mr-2">Shot {shotIndex + 1}</span>
-                            <span className="text-sm text-white/70">{shot.description}</span>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-sm font-medium text-white">Shot {shotIndex + 1}</span>
+                              {narrativeMode === "auto" && (
+                                <Select
+                                  value={shot.frameMode || "image-reference"}
+                                  onValueChange={(value: "image-reference" | "start-end") => {
+                                    const updatedShots = { ...shots };
+                                    if (!updatedShots[scene.id]) updatedShots[scene.id] = [];
+                                    const shotIndex = updatedShots[scene.id].findIndex(s => s.id === shot.id);
+                                    if (shotIndex >= 0) {
+                                      updatedShots[scene.id][shotIndex] = { ...updatedShots[scene.id][shotIndex], frameMode: value };
+                                      onShotsChange?.(updatedShots);
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className="h-6 text-xs w-24 bg-white/5 border-white/10 text-white/70 hover:border-purple-500/30">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-[#1a2332] border-white/10">
+                                    <SelectItem value="image-reference" className="text-white/70 hover:bg-white/10">1 Frame</SelectItem>
+                                    <SelectItem value="start-end" className="text-white/70 hover:bg-white/10">2 Frames</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
+                            <span className="text-sm text-white/70">{renderTextWithMentions(shot.description || '')}</span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <Badge variant="outline" className="text-xs bg-white/5 border-white/10 text-white/50">

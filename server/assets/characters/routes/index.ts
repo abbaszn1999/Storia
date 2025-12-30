@@ -9,7 +9,7 @@ import { insertCharacterSchema } from "@shared/schema";
 import { bunnyStorage } from "../../../storage/bunny-storage";
 import { MAX_REFERENCE_IMAGES, ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE } from "../config";
 import type { CreateCharacterRequest, UpdateCharacterRequest } from "../types";
-import { generateCharacterImage } from "../../../ai/agents/character-image-generator";
+import { generateCharacterImage } from "../agents/character-image-generator";
 
 const router = Router();
 
@@ -190,7 +190,7 @@ router.delete("/:id", isAuthenticated, async (req: any, res: Response) => {
     }
 
     // Delete entire character folder from Bunny Storage
-    if (character.imageUrl || (character.referenceImages && character.referenceImages.length > 0)) {
+    if (character.imageUrl || (character.referenceImages && Array.isArray(character.referenceImages) && character.referenceImages.length > 0)) {
       try {
         // Clean workspace name for path safety
         const clean = (str: string) => str.replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "_");
@@ -303,6 +303,12 @@ router.post(
         });
       }
 
+      if (!character.personality) {
+        return res.status(400).json({
+          error: "Character personality is required for image generation"
+        });
+      }
+
       console.log("[characters] Generating AI image for character:", {
         characterId: id,
         characterName: character.name,
@@ -317,7 +323,7 @@ router.post(
         {
           name: character.name,
           appearance: character.appearance,
-          personality: character.personality || undefined,
+          personality: character.personality, // Mandatory - validated above
           artStyleDescription,
           model: "nano-banana", // Hard-coded for assets library
           negativePrompt,

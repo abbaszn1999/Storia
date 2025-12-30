@@ -41,13 +41,13 @@ export default function NarrativeMode() {
   const [videoId, setVideoId] = useState<string>(initialVideoId);
   const [videoTitle, setVideoTitle] = useState<string>(urlTitle);
   const [showModeSelector, setShowModeSelector] = useState(isNewVideo);
-  const [creatingMode, setCreatingMode] = useState<"image-reference" | "start-end" | null>(null);
+  const [creatingMode, setCreatingMode] = useState<"image-reference" | "start-end" | "auto" | null>(null);
   
   const [activeStep, setActiveStep] = useState<NarrativeStepId>("script");
   const [completedSteps, setCompletedSteps] = useState<NarrativeStepId[]>([]);
   const [direction, setDirection] = useState(1);
   const [canContinue, setCanContinue] = useState(false);  // Validation state from workflow
-  const [narrativeMode, setNarrativeMode] = useState<"image-reference" | "start-end" | null>(null);
+  const [narrativeMode, setNarrativeMode] = useState<"image-reference" | "start-end" | "auto" | null>(null);
   const [script, setScript] = useState("");
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [scriptModel, setScriptModel] = useState("gpt-4o");
@@ -117,9 +117,9 @@ export default function NarrativeMode() {
         
         // Restore narrative mode from step1Data (primary location) or top-level (fallback)
         if (step1.narrativeMode) {
-          setNarrativeMode(step1.narrativeMode as "image-reference" | "start-end");
+          setNarrativeMode(step1.narrativeMode as "image-reference" | "start-end" | "auto");
         } else if (existingVideo.narrativeMode) {
-          setNarrativeMode(existingVideo.narrativeMode as "image-reference" | "start-end");
+          setNarrativeMode(existingVideo.narrativeMode as "image-reference" | "start-end" | "auto");
         }
         
         // Restore all step1 fields
@@ -148,7 +148,7 @@ export default function NarrativeMode() {
         });
       } else if (existingVideo.narrativeMode) {
         // Fallback: try top-level narrativeMode if no step1Data
-        setNarrativeMode(existingVideo.narrativeMode as "image-reference" | "start-end");
+        setNarrativeMode(existingVideo.narrativeMode as "image-reference" | "start-end" | "auto");
       }
       
       // Step ID mapping (numeric to string)
@@ -543,7 +543,7 @@ export default function NarrativeMode() {
     }
   };
 
-  const handleModeSelect = async (mode: "image-reference" | "start-end") => {
+  const handleModeSelect = async (mode: "image-reference" | "start-end" | "auto") => {
     if (!workspaceId) {
       toast({
         title: "Error",

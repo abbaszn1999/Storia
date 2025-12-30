@@ -213,11 +213,17 @@ export function ShotDialog({
                     <Input
                       type="number"
                       {...field}
+                      value={field.value}
                       onChange={(e) => field.onChange(parseInt(e.target.value))}
+                      disabled={true}
+                      className="bg-muted cursor-not-allowed"
                       data-testid="input-shot-duration"
                     />
                   </FormControl>
                   <FormMessage />
+                  <p className="text-xs text-muted-foreground">
+                    Duration is automatically set by the AI and cannot be edited.
+                  </p>
                 </FormItem>
               )}
             />

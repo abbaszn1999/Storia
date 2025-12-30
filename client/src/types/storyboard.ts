@@ -94,6 +94,7 @@ export interface Shot {
   currentVersionId?: string | null;
   speedProfile?: 'linear' | 'speed-ramp' | 'slow-motion' | 'kinetic' | 'smooth' | null;
   renderDuration?: number | null;
+  frameMode?: "image-reference" | "start-end"; // Per-shot mode (only used when narrativeMode === "auto")
   createdAt: Date;
   updatedAt: Date;
 }

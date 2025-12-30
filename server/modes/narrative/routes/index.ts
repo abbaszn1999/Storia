@@ -658,10 +658,10 @@ router.post('/characters/generate-image', isAuthenticated, async (req: Request, 
     } = req.body;
 
     // Validate required fields
-    if (!name || !appearance) {
+    if (!name || !appearance || !personality) {
       return res.status(400).json({ 
         error: 'Missing required fields',
-        details: 'name and appearance are required'
+        details: 'name, appearance, and personality are required'
       });
     }
 
@@ -1028,6 +1028,292 @@ router.post('/locations/generate-image', isAuthenticated, async (req: Request, r
     console.error('[narrative:routes] Location image generation error:', error);
     res.status(500).json({ 
       error: 'Failed to generate location image',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * POST /api/narrative/breakdown
+ * Generate scene breakdown (Agent 3.1) and shots (Agent 3.2)
+ *
+ * Runs Agent 3.1 (Scene Analyzer) first, then Agent 3.2 (Shot Composer) sequentially
+ */
+router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const {
+      videoId,
+      script,
+      model: scriptModel,
+      targetDuration,
+      genre,
+      tone,
+      numberOfScenes,
+      shotsPerScene,
+      characters = [],
+      locations = [],
+      narrativeMode
+    } = req.body;
+
+    const workspaceId = req.headers["x-workspace-id"] as string | undefined;
+
+    // Validate required fields
+    if (!videoId || !script || !targetDuration || !genre) {
+      return res.status(400).json({
+        error: 'Missing required fields: videoId, script, targetDuration, genre'
+      });
+    }
+
+    console.log('[narrative:routes] Generating breakdown:', {
+      videoId,
+      scriptLength: script.length,
+      targetDuration,
+      genre,
+      tone,
+      numberOfScenes,
+      shotsPerScene,
+      characterCount: characters.length,
+      locationCount: locations.length,
+      model: scriptModel,
+      userId,
+      workspaceId,
+    });
+
+    // Fetch numberOfScenes from step1Data if not provided
+    let finalNumberOfScenes: number | 'auto' = numberOfScenes || 'auto';
+    if (!numberOfScenes) {
+      try {
+        const video = await storage.getVideo(videoId);
+        if (video?.step1Data && typeof video.step1Data === 'object') {
+          const step1Data = video.step1Data as any;
+          if (step1Data.numberOfScenes !== undefined) {
+            finalNumberOfScenes = step1Data.numberOfScenes;
+            console.log('[narrative:routes] Using numberOfScenes from step1Data:', finalNumberOfScenes);
+          }
+        }
+      } catch (error) {
+        console.warn('[narrative:routes] Failed to fetch numberOfScenes from step1Data, using auto:', error);
+      }
+    }
+
+    // Run Agent 3.1: Scene Analyzer
+    console.log('[narrative:routes] Running Agent 3.1: Scene Analyzer...');
+    const sceneResult = await NarrativeAgents.generateScenes(
+      {
+        script,
+        targetDuration: parseInt(targetDuration),
+        genre,
+        tone,
+        numberOfScenes: finalNumberOfScenes,
+        characters: characters.map((c: any) => ({
+          id: c.id || c.characterId || '',
+          name: c.name || '',
+          description: c.description || c.appearance || '',
+        })),
+        locations: locations.map((l: any) => ({
+          id: l.id || '',
+          name: l.name || '',
+          description: l.description || '',
+        })),
+        model: scriptModel,
+      },
+      videoId,
+      userId,
+      workspaceId
+    );
+
+    // Validate scene count if numberOfScenes was a number
+    if (finalNumberOfScenes !== 'auto' && sceneResult.scenes.length !== finalNumberOfScenes) {
+      console.warn(
+        `[narrative:routes] Scene count mismatch: expected ${finalNumberOfScenes}, got ${sceneResult.scenes.length}`
+      );
+      // Continue anyway, but log the warning
+    }
+
+    // Fetch shotsPerScene from step1Data if not provided
+    let finalShotsPerScene: number | 'auto' = shotsPerScene || 'auto';
+    if (!shotsPerScene) {
+      try {
+        const video = await storage.getVideo(videoId);
+        if (video?.step1Data && typeof video.step1Data === 'object') {
+          const step1Data = video.step1Data as any;
+          if (step1Data.shotsPerScene !== undefined) {
+            finalShotsPerScene = step1Data.shotsPerScene;
+            console.log('[narrative:routes] Using shotsPerScene from step1Data:', finalShotsPerScene);
+          }
+        }
+      } catch (error) {
+        console.warn('[narrative:routes] Failed to fetch shotsPerScene from step1Data, using auto:', error);
+      }
+    }
+
+    // Fetch narrativeMode and video model from video if not provided
+    let finalNarrativeMode: "image-reference" | "start-end" | "auto" = narrativeMode || "image-reference";
+    let availableDurations: number[] | undefined;
+    try {
+      const video = await storage.getVideo(videoId);
+      if (video) {
+        // Fetch narrativeMode from step1Data if not provided
+        if (!narrativeMode && video.step1Data && typeof video.step1Data === 'object') {
+          const step1Data = video.step1Data as any;
+          if (step1Data.narrativeMode) {
+            finalNarrativeMode = step1Data.narrativeMode as "image-reference" | "start-end" | "auto";
+            console.log('[narrative:routes] Using narrativeMode from step1Data:', finalNarrativeMode);
+          }
+        }
+
+        // Fetch video model from step2Data to get available durations
+        if (video?.step2Data && typeof video.step2Data === 'object') {
+          const step2Data = video.step2Data as any;
+          // Video model might be stored in step2Data or we need to get it from video model config
+          // For now, we'll get it from VIDEO_MODEL_CONFIGS based on a default or stored model
+          // Check if there's a videoModel in step2Data or step3Data
+          const videoModelId = step2Data.videoModel || (video.step3Data as any)?.scenes?.[0]?.videoModel;
+
+          if (videoModelId) {
+            // Import video model config
+            const { VIDEO_MODEL_CONFIGS } = await import('../../../ai/config/video-models');
+            const modelConfig = VIDEO_MODEL_CONFIGS[videoModelId];
+            if (modelConfig && modelConfig.durations) {
+              availableDurations = modelConfig.durations;
+              console.log('[narrative:routes] Using available durations from video model:', {
+                videoModelId,
+                availableDurations,
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[narrative:routes] Failed to fetch video data, using defaults:', error);
+    }
+
+    // Run Agent 3.2: Shot Composer
+    console.log('[narrative:routes] Running Agent 3.2: Shot Composer...');
+    const { composeShotsForScenes } = await import('../agents/breakdown/shot-composer');
+
+    const shotResult = await composeShotsForScenes(
+      sceneResult.scenes,
+      {
+        script,
+        shotsPerScene: finalShotsPerScene,
+        characters: characters.map((c: any) => ({
+          id: c.id || c.characterId || '',
+          name: c.name || '',
+          description: c.description || c.appearance || '',
+        })),
+        locations: locations.map((l: any) => ({
+          id: l.id || '',
+          name: l.name || '',
+          description: l.description || '',
+        })),
+        genre,
+        tone,
+        model: scriptModel,
+        availableDurations,
+        narrativeMode: finalNarrativeMode,
+      },
+      userId,
+      workspaceId
+    );
+
+    const shots: { [sceneId: string]: any[] } = shotResult.shots;
+    const continuityGroups: { [sceneId: string]: any[] } = shotResult.continuityGroups || {};
+    const shotVersions: { [shotId: string]: any[] } = {};
+
+    // Validate shot counts per scene if shotsPerScene was a number
+    if (finalShotsPerScene !== 'auto') {
+      for (const scene of sceneResult.scenes) {
+        const sceneShots = shots[scene.id] || [];
+        if (sceneShots.length !== finalShotsPerScene) {
+          console.warn(
+            `[narrative:routes] Shot count mismatch for scene ${scene.sceneNumber}: expected ${finalShotsPerScene}, got ${sceneShots.length}`
+          );
+        }
+      }
+    }
+
+    // Serialize Date objects to ISO strings for JSONB storage
+    const serializedScenes = sceneResult.scenes.map(scene => ({
+      ...scene,
+      createdAt: scene.createdAt instanceof Date ? scene.createdAt.toISOString() : scene.createdAt,
+    }));
+
+    const serializedShots: { [sceneId: string]: any[] } = {};
+    for (const [sceneId, sceneShots] of Object.entries(shots)) {
+      serializedShots[sceneId] = sceneShots.map(shot => ({
+        ...shot,
+        createdAt: shot.createdAt instanceof Date ? shot.createdAt.toISOString() : shot.createdAt,
+        updatedAt: shot.updatedAt instanceof Date ? shot.updatedAt.toISOString() : shot.updatedAt,
+      }));
+    }
+
+    // Serialize continuity groups (with serialized dates)
+    const serializedContinuityGroups: { [sceneId: string]: any[] } = {};
+    for (const [sceneId, sceneGroups] of Object.entries(continuityGroups)) {
+      serializedContinuityGroups[sceneId] = sceneGroups.map(group => ({
+        ...group,
+        createdAt: group.createdAt instanceof Date ? group.createdAt.toISOString() : group.createdAt,
+        editedAt: group.editedAt instanceof Date ? group.editedAt.toISOString() : group.editedAt,
+        approvedAt: group.approvedAt instanceof Date ? group.approvedAt.toISOString() : group.approvedAt,
+      }));
+    }
+
+    // Save to step3Data (with serialized dates)
+    const step3Data = {
+      scenes: serializedScenes,
+      shots: serializedShots,
+      shotVersions,
+      continuityLocked: false,
+      continuityGroups: serializedContinuityGroups,  // Include generated continuity groups
+    };
+
+    // Get existing video to merge step3Data
+    const existingVideo = await storage.getVideo(videoId);
+    if (!existingVideo) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Merge existing step3Data with new data
+    const existingStep3 = (existingVideo.step3Data as Record<string, any>) || {};
+    const updatedStep3Data = {
+      ...existingStep3,
+      ...step3Data,
+    };
+
+    // Update video with step3Data
+    await storage.updateVideo(videoId, { step3Data: updatedStep3Data });
+
+    const totalCost = (sceneResult.cost || 0) + shotResult.totalCost;
+    const totalShots = Object.values(shots).flat().length;
+
+    console.log('[narrative:routes] Breakdown generated successfully:', {
+      videoId,
+      sceneCount: sceneResult.scenes.length,
+      continuityGroupsCount: Object.values(serializedContinuityGroups).flat().length,
+      totalShots,
+      totalDuration: sceneResult.totalDuration,
+      totalCost,
+    });
+
+    // Return serialized data for client
+    res.json({
+      scenes: serializedScenes,
+      shots: serializedShots,
+      continuityGroups: serializedContinuityGroups,  // Return continuity groups in response
+      shotVersions,
+      totalDuration: sceneResult.totalDuration,
+      cost: totalCost,
+    });
+  } catch (error) {
+    console.error('[narrative:routes] Breakdown generation error:', error);
+    res.status(500).json({
+      error: 'Failed to generate breakdown',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }

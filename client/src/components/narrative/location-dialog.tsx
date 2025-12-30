@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Upload, X, Loader2, Sparkles, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { MAX_LOCATION_REFERENCES } from "@/lib/constants";
+import { MAX_LOCATION_REFERENCES } from "@/assets/constants";
 
 interface LocationData {
   name: string;

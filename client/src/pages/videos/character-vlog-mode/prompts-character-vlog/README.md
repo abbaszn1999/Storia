@@ -480,46 +480,52 @@ prompts-character-vlog/
 
 ---
 
-## Agent 4.3: VoiceOver Script Writer ✅ COMPLETE
+## Agent 4.3: Video Generator ✅ COMPLETE
 
-**Location:** `step-4-storyboard/agent-4.3-voiceover-script-writer.md`
+**Location:** `step-4-storyboard/agent-4.3-video-generator.md`
 
-**Purpose:** Generate cohesive, per-shot narration script for voiceover synthesis, matching shot durations and maintaining narrative flow
+**Purpose:** Generate animated video clips from static storyboard images using video prompts
 
 **Key Features:**
-- **Conditional Agent**: Only runs if VoiceOver is enabled in settings
-- **One-Pass Generation**: Writes entire script in one pass for consistency
-- **Duration Matching**: Calculates word count to match shot durations (150-160 WPM)
-- **Visual Complement**: Adds context and emotion, doesn't describe obvious visuals
-- **Style Consistency**: Maintains character personality, narration style, and tone throughout
-- **Smooth Transitions**: Natural flow between shots, especially connected shots
+- **Executor Agent**: Receives fully-formed video prompts from Agent 4.1, executes video generation
+- **Reference Mode Support**: Handles both 1F (single frame) and 2F (start/end frames) modes
+- **Duration Validation**: Validates shot duration against video model maximum capabilities
+- **Multi-Model Support**: Kling AI, Runway Gen-4, Luma Dream Machine, Pika 2.0, Veo 2, Minimax
+- **Error Handling**: Retry logic, fallback models, clear error messages with suggestions
+- **Metadata Tracking**: Model, generation time, resolution for debugging and monitoring
 
 **Inputs:**
-- `fullScript`: Complete script from Script step
-- `shots[]`: All shots with shotId, sceneId, sequenceOrder, duration, shotDescription, characters
-- `characterPersonality`: Character personality type (energetic, calm, humorous, etc.)
-- `narrationStyle`: "first-person" or "third-person"
-- `tone`: Array of emotional tones (max 3)
-- `language`: Target language (ISO code)
+- `shotId`: Shot identifier
+- `frameType`: "1F" or "2F" (Reference Mode)
+- `storyboardImage`: Single frame URL (1F mode)
+- `startFrame`: Start frame URL (2F mode)
+- `endFrame`: End frame URL (2F mode)
+- `videoPrompt`: Video prompt from Agent 4.1 (motion/action description)
+- `shotDuration`: Target duration in seconds
+- `videoModel`: Selected model (Kling AI, Runway Gen-4, etc.)
+- `videoModelMaxDuration`: Maximum duration capability
+- `aspectRatio`: Video dimensions (9:16, 16:9, 1:1)
+- `quality`: Quality preference (standard, HD, 4K)
 
 **Output:**
-- `voiceoverSegments[]`: Per-shot narration with shotId, narrationText, estimatedDuration, paceNote
-- `totalWordCount`: Total words across all segments
-- `totalEstimatedDuration`: Total estimated duration in seconds
+- `success`: Boolean indicating success
+- `videoUrl`: Generated animated video URL
+- `thumbnailUrl`: Video thumbnail URL
+- `actualDuration`: Final video length in seconds
+- `metadata`: Model, generation time, resolution
 
-**Critical Principles:**
-- Narration complements visuals (adds context, not literal description)
-- Matches shot durations (word count = duration × WPM)
-- Maintains consistent voice throughout
-- Smooth transitions between shots
-- Respects character personality and narration style
+**Critical Rules:**
+- 1F Mode: Uses single image as reference frame, animates based on video prompt
+- 2F Mode: Uses start and end frames as keyframes, animates transition
+- Duration must not exceed video model's maximum capability
+- Returns clear error messages with actionable suggestions if validation fails
 
 **Examples Included:**
-1. First-Person Energetic Urban Vlog (3 shots)
-2. Third-Person Calm Nature Vlog (2 shots)
-3. First-Person Humorous Cooking Vlog (2 shots)
-4. Third-Person Mysterious Story Vlog (3 shots)
-5. First-Person Inspirational Fitness Vlog (2 shots)
+1. 1F Mode - Single Frame Animation (character at desk)
+2. 2F Mode - Start/End Frame Animation (character walking)
+3. Duration Validation Error (exceeds model max)
+4. 1F Mode - Environmental Motion (street scene)
+5. 2F Mode - Linked Shot (inherited start frame)
 
 ---
 
@@ -530,20 +536,11 @@ prompts-character-vlog/
 - Preserve character/style consistency
 - Targeted edits only
 
-### Agent 4.3: Image Editor
-- Modify existing images with text instructions
-- Preserve character/style consistency
-- Targeted edits only
-
-### Agent 4.4: Video Generator
-- Animate static images into video clips
-- Control motion and camera movement
-- Match specified duration
-
 ### Agent 4.5: VoiceOver Script Writer
 - Generate narration scripts for shots
 - Match character personality and tone
 - Sync with visual content
+- Conditional agent (only runs if VoiceOver enabled)
 
 ---
 
@@ -687,14 +684,14 @@ const script = response.text; // Plain text output
 - Error handling with retry and fallback logic
 
 ### v1.10.0 - December 30, 2025
-- ✅ Agent 4.3: VoiceOver Script Writer - Complete
-- Conditional agent (only runs if VoiceOver enabled)
-- One-pass generation for consistency across all shots
-- Duration matching (150-160 WPM calculation)
-- Visual complement principle (adds context, not literal description)
-- Style consistency (character personality, narration style, tone)
-- Smooth transitions between shots
-- 5 comprehensive examples covering different personalities and styles
+- ✅ Agent 4.3: Video Generator - Complete
+- Executor agent for video generation from storyboard images
+- Reference Mode support (1F single frame, 2F start/end frames)
+- Duration validation against video model capabilities
+- Multi-model support (Kling AI, Runway Gen-4, Luma Dream Machine, Pika 2.0, Veo 2, Minimax)
+- Error handling with retry logic and fallback models
+- Metadata tracking (model, generation time, resolution)
+- 5 comprehensive examples covering all scenarios including error handling
 
 ---
 

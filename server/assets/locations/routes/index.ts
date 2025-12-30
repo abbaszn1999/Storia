@@ -9,7 +9,7 @@ import { insertLocationSchema } from "@shared/schema";
 import { bunnyStorage } from "../../../storage/bunny-storage";
 import { MAX_REFERENCE_IMAGES, ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE } from "../config";
 import type { CreateLocationRequest, UpdateLocationRequest } from "../types";
-import { generateLocationImage } from "../../../ai/agents/location-image-generator";
+import { generateLocationImage } from "../agents/location-image-generator";
 
 const router = Router();
 

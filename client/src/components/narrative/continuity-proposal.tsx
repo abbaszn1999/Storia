@@ -173,10 +173,13 @@ export function ContinuityProposal({
             </p>
           </div>
         </div>
-        <Button onClick={onGenerateProposal} className="bg-gradient-storia" data-testid="button-generate-continuity">
-          <Sparkles className="h-4 w-4 mr-2" />
-          Analyze All Shots for Continuity
-        </Button>
+        {/* Hide generate button if proposals already exist (continuity is now generated automatically during breakdown) */}
+        {totalProposedGroups === 0 && totalApprovedGroups === 0 && (
+          <Button onClick={onGenerateProposal} className="bg-gradient-storia" data-testid="button-generate-continuity">
+            <Sparkles className="h-4 w-4 mr-2" />
+            Analyze All Shots for Continuity
+          </Button>
+        )}
       </div>
     );
   }

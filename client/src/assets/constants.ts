@@ -1,4 +1,4 @@
-// Shared constants for the Storia application
+// Asset Management Constants
 
 // Reference image limits
 export const MAX_CHARACTER_REFERENCES = 5;

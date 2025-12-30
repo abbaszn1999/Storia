@@ -12,13 +12,13 @@ import {
   type CharacterImageInput,
   type CharacterImageOutput,
   getDefaultCharacterImageModel
-} from '../../../ai/agents/character-image-generator';
+} from '../../../assets/characters/agents/character-image-generator';
 import { 
   generateLocationImage as generateLocationImageAgent,
   type LocationImageInput,
   type LocationImageOutput,
   getDefaultLocationImageModel
-} from '../../../ai/agents/location-image-generator';
+} from '../../../assets/locations/agents/location-image-generator';
 
 export interface ScriptSettings {
   duration: number;
@@ -272,12 +272,41 @@ export class NarrativeAgents {
       // Estimate: ~200 tokens per character, assume max 10 characters
       const expectedOutputTokens = 2000;
       
-      // Build payload - only include reasoning for models that support it
+      // Build payload with JSON schema for structured output
       const payload: any = {
         input: [
           { role: "system", content: characterAnalyzerSystemPrompt },
           { role: "user", content: userPromptText },
         ],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "character_analysis",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                characters: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string" },
+                      description: { type: "string" },
+                      personality: { type: "string" },
+                      appearance: { type: "string" },
+                      importanceScore: { type: "number" },
+                    },
+                    required: ["name", "description", "personality", "appearance", "importanceScore"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ["characters"],
+              additionalProperties: false,
+            },
+          },
+        },
       };
       
       // Only add reasoning parameter for models that support it (gpt-5, gpt-5.1)
@@ -298,17 +327,18 @@ export class NarrativeAgents {
         }
       );
       
+      // Parse the JSON response
       let rawOutput = response.output.trim();
       
-      // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+      // Strip markdown code fences if present
       if (rawOutput.startsWith('```')) {
         rawOutput = rawOutput
-          .replace(/^```(?:json)?\s*/i, '')  // Remove opening fence
-          .replace(/```\s*$/, '')             // Remove closing fence
+          .replace(/^```(?:json)?\s*/i, '')
+          .replace(/```\s*$/, '')
           .trim();
       }
       
-      // Parse JSON response from AI (expects snake_case)
+      // Parse JSON response (JSON schema enforces camelCase structure)
       let parsedData: any;
       try {
         parsedData = JSON.parse(rawOutput);
@@ -323,9 +353,9 @@ export class NarrativeAgents {
         throw new Error('AI response missing characters array');
       }
       
-      // Transform snake_case to camelCase and validate each character
+      // Validate and transform characters (schema ensures correct structure)
       const transformedCharacters = parsedData.characters.map((char: any) => {
-        if (!char.name || !char.description || !char.personality || !char.appearance || typeof char.importance_score !== 'number') {
+        if (!char.name || !char.description || !char.personality || !char.appearance || typeof char.importanceScore !== 'number') {
           console.warn('[narrative:agents] Character missing required fields:', char);
         }
         
@@ -334,7 +364,7 @@ export class NarrativeAgents {
           description: char.description || '',
           personality: char.personality || '',
           appearance: char.appearance || '',
-          importanceScore: char.importance_score || 5,  // Transform to camelCase
+          importanceScore: char.importanceScore || 5,
         };
       });
       
@@ -404,12 +434,41 @@ export class NarrativeAgents {
       // Estimate: ~150 tokens per location, assume max 10 locations
       const expectedOutputTokens = 1500;
       
-      // Build payload - only include reasoning for models that support it
+      // Build payload with JSON schema for structured output
       const payload: any = {
         input: [
           { role: "system", content: locationAnalyzerSystemPrompt },
           { role: "user", content: userPromptText },
         ],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "location_analysis",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                locations: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string" },
+                      description: { type: "string" },
+                      atmosphere: { type: "string" },
+                      timeOfDay: { type: "string" },
+                      importanceScore: { type: "number" },
+                    },
+                    required: ["name", "description", "atmosphere", "timeOfDay", "importanceScore"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ["locations"],
+              additionalProperties: false,
+            },
+          },
+        },
       };
       
       // Only add reasoning parameter for models that support it (gpt-5, gpt-5.1)
@@ -430,17 +489,18 @@ export class NarrativeAgents {
         }
       );
       
+      // Parse the JSON response
       let rawOutput = response.output.trim();
       
-      // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+      // Strip markdown code fences if present
       if (rawOutput.startsWith('```')) {
         rawOutput = rawOutput
-          .replace(/^```(?:json)?\s*/i, '')  // Remove opening fence
-          .replace(/```\s*$/, '')             // Remove closing fence
+          .replace(/^```(?:json)?\s*/i, '')
+          .replace(/```\s*$/, '')
           .trim();
       }
       
-      // Parse JSON response from AI (expects snake_case)
+      // Parse JSON response (JSON schema enforces camelCase structure)
       let parsedData: any;
       try {
         parsedData = JSON.parse(rawOutput);
@@ -455,9 +515,9 @@ export class NarrativeAgents {
         throw new Error('AI response missing locations array');
       }
       
-      // Transform snake_case to camelCase and validate each location
+      // Validate and transform locations (schema ensures correct structure)
       const transformedLocations = parsedData.locations.map((loc: any) => {
-        if (!loc.name || !loc.description || !loc.atmosphere || !loc.time_of_day || typeof loc.importance_score !== 'number') {
+        if (!loc.name || !loc.description || !loc.atmosphere || !loc.timeOfDay || typeof loc.importanceScore !== 'number') {
           console.warn('[narrative:agents] Location missing required fields:', loc);
         }
         
@@ -465,8 +525,8 @@ export class NarrativeAgents {
           name: loc.name || 'Unknown Location',
           description: loc.description || '',
           atmosphere: loc.atmosphere || '',
-          timeOfDay: loc.time_of_day || 'unspecified',  // Transform to camelCase
-          importanceScore: loc.importance_score || 5,  // Transform to camelCase
+          timeOfDay: loc.timeOfDay || 'unspecified',
+          importanceScore: loc.importanceScore || 5,
         };
       });
       
@@ -498,6 +558,105 @@ export class NarrativeAgents {
     const userPrompt = analyzeScriptPrompt(script);
     
     return [];
+  }
+
+  /**
+   * Agent 3.1: Scene Analyzer
+   * Breaks script into logical scenes with narrative structure
+   */
+  static async generateScenes(
+    input: {
+      script: string;
+      targetDuration: number;
+      genre: string;
+      tone?: string;
+      numberOfScenes: number | 'auto';
+      characters: Array<{ id: string; name: string; description?: string }>;
+      locations: Array<{ id: string; name: string; description?: string }>;
+      model?: string;
+    },
+    videoId: string,
+    userId?: string,
+    workspaceId?: string
+  ): Promise<{
+    scenes: any[];
+    totalDuration: number;
+    cost?: number;
+  }> {
+    const { generateScenes } = await import('./breakdown/scene-analyzer');
+    return generateScenes(input, videoId, userId, workspaceId);
+  }
+
+  /**
+   * Agent 3.2: Shot Composer
+   * Breaks scenes into individual shots with camera framing, timing, narration, and action descriptions
+   */
+  static async composeShots(
+    input: {
+      script: string;
+      scene: {
+        id: string;
+        sceneNumber: number;
+        title: string;
+        description?: string | null;
+        duration?: number | null;
+      };
+      previousScenes: Array<{
+        scene: {
+          id: string;
+          sceneNumber: number;
+          title: string;
+          description?: string | null;
+          duration?: number | null;
+        };
+        shots: any[];
+      }>;
+      shotsPerScene: number | 'auto';
+      characters: Array<{ id: string; name: string; description?: string }>;
+      locations: Array<{ id: string; name: string; description?: string }>;
+      genre: string;
+      tone?: string;
+      model?: string;
+    },
+    userId?: string,
+    workspaceId?: string
+  ): Promise<{
+    shots: any[];
+    cost?: number;
+  }> {
+    const { composeShots } = await import('./breakdown/shot-composer');
+    return composeShots(input, userId, workspaceId);
+  }
+
+  /**
+   * Agent 3.2: Shot Composer (for multiple scenes)
+   * Composes shots for all scenes sequentially
+   */
+  static async composeShotsForScenes(
+    scenes: Array<{
+      id: string;
+      sceneNumber: number;
+      title: string;
+      description?: string | null;
+      duration?: number | null;
+    }>,
+    input: {
+      script: string;
+      shotsPerScene: number | 'auto';
+      characters: Array<{ id: string; name: string; description?: string }>;
+      locations: Array<{ id: string; name: string; description?: string }>;
+      genre: string;
+      tone?: string;
+      model?: string;
+    },
+    userId?: string,
+    workspaceId?: string
+  ): Promise<{
+    shots: Record<string, any[]>;
+    totalCost: number;
+  }> {
+    const { composeShotsForScenes } = await import('./breakdown/shot-composer');
+    return composeShotsForScenes(scenes, input, userId, workspaceId);
   }
 
   static async createCharacter(characterInfo: CharacterInfo): Promise<string> {

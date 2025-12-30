@@ -1,51 +1,29 @@
-/**
- * ═══════════════════════════════════════════════════════════════════════════════
- * NARRATIVE MODE - SCENE ANALYZER PROMPTS
- * ═══════════════════════════════════════════════════════════════════════════════
- *
- * Prompts for Agent 3.1: Scene Analyzer
- * Breaks scripts into logical scenes with narrative structure.
- */
+# Agent 3.1: Scene Analyzer - Current Prompt (v2)
 
-import type { SceneAnalyzerInput } from "../agents/breakdown/scene-analyzer";
+This document contains the **current** prompt implementation used in narrative mode before enhancement.
 
-/**
- * Calculate optimal scene count when set to 'auto'
- * Formula: ~1 scene per 30-60 seconds, adjusted for script complexity
- */
-export function calculateOptimalSceneCount(
-  targetDuration: number,
-  scriptLength: number
-): number {
-  // Base calculation: 1 scene per 45 seconds (middle ground)
-  const baseCount = Math.round(targetDuration / 45);
+---
 
-  // Adjust based on script length (longer scripts = more scenes)
-  const wordsPerSecond = scriptLength / targetDuration;
-  const complexityFactor = wordsPerSecond > 3 ? 1.2 : 1.0; // More words = more complex
+## System Prompt Builder
 
-  const optimalCount = Math.round(baseCount * complexityFactor);
+The system prompt is dynamically built based on input parameters. Here's the structure:
 
-  // Clamp to reasonable range
-  return Math.max(3, Math.min(15, optimalCount));
-}
-
-/**
- * Build system prompt for scene analyzer
- */
+```typescript
 export function buildSceneAnalyzerSystemPrompt(
   targetDuration: number,
   sceneCount: number,
   isAuto: boolean,
   genre: string,
   tone?: string
-): string {
-  const durationMinutes = Math.round(targetDuration / 60);
-  const avgSceneDuration = Math.round(targetDuration / sceneCount);
+): string
+```
 
-  return `You are a professional script supervisor and narrative structure expert specializing in breaking down video scripts into production-ready scenes.
+### Example System Prompt (for 60 seconds, 3 scenes, auto mode, Adventure genre):
 
-Your task is to analyze a video script and break it down into ${isAuto ? 'an optimal number of' : 'EXACTLY'} ${sceneCount} logical scenes that maintain narrative flow and visual coherence.
+```
+You are a professional script supervisor and narrative structure expert specializing in breaking down video scripts into production-ready scenes.
+
+Your task is to analyze a video script and break it down into an optimal number of 3 logical scenes that maintain narrative flow and visual coherence.
 
 ═══════════════════════════════════════════════════════════════════════════════
 NARRATIVE STRUCTURE PRINCIPLES
@@ -60,8 +38,7 @@ NARRATIVE STRUCTURE PRINCIPLES
 SCENE COUNT REQUIREMENT
 ═══════════════════════════════════════════════════════════════════════════════
 
-${isAuto ? `
-You must determine the optimal number of scenes based on the script's structure, complexity, and narrative beats. Aim for approximately ${sceneCount} scenes, but adjust based on:
+You must determine the optimal number of scenes based on the script's structure, complexity, and narrative beats. Aim for approximately 3 scenes, but adjust based on:
 • Natural narrative divisions in the script
 • Location and time changes
 • Character entrances/exits
@@ -69,24 +46,15 @@ You must determine the optimal number of scenes based on the script's structure,
 • Visual variety needs
 
 Typical range: 3-10 scenes for most video lengths. Longer or more complex scripts may need more scenes.
-` : `
-⚠️ CRITICAL: You MUST generate EXACTLY ${sceneCount} scenes. No more, no less.
-
-The user has explicitly requested ${sceneCount} scenes. Your output must contain exactly this number of scenes, regardless of script structure. If the script naturally suggests a different number, you must still create exactly ${sceneCount} scenes by:
-• Splitting longer narrative moments into multiple scenes
-• Combining shorter moments when needed
-• Adjusting scene boundaries to meet the exact count requirement
-`}
 
 ═══════════════════════════════════════════════════════════════════════════════
 VIDEO PARAMETERS
 ═══════════════════════════════════════════════════════════════════════════════
 
-• Target Duration: ${targetDuration} seconds (${durationMinutes} minute${durationMinutes !== 1 ? 's' : ''})
-• Target Scene Count: ${sceneCount} scenes
-• Average Scene Duration: ~${avgSceneDuration} seconds per scene
-• Genre: ${genre}
-${tone ? `• Tone: ${tone}` : ''}
+• Target Duration: 60 seconds (1 minute)
+• Target Scene Count: 3 scenes
+• Average Scene Duration: ~20 seconds per scene
+• Genre: Adventure
 
 ═══════════════════════════════════════════════════════════════════════════════
 REFERENCE TAGGING SYSTEM
@@ -107,11 +75,11 @@ These tags will be provided in the user prompt with the available characters and
 DURATION DISTRIBUTION
 ═══════════════════════════════════════════════════════════════════════════════
 
-• Total scene durations must sum to approximately ${targetDuration} seconds
+• Total scene durations must sum to approximately 60 seconds
 • Allow small tolerance (±5 seconds) for rounding
 • Distribute duration proportionally based on script content importance
 • Each scene should have a minimum of 5 seconds and maximum of 300 seconds
-• Average scene duration should be around ${avgSceneDuration} seconds
+• Average scene duration should be around 20 seconds
 
 ═══════════════════════════════════════════════════════════════════════════════
 OUTPUT REQUIREMENTS
@@ -121,94 +89,104 @@ For each scene, provide:
 1. Scene number (sequential, starting from 1)
 2. Scene title (brief, descriptive, 2-5 words)
 3. Script excerpt (the portion of script text that corresponds to this scene)
-4. Duration estimate (in seconds, must sum to ~${targetDuration}s)
+4. Duration estimate (in seconds, must sum to ~60s)
 5. Location (use @{LocationName} format if available, otherwise descriptive name)
 6. Characters present (array of @{CharacterName} tags or names)
 
-Be precise, organized, and ensure narrative flow between scenes.`;
-}
+Be precise, organized, and ensure narrative flow between scenes.
+```
 
-/**
- * Build user prompt for scene analyzer
- */
+---
+
+## User Prompt Builder
+
+```typescript
 export function buildSceneAnalyzerUserPrompt(
   input: SceneAnalyzerInput,
   sceneCount: number
-): string {
-  // Build character list with name-based tags
-  const characterList = input.characters
-    .map((char) => {
-      const tag = `@${char.name}`;
-      return `- ${tag}${char.description ? ` - ${char.description}` : ''}`;
-    })
-    .join('\n');
+): string
+```
 
-  // Build location list with name-based tags
-  const locationList = input.locations
-    .map((loc) => {
-      const tag = `@${loc.name}`;
-      return `- ${tag}${loc.description ? ` - ${loc.description}` : ''}`;
-    })
-    .join('\n');
+### Example User Prompt:
 
-  return `═══════════════════════════════════════════════════════════════════════════════
+```
+═══════════════════════════════════════════════════════════════════════════════
 VIDEO SCRIPT ANALYSIS REQUEST
 ═══════════════════════════════════════════════════════════════════════════════
 
 SCRIPT TEXT:
 """
-${input.script}
+[Full script text here]
 """
 
 ═══════════════════════════════════════════════════════════════════════════════
 VIDEO SETTINGS
 ═══════════════════════════════════════════════════════════════════════════════
 
-• Target Duration: ${input.targetDuration} seconds
-• Genre: ${input.genre}
-${input.tone ? `• Tone: ${input.tone}` : ''}
-• Number of Scenes: ${input.numberOfScenes === 'auto' ? 'Auto (determine optimal count)' : `Exactly ${input.numberOfScenes} scenes (MUST match this count)`}
+• Target Duration: 60 seconds
+• Genre: Adventure
+• Number of Scenes: Auto (determine optimal count)
 
 ═══════════════════════════════════════════════════════════════════════════════
 AVAILABLE CHARACTERS
 ═══════════════════════════════════════════════════════════════════════════════
 
-${input.characters.length > 0 ? characterList : 'No characters defined yet. Use descriptive names from the script.'}
+- @The Wolf - Main character
+- @Sarah - Supporting character
 
 ═══════════════════════════════════════════════════════════════════════════════
 AVAILABLE LOCATIONS
 ═══════════════════════════════════════════════════════════════════════════════
 
-${input.locations.length > 0 ? locationList : 'No locations defined yet. Use descriptive names from the script.'}
+- @Dark Wood - Mysterious forest setting
+- @Ancient Temple - Sacred location
 
 ═══════════════════════════════════════════════════════════════════════════════
 INSTRUCTIONS
 ═══════════════════════════════════════════════════════════════════════════════
 
 1. Read the script carefully and identify natural scene divisions
-2. ${input.numberOfScenes === 'auto' ? `Determine the optimal number of scenes (aim for ~${sceneCount} scenes)` : `Create EXACTLY ${input.numberOfScenes} scenes - this is a hard requirement`}
+2. Determine the optimal number of scenes (aim for ~3 scenes)
 3. For each scene:
    - Extract the relevant portion of script text
    - Assign a clear, descriptive title
-   - Estimate duration (sum must equal ~${input.targetDuration} seconds)
+   - Estimate duration (sum must equal ~60 seconds)
    - Identify the primary location (use @location{id} tag if available)
    - List all characters present (use @character{id} tags if available)
  4. Ensure scenes flow naturally and maintain narrative coherence
  5. Use the reference tagging system (@{CharacterName}, @{LocationName}) when matching script elements to available characters/locations
 
-Generate the scene breakdown as JSON now.`;
-}
+Generate the scene breakdown as JSON now.
+```
 
-// Legacy exports for backward compatibility
-export const sceneAnalyzerSystemPrompt = buildSceneAnalyzerSystemPrompt(60, 3, true, "Adventure");
-export const analyzeScriptPrompt = (script: string) => buildSceneAnalyzerUserPrompt(
-  {
-    script,
-    targetDuration: 60,
-    genre: "Adventure",
-    numberOfScenes: 'auto',
-    characters: [],
-    locations: [],
-  },
-  3
-);
+---
+
+## Helper Functions
+
+```typescript
+/**
+ * Calculate optimal scene count when set to 'auto'
+ * Formula: ~1 scene per 30-60 seconds, adjusted for script complexity
+ */
+export function calculateOptimalSceneCount(
+  targetDuration: number,
+  scriptLength: number
+): number {
+  // Base calculation: 1 scene per 45 seconds (middle ground)
+  const baseCount = Math.round(targetDuration / 45);
+  
+  // Adjust based on script length (longer scripts = more scenes)
+  const wordsPerSecond = scriptLength / targetDuration;
+  const complexityFactor = wordsPerSecond > 3 ? 1.2 : 1.0; // More words = more complex
+  
+  const optimalCount = Math.round(baseCount * complexityFactor);
+  
+  // Clamp to reasonable range
+  return Math.max(3, Math.min(15, optimalCount));
+}
+```
+
+---
+
+**File Location**: `server/modes/narrative/prompts/scene-analyzer.ts`
+

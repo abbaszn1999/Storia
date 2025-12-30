@@ -17,7 +17,7 @@ import {
   uploadMainImage,
   type LocationResponse,
 } from "@/assets/locations";
-import { MAX_LOCATION_REFERENCES } from "@/lib/constants";
+import { MAX_LOCATION_REFERENCES } from "@/assets/constants";
 
 export default function Locations() {
   const [searchQuery, setSearchQuery] = useState("");

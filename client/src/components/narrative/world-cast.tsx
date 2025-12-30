@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiRequest } from "@/lib/queryClient";
-import { MAX_CHARACTER_REFERENCES } from "@/lib/constants";
+import { MAX_CHARACTER_REFERENCES } from "@/assets/constants";
 import { createCharacter as createCharacterInDB, updateCharacter as updateCharacterInDB } from "@/assets/characters";
 import { createLocation as createLocationInDB, updateLocation as updateLocationInDB } from "@/assets/locations";
 import {

@@ -334,6 +334,9 @@ Format as a single cohesive description that can be injected into image generati
 |-------|------|--------|----------|
 | Script text | String | Agent 1.1 output (or edited) | ✓ |
 | Target duration | Integer | User input (Step 1) | ✓ |
+| Genre | String | User input (Step 1) | ✓ |
+| Tone | String | User input (Step 1) | ✗ |
+| Number of scenes | Integer \| 'auto' | User input (Step 1 Structure Settings) | ✓ |
 | Characters available | Array[Object] | Agent 2.1/user-created | ✓ |
 | Locations available | Array[Object] | User-created locations | ✓ |
 
@@ -349,9 +352,11 @@ Format as a single cohesive description that can be injected into image generati
 | └─ Characters present | Array[String] | Characters in scene (@character{id}) |
 
 **Implementation Notes**:
-- Use available characters and locations to tag entities
+- Use available characters and locations to tag entities with @character{id} and @location{id} format
 - Distribute total duration across scenes proportionally
 - Scene breaks should align with narrative shifts
+- **When numberOfScenes is a number**: Must generate exactly that many scenes (enforced in prompts and validated in output)
+- **When numberOfScenes is 'auto'**: Determines optimal scene count based on script structure and length (typically 3-10 scenes, ~1 scene per 30-60 seconds)
 
 ---
 
@@ -366,8 +371,14 @@ Format as a single cohesive description that can be injected into image generati
 |-------|------|--------|----------|
 | Full script | String | Agent 1.1 output | ✓ |
 | Scene data | Object | Agent 3.1 output (single scene) | ✓ |
+| Previous scenes with shots | Array[Object] | Agent 3.2 output (for context) | ✓ |
 | Characters available | Array[Object] | From World & Cast | ✓ |
 | Locations available | Array[Object] | From World & Cast | ✓ |
+| Genre | String | User input (Step 1) | ✓ |
+| Tone | String | User input (Step 1) | ✗ |
+| Shots per scene | Integer \| 'auto' | User input (Step 1 Structure Settings) | ✓ |
+| Narrative mode | Enum | User input ("image-reference" \| "start-end" \| "auto") | ✓ |
+| Available durations | Array[Integer] | Video model config (Step 2) | ✗ |
 
 **Outputs**:
 | Field | Type | Description |
@@ -379,16 +390,38 @@ Format as a single cohesive description that can be injected into image generati
 | └─ Camera movement | Enum | Static, Pan, Zoom, Dolly, etc. |
 | └─ Narration text | String | Voiceover for this shot (with @tags) |
 | └─ Action description | String | Visual action (with @tags) |
-| └─ Characters | Array[String] | Characters visible (@character{id}) |
-| └─ Location | String | Location reference (@location{id}) |
+| └─ Characters | Array[String] | Characters visible (@{CharacterName}) |
+| └─ Location | String | Location reference (@{LocationName}) |
+| └─ Frame mode | Enum | "image-reference" \| "start-end" (only in Auto Mode) |
+| Continuity groups | Array[Object] | Proposed shot connections (start-end mode only) |
+| └─ Group number | Integer | Sequential group ID within scene |
+| └─ Shot numbers | Array[Integer] | Ordered list of connected shot numbers |
+| └─ Transition type | String | "flow", "pan", "character-movement", etc. |
+| └─ Description | String | Reason for connection |
 
 **Implementation Notes**:
-- **Use @character and @location tags** in narration and action descriptions
-  - Example: "@character1 walks through @location2 at sunset"
+- **Use @{CharacterName} and @{LocationName} tags** in narration and action descriptions
+  - Example: "@The Wolf walks through @Dark Wood at sunset"
 - Include full script for context and story flow understanding
+- Include previous scenes with their shots to maintain narrative continuity
 - Shot durations should sum to scene duration
 - Ensure visual variety (mix of angles and movements)
 - Reference tags enable automatic injection of character/location images
+- **When shotsPerScene is a number**: Must generate exactly that many shots per scene (enforced in prompts and validated in output)
+- **When shotsPerScene is 'auto'**: Determines optimal shot count based on scene duration and content (typically 2-8 shots, ~1 shot per 5-15 seconds)
+- **When narrativeMode is 'auto'**: Must decide frame mode for each shot based on:
+  - Shot complexity (simple/static → image-reference, complex/moving → start-end)
+  - Camera movement (static → image-reference, pan/track/dolly → start-end)
+  - Transition needs (hard cuts → image-reference, smooth transitions → start-end)
+  - Narrative flow (isolated moments → image-reference, continuous action → start-end)
+- **Available durations constraint**: When provided, shot durations must be chosen from the available video model durations list
+- **Continuity Analysis (Start-End Mode)**: Automatically analyzes and proposes continuity groups during shot composition
+  - Only runs when `narrativeMode === "start-end"` or `narrativeMode === "auto"`
+  - In auto mode, only proposes continuity for shots where `frameMode === "start-end"`
+  - First shot in continuity group MUST be start-end mode (enforced in prompts)
+  - Continuity groups are generated as "proposed" status, requiring user approval
+  - If continuity analysis fails, shots are still returned (graceful degradation)
+- **Available durations constraint**: When provided, shot durations must be chosen from the available video model durations list
 
 **Shot Composition Guidelines**:
 - Vary shot types for visual interest
@@ -433,9 +466,11 @@ Format as a single cohesive description that can be injected into image generati
 ---
 
 ### Agent 3.4: Continuity Producer (AI)
-**Status**: ⚠️ **START-END FRAME MODE ONLY**
+**Status**: ⚠️ **DEPRECATED - COMBINED WITH AGENT 3.2**
 
-**Role**: Analyze shots and propose continuity groups for seamless shot-to-shot transitions
+**Role**: ~~Analyze shots and propose continuity groups for seamless shot-to-shot transitions~~ (Now handled by Agent 3.2: Shot Composer)
+
+**Note**: Continuity analysis is now automatically performed by Agent 3.2 (Shot Composer) during shot composition. This agent is kept for reference but is no longer used in the workflow.
 
 **AI Model**: GPT-4 / Claude (Narrative Analysis)
 
@@ -466,6 +501,9 @@ Format as a single cohesive description that can be injected into image generati
 
 **Implementation Notes**:
 - **Only runs in "start-end" narrative mode** - skipped entirely in "image-reference" mode
+- **In Auto Mode**: Only proposes continuity for shots where frameMode is "start-end"
+- **Continuity Rule**: First shot in a continuity group MUST be start-end mode (has end frame to inherit)
+- If previous shot is image-reference, cannot create continuity connection (no end frame to inherit)
 - Analyzes narrative flow, camera movements, and spatial relationships
 - Proposes groups of shots that should connect seamlessly (start→end frame matching)
 - User can edit/approve before proceeding to storyboard step
@@ -549,29 +587,41 @@ For each group, explain WHY these shots should connect.
 **Implementation Notes**:
 - **Image-Reference Mode**: Generate 1 prompt per shot (current behavior)
 - **Start-End Mode**: Smart frame generation based on continuity
-  - **Connected shots** (middle of group): Generate start frame only
-  - **Last shot in group**: Generate start + end frames
+  - **First shot in continuity group**: Generate start + end frames (both frames needed to start the chain)
+  - **Subsequent shots in group**: Generate end frame only (start frame inherited from previous shot's end)
   - **Non-connected shots**: Generate start + end frames
+- **Auto Mode**: Shot composer decides per-shot mode during composition
+  - Each shot has a `frameMode` field ("image-reference" or "start-end")
+  - Frame generation follows the same rules as above based on the shot's `frameMode`
+  - Users can override mode decisions in the breakdown page
 - Parse @tags from action description
 - Inject corresponding reference images automatically
 - Combine: shot type + action + character refs + location ref + art style
 
-**Dual-Mode Logic**:
+**Frame Generation Logic**:
 ```javascript
-if (narrativeMode === "image-reference") {
+// Determine effective mode for this shot
+const effectiveMode = narrativeMode === "auto"
+  ? (shot.frameMode || "image-reference")
+  : narrativeMode;
+
+if (effectiveMode === "image-reference") {
   // Generate single prompt
   return { imagePrompt, negativePrompt, references };
 }
 
-if (narrativeMode === "start-end") {
-  const isConnected = findContinuityGroup(shot.id, continuityGroups);
-  const isLastInGroup = isLastShotInGroup(shot.id, continuityGroups);
+if (effectiveMode === "start-end") {
+  const isInGroup = findContinuityGroup(shot.id, continuityGroups);
+  const isFirstInGroup = isFirstShotInGroup(shot.id, continuityGroups);
   
-  if (isConnected && !isLastInGroup) {
-    // Middle of connected group: start frame only
-    return { frameType: "start-only", startPrompt, negativePrompt, references };
+  if (isInGroup && isFirstInGroup) {
+    // First shot in group: generate start + end frames
+    return { frameType: "start-and-end", startPrompt, endPrompt, negativePrompt, references };
+  } else if (isInGroup && !isFirstInGroup) {
+    // Subsequent shot in group: generate end frame only (start inherited)
+    return { frameType: "end-only", endPrompt, negativePrompt, references };
   } else {
-    // Last in group OR non-connected: start + end
+    // Non-connected: generate start + end
     return { frameType: "start-and-end", startPrompt, endPrompt, negativePrompt, references };
   }
 }

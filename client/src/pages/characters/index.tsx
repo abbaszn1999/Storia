@@ -17,7 +17,7 @@ import {
   uploadMainImage,
   type CharacterResponse,
 } from "@/assets/characters";
-import { MAX_CHARACTER_REFERENCES } from "@/lib/constants";
+import { MAX_CHARACTER_REFERENCES } from "@/assets/constants";
 
 export default function Characters() {
   const [searchQuery, setSearchQuery] = useState("");

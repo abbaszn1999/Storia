@@ -14,9 +14,11 @@ interface CharacterVlogWorkflowProps {
   videoId: string;
   workspaceId: string;
   narrativeMode: "image-reference" | "start-end";
+  referenceMode: "1F" | "2F" | "AI";
   script: string;
   aspectRatio: string;
   scriptModel: string;
+  videoModel: string;
   narrationStyle: "third-person" | "first-person";
   voiceActorId: string | null;
   voiceOverEnabled: boolean;
@@ -44,6 +46,7 @@ interface CharacterVlogWorkflowProps {
   onScriptChange: (script: string) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
   onScriptModelChange: (model: string) => void;
+  onVideoModelChange: (model: string) => void;
   onNarrationStyleChange: (style: "third-person" | "first-person") => void;
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
@@ -76,9 +79,11 @@ export function CharacterVlogWorkflow({
   videoId,
   workspaceId,
   narrativeMode,
+  referenceMode,
   script,
   aspectRatio,
   scriptModel,
+  videoModel,
   narrationStyle,
   voiceActorId,
   voiceOverEnabled,
@@ -99,6 +104,7 @@ export function CharacterVlogWorkflow({
   onScriptChange,
   onAspectRatioChange,
   onScriptModelChange,
+  onVideoModelChange,
   onNarrationStyleChange,
   onVoiceActorChange,
   onVoiceOverToggle,
@@ -434,6 +440,7 @@ export function CharacterVlogWorkflow({
         <CharacterVlogScriptEditor
           initialScript={script}
           scriptModel={scriptModel}
+          videoModel={videoModel}
           narrationStyle={narrationStyle}
           theme={theme}
           numberOfScenes={numberOfScenes}
@@ -441,6 +448,7 @@ export function CharacterVlogWorkflow({
           characterPersonality={characterPersonality}
           onScriptChange={onScriptChange}
           onScriptModelChange={onScriptModelChange}
+          onVideoModelChange={onVideoModelChange}
           onNarrationStyleChange={onNarrationStyleChange}
           onThemeChange={onThemeChange}
           onNumberOfScenesChange={onNumberOfScenesChange}
@@ -454,6 +462,7 @@ export function CharacterVlogWorkflow({
         <CharacterVlogSceneBreakdown
           videoId={videoId}
           narrativeMode={narrativeMode}
+          referenceMode={referenceMode}
           script={script}
           characterName={mainCharacter?.name || "Character"}
           theme={theme}
@@ -557,6 +566,7 @@ export function CharacterVlogWorkflow({
         <StoryboardEditor
           videoId={videoId}
           narrativeMode={narrativeMode}
+          referenceMode={referenceMode}
           scenes={scenes}
           shots={shots}
           shotVersions={shotVersions}

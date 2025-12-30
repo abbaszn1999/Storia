@@ -8,11 +8,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles, Globe, Clock, Palette, MessageSquare, FileText, Wand2, User, MapPin, LayoutGrid, Camera, Grid3x3, Building2, TreePine, Home, MonitorPlay, Wand, Cpu, Radio, Paintbrush } from "lucide-react";
+import { Loader2, Sparkles, Globe, Clock, Palette, MessageSquare, FileText, Wand2, User, MapPin, LayoutGrid, Camera, Grid3x3, Building2, TreePine, Home, MonitorPlay, Wand, Cpu, Radio, Paintbrush, Mic, Film } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { VIDEO_MODELS, getDefaultVideoModel } from "@/constants/video-models";
 
 interface CharacterVlogScriptEditorProps {
   initialScript?: string;
@@ -22,6 +23,7 @@ interface CharacterVlogScriptEditorProps {
   numberOfScenes?: number | 'auto';
   shotsPerScene?: number | 'auto';
   characterPersonality?: string;
+  videoModel?: string;
   onScriptChange: (script: string) => void;
   onScriptModelChange?: (model: string) => void;
   onNarrationStyleChange?: (style: "third-person" | "first-person") => void;
@@ -29,6 +31,7 @@ interface CharacterVlogScriptEditorProps {
   onNumberOfScenesChange?: (scenes: number | 'auto') => void;
   onShotsPerSceneChange?: (shots: number | 'auto') => void;
   onCharacterPersonalityChange?: (personality: string) => void;
+  onVideoModelChange?: (model: string) => void;
   onNext: () => void;
 }
 
@@ -103,6 +106,7 @@ export function CharacterVlogScriptEditor({
   numberOfScenes = 'auto',
   shotsPerScene = 'auto',
   characterPersonality = "energetic",
+  videoModel,
   onScriptChange, 
   onScriptModelChange, 
   onNarrationStyleChange,
@@ -110,6 +114,7 @@ export function CharacterVlogScriptEditor({
   onNumberOfScenesChange,
   onShotsPerSceneChange,
   onCharacterPersonalityChange,
+  onVideoModelChange,
   onNext 
 }: CharacterVlogScriptEditorProps) {
   const [storyIdea, setStoryIdea] = useState("");
@@ -121,10 +126,12 @@ export function CharacterVlogScriptEditor({
   const [selectedGenres, setSelectedGenres] = useState<string[]>(["Lifestyle"]);
   const [selectedTones, setSelectedTones] = useState<string[]>(["Energetic"]);
   const [language, setLanguage] = useState("English");
+  const [voiceOverEnabled, setVoiceOverEnabled] = useState(true);
   const [selectedTheme, setSelectedTheme] = useState(theme);
   const [selectedNumberOfScenes, setSelectedNumberOfScenes] = useState<number | 'auto'>(numberOfScenes);
   const [selectedShotsPerScene, setSelectedShotsPerScene] = useState<number | 'auto'>(shotsPerScene);
   const [selectedPersonality, setSelectedPersonality] = useState(characterPersonality);
+  const [selectedVideoModel, setSelectedVideoModel] = useState(videoModel || getDefaultVideoModel().value);
   const { toast } = useToast();
 
   const accentClasses = "from-[#FF4081] via-[#FF5C8D] to-[#FF6B4A]"; // Gradient pink to orange from logo
@@ -222,6 +229,11 @@ export function CharacterVlogScriptEditor({
   const handlePersonalityChange = (value: string) => {
     setSelectedPersonality(value);
     onCharacterPersonalityChange?.(value);
+  };
+
+  const handleVideoModelChange = (value: string) => {
+    setSelectedVideoModel(value);
+    onVideoModelChange?.(value);
   };
 
   const ideaCharCount = storyIdea.length;
@@ -342,57 +354,187 @@ export function CharacterVlogScriptEditor({
               </CardContent>
             </Card>
 
-            {/* Duration & Language */}
+            {/* Audio Layer - Voice Over & Language */}
             <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6">
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Target Duration */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-white/70">Target Duration</Label>
-                    <Select 
-                      value={duration} 
-                      onValueChange={setDuration}
-                    >
-                      <SelectTrigger className="h-10 bg-[#0f0f0f] border-white/10 text-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[#121212] border-white/10">
-                        {DURATIONS.map((dur) => (
-                          <SelectItem 
-                            key={dur.value} 
-                            value={dur.value}
-                            className="text-white focus:bg-[#FF4081]/20 focus:text-white"
-                          >
-                            {dur.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="relative p-1 rounded-md">
+                    <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
+                    <Mic className="w-3.5 h-3.5 text-white relative z-10" />
+                  </div>
+                  <Label className="text-base font-semibold text-white">Audio Layer</Label>
+                  <span className="text-xs text-white/40">Voice narration settings</span>
+                </div>
+
+                {/* Voice Over Toggle */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm text-white/90">Voice Over</Label>
+                    <div className="inline-flex items-center bg-[#0f0f0f] rounded-lg p-1 border border-white/10">
+                      <button
+                        onClick={() => setVoiceOverEnabled(true)}
+                        className={cn(
+                          "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
+                          voiceOverEnabled
+                            ? "bg-gradient-to-r from-[#FF4081] to-[#FF6B4A] text-white shadow-lg"
+                            : "text-white/50 hover:text-white/70"
+                        )}
+                      >
+                        On
+                      </button>
+                      <button
+                        onClick={() => setVoiceOverEnabled(false)}
+                        className={cn(
+                          "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
+                          !voiceOverEnabled
+                            ? "bg-[#1a1a1a] text-white shadow-lg"
+                            : "text-white/50 hover:text-white/70"
+                        )}
+                      >
+                        Off
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Language */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-white/70">Language</Label>
-                    <Select 
-                      value={language} 
-                      onValueChange={setLanguage}
-                    >
-                      <SelectTrigger className="h-10 bg-[#0f0f0f] border-white/10 text-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[#121212] border-white/10">
-                        {LANGUAGES.map((lang) => (
-                          <SelectItem 
-                            key={lang} 
-                            value={lang}
-                            className="text-white focus:bg-[#FF4081]/20 focus:text-white"
-                          >
-                            {lang}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  {/* Language Dropdown - Only shown when Voice Over is On */}
+                  {voiceOverEnabled && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-white/70">Language</Label>
+                      <Select 
+                        value={language} 
+                        onValueChange={setLanguage}
+                      >
+                        <SelectTrigger className="h-9 bg-[#0f0f0f] border-white/10 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#121212] border-white/10">
+                          {LANGUAGES.map((lang) => (
+                            <SelectItem 
+                              key={lang} 
+                              value={lang}
+                              className="text-white focus:bg-[#FF4081]/20 focus:text-white"
+                            >
+                              {lang}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Target Duration */}
+            <Card className="bg-[#252525] border-white/[0.06]">
+              <CardContent className="p-5">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-white/70">Target Duration</Label>
+                  <Select 
+                    value={duration} 
+                    onValueChange={setDuration}
+                  >
+                    <SelectTrigger className="h-9 bg-[#0f0f0f] border-white/10 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#121212] border-white/10">
+                      {DURATIONS.map((dur) => (
+                        <SelectItem 
+                          key={dur.value} 
+                          value={dur.value}
+                          className="text-white focus:bg-[#FF4081]/20 focus:text-white"
+                        >
+                          {dur.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Video Model */}
+            <Card className="bg-[#252525] border-white/[0.06]">
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="relative p-1 rounded-md">
+                    <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
+                    <Film className="w-3.5 h-3.5 text-white relative z-10" />
                   </div>
+                  <Label className="text-base font-semibold text-white">Video Model</Label>
+                  <span className="text-xs text-white/40">Animation engine</span>
+                </div>
+
+                <div className="space-y-2">
+                  <Select 
+                    value={selectedVideoModel} 
+                    onValueChange={handleVideoModelChange}
+                  >
+                    <SelectTrigger className="h-10 bg-[#0f0f0f] border-white/10 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#121212] border-white/10 max-h-[400px]">
+                      {VIDEO_MODELS.map((model) => {
+                        const maxDuration = Math.max(...model.durations);
+                        const maxResolution = model.resolutions[model.resolutions.length - 1];
+                        return (
+                          <SelectItem 
+                            key={model.value} 
+                            value={model.value}
+                            className="text-white focus:bg-[#FF4081]/20 focus:text-white py-3"
+                          >
+                            <div className="flex items-start justify-between w-full gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-white flex items-center gap-2">
+                                  {model.label}
+                                  {model.badge && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-white/20 text-white/70">
+                                      {model.badge}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="text-xs text-white/50 mt-0.5">
+                                  {model.provider} • {model.description}
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end gap-0.5 text-[10px] text-white/40 flex-shrink-0">
+                                <span>↑ {maxDuration}s</span>
+                                <span>{maxResolution}</span>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Model Info */}
+                  {selectedVideoModel && (() => {
+                    const model = VIDEO_MODELS.find(m => m.value === selectedVideoModel);
+                    if (!model) return null;
+                    
+                    return (
+                      <div className="bg-[#0f0f0f] rounded-lg p-3 space-y-1.5 border border-white/5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-white/50">Max Duration</span>
+                          <span className="text-white font-medium">{Math.max(...model.durations)}s</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-white/50">Max Resolution</span>
+                          <span className="text-white font-medium">{model.resolutions[model.resolutions.length - 1]}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-white/50">Audio Support</span>
+                          <span className={cn(
+                            "font-medium",
+                            model.hasAudio ? "text-green-400" : "text-white/40"
+                          )}>
+                            {model.hasAudio ? "Yes" : "No"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </CardContent>
             </Card>

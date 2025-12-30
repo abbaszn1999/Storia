@@ -137,6 +137,7 @@ const TRANSITION_TYPES = [
 interface StoryboardEditorProps {
   videoId: string;
   narrativeMode: "image-reference" | "start-end";
+  referenceMode: "1F" | "2F" | "AI";
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };

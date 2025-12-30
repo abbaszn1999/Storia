@@ -76,7 +76,7 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
   const [scheduleTime, setScheduleTime] = useState("");
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
-  const accentClasses = "from-purple-500 to-pink-500";
+  const accentClasses = "from-[#FF4081] via-[#FF5C8D] to-[#FF6B4A]";
 
   const handlePlatformToggle = (platformId: string) => {
     setSelectedPlatforms((prev) => {
@@ -190,7 +190,7 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
             <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <FileVideo className="w-5 h-5 text-purple-400" />
+                  <FileVideo className="w-5 h-5 text-[#FF4081]/90" />
                   <Label className="text-lg font-semibold text-white">Resolution</Label>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -218,7 +218,7 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
             <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Settings className="w-5 h-5 text-purple-400" />
+                  <Settings className="w-5 h-5 text-[#FF4081]/90" />
                   <Label className="text-lg font-semibold text-white">Format & Quality</Label>
                 </div>
                 
@@ -233,7 +233,7 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
                         <SelectItem 
                           key={opt.value} 
                           value={opt.value}
-                          className="focus:bg-purple-500/20 focus:text-white"
+                          className="focus:bg-[#FF4081]/20 focus:text-white"
                         >
                           <div className="flex flex-col gap-0.5">
                             <span className="font-medium">{opt.label}</span>
@@ -248,7 +248,7 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs text-white/50 uppercase tracking-wider">Quality</Label>
-                    <span className="text-xs text-purple-400 font-medium">{quality[0]}%</span>
+                    <span className="text-xs text-[#FF4081]/90 font-medium">{quality[0]}%</span>
                   </div>
                   <input
                     type="range"
@@ -267,7 +267,7 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
             <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Clock className="w-5 h-5 text-purple-400" />
+                  <Clock className="w-5 h-5 text-[#FF4081]/90" />
                   <Label className="text-lg font-semibold text-white">Publishing</Label>
                 </div>
                 
@@ -371,7 +371,7 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <Share2 className="w-5 h-5 text-purple-400" />
+                    <Share2 className="w-5 h-5 text-[#FF4081]/90" />
                     <Label className="text-lg font-semibold text-white">Select Platforms</Label>
                   </div>
                   {selectedPlatforms.length > 0 && (
@@ -500,7 +500,7 @@ export function ExportSettings({ onExport }: ExportSettingsProps) {
           <Button
             onClick={handleExport}
             size="lg"
-            className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
+            className="w-full bg-gradient-to-r from-[#FF4081] via-[#FF5C8D] to-[#FF6B4A] hover:opacity-90 text-white"
             data-testid="button-export"
           >
             <Download className="w-4 h-4 mr-2" />

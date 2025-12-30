@@ -6,7 +6,7 @@
 |-----------|-------|
 | **Role** | Ambient Video Architect |
 | **Type** | AI Text Model (Structured Generation) |
-| **Models** | GPT-4o, Claude 3.5 Sonnet |
+| **Models** | GPT-5|
 | **Temperature** | 0.5 (balanced: creative yet structured) |
 | **Purpose** | Break down mood description into distinct visual segments/scenes |
 
@@ -143,7 +143,32 @@ Return ONLY valid JSON with this exact structure:
   "totalSegments": {{segmentCount}},
   "totalDuration": {{totalDuration}}
 }
+
+IMPORTANT: sceneNumber must always start at 1 and increment sequentially (1, 2, 3, ...). Even if only 1 segment is requested, it must be numbered as 1.
 ```
+
+---
+
+## Input Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `moodDescription` | string | The atmospheric mood description from Agent 1.1 |
+| `theme` | string | Environment theme |
+| `mood` | string | Primary emotional tone |
+| `visualRhythm` | string | Visual rhythm style |
+| `artStyle` | string | Art style preference |
+| `visualElements` | string[] | Key visual elements (optional) |
+| `duration` | string | Video duration |
+| `totalDurationSeconds` | number | Total duration in seconds |
+| `segmentCount` | number | Target number of segments |
+| `pacing` | number | Pacing value (0-100) |
+| `pacingCategory` | string | Pacing category (slow/medium/fast) |
+| `animationMode` | string | Animation mode (video-animation/image-transitions) |
+| `animationModeLabel` | string | Human-readable animation mode label |
+| `season` | string | Atmospheric condition/season |
+| `aspectRatio` | string | Video aspect ratio |
+| `timeContext` | string | Lighting/time of day context |
 
 ---
 
@@ -165,6 +190,8 @@ ATMOSPHERE SETTINGS
 
 • Theme: {{theme}}
 • Primary Mood: {{mood}}
+• Season: {{season}}
+• Time Context: {{timeContext}}
 • Visual Rhythm: {{visualRhythm}}
 • Art Style: {{artStyle}}
 {{#if visualElements}}
@@ -179,6 +206,7 @@ TECHNICAL PARAMETERS
 • Target Segment Count: {{segmentCount}} segments
 • Pacing: {{pacing}}/100 ({{pacingCategory}})
 • Animation Mode: {{animationModeLabel}}
+• Aspect Ratio: {{aspectRatio}}
 
 ═══════════════════════════════════════════════════════════════════════════════
 INSTRUCTIONS
@@ -209,7 +237,7 @@ Generate the segment breakdown as JSON now.
     "segments": {
       "type": "array",
       "description": "Array of visual segments",
-      "minItems": 2,
+      "minItems": 1,
       "maxItems": 30,
       "items": {
         "type": "object",
@@ -218,7 +246,7 @@ Generate the segment breakdown as JSON now.
           "sceneNumber": {
             "type": "integer",
             "minimum": 1,
-            "description": "Sequential segment number"
+            "description": "Sequential segment number starting from 1. Always begins at 1 regardless of segmentCount, and increments sequentially (1, 2, 3, ...). Even if only 1 segment is generated, it will be numbered as 1."
           },
           "title": {
             "type": "string",
@@ -251,7 +279,7 @@ Generate the segment breakdown as JSON now.
     },
     "totalSegments": {
       "type": "integer",
-      "minimum": 2,
+      "minimum": 1,
       "maximum": 30,
       "description": "Total number of segments generated"
     },
@@ -276,6 +304,9 @@ Generate the segment breakdown as JSON now.
   "moodDescription": "The gentle break of dawn filters through a misty forest...",
   "theme": "nature",
   "mood": "calm",
+  "season": "spring",
+  "timeContext": "dawn",
+  "aspectRatio": "16:9",
   "visualRhythm": "breathing",
   "artStyle": "cinematic",
   "visualElements": ["trees", "mist", "light"],
@@ -409,7 +440,8 @@ function validateSceneGeneratorOutput(output: SceneGeneratorOutput): boolean {
     if (segment.sceneNumber < 1) return false;
   }
   
-  // Check scene numbers are sequential
+  // Check scene numbers are sequential starting from 1
+  // Even if only 1 segment, it must be numbered as 1
   const sceneNumbers = output.segments.map(s => s.sceneNumber).sort();
   for (let i = 0; i < sceneNumbers.length; i++) {
     if (sceneNumbers[i] !== i + 1) return false;
@@ -426,4 +458,5 @@ function validateSceneGeneratorOutput(output: SceneGeneratorOutput): boolean {
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2024-12-29 | Initial comprehensive prompt |
-
+| 1.1 | 2024-12-29 | Added season, aspectRatio, and timeContext input fields |
+| 1.2 | 2024-12-29 | Changed minimum segments from 2 to 1 |

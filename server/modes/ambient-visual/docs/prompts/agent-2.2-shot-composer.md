@@ -6,7 +6,7 @@
 |-----------|-------|
 | **Role** | Ambient Cinematographer |
 | **Type** | AI Text Model (Structured Generation) |
-| **Models** | GPT-4o, Claude 3.5 Sonnet |
+| **Models** | GPT-5|
 | **Temperature** | 0.5 (balanced: creative yet structured) |
 | **Purpose** | Generate individual shots within each scene/segment |
 
@@ -186,12 +186,55 @@ Return ONLY valid JSON with this exact structure:
 
 ## User Prompt Template
 
+The prompt includes full story context when `allScenes` and `existingShots` are provided. **Scenes and shots are presented in an interleaved format** (not all scenes first, then all shots):
+
 ```
 ═══════════════════════════════════════════════════════════════════════════════
 SHOT COMPOSITION REQUEST
 ═══════════════════════════════════════════════════════════════════════════════
 
-SCENE TO COMPOSE SHOTS FOR:
+[If allScenes provided:]
+═══════════════════════════════════════════════════════════════════════════════
+FULL STORY CONTEXT (N scenes total)
+═══════════════════════════════════════════════════════════════════════════════
+
+You are currently composing shots for Scene X of N.
+
+COMPLETE SCENE SEQUENCE WITH SHOTS:
+1. Scene 1: "Title"
+   Description: ...
+   Duration: 180s
+   Lighting: ...
+   Weather: ...
+   Shots (3 total):
+     Shot 1: Wide Shot - gentle-drift (60s)
+       "Description..."
+     Shot 2: Medium Shot - slow-pan-right (70s)
+       "Description..."
+     Shot 3: Close-Up - static (50s)
+       "Description..."
+
+2. Scene 2: "Title"
+   Description: ...
+   Duration: 150s
+   Lighting: ...
+   Weather: ...
+   Shots (2 total):
+     Shot 1: Extreme Wide Shot - slow-pan-left (75s)
+       "Description..."
+     Shot 2: Medium Shot - gentle-drift (75s)
+       "Description..."
+
+3. → CURRENT SCENE ← Scene 3: "Title"
+   Description: ...
+   Duration: 120s
+   Lighting: ...
+   Weather: ...
+   (you are composing shots for this scene now)
+
+═══════════════════════════════════════════════════════════════════════════════
+CURRENT SCENE TO COMPOSE SHOTS FOR:
+═══════════════════════════════════════════════════════════════════════════════
 
 Title: {{scene.title}}
 Description: {{scene.description}}
@@ -203,9 +246,7 @@ VISUAL CONTEXT
 ═══════════════════════════════════════════════════════════════════════════════
 
 • Art Style: {{artStyle}}
-{{#if visualElements}}
-• Key Visual Elements: {{visualElements.join(', ')}}
-{{/if}}
+• Key Visual Elements: {{visualElements}}
 • Animation Mode: {{animationModeLabel}}
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -220,16 +261,43 @@ TECHNICAL PARAMETERS
 INSTRUCTIONS
 ═══════════════════════════════════════════════════════════════════════════════
 
-1. Analyze the scene's atmosphere and visual elements
-2. Create {{shotCount}} shots that:
+1. Review the full story context above to understand where this scene fits in the overall flow
+2. Consider how your shots will flow from previous scenes and transition to upcoming scenes
+3. Maintain visual consistency and pacing with shots already composed for earlier scenes
+4. Analyze the current scene's atmosphere and visual elements
+5. Create {{shotCount}} shots that:
    - Explore different aspects of the scene
    - Sum to EXACTLY {{sceneDuration}} seconds
    - Use appropriate camera movements
    - Flow naturally from one to the next
-3. Each shot should be visually specific and filmable
+6. Each shot should be visually specific and filmable
 
 Generate the shot breakdown as JSON now.
 ```
+
+---
+
+## Input Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `scene` | `Scene` object | The current scene/segment to compose shots for. Contains: `id`, `videoId`, `sceneNumber`, `title`, `description`, `duration`, `lighting`, `weather`, `videoModel`, `imageModel`, `cameraMotion`, `createdAt` |
+| `shotsPerSegment` | `'auto' \| number` | Target number of shots per segment. If `'auto'`, calculated from pacing and scene duration |
+| `pacing` | `number` | Pacing value (0-100) determining shot rhythm and duration |
+| `animationMode` | `AnimationMode` | Either `"video-animation"` or `"image-transitions"`. Determines available camera movements |
+| `artStyle` | `string` (optional) | Art style preference (e.g., "cinematic", "anime", "realistic") |
+| `visualElements` | `string[]` (optional) | Array of key visual elements (e.g., ["trees", "mist", "light"]) |
+| `videoModel` | `string` (optional) | Video model from step1Data (used for determining supported durations) |
+| `allScenes` | `Scene[]` (optional) | All scenes in the video sequence (for understanding full story context and flow). **Must be ordered sequentially by sceneNumber** |
+| `existingShots` | `Record<string, Shot[]>` (optional) | Shots already generated for previous scenes (for maintaining consistency and flow). **Shots should be grouped by scene and ordered sequentially** |
+
+**Important:** When both `allScenes` and `existingShots` are provided, the prompt presents them in an interleaved format:
+- Scene 1 + its shots (if any)
+- Scene 2 + its shots (if any)
+- Scene 3 (current scene, no shots yet)
+- Scene 4+ (upcoming scenes, no shots yet)
+
+This ordering helps the agent understand the visual progression and flow from one scene to the next.
 
 ---
 

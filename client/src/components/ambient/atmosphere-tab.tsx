@@ -158,11 +158,12 @@ const SEASONS_FANTASY = [
 ];
 
 const DURATIONS = [
-  { value: "5min", label: "5 min" },
+  { value: "1min", label: "1 min" },
+  { value: "2min", label: "2 min" },
+  { value: "4min", label: "4 min" },
+  { value: "6min", label: "6 min" },
+  { value: "8min", label: "8 min" },
   { value: "10min", label: "10 min" },
-  { value: "30min", label: "30 min" },
-  { value: "1hour", label: "1 hour" },
-  { value: "2hours", label: "2 hours" },
 ];
 
 // All possible aspect ratios with metadata for UI display
@@ -440,6 +441,15 @@ export function AtmosphereTab({
       }
     }
   }, [imageResolution, imageModel, onImageResolutionChange]);
+
+  // Validate and fix invalid duration values (for backward compatibility with old data)
+  useEffect(() => {
+    const validDurations = DURATIONS.map(d => d.value);
+    if (duration && !validDurations.includes(duration)) {
+      console.log(`[AtmosphereTab] Invalid duration "${duration}" detected, defaulting to "1min"`);
+      onDurationChange("1min");
+    }
+  }, [duration, onDurationChange]);
 
   const accentClasses = "from-cyan-500 to-teal-500";
 

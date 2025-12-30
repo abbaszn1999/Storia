@@ -35,7 +35,7 @@ const IMAGE_TRANSITIONS_SCHEMA = {
   properties: {
     imagePrompt: {
       type: "string",
-      description: "Comprehensive visual description for image generation (200-400 words)"
+      description: "Comprehensive visual description for image generation (200-800 characters)"
     }
   },
   required: ["imagePrompt"],
@@ -50,15 +50,15 @@ const VIDEO_ANIMATION_SCHEMA = {
   properties: {
     startFramePrompt: {
       type: "string",
-      description: "Complete visual description of the initial frame state (150-300 words)"
+      description: "Complete visual description of the initial frame state (150-600 characters)"
     },
     endFramePrompt: {
       type: "string",
-      description: "Complete visual description of the final frame state (150-300 words)"
+      description: "Complete visual description of the final frame state (150-600 characters)"
     },
     videoPrompt: {
       type: "string",
-      description: "Motion and camera instructions for video generation (50-150 words)"
+      description: "Motion and camera instructions for video generation (50-300 characters)"
     }
   },
   required: ["startFramePrompt", "endFramePrompt", "videoPrompt"],
@@ -74,11 +74,11 @@ const VIDEO_ANIMATION_CONNECTED_SCHEMA = {
   properties: {
     endFramePrompt: {
       type: "string",
-      description: "Complete visual description of the final frame state (150-300 words)"
+      description: "Complete visual description of the final frame state (150-600 characters)"
     },
     videoPrompt: {
       type: "string",
-      description: "Motion and camera instructions for video generation (50-150 words)"
+      description: "Motion and camera instructions for video generation (50-300 characters)"
     }
   },
   required: ["endFramePrompt", "videoPrompt"],
@@ -219,7 +219,7 @@ export async function generateVideoPrompts(
       return {
         endFramePrompt: connectedResponse.endFramePrompt,
         videoPrompt: connectedResponse.videoPrompt,
-        startFramePrompt: null, // Will be inherited from previous shot by route
+        startFramePrompt: undefined, // Will be inherited from previous shot by route
         cost: response.usage?.totalCostUsd,
       };
     } else {

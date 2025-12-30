@@ -6,13 +6,13 @@
 |-----------|-------|
 | **Role** | Atmospheric Writer & Visual Poet |
 | **Type** | AI Text Model (Creative Writing) |
-| **Models** | GPT-4o, Claude 3.5 Sonnet |
+| **Models** | GPT-5 |
 | **Temperature** | 0.7 (creative, evocative) |
 | **Purpose** | Generate rich, atmospheric mood descriptions for ambient visual content |
 
 ### Critical Mission
 
-This agent creates the foundational mood description that guides all downstream visual generation. It transforms user inputs (mood, theme, time, season) into evocative, sensory-rich prose that captures the emotional and visual essence of the ambient experience.
+This agent creates the foundational mood description that guides all downstream visual generation. It transforms user inputs (mood, theme, season, duration, aspectRatio, timeContext, userStory) into evocative, sensory-rich prose that captures the emotional and visual essence of the ambient experience.
 
 ---
 
@@ -50,7 +50,7 @@ Your descriptions should:
 
 Focus on:
 • Color palettes and light qualities
-• Movement and rhythm (matching loop settings)
+• Movement and rhythm
 • Textures and materials
 • Ambient sounds implied by the scene
 • Emotional journey through the duration
@@ -66,6 +66,22 @@ Just flowing, evocative prose that sets the visual tone.
 
 ---
 
+## Input Fields
+
+All input fields are **required**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mood` | string | Primary emotional tone |
+| `theme` | string | Environment theme |
+| `season` | string | Atmospheric condition/season |
+| `duration` | string | Video duration |
+| `aspectRatio` | string | Video aspect ratio |
+| `timeContext` | string | Lighting/time of day context |
+| `userStory` | string | User's original concept/idea to build upon |
+
+---
+
 ## User Prompt Template
 
 ```
@@ -78,22 +94,17 @@ THEME/ENVIRONMENT: {{theme}}
 LIGHTING/TIME: {{timeContext}}
 ATMOSPHERE/CONDITION: {{season}}
 
-DURATION: {{durationContext}}
-ASPECT RATIO: {{aspectRatio}} ({{aspectRatioDescription}})
-
-VISUAL STYLE: {{animationContext}}
-RHYTHM: {{loopContext}}
+DURATION: {{duration}}
+ASPECT RATIO: {{aspectRatio}}
 
 ═══════════════════════════════════════════════════════════════════════════════
-USER'S CONCEPT (if provided)
+USER'S CONCEPT
 ═══════════════════════════════════════════════════════════════════════════════
 
-{{#if userPrompt}}
 The user has provided this initial concept to build upon:
-"{{userPrompt}}"
+"{{userStory}}"
 
 Enhance and expand this concept while maintaining its core vision.
-{{/if}}
 
 ═══════════════════════════════════════════════════════════════════════════════
 INSTRUCTIONS
@@ -104,8 +115,9 @@ Write a rich, evocative mood description (2-4 paragraphs) that:
 2. Describes the {{theme}} environment vividly
 3. Incorporates {{timeContext}} lighting and atmosphere
 4. Suggests {{season}} conditions naturally
-5. Accounts for the {{loopContext}} visual rhythm
-6. Is suitable for {{durationContext}}
+5. Builds upon the user's concept: "{{userStory}}"
+6. Is suitable for {{duration}} duration
+7. Works with {{aspectRatio}} aspect ratio
 
 Focus on sensory details: colors, light quality, textures, implied sounds, and the emotional journey.
 ```
@@ -134,17 +146,11 @@ The agent returns a plain text string (no JSON) containing the mood description.
 {
   "mood": "calm",
   "theme": "nature",
-  "timeContext": "dawn",
   "season": "spring",
   "duration": "10min",
   "aspectRatio": "16:9",
-  "animationMode": "video-animation",
-  "videoGenerationMode": "start-end-frame",
-  "loopMode": true,
-  "loopType": "seamless",
-  "segmentLoopEnabled": false,
-  "shotLoopEnabled": false,
-  "userPrompt": "A peaceful forest at sunrise"
+  "timeContext": "dawn",
+  "userStory": "A peaceful forest at sunrise"
 }
 ```
 
@@ -159,33 +165,28 @@ As dawn progresses, the light gradually intensifies, warming from cool blue-gray
 
 ---
 
-### Example 2: Mysterious Urban Night
+### Example 2: Cozy Interior Night
 
 **Input:**
 ```json
 {
-  "mood": "mysterious",
-  "theme": "urban",
-  "timeContext": "night",
-  "season": "winter",
-  "duration": "30min",
+  "mood": "calm",
+  "theme": "nature",
+  "season": "rainy",
+  "duration": "5min",
   "aspectRatio": "16:9",
-  "animationMode": "image-transitions",
-  "loopMode": true,
-  "loopType": "fade",
-  "segmentLoopEnabled": true,
-  "shotLoopEnabled": false,
-  "userPrompt": ""
+  "timeContext": "night",
+  "userStory": "window with rainy and thunder weather outside having a small chemine"
 }
 ```
 
 **Output:**
 ```
-The city sleeps, but never truly rests. Neon signs cast electric blues and purples across rain-slicked streets, their reflections stretching into infinity. Steam rises from manholes, creating ghostly columns that catch and scatter the artificial light. The urban landscape becomes a canvas of shadow and illumination, where darkness and light dance in perfect balance.
+Through the window, a storm rages silently in the darkness. Rain streaks down the glass in constant streams, catching and distorting the warm light that spills from inside. Thunder rumbles in the distance, a low growl that shakes the very air, while lightning occasionally illuminates the scene in brief, brilliant flashes that reveal the silhouette of trees bending in the wind.
 
-Winter's chill hangs in the air, visible in the breath of the city itself. Frost patterns form on windows, creating intricate lacework that catches the glow from streetlamps. The architecture looms—towering glass and steel structures that seem to reach for the starless sky. Each building becomes a monolith, its windows dark or lit in random patterns like a vast, sleeping organism.
+Inside, a small fireplace casts flickering orange and gold light across the room. The flames dance and leap, creating shadows that move and shift on the walls. The warmth from the fire contrasts beautifully with the cold, wet darkness outside. The sound of rain hitting the window creates a steady, rhythmic pattern—nature's own lullaby.
 
-The rhythm is slow, contemplative. Headlights streak by occasionally, painting brief trails of light. The city's pulse is subdued but present—a low hum of distant traffic, the whisper of wind between buildings, the occasional distant siren. This is the city's secret hour, when it reveals its quieter, more introspective nature. The urban environment transforms into a meditative space, where solitude and connection coexist in the same frame.
+The window becomes a threshold between two worlds: the chaotic, powerful storm outside and the peaceful, intimate sanctuary within. The fireplace crackles softly, its flames casting a warm, inviting glow that makes the storm outside feel distant and contained. This is a moment of perfect comfort, where the elements rage beyond while warmth and safety reign within.
 ```
 
 ---
@@ -202,7 +203,7 @@ Before accepting Agent 1.1 output, verify:
 | **Visual Guidance** | Can downstream agents use this to generate visuals? |
 | **Present Tense** | Is it written in present tense? |
 | **No Clichés** | Does it avoid generic phrases? |
-| **Loop Awareness** | Does it account for looping if enabled? |
+| **User Story Integration** | Does it build upon the user's concept? |
 | **Duration Appropriate** | Is the description suitable for the specified duration? |
 
 ---
@@ -266,4 +267,5 @@ function validateMoodDescription(description: string): boolean {
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2024-12-29 | Initial comprehensive prompt |
+| 1.1 | 2024-12-29 | Simplified to 7 required input fields only |
 

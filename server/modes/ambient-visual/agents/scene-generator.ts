@@ -30,7 +30,7 @@ const SCENE_GENERATOR_CONFIG = {
  * Scene limits for validation
  */
 const SCENE_LIMITS = {
-  MIN: 2,
+  MIN: 1,
   MAX: 50,
   DURATION_MIN: 15,
   DURATION_MAX: 120,

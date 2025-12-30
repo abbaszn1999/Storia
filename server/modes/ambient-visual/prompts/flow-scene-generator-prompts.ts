@@ -19,13 +19,14 @@ import type { SceneGeneratorInput, AnimationMode } from '../types';
  */
 export function parseDurationToSeconds(duration: string): number {
   const map: Record<string, number> = {
-    '5min': 300,
+    '1min': 60,
+    '2min': 120,
+    '4min': 240,
+    '6min': 360,
+    '8min': 480,
     '10min': 600,
-    '30min': 1800,
-    '1hour': 3600,
-    '2hours': 7200,
   };
-  return map[duration] || 300;
+  return map[duration] || 60;
 }
 
 /**
@@ -78,7 +79,7 @@ export function calculateOptimalSegmentCount(
 ): number {
   // If user specified a number, use it (within reasonable bounds)
   if (segmentCount !== 'auto') {
-    return Math.max(2, Math.min(30, segmentCount));
+    return Math.max(1, Math.min(30, segmentCount));
   }
 
   const category = getPacingCategory(pacing);

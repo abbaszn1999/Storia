@@ -165,7 +165,11 @@ psRouter.post(
         language,
         textOverlay,
         animationMode,
-        animationType 
+        animationType,
+        styleReferenceUrl,
+        styleReferenceDescription,
+        characterReferenceUrl,
+        characterReferenceDescription
       } = req.body || {};
 
       if (!scenes || !Array.isArray(scenes) || scenes.length === 0) {
@@ -182,6 +186,10 @@ psRouter.post(
           textOverlay: voiceoverEnabled ? textOverlay : undefined,
           animationMode: animationMode !== false,
           animationType: animationMode ? animationType : undefined,
+          styleReferenceUrl: styleReferenceUrl || undefined,
+          styleReferenceDescription: styleReferenceDescription || undefined,
+          characterReferenceUrl: characterReferenceUrl || undefined,
+          characterReferenceDescription: characterReferenceDescription || undefined,
         },
         userId,
         req.headers["x-workspace-id"] as string | undefined

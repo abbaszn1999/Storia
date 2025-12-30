@@ -667,5 +667,10 @@ router.post('/videos/:id/shots/:shotId/regenerate-image', isAuthenticated, async
   }
 });
 
+// NOTE: Video generation routes have been moved to ./video-generation.ts
+// The following routes are now handled by the videoGenerationRouter:
+// - POST /videos/:id/shots/:shotId/generate-video
+// - POST /videos/:id/generate-all-videos
+
 export default router;
 

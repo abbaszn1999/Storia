@@ -255,12 +255,59 @@ export function buildShotComposerUserPrompt(input: ShotComposerInput): string {
     input.shotsPerSegment
   );
   
+  // Build full story context section with interleaved scenes and shots
+  let fullStoryContext = '';
+  if (input.allScenes && input.allScenes.length > 0) {
+    const currentSceneIndex = input.allScenes.findIndex(s => s.id === scene.id);
+    const scenePosition = currentSceneIndex + 1;
+    const totalScenes = input.allScenes.length;
+    
+    fullStoryContext = `
+═══════════════════════════════════════════════════════════════════════════════
+FULL STORY CONTEXT (${totalScenes} scenes total)
+═══════════════════════════════════════════════════════════════════════════════
+
+You are currently composing shots for Scene ${scenePosition} of ${totalScenes}.
+
+COMPLETE SCENE SEQUENCE WITH SHOTS:
+${input.allScenes.map((s, idx) => {
+  const isCurrent = s.id === scene.id;
+  const sceneNumber = idx + 1;
+  const shots = input.existingShots?.[s.id] || [];
+  const hasShots = shots.length > 0;
+  
+  let sceneBlock = `${sceneNumber}. ${isCurrent ? '→ CURRENT SCENE ←' : ''} Scene ${sceneNumber}: "${s.title}"
+   Description: ${s.description || 'No description'}
+   Duration: ${s.duration || 60}s
+   Lighting: ${s.lighting || 'Natural'}
+   Weather: ${s.weather || 'Clear'}`;
+  
+  // Interleave shots immediately after each scene
+  if (hasShots) {
+    sceneBlock += `\n   Shots (${shots.length} total):`;
+    shots.forEach(shot => {
+      sceneBlock += `\n     Shot ${shot.shotNumber}: ${shot.shotType} - ${shot.cameraMovement} (${shot.duration}s)
+       "${shot.description}"`;
+    });
+  } else if (!isCurrent) {
+    sceneBlock += `\n   (shots not yet composed)`;
+  } else {
+    sceneBlock += `\n   (you are composing shots for this scene now)`;
+  }
+  
+  return sceneBlock;
+}).join('\n\n')}
+`;
+  }
+  
   return `
 ═══════════════════════════════════════════════════════════════════════════════
 SHOT COMPOSITION REQUEST
 ═══════════════════════════════════════════════════════════════════════════════
-
-SCENE TO COMPOSE SHOTS FOR:
+${fullStoryContext}
+═══════════════════════════════════════════════════════════════════════════════
+CURRENT SCENE TO COMPOSE SHOTS FOR:
+═══════════════════════════════════════════════════════════════════════════════
 
 Title: ${scene.title}
 Description: ${scene.description || 'No description provided'}
@@ -287,13 +334,16 @@ TECHNICAL PARAMETERS
 INSTRUCTIONS
 ═══════════════════════════════════════════════════════════════════════════════
 
-1. Analyze the scene's atmosphere and visual elements
-2. Create ${shotCount} shots that:
+1. Review the full story context above to understand where this scene fits in the overall flow
+${input.allScenes && input.allScenes.length > 1 ? '2. Consider how your shots will flow from previous scenes and transition to upcoming scenes' : ''}
+${input.existingShots && Object.keys(input.existingShots).length > 0 ? '3. Maintain visual consistency and pacing with shots already composed for earlier scenes' : ''}
+${input.allScenes && input.allScenes.length > 1 ? '4' : '2'}. Analyze the current scene's atmosphere and visual elements
+${input.allScenes && input.allScenes.length > 1 ? '5' : '3'}. Create ${shotCount} shots that:
    - Explore different aspects of the scene
    - Sum to EXACTLY ${sceneDuration} seconds
    - Use appropriate camera movements
    - Flow naturally from one to the next
-3. Each shot should be visually specific and filmable
+${input.allScenes && input.allScenes.length > 1 ? '6' : '4'}. Each shot should be visually specific and filmable
 
 Generate the shot breakdown as JSON now.`;
 }

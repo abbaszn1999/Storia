@@ -60,6 +60,10 @@ export interface StoryboardEnhancerInput {
   textOverlay?: string;           // Only if voiceoverEnabled = true
   animationMode: boolean;
   animationType?: 'transition' | 'image-to-video'; // Only if animationMode = true
+  styleReferenceUrl?: string;     // Style reference image URL (if image provided)
+  styleReferenceDescription?: string; // Style reference description (if no image, or additional context)
+  characterReferenceUrl?: string; // Character reference image URL (if image provided)
+  characterReferenceDescription?: string; // Character reference description (if no image, or additional context)
 }
 
 // Image Effect type for visual filters

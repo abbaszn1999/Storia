@@ -35,11 +35,13 @@ export { getTempUpload, deleteTempUpload };
 
 // Import modular routers
 import imageGenerationRouter from './image-generation';
+import videoGenerationRouter from './video-generation';
 
 const router = Router();
 
 // Mount modular routers
 router.use(imageGenerationRouter);
+router.use(videoGenerationRouter);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // VIDEO CRUD OPERATIONS
@@ -1650,6 +1652,11 @@ router.patch('/videos/:id/step4/settings', isAuthenticated, async (req: Request,
     res.status(500).json({ error: 'Failed to save settings' });
   }
 });
+
+// NOTE: Video generation routes have been moved to ./video-generation.ts
+// The following routes are now handled by the videoGenerationRouter:
+// - POST /videos/:id/shots/:shotId/generate-video
+// - POST /videos/:id/generate-all-videos
 
 export default router;
 

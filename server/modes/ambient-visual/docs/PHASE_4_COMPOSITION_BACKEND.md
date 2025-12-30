@@ -6,6 +6,13 @@ Phase 4 (Composition) is where users generate images and videos for each shot cr
 
 **Mode Specificity**: The agents documented here are specific to Video Animation mode. Image Transitions mode uses a separate FFmpeg-based processor (Agent 4.4).
 
+**Implementation Status**:
+- ✅ **Agent 4.1 (Video Prompt Engineer)**: Fully implemented with dynamic JSON schemas
+- ✅ **Agent 4.2 (Video Image Generator)**: Fully implemented with continuity inheritance and reference image support
+- ✅ **Agent 4.3 (Video Clip Generator)**: Fully implemented with Start-End Frame interpolation via Runware I2V
+- ✅ **API Endpoints**: All endpoints implemented (image, video generation, batch operations)
+- ✅ **Continuity Logic**: Start frame inheritance for connected shots fully working
+
 ---
 
 ## Table of Contents
@@ -33,22 +40,22 @@ Phase 4 uses **3 AI agents** triggered as **separate manual steps**, giving user
 │                           PHASE 4: COMPOSITION                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐       │
-│  │  Agent 4.1      │     │  Agent 4.2      │     │  Agent 4.3      │       │
-│  │  Video Prompt   │ ──▶ │  Video Image    │ ──▶ │  Video Clip     │       │
-│  │  Engineer       │     │  Generator      │     │  Generator      │       │
-│  │                 │     │                 │     │                 │       │
-│  │  (Text Gen)     │     │  (Runware I2I)  │     │  (Runware I2V)  │       │
-│  │  OpenAI GPT-5   │     │  FLUX/Imagen    │     │  Kling/Veo/Sora │       │
-│  └─────────────────┘     └─────────────────┘     └─────────────────┘       │
-│          │                       │                       │                 │
-│          ▼                       ▼                       ▼                 │
-│  ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐       │
-│  │  JSON Output    │     │  Bunny CDN URL  │     │  Bunny CDN URL  │       │
-│  │  - imagePrompt  │     │  - startFrame   │     │  - videoUrl     │       │
-│  │  - videoPrompt  │     │  - endFrame     │     │  - duration     │       │
-│  │  - negativeP.   │     │                 │     │                 │       │
-│  └─────────────────┘     └─────────────────┘     └─────────────────┘       │
+│  ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐        │
+│  │  Agent 4.1      │     │  Agent 4.2      │     │  Agent 4.3      │        │
+│  │  Video Prompt   │ ──▶ │  Video Image   │ ──▶ │  Video Clip     │        │
+│  │  Engineer       │     │  Generator      │     │  Generator      │        │
+│  │                 │     │                 │     │                 │        │
+│  │  (Text Gen)     │     │  (Runware I2I)  │     │  (Runware I2V)  │        │
+│  │  OpenAI GPT-5   │     │  FLUX/Imagen    │     │  Kling/Veo/Sora │        │
+│  └─────────────────┘     └─────────────────┘     └─────────────────┘        │
+│          │                       │                       │                  │
+│          ▼                       ▼                       ▼                  │
+│  ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐        │
+│  │  JSON Output    │     │  Bunny CDN URL  │     │  Bunny CDN URL  │        │
+│  │  - imagePrompt  │     │  - startFrame   │     │  - videoUrl     │        │
+│  │  - videoPrompt  │     │  - endFrame     │     │  - duration     │        │
+│  │  - negativeP.   │     │                 │     │                 │        │
+│  └─────────────────┘     └─────────────────┘     └─────────────────┘        │
 │                                                                             │
 │                        All saved to step4Data (JSON)                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -74,17 +81,23 @@ server/modes/ambient-visual/
 │   ├── shot-composer.ts              # Phase 3 (existing)
 │   ├── continuity-producer.ts        # Phase 3 (existing)
 │   ├── video-prompt-engineer.ts      # Phase 4 Agent 4.1 (NEW)
-│   ├── video-image-generator.ts      # Phase 4 Agent 4.2 (NEW)
+│   ├── video-image-generator.ts      # Phase 4 Agent 4.2 (NEW - Single shot)
+│   ├── video-image-generator-batch.ts # Phase 4 Agent 4.2 (NEW - Batch processing)
 │   └── video-clip-generator.ts       # Phase 4 Agent 4.3 (NEW)
 ├── prompts/
 │   ├── atmosphere-prompts.ts                  # Phase 1 (existing)
 │   ├── flow-scene-generator-prompts.ts        # Phase 3 (existing)
 │   ├── flow-shot-composer-prompts.ts          # Phase 3 (existing)
 │   ├── flow-continuity-producer-prompts.ts    # Phase 3 (existing)
-│   ├── video-prompt-engineer-prompts.ts       # Phase 4 (NEW)
-│   └── video-clip-generator-prompts.ts        # Phase 4 (NEW)
+│   └── video-prompt-engineer-prompts.ts       # Phase 4 (NEW)
 ├── routes/
-│   └── index.ts                      # Add composition endpoints
+│   ├── index.ts                      # Main routes (batch prompt generation, settings)
+│   ├── image-generation.ts           # Single shot image generation & regeneration
+│   ├── video-generation.ts           # Single shot & batch video generation (Agent 4.3)
+│   └── shared.ts                     # Shared utilities (multer config, temp uploads)
+├── utils/
+│   ├── index.ts                      # Utility exports
+│   └── video-model-helpers.ts        # Video model helpers for Agent 4.3
 ├── services/
 │   └── index.ts                      # Utility functions
 ├── types.ts                          # Add Step4Data types
@@ -98,9 +111,16 @@ server/modes/ambient-visual/
 
 ### Purpose
 
-Generates optimized prompts for image and video generation based on shot descriptions, visual style settings, and scene context.
+Generates optimized prompts for image and video generation based on shot descriptions, visual style settings, and scene context. **Uses dynamic JSON schemas** that adapt based on animation mode and continuity status.
 
-### File: `video-prompt-engineer.ts`
+### File: `server/modes/ambient-visual/agents/video-prompt-engineer.ts`
+
+### Key Features
+
+- **Conditional Output**: Output fields vary based on `animationMode` and continuity status
+- **Dynamic JSON Schemas**: Three different schemas for different scenarios
+- **Continuity Awareness**: Handles connected shots differently (start frame inheritance)
+- **Strict Validation**: Uses OpenAI's strict JSON schema mode for reliable parsing
 
 ### Input Interface
 
@@ -133,68 +153,105 @@ interface VideoPromptEngineerInput {
   referenceImageUrls?: string[];
   imageCustomInstructions?: string;
   
-  // Video Animation specific
-  animationMode: 'video-animation';
-  videoGenerationMode: 'image-reference' | 'start-end-frame';
+  // Animation mode (determines output format)
+  animationMode: 'image-transitions' | 'video-animation';
+  videoGenerationMode?: 'image-reference' | 'start-end-frame';
   motionPrompt?: string;      // Global motion instructions from Step 1
   cameraMotion?: string;      // "slow-pan", "gentle-drift", etc.
   
   // For connected shots (Start-End Frame mode)
   isFirstInGroup?: boolean;
   isConnectedShot?: boolean;
-  previousShotEndFrameUrl?: string;
+  previousShotEndFramePrompt?: string;  // End frame prompt from previous shot (for inheritance)
 }
 ```
 
-### Output Interface (JSON Schema)
+### Output Interface (Conditional)
+
+The output **varies based on animation mode and continuity status**:
 
 ```typescript
 interface VideoPromptEngineerOutput {
-  imagePrompt: string;        // Main image generation prompt
-  videoPrompt: string;        // Motion/animation instructions
-  negativePrompt: string;     // Elements to avoid
-  startFramePrompt: string;   // Specific prompt for start frame
-  endFramePrompt: string;     // Specific prompt for end frame
+  // For Image Transitions mode only
+  imagePrompt?: string;        // Main image generation prompt (200-400 words)
+  
+  // For Video Animation mode only
+  startFramePrompt?: string;   // Complete visual description of initial state (150-300 words)
+  endFramePrompt?: string;     // Complete visual description of final state (150-300 words)
+  videoPrompt?: string;        // Motion and camera instructions (50-150 words)
+  
+  cost?: number;
 }
 ```
 
-### JSON Schema Configuration
+**Output Scenarios:**
+
+1. **Image Transitions Mode**: Returns only `imagePrompt`
+2. **Video Animation (Standalone/First in Group)**: Returns `startFramePrompt`, `endFramePrompt`, `videoPrompt`
+3. **Video Animation (Connected, Not First)**: Returns only `endFramePrompt` and `videoPrompt` (start is inherited from previous shot)
+
+### Dynamic JSON Schema Configuration
+
+The agent uses **three different JSON schemas** based on the scenario:
+
+#### Schema 1: Image Transitions Mode
 
 ```typescript
-text: {
-  format: {
-    type: "json_schema",
-    name: "video_prompt_engineer_output",
-    strict: true,
-    schema: {
-      type: "object",
-      properties: {
-        imagePrompt: {
-          type: "string",
-          description: "Optimized prompt for image generation. Should include art style, lighting, composition, and visual details."
-        },
-        videoPrompt: {
-          type: "string",
-          description: "Motion and animation instructions for video generation. Describes camera movement, subject motion, and atmospheric changes."
-        },
-        negativePrompt: {
-          type: "string",
-          description: "Elements to avoid in generation. Common: blur, distortion, text, watermark, extra limbs, bad anatomy."
-        },
-        startFramePrompt: {
-          type: "string",
-          description: "Specific prompt modifications for the start frame. Describes initial state."
-        },
-        endFramePrompt: {
-          type: "string",
-          description: "Specific prompt modifications for the end frame. Describes final state after motion."
-        }
-      },
-      required: ["imagePrompt", "videoPrompt", "negativePrompt", "startFramePrompt", "endFramePrompt"],
-      additionalProperties: false
+const IMAGE_TRANSITIONS_SCHEMA = {
+  type: "object",
+  properties: {
+    imagePrompt: {
+      type: "string",
+      description: "Comprehensive visual description for image generation (200-400 words)"
     }
-  }
-}
+  },
+  required: ["imagePrompt"],
+  additionalProperties: false
+};
+```
+
+#### Schema 2: Video Animation (Standalone/First in Group)
+
+```typescript
+const VIDEO_ANIMATION_SCHEMA = {
+  type: "object",
+  properties: {
+    startFramePrompt: {
+      type: "string",
+      description: "Complete visual description of the initial frame state (150-300 words)"
+    },
+    endFramePrompt: {
+      type: "string",
+      description: "Complete visual description of the final frame state (150-300 words)"
+    },
+    videoPrompt: {
+      type: "string",
+      description: "Motion and camera instructions for video generation (50-150 words)"
+    }
+  },
+  required: ["startFramePrompt", "endFramePrompt", "videoPrompt"],
+  additionalProperties: false
+};
+```
+
+#### Schema 3: Video Animation (Connected, Not First)
+
+```typescript
+const VIDEO_ANIMATION_CONNECTED_SCHEMA = {
+  type: "object",
+  properties: {
+    endFramePrompt: {
+      type: "string",
+      description: "Complete visual description of the final frame state (150-300 words)"
+    },
+    videoPrompt: {
+      type: "string",
+      description: "Motion and camera instructions for video generation (50-150 words)"
+    }
+  },
+  required: ["endFramePrompt", "videoPrompt"],
+  additionalProperties: false
+};
 ```
 
 ### Model Configuration
@@ -203,19 +260,66 @@ text: {
 const VIDEO_PROMPT_ENGINEER_CONFIG = {
   provider: "openai" as const,
   model: "gpt-5",
-  expectedOutputTokens: 800,
+  expectedOutputTokens: 1200,  // Increased for longer frame prompts
 };
+```
+
+### Implementation Logic
+
+```typescript
+export async function generateVideoPrompts(
+  input: VideoPromptEngineerInput,
+  userId?: string,
+  workspaceId?: string
+): Promise<VideoPromptEngineerOutput> {
+  const isImageTransitions = input.animationMode === 'image-transitions';
+  const isConnectedNonFirst = input.isConnectedShot && !input.isFirstInGroup;
+  
+  // Select appropriate schema based on mode and continuity status
+  let schema, schemaName;
+  
+  if (isImageTransitions) {
+    schema = IMAGE_TRANSITIONS_SCHEMA;
+    schemaName = "image_transitions_output";
+  } else if (isConnectedNonFirst) {
+    schema = VIDEO_ANIMATION_CONNECTED_SCHEMA;
+    schemaName = "video_animation_connected_output";
+  } else {
+    schema = VIDEO_ANIMATION_SCHEMA;
+    schemaName = "video_animation_output";
+  }
+  
+  // Call OpenAI with strict JSON schema
+  const response = await callTextModel({
+    provider: "openai",
+    model: "gpt-5",
+    payload: {
+      text: {
+        format: {
+          type: "json_schema",
+          name: schemaName,
+          strict: true,
+          schema: schema
+        }
+      }
+    }
+  });
+  
+  // Parse and return based on mode
+  // ...
+}
 ```
 
 ### System Prompt Guidelines
 
-The system prompt in `video-prompt-engineer-prompts.ts` should:
+The system prompts in `video-prompt-engineer-prompts.ts`:
 
 1. **Understand ambient video context**: Long-form, loopable, meditative content
 2. **Optimize for specific image models**: FLUX, Imagen, Seedream, etc.
 3. **Include motion semantics**: For video models (camera drift, subtle movements)
 4. **Maintain visual consistency**: Across all shots in a scene
 5. **Handle Start-End Frame logic**: Different prompts for start vs end states
+6. **Continuity inheritance**: For connected shots, end frame must progress naturally from inherited start frame
 
 ---
 
@@ -223,37 +327,51 @@ The system prompt in `video-prompt-engineer-prompts.ts` should:
 
 ### Purpose
 
-Generates keyframe images using Runware's image generation API. Handles both start and end frames for Start-End Frame mode.
+Generates keyframe images using Runware's image generation API. Handles both animation modes (image-transitions and video-animation) with support for continuity inheritance and visual consistency through reference images.
 
-### File: `video-image-generator.ts`
+### Files
+
+- **`server/modes/ambient-visual/agents/video-image-generator.ts`**: Single shot image generation
+- **`server/modes/ambient-visual/agents/video-image-generator-batch.ts`**: Batch processing for all shots (used by `/generate-all-images` endpoint)
+
+### Key Features
+
+- **Dual Mode Support**: Handles both `image-transitions` (single image) and `video-animation` (start/end frames)
+- **Continuity Inheritance**: Subsequent shots in continuity groups inherit start frame from previous shot's end frame
+- **Visual Consistency**: End frames always use start frame as reference image (when available) for visual consistency
+- **Reference Image Support**: Uses model's reference image capability when supported
+- **Batch Processing**: Supports batch generation with chunking for large shot counts (via `video-image-generator-batch.ts`)
+- **Sequential Processing**: Batch generator processes shots in order to support continuity inheritance chains
+- **Error Handling**: Robust retry logic with exponential backoff
 
 ### Input Interface
 
 ```typescript
 interface VideoImageGeneratorInput {
-  // Prompt data (from Agent 4.1)
-  prompt: string;             // imagePrompt or startFramePrompt/endFramePrompt
-  negativePrompt?: string;
-  
-  // Image settings (from Step 1)
-  imageModel: string;         // "flux-2-dev", "imagen-4-ultra", etc.
-  aspectRatio: string;        // "16:9", "9:16", "1:1", "4:5"
-  resolution: string;         // "auto", "1k", "2k", "4k"
-  
-  // Reference images
-  referenceImageUrls?: string[];
-  
-  // Frame type
-  frameType: 'start' | 'end' | 'single';
-  
-  // For end frame generation (Start-End Frame mode)
-  startFrameUrl?: string;     // Used as reference context
-  
-  // Metadata
+  // Shot identification
   shotId: string;
-  versionId: string;
-  userId?: string;
-  workspaceId?: string;
+  shotNumber: number;
+  sceneId: string;
+  
+  // Prompts from Agent 4.1
+  imagePrompt?: string;          // For image-transitions mode
+  startFramePrompt?: string;     // For video-animation mode
+  endFramePrompt?: string;       // For video-animation mode
+  
+  // Animation mode (determines generation logic)
+  animationMode: 'image-transitions' | 'video-animation';
+  videoGenerationMode?: 'image-reference' | 'start-end-frame';
+  
+  // Image generation settings (from Step 1 Atmosphere)
+  imageModel: string;            // e.g., "flux-2-dev", "midjourney-v7"
+  aspectRatio: string;           // e.g., "16:9", "9:16", "1:1"
+  imageResolution: string;        // e.g., "1k", "2k", "4k"
+  
+  // Continuity context
+  isFirstInGroup?: boolean;       // True if first shot in continuity group
+  isConnectedShot?: boolean;      // True if part of a continuity group
+  previousShotEndFrameUrl?: string;  // URL of previous shot's end frame (for inheritance)
+  inheritStartFrame?: boolean;    // True if should inherit start from previous shot's end
 }
 ```
 
@@ -261,74 +379,150 @@ interface VideoImageGeneratorInput {
 
 ```typescript
 interface VideoImageGeneratorOutput {
-  imageUrl: string;           // Bunny CDN URL after upload
-  runwareImageUrl: string;    // Original Runware URL (temporary)
-  cost?: number;              // Generation cost in USD
+  shotId: string;
+  
+  // For image-transitions mode
+  imageUrl?: string;             // Single generated image
+  
+  // For video-animation mode
+  startFrameUrl?: string;         // Generated or inherited start frame
+  endFrameUrl?: string;           // Generated end frame
+  startFrameInherited?: boolean;  // True if start was inherited from previous shot
+  
+  // Generation metadata
+  width?: number;
+  height?: number;
+  cost?: number;
+  error?: string;                 // Error message if generation failed
+}
+```
+
+### Generation Logic
+
+The agent implements different logic based on animation mode:
+
+#### Image Transitions Mode
+
+```typescript
+if (animationMode === 'image-transitions') {
+  // Generate single image from imagePrompt
+  const result = await generateSingleImage(imagePrompt, {
+    runwareModelId,
+    dimensions,
+    imageModel,
+    userId,
+    workspaceId,
+    taskLabel: `Shot ${shotNumber} image`,
+  });
+  
+  return {
+    shotId,
+    imageUrl: result.imageUrl,
+    width: dimensions.width,
+    height: dimensions.height,
+    cost: result.cost,
+  };
+}
+```
+
+#### Video Animation Mode
+
+```typescript
+// Step 1: Get or generate START frame
+if (inheritStartFrame && previousShotEndFrameUrl) {
+  // Inherit START from previous shot's END
+  startFrameUrl = previousShotEndFrameUrl;
+  startFrameInherited = true;
+} else if (startFramePrompt) {
+  // Generate START frame
+  const startResult = await generateSingleImage(startFramePrompt, {
+    runwareModelId,
+    dimensions,
+    imageModel,
+    userId,
+    workspaceId,
+    taskLabel: `Shot ${shotNumber} START frame`,
+  });
+  startFrameUrl = startResult.imageUrl;
+}
+
+// Step 2: Generate END frame using START frame as reference
+if (endFramePrompt) {
+  const endResult = await generateSingleImage(endFramePrompt, {
+    runwareModelId,
+    dimensions,
+    imageModel,
+    userId,
+    workspaceId,
+    referenceImageUrl: startFrameUrl, // KEY: Use start frame as reference for visual consistency
+    taskLabel: `Shot ${shotNumber} END frame`,
+  });
+  endFrameUrl = endResult.imageUrl;
 }
 ```
 
 ### Runware API Payload
 
 ```typescript
-const runwarePayload = {
-  taskType: "imageInference",
-  taskUUID: randomUUID(),
-  positivePrompt: input.prompt,
-  negativePrompt: input.negativePrompt || "blur, noise, artifacts, watermark",
-  model: input.imageModel,
-  width: getWidthFromAspectRatio(input.aspectRatio, input.resolution),
-  height: getHeightFromAspectRatio(input.aspectRatio, input.resolution),
-  numberResults: 1,
-  outputType: "URL",
-  outputFormat: "PNG",
-  includeCost: true,
+function buildImagePayload(
+  prompt: string,
+  options: {
+    runwareModelId: string;
+    dimensions: { width: number; height: number };
+    referenceImageUrl?: string;  // Optional reference image for style/content consistency
+    taskLabel?: string;
+  }
+): Record<string, any> {
+  const { runwareModelId, dimensions, referenceImageUrl } = options;
   
-  // If reference images provided
-  ...(input.referenceImageUrls?.length && {
-    controlNet: {
-      model: "reference",
-      guideImages: input.referenceImageUrls,
-      weight: 0.7,
-    }
-  }),
-  
-  // If generating end frame with start frame as reference
-  ...(input.frameType === 'end' && input.startFrameUrl && {
-    seedImage: input.startFrameUrl,
-    strength: 0.6,  // Keep similarity to start frame
-  })
-};
+  const modelConfig = Object.values(IMAGE_MODEL_CONFIGS).find(m => m.model === runwareModelId);
+  const supportsReference = modelConfig?.supportsStyleReference ?? false;
+
+  const payload: Record<string, any> = {
+    taskType: "imageInference",
+    taskUUID: randomUUID(),
+    model: runwareModelId,
+    positivePrompt: prompt,
+    width: dimensions.width,
+    height: dimensions.height,
+    numberResults: 1,
+    includeCost: true,
+    outputType: "URL",
+  };
+
+  // Add reference image if provided and model supports it
+  if (referenceImageUrl && supportsReference) {
+    payload.referenceImages = [referenceImageUrl];
+  }
+
+  return payload;
+}
 ```
+
+### Key Principle
+
+**Every END frame uses the START frame as a reference for visual consistency.** This ensures:
+- Smooth visual progression between start and end states
+- Consistent style, lighting, and composition
+- Natural-looking transitions in the final video
 
 ### Resolution Mapping
 
+Uses `getImageDimensions()` from `server/ai/config/image-models.ts` which:
+- Maps aspect ratios and resolutions to specific width/height pairs
+- Handles model-specific constraints
+- Returns appropriate dimensions based on model capabilities
+
+### Configuration
+
 ```typescript
-function getResolutionDimensions(aspectRatio: string, resolution: string): { width: number; height: number } {
-  const resolutionMap = {
-    "16:9": {
-      "1k": { width: 1024, height: 576 },
-      "2k": { width: 2048, height: 1152 },
-      "4k": { width: 4096, height: 2304 },
-    },
-    "9:16": {
-      "1k": { width: 576, height: 1024 },
-      "2k": { width: 1152, height: 2048 },
-      "4k": { width: 2304, height: 4096 },
-    },
-    "1:1": {
-      "1k": { width: 1024, height: 1024 },
-      "2k": { width: 2048, height: 2048 },
-      "4k": { width: 4096, height: 4096 },
-    },
-    "4:5": {
-      "1k": { width: 896, height: 1120 },
-      "2k": { width: 1792, height: 2240 },
-      "4k": { width: 3584, height: 4480 },
-    },
-  };
-  
-  return resolutionMap[aspectRatio]?.[resolution] || resolutionMap["16:9"]["1k"];
-}
+const CONFIG = {
+  MAX_BATCH_SIZE: 10,           // Maximum images per batch request
+  MAX_RETRIES: 2,               // Maximum retry attempts for failed images
+  RETRY_DELAY_MS: 1000,         // Delay between retry attempts
+  BATCH_TIMEOUT_MS: 180000,      // 3 minutes (longer for reference image processing)
+  SEQUENTIAL_DELAY_MS: 500,     // Delay between sequential operations
+};
 ```
 
 ---
@@ -337,32 +531,47 @@ function getResolutionDimensions(aspectRatio: string, resolution: string): { wid
 
 ### Purpose
 
-Generates video clips from keyframe images using Runware's image-to-video API. Supports both single-image and start-end frame generation.
+Generates video clips from keyframe images using Runware's image-to-video (`videoInference`) API. Interpolates motion between start and end frames guided by the video prompt from Agent 4.1.
 
-### File: `video-clip-generator.ts`
+### File: `server/modes/ambient-visual/agents/video-clip-generator.ts`
+
+### Key Features
+
+- **Start-End Frame Mode**: Uses both `startFrameUrl` and `endFrameUrl` for smooth interpolation
+- **Image Reference Mode**: Uses only `startFrameUrl` (single keyframe animation)
+- **Multiple Model Support**: Seedance, KlingAI, Veo, PixVerse, Runway, Alibaba Wan
+- **Two API Formats**: Standard format and inputs-wrapper format depending on model
+- **Async Polling**: Video generation takes 30-180 seconds, uses async delivery with polling
 
 ### Input Interface
 
 ```typescript
 interface VideoClipGeneratorInput {
-  // Frame images
-  startFrameUrl: string;      // Required: Starting keyframe
-  endFrameUrl?: string;       // Optional: For Start-End Frame mode
+  // Shot identification
+  shotId: string;
+  shotNumber: number;
+  versionId: string;
+  
+  // Frame images (from Agent 4.2)
+  startFrameUrl: string;       // Required: Starting keyframe
+  endFrameUrl?: string;        // Optional: For Start-End Frame mode
   
   // Video prompt (from Agent 4.1)
   videoPrompt: string;
   
-  // Video settings (from Step 1)
-  videoModel: string;         // "klingai-2.5-turbo-pro", "veo-3.0", etc.
-  videoResolution: string;    // "720p", "1080p", "4k"
-  duration: number;           // Shot duration in seconds
-  cameraMotion: string;       // "static", "slow-pan", "gentle-drift", etc.
+  // Video settings (from Step 1 / scene settings)
+  videoModel: string;          // e.g., "seedance-1.0-pro"
+  aspectRatio: string;         // e.g., "16:9"
+  videoResolution?: string;    // e.g., "1080p" - optional, derived from aspect ratio
+  duration: number;            // Shot duration in seconds (validated by frontend)
   
-  // Metadata
-  shotId: string;
-  versionId: string;
-  userId?: string;
-  workspaceId?: string;
+  // Optional provider settings
+  cameraFixed?: boolean;       // Lock camera movement (Seedance)
+  generateAudio?: boolean;     // Generate native audio (Veo, Seedance 1.5)
+  
+  // Continuity context (informational)
+  isConnectedShot?: boolean;
+  isFirstInGroup?: boolean;
 }
 ```
 
@@ -370,76 +579,214 @@ interface VideoClipGeneratorInput {
 
 ```typescript
 interface VideoClipGeneratorOutput {
-  videoUrl: string;           // Bunny CDN URL after upload
-  runwareVideoUrl: string;    // Original Runware URL (temporary)
-  actualDuration: number;     // Actual video duration (may differ from requested)
-  cost?: number;              // Generation cost in USD
+  shotId: string;
+  videoUrl?: string;           // Runware temporary URL
+  actualDuration?: number;     // Actual duration returned by model
+  cost?: number;
+  error?: string;
+}
+
+interface VideoClipGeneratorBatchOutput {
+  videoId: string;
+  results: VideoClipGeneratorOutput[];
+  totalCost?: number;
+  successCount: number;
+  failureCount: number;
 }
 ```
 
-### Runware API Payload (Image-to-Video)
+### Runware API Formats
+
+The agent handles two different API formats depending on the video model:
+
+#### Format 1: Standard (Seedance, KlingAI 2.1/2.5, PixVerse, Veo, Hailuo)
 
 ```typescript
-const runwarePayload = {
+{
   taskType: "videoInference",
-  taskUUID: randomUUID(),
-  inputImage: input.startFrameUrl,
-  prompt: input.videoPrompt,
-  model: input.videoModel,
-  duration: Math.min(input.duration, getMaxDuration(input.videoModel)),
-  fps: 24,
-  resolution: input.videoResolution,
-  outputType: "URL",
-  includeCost: true,
-  deliveryMethod: "async",  // Video generation is async
-  
-  // For Start-End Frame mode with end frame
-  ...(input.endFrameUrl && {
-    endImage: input.endFrameUrl,
-    interpolationMode: "smooth",
-  }),
-  
-  // Camera motion hints (model-specific)
-  ...(input.cameraMotion !== "auto" && {
-    cameraMotion: input.cameraMotion,
-  }),
-};
+  taskUUID: "generated-uuid",
+  model: "bytedance:2@1",  // Seedance 1.0 Pro AIR ID
+  positivePrompt: "Gentle camera drift forward, subtle water ripples...",
+  frameImages: [
+    { inputImage: "https://example.com/start.png", frame: "first" },
+    { inputImage: "https://example.com/end.png", frame: "last" }
+  ],
+  duration: 5,
+  width: 1920,
+  height: 1088,
+  deliveryMethod: "async",
+  includeCost: true
+}
 ```
 
-### Video Model Duration Limits
+#### Format 2: Inputs Wrapper (Kling 2.6 Pro, Kling O1, Runway, Alibaba Wan)
 
 ```typescript
-const VIDEO_MODEL_DURATIONS: Record<string, { min: number; max: number; default: number }> = {
-  "klingai-2.5-turbo-pro": { min: 5, max: 10, default: 5 },
-  "klingai-2.1-master": { min: 5, max: 10, default: 5 },
-  "veo-3.0": { min: 4, max: 8, default: 8 },
-  "veo-3.1": { min: 4, max: 8, default: 8 },
-  "sora-2": { min: 4, max: 12, default: 8 },
-  "sora-2-pro": { min: 4, max: 12, default: 8 },
-  "hailuo-2.3": { min: 6, max: 10, default: 6 },
-  "pixverse-v5.5": { min: 5, max: 10, default: 5 },
-  "runway-gen4-turbo": { min: 2, max: 10, default: 10 },
-  "vidu-q2-pro": { min: 1, max: 8, default: 8 },
-  "seedance-1.0-pro": { min: 2, max: 12, default: 5 },
+{
+  taskType: "videoInference",
+  taskUUID: "generated-uuid",
+  model: "klingai:kling-video@2.6-pro",
+  inputs: {
+    frameImages: [
+      { image: "https://example.com/start.png", frame: "first" },
+      { image: "https://example.com/end.png", frame: "last" }
+    ]
+  },
+  positivePrompt: "...",
+  duration: 5,
+  width: 1920,
+  height: 1080
+}
+```
+
+### Video Models Supporting Start-End Frame
+
+Models that support both `first` AND `last` frame (from `frameImageSupport` in video-models.ts):
+
+| Model | AIR ID | Durations | Format |
+|-------|--------|-----------|--------|
+| Seedance 1.0 Pro | `bytedance:2@1` | 2-12s | Standard |
+| Seedance 1.5 Pro | `bytedance:seedance@1.5-pro` | 4-12s | Standard |
+| KlingAI 2.1 Pro | `klingai:5@2` | 5, 10s | Standard |
+| KlingAI 2.5 Turbo Pro | `klingai:6@1` | 5, 10s | Standard |
+| Kling VIDEO O1 | `klingai:kling@o1` | 3-10s | Inputs Wrapper |
+| Veo 3 Fast | `google:3@1` | 8s | Standard |
+| Veo 3.1 | `google:3@2` | 8s | Standard |
+| Veo 3.1 Fast | `google:3@3` | 8s | Standard |
+| PixVerse v5.5 | `pixverse:1@6` | 5, 8, 10s | Standard |
+
+### Implementation Logic
+
+```typescript
+// Determine API format based on model
+function buildFrameImages(
+  startFrameUrl: string,
+  endFrameUrl: string | undefined,
+  modelId: string
+): Record<string, any> {
+  const useInputsWrapper = usesInputsWrapperFormat(modelId);
+  
+  if (useInputsWrapper) {
+    // Format 2: Inputs wrapper
+    const frames = [{ image: startFrameUrl, frame: "first" }];
+    if (endFrameUrl) frames.push({ image: endFrameUrl, frame: "last" });
+    return { inputs: { frameImages: frames } };
+  } else {
+    // Format 1: Standard
+    const frames = [{ inputImage: startFrameUrl, frame: "first" }];
+    if (endFrameUrl) frames.push({ inputImage: endFrameUrl, frame: "last" });
+    return { frameImages: frames };
+  }
+}
+
+// Main generation function
+export async function generateVideoClip(
+  input: VideoClipGeneratorInput,
+  userId: string,
+  workspaceId?: string
+): Promise<VideoClipGeneratorOutput> {
+  const { shotId, videoModel, startFrameUrl, endFrameUrl, duration } = input;
+  
+  // 1. Get model AIR ID
+  const modelAirId = getVideoModelAirId(videoModel);
+  if (!modelAirId) {
+    return { shotId, error: `No AIR ID for model: ${videoModel}` };
+  }
+  
+  // 2. Get dimensions for model and aspect ratio
+  const dimensions = getVideoDimensions(videoModel, input.aspectRatio, input.videoResolution);
+  
+  // 3. Build payload with correct format
+  const payload = {
+    taskType: "videoInference",
+    taskUUID: randomUUID(),
+    model: modelAirId,
+    positivePrompt: input.videoPrompt,
+    duration: clampDuration(duration, videoModel),
+    width: dimensions.width,
+    height: dimensions.height,
+    deliveryMethod: "async",
+    includeCost: true,
+    ...buildFrameImages(startFrameUrl, endFrameUrl, videoModel),
+  };
+  
+  // 4. Call Runware API (async with polling)
+  const response = await callAi({
+    provider: "runware",
+    model: videoModel,
+    task: "video-generation",
+    payload: [payload],
+    userId,
+    workspaceId,
+    runware: {
+      deliveryMethod: "async",
+      timeoutMs: 300000, // 5 minutes
+    },
+  });
+  
+  // 5. Extract video URL from response
+  const data = response.output?.[0];
+  if (data?.videoURL) {
+    return {
+      shotId,
+      videoUrl: data.videoURL,
+      actualDuration: data.duration || duration,
+      cost: data.cost || 0,
+    };
+  }
+  
+  return { shotId, error: data?.error || "No video URL in response" };
+}
+```
+
+### Helper Functions (video-models.ts)
+
+```typescript
+// Check if model supports start-end frame mode
+export function supportsStartEndFrame(modelId: string): boolean {
+  const config = VIDEO_MODEL_CONFIGS[modelId];
+  return config?.frameImageSupport?.first === true && 
+         config?.frameImageSupport?.last === true;
+}
+
+// Get video dimensions for model
+export function getVideoDimensions(
+  modelId: string,
+  aspectRatio: string,
+  resolution?: string
+): VideoDimensions {
+  // Try model-specific dimensions first
+  const modelDims = MODEL_DIMENSIONS[modelId]?.[aspectRatio];
+  if (modelDims) {
+    if (resolution && modelDims[resolution]) {
+      return modelDims[resolution];
+    }
+    const firstRes = Object.keys(modelDims)[0];
+    return modelDims[firstRes];
+  }
+  // Fallback to generic dimensions
+  return getDimensions(aspectRatio, resolution || "720p", modelId);
+}
+
+// Clamp duration to model's supported values
+export function clampDuration(duration: number, modelId: string): number {
+  const config = VIDEO_MODEL_CONFIGS[modelId];
+  if (!config) return duration;
+  return config.durations.reduce((closest, current) =>
+    Math.abs(current - duration) < Math.abs(closest - duration) ? current : closest
+  );
+}
+```
+
+### Configuration
+
+```typescript
+const CONFIG = {
+  TIMEOUT_MS: 300000,      // 5 minutes (video gen is slow)
+  BATCH_DELAY_MS: 1000,    // Delay between batch items
+  MAX_RETRIES: 1,          // Maximum retry attempts
+  RETRY_DELAY_MS: 10000,   // Retry delay (10 seconds)
 };
-```
-
-### Video Prompt Guidelines (System Prompt)
-
-The system prompt in `video-clip-generator-prompts.ts` should guide the AI to generate motion-focused prompts:
-
-```
-MOTION TYPES:
-- Camera: slow pan, gentle drift, push in, pull out, orbit, floating
-- Subject: subtle breathing, swaying, rippling, flowing
-- Environment: clouds drifting, water flowing, leaves rustling
-- Atmospheric: light rays moving, fog rolling, particles floating
-
-AMBIENT VIDEO PRINCIPLES:
-- Motion should be SLOW and MEDITATIVE
-- Avoid sudden movements or jarring transitions
-- Maintain visual continuity with previous/next shots
-- Loop-friendly: end state should smoothly connect to start
 ```
 
 ---
@@ -454,20 +801,20 @@ In **Start-End Frame Mode**, shots can be connected through continuity groups (l
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    CONTINUITY GROUP                                  │
+│                    CONTINUITY GROUP                                 │
 ├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
+│                                                                     │
 │  Shot 1 (First in Group)          Shot 2                  Shot 3    │
 │  ┌──────────────────┐             ┌──────────────────┐              │
 │  │  Start: GENERATE │             │  Start: INHERIT  │    ...       │
-│  │  End: GENERATE   │────────────▶│  End: GENERATE   │────────────▶ │
+│  │  End: GENERATE   │────────────▶│  End: GENERATE   │────────────▶│
 │  └──────────────────┘             └──────────────────┘              │
-│         │                                │                           │
-│         │                                │                           │
-│         ▼                                ▼                           │
+│         │                                │                          │
+│         │                                │                          │
+│         ▼                                ▼                          │
 │  startFrameUrl (new)              startFrameUrl = Shot1.endFrameUrl │
 │  endFrameUrl (new)                endFrameUrl (new)                 │
-│                                                                      │
+│                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -477,7 +824,7 @@ In **Start-End Frame Mode**, shots can be connected through continuity groups (l
 3. **Only generate**: New end frame for each subsequent shot
 
 ### Standalone Shots (Not Connected)
-
+z
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    STANDALONE SHOT                                   │
@@ -562,15 +909,170 @@ In **Image-Reference Mode**, there's no start/end distinction:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/ambient-visual/shots/:shotId/generate-prompt` | POST | Generate optimized prompts |
-| `/api/ambient-visual/shots/:shotId/generate-image` | POST | Generate start/end frame |
-| `/api/ambient-visual/shots/:shotId/generate-video` | POST | Generate video clip |
-| `/api/ambient-visual/shots/:shotId/regenerate` | POST | Create new version |
-| `/api/ambient-visual/videos/:id/step/4/continue` | PATCH | Save step4Data, advance |
+| `/api/ambient-visual/videos/:id/generate-all-prompts` | POST | Generate prompts for all shots (batch) |
+| `/api/ambient-visual/videos/:id/shots/:shotId/generate-image` | POST | Generate single frame (start or end) |
+| `/api/ambient-visual/videos/:id/shots/:shotId/regenerate-image` | POST | Regenerate frame(s) for existing version |
+| `/api/ambient-visual/videos/:id/shots/:shotId/generate-video` | POST | Generate video clip for single shot (Agent 4.3) |
+| `/api/ambient-visual/videos/:id/generate-all-videos` | POST | Generate video clips for all ready shots (Agent 4.3 batch) |
+| `/api/ambient-visual/videos/:id/step4/settings` | PATCH | Auto-save step4Data (scenes/shots model settings) |
+
+**Note**: The actual implementation uses `/videos/:id/shots/:shotId/...` pattern for better RESTful organization.
 
 ---
 
-### POST `/api/ambient-visual/shots/:shotId/generate-prompt`
+### POST `/api/ambient-visual/videos/:id/generate-all-prompts`
+
+**Purpose**: Generate optimized prompts for all shots using Agent 4.1 (batch operation)
+
+**Request Body**:
+```typescript
+{
+  // No body required - uses video's step3Data
+}
+```
+
+**Response**:
+```typescript
+{
+  success: boolean;
+  promptsGenerated: number;
+  failedShots: string[];
+  totalCost: number;
+}
+```
+
+**Implementation Notes**:
+- Processes all shots in order (respects continuity groups)
+- For connected shots (not first in group), only generates `endFramePrompt` and `videoPrompt`
+- Preserves existing `step4Data.scenes` and `step4Data.shots` if prompts already exist
+- Creates new `ShotVersion` entries in `step4Data.shotVersions`
+
+---
+
+### POST `/api/ambient-visual/videos/:id/shots/:shotId/generate-image`
+
+**Purpose**: Generate a single frame image for a specific shot (Agent 4.2 - Single Shot)
+
+**Request Body**:
+```typescript
+{
+  frame: 'start' | 'end';  // Required: which frame to generate
+}
+```
+
+**Response**:
+```typescript
+{
+  imageUrl: string;          // Generated image URL (Runware temporary URL)
+  frameType: 'start' | 'end';
+  inherited?: boolean;       // True if start frame was inherited (connected shots)
+  nextShotId?: string;       // If end frame generated for connected shot, next shot's ID
+  nextShotVersion?: object;  // Updated next shot version (with inherited start)
+  cost?: number;
+}
+```
+
+**Rules**:
+- **Start frame**: 
+  - For standalone/first in group: Generate new start frame
+  - For connected shots (not first): Automatically inherits from previous shot's end frame (returns inherited URL)
+- **End frame**: 
+  - Must have start frame first (own or inherited)
+  - Always uses start frame as reference image for visual consistency
+  - For connected shots: Updates next shot's start frame automatically
+
+**Implementation**:
+```typescript
+router.post('/videos/:id/shots/:shotId/generate-image', isAuthenticated, async (req, res) => {
+  const { id: videoId, shotId } = req.params;
+  const { frame } = req.body as { frame: 'start' | 'end' };
+
+  // 1. Fetch video and determine continuity status
+  const video = await storage.getVideo(videoId);
+  const step3Data = video.step3Data as Step3Data;
+  const step4Data = video.step4Data as Step4Data;
+  
+  // 2. Find continuity group and check if shot is connected
+  const continuityGroup = findContinuityGroupForShot(step3Data.continuityGroups, shotId);
+  const isConnectedShot = !!continuityGroup;
+  const isFirstInGroup = continuityGroup?.shotIds[0] === shotId;
+  
+  // 3. Get current version
+  const version = step4Data.shotVersions[shotId]?.find(v => v.id === currentVersionId);
+  
+  if (frame === 'start') {
+    // Check if start should be inherited
+    if (isConnectedShot && !isFirstInGroup) {
+      const previousShotVersion = getPreviousShotVersion(step4Data, shotId);
+      if (previousShotVersion?.endFrameUrl) {
+        // Inherit start frame
+        await updateVersionInStep4Data(videoId, shotId, versionId, {
+          startFrameUrl: previousShotVersion.endFrameUrl,
+          startFrameInherited: true,
+        });
+        return res.json({
+          imageUrl: previousShotVersion.endFrameUrl,
+          frameType: 'start',
+          inherited: true,
+        });
+      }
+    }
+    
+    // Generate new start frame
+    const result = await generateSingleFrameImage(/* ... */);
+    // ...
+  } else {
+    // End frame generation
+    // Always uses start frame (own or inherited) as reference
+    const referenceUrl = version.startFrameUrl || previousShotVersion?.endFrameUrl;
+    const result = await generateSingleFrameImage(/* ... with referenceUrl ... */);
+    
+    // If this is a connected shot, update next shot's start frame
+    if (isConnectedShot) {
+      const nextShotId = getNextShotInGroup(continuityGroup, shotId);
+      if (nextShotId) {
+        // Update next shot's version with inherited start
+        // ...
+      }
+    }
+  }
+});
+```
+
+---
+
+### POST `/api/ambient-visual/videos/:id/shots/:shotId/regenerate-image`
+
+**Purpose**: Regenerate image(s) for an existing version
+
+**Request Body**:
+```typescript
+{
+  frame?: 'start' | 'end';  // Optional: if undefined, regenerates both (if applicable)
+}
+```
+
+**Response**:
+```typescript
+{
+  imageUrl?: string;         // Regenerated image URL(s)
+  startFrameUrl?: string;
+  endFrameUrl?: string;
+  nextShotId?: string;       // If end frame regenerated for connected shot
+  nextShotVersion?: object;  // Updated next shot version
+  cost?: number;
+}
+```
+
+**Regeneration Logic**:
+- **`frame === 'start'`**: Regenerates only the start frame. **End frame is NOT automatically regenerated.**
+- **`frame === 'end'`**: Regenerates only the end frame (uses existing start as reference)
+- **`frame === undefined`**: Regenerates both frames (for standalone shots only)
+- **Connected shots (not first)**: Can only regenerate end frame (start is inherited and cannot be regenerated)
+
+---
+
+### POST `/api/ambient-visual/videos/:id/shots/:shotId/generate-prompt`
 
 **Purpose**: Generate optimized prompts using Agent 4.1
 
@@ -798,104 +1300,131 @@ router.post('/shots/:shotId/generate-image', isAuthenticated, async (req, res) =
 
 ---
 
-### POST `/api/ambient-visual/shots/:shotId/generate-video`
+### POST `/api/ambient-visual/videos/:id/shots/:shotId/generate-video`
 
-**Purpose**: Generate video clip using Agent 4.3
+**Purpose**: Generate video clip for a single shot using Agent 4.3
 
-**Request Body**:
-```typescript
-{
-  videoId: string;
-  versionId: string;
-  videoPrompt?: string;      // Override prompt (if user edited)
-}
-```
+**Request Body**: None required (uses existing data)
 
 **Response**:
 ```typescript
 {
-  videoUrl: string;          // Bunny CDN URL
-  duration: number;          // Actual duration
-  cost?: number;
+  success: boolean;
+  shotId: string;
+  videoUrl: string;          // Runware temporary URL
+  actualDuration: number;    // Actual duration returned
+  cost: number;
+  shotVersion: object;       // Updated shot version with video URL
 }
 ```
 
+**Validation**:
+- Start frame must exist (`startFrameUrl`)
+- For Start-End Frame mode: End frame must also exist (`endFrameUrl`)
+- Video prompt must exist (from Agent 4.1)
+
 **Implementation**:
 ```typescript
-router.post('/shots/:shotId/generate-video', isAuthenticated, async (req, res) => {
-  const { shotId } = req.params;
-  const { videoId, versionId, videoPrompt } = req.body;
+router.post('/videos/:id/shots/:shotId/generate-video', isAuthenticated, async (req, res) => {
+  const { id: videoId, shotId } = req.params;
   const userId = getCurrentUserId(req);
   
   // 1. Fetch video and version data
   const video = await storage.getVideo(videoId);
   const step1Data = video.step1Data as Step1Data;
-  const step3Data = video.step3Data as Step3Data;
   const step4Data = video.step4Data as Step4Data;
   
-  const version = step4Data.shotVersions[shotId]?.find(v => v.id === versionId);
-  if (!version) {
-    return res.status(404).json({ error: 'Version not found' });
+  const latestVersion = step4Data.shotVersions[shotId]?.[versions.length - 1];
+  
+  // 2. Validate frames exist
+  if (!latestVersion.startFrameUrl) {
+    return res.status(400).json({ error: 'Start frame not generated' });
   }
   
-  // 2. Verify images are generated
   const isStartEndMode = step1Data.videoGenerationMode === 'start-end-frame';
-  
-  if (isStartEndMode) {
-    if (!version.startFrameUrl || !version.endFrameUrl) {
-      return res.status(400).json({ 
-        error: 'Both start and end frames must be generated first' 
-      });
-    }
-  } else {
-    if (!version.imageUrl && !version.startFrameUrl) {
-      return res.status(400).json({ 
-        error: 'Image must be generated first' 
-      });
-    }
+  if (isStartEndMode && !latestVersion.endFrameUrl) {
+    return res.status(400).json({ error: 'End frame not generated' });
   }
   
-  // 3. Find shot for duration
-  const shot = findShotById(step3Data.shots, shotId);
+  // 3. Get video model (shot > scene > step1)
+  const videoModel = shot.videoModel || scene?.videoModel || step1Data.videoModel;
   
-  // 4. Build input for Agent 4.3
-  const input: VideoClipGeneratorInput = {
-    startFrameUrl: version.startFrameUrl || version.imageUrl,
-    endFrameUrl: isStartEndMode ? version.endFrameUrl : undefined,
-    videoPrompt: videoPrompt || version.videoPrompt,
-    videoModel: step1Data.videoModel,
-    videoResolution: step1Data.videoResolution || '1080p',
-    duration: shot.duration,
-    cameraMotion: step1Data.cameraMotion || 'auto',
+  // 4. Check if model supports start-end frame
+  const modelSupportsEndFrame = supportsStartEndFrame(videoModel);
+  const useEndFrame = isStartEndMode && modelSupportsEndFrame && !!latestVersion.endFrameUrl;
+  
+  // 5. Call Agent 4.3
+  const result = await generateVideoClip({
     shotId,
-    versionId,
-    userId,
-    workspaceId: video.workspaceId,
-  };
+    shotNumber: shotIndex + 1,
+    versionId: latestVersion.id,
+    startFrameUrl: latestVersion.startFrameUrl,
+    endFrameUrl: useEndFrame ? latestVersion.endFrameUrl : undefined,
+    videoPrompt: latestVersion.videoPrompt,
+    videoModel,
+    aspectRatio: step1Data.aspectRatio,
+    videoResolution: step1Data.videoResolution,
+    duration: shot.duration || 5,
+  }, userId, video.workspaceId);
   
-  // 5. Call Agent 4.3 (Runware I2V - async)
-  const result = await generateVideoClip(input);
-  
-  // 6. Upload to Bunny CDN
-  const cdnUrl = await uploadToBunnyCDN(
-    result.runwareVideoUrl,
-    buildCompositionPath(video, shotId, versionId, 'video')
-  );
-  
-  // 7. Update version in step4Data
-  await updateVersionInStep4Data(videoId, shotId, versionId, {
-    videoUrl: cdnUrl,
+  // 6. Update shot version with video URL
+  const updatedVersion = {
+    ...latestVersion,
+    videoUrl: result.videoUrl,
     videoDuration: result.actualDuration,
     status: 'completed',
+  };
+  
+  await storage.updateVideo(videoId, {
+    step4Data: {
+      ...step4Data,
+      shotVersions: {
+        ...step4Data.shotVersions,
+        [shotId]: versions.map(v => v.id === latestVersion.id ? updatedVersion : v),
+      },
+    },
   });
   
   res.json({
-    videoUrl: cdnUrl,
-    duration: result.actualDuration,
+    success: true,
+    shotId,
+    videoUrl: result.videoUrl,
+    actualDuration: result.actualDuration,
     cost: result.cost,
+    shotVersion: updatedVersion,
   });
 });
 ```
+
+---
+
+### POST `/api/ambient-visual/videos/:id/generate-all-videos`
+
+**Purpose**: Generate video clips for all shots that have completed frames (Agent 4.3 batch)
+
+**Request Body**: None required
+
+**Response**:
+```typescript
+{
+  success: boolean;
+  videosGenerated: number;       // Count of successful generations
+  failedShots: string[];         // Shot IDs that failed
+  totalCost: number;
+  results: VideoClipGeneratorOutput[];
+}
+```
+
+**Filter Criteria** (shots must have):
+- Start frame (`startFrameUrl`)
+- For Start-End Frame mode: End frame (`endFrameUrl`)
+- Video prompt (from Agent 4.1)
+- No existing video URL (skips already generated)
+
+**Processing**:
+- Sequential processing (video gen takes 30-180s per shot)
+- Updates each shot's `videoUrl` in `step4Data.shotVersions`
+- Sets status to `completed` or `failed`
 
 ---
 

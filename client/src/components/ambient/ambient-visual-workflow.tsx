@@ -61,6 +61,10 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   const [isGeneratingImages, setIsGeneratingImages] = useState(false);
   // Track which individual shots are currently generating (for single shot generation)
   const [generatingShotIds, setGeneratingShotIds] = useState<Set<string>>(new Set());
+  // Flag to show loading state while generating videos (Agent 4.3)
+  const [isGeneratingVideos, setIsGeneratingVideos] = useState(false);
+  // Track which individual shots are currently generating videos
+  const [generatingVideoShotIds, setGeneratingVideoShotIds] = useState<Set<string>>(new Set());
   
   // Atmosphere State
   const [mood, setMood] = useState("calm");
@@ -68,7 +72,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   const [timeContext, setTimeContext] = useState("sunset");
   const [season, setSeason] = useState("neutral");
   const [intensity, setIntensity] = useState(50);
-  const [duration, setDuration] = useState("5min");
+  const [duration, setDuration] = useState("1min");
   const [userStory, setUserStory] = useState("");      // User's original story/prompt
   const [moodDescription, setMoodDescription] = useState(""); // AI-generated description
   
@@ -180,7 +184,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
         theme: (data.theme as string) || 'nature',
         timeContext: (data.timeContext as string) || 'sunset',
         season: (data.season as string) || 'neutral',
-        duration: (data.duration as string) || '5min',
+        duration: (data.duration as string) || '1min',
       });
     }
     
@@ -1494,6 +1498,146 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     }
   };
 
+  /**
+   * Handle batch video generation for all shots (Agent 4.3)
+   * Calls the backend endpoint to generate video clips using Runware
+   * Skips shots that already have videos generated
+   */
+  const handleGenerateAllVideos = async () => {
+    if (!videoId) {
+      toast({
+        title: "Error",
+        description: "Video ID is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingVideos(true);
+
+    try {
+      console.log('[AmbientWorkflow] Starting batch video generation for video:', videoId);
+
+      const response = await fetch(`/api/ambient-visual/videos/${videoId}/generate-all-videos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to generate videos');
+      }
+
+      const result = await response.json();
+
+      console.log('[AmbientWorkflow] Batch video generation result:', result);
+
+      // Refresh data from server to get updated shot versions
+      if (videoId) {
+        const videoResponse = await fetch(`/api/videos/${videoId}`, {
+          credentials: 'include',
+        });
+
+        if (videoResponse.ok) {
+          const video = await videoResponse.json();
+          
+          // Update local state with new shot versions
+          if (video.step4Data?.shotVersions) {
+            console.log('[AmbientWorkflow] Updating shotVersions from server after video generation');
+            setShotVersions(video.step4Data.shotVersions);
+          }
+        }
+      }
+
+      toast({
+        title: "Videos Generated",
+        description: `Successfully generated ${result.videosGenerated || 0} videos. ${result.skippedCount ? `${result.skippedCount} already had videos.` : ''} ${result.failedCount ? `${result.failedCount} failed.` : ''}`,
+      });
+
+    } catch (error) {
+      console.error('[AmbientWorkflow] Video generation error:', error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate videos",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingVideos(false);
+    }
+  };
+
+  /**
+   * Handle single shot video generation (Agent 4.3)
+   * Used for both "Generate Video" and "Regenerate Video" buttons
+   */
+  const handleGenerateSingleVideo = async (shotId: string) => {
+    if (!videoId || videoId === 'new') {
+      toast({
+        title: "Error",
+        description: "Please save the video first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Prevent double-click - check if already generating
+    if (generatingVideoShotIds.has(shotId)) {
+      console.log(`[AmbientWorkflow] Shot ${shotId} video is already generating, ignoring`);
+      return;
+    }
+
+    console.log(`[AmbientWorkflow] Generating video for shot:`, shotId);
+    
+    // Mark as generating
+    setGeneratingVideoShotIds(prev => new Set(prev).add(shotId));
+    
+    try {
+      const response = await fetch(`/api/ambient-visual/videos/${videoId}/shots/${shotId}/generate-video`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate video');
+      }
+      
+      const result = await response.json();
+      console.log(`[AmbientWorkflow] Video generated:`, result);
+      
+      // Update the shot version with the new video URL
+      if (result.shotVersion) {
+        setShotVersions(prev => ({
+          ...prev,
+          [shotId]: prev[shotId]?.map(v => 
+            v.id === result.shotVersion.id ? result.shotVersion : v
+          ) || [result.shotVersion]
+        }));
+      }
+      
+      toast({
+        title: "Video Generated",
+        description: `Video clip generated successfully${result.actualDuration ? ` (${result.actualDuration}s)` : ''}`,
+      });
+    } catch (error) {
+      console.error(`[AmbientWorkflow] Failed to generate video:`, error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive",
+      });
+    } finally {
+      // Remove from generating set
+      setGeneratingVideoShotIds(prev => {
+        const next = new Set(prev);
+        next.delete(shotId);
+        return next;
+      });
+    }
+  };
+
   // Calculate total duration from all shots
   const allShots = Object.values(shots).flat();
   const totalDuration = allShots.reduce((acc, s) => acc + (s.duration || 5), 0) || 60;
@@ -1723,6 +1867,10 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
             onGenerateAllImages={handleGenerateAllImages}
             isGeneratingImages={isGeneratingImages}
             generatingShotIds={generatingShotIds}
+            onGenerateAllVideos={handleGenerateAllVideos}
+            isGeneratingVideos={isGeneratingVideos}
+            generatingVideoShotIds={generatingVideoShotIds}
+            onGenerateSingleVideo={handleGenerateSingleVideo}
             onNext={goToNextStep}
           />
         );

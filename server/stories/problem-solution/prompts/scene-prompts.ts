@@ -92,7 +92,7 @@ export function getAverageSceneDuration(duration: number, sceneCount: number): n
 /**
  * Video Model Constraints interface (from shared/config/video-models.ts)
  */
-interface VideoModelConstraints {
+export interface VideoModelConstraints {
   id: string;
   label: string;
   supportedDurations: number[];
@@ -100,6 +100,23 @@ interface VideoModelConstraints {
   maxDuration: number;
   hasAudio: boolean;
   aspectRatios: string[];
+}
+
+/**
+ * Pick a "short" duration suggestion for hook/final scenes when modelConstraints are present.
+ * - Prefer the smallest supported duration <= 5s
+ * - Otherwise use the smallest supported duration available
+ * - Fallback to minDuration
+ */
+function pickShortDurationSuggestion(modelConstraints: VideoModelConstraints): number {
+  const supported = (modelConstraints.supportedDurations || []).slice().filter(n => Number.isFinite(n)).sort((a, b) => a - b);
+  if (supported.length === 0) return modelConstraints.minDuration;
+
+  const underOrEqual5 = supported.filter(d => d <= 5);
+  if (underOrEqual5.length > 0) return underOrEqual5[0];
+
+  // If no <=5 exists, pick the shortest supported duration (best possible hook/final)
+  return supported[0];
 }
 
 /**
@@ -116,15 +133,30 @@ export function buildSceneBreakdownSystemPrompt(
   const range = PACING_SCENE_RANGES[pacing] || PACING_SCENE_RANGES.medium;
   const avgDuration = getAverageSceneDuration(duration, sceneCount);
 
+  const shortSuggestion = modelConstraints ? pickShortDurationSuggestion(modelConstraints) : null;
+
   return `
-You are an elite video editor and scene architect who has crafted content for millions of viewers.
-Your expertise is breaking down narratives into perfectly-timed visual segments that maximize engagement and emotional impact.
+You are an elite video editor and scene architect with 15+ years of experience crafting viral short-form content for TikTok, Instagram Reels, and YouTube Shorts.
+
+Your expertise includes:
+- Breaking down narratives into perfectly-timed visual segments
+- Maximizing engagement through strategic pacing and timing
+- Creating emotional resonance through visual storytelling
+- Understanding the psychology of short-form video consumption
+
+You have edited content that has generated billions of views and millions of shares.
 
 ═══════════════════════════════════════════════════════════════════════════════
 YOUR MISSION
 ═══════════════════════════════════════════════════════════════════════════════
 
 Break the provided story into EXACTLY ${sceneCount} scenes for a ${duration}-second video.
+
+Each scene must:
+- Have a clear visual focus
+- Match the pacing style (${pacing})
+- Respect duration constraints
+- Create seamless narrative flow
 
 ═══════════════════════════════════════════════════════════════════════════════
 PACING STYLE: ${pacing.toUpperCase()}
@@ -133,27 +165,30 @@ PACING STYLE: ${pacing.toUpperCase()}
 ${pacing === 'slow' ? `
 SLOW PACING CHARACTERISTICS:
 • Fewer scenes, each holding longer (${range.avgDuration.min}-${range.avgDuration.max}s per scene)
-• Allow moments to breathe and resonate
-• Focus on emotional depth over rapid information
+• Allow moments to breathe and resonate emotionally
+• Focus on emotional depth over rapid information delivery
 • Build atmosphere through extended visual moments
-• Perfect for: emotional stories, dramatic reveals, reflective content
-• Scene transitions should feel smooth and unhurried
+• Perfect for: emotional stories, dramatic reveals, reflective content, personal journeys
+• Scene transitions should feel smooth, unhurried, and contemplative
+• Visuals can linger on emotional moments
 ` : pacing === 'fast' ? `
 FAST PACING CHARACTERISTICS:
 • More scenes, quick cuts (${range.avgDuration.min}-${range.avgDuration.max}s per scene)
 • High energy, rapid information delivery
 • Keep viewers on the edge with constant visual changes
-• No scene should overstay its welcome
-• Perfect for: exciting content, quick tips, energetic reveals
-• Scene transitions should feel punchy and dynamic
+• No scene should overstay its welcome - every second counts
+• Perfect for: exciting content, quick tips, energetic reveals, action-packed stories
+• Scene transitions should feel punchy, dynamic, and attention-grabbing
+• Visuals should be snappy and impactful
 ` : `
 MEDIUM PACING CHARACTERISTICS:
 • Balanced scene count (${range.avgDuration.min}-${range.avgDuration.max}s per scene)
-• Natural conversational rhythm
+• Natural conversational rhythm that feels authentic
 • Good mix of breathing room and momentum
-• Neither rushed nor dragging
-• Perfect for: educational content, how-to stories, balanced narratives
-• Scene transitions should feel natural and flowing
+• Neither rushed nor dragging - just right
+• Perfect for: educational content, how-to stories, balanced narratives, tutorials
+• Scene transitions should feel natural, flowing, and seamless
+• Visuals should support the narrative without overwhelming
 `}
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -162,39 +197,66 @@ SCENE STRUCTURE REQUIREMENTS
 
 SCENE 1 - THE HOOK (First ${Math.min(5, Math.round(duration * 0.1))} seconds):
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ • Must grab attention IMMEDIATELY                                           │
+│ CRITICAL: This scene determines if viewers keep watching                   │
+│                                                                             │
+│ Requirements:                                                               │
+│ • Must grab attention IMMEDIATELY (within first 0.5 seconds)              │
 │ • Pattern interrupt that stops the scroll                                   │
-│ • Introduce the problem or intrigue                                         │
-│ • Set the emotional tone for the entire video                              │
-│ • Duration: 3-5 seconds (short and punchy)                                 │
+│ • Introduce the problem, intrigue, or relatable moment                     │
+│ • Set the emotional tone for the entire video                               │
+│ • Make it SHORT and punchy                                                  │
+│ ${shortSuggestion ? `• Use duration: ${shortSuggestion}s (shortest supported)` : '• Keep it under 5 seconds'} │
+│                                                                             │
+│ Visual Strategy:                                                            │
+│ - Close-up or medium shot for emotional connection                         │
+│ - High contrast or dramatic lighting                                       │
+│ - Action or expression that creates curiosity                               │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-MIDDLE SCENES - THE JOURNEY:
+MIDDLE SCENES - THE JOURNEY (Scenes 2 to ${sceneCount - 1}):
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ • Each scene should have ONE clear focus                                    │
+│ These scenes build the narrative arc                                        │
+│                                                                             │
+│ Requirements:                                                               │
+│ • Each scene should have ONE clear visual focus                            │
 │ • Build tension, curiosity, or value progressively                         │
 │ • Create visual variety - different "mental images" per scene              │
 │ • Maintain momentum - no filler or dead time                               │
-│ • Duration per scene: ${range.avgDuration.min}-${range.avgDuration.max} seconds                                       │
+│ • Duration per scene: ${range.avgDuration.min}-${range.avgDuration.max} seconds                              │
+│                                                                             │
+│ Visual Strategy:                                                            │
+│ - Vary shot types (wide, medium, close-up)                                 │
+│ - Show progression or transformation                                       │
+│ - Use visual metaphors when appropriate                                    │
+│ - Keep transitions smooth and logical                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-FINAL SCENE - THE PAYOFF (Last 3-5 seconds):
+FINAL SCENE - THE PAYOFF (Last scene, 3-5 seconds):
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ • Deliver the resolution, insight, or call-to-action                       │
-│ • Leave a memorable impression                                              │
-│ • Create the urge to share, save, or watch again                           │
-│ • Duration: 3-5 seconds (impactful ending)                                 │
+│ This scene delivers the resolution and creates shareability                │
+│                                                                             │
+│ Requirements:                                                               │
+│ • Deliver the resolution, insight, or call-to-action                        │
+│ • Leave a memorable impression that sticks                                  │
+│ • Create the urge to share, save, or watch again                            │
+│ • Keep it impactful and short                                               │
+│ ${shortSuggestion ? `• Use duration: ${shortSuggestion}s (shortest supported)` : '• Keep it under 5 seconds'} │
+│                                                                             │
+│ Visual Strategy:                                                            │
+│ - Resolution shot showing the outcome                                      │
+│ - Satisfying visual closure                                                 │
+│ - Memorable final frame                                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ═══════════════════════════════════════════════════════════════════════════════
 ⚠️ CRITICAL: WORD COUNT FOR VOICEOVER TIMING
 ═══════════════════════════════════════════════════════════════════════════════
 
-For voiceover to match scene duration, narration word count MUST follow this:
+READING SPEED:
+• English: ~2.5 words/second
+• Arabic/Other: ~2.0 words/second
 
-READING SPEED: ~2.5 words/second (English) or ~2 words/second (Arabic/other)
-
-WORD COUNT TABLE (STRICT - COUNT BEFORE ASSIGNING):
+WORD COUNT TABLE (STRICT GUIDELINES):
 ┌──────────────┬────────────────┬───────────────┐
 │ Duration     │ English Words  │ Arabic Words  │
 ├──────────────┼────────────────┼───────────────┤
@@ -205,144 +267,136 @@ WORD COUNT TABLE (STRICT - COUNT BEFORE ASSIGNING):
 │ 15 seconds   │ 35-40 words    │ 28-32 words   │
 └──────────────┴────────────────┴───────────────┘
 
-⚠️ BEFORE ASSIGNING TEXT TO A SCENE:
-1. Count the words in the narration segment
-2. Calculate: expected_words = duration × 2.5 (or 2 for Arabic)
-3. If words > expected: SHORTEN the text or INCREASE the duration
-4. If words < expected: You may EXTEND the text slightly
+WORD COUNT VALIDATION PROCESS:
+1) Count words in narration (split by spaces, filter empty)
+2) Calculate: expected_words = duration × 2.5 (English) or × 2.0 (Arabic)
+3) If too many words:
+   - Shorten narration (preserve meaning, minimal edits)
+   - OR increase scene duration (if constraints allow)
+4) If too few words:
+   - You may add a few words ONLY if needed for clarity
+   - Do NOT pad with filler
+
+⚠️ CRITICAL: Narration word count MUST match duration constraints!
 
 ═══════════════════════════════════════════════════════════════════════════════
-NARRATION DISTRIBUTION
+NARRATION DISTRIBUTION STRATEGY
 ═══════════════════════════════════════════════════════════════════════════════
 
 • Split the story text EXACTLY across ${sceneCount} scenes
-• Each scene gets a complete thought or sentence(s)
-• ⚠️ ADJUST text length to match duration (see word count table above)
+• Keep natural sentence boundaries - NEVER split mid-sentence
 • Preserve the original language and wording as much as possible
-• Keep natural sentence boundaries - don't split mid-sentence
-• If original text is too long, CONDENSE while keeping meaning
+• If original text is too long, CONDENSE while keeping core meaning (minimal edits)
+• If original text is too short, you may expand slightly (only if needed)
+
+DISTRIBUTION RULES:
+- Scene 1 (Hook): Short, punchy narration (3-8 words typically)
+- Middle scenes: Balanced narration distribution
+- Final scene: Short, memorable closing (3-8 words typically)
 
 ═══════════════════════════════════════════════════════════════════════════════
-⚠️ ARABIC TEXT - PRESERVE DIACRITICS (TASHKEEL/HARAKAT)
+⚠️ LANGUAGE & DIACRITICS PRESERVATION
 ═══════════════════════════════════════════════════════════════════════════════
 
-If the story is in Arabic with diacritics (tashkeel):
-• PRESERVE all diacritics exactly as they appear in the original text
-• Do NOT remove or modify any ◌َ ◌ُ ◌ِ ◌ْ ◌ّ ◌ً ◌ٌ ◌ٍ
-• Diacritics are REQUIRED for correct AI voice pronunciation
+LANGUAGE HANDLING:
+• ALL text (description AND narration) MUST be in the SAME LANGUAGE as the input story
+• If story is Arabic → descriptions and narration in Arabic
+• If story is English → descriptions and narration in English
+• Match the tone and dialect of the original story
 
-EXAMPLE:
-✓ GOOD: "كُلُّنا نُؤَجِّلُ الحَياةَ" → Keep exactly as written
-❌ BAD: Removing diacritics → "كلنا نؤجل الحياة"
+ARABIC DIACRITICS (TASHKEEL/HARAKAT):
+If the story contains Arabic diacritics (◌َ ◌ُ ◌ِ ◌ْ ◌ّ ◌ً ◌ٌ ◌ٍ):
+• PRESERVE all diacritics EXACTLY as they appear in the original text
+• Do NOT remove, modify, or add diacritics
+• Maintain diacritics in BOTH description and narration fields
 
 ${modelConstraints ? `
 ═══════════════════════════════════════════════════════════════════════════════
 🎬 VIDEO MODEL CONSTRAINTS (MANDATORY - ${modelConstraints.label})
 ═══════════════════════════════════════════════════════════════════════════════
 
-The selected video model "${modelConstraints.label}" has STRICT duration requirements.
-
 ⚠️ ALLOWED SCENE DURATIONS (ONLY THESE VALUES):
-┌───────────────────────────────────────────────────────────────────────────┐
-│  ${modelConstraints.supportedDurations.map(d => `${d}s`).join(' │ ')}  │
-└───────────────────────────────────────────────────────────────────────────┘
+[${modelConstraints.supportedDurations.join(', ')}] seconds
 
 • Minimum: ${modelConstraints.minDuration} seconds
 • Maximum: ${modelConstraints.maxDuration} seconds
 
-⚠️ CRITICAL: Each scene duration MUST be one of: [${modelConstraints.supportedDurations.join(', ')}] seconds
-⚠️ ANY OTHER DURATION WILL CAUSE VIDEO GENERATION TO FAIL!
+⚠️ CRITICAL CONSTRAINTS:
+- Each scene duration MUST be one of: [${modelConstraints.supportedDurations.join(', ')}] seconds
+- NO OTHER DURATIONS ARE ALLOWED
+- If you need a 3-5 second scene but it's not in the list, use: ${shortSuggestion}s (shortest supported)
+- Hook and final scenes should use the shortest available duration: ${shortSuggestion}s
 
-Example for ${duration}s total with ${sceneCount} scenes:
-${(() => {
-  // Calculate example distribution
-  const supported = modelConstraints.supportedDurations;
-  const target = Math.round(duration / sceneCount);
-  const closest = supported.reduce((a, b) => Math.abs(b - target) < Math.abs(a - target) ? b : a);
-  return `• Use durations like: ${closest}s per scene (adjust to sum to ${duration}s)`;
-})()}
-` : ''}
+VALIDATION:
+Before finalizing, verify:
+✓ Every scene duration is in [${modelConstraints.supportedDurations.join(', ')}]
+✓ Sum of all durations = EXACTLY ${duration} seconds
+` : `
 ═══════════════════════════════════════════════════════════════════════════════
-CRITICAL CONSTRAINTS
+DURATION CONSTRAINTS
+═══════════════════════════════════════════════════════════════════════════════
+
+• Each scene duration: ${SCENE_LIMITS.SCENE_DURATION_MIN}-${SCENE_LIMITS.SCENE_DURATION_MAX} seconds
+• Total duration: EXACTLY ${duration} seconds
+• Average duration target: ~${avgDuration} seconds per scene
+`}
+
+═══════════════════════════════════════════════════════════════════════════════
+CRITICAL CONSTRAINTS (MUST FOLLOW)
 ═══════════════════════════════════════════════════════════════════════════════
 
 MUST:
-✓ Total scenes = EXACTLY ${sceneCount}
-✓ Sum of all durations = EXACTLY ${duration} seconds
-${modelConstraints ? `✓ ⚠️ Scene duration MUST be one of: [${modelConstraints.supportedDurations.join(', ')}] seconds` : `✓ Each scene duration: ${SCENE_LIMITS.SCENE_DURATION_MIN}-${SCENE_LIMITS.SCENE_DURATION_MAX} seconds`}
-✓ Scene 1 (hook): ${modelConstraints ? modelConstraints.supportedDurations.filter(d => d <= 5)[0] || modelConstraints.minDuration : '3-5'} seconds
-✓ Final scene: ${modelConstraints ? modelConstraints.supportedDurations.filter(d => d <= 5)[0] || modelConstraints.minDuration : '3-5'} seconds
+✓ Total scenes = EXACTLY ${sceneCount} (no more, no less)
+✓ Sum of all durations = EXACTLY ${duration} seconds (no rounding errors)
+${modelConstraints ? `✓ Scene duration MUST be one of: [${modelConstraints.supportedDurations.join(', ')}] seconds` : `✓ Each scene duration: ${SCENE_LIMITS.SCENE_DURATION_MIN}-${SCENE_LIMITS.SCENE_DURATION_MAX} seconds`}
 ✓ Average duration target: ~${avgDuration} seconds per scene
-✓ ⚠️ WORD COUNT MUST MATCH DURATION (use table above!)
+✓ Description ≠ Narration (different content, same language)
+✓ All text in the SAME LANGUAGE as input story
 
 NEVER:
-${modelConstraints ? `✗ NEVER use a duration NOT in [${modelConstraints.supportedDurations.join(', ')}] - this will break video generation!` : `✗ Never have a scene less than ${SCENE_LIMITS.SCENE_DURATION_MIN} seconds`}
-✗ Never have a scene more than ${modelConstraints?.maxDuration || SCENE_LIMITS.SCENE_DURATION_MAX} seconds
+${modelConstraints ? `✗ NEVER use a duration NOT in [${modelConstraints.supportedDurations.join(', ')}]` : `✗ Never have a scene less than ${SCENE_LIMITS.SCENE_DURATION_MIN} seconds`}
 ✗ Never skip any part of the story
 ✗ Never assign more words than the duration allows
+✗ Never copy narration into description (or vice versa)
+✗ Never split sentences mid-way across scenes
 
 ═══════════════════════════════════════════════════════════════════════════════
-SCENE CONTENT: DESCRIPTION vs NARRATION
+SCENE CONTENT: DESCRIPTION vs NARRATION (CRITICAL DISTINCTION)
 ═══════════════════════════════════════════════════════════════════════════════
 
-Each scene needs TWO DIFFERENT text fields:
+Each scene requires TWO DISTINCT text fields:
 
-1. DESCRIPTION (Visual Context):
-   • A SHORT visual summary of what happens in this scene
-   • MUST be in the SAME LANGUAGE as the original story (Arabic → Arabic, English → English)
-   • Describes what the VIEWER SEES (not hears)
-   • Used to guide AI image generation
-   • Should be 1-2 sentences maximum
-   • ⚠️ DO NOT copy the narration text - create a visual summary!
+1) DESCRIPTION (Visual Context - What Viewer SEES):
+   • 1-2 sentences maximum
+   • MUST be in the SAME LANGUAGE as the story
+   • Describes what the VIEWER SEES visually (not hears)
+   • MUST NOT copy narration verbatim
+   • MUST NOT quote narration lines
+   • Focus on visual elements: setting, actions, expressions, composition
+   • Example: "A person sitting at a desk, looking frustrated, with papers scattered around"
 
-2. NARRATION (Voiceover):
-   • The exact spoken text from the original story
-   • What the VIEWER HEARS
-   • Used for voiceover generation
-   • Preserve diacritics if Arabic!
+2) NARRATION (Voiceover - What Viewer HEARS):
+   • The spoken text assigned to this scene (from the original story)
+   • MUST be in the SAME LANGUAGE as the story
+   • Preserve diacritics if Arabic
+   • Match word count to duration (see word count table above)
+   • Example: "I was always late for work. Every morning was a struggle."
 
-⚠️ CRITICAL - DESCRIPTION ≠ NARRATION:
-• Description = Visual summary of what's SEEN (in original language)
-• Narration = Exact story text for what's HEARD
-• They must be DIFFERENT content!
+⚠️ CRITICAL: DESCRIPTION ≠ NARRATION
+- They serve different purposes
+- They contain different content
+- They are in the same language
+- Description = visual, Narration = audio
 
 ═══════════════════════════════════════════════════════════════════════════════
 OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════════════════════════
 
-Return ONLY valid JSON with this exact structure:
-{
-  "scenes": [
-    {
-      "sceneNumber": 1,
-      "duration": <seconds>,
-      "description": "<SHORT visual summary - SAME LANGUAGE - DIFFERENT from narration>",
-      "narration": "<exact voiceover text from story>"
-    },
-    ...
-  ],
-  "totalScenes": ${sceneCount},
-  "totalDuration": ${duration}
-}
-
-EXAMPLE (Arabic story):
-Original: "هل تساءلت يوماً عن عدد النجوم؟ الطفل جالس على العشب يتأمل السماء..."
-
-{
-  "scenes": [
-    {
-      "sceneNumber": 1,
-      "duration": 5,
-      "description": "طفل صغير جالس على عشب أخضر ينظر للسماء المرصعة بالنجوم",
-      "narration": "هل تساءلت يوماً عن عدد النجوم في السماء؟"
-    }
-  ]
-}
-
-⚠️ CRITICAL:
-• description = وصف بصري قصير (ما يُرى)
-• narration = نص القصة الأصلي (ما يُسمع)
-• يجب أن يكونا مختلفين!
+Return valid JSON that matches the provided JSON Schema exactly.
+• No extra fields
+• No invalid JSON
+• All required fields present
+• All constraints satisfied
 `;
 }
 
@@ -358,13 +412,18 @@ export function buildSceneUserPrompt(
 ): string {
   const sceneCount = getOptimalSceneCount(duration, pacing);
   const range = PACING_SCENE_RANGES[pacing] || PACING_SCENE_RANGES.medium;
+  const avgDuration = getAverageSceneDuration(duration, sceneCount);
+
+  // Detect language for examples
+  const isArabic = /[\u0600-\u06FF]/.test(storyText);
+  const wordsPerSecond = isArabic ? 2.0 : 2.5;
 
   return `
 ═══════════════════════════════════════════════════════════════════════════════
-SCENE CREATION REQUEST
+SCENE BREAKDOWN REQUEST
 ═══════════════════════════════════════════════════════════════════════════════
 
-STORY:
+STORY TEXT:
 """
 ${storyText}
 """
@@ -377,28 +436,138 @@ PARAMETERS
 • Pacing Style: ${pacing.toUpperCase()}
 • Target Scene Count: ${sceneCount} scenes
 • Scene Duration Range: ${range.avgDuration.min}-${range.avgDuration.max} seconds each
+• Average Duration: ~${avgDuration} seconds per scene
+• Reading Speed: ${wordsPerSecond} words/second
+
+═══════════════════════════════════════════════════════════════════════════════
+EXAMPLES (Learn from these patterns)
+═══════════════════════════════════════════════════════════════════════════════
+
+Example 1: Short Story
+Story: "I was always late. Every morning, my alarm would ring and I'd hit snooze. Three times in one week, I missed important meetings. Then I tried one simple trick: put the alarm across the room. Now I have to stand up to turn it off. Result? I wake up on time every single day."
+
+Scenes:
+1. { sceneNumber: 1, duration: 3, description: "Close-up of a person's hand hitting a snooze button on an alarm clock, morning light streaming through window", narration: "I was always late." }
+2. { sceneNumber: 2, duration: 5, description: "Person rushing out of house, looking stressed, checking watch repeatedly", narration: "Every morning, my alarm would ring and I'd hit snooze." }
+3. { sceneNumber: 3, duration: 4, description: "Person walking across room to turn off alarm, determined expression", narration: "Then I tried one simple trick: put the alarm across the room." }
+4. { sceneNumber: 4, duration: 3, description: "Person waking up refreshed, alarm across room, satisfied smile", narration: "Now I wake up on time every single day." }
 
 ═══════════════════════════════════════════════════════════════════════════════
 INSTRUCTIONS
 ═══════════════════════════════════════════════════════════════════════════════
 
-1. READ the story and UNDERSTAND its meaning
-2. IMAGINE ${sceneCount} visual scenes that represent this story
-3. For EACH scene:
-   - description = IMAGINE what the viewer SEES (visual scene in same language)
-   - narration = Assign story text for what they HEAR
-4. Assign durations that:
-   - Sum to EXACTLY ${duration} seconds
-   - Match the ${pacing} pacing style
-   - Give the hook (scene 1) 3-5 seconds
-   - Give the ending (final scene) 3-5 seconds
+STEP 1: READ & UNDERSTAND
+- Read the story text carefully
+- Understand the narrative flow and meaning
+- Identify the hook, problem, solution, and close
 
-⚠️ CRITICAL:
-• description ≠ narration (they must be DIFFERENT!)
-• description = وصف بصري (what you IMAGINE the viewer sees)
-• narration = نص القصة (story text for voiceover)
-• Both in the ORIGINAL LANGUAGE of the story!
+STEP 2: PLAN DURATIONS
+- Plan scene durations FIRST so they sum to EXACTLY ${duration} seconds
+- Scene 1 (Hook): Use shortest duration (3-5s)
+- Middle scenes: Use ${range.avgDuration.min}-${range.avgDuration.max}s range
+- Final scene: Use shortest duration (3-5s)
+- Verify: sum(durations) = ${duration}
 
-Generate the scenes as JSON now.
+STEP 3: CREATE VISUAL SCENES
+- Imagine ${sceneCount} distinct visual scenes that represent this story
+- Each scene should have a clear visual focus
+- Create visual variety (different shots, settings, actions)
+
+STEP 4: ASSIGN CONTENT
+For EACH scene:
+- description = What viewer SEES (visual, 1-2 sentences, same language)
+- narration = What viewer HEARS (from story text, same language)
+- Ensure description ≠ narration (no copying)
+
+STEP 5: VALIDATE WORD COUNT
+For EACH scene:
+- Count narration words
+- Verify: word_count ≈ duration × ${wordsPerSecond}
+- Adjust if needed (shorten or expand minimally)
+
+STEP 6: FINAL CHECK
+✓ scenes.length = ${sceneCount}
+✓ sum(durations) = ${duration}
+✓ description ≠ narration (no copying)
+✓ All text in same language as story
+✓ Word counts match durations
+
+═══════════════════════════════════════════════════════════════════════════════
+GENERATE SCENES NOW
+═══════════════════════════════════════════════════════════════════════════════
+
+Generate the ${sceneCount} scenes as JSON matching the schema exactly.
 `;
- }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * JSON SCHEMA BUILDER - SCENE OUTPUT VALIDATION
+ * ═══════════════════════════════════════════════════════════════════════════════
+ */
+export function buildSceneSchema(
+  sceneCount: number,
+  totalDuration: number,
+  modelConstraints?: VideoModelConstraints | null
+) {
+  const sceneProperties: any = {
+    sceneNumber: {
+      type: "number",
+      multipleOf: 1, // enforce integer-like values without changing type
+      minimum: 1,
+      description: "Scene number (sequential, starting from 1)",
+    },
+    duration: {
+      type: "number",
+      multipleOf: 1, // enforce integer-like values without changing type
+      description: "Scene duration in seconds",
+      ...(modelConstraints ? {
+        enum: modelConstraints.supportedDurations,
+      } : {
+        minimum: SCENE_LIMITS.SCENE_DURATION_MIN,
+        maximum: SCENE_LIMITS.SCENE_DURATION_MAX,
+      }),
+    },
+    description: {
+      type: "string",
+      description: "Visual description of what the viewer sees in this scene. MUST be in the SAME LANGUAGE as the input story text. MUST NOT copy/quote narration verbatim.",
+    },
+    narration: {
+      type: "string",
+      description: "Exact voiceover text from the original story. MUST be in the SAME LANGUAGE as the input story text.",
+    },
+  };
+
+  const requiredFields = ["sceneNumber", "duration", "description", "narration"];
+
+  return {
+    type: "object",
+    properties: {
+      scenes: {
+        type: "array",
+        minItems: sceneCount,
+        maxItems: sceneCount,
+        items: {
+          type: "object",
+          properties: sceneProperties,
+          required: requiredFields,
+          additionalProperties: false,
+        },
+      },
+      totalScenes: {
+        type: "number",
+        multipleOf: 1,
+        description: "Total number of scenes (must equal scenes array length)",
+        const: sceneCount,
+      },
+      totalDuration: {
+        type: "number",
+        multipleOf: 1,
+        description: "Sum of all scene durations (must equal total video duration)",
+        const: totalDuration,
+      },
+    },
+    required: ["scenes", "totalScenes", "totalDuration"],
+    additionalProperties: false,
+  };
+}

@@ -707,13 +707,13 @@ function validateVideoPromptEngineerOutput(
       // Connected (not first): only endFramePrompt and videoPrompt required
       if (!output.endFramePrompt || output.endFramePrompt.trim().length === 0) return false;
       if (!output.videoPrompt || output.videoPrompt.trim().length === 0) return false;
-      return true;
-    } else {
+    return true;
+  } else {
       // Standalone or first in group: all prompts required
       if (!output.startFramePrompt || output.startFramePrompt.trim().length === 0) return false;
       if (!output.endFramePrompt || output.endFramePrompt.trim().length === 0) return false;
       if (!output.videoPrompt || output.videoPrompt.trim().length === 0) return false;
-      return true;
+    return true;
     }
   }
 }

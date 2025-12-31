@@ -1,11 +1,15 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * MUSIC GENERATION PROMPTS
+ * MUSIC GENERATION PROMPTS - TEASE-REVEAL
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
  * This module defines music styles and builds powerful prompts for ElevenLabs Music API.
  * Each style is mapped to detailed prompt keywords for high-quality AI music
- * that complements Problem-Solution storytelling.
+ * that complements Tease-Reveal storytelling.
+ * 
+ * SPECIAL FOCUS: Tease-reveal stories benefit from music that builds suspense
+ * during the tease phase and peaks at the reveal moment. Consider cinematic
+ * or electronic styles with dynamic builds that support the anticipation arc.
  * 
  * PROMPT ENGINEERING BEST PRACTICES:
  * - Structured prompts: Clear sections for identity, quality, instrumentation, structure

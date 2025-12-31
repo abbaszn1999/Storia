@@ -1,3 +1,0 @@
-// Tease & Reveal API Routes
-
-

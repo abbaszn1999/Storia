@@ -113,7 +113,15 @@ export function buildStoryModePath(params: {
   const project = clean(projectName) || `MyProject_${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 15)}`;
   const file = filename.replace(/[^a-zA-Z0-9-_.]/g, "_");
   
-  return `${user}/${workspace}/Story_Mode/${tool}/${project}/${subfolder}/${file}`;
+  const finalPath = `${user}/${workspace}/Story_Mode/${tool}/${project}/${subfolder}/${file}`;
+  
+  // Log the path being used for debugging
+  console.log(`[bunny-storage] buildStoryModePath called:`);
+  console.log(`[bunny-storage]   toolMode (input): "${toolMode}"`);
+  console.log(`[bunny-storage]   toolMode (cleaned): "${tool}"`);
+  console.log(`[bunny-storage]   Final path: ${finalPath}`);
+  
+  return finalPath;
 }
 
 /**

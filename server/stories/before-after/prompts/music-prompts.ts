@@ -1,11 +1,15 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * MUSIC GENERATION PROMPTS
+ * MUSIC GENERATION PROMPTS - BEFORE-AFTER TRANSFORMATION
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
  * This module defines music styles and builds powerful prompts for ElevenLabs Music API.
  * Each style is mapped to detailed prompt keywords for high-quality AI music
- * that complements Problem-Solution storytelling.
+ * that complements Before-After transformation storytelling.
+ * 
+ * SPECIAL FOCUS: Transformation stories benefit from music that builds from
+ * a lower energy state (before) to a higher, more positive energy (after),
+ * supporting the transformation narrative arc.
  * 
  * PROMPT ENGINEERING BEST PRACTICES:
  * - Structured prompts: Clear sections for identity, quality, instrumentation, structure

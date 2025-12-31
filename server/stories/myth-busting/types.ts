@@ -1,3 +1,0 @@
-// Myth-Busting Template Types
-
-

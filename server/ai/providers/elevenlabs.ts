@@ -7,6 +7,30 @@
  * - Music Generation: POST /v1/music/compose (NEW)
  * 
  * Docs: https://elevenlabs.io/docs/api-reference
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * AVAILABLE TTS MODELS
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * Model ID                    | Description                                          | Languages
+ * ----------------------------|------------------------------------------------------|------------------
+ * eleven_v3                   | Human-like and expressive speech generation          | 70+ languages
+ * eleven_ttv_v3               | Human-like and expressive voice design (Text to Voice) | 70+ languages
+ * eleven_multilingual_v2     | Most lifelike model with rich emotional expression    | 29 languages (en, ja, zh, de, hi, fr, ko, pt, it, es, id, nl, tr, fil, pl, sv, bg, ro, ar, cs, el, fi, hr, ms, sk, da, ta, uk, ru)
+ * eleven_flash_v2_5          | Ultra-fast model optimized for real-time (~75ms)     | All multilingual_v2 languages plus: hu, no, vi
+ * eleven_flash_v2            | Ultra-fast model optimized for real-time (~75ms)     | en
+ * eleven_turbo_v2_5          | High quality, low-latency (~250ms-300ms)            | All multilingual_v2 languages plus: hu, no, vi
+ * eleven_turbo_v2            | High quality, low-latency (~250ms-300ms)            | en
+ * eleven_multilingual_sts_v2 | State-of-the-art multilingual voice changer (Speech to Speech) | 29 languages (same as multilingual_v2)
+ * eleven_multilingual_ttv_v2 | State-of-the-art multilingual voice designer (Text to Voice) | 29 languages (same as multilingual_v2)
+ * 
+ * DEFAULT MODEL: eleven_v3 (used when model_id is not specified)
+ * 
+ * USAGE:
+ * - For best quality and emotional expression: eleven_v3 or eleven_multilingual_v2
+ * - For real-time/low-latency: eleven_flash_v2_5 or eleven_turbo_v2_5
+ * - For voice design: eleven_ttv_v3 or eleven_multilingual_ttv_v2
+ * - For voice changing: eleven_multilingual_sts_v2
  */
 
 import { ProviderRequestError, MissingApiKeyError } from "../errors";
@@ -15,6 +39,38 @@ import type { AiProviderAdapter } from "./base-provider";
 import { registerProvider } from "./base-provider";
 
 const ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ELEVENLABS TTS MODEL IDENTIFIERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Available ElevenLabs TTS Model IDs
+ * Use these constants when specifying model_id in TTS requests
+ */
+export const ELEVENLABS_MODELS = {
+  // Latest and most expressive models
+  V3: "eleven_v3",                          // Human-like and expressive (70+ languages)
+  TTV_V3: "eleven_ttv_v3",                  // Voice design model (70+ languages)
+  
+  // Multilingual models (29 languages)
+  MULTILINGUAL_V2: "eleven_multilingual_v2", // Most lifelike with rich emotional expression
+  MULTILINGUAL_STS_V2: "eleven_multilingual_sts_v2", // Voice changer (Speech to Speech)
+  MULTILINGUAL_TTV_V2: "eleven_multilingual_ttv_v2", // Voice designer (Text to Voice)
+  
+  // Ultra-fast models (real-time optimized)
+  FLASH_V2_5: "eleven_flash_v2_5",          // Ultra-fast (~75ms) - 32 languages
+  FLASH_V2: "eleven_flash_v2",              // Ultra-fast (~75ms) - English only
+  
+  // Balanced quality/speed models
+  TURBO_V2_5: "eleven_turbo_v2_5",          // High quality, low-latency (~250-300ms) - 32 languages
+  TURBO_V2: "eleven_turbo_v2",              // High quality, low-latency (~250-300ms) - English only
+} as const;
+
+/**
+ * Default model to use when model_id is not specified
+ */
+export const DEFAULT_TTS_MODEL = ELEVENLABS_MODELS.V3;
 
 interface SoundEffectsPayload {
   text: string;
@@ -108,7 +164,7 @@ const elevenlabsAdapter: AiProviderAdapter = {
 
         const body: Record<string, unknown> = {
           text: payload.text,
-          model_id: payload.model_id || "eleven_multilingual_v2",
+          model_id: payload.model_id || DEFAULT_TTS_MODEL,
           voice_settings: payload.voice_settings || {
             stability: 0.5,
             similarity_boost: 0.75,
@@ -186,7 +242,7 @@ const elevenlabsAdapter: AiProviderAdapter = {
 
       const body: Record<string, unknown> = {
         text: payload.text,
-        model_id: payload.model_id || "eleven_multilingual_v2",
+        model_id: payload.model_id || DEFAULT_TTS_MODEL,
         voice_settings: payload.voice_settings || {
           stability: 0.5,
           similarity_boost: 0.75,

@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * STORYBOARD ENHANCEMENT PROMPTS
+ * STORYBOARD ENHANCEMENT PROMPTS - TEASE-REVEAL
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
  * This module generates prompts for enhancing scenes with:
@@ -10,6 +10,10 @@
  * - animationName: Camera movement (if transition mode)
  * - effectName: Visual filter (if transition mode)
  * - videoPrompt: Motion description (if image-to-video mode)
+ * 
+ * SPECIAL FOCUS: Tease-reveal stories require visuals that build curiosity
+ * and suspense. Early scenes may use partial reveals or mysterious elements,
+ * while final scenes deliver satisfying visual payoffs.
  */
 
 import type { ImageStyle } from '../../shared/types';

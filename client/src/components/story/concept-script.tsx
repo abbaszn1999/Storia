@@ -49,6 +49,7 @@ interface ConceptScriptProps {
   duration: number;
   setDuration: (duration: number) => void;
   templateName: string;
+  templateId: string; // Add template ID for API calls
   templateStructure?: string[];
 }
 
@@ -64,6 +65,7 @@ export function ConceptScript({
   duration,
   setDuration,
   templateName,
+  templateId,
   templateStructure,
 }: ConceptScriptProps) {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -71,46 +73,51 @@ export function ConceptScript({
   const handleGenerateScript = async () => {
     setIsGenerating(true);
     try {
-      const res = await apiRequest("POST", "/api/problem-solution/idea", {
+      const res = await apiRequest("POST", `/api/${templateId}/idea`, {
         ideaText: topic,
         durationSeconds: duration,
-        aspectRatio,
       });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `API request failed: ${res.statusText}`);
+      }
+      
       const data = await res.json();
-
+      
+      // استخدام story مباشرة من Backend
+      const story = data?.story;
+      const cost = data?.cost;
+      
+      if (!story || typeof story !== 'string' || story.trim().length === 0) {
+        throw new Error("No story generated from API");
+      }
+      
+      // استخدام القصة مباشرة
+      setGeneratedScript(story.trim());
+      
+      // Optional: Log cost for debugging
+      if (cost !== undefined) {
+        console.log(`[concept-script] Story generated. Cost: $${cost.toFixed(4)}`);
+      }
+    } catch (error) {
+      console.error("Generate script failed, falling back to mock:", error);
+      
+      // Fallback: فقط إذا فشل API تماماً
       const structure = templateStructure || ["Hook", "Problem", "Solution", "Call-to-Action"];
       const sceneCount = structure.length;
-      const sceneDuration = Math.max(5, Math.floor(duration / sceneCount));
-
-      const angles: string[] = data?.angles || [];
-      const hook: string = data?.hook || topic;
-      const idea: string = data?.idea || topic;
-      const cta: string = data?.cta || "Try it now.";
-
-      let script = "";
-      script += `Scene 1: Hook\n${hook}\nDuration: ${sceneDuration}s\n\n`;
-      angles.forEach((angle, i) => {
-        script += `Scene ${i + 2}: ${structure[i + 1] || "Detail"}\n${angle}\nDuration: ${sceneDuration}s\n\n`;
+      const sceneDuration = Math.floor(duration / sceneCount);
+      
+      let mockScript = "";
+      structure.forEach((scene, index) => {
+        mockScript += `Scene ${index + 1}: ${scene}\n`;
+        mockScript += `[Visual: ${getVisualPrompt(scene, topic, index)}]\n`;
+        mockScript += `Narrator: "${getSceneNarration(scene, topic, index)}"\n`;
+        mockScript += `Duration: ${sceneDuration}s\n\n`;
       });
-      script += `CTA: ${cta}\nIdea: ${idea}\n`;
-
-      setGeneratedScript(script);
-    } catch (error) {
-      console.error("Generate script failed, falling back:", error);
-      const structure = templateStructure || ["Hook", "Problem", "Solution", "Call-to-Action"];
-    const sceneCount = structure.length;
-    const sceneDuration = Math.floor(duration / sceneCount);
-    
-    let mockScript = "";
-    structure.forEach((scene, index) => {
-      mockScript += `Scene ${index + 1}: ${scene}\n`;
-      mockScript += `[Visual: ${getVisualPrompt(scene, topic, index)}]\n`;
-      mockScript += `Narrator: "${getSceneNarration(scene, topic, index)}"\n`;
-      mockScript += `Duration: ${sceneDuration}s\n\n`;
-    });
-    setGeneratedScript(mockScript);
+      setGeneratedScript(mockScript);
     } finally {
-    setIsGenerating(false);
+      setIsGenerating(false);
     }
   };
 

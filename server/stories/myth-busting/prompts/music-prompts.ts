@@ -1,11 +1,15 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * MUSIC GENERATION PROMPTS
+ * MUSIC GENERATION PROMPTS - MYTH-BUSTING
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
  * This module defines music styles and builds powerful prompts for ElevenLabs Music API.
  * Each style is mapped to detailed prompt keywords for high-quality AI music
- * that complements Problem-Solution storytelling.
+ * that complements Myth-Busting storytelling.
+ * 
+ * SPECIAL FOCUS: Myth-busting stories benefit from music that feels informative
+ * and clear, supporting educational content without being distracting.
+ * Consider calm, corporate, or inspiring styles that enhance understanding.
  * 
  * PROMPT ENGINEERING BEST PRACTICES:
  * - Structured prompts: Clear sections for identity, quality, instrumentation, structure

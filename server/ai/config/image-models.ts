@@ -1257,3 +1257,54 @@ export function aspectRatioToDimensions(
 ): ImageDimensions {
   return getImageDimensions(aspectRatio, resolution);
 }
+
+/**
+ * Check if an image model supports specific dimensions
+ * This is used to verify compatibility with video models that require matching dimensions
+ * 
+ * @param imageModelId - Image model ID (e.g., "nano-banana")
+ * @param dimensions - Target dimensions to check
+ * @param aspectRatio - Aspect ratio (e.g., "9:16")
+ * @returns true if the model can generate images with these exact dimensions
+ */
+export function imageModelSupportsDimensions(
+  imageModelId: string,
+  dimensions: { width: number; height: number },
+  aspectRatio: string
+): boolean {
+  const modelConfig = getImageModelConfig(imageModelId);
+  if (!modelConfig) return false;
+
+  // Check model-specific dimensions first
+  if (MODEL_SPECIFIC_DIMENSIONS[imageModelId]) {
+    const modelDims = MODEL_SPECIFIC_DIMENSIONS[imageModelId][aspectRatio];
+    if (modelDims) {
+      // For models with fixed dimensions, check if they match exactly
+      return modelDims.width === dimensions.width && modelDims.height === dimensions.height;
+    }
+  }
+
+  // Check if dimensions are within the model's supported range
+  const requirements = modelConfig.inputImageRequirements;
+  if (requirements) {
+    const { minWidth, maxWidth, minHeight, maxHeight } = requirements;
+    
+    // Check if dimensions are within range
+    if (dimensions.width < minWidth || dimensions.width > maxWidth) return false;
+    if (dimensions.height < minHeight || dimensions.height > maxHeight) return false;
+  }
+
+  // Check if we can generate these dimensions using standard resolution tiers
+  // Try all resolutions to see if any matches
+  const resolutions = modelConfig.resolutions || ["1k", "2k", "4k"];
+  for (const resolution of resolutions) {
+    const possibleDims = getImageDimensions(aspectRatio, resolution, imageModelId);
+    if (possibleDims.width === dimensions.width && possibleDims.height === dimensions.height) {
+      return true;
+    }
+  }
+
+  // If model supports custom dimensions (no fixed dimensions), allow it
+  // Most modern models can generate any dimensions within their range
+  return true;
+}

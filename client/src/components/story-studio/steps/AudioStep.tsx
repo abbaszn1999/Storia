@@ -170,7 +170,7 @@ export function AudioStep({
       formData.append('workspaceId', currentWorkspace?.id || 'default');
       formData.append('projectName', projectFolder); // Use projectFolder (with timestamp) for consistent storage
 
-      const response = await fetch('/api/problem-solution/custom-music/upload', {
+      const response = await fetch(`/api/${template.id}/custom-music/upload`, {
         method: 'POST',
         body: formData,
       });

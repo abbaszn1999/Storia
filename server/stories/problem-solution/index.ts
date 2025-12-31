@@ -1,5 +1,9 @@
 // Problem-Solution Template Entry Point
-export { psRouter, default } from "./routes";
-export * from "./types";
+import { createStoryModeRouter } from "../shared/routes";
+
+export const psRouter = await createStoryModeRouter("problem-solution");
+export default psRouter;
+
+// Re-export types from shared
+export * from "../shared/types";
 export * from "./config";
-export * from "./agents/idea-generator";

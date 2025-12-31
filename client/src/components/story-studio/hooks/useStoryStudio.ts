@@ -109,6 +109,16 @@ export function useStoryStudio(template: StoryTemplate | null) {
   // Get current workspace for proper file storage paths
   const { currentWorkspace } = useWorkspace();
   
+  // Helper function to get API URL for the current template
+  const getApiUrl = useCallback((endpoint: string): string => {
+    if (!template?.id) {
+      throw new Error('Template ID is required for API calls');
+    }
+    // Remove leading slash if present to avoid double slashes
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    return `/api/${template.id}${cleanEndpoint}`;
+  }, [template?.id]);
+  
   const [isTransitioningToExport, setIsTransitioningToExport] = useState(false);
   const [voiceoverProgress, setVoiceoverProgress] = useState(0);
   
@@ -209,6 +219,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
         characterReferenceUrl: currentState.characterReferenceUrl || undefined, // Character reference
         imageModel: currentState.imageModel,
         imageResolution: currentState.imageResolution,
+        videoModel: currentState.videoModel || undefined, // For dimension matching with video models like Sora 2 Pro
+        videoResolution: currentState.videoResolution || undefined, // For dimension matching
         projectName: currentState.projectFolder,
         workspaceId: currentWorkspace?.id || 'default',
       };
@@ -216,7 +228,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         ...requestBody,
         scenes: `${requestBody.scenes.length} scenes`,
       });
-      const res = await apiRequest("POST", "/api/problem-solution/images", requestBody);
+      const res = await apiRequest("POST", getApiUrl("/images"), requestBody);
 
       const data = await res.json();
 
@@ -251,7 +263,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         isGenerating: false,
       }));
     }
-  }, [state.scenes, state.aspectRatio, state.imageStyle, state.styleReferenceUrl, state.characterReferenceUrl, state.imageModel, state.imageResolution, state.projectFolder, currentWorkspace?.id, template]);
+  }, [state.scenes, state.aspectRatio, state.imageStyle, state.styleReferenceUrl, state.characterReferenceUrl, state.imageModel, state.imageResolution, state.projectFolder, currentWorkspace?.id, template, getApiUrl]);
 
   // Generate Videos: converts images to videos using I2V
   const generateVideos = useCallback(async () => {
@@ -268,7 +280,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
 
     try {
-      const res = await apiRequest("POST", "/api/problem-solution/videos", {
+      const res = await apiRequest("POST", getApiUrl("/videos"), {
         storyId: state.template?.id || 'temp-story',
         scenes: state.scenes.map(s => ({
           id: s.id,
@@ -319,7 +331,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         isGenerating: false,
       }));
     }
-  }, [state.scenes, state.videoModel, state.videoResolution, state.aspectRatio, state.topic, template]);
+  }, [state.scenes, state.videoModel, state.videoResolution, state.aspectRatio, state.topic, template, getApiUrl]);
 
   // Regenerate Scene Video: regenerates video for a single scene
   const regenerateSceneVideo = useCallback(async (scene: StoryScene) => {
@@ -332,10 +344,12 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setState(prev => ({ ...prev, isGenerating: true }));
 
     try {
-      const res = await apiRequest("POST", "/api/problem-solution/videos/regenerate", {
+      const res = await apiRequest("POST", getApiUrl("/videos/regenerate"), {
         sceneNumber: scene.sceneNumber,
         sceneId: scene.id,
         imageUrl: scene.imageUrl,
+        imagePrompt: scene.imagePrompt, // Required for dimension matching with video models like Sora 2 Pro
+        imageModel: state.imageModel, // Required for dimension matching
         videoPrompt: scene.videoPrompt,
         narration: scene.narration,
         voiceMood: scene.voiceMood,
@@ -371,7 +385,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         isGenerating: false,
       }));
     }
-  }, [state.videoModel, state.videoResolution, state.aspectRatio, state.topic, template]);
+  }, [state.videoModel, state.videoResolution, state.aspectRatio, state.topic, template, getApiUrl]);
 
   // Generate Storyboard Enhancement: auto-triggered when entering storyboard step
   const generateStoryboardEnhancement = useCallback(async () => {
@@ -400,7 +414,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         }
       }
 
-      const res = await apiRequest("POST", "/api/problem-solution/storyboard", {
+      const res = await apiRequest("POST", getApiUrl("/storyboard"), {
         scenes: state.scenes.map(s => ({
           sceneNumber: s.sceneNumber,
           duration: s.duration,
@@ -480,7 +494,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
       }));
 
       try {
-        const res = await apiRequest("POST", "/api/problem-solution/images", {
+        const res = await apiRequest("POST", getApiUrl("/images"), {
           storyId: state.template?.id || 'temp-story',
           scenes: enhancedScenes.map(s => ({
             id: s.id,
@@ -494,6 +508,8 @@ export function useStoryStudio(template: StoryTemplate | null) {
           characterReferenceUrl: state.characterReferenceUrl || undefined, // Character reference
           imageModel: state.imageModel,
           imageResolution: state.imageResolution,
+          videoModel: state.videoModel || undefined, // For dimension matching with video models like Sora 2 Pro
+          videoResolution: state.videoResolution || undefined, // For dimension matching
           projectName: state.projectFolder,
           workspaceId: currentWorkspace?.id || 'default',
         });
@@ -539,7 +555,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         isGeneratingImages: false,
       }));
     }
-  }, [state.scenes, state.aspectRatio, state.voiceoverEnabled, state.imageMode, generateImages]);
+  }, [state.scenes, state.aspectRatio, state.voiceoverEnabled, state.imageMode, generateImages, getApiUrl]);
 
   // Navigation
   const goToStep = useCallback((step: StepId) => {
@@ -587,7 +603,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         setState(prev => ({ ...prev, isGenerating: true, error: null }));
         
         try {
-          const res = await apiRequest("POST", "/api/problem-solution/scenes", {
+          const res = await apiRequest("POST", getApiUrl("/scenes"), {
             storyText: state.topic,
             duration: state.duration,
             pacing: state.pacing,
@@ -627,7 +643,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         await generateStoryboardEnhancement();
       }
     }
-  }, [state.currentStep, state.topic, state.duration, state.pacing, state.hasGeneratedScenes, state.hasEnhancedStoryboard, generateStoryboardEnhancement]);
+  }, [state.currentStep, state.topic, state.duration, state.pacing, state.hasGeneratedScenes, state.hasEnhancedStoryboard, generateStoryboardEnhancement, getApiUrl]);
 
   const prevStep = useCallback(() => {
     const currentIndex = STEPS.findIndex(s => s.id === state.currentStep);
@@ -841,7 +857,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
     try {
       // We send aiPrompt as the main input
-      const res = await apiRequest("POST", "/api/problem-solution/idea", {
+      const res = await apiRequest("POST", getApiUrl("/idea"), {
         ideaText: state.aiPrompt,
         durationSeconds: state.duration,
       });
@@ -864,7 +880,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         isGenerating: false,
       }));
     }
-  }, [state.aiPrompt, state.duration]);
+  }, [state.aiPrompt, state.duration, getApiUrl]);
 
   // Generate Script button: navigates to Script step and generates scenes
   const generateScript = useCallback(async () => {
@@ -885,7 +901,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
     // Then, automatically generate scenes
     try {
       console.log('[generateScript] Sending request to generate scenes...');
-      const res = await apiRequest("POST", "/api/problem-solution/scenes", {
+      const res = await apiRequest("POST", getApiUrl("/scenes"), {
         storyText: state.topic,
         duration: state.duration,
         pacing: state.pacing,
@@ -998,7 +1014,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
     
     try {
-      const res = await apiRequest("POST", "/api/problem-solution/scenes", {
+      const res = await apiRequest("POST", getApiUrl("/scenes"), {
         storyText: state.topic,
         duration: state.duration,
         pacing: state.pacing,
@@ -1045,7 +1061,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
     try {
       console.log('[regenerate] Regenerating image for scene', scene.sceneNumber);
       
-      const res = await apiRequest("POST", "/api/problem-solution/images/regenerate", {
+      const res = await apiRequest("POST", getApiUrl("/images/regenerate"), {
         sceneNumber: scene.sceneNumber,
         sceneId: scene.id,
         imagePrompt: scene.imagePrompt || scene.narration,
@@ -1101,7 +1117,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         isGenerating: false,
       }));
     }
-  }, [state.scenes, state.aspectRatio, state.imageStyle, state.styleReferenceUrl, state.characterReferenceUrl, state.imageModel, state.imageResolution, state.projectFolder, currentWorkspace?.id, template]);
+  }, [state.scenes, state.aspectRatio, state.imageStyle, state.styleReferenceUrl, state.characterReferenceUrl, state.imageModel, state.imageResolution, state.projectFolder, currentWorkspace?.id, template, getApiUrl]);
 
   // Generate Voiceover: for Audio step
   const generateVoiceover = useCallback(async () => {
@@ -1113,7 +1129,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
 
     try {
-      const res = await apiRequest("POST", "/api/problem-solution/voiceover", {
+      const res = await apiRequest("POST", getApiUrl("/voiceover"), {
         storyId: template?.id || 'temp-story',
         scenes: state.scenes.map(s => ({
           id: s.id,
@@ -1170,7 +1186,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         isGenerating: false,
       }));
     }
-  }, [state.scenes, state.voiceoverEnabled, state.selectedVoice, state.topic, template]);
+  }, [state.scenes, state.voiceoverEnabled, state.selectedVoice, state.topic, template, getApiUrl]);
 
   // Step 3: Audio
   const setSelectedVoice = useCallback((selectedVoice: string) => {
@@ -1255,7 +1271,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
       const hasWordTimestamps = state.scenes.some(s => s.wordTimestamps && s.wordTimestamps.length > 0);
       console.log('[export] Word-level sync:', hasWordTimestamps ? '✓ Enabled (precise subtitles)' : '✗ Fallback mode');
 
-      const res = await apiRequest("POST", "/api/problem-solution/export", {
+      const res = await apiRequest("POST", getApiUrl("/export"), {
         storyId: template?.id || 'temp-story',
         scenes: state.scenes.map(s => ({
           sceneNumber: s.sceneNumber,
@@ -1312,7 +1328,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
       let storyId: string | undefined;
       try {
         console.log('[export] Saving story to database...');
-        const saveRes = await apiRequest("POST", "/api/problem-solution/story/save", {
+        const saveRes = await apiRequest("POST", getApiUrl("/story/save"), {
           workspaceId: currentWorkspace?.id || 'default',
           projectName: state.projectName || 'Untitled',
           projectFolder: state.projectFolder,
@@ -1355,7 +1371,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
       }));
       return null;
     }
-  }, [state.scenes, state.animationMode, state.backgroundMusic, state.voiceVolume, state.musicVolume, state.aspectRatio, state.exportFormat, state.exportQuality, state.topic, template]);
+  }, [state.scenes, state.animationMode, state.backgroundMusic, state.voiceVolume, state.musicVolume, state.aspectRatio, state.exportFormat, state.exportQuality, state.topic, template, getApiUrl, currentWorkspace?.id]);
 
   // Remix video with new volume levels
   const remixVideo = useCallback(async (
@@ -1368,7 +1384,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
     console.log('[remix] Starting remix with volumes:', { voiceVolume, musicVolume });
     
     try {
-      const res = await apiRequest("POST", "/api/problem-solution/remix", {
+      const res = await apiRequest("POST", getApiUrl("/remix"), {
         videoBaseUrl,
         voiceoverUrl,
         musicUrl,
@@ -1394,7 +1410,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
       console.error("[remix] Failed to remix video:", error);
       return null;
     }
-  }, [state.topic, template]);
+  }, [state.topic, template, getApiUrl]);
 
   // Reset
   const reset = useCallback(() => {

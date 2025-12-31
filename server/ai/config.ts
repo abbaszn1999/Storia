@@ -839,6 +839,8 @@ export {
   getDimensions,
   getVideoModelConstraints,
   getSupportedResolutionsForAspectRatio,
+  requiresMatchingDimensions,
+  getVideoDimensionsForImageGeneration,
   type VideoModelConfig,
   type VideoDimensions,
   type VideoModelConstraints,

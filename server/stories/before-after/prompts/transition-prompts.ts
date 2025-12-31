@@ -1,10 +1,14 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * TRANSITION SELECTION PROMPTS - 2025 Trending
+ * TRANSITION SELECTION PROMPTS - BEFORE-AFTER TRANSFORMATION
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
- * Intelligent transition selection system for Problem-Solution storytelling.
+ * Intelligent transition selection system for Before-After transformation storytelling.
  * Uses advanced pattern matching and weighted selection for optimal transitions.
+ * 
+ * SPECIAL FOCUS: Transformations benefit from transitions that emphasize change
+ * and progression. Consider transitions like flash-white for "after" reveals,
+ * motion-blur for transformation moments, and luma-fade for time progression.
  * 
  * SELECTION FACTORS:
  * - Scene mood (voiceMood): Primary factor for emotional matching

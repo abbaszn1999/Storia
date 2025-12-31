@@ -1,10 +1,14 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * TRANSITION SELECTION PROMPTS - 2025 Trending
+ * TRANSITION SELECTION PROMPTS - MYTH-BUSTING
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
- * Intelligent transition selection system for Problem-Solution storytelling.
+ * Intelligent transition selection system for Myth-Busting storytelling.
  * Uses advanced pattern matching and weighted selection for optimal transitions.
+ * 
+ * SPECIAL FOCUS: Myth-busting stories benefit from transitions that support
+ * educational reveals. Consider zoom-punch for truth reveals, flash-white for
+ * clarity moments, and subtle transitions that don't distract from the content.
  * 
  * SELECTION FACTORS:
  * - Scene mood (voiceMood): Primary factor for emotional matching

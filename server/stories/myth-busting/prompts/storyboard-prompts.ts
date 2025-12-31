@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * STORYBOARD ENHANCEMENT PROMPTS
+ * STORYBOARD ENHANCEMENT PROMPTS - MYTH-BUSTING
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
  * This module generates prompts for enhancing scenes with:
@@ -10,6 +10,10 @@
  * - animationName: Camera movement (if transition mode)
  * - effectName: Visual filter (if transition mode)
  * - videoPrompt: Motion description (if image-to-video mode)
+ * 
+ * SPECIAL FOCUS: Myth-busting stories benefit from educational visuals that
+ * can represent misconceptions and facts clearly. Image prompts should support
+ * the debunking narrative with clear, informative visual elements.
  */
 
 import type { ImageStyle } from '../../shared/types';

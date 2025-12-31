@@ -16,6 +16,9 @@ import {
   getVideoModelConfig, 
   VIDEO_RESOLUTION_LABELS, 
   getVideoModelsByAspectRatio,
+  requiresMatchingDimensions,
+  isImageModelCompatibleWithVideoModel,
+  getVideoDimensionsForImageGeneration,
   type VideoModelConfig 
 } from "@/constants/video-models";
 
@@ -24,13 +27,27 @@ interface VideoModelSelectorProps {
   onChange: (modelId: string) => void;
   selectedModelInfo: VideoModelConfig;
   aspectRatio?: string; // Filter models by aspect ratio
+  imageModel?: string; // Image model ID for compatibility checking
+  videoResolution?: string; // Video resolution for dimension matching
 }
 
-export function VideoModelSelector({ value, onChange, selectedModelInfo, aspectRatio }: VideoModelSelectorProps) {
+export function VideoModelSelector({ value, onChange, selectedModelInfo, aspectRatio, imageModel, videoResolution }: VideoModelSelectorProps) {
   // Get models filtered by aspect ratio if provided
-  const availableModels = aspectRatio 
+  let availableModels = aspectRatio 
     ? getVideoModelsByAspectRatio(aspectRatio)
     : VIDEO_MODELS;
+  
+  // Further filter by image model compatibility if both imageModel and videoResolution are provided
+  if (imageModel && videoResolution && aspectRatio) {
+    availableModels = availableModels.filter(model => {
+      // If model doesn't require matching dimensions, it's always compatible
+      if (!requiresMatchingDimensions(model.value)) {
+        return true;
+      }
+      // Check if image model supports the required dimensions
+      return isImageModelCompatibleWithVideoModel(imageModel, model.value, aspectRatio, videoResolution);
+    });
+  }
   
   // Check if current model is compatible with aspect ratio
   const isCurrentModelCompatible = !aspectRatio || 
@@ -115,7 +132,7 @@ export function VideoModelSelector({ value, onChange, selectedModelInfo, aspectR
 
         <SelectContent className="bg-[#1a1a1a] border-white/10 max-h-[400px]">
           {/* Show compatible models first, then incompatible ones grayed out */}
-          {VIDEO_MODELS.map((model) => {
+          {availableModels.map((model) => {
             const isCompatible = !aspectRatio || model.aspectRatios.includes(aspectRatio);
             
             return (

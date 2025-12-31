@@ -1,3 +1,0 @@
-// Prompts for Script Generation
-
-

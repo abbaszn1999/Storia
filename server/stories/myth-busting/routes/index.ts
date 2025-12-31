@@ -1,3 +1,0 @@
-// Myth-Busting API Routes
-
-

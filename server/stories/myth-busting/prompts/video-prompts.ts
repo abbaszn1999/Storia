@@ -1,10 +1,14 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * VIDEO GENERATION PROMPTS
+ * VIDEO GENERATION PROMPTS - MYTH-BUSTING
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
  * This module provides professional-grade video prompts for Image-to-Video AI.
  * It includes style-aware motion descriptions, camera movements, and effects.
+ * 
+ * SPECIAL FOCUS: Myth-busting stories benefit from educational motion that
+ * can reveal information gradually. Camera movements should build curiosity
+ * and support the reveal of truth, with motion that feels informative and clear.
  * 
  * PROMPT ENGINEERING BEST PRACTICES:
  * - Structured prompts: Clear sections for camera, subject, environment, style

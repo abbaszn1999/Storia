@@ -1,10 +1,14 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * TRANSITION SELECTION PROMPTS - 2025 Trending
+ * TRANSITION SELECTION PROMPTS - TEASE-REVEAL
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
- * Intelligent transition selection system for Problem-Solution storytelling.
+ * Intelligent transition selection system for Tease-Reveal storytelling.
  * Uses advanced pattern matching and weighted selection for optimal transitions.
+ * 
+ * SPECIAL FOCUS: Tease-reveal stories benefit from suspense-building transitions
+ * that maintain curiosity. Consider subtle transitions during the tease, and
+ * dramatic ones (zoom-punch, flash-white, whip-pan) for the final reveal.
  * 
  * SELECTION FACTORS:
  * - Scene mood (voiceMood): Primary factor for emotional matching

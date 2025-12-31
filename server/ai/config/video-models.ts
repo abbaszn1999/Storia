@@ -1057,3 +1057,44 @@ export function getSupportedResolutionsForAspectRatio(
   // Otherwise, return all resolutions from config (no restrictions for this aspect ratio)
   return config.resolutions;
 }
+
+/**
+ * Check if a video model requires matching dimensions between input image and output video
+ * Some models (like OpenAI Sora 2 Pro) require exact dimension matching
+ * 
+ * @param modelId - Video model ID (e.g., "sora-2-pro")
+ * @returns true if the model requires matching dimensions
+ */
+export function requiresMatchingDimensions(modelId: string): boolean {
+  const modelsRequiringMatchingDimensions = [
+    "openai:3@2",  // Sora 2 Pro
+    "openai:3@1",  // Sora 2 (if exists)
+  ];
+
+  const config = VIDEO_MODEL_CONFIGS[modelId];
+  if (!config || !config.modelAirId) return false;
+
+  const runwareModelId = config.modelAirId;
+  return modelsRequiringMatchingDimensions.includes(runwareModelId);
+}
+
+/**
+ * Get video dimensions for a specific model, aspect ratio, and resolution
+ * Used to determine what dimensions images should be generated with
+ * 
+ * @param modelId - Video model ID
+ * @param aspectRatio - Aspect ratio (e.g., "9:16")
+ * @param resolution - Resolution (e.g., "720p")
+ * @returns Video dimensions or null if not supported
+ */
+export function getVideoDimensionsForImageGeneration(
+  modelId: string,
+  aspectRatio: string,
+  resolution: string
+): VideoDimensions | null {
+  try {
+    return getDimensions(aspectRatio, resolution, modelId);
+  } catch (error) {
+    return null;
+  }
+}

@@ -13,6 +13,9 @@ export {
   // Video Model Constraints (for scene-generator)
   getVideoModelConstraints,
   getClosestSupportedDuration,
+  // Matching dimensions support
+  requiresMatchingDimensions,
+  getVideoDimensionsForImageGeneration,
   type VideoModelConfig,
   type VideoDimensions,
   type VideoModelConstraints,
@@ -28,6 +31,7 @@ export {
   getImageDimensions,
   getImageModelConfig,
   aspectRatioToDimensions,
+  imageModelSupportsDimensions,
   type ImageModelConfig,
   type ImageDimensions,
 } from './image-models';

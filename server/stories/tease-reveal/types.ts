@@ -1,3 +1,0 @@
-// Tease & Reveal Template Types
-
-

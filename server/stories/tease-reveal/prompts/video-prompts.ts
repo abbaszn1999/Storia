@@ -1,10 +1,15 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * VIDEO GENERATION PROMPTS
+ * VIDEO GENERATION PROMPTS - TEASE-REVEAL
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
  * This module provides professional-grade video prompts for Image-to-Video AI.
  * It includes style-aware motion descriptions, camera movements, and effects.
+ * 
+ * SPECIAL FOCUS: Tease-reveal stories require motion that builds suspense
+ * and curiosity. Early scenes benefit from subtle, mysterious movements
+ * that hint without fully revealing, while final scenes can use more
+ * dramatic motion to deliver satisfying reveals.
  * 
  * PROMPT ENGINEERING BEST PRACTICES:
  * - Structured prompts: Clear sections for camera, subject, environment, style

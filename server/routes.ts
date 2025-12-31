@@ -5,7 +5,7 @@ import narrativeRoutes from "./modes/narrative/routes";
 import { ambientVisualRoutes } from "./modes/ambient-visual";
 import { socialCommerceRoutes } from "./modes/social-commerce";
 import storiesRouter from "./stories";
-import { psRouter as problemSolutionRouter } from "./stories/problem-solution/routes";
+// Import will be done inside registerRoutes since it's async
 import { storageRoutes } from "./storage/index";
 import { authRoutes, isAuthenticated, getCurrentUserId } from "./auth";
 import characterRoutes from "./assets/characters/routes";
@@ -34,7 +34,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/ambient-visual', ambientVisualRoutes);
   app.use('/api/social-commerce', socialCommerceRoutes);
   app.use('/api/stories', storiesRouter);
+  
+  // Story mode routers (async imports)
+  const { psRouter: problemSolutionRouter } = await import("./stories/problem-solution");
   app.use('/api/problem-solution', problemSolutionRouter);
+  
+  const { baRouter: beforeAfterRouter } = await import("./stories/before-after");
+  app.use('/api/before-after', beforeAfterRouter);
+  
+  const { mbRouter: mythBustingRouter } = await import("./stories/myth-busting");
+  app.use('/api/myth-busting', mythBustingRouter);
+  
+  const { trRouter: teaseRevealRouter } = await import("./stories/tease-reveal");
+  app.use('/api/tease-reveal', teaseRevealRouter);
   app.use('/api/storage', storageRoutes);
   app.use('/api/characters', characterRoutes);
   app.use('/api/locations', locationRoutes);

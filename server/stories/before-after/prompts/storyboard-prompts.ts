@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * STORYBOARD ENHANCEMENT PROMPTS
+ * STORYBOARD ENHANCEMENT PROMPTS - BEFORE-AFTER TRANSFORMATION
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
  * This module generates prompts for enhancing scenes with:
@@ -10,6 +10,10 @@
  * - animationName: Camera movement (if transition mode)
  * - effectName: Visual filter (if transition mode)
  * - videoPrompt: Motion description (if image-to-video mode)
+ * 
+ * SPECIAL FOCUS: Transformation stories require visuals that clearly show
+ * the before/after contrast. Image prompts should emphasize the transformation
+ * journey and support the narrative arc from problem state to improved state.
  */
 
 import type { ImageStyle } from '../../shared/types';

@@ -1,10 +1,14 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * VIDEO GENERATION PROMPTS
+ * VIDEO GENERATION PROMPTS - BEFORE-AFTER TRANSFORMATION
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
  * This module provides professional-grade video prompts for Image-to-Video AI.
  * It includes style-aware motion descriptions, camera movements, and effects.
+ * 
+ * SPECIAL FOCUS: Transformation stories benefit from motion that shows change
+ * and progression. Camera movements and subject motion should support the
+ * before/after narrative, emphasizing the transformation journey.
  * 
  * PROMPT ENGINEERING BEST PRACTICES:
  * - Structured prompts: Clear sections for camera, subject, environment, style

@@ -392,7 +392,7 @@ export function ConceptStep({
       formData.append('workspaceId', currentWorkspace?.id || 'default');
       formData.append('projectName', projectFolder); // Use projectFolder (with timestamp) for consistent storage
 
-      const response = await fetch('/api/problem-solution/style-reference/upload', {
+      const response = await fetch(`/api/${template.id}/style-reference/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -557,7 +557,7 @@ export function ConceptStep({
       formData.append('projectName', projectFolder);
       formData.append('type', 'character'); // Indicate this is a character reference
 
-      const response = await fetch('/api/problem-solution/style-reference/upload', {
+      const response = await fetch(`/api/${template.id}/style-reference/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -1318,6 +1318,8 @@ export function ConceptStep({
                         onChange={onVideoModelChange}
                         selectedModelInfo={selectedVideoModel}
                         aspectRatio={aspectRatio}
+                        imageModel={imageModel}
+                        videoResolution={videoResolution}
                       />
                     )}
 

@@ -508,3 +508,138 @@ export function getSupportedResolutionsForAspectRatio(
   return model.resolutions;
 }
 
+/**
+ * Check if a video model requires matching dimensions between input image and output video
+ * Some models (like OpenAI Sora 2 Pro) require exact dimension matching
+ * 
+ * @param modelId - Video model ID (e.g., "sora-2-pro")
+ * @returns true if the model requires matching dimensions
+ */
+export function requiresMatchingDimensions(modelId: string): boolean {
+  const modelsRequiringMatchingDimensions = [
+    "sora-2-pro",  // OpenAI Sora 2 Pro
+  ];
+  return modelsRequiringMatchingDimensions.includes(modelId);
+}
+
+/**
+ * Get video dimensions for a specific model, aspect ratio, and resolution
+ * Used to determine what dimensions images should be generated with
+ * 
+ * @param modelId - Video model ID
+ * @param aspectRatio - Aspect ratio (e.g., "9:16")
+ * @param resolution - Resolution (e.g., "720p")
+ * @returns Video dimensions or null if not supported
+ */
+export function getVideoDimensionsForImageGeneration(
+  modelId: string,
+  aspectRatio: string,
+  resolution: string
+): { width: number; height: number } | null {
+  const model = getVideoModelConfig(modelId);
+  if (!model) return null;
+
+  // Sora 2 Pro dimensions (from server config)
+  if (modelId === "sora-2-pro") {
+    const dimensions: Record<string, Record<string, { width: number; height: number }>> = {
+      "16:9": { "720p": { width: 1280, height: 720 } },
+      "9:16": { "720p": { width: 720, height: 1280 } },
+      "7:4": { "720p": { width: 1792, height: 1024 } },
+      "4:7": { "720p": { width: 1024, height: 1792 } },
+    };
+    return dimensions[aspectRatio]?.[resolution] || null;
+  }
+
+  // For other models, return null (they don't require exact matching)
+  return null;
+}
+
+/**
+ * Check if an image model supports the dimensions required by a video model
+ * This is used to filter video models in the UI
+ * 
+ * @param imageModelId - Image model ID (e.g., "nano-banana")
+ * @param videoModelId - Video model ID (e.g., "sora-2-pro")
+ * @param aspectRatio - Aspect ratio (e.g., "9:16")
+ * @param videoResolution - Video resolution (e.g., "720p")
+ * @returns true if the image model can generate images with the required dimensions
+ */
+export function isImageModelCompatibleWithVideoModel(
+  imageModelId: string,
+  videoModelId: string,
+  aspectRatio: string,
+  videoResolution: string
+): boolean {
+  // If video model doesn't require matching dimensions, always compatible
+  if (!requiresMatchingDimensions(videoModelId)) {
+    return true;
+  }
+
+  // Get required dimensions from video model
+  const requiredDims = getVideoDimensionsForImageGeneration(videoModelId, aspectRatio, videoResolution);
+  if (!requiredDims) {
+    // If we can't determine required dimensions, assume compatible
+    return true;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SORA 2 PRO COMPATIBILITY CHECK
+  // Based on documentation from image-models.md
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (videoModelId === "sora-2-pro") {
+    // Sora 2 Pro requires exact dimensions:
+    // - 16:9 → 1280×720
+    // - 9:16 → 720×1280
+    // - 7:4 → 1792×1024
+    // - 4:7 → 1024×1792
+
+    // Check if aspect ratio is supported by Sora 2 Pro
+    const soraSupportedRatios = ["16:9", "9:16", "7:4", "4:7"];
+    if (!soraSupportedRatios.includes(aspectRatio)) {
+      return false;
+    }
+
+    // Models that support Sora 2 Pro dimensions (from documentation):
+    const compatibleImageModels: Record<string, { "16:9": boolean; "9:16": boolean; "7:4": boolean; "4:7": boolean }> = {
+      // Runway Gen-4 Image - supports 1280×720, 720×1280
+      "runway-gen-4-image": {
+        "16:9": true,  // 1280×720 supported
+        "9:16": true,  // 720×1280 supported
+        "7:4": false,  // Not supported
+        "4:7": false,  // Not supported
+      },
+      // Runway Gen-4 Image Turbo - same as Gen-4 Image
+      "runway-gen-4-image-turbo": {
+        "16:9": true,
+        "9:16": true,
+        "7:4": false,
+        "4:7": false,
+      },
+      // FLUX.2 [pro] - supports 1280×720, 720×1280 (from examples in docs)
+      "flux-2-pro": {
+        "16:9": true,  // 1280×720 supported
+        "9:16": true,  // 720×1280 supported
+        "7:4": false,  // Not supported
+        "4:7": false,  // Not supported
+      },
+      // Ideogram 3.0 - DOES NOT support exact Sora 2 Pro dimensions
+      // Ideogram 3.0 supports: 1280×704, 1280×768, 1280×800 (but NOT 1280×720)
+      // Ideogram 3.0 supports: 704×1280, 768×1280 (but NOT 720×1280)
+      // Therefore, Ideogram 3.0 is NOT compatible with Sora 2 Pro
+      // Removed from compatible models list
+    };
+
+    const modelCompatibility = compatibleImageModels[imageModelId];
+    if (modelCompatibility) {
+      return modelCompatibility[aspectRatio as "16:9" | "9:16" | "7:4" | "4:7"] || false;
+    }
+
+    // If model not in list, it doesn't support Sora 2 Pro dimensions
+    return false;
+  }
+
+  // For other video models that require matching dimensions, use generic check
+  // For now, we'll assume most modern image models can generate any dimensions within their range
+  return true;
+}
+

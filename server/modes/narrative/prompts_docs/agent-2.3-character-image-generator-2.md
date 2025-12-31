@@ -1,8 +1,4 @@
-# Agent 2.0: Character Creator - Current Prompt (v2)
-
-This document contains the **current** prompt implementation used in narrative mode before enhancement.
-
----
+# Agent 2.3: CHARACTER IMAGE GENERATOR - Current Implementation (v2)
 
 ## System Prompt
 
@@ -20,8 +16,6 @@ Focus on:
 
 Your descriptions should be detailed enough to maintain visual consistency across multiple shots.
 ```
-
----
 
 ## User Prompt Template
 
@@ -50,27 +44,10 @@ This description will be used to generate consistent character images across mul
 };
 ```
 
----
+## Implementation Notes
 
-## Input Parameters
-
-- `name`: Character name
-- `role`: Optional character role
-- `description`: Optional character background/description
-- `style`: Visual style description
-
----
-
-## Output Requirements
-
-The description should include:
-- Physical appearance details
-- Clothing and accessories
-- Color scheme
-- Distinctive features for consistency
-- Expression and pose suggestions
-
----
-
-**File Location**: `server/modes/narrative/prompts/character-creator.ts`
+- **File**: `server/modes/narrative/prompts/character-creator.ts`
+- **System Prompt**: `characterCreatorSystemPrompt`
+- **User Prompt Generator**: `createCharacterPrompt(characterInfo)`
+- **Note**: This is a simpler implementation focused on character description generation rather than direct image prompt generation
 

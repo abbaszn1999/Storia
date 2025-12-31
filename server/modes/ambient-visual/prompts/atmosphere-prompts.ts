@@ -171,11 +171,12 @@ function getSeasonLabel(theme: string, season: string): string {
  */
 function getDurationContext(duration: string): string {
   const contexts: Record<string, string> = {
-    '5min': 'a brief 5-minute journey',
-    '10min': 'a 10-minute meditation',
-    '30min': 'an extended 30-minute experience',
-    '1hour': 'a full hour of immersion',
-    '2hours': 'an expansive 2-hour ambient experience',
+    '1min': 'a brief 1-minute journey',
+    '2min': 'a 2-minute meditation',
+    '4min': 'a 4-minute experience',
+    '6min': 'a 6-minute immersion',
+    '8min': 'an 8-minute ambient journey',
+    '10min': 'a 10-minute ambient experience',
   };
   return contexts[duration] || duration;
 }

@@ -94,6 +94,7 @@ interface SceneManifest {
 interface CharacterVlogSceneBreakdownProps {
   videoId: string;
   narrativeMode: "image-reference" | "start-end";
+  referenceMode: "1F" | "2F" | "AI";
   script: string;
   characterName: string;
   theme: string;
@@ -251,12 +252,14 @@ interface ShotEditDialogProps {
   sceneId: string;
   shotCount: number;
   onSubmit: (data: Partial<VlogShot>) => void;
+  canChangeFrameType: boolean;
+  defaultFrameType: VlogShot['shotType'];
 }
 
-function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit }: ShotEditDialogProps) {
+function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit, canChangeFrameType, defaultFrameType }: ShotEditDialogProps) {
   const [name, setName] = useState(shot?.name || '');
   const [description, setDescription] = useState(shot?.description || '');
-  const [shotType, setShotType] = useState<VlogShot['shotType']>(shot?.shotType || 'image-ref');
+  const [shotType, setShotType] = useState<VlogShot['shotType']>(shot?.shotType || defaultFrameType);
   const [cameraShot, setCameraShot] = useState<string>(shot?.cameraShot || 'Medium Shot');
   
   useEffect(() => {
@@ -269,10 +272,10 @@ function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit
       const sceneNum = parseInt(sceneId.split('-')[1]) || 1;
       setName(`Shot ${sceneNum}.${shotCount + 1}: New`);
       setDescription('');
-      setShotType('image-ref');
+      setShotType(defaultFrameType);
       setCameraShot('Medium Shot');
     }
-  }, [shot, sceneId, shotCount]);
+  }, [shot, sceneId, shotCount, defaultFrameType]);
   
   const handleSubmit = () => {
     onSubmit({ name, description, shotType, cameraShot });
@@ -300,24 +303,44 @@ function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit
             />
           </div>
           
-          <div className="space-y-2">
-            <Label className="text-white/70">Frames Type</Label>
-            <ToggleGroup
-              type="single"
-              value={shotType}
-              onValueChange={(v) => v && setShotType(v as VlogShot['shotType'])}
-              className="bg-white/5 rounded-lg p-1 justify-start"
-            >
-              <ToggleGroupItem value="image-ref" className="text-xs data-[state=on]:bg-pink-500 flex-1">
-                <ImageIcon className="w-3 h-3 mr-1" />
-                1F
-              </ToggleGroupItem>
-              <ToggleGroupItem value="start-end" className="text-xs data-[state=on]:bg-purple-500 flex-1">
-                <Video className="w-3 h-3 mr-1" />
-                2F
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </div>
+          {canChangeFrameType ? (
+            <div className="space-y-2">
+              <Label className="text-white/70">Frames Type</Label>
+              <ToggleGroup
+                type="single"
+                value={shotType}
+                onValueChange={(v) => v && setShotType(v as VlogShot['shotType'])}
+                className="bg-white/5 rounded-lg p-1 justify-start"
+              >
+                <ToggleGroupItem value="image-ref" className="text-xs data-[state=on]:bg-pink-500 flex-1">
+                  <ImageIcon className="w-3 h-3 mr-1" />
+                  1F
+                </ToggleGroupItem>
+                <ToggleGroupItem value="start-end" className="text-xs data-[state=on]:bg-purple-500 flex-1">
+                  <Video className="w-3 h-3 mr-1" />
+                  2F
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label className="text-white/70">Frames Type</Label>
+              <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                <div className="flex items-center justify-between">
+                  <span className="text-white text-sm">
+                    {shotType === 'image-ref' ? '1F (Single Frame)' : '2F (Start/End Frames)'}
+                  </span>
+                  <Badge variant="outline" className="text-[10px] border-white/20 text-white/50">
+                    <Lock className="w-3 h-3 mr-1" />
+                    Locked
+                  </Badge>
+                </div>
+                <p className="text-xs text-white/40 mt-1">
+                  Frame type is fixed by your selected reference mode
+                </p>
+              </div>
+            </div>
+          )}
           
           <div className="space-y-2">
             <Label className="text-white/70">Shot Type</Label>
@@ -372,6 +395,7 @@ function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit
 export function CharacterVlogSceneBreakdown({
   videoId,
   narrativeMode,
+  referenceMode,
   script,
   characterName,
   theme,
@@ -399,6 +423,16 @@ export function CharacterVlogSceneBreakdown({
   const [deleteSceneId, setDeleteSceneId] = useState<string | null>(null);
   const [deleteShotInfo, setDeleteShotInfo] = useState<{ sceneId: string; shotId: string } | null>(null);
 
+  // Continuity check states
+  const [showContinuityDialog, setShowContinuityDialog] = useState(false);
+  const [continuitySuggestions, setContinuitySuggestions] = useState<{ sceneId: string; shotId: string; shouldLink: boolean }[]>([]);
+  const [isAnalyzingContinuity, setIsAnalyzingContinuity] = useState(false);
+
+  // Determine reference mode capabilities
+  const canChangeFrameType = referenceMode === "AI"; // Only AI mode allows frame type changes
+  const showContinuityButton = referenceMode === "2F" || referenceMode === "AI"; // 2F and AI modes have continuity
+  const defaultFrameType = referenceMode === "1F" ? "image-ref" : referenceMode === "2F" ? "start-end" : "start-end"; // 1F=image-ref, 2F=start-end, AI=start-end (default)
+
   // Auto-generate basic template on mount
   useEffect(() => {
     // Generate initial scenes
@@ -416,7 +450,7 @@ export function CharacterVlogSceneBreakdown({
             sceneId: `scene-${timestamp}-1`,
             name: 'Shot 1.1: Opening',
             description: `${characterName} grabs attention with an engaging opening`,
-            shotType: 'image-ref',
+            shotType: defaultFrameType,
             cameraShot: 'Medium Shot',
             isLinkedToPrevious: false,
             referenceTags: ['@Character'],
@@ -426,9 +460,9 @@ export function CharacterVlogSceneBreakdown({
             sceneId: `scene-${timestamp}-1`,
             name: 'Shot 1.2: Hook Action',
             description: `Dynamic shot showing ${characterName} in action`,
-            shotType: 'start-end',
+            shotType: defaultFrameType,
             cameraShot: 'Medium Close-up',
-            isLinkedToPrevious: true,
+            isLinkedToPrevious: false,
             referenceTags: ['@Character'],
           },
         ],
@@ -445,7 +479,7 @@ export function CharacterVlogSceneBreakdown({
             sceneId: `scene-${timestamp}-2`,
             name: 'Shot 2.1: Main Story',
             description: `${characterName} shares the main content`,
-            shotType: 'start-end',
+            shotType: defaultFrameType,
             cameraShot: 'Medium Shot',
             isLinkedToPrevious: false,
             referenceTags: ['@Character'],
@@ -455,7 +489,7 @@ export function CharacterVlogSceneBreakdown({
             sceneId: `scene-${timestamp}-2`,
             name: 'Shot 2.2: B-Roll',
             description: 'Supporting footage for the narrative',
-            shotType: 'image-ref',
+            shotType: defaultFrameType,
             cameraShot: 'Wide Shot',
             isLinkedToPrevious: false,
             referenceTags: [],
@@ -473,7 +507,7 @@ export function CharacterVlogSceneBreakdown({
           sceneId: `scene-${timestamp}-3`,
           name: 'Shot 3.1: Closing',
           description: `${characterName} wraps up and thanks viewers`,
-          shotType: 'image-ref',
+          shotType: defaultFrameType,
           cameraShot: 'Medium Shot',
           isLinkedToPrevious: false,
           referenceTags: ['@Character'],
@@ -481,9 +515,9 @@ export function CharacterVlogSceneBreakdown({
       },
     ];
     
-    setSceneManifest({ scenes: initialScenes, continuityLinksEstablished: true });
+    setSceneManifest({ scenes: initialScenes, continuityLinksEstablished: false });
     setExpandedScenes(new Set(initialScenes.map(s => s.id)));
-  }, [characterName, theme, script]);
+  }, [characterName, theme, script, referenceMode, defaultFrameType]);
 
   // Sync with parent
   useEffect(() => {
@@ -633,7 +667,7 @@ export function CharacterVlogSceneBreakdown({
       sceneId,
       name: data.name || `Shot ${sceneNum}.${shotNum}: New`,
       description: data.description || '',
-      shotType: data.shotType || 'image-ref',
+      shotType: canChangeFrameType ? (data.shotType || defaultFrameType) : defaultFrameType,
       cameraShot: data.cameraShot || 'Medium Shot',
       referenceTags: ['@Character'],
       isLinkedToPrevious: scene.shots.length > 0,
@@ -649,7 +683,14 @@ export function CharacterVlogSceneBreakdown({
   };
 
   const handleEditShot = (sceneId: string, shotId: string, data: Partial<VlogShot>) => {
-    updateShot(sceneId, shotId, data);
+    // Prevent shotType changes if not in AI mode
+    if (!canChangeFrameType && data.shotType !== undefined) {
+      const updatedData = { ...data };
+      delete updatedData.shotType;
+      updateShot(sceneId, shotId, updatedData);
+    } else {
+      updateShot(sceneId, shotId, data);
+    }
   };
 
   const handleDeleteShot = (sceneId: string, shotId: string) => {
@@ -732,6 +773,67 @@ export function CharacterVlogSceneBreakdown({
     setEditingShot(null);
   };
 
+  // Continuity Analysis
+  const analyzeContinuity = () => {
+    setIsAnalyzingContinuity(true);
+    
+    // Simulate AI analysis (in real implementation, this would call an API)
+    setTimeout(() => {
+      const suggestions: { sceneId: string; shotId: string; shouldLink: boolean }[] = [];
+      
+      sceneManifest.scenes.forEach(scene => {
+        scene.shots.forEach((shot, idx) => {
+          if (idx === 0) return; // First shot can't be linked
+          
+          const prevShot = scene.shots[idx - 1];
+          
+          // Simple heuristic: suggest linking if:
+          // 1. Both shots are 2F (start-end)
+          // 2. They share similar reference tags
+          // 3. They're in the same scene
+          const shouldLink = 
+            prevShot.shotType === 'start-end' && 
+            shot.shotType === 'start-end' &&
+            prevShot.referenceTags.some(tag => shot.referenceTags.includes(tag));
+          
+          suggestions.push({
+            sceneId: scene.id,
+            shotId: shot.id,
+            shouldLink
+          });
+        });
+      });
+      
+      setContinuitySuggestions(suggestions);
+      setIsAnalyzingContinuity(false);
+      setShowContinuityDialog(true);
+    }, 1500); // Simulate API delay
+  };
+
+  const applyContinuitySuggestions = () => {
+    const updatedScenes = sceneManifest.scenes.map(scene => ({
+      ...scene,
+      shots: scene.shots.map(shot => {
+        const suggestion = continuitySuggestions.find(
+          s => s.sceneId === scene.id && s.shotId === shot.id
+        );
+        if (suggestion) {
+          return { ...shot, isLinkedToPrevious: suggestion.shouldLink };
+        }
+        return shot;
+      })
+    }));
+    
+    setSceneManifest({ ...sceneManifest, scenes: updatedScenes, continuityLinksEstablished: true });
+    setShowContinuityDialog(false);
+    setContinuitySuggestions([]);
+  };
+
+  const rejectContinuitySuggestions = () => {
+    setShowContinuityDialog(false);
+    setContinuitySuggestions([]);
+  };
+
   // Validation
   const hasScenes = sceneManifest.scenes.length >= 1;
   const hasShots = sceneManifest.scenes.every(scene => scene.shots.length > 0);
@@ -763,6 +865,32 @@ export function CharacterVlogSceneBreakdown({
                 <Lock className="w-3 h-3 mr-1" />
                 Continuity Locked
               </Badge>
+            )}
+            {showContinuityButton && !hasContinuity && (
+              <Button
+                size="sm"
+                onClick={analyzeContinuity}
+                disabled={isAnalyzingContinuity}
+                className="h-7 text-xs bg-gradient-to-r from-[#FF4081] to-[#FF6B4A] text-white border-0 hover:opacity-90"
+              >
+                {isAnalyzingContinuity ? (
+                  <>
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="w-3 h-3 mr-1"
+                    >
+                      <Zap className="w-3 h-3" />
+                    </motion.div>
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Link2 className="w-3 h-3 mr-1" />
+                    Check Continuity
+                  </>
+                )}
+              </Button>
             )}
             <Button
               size="sm"
@@ -918,38 +1046,55 @@ export function CharacterVlogSceneBreakdown({
                                     
                                     <div className="flex-1" />
                                     
-                                    {/* Shot Type Toggle */}
-                                    <ToggleGroup
-                                      type="single"
-                                      value={shot.shotType}
-                                      onValueChange={(value) => {
-                                        if (value) updateShot(scene.id, shot.id, { shotType: value as any });
-                                      }}
-                                      className="bg-white/5 rounded p-0.5"
-                                    >
-                                      <ToggleGroupItem
-                                        value="image-ref"
-                                        className={cn(
-                                          "text-[10px] px-2 py-1 h-6 gap-1",
-                                          "data-[state=on]:bg-pink-500 data-[state=on]:text-white"
-                                        )}
-                                        title="Single Image Reference - 1 frame needed"
+                                    {/* Shot Type Toggle (AI Mode) or Locked Display (1F/2F Modes) */}
+                                    {canChangeFrameType ? (
+                                      <ToggleGroup
+                                        type="single"
+                                        value={shot.shotType}
+                                        onValueChange={(value) => {
+                                          if (value) updateShot(scene.id, shot.id, { shotType: value as any });
+                                        }}
+                                        className="bg-white/5 rounded p-0.5"
                                       >
-                                        <ImageIcon className="w-3 h-3" />
-                                        <span className="hidden sm:inline">1F</span>
-                                      </ToggleGroupItem>
-                                      <ToggleGroupItem
-                                        value="start-end"
-                                        className={cn(
-                                          "text-[10px] px-2 py-1 h-6 gap-1",
-                                          "data-[state=on]:bg-purple-500 data-[state=on]:text-white"
+                                        <ToggleGroupItem
+                                          value="image-ref"
+                                          className={cn(
+                                            "text-[10px] px-2 py-1 h-6 gap-1",
+                                            "data-[state=on]:bg-pink-500 data-[state=on]:text-white"
+                                          )}
+                                          title="Single Image Reference - 1 frame needed"
+                                        >
+                                          <ImageIcon className="w-3 h-3" />
+                                          <span className="hidden sm:inline">1F</span>
+                                        </ToggleGroupItem>
+                                        <ToggleGroupItem
+                                          value="start-end"
+                                          className={cn(
+                                            "text-[10px] px-2 py-1 h-6 gap-1",
+                                            "data-[state=on]:bg-purple-500 data-[state=on]:text-white"
+                                          )}
+                                          title="Start/End Frame - 2 frames needed for motion"
+                                        >
+                                          <Video className="w-3 h-3" />
+                                          <span className="hidden sm:inline">2F</span>
+                                        </ToggleGroupItem>
+                                      </ToggleGroup>
+                                    ) : (
+                                      <div className="bg-white/5 rounded px-2 py-1 flex items-center gap-1.5 border border-white/10">
+                                        {shot.shotType === 'image-ref' ? (
+                                          <>
+                                            <ImageIcon className="w-3 h-3 text-pink-400" />
+                                            <span className="text-[10px] text-white/70">1F</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Video className="w-3 h-3 text-purple-400" />
+                                            <span className="text-[10px] text-white/70">2F</span>
+                                          </>
                                         )}
-                                        title="Start/End Frame - 2 frames needed for motion"
-                                      >
-                                        <Video className="w-3 h-3" />
-                                        <span className="hidden sm:inline">2F</span>
-                                      </ToggleGroupItem>
-                                    </ToggleGroup>
+                                        <Lock className="w-2.5 h-2.5 text-white/40 ml-0.5" />
+                                      </div>
+                                    )}
                                     
                                     {/* Shot Actions */}
                                     <div className="flex items-center gap-0.5 ml-2">
@@ -1115,6 +1260,8 @@ export function CharacterVlogSceneBreakdown({
         sceneId={activeSceneId}
         shotCount={sceneManifest.scenes.find(s => s.id === activeSceneId)?.shots.length || 0}
         onSubmit={handleShotDialogSubmit}
+        canChangeFrameType={canChangeFrameType}
+        defaultFrameType={defaultFrameType}
       />
 
       {/* Delete Scene Confirmation */}
@@ -1158,6 +1305,95 @@ export function CharacterVlogSceneBreakdown({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Continuity Suggestions Dialog */}
+      <Dialog open={showContinuityDialog} onOpenChange={setShowContinuityDialog}>
+        <DialogContent className="sm:max-w-[600px] bg-[#0a0a0a] border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Link2 className="w-5 h-5 text-[#FF4081]" />
+              Continuity Analysis Results
+            </DialogTitle>
+            <DialogDescription className="text-white/50">
+              The AI has analyzed your shots and suggests the following continuity links for smooth transitions.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="max-h-[400px] pr-4">
+            <div className="space-y-3 py-4">
+              {continuitySuggestions.map((suggestion) => {
+                const scene = sceneManifest.scenes.find(s => s.id === suggestion.sceneId);
+                const shot = scene?.shots.find(s => s.id === suggestion.shotId);
+                const shotIndex = scene?.shots.findIndex(s => s.id === suggestion.shotId) || 0;
+                const prevShot = shotIndex > 0 ? scene?.shots[shotIndex - 1] : null;
+                
+                if (!shot || !scene) return null;
+                
+                return (
+                  <Card key={suggestion.shotId} className="bg-white/5 border-white/10">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className={cn(
+                          "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                          suggestion.shouldLink 
+                            ? "bg-green-500/20 text-green-400" 
+                            : "bg-white/5 text-white/40"
+                        )}>
+                          {suggestion.shouldLink ? <Link2 className="w-4 h-4" /> : <Unlink className="w-4 h-4" />}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-white font-medium text-sm">{shot.name}</span>
+                            <Badge variant="outline" className="text-[10px] border-white/20">
+                              {scene.name}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-white/50 mb-2">{shot.description}</p>
+                          
+                          {suggestion.shouldLink && prevShot ? (
+                            <div className="bg-green-500/10 rounded-lg p-2 border border-green-500/20">
+                              <p className="text-xs text-green-400">
+                                ✓ Link to previous shot: "{prevShot.name}"
+                              </p>
+                              <p className="text-xs text-white/40 mt-1">
+                                Both shots use 2F frames and share similar references
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="bg-white/5 rounded-lg p-2 border border-white/10">
+                              <p className="text-xs text-white/40">
+                                No link suggested - different frame types or references
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </ScrollArea>
+          
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={rejectContinuitySuggestions}
+              className="border-white/10 text-white/70 hover:bg-white/10"
+            >
+              Reject All
+            </Button>
+            <Button
+              onClick={applyContinuitySuggestions}
+              className="bg-gradient-to-r from-[#FF4081] to-[#FF6B4A] text-white border-0 hover:opacity-90"
+            >
+              <CheckCircle2 className="w-4 h-4 mr-2" />
+              Apply Suggestions
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }

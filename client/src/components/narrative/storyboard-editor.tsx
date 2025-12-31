@@ -136,7 +136,7 @@ const TRANSITION_TYPES = [
 
 interface StoryboardEditorProps {
   videoId: string;
-  narrativeMode: "image-reference" | "start-end";
+  narrativeMode: "image-reference" | "start-end" | "auto";
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
@@ -177,7 +177,7 @@ interface SortableShotCardProps {
   referenceImage: ReferenceImage | null;
   isGenerating: boolean;
   voiceOverEnabled: boolean;
-  narrativeMode: "image-reference" | "start-end";
+  narrativeMode: "image-reference" | "start-end" | "auto";
   isCommerceMode?: boolean; // For commerce mode, use shot.shotType instead of narrativeMode
   isConnectedToNext: boolean;
   showEndFrame: boolean;
@@ -565,8 +565,11 @@ function SortableShotCard({
 
   // ✨ For commerce mode, use shot.shotType instead of global narrativeMode
   // In commerce mode, each shot can have its own type (image-ref or start-end)
+  // ✨ For auto mode, use shot.frameMode if available, otherwise default to image-reference
   const effectiveMode = isCommerceMode 
     ? (shot.shotType === 'start-end' ? 'start-end' : 'image-reference')
+    : narrativeMode === "auto"
+    ? (shot.frameMode || "image-reference")
     : narrativeMode;
 
   // Get prompt based on active frame, effective mode, and version

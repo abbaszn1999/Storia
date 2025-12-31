@@ -1,23 +1,27 @@
 import { useState } from "react";
 import { CharacterVlogStudioLayout, type VlogStepId } from "@/components/character-vlog/studio";
 import { CharacterVlogWorkflow } from "@/components/character-vlog/workflow";
+import { CharacterVlogModeSelector } from "@/components/character-vlog/reference-mode-selector";
+import { getDefaultVideoModel } from "@/constants/video-models";
 import type { Character, Location } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 
 export default function CharacterVlogMode() {
+  // Reference mode selection state - user must choose first
+  const [referenceMode, setReferenceMode] = useState<"1F" | "2F" | "AI" | null>(null);
+  
   const [videoTitle] = useState("Untitled Character Vlog");
   const [activeStep, setActiveStep] = useState<VlogStepId>("script");
   const [completedSteps, setCompletedSteps] = useState<VlogStepId[]>([]);
   const [direction, setDirection] = useState(1);
   const [canContinue, setCanContinue] = useState(false);
-  // Character vlog mode uses start-end where AI agent decides per-shot generation method
-  const [narrativeMode] = useState<"image-reference" | "start-end">("start-end");
   
   const [videoId] = useState(`vlog-${Date.now()}`);
   const [workspaceId] = useState("workspace-1");
   const [script, setScript] = useState("");
   const [aspectRatio, setAspectRatio] = useState("9:16");
   const [scriptModel, setScriptModel] = useState("gpt-4o");
+  const [videoModel, setVideoModel] = useState(getDefaultVideoModel().value);
   const [narrationStyle, setNarrationStyle] = useState<"third-person" | "first-person">("first-person");
   const [voiceActorId, setVoiceActorId] = useState<string | null>(null);
   const [voiceOverEnabled, setVoiceOverEnabled] = useState(true);
@@ -82,6 +86,25 @@ export default function CharacterVlogMode() {
     setActiveStep(stepId);
   };
 
+  const handleReferenceModeSelect = (mode: "1F" | "2F" | "AI") => {
+    setReferenceMode(mode);
+  };
+
+  // Show reference mode selector if no mode is selected yet
+  if (!referenceMode) {
+    return (
+      <CharacterVlogModeSelector 
+        onSelectMode={handleReferenceModeSelect}
+        title="Narrative Mode"
+        description="Choose how to generate your video animations"
+      />
+    );
+  }
+
+  // Convert reference mode to narrative mode format for backward compatibility
+  // 1F -> "image-reference", 2F -> "start-end", AI -> "start-end" (AI decides per shot)
+  const narrativeMode = referenceMode === "1F" ? "image-reference" : "start-end";
+
   return (
     <CharacterVlogStudioLayout
       currentStep={activeStep}
@@ -98,9 +121,11 @@ export default function CharacterVlogMode() {
               videoId={videoId}
               workspaceId={workspaceId}
               narrativeMode={narrativeMode}
+              referenceMode={referenceMode}
               script={script}
               aspectRatio={aspectRatio}
               scriptModel={scriptModel}
+              videoModel={videoModel}
               narrationStyle={narrationStyle}
               voiceActorId={voiceActorId}
               voiceOverEnabled={voiceOverEnabled}
@@ -121,6 +146,7 @@ export default function CharacterVlogMode() {
               onScriptChange={setScript}
               onAspectRatioChange={setAspectRatio}
               onScriptModelChange={setScriptModel}
+              onVideoModelChange={setVideoModel}
               onNarrationStyleChange={setNarrationStyle}
               onVoiceActorChange={setVoiceActorId}
               onVoiceOverToggle={setVoiceOverEnabled}

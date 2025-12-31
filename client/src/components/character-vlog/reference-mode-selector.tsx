@@ -1,0 +1,331 @@
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Film, Link as LinkIcon, Sparkles, ArrowRight, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface CharacterVlogModeSelectorProps {
+  onSelectMode: (mode: "1F" | "2F" | "AI") => void;
+  title?: string;
+  description?: string;
+  creatingMode?: "1F" | "2F" | "AI" | null;
+}
+
+export function CharacterVlogModeSelector({ 
+  onSelectMode, 
+  title = "Narrative Mode",
+  description = "Choose how to generate your video animations",
+  creatingMode = null
+}: CharacterVlogModeSelectorProps) {
+  const [hoveredMode, setHoveredMode] = useState<"1F" | "2F" | "AI" | null>(null);
+
+  return (
+    <div className="min-h-screen w-full relative overflow-auto bg-gradient-to-br from-[#0a1628] via-[#0d1b2a] to-[#1b263b]">
+      {/* Animated background gradient orbs */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <motion.div
+          className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl"
+          animate={{
+            scale: [1, 1.2, 1],
+            opacity: [0.3, 0.5, 0.3],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+        />
+        <motion.div
+          className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl"
+          animate={{
+            scale: [1.2, 1, 1.2],
+            opacity: [0.3, 0.5, 0.3],
+          }}
+          transition={{
+            duration: 10,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+        />
+      </div>
+
+      {/* Main Content - Centered and Scrollable */}
+      <div className="relative z-10 flex items-center justify-center min-h-screen p-4 sm:p-6 md:p-8">
+        <div className="w-full max-w-6xl mx-auto space-y-6 md:space-y-8 py-6">
+          {/* Header with animated icon */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6 }}
+            className="text-center space-y-3 md:space-y-4"
+          >
+            {/* Video Icon */}
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ 
+                type: "spring",
+                stiffness: 200,
+                damping: 15,
+                delay: 0.2
+              }}
+              className="inline-flex items-center justify-center w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 backdrop-blur-xl"
+            >
+              <Film className="w-7 h-7 md:w-8 md:h-8 text-purple-400" />
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.5 }}
+              className="space-y-1.5 md:space-y-2"
+            >
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white">
+                {title}
+              </h1>
+              <p className="text-white/50 text-sm sm:text-base max-w-2xl mx-auto px-4">
+                {description}
+              </p>
+            </motion.div>
+          </motion.div>
+
+          {/* Mode Cards - 3 columns */}
+          <div className="grid md:grid-cols-3 gap-4 md:gap-5 px-2">
+            {/* Image Reference Mode (1F) */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.6 }}
+              onHoverStart={() => setHoveredMode("1F")}
+              onHoverEnd={() => setHoveredMode(null)}
+            >
+              <Card 
+                className={cn(
+                  "h-full bg-[#1a2332]/80 backdrop-blur-xl border transition-all duration-300",
+                  hoveredMode === "1F" 
+                    ? "border-purple-500/50 shadow-2xl shadow-purple-500/20 scale-[1.02]" 
+                    : "border-[#2d3c52]/50"
+                )}
+              >
+                <CardContent className="p-5 md:p-6 space-y-4 md:space-y-5 h-full flex flex-col">
+                  {/* Icon */}
+                  <div className="flex justify-center">
+                    <div className="p-2.5 md:p-3 rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30">
+                      <Film className="h-7 w-7 md:h-8 md:w-8 text-purple-400" />
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="space-y-2 md:space-y-2.5 flex-1">
+                    <h3 className="text-lg md:text-xl font-bold text-white">
+                      Image Reference Mode
+                    </h3>
+                    <p className="text-white/60 leading-relaxed text-xs md:text-sm">
+                      Generate video from a single reference image. The AI will animate the scene based on your motion prompts
+                    </p>
+                  </div>
+
+                  {/* Features */}
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center gap-2.5 text-xs md:text-sm">
+                      <div className="h-1.5 w-1.5 rounded-full bg-purple-400 flex-shrink-0" />
+                      <span className="text-white/70">Single image input</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-xs md:text-sm">
+                      <div className="h-1.5 w-1.5 rounded-full bg-purple-400 flex-shrink-0" />
+                      <span className="text-white/70">Natural animation</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-xs md:text-sm">
+                      <div className="h-1.5 w-1.5 rounded-full bg-purple-400 flex-shrink-0" />
+                      <span className="text-white/70">Simpler workflow</span>
+                    </div>
+                  </div>
+
+                  {/* Button */}
+                  <Button 
+                    className="w-full h-10 md:h-11 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white text-sm font-semibold transition-all shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 border-0"
+                    onClick={() => onSelectMode("1F")} 
+                    data-testid="button-select-1F"
+                    disabled={creatingMode !== null}
+                  >
+                    {creatingMode === "1F" ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <span>Creating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Use Image Reference</span>
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Start-End Frame Mode (2F) */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.7 }}
+              onHoverStart={() => setHoveredMode("2F")}
+              onHoverEnd={() => setHoveredMode(null)}
+            >
+              <Card 
+                className={cn(
+                  "h-full bg-[#1a2332]/80 backdrop-blur-xl border transition-all duration-300",
+                  hoveredMode === "2F" 
+                    ? "border-pink-500/50 shadow-2xl shadow-pink-500/20 scale-[1.02]" 
+                    : "border-[#2d3c52]/50"
+                )}
+              >
+                <CardContent className="p-5 md:p-6 space-y-4 md:space-y-5 h-full flex flex-col">
+                  {/* Icon */}
+                  <div className="flex justify-center">
+                    <div className="p-2.5 md:p-3 rounded-xl bg-gradient-to-br from-pink-500/20 to-pink-600/20 border border-pink-500/30">
+                      <LinkIcon className="h-7 w-7 md:h-8 md:w-8 text-pink-400" />
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="space-y-2 md:space-y-2.5 flex-1">
+                    <h3 className="text-lg md:text-xl font-bold text-white">
+                      Start/End Frame Mode
+                    </h3>
+                    <p className="text-white/60 leading-relaxed text-xs md:text-sm">
+                      Define both starting and ending frames. The AI will create smooth transitions between the two states
+                    </p>
+                  </div>
+
+                  {/* Features */}
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center gap-2.5 text-xs md:text-sm">
+                      <div className="h-1.5 w-1.5 rounded-full bg-pink-400 flex-shrink-0" />
+                      <span className="text-white/70">Two image inputs</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-xs md:text-sm">
+                      <div className="h-1.5 w-1.5 rounded-full bg-pink-400 flex-shrink-0" />
+                      <span className="text-white/70">Controlled transitions</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-xs md:text-sm">
+                      <div className="h-1.5 w-1.5 rounded-full bg-pink-400 flex-shrink-0" />
+                      <span className="text-white/70">Precise animation</span>
+                    </div>
+                  </div>
+
+                  {/* Button */}
+                  <Button 
+                    className="w-full h-10 md:h-11 bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white text-sm font-semibold transition-all shadow-lg shadow-pink-500/20 hover:shadow-pink-500/40 border-0"
+                    onClick={() => onSelectMode("2F")} 
+                    data-testid="button-select-2F"
+                    disabled={creatingMode !== null}
+                  >
+                    {creatingMode === "2F" ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <span>Creating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Use Start/End Frames</span>
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* AI Decides Mode */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.8 }}
+              onHoverStart={() => setHoveredMode("AI")}
+              onHoverEnd={() => setHoveredMode(null)}
+            >
+              <Card 
+                className={cn(
+                  "h-full bg-[#1a2332]/80 backdrop-blur-xl border transition-all duration-300",
+                  hoveredMode === "AI" 
+                    ? "border-cyan-500/50 shadow-2xl shadow-cyan-500/20 scale-[1.02]" 
+                    : "border-[#2d3c52]/50"
+                )}
+              >
+                <CardContent className="p-5 md:p-6 space-y-4 md:space-y-5 h-full flex flex-col">
+                  {/* Icon */}
+                  <div className="flex justify-center">
+                    <div className="p-2.5 md:p-3 rounded-xl bg-gradient-to-br from-cyan-500/20 to-cyan-600/20 border border-cyan-500/30">
+                      <Sparkles className="h-7 w-7 md:h-8 md:w-8 text-cyan-400" />
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="space-y-2 md:space-y-2.5 flex-1">
+                    <h3 className="text-lg md:text-xl font-bold text-white">
+                      AI Decides Mode
+                    </h3>
+                    <p className="text-white/60 leading-relaxed text-xs md:text-sm">
+                      Let the AI intelligently choose between 1-frame or 2-frame generation for each shot based on complexity
+                    </p>
+                  </div>
+
+                  {/* Features */}
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center gap-2.5 text-xs md:text-sm">
+                      <div className="h-1.5 w-1.5 rounded-full bg-cyan-400 flex-shrink-0" />
+                      <span className="text-white/70">Mixed frame types</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-xs md:text-sm">
+                      <div className="h-1.5 w-1.5 rounded-full bg-cyan-400 flex-shrink-0" />
+                      <span className="text-white/70">Optimized results</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-xs md:text-sm">
+                      <div className="h-1.5 w-1.5 rounded-full bg-cyan-400 flex-shrink-0" />
+                      <span className="text-white/70">Flexible workflow</span>
+                    </div>
+                  </div>
+
+                  {/* Button */}
+                  <Button 
+                    className="w-full h-10 md:h-11 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 text-white text-sm font-semibold transition-all shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 border-0"
+                    onClick={() => onSelectMode("AI")} 
+                    data-testid="button-select-AI"
+                    disabled={creatingMode !== null}
+                  >
+                    {creatingMode === "AI" ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <span>Creating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Let AI Decide</span>
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+
+          {/* Footer */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 1.0 }}
+            className="text-center px-4"
+          >
+            <p className="text-xs md:text-sm text-white/40">
+              You can't change the mode once workflow starts. Choose carefully!
+            </p>
+          </motion.div>
+        </div>
+      </div>
+    </div>
+  );
+}
+

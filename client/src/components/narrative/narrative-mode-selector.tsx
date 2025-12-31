@@ -2,15 +2,15 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Film, Link as LinkIcon, Video, ArrowRight, Loader2 } from "lucide-react";
+import { Film, Link as LinkIcon, Video, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NarrativeModeSelectorProps {
-  onSelectMode: (mode: "image-reference" | "start-end") => void;
+  onSelectMode: (mode: "image-reference" | "start-end" | "auto") => void;
   title?: string;
   description?: string;
   onBack?: () => void;
-  creatingMode?: "image-reference" | "start-end" | null;
+  creatingMode?: "image-reference" | "start-end" | "auto" | null;
 }
 
 export function NarrativeModeSelector({ 
@@ -20,7 +20,7 @@ export function NarrativeModeSelector({
   onBack,
   creatingMode = null
 }: NarrativeModeSelectorProps) {
-  const [hoveredMode, setHoveredMode] = useState<"image-reference" | "start-end" | null>(null);
+  const [hoveredMode, setHoveredMode] = useState<"image-reference" | "start-end" | "auto" | null>(null);
 
   return (
     <div className="min-h-screen w-full relative overflow-auto bg-gradient-to-br from-[#0a1628] via-[#0d1b2a] to-[#1b263b]">
@@ -93,7 +93,7 @@ export function NarrativeModeSelector({
           </motion.div>
 
           {/* Mode Cards */}
-          <div className="grid md:grid-cols-2 gap-4 md:gap-5 px-2">
+          <div className="grid md:grid-cols-3 gap-4 md:gap-5 px-2">
             {/* Image-Reference Mode */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -232,6 +232,79 @@ export function NarrativeModeSelector({
                     ) : (
                       <>
                         <span>Use Start/End Frames</span>
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Auto Mode */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.8 }}
+              onHoverStart={() => setHoveredMode("auto")}
+              onHoverEnd={() => setHoveredMode(null)}
+            >
+              <Card
+                className={cn(
+                  "h-full bg-[#1a2332]/80 backdrop-blur-xl border transition-all duration-300",
+                  hoveredMode === "auto"
+                    ? "border-cyan-500/50 shadow-2xl shadow-cyan-500/20 scale-[1.02]"
+                    : "border-[#2d3c52]/50"
+                )}
+              >
+                <CardContent className="p-5 md:p-6 space-y-4 md:space-y-5 h-full flex flex-col">
+                  {/* Icon */}
+                  <div className="flex justify-center">
+                    <div className="p-2.5 md:p-3 rounded-xl bg-gradient-to-br from-cyan-500/20 to-cyan-600/20 border border-cyan-500/30">
+                      <Sparkles className="h-7 w-7 md:h-8 md:w-8 text-cyan-400" />
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="space-y-2 md:space-y-2.5 flex-1">
+                    <h3 className="text-lg md:text-xl font-bold text-white">
+                      Auto Mode
+                    </h3>
+                    <p className="text-white/60 leading-relaxed text-xs md:text-sm">
+                      Let the AI decide per-shot whether to use image-reference or start-end frame mode based on shot complexity, transition needs, and narrative flow
+                    </p>
+                  </div>
+
+                  {/* Features */}
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center gap-2.5 text-xs md:text-sm">
+                      <div className="h-1.5 w-1.5 rounded-full bg-cyan-400 flex-shrink-0" />
+                      <span className="text-white/70">Intelligent mode selection</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-xs md:text-sm">
+                      <div className="h-1.5 w-1.5 rounded-full bg-cyan-400 flex-shrink-0" />
+                      <span className="text-white/70">Optimized per-shot</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-xs md:text-sm">
+                      <div className="h-1.5 w-1.5 rounded-full bg-cyan-400 flex-shrink-0" />
+                      <span className="text-white/70">User override available</span>
+                    </div>
+                  </div>
+
+                  {/* Button */}
+                  <Button
+                    className="w-full h-10 md:h-11 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 text-white text-sm font-semibold transition-all shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 border-0"
+                    onClick={() => onSelectMode("auto")}
+                    data-testid="button-select-auto"
+                    disabled={creatingMode !== null}
+                  >
+                    {creatingMode === "auto" ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <span>Creating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Use Auto Mode</span>
                         <ArrowRight className="ml-2 h-4 w-4" />
                       </>
                     )}

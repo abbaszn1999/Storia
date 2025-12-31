@@ -215,7 +215,7 @@ export async function composeShots(
 }
 
 /**
- * Compose shots for multiple scenes in parallel
+ * Compose shots for multiple scenes sequentially (to build context)
  */
 export async function composeShotsForScenes(
   scenes: import("../types").Scene[],
@@ -240,34 +240,36 @@ export async function composeShotsForScenes(
     videoModel: settings.videoModel,
   });
 
-  const results = await Promise.all(
-    scenes.map(async (scene) => {
-      const input: ShotComposerInput = {
-        scene,
-        shotsPerSegment: settings.shotsPerSegment,
-        pacing: settings.pacing,
-        animationMode: settings.animationMode,
-        artStyle: settings.artStyle,
-        visualElements: settings.visualElements,
-        videoModel: settings.videoModel,
-      };
-      
-      const result = await composeShots(input, userId, workspaceId);
-      return {
-        sceneId: scene.id,
-        shots: result.shots,
-        cost: result.cost || 0,
-      };
-    })
-  );
-
-  // Aggregate results
+  // Process scenes SEQUENTIALLY to build context
   const shots: Record<string, Shot[]> = {};
   let totalCost = 0;
 
-  for (const result of results) {
-    shots[result.sceneId] = result.shots;
-    totalCost += result.cost;
+  for (let i = 0; i < scenes.length; i++) {
+    const scene = scenes[i];
+    
+    const input: ShotComposerInput = {
+      scene,
+      shotsPerSegment: settings.shotsPerSegment,
+      pacing: settings.pacing,
+      animationMode: settings.animationMode,
+      artStyle: settings.artStyle,
+      visualElements: settings.visualElements,
+      videoModel: settings.videoModel,
+      // Pass full context for understanding overall flow
+      allScenes: scenes,  // All scenes for context
+      existingShots: shots,  // Shots already generated for previous scenes
+    };
+    
+    const result = await composeShots(input, userId, workspaceId);
+    shots[scene.id] = result.shots;
+    totalCost += result.cost || 0;
+    
+    console.log(`[ambient-visual:shot-composer] Completed scene ${i + 1}/${scenes.length}:`, {
+      sceneId: scene.id,
+      sceneTitle: scene.title,
+      shotCount: result.shots.length,
+      cost: result.cost,
+    });
   }
 
   console.log("[ambient-visual:shot-composer] All shots composed:", {

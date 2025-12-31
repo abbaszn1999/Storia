@@ -45,7 +45,7 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
   const [isFullScriptOpen, setIsFullScriptOpen] = useState(false);
   const [isShotDetailsOpen, setIsShotDetailsOpen] = useState(false);
 
-  const accentClasses = "from-purple-500 to-pink-500";
+  const accentClasses = "from-[#FF4081] via-[#FF5C8D] to-[#FF6B4A]";
 
   // Calculate total duration
   const allShots = Object.values(shots).flat();
@@ -76,7 +76,7 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
             <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-3">
                 <div className="flex items-center gap-2 mb-2">
-                  <Film className="w-5 h-5 text-purple-400" />
+                  <Film className="w-5 h-5 text-[#FF4081]/90" />
                   <Label className="text-lg font-semibold text-white">Project Overview</Label>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
@@ -100,7 +100,7 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
             <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <List className="w-5 h-5 text-purple-400" />
+                  <List className="w-5 h-5 text-[#FF4081]/90" />
                   <Label className="text-lg font-semibold text-white">Scene Timeline</Label>
                 </div>
                 <div className="space-y-2">
@@ -123,7 +123,7 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs font-semibold text-purple-400">Scene {index + 1}</span>
+                              <span className="text-xs font-semibold text-[#FF4081]/90">Scene {index + 1}</span>
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-white/5 border-white/10 text-white/60">
                                 {sceneShots.length} shots
                               </Badge>
@@ -148,7 +148,7 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
             <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-3">
                 <div className="flex items-center gap-2 mb-2">
-                  <Eye className="w-5 h-5 text-purple-400" />
+                  <Eye className="w-5 h-5 text-[#FF4081]/90" />
                   <Label className="text-lg font-semibold text-white">Quick Actions</Label>
                 </div>
                 <Button
@@ -186,7 +186,7 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <Music className="w-5 h-5 text-purple-400" />
+                    <Music className="w-5 h-5 text-[#FF4081]/90" />
                     <Label className="text-lg font-semibold text-white">Background Music</Label>
                   </div>
                   <Switch
@@ -216,7 +216,7 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
                             <SelectItem 
                               key={style} 
                               value={style}
-                              className="focus:bg-purple-500/20 focus:text-white"
+                              className="focus:bg-[#FF4081]/20 focus:text-white"
                             >
                               {style}
                             </SelectItem>
@@ -230,7 +230,7 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
                         <Label htmlFor="volume" className="text-xs text-white/50 uppercase tracking-wider">
                           Volume
                         </Label>
-                        <span className="text-xs text-purple-400 font-medium">{volume[0]}%</span>
+                        <span className="text-xs text-[#FF4081]/90 font-medium">{volume[0]}%</span>
                       </div>
                       <Slider
                         id="volume"
@@ -252,7 +252,7 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <Subtitles className="w-5 h-5 text-purple-400" />
+                    <Subtitles className="w-5 h-5 text-[#FF4081]/90" />
                     <Label className="text-lg font-semibold text-white">Subtitles</Label>
                   </div>
                   <Switch
@@ -278,9 +278,9 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-[#0a0a0a] border-white/10">
-                          <SelectItem value="top" className="focus:bg-purple-500/20 focus:text-white">Top</SelectItem>
-                          <SelectItem value="center" className="focus:bg-purple-500/20 focus:text-white">Center</SelectItem>
-                          <SelectItem value="bottom" className="focus:bg-purple-500/20 focus:text-white">Bottom</SelectItem>
+                          <SelectItem value="top" className="focus:bg-[#FF4081]/20 focus:text-white">Top</SelectItem>
+                          <SelectItem value="center" className="focus:bg-[#FF4081]/20 focus:text-white">Center</SelectItem>
+                          <SelectItem value="bottom" className="focus:bg-[#FF4081]/20 focus:text-white">Bottom</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -294,9 +294,9 @@ export function AnimaticPreview({ script, scenes, shots, onNext }: AnimaticPrevi
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-[#0a0a0a] border-white/10">
-                          <SelectItem value="small" className="focus:bg-purple-500/20 focus:text-white">Small</SelectItem>
-                          <SelectItem value="medium" className="focus:bg-purple-500/20 focus:text-white">Medium</SelectItem>
-                          <SelectItem value="large" className="focus:bg-purple-500/20 focus:text-white">Large</SelectItem>
+                          <SelectItem value="small" className="focus:bg-[#FF4081]/20 focus:text-white">Small</SelectItem>
+                          <SelectItem value="medium" className="focus:bg-[#FF4081]/20 focus:text-white">Medium</SelectItem>
+                          <SelectItem value="large" className="focus:bg-[#FF4081]/20 focus:text-white">Large</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

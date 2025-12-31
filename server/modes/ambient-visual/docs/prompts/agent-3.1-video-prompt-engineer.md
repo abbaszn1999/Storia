@@ -6,7 +6,7 @@
 |-----------|-------|
 | **Role** | AI Prompt Engineer for Visual Generation |
 | **Type** | AI Text Model (Prompt Engineering) |
-| **Models** | GPT-4o, Claude 3.5 Sonnet |
+| **Models** | GPT-5|
 | **Temperature** | 0.6 (balanced creativity) |
 | **Purpose** | Generate optimized prompts for AI image/video generation models |
 
@@ -58,7 +58,7 @@ imagePrompt (string):
 - Specify art style and rendering quality
 - Add mood and emotional tone
 - Include technical quality modifiers
-- 200-400 words for maximum detail
+- 200-800 characters for maximum detail
 
 ═══════════════════════════════════════════════════════════════════════════════
 IMAGE PROMPT STRUCTURE
@@ -131,14 +131,14 @@ Return JSON with exactly 3 fields:
    - Complete visual description of the INITIAL state
    - Full composition, subject, environment, lighting, atmosphere
    - This is a complete image prompt, not a fragment
-   - 150-300 words for comprehensive detail
+   - 150-600 characters for comprehensive detail
 
 2. endFramePrompt (string):
    - Complete visual description of the FINAL state
    - Shows subtle progression from start (light shift, element movement, atmospheric change)
    - Must be visually consistent with start but show clear evolution
    - Changes should be meditative and subtle, not dramatic
-   - 150-300 words for comprehensive detail
+   - 150-600 characters for comprehensive detail
 
 3. videoPrompt (string):
    - Motion and camera instructions for video generation
@@ -146,7 +146,7 @@ Return JSON with exactly 3 fields:
    - Describe camera motion (drift, pan, push) with speed
    - Include subject motion (gentle, flowing, breathing)
    - Environmental motion (clouds, water, particles, light)
-   - 50-150 words optimal
+   - 50-300 characters optimal
 
 ═══════════════════════════════════════════════════════════════════════════════
 FRAME PROMPT STRUCTURE
@@ -325,7 +325,7 @@ Custom Instructions: {{imageCustomInstructions}}
 VIDEO SETTINGS
 ═══════════════════════════════════════════════════════════════════════════════
 
-Video Generation Mode: {{videoGenerationModeLabel}}
+Video Generation Mode: {{videoGenerationMode}} (computed from `videoGenerationMode` input: "Start-End Frame" if `start-end-frame`, "Image Reference" if `image-reference`)
 Default Camera Motion: {{cameraMotion}}
 {{#if motionPrompt}}
 Motion Instructions: {{motionPrompt}}
@@ -367,14 +367,16 @@ This is a STANDALONE shot - start and end frames should allow seamless looping.
 INSTRUCTIONS
 ═══════════════════════════════════════════════════════════════════════════════
 
-{{#if isConnectedNonFirst}}
+{{#if isConnectedShot}}
+{{#unless isFirstInGroup}}
+[CONNECTED SHOT - NOT FIRST IN GROUP]
 Generate the END FRAME and VIDEO MOTION prompts:
 
 endFramePrompt:
 1. Creates natural visual progression from the inherited start frame
 2. Maintains visual continuity with the start frame
 3. Shows subtle, meditative changes (light shift, gentle motion, atmospheric evolution)
-4. Is comprehensive (150-300 words)
+4. Is comprehensive (150-600 characters)
 5. Optimizes for the {{artStyle}} art style
 
 videoPrompt:
@@ -382,13 +384,25 @@ videoPrompt:
 2. Includes camera movement (drift, pan, push) with appropriate speed
 3. Describes subject motion (gentle, flowing, breathing)
 4. Environmental motion (clouds, water, particles, light)
-5. 50-150 words optimal
+5. 50-300 characters optimal
 
 Return your response as valid JSON with: endFramePrompt, videoPrompt
 {{else}}
+[CONNECTED SHOT - FIRST IN GROUP]
 Generate prompts that:
 1. Match the ambient, meditative mood perfectly
-2. Include comprehensive visual details (150-300 words per frame prompt)
+2. Include comprehensive visual details (150-600 characters per frame prompt)
+3. Ensure start and end frames are visually consistent but show subtle progression
+4. Keep all motion descriptions SLOW and SUBTLE
+5. Optimize for the {{artStyle}} art style
+
+Return your response as valid JSON with: startFramePrompt, endFramePrompt, videoPrompt
+{{/unless}}
+{{else}}
+[STANDALONE SHOT]
+Generate prompts that:
+1. Match the ambient, meditative mood perfectly
+2. Include comprehensive visual details (150-600 characters per frame prompt)
 3. Ensure start and end frames are visually consistent but show subtle progression
 4. Keep all motion descriptions SLOW and SUBTLE
 5. Optimize for the {{artStyle}} art style
@@ -396,6 +410,46 @@ Generate prompts that:
 Return your response as valid JSON with: startFramePrompt, endFramePrompt, videoPrompt
 {{/if}}
 ```
+
+---
+
+## Input Fields
+
+### Required Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `shotId` | `string` | Unique identifier for the shot |
+| `shotDescription` | `string` | Visual description of what the shot shows |
+| `shotType` | `string` | Type of shot (e.g., "Wide Shot", "Close-Up") |
+| `cameraMovement` | `string` | Camera movement type (varies by animation mode) |
+| `shotDuration` | `number` | Duration of the shot in seconds |
+| `sceneId` | `string` | Unique identifier for the scene |
+| `sceneTitle` | `string` | Title of the scene |
+| `sceneDescription` | `string` | Description of the scene |
+| `moodDescription` | `string` | Atmospheric mood description from Agent 1.1 |
+| `mood` | `string` | Primary emotional tone |
+| `theme` | `string` | Environment theme |
+| `timeContext` | `string` | Lighting/time of day context |
+| `season` | `string` | Atmospheric condition/season |
+| `aspectRatio` | `string` | Video aspect ratio |
+| `artStyle` | `string` | Art style preference |
+| `visualElements` | `string[]` | Array of key visual elements |
+| `visualRhythm` | `string` | Visual rhythm style |
+| `animationMode` | `AnimationMode` | Either `"video-animation"` or `"image-transitions"` |
+
+### Optional Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `videoGenerationMode` | `VideoGenerationMode` | Only used for video-animation mode (`"image-reference"` or `"start-end-frame"`) |
+| `motionPrompt` | `string` | Motion instructions (optional) |
+| `cameraMotion` | `string` | Default camera motion setting |
+| `referenceImageUrls` | `string[]` | Array of reference image URLs |
+| `imageCustomInstructions` | `string` | Custom instructions for image generation |
+| `isFirstInGroup` | `boolean` | True if this is the first shot in a continuity group |
+| `isConnectedShot` | `boolean` | True if this shot is part of a continuity group |
+| `previousShotEndFramePrompt` | `string` | End frame prompt from previous shot (for inheritance in connected shots) |
 
 ---
 
@@ -409,9 +463,7 @@ Return your response as valid JSON with: startFramePrompt, endFramePrompt, video
   "properties": {
     "imagePrompt": {
       "type": "string",
-      "minLength": 200,
-      "maxLength": 800,
-      "description": "Comprehensive image generation prompt"
+      "description": "Comprehensive image generation prompt (guidance: 200-800 characters recommended)"
     }
   },
   "additionalProperties": false
@@ -420,7 +472,7 @@ Return your response as valid JSON with: startFramePrompt, endFramePrompt, video
 
 ---
 
-## Output JSON Schema: Video Animation Mode
+## Output JSON Schema: Video Animation Mode (Standalone/First in Group)
 
 ```json
 {
@@ -430,26 +482,45 @@ Return your response as valid JSON with: startFramePrompt, endFramePrompt, video
   "properties": {
     "startFramePrompt": {
       "type": "string",
-      "minLength": 150,
-      "maxLength": 600,
-      "description": "Complete visual description of the initial state"
+      "description": "Complete visual description of the initial state (guidance: 150-600 characters recommended)"
     },
     "endFramePrompt": {
       "type": "string",
-      "minLength": 150,
-      "maxLength": 600,
-      "description": "Complete visual description of the final state"
+      "description": "Complete visual description of the final state (guidance: 150-600 characters recommended)"
     },
     "videoPrompt": {
       "type": "string",
-      "minLength": 50,
-      "maxLength": 300,
-      "description": "Motion and camera instructions for video generation"
+      "description": "Motion and camera instructions for video generation (guidance: 50-300 characters recommended)"
     }
   },
   "additionalProperties": false
 }
 ```
+
+---
+
+## Output JSON Schema: Video Animation Mode (Connected, Non-First)
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["endFramePrompt", "videoPrompt"],
+  "properties": {
+    "endFramePrompt": {
+      "type": "string",
+      "description": "Complete visual description of the final state (guidance: 150-600 characters recommended)"
+    },
+    "videoPrompt": {
+      "type": "string",
+      "description": "Motion and camera instructions for video generation (guidance: 50-300 characters recommended)"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+**Note:** For connected shots that are not the first in a continuity group, the `startFramePrompt` is inherited from the previous shot's `endFramePrompt`, so only `endFramePrompt` and `videoPrompt` are generated.
 
 ---
 
@@ -508,12 +579,10 @@ Return your response as valid JSON with: startFramePrompt, endFramePrompt, video
   "visualRhythm": "breathing",
   "visualElements": ["trees", "mist", "light"],
   "videoGenerationMode": "start-end-frame",
-  "videoGenerationModeLabel": "Start-End Frame",
   "cameraMotion": "gentle-drift",
   "motionPrompt": null,
   "isConnectedShot": false,
-  "isFirstInGroup": false,
-  "isConnectedNonFirst": false
+  "isFirstInGroup": false
 }
 ```
 
@@ -552,12 +621,10 @@ Return your response as valid JSON with: startFramePrompt, endFramePrompt, video
   "visualRhythm": "breathing",
   "visualElements": ["trees", "mist", "light"],
   "videoGenerationMode": "start-end-frame",
-  "videoGenerationModeLabel": "Start-End Frame",
   "cameraMotion": "gentle-drift",
   "motionPrompt": null,
   "isConnectedShot": true,
   "isFirstInGroup": false,
-  "isConnectedNonFirst": true,
   "previousShotEndFramePrompt": "A medium view of a misty forest moments after dawn, camera positioned at eye level looking into the forest. Tree trunks emerge from mist that has partially lifted, revealing more detail in the background forest..."
 }
 ```
@@ -580,7 +647,7 @@ Before accepting Agent 3.1 output, verify:
 | Criterion | Check |
 |-----------|-------|
 | **Mode Correct** | Is the output format correct for the animation mode? |
-| **Prompt Length** | Are prompts within the specified word ranges? |
+| **Prompt Length** | Are prompts comprehensive? (Character ranges are recommendations, not enforced) |
 | **Visual Detail** | Do prompts include comprehensive visual descriptions? |
 | **Technical Quality** | Are technical quality modifiers included? |
 | **Mood Consistency** | Do prompts match the specified mood and atmosphere? |
@@ -627,32 +694,27 @@ const output = JSON.parse(response.choices[0].message.content);
 ```typescript
 function validateVideoPromptEngineerOutput(
   output: VideoPromptEngineerOutput,
-  animationMode: AnimationMode
+  animationMode: AnimationMode,
+  isConnectedNonFirst?: boolean
 ): boolean {
   if (animationMode === 'image-transitions') {
     // Image mode: only imagePrompt required
-    if (!output.imagePrompt) return false;
-    if (output.imagePrompt.length < 200 || output.imagePrompt.length > 800) return false;
+    if (!output.imagePrompt || output.imagePrompt.trim().length === 0) return false;
     return true;
   } else {
-    // Video mode: startFramePrompt, endFramePrompt, videoPrompt required
-    if (!output.startFramePrompt || !output.endFramePrompt || !output.videoPrompt) {
-      return false;
-    }
-    
-    if (output.startFramePrompt.length < 150 || output.startFramePrompt.length > 600) {
-      return false;
-    }
-    
-    if (output.endFramePrompt.length < 150 || output.endFramePrompt.length > 600) {
-      return false;
-    }
-    
-    if (output.videoPrompt.length < 50 || output.videoPrompt.length > 300) {
-      return false;
-    }
-    
+    // Video mode: check based on continuity status
+    if (isConnectedNonFirst) {
+      // Connected (not first): only endFramePrompt and videoPrompt required
+      if (!output.endFramePrompt || output.endFramePrompt.trim().length === 0) return false;
+      if (!output.videoPrompt || output.videoPrompt.trim().length === 0) return false;
     return true;
+  } else {
+      // Standalone or first in group: all prompts required
+      if (!output.startFramePrompt || output.startFramePrompt.trim().length === 0) return false;
+      if (!output.endFramePrompt || output.endFramePrompt.trim().length === 0) return false;
+      if (!output.videoPrompt || output.videoPrompt.trim().length === 0) return false;
+    return true;
+    }
   }
 }
 ```

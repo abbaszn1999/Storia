@@ -228,13 +228,17 @@ export interface SceneGeneratorOutput {
  * Input for shot composition within a scene
  */
 export interface ShotComposerInput {
-  scene: Scene;
+  scene: Scene;  // The current scene being processed
   shotsPerSegment: 'auto' | number;
   pacing: number;
   animationMode: AnimationMode;
   artStyle?: string;
   visualElements?: string[];
   videoModel?: string;  // Video model from step1Data
+  
+  // Full context for understanding the overall flow
+  allScenes?: Scene[];  // All scenes in the video (for context)
+  existingShots?: Record<string, Shot[]>;  // Shots already generated for previous scenes
 }
 
 export interface ShotComposerOutput {

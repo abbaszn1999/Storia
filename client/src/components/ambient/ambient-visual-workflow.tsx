@@ -72,7 +72,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   const [timeContext, setTimeContext] = useState("sunset");
   const [season, setSeason] = useState("neutral");
   const [intensity, setIntensity] = useState(50);
-  const [duration, setDuration] = useState("5min");
+  const [duration, setDuration] = useState("1min");
   const [userStory, setUserStory] = useState("");      // User's original story/prompt
   const [moodDescription, setMoodDescription] = useState(""); // AI-generated description
   
@@ -184,7 +184,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
         theme: (data.theme as string) || 'nature',
         timeContext: (data.timeContext as string) || 'sunset',
         season: (data.season as string) || 'neutral',
-        duration: (data.duration as string) || '5min',
+        duration: (data.duration as string) || '1min',
       });
     }
     

@@ -13,7 +13,7 @@ interface NarrativeWorkflowProps {
   activeStep: string;
   videoId: string;
   workspaceId: string;
-  narrativeMode: "image-reference" | "start-end";
+  narrativeMode: "image-reference" | "start-end" | "auto";
   script: string;
   aspectRatio: string;
   scriptModel: string;
@@ -475,6 +475,7 @@ export function NarrativeWorkflow({
       {activeStep === "breakdown" && (
         <SceneBreakdown
           videoId={videoId}
+          workspaceId={workspaceId}
           script={script}
           scriptModel={scriptModel}
           narrativeMode={narrativeMode}
@@ -483,6 +484,21 @@ export function NarrativeWorkflow({
           shotVersions={shotVersions}
           continuityLocked={continuityLocked}
           continuityGroups={continuityGroups}
+          numberOfScenes={numberOfScenes}
+          shotsPerScene={shotsPerScene}
+          targetDuration={duration ? parseInt(duration) : undefined}
+          genre={genres && genres.length > 0 ? genres[0] : undefined}
+          tone={tones && tones.length > 0 ? tones[0] : undefined}
+          characters={characters.map(c => ({
+            id: c.id,
+            name: c.name,
+            description: c.description || c.appearance || undefined,
+          }))}
+          locations={worldSettings?.locations?.map(l => ({
+            id: l.id,
+            name: l.name,
+            description: l.description || undefined,
+          })) || []}
           onScenesGenerated={(newScenes, newShots, newShotVersions) => {
             onScenesChange(newScenes);
             onShotsChange(newShots);

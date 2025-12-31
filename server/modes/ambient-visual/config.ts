@@ -9,7 +9,7 @@ export const AMBIENT_VISUAL_CONFIG = {
     animationMode: 'image-transitions' as const,
     imageModel: 'nano-banana',
     aspectRatio: '16:9',
-    duration: '5min',
+    duration: '1min',
     mood: 'calm',
     theme: 'nature',
   },

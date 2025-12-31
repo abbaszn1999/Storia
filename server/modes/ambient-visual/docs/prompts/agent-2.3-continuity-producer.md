@@ -6,7 +6,7 @@
 |-----------|-------|
 | **Role** | Video Editor & Continuity Specialist |
 | **Type** | AI Text Model (Analysis) |
-| **Models** | GPT-4o, Claude 3.5 Sonnet |
+| **Models** | GPT-5|
 | **Temperature** | 0.4 (analytical, precise) |
 | **Purpose** | Analyze shots and propose continuity groups for seamless visual flow |
 
@@ -176,6 +176,17 @@ IMPORTANT REMINDERS:
 
 Generate the continuity proposal as JSON now.
 ```
+
+---
+
+## Input Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `scenes` | `Scene[]` | Array of all scenes/segments to analyze for continuity |
+| `shots` | `Record<string, Shot[]>` | Object mapping scene IDs to arrays of shots within each scene. Each shot contains: `id`, `shotNumber`, `shotType`, `cameraMovement`, `duration`, `description` |
+
+**Note:** Only used in Start-End Frame video generation mode.
 
 ---
 

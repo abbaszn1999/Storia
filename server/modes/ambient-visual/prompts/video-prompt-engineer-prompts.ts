@@ -45,7 +45,7 @@ imagePrompt (string):
 - Specify art style and rendering quality
 - Add mood and emotional tone
 - Include technical quality modifiers
-- 200-400 words for maximum detail
+- 200-800 characters for maximum detail
 
 ═══════════════════════════════════════════════════════════════════════════════
 IMAGE PROMPT STRUCTURE
@@ -112,14 +112,14 @@ Return JSON with exactly 3 fields:
    - Complete visual description of the INITIAL state
    - Full composition, subject, environment, lighting, atmosphere
    - This is a complete image prompt, not a fragment
-   - 150-300 words for comprehensive detail
+   - 150-600 characters for comprehensive detail
 
 2. endFramePrompt (string):
    - Complete visual description of the FINAL state
    - Shows subtle progression from start (light shift, element movement, atmospheric change)
    - Must be visually consistent with start but show clear evolution
    - Changes should be meditative and subtle, not dramatic
-   - 150-300 words for comprehensive detail
+   - 150-600 characters for comprehensive detail
 
 3. videoPrompt (string):
    - Motion and camera instructions for video generation
@@ -127,7 +127,7 @@ Return JSON with exactly 3 fields:
    - Describe camera motion (drift, pan, push) with speed
    - Include subject motion (gentle, flowing, breathing)
    - Environmental motion (clouds, water, particles, light)
-   - 50-150 words optimal
+   - 50-300 characters optimal
 
 ═══════════════════════════════════════════════════════════════════════════════
 FRAME PROMPT STRUCTURE
@@ -309,7 +309,7 @@ endFramePrompt:
 1. Creates natural visual progression from the inherited start frame
 2. Maintains visual continuity with the start frame
 3. Shows subtle, meditative changes (light shift, gentle motion, atmospheric evolution)
-4. Is comprehensive (150-300 words)
+4. Is comprehensive (150-600 characters)
 5. Optimizes for the ${input.artStyle} art style
 
 videoPrompt:
@@ -317,12 +317,12 @@ videoPrompt:
 2. Includes camera movement (drift, pan, push) with appropriate speed
 3. Describes subject motion (gentle, flowing, breathing)
 4. Environmental motion (clouds, water, particles, light)
-5. 50-150 words optimal
+5. 50-300 characters optimal
 
 Return your response as valid JSON with: endFramePrompt, videoPrompt`
     : `Generate prompts that:
 1. Match the ambient, meditative mood perfectly
-2. Include comprehensive visual details (150-300 words per frame prompt)
+2. Include comprehensive visual details (150-600 characters per frame prompt)
 3. Ensure start and end frames are visually consistent but show subtle progression
 4. Keep all motion descriptions SLOW and SUBTLE
 5. Optimize for the ${input.artStyle} art style

@@ -250,4 +250,3 @@ Important:
 - Focus on locations with distinctive visual characteristics.
 - Output ONLY the JSON object, with no extra text.`;
 };
-

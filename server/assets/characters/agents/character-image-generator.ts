@@ -1,29 +1,29 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Agent 2.4: Location Image Generator
+// Agent 2.3: Character Image Generator
 // ═══════════════════════════════════════════════════════════════════════════
-// Creates location reference images for environmental consistency
-// Used by: Location Assets Library (hard-coded nano-banana)
+// Creates character portrait reference images for visual consistency
+// Used by: Character Assets Library (hard-coded nano-banana)
 //          Narrative Mode World & Cast (user-selectable model)
 
-import { callAi } from "../service";
-import { runwareModelIdMap } from "../config";
+import { callAi } from "../../../ai/service";
+import { runwareModelIdMap } from "../../../ai/config";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════
 
-export interface LocationImageInput {
-  name: string;                    // Location name
-  description: string;             // Location description
-  details?: string;                // Additional details (optional)
-  artStyleDescription?: string;    // Art style from Agent 2.5 (optional)
+export interface CharacterImageInput {
+  name: string;                    // Character name
+  appearance: string;              // Physical description
+  personality: string;            // Behavioral traits (mandatory)
+  artStyleDescription?: string;    // Art style text from Agent 2.5 or selected style (optional)
   model?: string;                  // Image model (default: "nano-banana")
   negativePrompt?: string;         // Custom negative prompt (optional)
-  referenceImages?: string[];      // URLs for location consistency (optional)
-  styleReferenceImage?: string;    // Style reference image URL (optional)
+  referenceImages?: string[];      // URLs for character consistency (optional)
+  styleReferenceImage?: string;    // Style reference image URL (optional - separate from artStyleDescription text)
 }
 
-export interface LocationImageOutput {
+export interface CharacterImageOutput {
   imageUrl: string;                // Generated image URL
   cost?: number;                   // API cost in USD
   error?: string;                  // Error message if failed
@@ -35,45 +35,42 @@ export interface LocationImageOutput {
 
 const DEFAULT_MODEL = "nano-banana";
 
-// Location images use 16:9 landscape (1344x768)
-// Note: nano-banana model supports specific dimensions only
-// Supported 16:9 ratio: 1344x768 (closest to 1920x1080)
-const LOCATION_DIMENSIONS = {
-  width: 1344,
-  height: 768,
+// Character portraits are always 1:1 square (1024x1024)
+const PORTRAIT_DIMENSIONS = {
+  width: 1024,
+  height: 1024,
 };
 
-// Default negative prompt for location images (configurable per request)
-export const DEFAULT_LOCATION_NEGATIVE_PROMPT = 
-  "blurry, low quality, distorted, watermark, text, logo, " +
-  "people, characters, humans, animals, cropped, out of frame, " +
-  "bad composition, oversaturated, low resolution, pixelated";
+// Default negative prompt for character portraits (configurable per request)
+export const DEFAULT_CHARACTER_NEGATIVE_PROMPT = 
+  "blurry, low quality, distorted face, extra limbs, watermark, text, " +
+  "multiple characters, cropped, out of frame, bad anatomy, deformed, " +
+  "disfigured, mutated, ugly, duplicate, morbid, mutilated";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PROMPT CONSTRUCTION
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Build the location image prompt
+ * Build the character portrait prompt using the enhanced template
  */
-function buildLocationPrompt(input: LocationImageInput): string {
-  const { name, description, details, artStyleDescription } = input;
+function buildCharacterPrompt(input: CharacterImageInput): string {
+  const { name, appearance, personality, artStyleDescription } = input;
 
-  // Base prompt structure
-  let prompt = `Environmental reference image of ${name}, ${description}.`;
+  // Layer 1: Character Subject Definition
+  let prompt = `Character reference portrait of ${name}, ${appearance}.`;
 
-  // Add details if provided
-  if (details && details.trim()) {
-    prompt += `\nDetails: ${details}.`;
-  }
+  // Layer 2: Personality Integration (mandatory)
+  prompt += `\nPersonality: ${personality}.`;
 
-  // Add art style if provided (from Agent 2.5)
+  // Layer 3: Art Style Integration (conditional - text style only)
+  // Note: styleReferenceImage is handled separately as a reference image to the API
   if (artStyleDescription && artStyleDescription.trim()) {
     prompt += `\n${artStyleDescription}`;
   }
 
-  // Add the standard location composition guidelines
-  prompt += `\nWide 16:9 landscape composition, establishing shot showcasing the full environment and atmosphere. Natural or atmospheric lighting that reflects the time of day and mood. Clear, detailed view of the setting with emphasis on architecture, landscape features, or environmental elements. Cinematic depth and perspective, high-resolution, professionally composed, immersive environmental design.`;
+  // Layers 4-6: Composition, Lighting, and Quality (static)
+  prompt += `\nSquare 1:1 waist-up composition, character centered in the frame, facing slightly toward the viewer with a natural pose that reflects their personality. Professional portrait photography, shallow depth of field with razor-sharp focus on the character's face, creamy smooth bokeh background. Soft studio lighting with gentle key light, subtle fill light, and subtle rim light creating clean, flattering illumination with clear detail in face, hair, and clothing. Minimal, uncluttered neutral studio background with a soft gradient, cinematic but simple composition, 8K ultra-detailed, professional photography, studio quality, magazine editorial quality, high-resolution, finely detailed, consistent character design, award-winning portrait photography.`;
 
   return prompt;
 }
@@ -83,26 +80,26 @@ function buildLocationPrompt(input: LocationImageInput): string {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Generate a location reference image
+ * Generate a character portrait image
  * 
- * Agent 2.4: Location Image Generator
+ * Agent 2.3: Character Image Generator
  * 
- * Creates a consistent location reference image using:
- * - 16:9 landscape aspect ratio (1344x768)
- * - Wide establishing shot composition
- * - Atmospheric lighting matching the setting
+ * Creates a consistent character reference portrait using:
+ * - Square 1:1 aspect ratio (1024x1024)
+ * - Waist-up composition with studio lighting
+ * - Personality-reflecting natural pose
  * - Optional reference images for consistency
  * 
- * @param input - Location details and generation settings
+ * @param input - Character details and generation settings
  * @param userId - User ID for billing/tracking
  * @param workspaceId - Workspace ID for billing/tracking
  * @returns Generated image URL or error
  */
-export async function generateLocationImage(
-  input: LocationImageInput,
+export async function generateCharacterImage(
+  input: CharacterImageInput,
   userId?: string,
   workspaceId?: string
-): Promise<LocationImageOutput> {
+): Promise<CharacterImageOutput> {
   const {
     model = DEFAULT_MODEL,
     negativePrompt,
@@ -110,11 +107,11 @@ export async function generateLocationImage(
     styleReferenceImage,
   } = input;
 
-  // Build the location prompt
-  const positivePrompt = buildLocationPrompt(input);
+  // Build the character portrait prompt
+  const positivePrompt = buildCharacterPrompt(input);
 
   // Use provided negative prompt or default
-  const finalNegativePrompt = negativePrompt ?? DEFAULT_LOCATION_NEGATIVE_PROMPT;
+  const finalNegativePrompt = negativePrompt ?? DEFAULT_CHARACTER_NEGATIVE_PROMPT;
 
   // Get Runware model ID from friendly name
   const runwareModelId = runwareModelIdMap[model];
@@ -126,10 +123,10 @@ export async function generateLocationImage(
   }
 
   try {
-    console.log("[agent-2.4:location-image] Starting image generation:", {
+    console.log("[agent-2.3:character-image] Starting image generation:", {
       model,
       runwareModelId,
-      locationName: input.name,
+      characterName: input.name,
       promptLength: positivePrompt.length,
       hasReferenceImages: referenceImages && referenceImages.length > 0,
       referenceCount: referenceImages?.length || 0,
@@ -142,21 +139,22 @@ export async function generateLocationImage(
       model: runwareModelId,
       positivePrompt,
       negativePrompt: finalNegativePrompt,
-      width: LOCATION_DIMENSIONS.width,
-      height: LOCATION_DIMENSIONS.height,
+      width: PORTRAIT_DIMENSIONS.width,
+      height: PORTRAIT_DIMENSIONS.height,
       numberResults: 1,
       includeCost: true,
     };
 
-    // Add reference images if provided (for location consistency)
+    // Add reference images if provided (for character consistency)
     // Runware expects referenceImages as an array of URL strings (not objects)
+    // Models like nano-banana support up to 8 reference images
     const allReferenceUrls: string[] = [];
     
     if (referenceImages && referenceImages.length > 0) {
       referenceImages.forEach((url) => {
         allReferenceUrls.push(url);
       });
-      console.log("[agent-2.4:location-image] Added location reference images:", {
+      console.log("[agent-2.3:character-image] Added character reference images:", {
         count: referenceImages.length,
       });
     }
@@ -164,7 +162,7 @@ export async function generateLocationImage(
     // Add style reference image (same format - Runware doesn't support per-image weights)
     if (styleReferenceImage) {
       allReferenceUrls.push(styleReferenceImage);
-      console.log("[agent-2.4:location-image] Added style reference image");
+      console.log("[agent-2.3:character-image] Added style reference image");
     }
 
     if (allReferenceUrls.length > 0) {
@@ -189,7 +187,7 @@ export async function generateLocationImage(
     const results = response.output as any[];
     const data = Array.isArray(results) ? results[0] : results;
 
-    console.log("[agent-2.4:location-image] Response received:", {
+    console.log("[agent-2.3:character-image] Response received:", {
       hasData: !!data,
       imageURL: data?.imageURL ? "present" : "missing",
       cost: response.usage?.totalCostUsd || data?.cost,
@@ -210,25 +208,25 @@ export async function generateLocationImage(
       error: "No image URL in response",
     };
   } catch (error) {
-    console.error("[agent-2.4:location-image] Generation failed:", error);
+    console.error("[agent-2.3:character-image] Generation failed:", error);
     return {
       imageUrl: "",
-      error: error instanceof Error ? error.message : "Location image generation failed",
+      error: error instanceof Error ? error.message : "Character image generation failed",
     };
   }
 }
 
 /**
- * Get the default model for location image generation
+ * Get the default model for character image generation
  */
-export function getDefaultLocationImageModel(): string {
+export function getDefaultCharacterImageModel(): string {
   return DEFAULT_MODEL;
 }
 
 /**
- * Get the location dimensions
+ * Get the portrait dimensions
  */
-export function getLocationDimensions(): { width: number; height: number } {
-  return { ...LOCATION_DIMENSIONS };
+export function getPortraitDimensions(): { width: number; height: number } {
+  return { ...PORTRAIT_DIMENSIONS };
 }
 

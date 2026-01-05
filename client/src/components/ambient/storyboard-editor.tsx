@@ -1509,15 +1509,6 @@ export function StoryboardEditor({
     setDontRemindAgain(dontRemind);
   }, []);
 
-  const handleContinueToAnimatic = () => {
-    // Check if all shots have been animated to video
-    if (animatedCount < totalCount && !dontRemindAgain) {
-      setShowEnhancementDialog(true);
-    } else {
-      onNext();
-    }
-  };
-
   const handleAnimateAll = () => {
     // TODO: Implement animate all logic
     setShowEnhancementDialog(false);
@@ -1732,19 +1723,26 @@ export function StoryboardEditor({
                 });
                 
                 // Count shots ready for video (have images) but no video yet
+                // Use robust check: videoUrl must be a non-empty string
                 const shotsWithoutVideo = allShots.filter(s => {
                   const v = shotVersions[s.id]?.[shotVersions[s.id]?.length - 1];
                   const hasRequiredImages = animationMode === 'image-transitions' 
                     ? v?.imageUrl 
                     : v?.startFrameUrl;
-                  return hasRequiredImages && !v?.videoUrl;
+                  const hasVideo = v?.videoUrl && 
+                                   typeof v.videoUrl === 'string' && 
+                                   v.videoUrl.trim().length > 0;
+                  return hasRequiredImages && !hasVideo;
                 });
                 const videosToGenerate = shotsWithoutVideo.length;
                 
-                // Count shots that already have videos
+                // Count shots that already have videos (robust check)
                 const shotsWithVideo = allShots.filter(s => {
                   const v = shotVersions[s.id]?.[shotVersions[s.id]?.length - 1];
-                  return !!v?.videoUrl;
+                  const hasVideo = v?.videoUrl && 
+                                   typeof v.videoUrl === 'string' && 
+                                   v.videoUrl.trim().length > 0;
+                  return hasVideo;
                 });
                 const existingVideos = shotsWithVideo.length;
                 
@@ -2017,7 +2015,7 @@ export function StoryboardEditor({
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-x-auto">
+                <div className="flex-1 overflow-x-auto scrollbar-thin">
                   {viewMode === "cards" ? (
                   <DndContext
                     sensors={sensors}
@@ -2373,17 +2371,6 @@ export function StoryboardEditor({
                 <span className="text-muted-foreground">Total Shots:</span>
                 <span className="font-semibold text-foreground">{totalCount}</span>
               </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button 
-                variant="ghost"
-                onClick={handleContinueToAnimatic}
-                className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
-                data-testid="button-continue"
-              >
-                Continue
-                <span className="ml-2">→</span>
-              </Button>
             </div>
           </div>
         </CardContent>

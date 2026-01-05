@@ -669,6 +669,29 @@ const elevenlabsModels: AiModelConfig[] = [
   },
 ];
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// MMAUDIO MODELS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const mmaudioModels: AiModelConfig[] = [
+  {
+    name: "video-to-audio",
+    provider: "mmaudio",
+    default: true,
+    metadata: {
+      label: "Video to Audio",
+      description: "Generate contextual sound effects from video content using MMAudio AI. Produces video with embedded audio.",
+      supports: ["video-to-audio"],
+      defaultDuration: 8,
+      defaultSteps: 25,
+    },
+    pricing: {
+      currency: "usd",
+      flatCostPerCall: 0.10, // 2 credits per generation
+    },
+  },
+];
+
 /**
  * Maps friendly model names to their Runware API model identifiers.
  * Use this when building payloads for Runware API calls.
@@ -800,6 +823,14 @@ export const aiProviders: Record<AiProviderName, AiProviderConfig> = {
       process.env.ELEVENLABS_BASE_URL ?? "https://api.elevenlabs.io/v1",
     enabled: Boolean(process.env.ELEVENLABS_API_KEY),
     models: buildModelRecord(elevenlabsModels),
+  },
+  mmaudio: {
+    name: "mmaudio",
+    apiKey: process.env.MMAUDIO_API_KEY,
+    baseUrl:
+      process.env.MMAUDIO_BASE_URL ?? "https://mmaudio.net/api",
+    enabled: Boolean(process.env.MMAUDIO_API_KEY),
+    models: buildModelRecord(mmaudioModels),
   },
 };
 

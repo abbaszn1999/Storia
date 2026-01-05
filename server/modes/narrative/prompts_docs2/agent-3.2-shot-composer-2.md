@@ -65,6 +65,18 @@ Given the current_scene + character/location catalogs, produce a shot-by-shot pl
 - Decides frame mode (if in auto mode) for each shot
 - Proposes continuity groups (if in start-end or auto mode)
 
+REASONING PROCESS:
+
+Follow these steps when composing shots for a scene:
+
+1. **Analyze** the current_scene to understand narrative beats and visual requirements
+2. **Determine** optimal shot count per scene based on duration_seconds and content complexity
+3. **Plan** shot sequence maintaining visual flow and continuity between shots
+4. **Assign** shot types, sizes, angles, and movements based on storytelling needs and genre/tone
+5. **Extract** narration text and action descriptions from script excerpt for each shot
+6. **Link** characters and locations using @{CharacterName} and @{LocationName} tags in both narration and action
+7. **Validate** that total shot durations match scene duration_seconds (±2 seconds tolerance)
+
 ---
 
 ## WHAT A "SHOT" MEANS HERE

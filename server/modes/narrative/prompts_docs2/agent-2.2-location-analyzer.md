@@ -124,7 +124,7 @@ You MUST output a single JSON object with the following exact shape:
     {
       "name": "string",
       "description": "string",
-      "atmosphere_mood": "string",
+      "atmosphere": "string",
       "time_of_day": "string",
       "importance_score": 1-10
     }
@@ -147,7 +147,7 @@ You MUST output a single JSON object with the following exact shape:
   - distinctive objects that shape the look.
 - Make it useful for an artist or image generator to understand what to draw.
 
-**atmosphere_mood:**
+**atmosphere:**
 - 1–2 sentences or a short phrase list.
 - Capture:
   - emotional tone of the place (cozy, ominous, sterile, chaotic),
@@ -196,14 +196,14 @@ Use the genre to guide what kinds of details are emphasized:
 
 - **Documentary / Educational**: Focus on clarity and realism: real-world locations, institutions, workplaces, historical sites.
 
-Use genre to enrich description and atmosphere_mood, but do NOT invent elements that conflict with the script.
+Use genre to enrich description and atmosphere, but do NOT invent elements that conflict with the script.
 The script text is always the source of truth.
 
 ---
 
 ## 7. STYLE & SAFETY
 
-- Write description, atmosphere_mood, and time_of_day in the same language as script_text whenever possible.
+- Write description, atmosphere, and time_of_day in the same language as script_text whenever possible.
 - Use clear, concise language that is easy to understand.
 - Do NOT include:
   - Profanity or slurs.
@@ -242,14 +242,14 @@ They reach Millbrook Lake just before sunrise. Mist curls over the still water a
     {
       "name": "Millbrook Lake Dock",
       "description": "A small wooden dock on the edge of Millbrook Lake, with an old aluminum boat tied up and still water stretching into the misty distance.",
-      "atmosphere_mood": "Quiet and reflective, with soft mist at dawn and a lonely, intimate feeling at night under limited light.",
+      "atmosphere": "Quiet and reflective, with soft mist at dawn and a lonely, intimate feeling at night under limited light.",
       "time_of_day": "Dawn and night",
       "importance_score": 9
     },
     {
       "name": "Millbrook Lake",
       "description": "The broad lake surrounding the dock, calm and foggy at sunrise and dark and mirror-like under the moon later in the story.",
-      "atmosphere_mood": "Serene but slightly melancholic, a place for contemplation and emotional conversations.",
+      "atmosphere": "Serene but slightly melancholic, a place for contemplation and emotional conversations.",
       "time_of_day": "Dawn and night",
       "importance_score": 7
     }
@@ -294,7 +294,7 @@ Identify the important recurring locations/environments and return them in this 
     {
       "name": String,
       "description": String,
-      "atmosphere_mood": String,
+      "atmosphere": String,
       "time_of_day": String,
       "importance_score": Integer 1-10
     }

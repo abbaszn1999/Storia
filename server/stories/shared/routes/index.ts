@@ -6,6 +6,7 @@ import { createSceneGenerator } from "../agents/scene-generator";
 import { createStoryboardEnhancer } from "../agents/storyboard-enhancer";
 import { createImageGenerator } from "../agents/image-generator";
 import { createVoiceoverGenerator } from "../agents/voiceover-generator";
+import { createSoundEffectsGenerator } from "../agents/sound-effects-generator";
 import { createMusicGenerator } from "../agents/music-generator";
 import { createVideoGenerator } from "../agents/video-generator";
 import { requiresMatchingDimensions, getVideoDimensionsForImageGeneration } from "../../../ai/config/index";
@@ -103,6 +104,7 @@ export async function createStoryModeRouter(mode: StoryMode) {
   const enhanceStoryboard = await createStoryboardEnhancer(mode);
   const generateImages = await createImageGenerator(mode);
   const generateVoiceover = await createVoiceoverGenerator(mode);
+  const generateSoundEffects = await createSoundEffectsGenerator(mode);
   const generateMusic = await createMusicGenerator(mode);
   const generateVideos = await createVideoGenerator(mode);
   const { exportFinalVideo, remixVideo } = await createVideoExporter(mode);
@@ -620,6 +622,60 @@ router.post(
     } catch (error) {
       console.error("[${mode}:routes] voiceover generation error:", error);
       res.status(500).json({ error: "Failed to generate voiceover" });
+    }
+  }
+);
+
+/**
+ * POST /api/{mode}/sound-effects
+ * Generates sound effects audio for all scenes using ElevenLabs Sound Effects API
+ * Used for auto-asmr mode when video model doesn't support native audio
+ */
+router.post(
+  "/sound-effects",
+  isAuthenticated,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = getCurrentUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { storyId, scenes, projectName, workspaceId } = req.body || {};
+
+      if (!scenes || !Array.isArray(scenes) || scenes.length === 0) {
+        return res.status(400).json({ error: "scenes array is required" });
+      }
+
+      console.log(`[${mode}:routes] Generating sound effects for`, scenes.length, "scenes");
+
+      // Get workspace name
+      const workspaces = await storage.getWorkspacesByUserId(userId);
+      const workspace = workspaces.find((w) => w.id === workspaceId);
+      const workspaceName = workspace?.name || workspaceId;
+
+      const result = await generateSoundEffects(
+        {
+          storyId: storyId || 'temp-story',
+          scenes,
+          projectName: projectName || 'Untitled',
+          workspaceId: workspaceId || '',
+        },
+        userId,
+        workspaceName
+      );
+
+      console.log(`[${mode}:routes] Sound effects generation complete:`, {
+        successful: result.scenes.filter((s: any) => s.status === 'generated').length,
+        failed: result.scenes.filter((s: any) => s.status === 'failed').length,
+        skipped: result.scenes.filter((s: any) => s.status === 'skipped').length,
+        totalCost: result.totalCost,
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error(`[${mode}:routes] sound effects generation error:`, error);
+      res.status(500).json({ error: "Failed to generate sound effects" });
     }
   }
 );

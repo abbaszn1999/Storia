@@ -40,6 +40,18 @@ export const STEPS: Step[] = [
 ];
 
 /**
+ * Get filtered steps based on template
+ * For auto-asmr mode, hide 'audio' step completely
+ * For other modes, return all steps
+ */
+export function getStepsForTemplate(templateId?: string | null): Step[] {
+  if (templateId === 'auto-asmr') {
+    return STEPS.filter(step => step.id !== 'audio');
+  }
+  return STEPS;
+}
+
+/**
  * Word-level timestamp for synchronized subtitles (karaoke-style)
  */
 export interface WordTimestamp {
@@ -54,6 +66,7 @@ export interface StoryScene {
   duration: number;
   description: string;      // Visual description of the scene (used for image generation)
   narration?: string;       // Voiceover text (only when voiceover enabled)
+  soundDescription?: string; // Sound effect description (for auto-asmr when video model doesn't support audio)
   imageUrl?: string;
   videoUrl?: string;
   audioUrl?: string;

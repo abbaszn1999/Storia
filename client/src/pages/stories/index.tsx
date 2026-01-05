@@ -62,6 +62,11 @@ const TEMPLATE_ACCENTS: Record<string, { gradient: string; glow: string; solid: 
     glow: 'shadow-rose-500/30',
     solid: 'bg-rose-500'
   },
+  'auto-asmr': { 
+    gradient: 'from-emerald-500 to-teal-500', 
+    glow: 'shadow-emerald-500/30',
+    solid: 'bg-emerald-500'
+  },
   'asmr-sensory': { 
     gradient: 'from-emerald-500 to-teal-500', 
     glow: 'shadow-emerald-500/30',
@@ -81,6 +86,7 @@ export default function Stories() {
       case 'tease-reveal': return Sparkles;
       case 'before-after': return RefreshCw;
       case 'myth-busting': return AlertCircle;
+      case 'auto-asmr': return Music;
       case 'asmr-sensory': return Music;
       default: return Sparkles;
     }

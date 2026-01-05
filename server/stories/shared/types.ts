@@ -45,7 +45,8 @@ export interface SceneOutput {
   sceneNumber: number;
   duration: number;
   description: string;   // Visual description (for image generation)
-  narration?: string;    // Voiceover text (only when voiceover enabled)
+  narration?: string;    // Voiceover text (only when voiceover enabled, empty for auto-asmr)
+  soundDescription?: string; // Sound effect description (for auto-asmr when model doesn't support audio)
 }
 
 export interface SceneGeneratorOutput {

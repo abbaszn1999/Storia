@@ -1,8 +1,8 @@
 // useStoryStudio - Main state management hook
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import { StepId, STEPS, StoryStudioState, StoryScene, StoryTemplate, MusicStyle } from "../types";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { StepId, STEPS, getStepsForTemplate, StoryStudioState, StoryScene, StoryTemplate, MusicStyle } from "../types";
 import { apiRequest } from "@/lib/queryClient";
 import { getImageModelConfig } from "@/constants/image-models";
 import { getVideoModelConfig } from "@/constants/video-models";
@@ -39,6 +39,9 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
   const projectTimestamp = generateProjectTimestamp();
   const projectFolder = generateProjectFolder('MyProject', projectTimestamp);
   
+  // Default values for auto-asmr mode
+  const isAutoAsmr = template?.id === 'auto-asmr';
+  
   return {
     template,
     
@@ -56,11 +59,11 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
     topic: '',
   generatedScript: '',
   aspectRatio: '9:16',
-  duration: 30,
-  imageMode: 'none', // Legacy
-  voiceoverEnabled: true,
+  duration: isAutoAsmr ? 45 : 30, // Longer default duration for ASMR
+  imageMode: isAutoAsmr ? 'image-to-video' : 'none', // Auto-set to image-to-video for auto-asmr
+  voiceoverEnabled: !isAutoAsmr, // Disabled for auto-asmr
   pacing: 'medium',
-  textOverlayEnabled: true, // New: Simple ON/OFF toggle
+  textOverlayEnabled: !isAutoAsmr, // Disabled for auto-asmr
   textOverlay: 'key-points', // Auto-set to key-points
   
   // New State Fields
@@ -72,7 +75,7 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
   styleReferenceUrl: '', // Custom style reference image URL (locks visual style)
   characterReferenceUrl: '', // Character/face reference image URL
   imageResolution: '1k', // Default image resolution
-  animationMode: 'off',
+  animationMode: isAutoAsmr ? 'video' : 'off', // Auto-enable video mode for auto-asmr
   videoModel: 'seedance-1.0-pro', // Default video model
   videoResolution: '720p', // Default video resolution
   
@@ -108,6 +111,9 @@ const createInitialState = (template: StoryTemplate | null): StoryStudioState =>
 export function useStoryStudio(template: StoryTemplate | null) {
   // Get current workspace for proper file storage paths
   const { currentWorkspace } = useWorkspace();
+  
+  // Get filtered steps based on template (hide 'audio' step for auto-asmr)
+  const availableSteps = useMemo(() => getStepsForTemplate(template?.id), [template?.id]);
   
   // Helper function to get API URL for the current template
   const getApiUrl = useCallback((endpoint: string): string => {
@@ -174,6 +180,19 @@ export function useStoryStudio(template: StoryTemplate | null) {
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+  
+  // Auto-redirect if currentStep is 'audio' for auto-asmr mode (should never happen, but handle it if it does)
+  useEffect(() => {
+    if (template?.id === 'auto-asmr' && state.currentStep === 'audio') {
+      console.warn('[useStoryStudio] Audio step detected in auto-asmr mode, redirecting to export...');
+      // Redirect directly to export step (skip audio completely)
+      setState(prev => ({
+        ...prev,
+        currentStep: 'export',
+        direction: 1,
+      }));
+    }
+  }, [template?.id, state.currentStep]);
 
   // Persist to localStorage
   useEffect(() => {
@@ -443,7 +462,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         const enhanced = data.scenes.find((e: any) => e.sceneNumber === scene.sceneNumber);
         if (enhanced) {
           const updates: any = {
-            ...scene,
+            ...scene, // Preserve all existing scene properties including soundDescription
             imagePrompt: enhanced.imagePrompt,
             videoPrompt: enhanced.videoPrompt,
             imageAnimation: enhanced.animationName,
@@ -459,6 +478,12 @@ export function useStoryStudio(template: StoryTemplate | null) {
           } else {
             // Keep original narration if voiceover is disabled
             updates.narration = scene.narration;
+          }
+          
+          // Preserve soundDescription for auto-asmr mode
+          // (it's already preserved via ...scene spread, but make it explicit)
+          if (template?.id === 'auto-asmr' && scene.soundDescription) {
+            updates.soundDescription = scene.soundDescription;
           }
           
           return updates;
@@ -559,19 +584,25 @@ export function useStoryStudio(template: StoryTemplate | null) {
 
   // Navigation
   const goToStep = useCallback((step: StepId) => {
-    const currentIndex = STEPS.findIndex(s => s.id === state.currentStep);
-    const targetIndex = STEPS.findIndex(s => s.id === step);
+    // Validate that the step exists in available steps (prevents accessing 'audio' step in auto-asmr)
+    if (!availableSteps.find(s => s.id === step)) {
+      console.warn(`[useStoryStudio] Step ${step} not available for template ${template?.id}`);
+      return;
+    }
+    
+    const currentIndex = availableSteps.findIndex(s => s.id === state.currentStep);
+    const targetIndex = availableSteps.findIndex(s => s.id === step);
     setState(prev => ({
       ...prev,
       currentStep: step,
       direction: targetIndex > currentIndex ? 1 : -1,
     }));
-  }, [state.currentStep]);
+  }, [state.currentStep, availableSteps, template?.id]);
 
   const nextStep = useCallback(async () => {
-    const currentIndex = STEPS.findIndex(s => s.id === state.currentStep);
-    if (currentIndex < STEPS.length - 1) {
-      const nextStepId = STEPS[currentIndex + 1].id;
+    const currentIndex = availableSteps.findIndex(s => s.id === state.currentStep);
+    if (currentIndex < availableSteps.length - 1) {
+      const nextStepId = availableSteps[currentIndex + 1].id;
       
       // Lock project name when leaving concept step
       const shouldLockProject = state.currentStep === 'concept' && !state.isProjectLocked;
@@ -603,23 +634,50 @@ export function useStoryStudio(template: StoryTemplate | null) {
         setState(prev => ({ ...prev, isGenerating: true, error: null }));
         
         try {
-          const res = await apiRequest("POST", getApiUrl("/scenes"), {
+          // For auto-asmr, don't send pacing
+          const isAutoAsmr = template?.id === 'auto-asmr';
+          const requestPayload: any = {
             storyText: state.topic,
             duration: state.duration,
-            pacing: state.pacing,
             videoModel: state.videoModel, // Pass video model for duration constraints
-          });
+          };
+          
+          // Only include pacing for non-auto-asmr modes
+          if (!isAutoAsmr) {
+            requestPayload.pacing = state.pacing;
+          }
+          
+          const res = await apiRequest("POST", getApiUrl("/scenes"), requestPayload);
           
           const data = await res.json();
           
+          // Log raw response for debugging (auto-asmr)
+          if (template?.id === 'auto-asmr') {
+            console.log('[nextStep] Raw API response:', JSON.stringify(data, null, 2));
+            console.log('[nextStep] First scene soundDescription:', data.scenes?.[0]?.soundDescription);
+          }
+          
           // Map backend scenes to frontend StoryScene format
-          const generatedScenes: StoryScene[] = data.scenes.map((s: any) => ({
-            id: `scene-${s.sceneNumber}`,
-            sceneNumber: s.sceneNumber,
-            duration: s.duration,
-            description: s.description || '', // Visual description for image generation
-            narration: s.narration || '',     // Voiceover text (if enabled)
-          }));
+          const generatedScenes: StoryScene[] = data.scenes.map((s: any) => {
+            const scene = {
+              id: `scene-${s.sceneNumber}`,
+              sceneNumber: s.sceneNumber,
+              duration: s.duration,
+              description: s.description || '', // Visual description for image generation
+              narration: s.narration || '',     // Voiceover text (if enabled)
+              soundDescription: s.soundDescription || '', // NEW: Sound effect description (for auto-asmr)
+            };
+            // Log for debugging (auto-asmr)
+            if (template?.id === 'auto-asmr') {
+              console.log(`[nextStep] Mapped Scene ${scene.sceneNumber}:`, {
+                raw: s.soundDescription,
+                mapped: scene.soundDescription,
+                hasValue: !!scene.soundDescription,
+                length: scene.soundDescription?.length || 0
+              });
+            }
+            return scene;
+          });
           
           setState(prev => ({ 
             ...prev, 
@@ -643,18 +701,18 @@ export function useStoryStudio(template: StoryTemplate | null) {
         await generateStoryboardEnhancement();
       }
     }
-  }, [state.currentStep, state.topic, state.duration, state.pacing, state.hasGeneratedScenes, state.hasEnhancedStoryboard, generateStoryboardEnhancement, getApiUrl]);
+  }, [state.currentStep, availableSteps, state.topic, state.duration, state.pacing, state.hasGeneratedScenes, state.hasEnhancedStoryboard, generateStoryboardEnhancement, getApiUrl]);
 
   const prevStep = useCallback(() => {
-    const currentIndex = STEPS.findIndex(s => s.id === state.currentStep);
+    const currentIndex = availableSteps.findIndex(s => s.id === state.currentStep);
     if (currentIndex > 0) {
       setState(prev => ({
         ...prev,
-        currentStep: STEPS[currentIndex - 1].id,
+        currentStep: availableSteps[currentIndex - 1].id,
         direction: -1,
       }));
     }
-  }, [state.currentStep]);
+  }, [state.currentStep, availableSteps]);
 
   // Project Name - regenerate projectFolder when name changes using fixed timestamp
   const setProjectName = useCallback((projectName: string) => {
@@ -1014,23 +1072,59 @@ export function useStoryStudio(template: StoryTemplate | null) {
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
     
     try {
-      const res = await apiRequest("POST", getApiUrl("/scenes"), {
+      // For auto-asmr, don't send pacing
+      const isAutoAsmr = template?.id === 'auto-asmr';
+      const requestPayload: any = {
         storyText: state.topic,
         duration: state.duration,
-        pacing: state.pacing,
         videoModel: state.videoModel, // Pass video model for duration constraints
-      });
+      };
+      
+      // Only include pacing for non-auto-asmr modes
+      if (!isAutoAsmr) {
+        requestPayload.pacing = state.pacing;
+      }
+      
+      const res = await apiRequest("POST", getApiUrl("/scenes"), requestPayload);
       
       const data = await res.json();
       
+      // Log raw response for debugging
+      if (template?.id === 'auto-asmr') {
+        console.log('[useStoryStudio] Raw API response:', JSON.stringify(data, null, 2));
+        console.log('[useStoryStudio] First scene from API:', data.scenes?.[0]);
+      }
+      
       // Map backend scenes to frontend StoryScene format
-      const generatedScenes: StoryScene[] = data.scenes.map((s: any) => ({
-        id: `scene-${s.sceneNumber}`,
-        sceneNumber: s.sceneNumber,
-        duration: s.duration,
-        description: s.description || '', // Visual description for image generation
-        narration: s.narration || '',     // Voiceover text (if enabled)
-      }));
+      const generatedScenes: StoryScene[] = data.scenes.map((s: any) => {
+        const scene = {
+          id: `scene-${s.sceneNumber}`,
+          sceneNumber: s.sceneNumber,
+          duration: s.duration,
+          description: s.description || '', // Visual description for image generation
+          narration: s.narration || '',     // Voiceover text (if enabled, empty for auto-asmr)
+          soundDescription: s.soundDescription || '', // Sound effect description (for auto-asmr)
+        };
+        // Log for debugging
+        if (template?.id === 'auto-asmr') {
+          console.log(`[useStoryStudio] Mapped Scene ${scene.sceneNumber}:`, {
+            raw: s.soundDescription,
+            mapped: scene.soundDescription,
+            hasValue: !!scene.soundDescription,
+            length: scene.soundDescription?.length || 0
+          });
+        }
+        return scene;
+      });
+      
+      // Log final scenes before setting state
+      if (template?.id === 'auto-asmr') {
+        console.log('[useStoryStudio] Final generatedScenes:', generatedScenes.map(s => ({
+          sceneNumber: s.sceneNumber,
+          soundDescription: s.soundDescription,
+          hasSoundDesc: !!s.soundDescription
+        })));
+      }
       
       setState(prev => ({ 
         ...prev, 
@@ -1046,7 +1140,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
         isGenerating: false 
       }));
     }
-  }, [state.topic, state.duration, state.aspectRatio, state.voiceoverEnabled, state.imageMode]);
+  }, [state.topic, state.duration, state.aspectRatio, state.voiceoverEnabled, state.imageMode, template, getApiUrl]);
 
   // Regenerate single scene image
   const regenerateSceneImage = useCallback(async (sceneId: string) => {
@@ -1122,6 +1216,13 @@ export function useStoryStudio(template: StoryTemplate | null) {
   // Generate Voiceover: for Audio step
   const generateVoiceover = useCallback(async () => {
     if (state.scenes.length === 0) return;
+    
+    // CRITICAL: Never generate voiceover for auto-asmr mode
+    if (template?.id === 'auto-asmr') {
+      console.warn('[voiceover] Voiceover generation is disabled for auto-asmr mode');
+      return;
+    }
+    
     if (!state.voiceoverEnabled) return;
     if (!state.selectedVoice) return;
 
@@ -1188,6 +1289,100 @@ export function useStoryStudio(template: StoryTemplate | null) {
     }
   }, [state.scenes, state.voiceoverEnabled, state.selectedVoice, state.topic, template, getApiUrl]);
 
+  // Generate Sound Effects (for auto-asmr mode when video model doesn't support native audio)
+  const generateSoundEffects = useCallback(async () => {
+    if (state.scenes.length === 0) return;
+    
+    // Only for auto-asmr mode
+    if (template?.id !== 'auto-asmr') return;
+
+    // Check if any scene has soundDescription
+    const hasSoundDescriptions = state.scenes.some(s => s.soundDescription && s.soundDescription.trim().length > 0);
+    if (!hasSoundDescriptions) {
+      console.warn('[sound-effects] No sound descriptions found in scenes');
+      return;
+    }
+
+    console.log('[sound-effects] ═══════════════════════════════════════════════');
+    console.log('[sound-effects] Starting sound effects generation...');
+    console.log('[sound-effects] Template:', template?.id);
+    console.log('[sound-effects] Scenes to process:', state.scenes.length);
+    console.log('[sound-effects] Scenes with soundDescription:', state.scenes.map(s => ({
+      sceneNumber: s.sceneNumber,
+      soundDescription: s.soundDescription ? (s.soundDescription.substring(0, 50) + (s.soundDescription.length > 50 ? '...' : '')) : '(empty)',
+      duration: s.duration,
+    })));
+    console.log('[sound-effects] ═══════════════════════════════════════════════');
+    
+    setState(prev => ({ ...prev, isGenerating: true, error: null }));
+
+    try {
+      const payload = {
+        storyId: template?.id || 'temp-story',
+        scenes: state.scenes.map(s => ({
+          id: s.id,
+          sceneNumber: s.sceneNumber,
+          soundDescription: s.soundDescription || '',
+          duration: s.duration,
+        })),
+        projectName: state.projectFolder,
+        workspaceId: currentWorkspace?.id || 'default',
+      };
+      
+      console.log('[sound-effects] API Request:', {
+        endpoint: getApiUrl("/sound-effects"),
+        sceneCount: payload.scenes.length,
+        scenes: payload.scenes.map(s => ({
+          sceneNumber: s.sceneNumber,
+          hasSoundDesc: !!(s.soundDescription && s.soundDescription.trim().length > 0),
+          soundDescPreview: s.soundDescription ? (s.soundDescription.substring(0, 30) + (s.soundDescription.length > 30 ? '...' : '')) : '(empty)',
+        })),
+      });
+      
+      const res = await apiRequest("POST", getApiUrl("/sound-effects"), payload);
+
+      const data = await res.json();
+
+      console.log('[sound-effects] Sound effects generated successfully:', {
+        total: data.scenes.length,
+        successful: data.scenes.filter((s: any) => s.status === 'generated').length,
+      });
+
+      // Update scenes with audioUrls and durations
+      setState(prev => ({
+        ...prev,
+        scenes: prev.scenes.map(scene => {
+          const generated = data.scenes.find(
+            (g: any) => g.sceneNumber === scene.sceneNumber
+          );
+          if (generated && generated.status === 'generated') {
+            console.log(`[sound-effects] Scene ${scene.sceneNumber}: Duration ${scene.duration}s → ${generated.duration}s`);
+            return { 
+              ...scene, 
+              audioUrl: generated.audioUrl, // Store sound effect as audioUrl (same as voiceover)
+              duration: generated.duration,  // Use actual audio duration!
+            };
+          }
+          return scene;
+        }),
+        isGenerating: false,
+        hasGeneratedVoiceover: true,  // Reuse this flag to track sound effects generation
+      }));
+
+      // Show errors if any
+      if (data.errors && data.errors.length > 0) {
+        console.warn('[sound-effects] Some scenes failed:', data.errors);
+      }
+    } catch (error) {
+      console.error("[sound-effects] Failed to generate sound effects:", error);
+      setState(prev => ({
+        ...prev,
+        error: 'Failed to generate sound effects',
+        isGenerating: false,
+      }));
+    }
+  }, [state.scenes, state.projectFolder, template, getApiUrl, currentWorkspace?.id]);
+
   // Step 3: Audio
   const setSelectedVoice = useCallback((selectedVoice: string) => {
     setState(prev => ({ ...prev, selectedVoice }));
@@ -1243,6 +1438,50 @@ export function useStoryStudio(template: StoryTemplate | null) {
     console.log('[export] ═══════════════════════════════════════════════');
     
     setState(prev => ({ ...prev, isGenerating: true, generationProgress: 0, error: null }));
+
+    // For auto-asmr mode: Generate sound effects if video model doesn't support native audio
+    const isAutoAsmr = template?.id === 'auto-asmr';
+    if (isAutoAsmr && !state.hasGeneratedVoiceover) {
+      const modelConfig = getVideoModelConfig(state.videoModel);
+      const hasNativeAudio = modelConfig?.hasAudio ?? false;
+      
+      console.log('[export] Auto-ASMR mode check:', {
+        hasGeneratedVoiceover: state.hasGeneratedVoiceover,
+        hasNativeAudio,
+        videoModel: state.videoModel,
+        scenesWithSoundDesc: state.scenes.filter(s => s.soundDescription && s.soundDescription.trim().length > 0).length,
+        totalScenes: state.scenes.length,
+      });
+      
+      if (!hasNativeAudio) {
+        // Check if any scene has soundDescription
+        const hasSoundDescriptions = state.scenes.some(s => s.soundDescription && s.soundDescription.trim().length > 0);
+        
+        if (hasSoundDescriptions) {
+          console.log('[export] ═══════════════════════════════════════════════');
+          console.log('[export] Auto-ASMR mode: Generating sound effects before export...');
+          console.log('[export] Video model does NOT support native audio');
+          console.log('[export] Scenes with soundDescription:', state.scenes.map(s => ({
+            sceneNumber: s.sceneNumber,
+            hasSoundDesc: !!(s.soundDescription && s.soundDescription.trim().length > 0),
+            soundDescLength: s.soundDescription?.length || 0,
+          })));
+          console.log('[export] ═══════════════════════════════════════════════');
+          
+          try {
+            await generateSoundEffects();
+            console.log('[export] ✅ Sound effects generated successfully');
+          } catch (error) {
+            console.error('[export] ❌ Failed to generate sound effects:', error);
+            // Continue with export even if sound effects generation fails
+          }
+        } else {
+          console.warn('[export] ⚠️ Auto-ASMR mode: No soundDescription found in scenes, skipping sound effects generation');
+        }
+      } else {
+        console.log('[export] Auto-ASMR mode: Video model supports native audio, skipping sound effects generation');
+      }
+    }
     
     try {
       // Map frontend animationMode to backend format
@@ -1516,6 +1755,7 @@ export function useStoryStudio(template: StoryTemplate | null) {
     generateVideos,
     regenerateSceneVideo,
     generateVoiceover,
+    generateSoundEffects,
     
     // Step 3
     setSelectedVoice,

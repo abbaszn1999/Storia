@@ -180,15 +180,23 @@ export async function createVideoExporter(mode: StoryMode) {
   
   try {
     // Determine scenario
-    const hasVoiceover = input.scenes.some((s: any) => s.audioUrl);
+    // CRITICAL: For auto-asmr mode, audioUrl contains sound effects, NOT voiceover
+    const hasVoiceover = mode === 'auto-asmr'
+      ? false  // auto-asmr doesn't have voiceover, only sound effects
+      : input.scenes.some((s: any) => s.audioUrl);
+    
+    const hasSoundEffects = mode === 'auto-asmr'
+      ? input.scenes.some((s: any) => s.audioUrl)  // audioUrl contains sound effects in auto-asmr
+      : false;
+    
     const hasCustomMusic = !!input.customMusicUrl; // User-uploaded music (highest priority)
     const hasLegacyMusic = input.backgroundMusic && input.backgroundMusic !== 'none';
     const hasAiMusic = input.musicStyle && input.musicStyle !== 'none' && isValidMusicStyle(input.musicStyle);
     const hasMusic = hasCustomMusic || hasLegacyMusic || hasAiMusic;
-    const hasTextOverlay = input.textOverlay && hasVoiceover; // Text overlay ONLY with voiceover
+    const hasTextOverlay = input.textOverlay && hasVoiceover; // Text overlay ONLY with voiceover (not for sound effects)
     
     // Should we save separated files for volume control?
-    const enableVolumeControl = hasVoiceover && hasMusic;
+    const enableVolumeControl = hasVoiceover && hasMusic; // Only for voiceover, not sound effects
     
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
       console.log(`[${mode}:video-exporter] EXPORT SCENARIO ANALYSIS`);
@@ -196,6 +204,7 @@ export async function createVideoExporter(mode: StoryMode) {
       console.log(`[${mode}:video-exporter] Scene count:`, input.scenes.length);
       console.log(`[${mode}:video-exporter] Animation mode:`, input.animationMode);
       console.log(`[${mode}:video-exporter] Has voiceover:`, hasVoiceover);
+      console.log(`[${mode}:video-exporter] Has sound effects:`, hasSoundEffects);
       const musicType = hasCustomMusic ? '(Custom Upload)' : 
       hasAiMusic ? '(AI Generated)' : 
       hasLegacyMusic ? '(Legacy URL)' : '';
@@ -282,11 +291,13 @@ export async function createVideoExporter(mode: StoryMode) {
       assets.videoFiles = unifiedVideoClips;
       
       // DUAL SPEED SYNC: Prefer slowdown over speedup (more natural)
-      if (hasVoiceover && assets.audioFiles.length > 0) {
+      // Apply sync for both voiceover (other modes) and sound effects (auto-asmr)
+      if ((hasVoiceover || hasSoundEffects) && assets.audioFiles.length > 0) {
+          const audioType = mode === 'auto-asmr' ? 'sound effects' : 'voiceover';
           console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
           console.log(`[${mode}:video-exporter] DUAL SPEED SYNC (Prefer Slowdown Mode)`);
           console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-          console.log(`[${mode}:video-exporter] Strategy: Slow motion video + Natural audio`);
+          console.log(`[${mode}:video-exporter] Strategy: Slow motion video + Natural ${audioType}`);
           console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
         
         const adjustedVideos: string[] = [];
@@ -529,16 +540,18 @@ export async function createVideoExporter(mode: StoryMode) {
     tempFiles.push(videoTimeline);
       console.log(`[${mode}:video-exporter] ✓ Video timeline created:`, videoTimeline);
     
-    // Step 3: Merge voiceover audio (if available)
+    // Step 3: Merge audio (voiceover for other modes, sound effects for auto-asmr)
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
       console.log(`[${mode}:video-exporter] STEP 3: Audio Processing`);
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
     
     let finalVideo = videoTimeline;
     
-    if (hasVoiceover && assets.audioFiles.length > 0) {
-        console.log(`[${mode}:video-exporter] Processing voiceover audio...`);
-        console.log(`[${mode}:video-exporter] Audio files count:`, assets.audioFiles.length);
+    // Process audio: voiceover for other modes, sound effects for auto-asmr
+    if ((hasVoiceover || hasSoundEffects) && assets.audioFiles.length > 0) {
+      const audioType = mode === 'auto-asmr' ? 'sound effects' : 'voiceover';
+      console.log(`[${mode}:video-exporter] Processing ${audioType} audio...`);
+      console.log(`[${mode}:video-exporter] Audio files count:`, assets.audioFiles.length);
       
       let mergedAudio: string;
       
@@ -552,30 +565,34 @@ export async function createVideoExporter(mode: StoryMode) {
         mergedAudio = assets.audioFiles[0];
       }
       
-        console.log(`[${mode}:video-exporter] Merging audio with video timeline...`);
+        console.log(`[${mode}:video-exporter] Merging ${audioType} with video timeline...`);
       const withAudio = await mergeVoiceover(videoTimeline, mergedAudio);
       tempFiles.push(withAudio);
       finalVideo = withAudio;
-        console.log(`[${mode}:video-exporter] ✓ Voiceover merged successfully`);
+        console.log(`[${mode}:video-exporter] ✓ ${audioType} merged successfully`);
       
-      // Upload merged voiceover for volume control (if both voice & music enabled)
-      if (enableVolumeControl) {
-          console.log(`[${mode}:video-exporter] Uploading merged voiceover for volume control...`);
-        const voiceoverFilename = `voiceover_${Date.now()}.mp3`;
-        const voiceoverPath = buildStoryModePath({
+      // Upload merged audio for volume control (if both voice/sound effects & music enabled)
+      // Only for voiceover, not for sound effects (sound effects don't need volume control separation)
+      if (enableVolumeControl && hasVoiceover) {
+        const audioLabel = mode === 'auto-asmr' ? 'sound effects' : 'voiceover';
+          console.log(`[${mode}:video-exporter] Uploading merged ${audioLabel} for volume control...`);
+        const audioFilename = mode === 'auto-asmr' ? `sound_effects_${Date.now()}.mp3` : `voiceover_${Date.now()}.mp3`;
+        const audioSubfolder = mode === 'auto-asmr' ? 'SoundEffects' : 'VoiceOver';
+        const audioPath = buildStoryModePath({
           userId: userId || "",
           workspaceName: workspaceName || "",
           toolMode: mode,
           projectName: input.projectName,
-          subfolder: "VoiceOver",
-          filename: voiceoverFilename,
+          subfolder: audioSubfolder,
+          filename: audioFilename,
         });
-        const voiceBuffer = await import('fs/promises').then(fs => fs.readFile(mergedAudio));
-        voiceoverUrl = await bunnyStorage.uploadFile(voiceoverPath, voiceBuffer, 'audio/mpeg');
-          console.log(`[${mode}:video-exporter] ✓ Voiceover uploaded:`, voiceoverUrl);
+        const audioBuffer = await import('fs/promises').then(fs => fs.readFile(mergedAudio));
+        voiceoverUrl = await bunnyStorage.uploadFile(audioPath, audioBuffer, 'audio/mpeg');
+          console.log(`[${mode}:video-exporter] ✓ ${audioLabel} uploaded:`, voiceoverUrl);
       }
     } else {
-        console.log(`[${mode}:video-exporter] No voiceover audio - creating silent video`);
+      const audioType = mode === 'auto-asmr' ? 'sound effects' : 'voiceover';
+        console.log(`[${mode}:video-exporter] No ${audioType} audio - creating silent video`);
     }
     
     // Step 4: Add background music (if enabled)
@@ -846,6 +863,9 @@ export async function createVideoExporter(mode: StoryMode) {
       console.log(`[${mode}:video-exporter]   Quality:`, input.exportQuality);
       console.log(`[${mode}:video-exporter]   Animation mode:`, input.animationMode);
       console.log(`[${mode}:video-exporter]   Had voiceover:`, hasVoiceover);
+      if (mode === 'auto-asmr') {
+        console.log(`[${mode}:video-exporter]   Had sound effects:`, hasSoundEffects);
+      }
       console.log(`[${mode}:video-exporter]   Had music:`, hasMusic);
       console.log(`[${mode}:video-exporter]   Had subtitles:`, hasTextOverlay);
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);

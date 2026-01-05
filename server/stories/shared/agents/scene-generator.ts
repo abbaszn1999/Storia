@@ -33,11 +33,16 @@ export async function createSceneGenerator(mode: StoryMode) {
     buildSceneSchema,
     getOptimalSceneCount,
   } = promptsModule;
-  
-  type SceneGeneratorInput = typeof typesModule.SceneGeneratorInput extends infer T ? T : any;
-  type SceneGeneratorOutput = typeof typesModule.SceneGeneratorOutput extends infer T ? T : any;
-  type SceneOutput = typeof typesModule.SceneOutput extends infer T ? T : any;
-  type VideoModelConstraints = typeof promptsModule.VideoModelConstraints extends infer T ? T : any;
+
+  // Types from shared/types are not value exports, must use typeof import and key lookup
+  type SceneGeneratorInput = import("../types").SceneGeneratorInput;
+  type SceneGeneratorOutput = import("../types").SceneGeneratorOutput;
+  type SceneOutput = import("../types").SceneOutput;
+
+  // Guard VideoModelConstraints in case it does not exist in prompts module
+  type VideoModelConstraints = typeof promptsModule.VideoModelConstraints extends undefined
+    ? unknown
+    : typeof promptsModule.VideoModelConstraints;
 
   /**
    * Validate input parameters
@@ -53,7 +58,8 @@ export async function createSceneGenerator(mode: StoryMode) {
       throw new Error("Duration must be between 10 and 120 seconds");
     }
 
-    if (!['slow', 'medium', 'fast'].includes(pacing)) {
+    // Pacing is optional for auto-asmr mode
+    if (mode !== 'auto-asmr' && !['slow', 'medium', 'fast'].includes(pacing)) {
       throw new Error("Pacing must be 'slow', 'medium', or 'fast'");
     }
   }
@@ -298,19 +304,21 @@ export async function createSceneGenerator(mode: StoryMode) {
       }
     }
 
-    // Validate word counts
-    const isArabic = /[\u0600-\u06FF]/.test(parsed.scenes[0]?.narration || '');
-    const wordsPerSecond = isArabic ? 2.0 : 2.5;
+    // Validate word counts (skip for auto-asmr mode - no narration)
+    if (mode !== 'auto-asmr') {
+      const isArabic = /[\u0600-\u06FF]/.test(parsed.scenes[0]?.narration || '');
+      const wordsPerSecond = isArabic ? 2.0 : 2.5;
 
-    for (const scene of parsed.scenes) {
-      const wordCount = (scene.narration || '').split(/\s+/).filter((w: string) => w.length > 0).length;
-      const expectedWords = Math.round(scene.duration * wordsPerSecond);
-      const tolerance = Math.round(expectedWords * 0.2); // 20% tolerance
+      for (const scene of parsed.scenes) {
+        const wordCount = (scene.narration || '').split(/\s+/).filter((w: string) => w.length > 0).length;
+        const expectedWords = Math.round(scene.duration * wordsPerSecond);
+        const tolerance = Math.round(expectedWords * 0.2); // 20% tolerance
 
-      if (wordCount > expectedWords + tolerance) {
-        console.warn(
-          `[${mode}:scene-generator] Scene ${scene.sceneNumber}: Too many words (${wordCount} vs expected ~${expectedWords})`
-        );
+        if (wordCount > expectedWords + tolerance) {
+          console.warn(
+            `[${mode}:scene-generator] Scene ${scene.sceneNumber}: Too many words (${wordCount} vs expected ~${expectedWords})`
+          );
+        }
       }
     }
   }
@@ -332,26 +340,33 @@ export async function createSceneGenerator(mode: StoryMode) {
     const modelId = videoModel || getDefaultVideoModel().id;
     const modelConstraints = getVideoModelConstraints(modelId);
     
-    // Calculate optimal scene count based on duration AND pacing
-    const sceneCount = getOptimalSceneCount(duration, pacing);
+    // Calculate optimal scene count based on duration (and pacing if available)
+    // For auto-asmr, pacing is not used
+    const sceneCount = mode === 'auto-asmr' 
+      ? getOptimalSceneCount(duration)
+      : getOptimalSceneCount(duration, pacing);
     
     console.log(`[${mode}:scene-generator] ═══════════════════════════════════════════════`);
     console.log(`[${mode}:scene-generator] Generating scenes`);
     console.log(`[${mode}:scene-generator] ═══════════════════════════════════════════════`);
     console.log(`[${mode}:scene-generator] Duration:`, duration, 'seconds');
-    console.log(`[${mode}:scene-generator] Pacing:`, pacing);
+    if (mode !== 'auto-asmr') {
+      console.log(`[${mode}:scene-generator] Pacing:`, pacing);
+    }
     console.log(`[${mode}:scene-generator] Target scene count:`, sceneCount);
     console.log(`[${mode}:scene-generator] Story length:`, storyText.length, 'characters');
     console.log(`[${mode}:scene-generator] Video model:`, modelId);
     console.log(`[${mode}:scene-generator] Supported durations:`, modelConstraints?.supportedDurations || 'default');
 
-    const systemPrompt = buildSceneBreakdownSystemPrompt(
-      duration,
-      sceneCount,
-      pacing,
-      modelConstraints
-    );
-    const userPrompt = buildSceneUserPrompt(storyText, duration, pacing);
+    // Build prompts
+    // For auto-asmr, pacing parameter is not used
+    const systemPrompt = mode === 'auto-asmr'
+      ? buildSceneBreakdownSystemPrompt(duration, sceneCount, modelConstraints)
+      : buildSceneBreakdownSystemPrompt(duration, sceneCount, pacing, modelConstraints);
+    
+    const userPrompt = mode === 'auto-asmr'
+      ? buildSceneUserPrompt(storyText, duration, modelConstraints)
+      : buildSceneUserPrompt(storyText, duration, pacing);
 
     const schema = buildSceneSchema(sceneCount, duration, modelConstraints);
 

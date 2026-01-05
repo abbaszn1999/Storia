@@ -3,7 +3,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { StepId, STEPS, StoryTemplate } from "../types";
+import { StepId, STEPS, getStepsForTemplate, StoryTemplate } from "../types";
 import { AmbientBackground } from "../shared/AmbientBackground";
 import { TimelineNavigation } from "../shared/TimelineNavigation";
 import { ArrowLeft } from "lucide-react";
@@ -32,6 +32,7 @@ const templateAccentMap: Record<string, string> = {
   'tease-reveal': 'violet',
   'before-after': 'blue',
   'myth-busting': 'rose',
+  'auto-asmr': 'emerald',
 };
 
 const templateGradientMap: Record<string, string> = {
@@ -39,6 +40,7 @@ const templateGradientMap: Record<string, string> = {
   'tease-reveal': 'from-violet-500 to-purple-500',
   'before-after': 'from-blue-500 to-cyan-500',
   'myth-busting': 'from-rose-500 to-pink-500',
+  'auto-asmr': 'from-emerald-500 to-teal-500',
 };
 
 export function StudioLayout({
@@ -59,8 +61,11 @@ export function StudioLayout({
   const [, navigate] = useLocation();
   const accentColor = templateAccentMap[template.id] || 'primary';
   const gradientColor = templateGradientMap[template.id] || 'from-primary to-violet-500';
-  const currentStepIndex = STEPS.findIndex(s => s.id === currentStep);
-  const currentStepInfo = STEPS[currentStepIndex];
+  
+  // Get filtered steps based on template (hide 'audio' step for auto-asmr)
+  const availableSteps = getStepsForTemplate(template.id);
+  const currentStepIndex = availableSteps.findIndex(s => s.id === currentStep);
+  const currentStepInfo = availableSteps[currentStepIndex] || STEPS.find(s => s.id === currentStep);
 
   // Animation variants for step transitions - simple fade only
   const stepVariants = {
@@ -144,6 +149,7 @@ export function StudioLayout({
 
       {/* Timeline Navigation */}
       <TimelineNavigation
+        steps={availableSteps}
         currentStep={currentStep}
         completedSteps={completedSteps}
         onStepClick={onStepClick}

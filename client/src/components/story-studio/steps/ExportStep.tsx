@@ -47,6 +47,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { SiYoutube, SiTiktok, SiInstagram, SiFacebook } from "react-icons/si";
 import { StoryScene, StoryTemplate } from "../types";
+import { getVideoModelConfig } from "@/constants/video-models";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Slider } from "@/components/ui/slider";
 import { useWorkspace } from "@/contexts/workspace-context";
@@ -81,6 +82,7 @@ interface ExportStepProps {
   generationProgress: number;
   voiceoverEnabled: boolean;
   imageModel: string;       // Image model used for generation
+  videoModel?: string;      // Video model ID to check hasAudio (for auto-asmr sound effects)
   isFinalExporting?: boolean;  // Is final export in progress
   hasGeneratedVoiceover: boolean;  // Track if voiceover has been auto-generated once
   hasExportedVideo: boolean;       // Track if video has been auto-exported once
@@ -244,6 +246,7 @@ export function ExportStep({
   generationProgress,
   voiceoverEnabled,
   imageModel,
+  videoModel,
   isFinalExporting = false,
   hasGeneratedVoiceover,
   hasExportedVideo,
@@ -365,7 +368,7 @@ export function ExportStep({
   useEffect(() => {
     if (connectingPlatform) {
       const platform = PLATFORMS.find(p => p.id === connectingPlatform);
-      if (platform?.apiPlatform && isConnected(platform.apiPlatform)) {
+      if (platform?.apiPlatform && isConnected(platform.apiPlatform as LatePlatform)) {
         // Clear the polling interval
         if (connectIntervalRef.current) {
           clearInterval(connectIntervalRef.current);
@@ -443,8 +446,29 @@ export function ExportStep({
 
   // Check if all scenes have audio
   const allScenesHaveAudio = scenes.every(s => s.audioUrl);
+  
+  // For auto-asmr: check if we should show sound effects section
+  // CRITICAL: Check if video model supports native audio
+  const isAutoAsmr = template?.id === 'auto-asmr';
+  const modelConfig = useMemo(() => {
+    if (!videoModel) return null;
+    return getVideoModelConfig(videoModel);
+  }, [videoModel]);
+  
+  const hasNativeAudio = modelConfig?.hasAudio ?? false;
+  // In auto-asmr mode, only show sound effects if model doesn't support native audio
+  const shouldShowSoundEffects = isAutoAsmr && !hasNativeAudio;
+  
+  console.log('[ExportStep] Audio configuration:', {
+    isAutoAsmr,
+    videoModel: videoModel || 'unknown',
+    hasNativeAudio,
+    shouldShowSoundEffects,
+    voiceoverEnabled,
+  });
 
-  // Auto-generate voiceover on mount if enabled (ONCE ONLY - uses parent state flag)
+  // Auto-generate voiceover/sound effects on mount if enabled (ONCE ONLY - uses parent state flag)
+  // For auto-asmr mode: generate sound effects if video model doesn't support native audio
   useEffect(() => {
     // Skip if already generated globally (parent state tracks this)
     if (hasGeneratedVoiceover) {
@@ -452,7 +476,15 @@ export function ExportStep({
       return;
     }
     
-    if (voiceoverEnabled && 
+    // For auto-asmr: check if video model supports native audio
+    // If not, we need to generate sound effects
+    // For other modes: check voiceoverEnabled
+    // CRITICAL: In auto-asmr mode, NEVER use voiceoverEnabled
+    const shouldGenerateAudio = isAutoAsmr
+      ? (shouldShowSoundEffects && scenes.some(s => s.soundDescription && s.soundDescription.trim().length > 0))
+      : voiceoverEnabled; // Only use voiceoverEnabled for non-auto-asmr modes
+    
+    if (shouldGenerateAudio && 
         !voiceoverGenerated && 
         !hasAttemptedGenerationLocal.current && 
         scenes.length > 0 &&
@@ -461,27 +493,29 @@ export function ExportStep({
       hasAttemptedGenerationLocal.current = true; // Prevent multiple calls in this mount
       setIsGeneratingVoiceover(true);
       
-      console.log('[ExportStep] Auto-generating voiceover (first time only)...');
+      const audioType = shouldShowSoundEffects ? 'sound effects' : 'voiceover';
+      console.log(`[ExportStep] Auto-generating ${audioType} (first time only)...`);
       onGenerateVoiceover()
         .then(() => {
           setVoiceoverGenerated(true);
           setIsGeneratingVoiceover(false);
-        console.log('[ExportStep] Voiceover generation complete');
+        console.log(`[ExportStep] ${audioType} generation complete`);
         })
         .catch(error => {
-          console.error('[ExportStep] Voiceover generation failed:', error);
+          console.error(`[ExportStep] ${audioType} generation failed:`, error);
           hasAttemptedGenerationLocal.current = false; // Allow retry on failure
           setIsGeneratingVoiceover(false);
         });
     } else if (allScenesHaveAudio) {
       // If all scenes already have audio, mark as generated
       setVoiceoverGenerated(true);
-    } else if (!voiceoverEnabled) {
-      // If voiceover is disabled, skip generation and mark as ready
-      console.log('[ExportStep] Voiceover disabled - skipping generation');
+    } else if (!shouldGenerateAudio) {
+      // If audio generation is not needed, skip and mark as ready
+      const audioType = shouldShowSoundEffects ? 'sound effects' : 'voiceover';
+      console.log(`[ExportStep] ${audioType} generation not needed - skipping`);
       setVoiceoverGenerated(true);
     }
-  }, [voiceoverEnabled, voiceoverGenerated, scenes.length, onGenerateVoiceover, allScenesHaveAudio, hasGeneratedVoiceover]);
+  }, [voiceoverEnabled, voiceoverGenerated, scenes.length, onGenerateVoiceover, allScenesHaveAudio, hasGeneratedVoiceover, shouldShowSoundEffects]);
 
   // Auto-export on mount (after voiceover is ready) - ONCE ONLY
   useEffect(() => {
@@ -749,7 +783,7 @@ export function ExportStep({
 
     setConnectingPlatform(platformId);
     
-    const url = await getConnectUrl(platform.apiPlatform);
+    const url = await getConnectUrl(platform.apiPlatform as LatePlatform);
     if (url) {
       window.open(url, '_blank', 'width=600,height=700');
       toast({
@@ -1048,7 +1082,7 @@ export function ExportStep({
             if (platformResult.status === 'published' || platformResult.status === 'pending') {
               publishedPlatformsData[platformResult.platform] = {
                 status: scheduleMode === 'scheduled' ? 'scheduled' : 'published',
-                video_id: platformResult.videoId,
+                published_url: platformResult.publishedUrl,
                 published_at: new Date().toISOString(),
                 scheduled_for: scheduleMode === 'scheduled' && scheduledDateTime ? scheduledDateTime : undefined,
               };
@@ -1088,21 +1122,31 @@ export function ExportStep({
       )}>
         <ScrollArea className="flex-1 h-full">
           <div className="p-6 space-y-6 pb-12">
-            {/* Voiceover Generation Status - Styled like other sections */}
-            {voiceoverEnabled && (
+            {/* Voiceover/Sound Effects Generation Status - Styled like other sections */}
+            {(voiceoverEnabled || shouldShowSoundEffects) && (
               <GlassPanel>
                 <div className="space-y-4">
                   {/* Header */}
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       "w-10 h-10 rounded-xl flex items-center justify-center",
-                      "bg-gradient-to-br from-purple-500/20 to-pink-500/20"
+                      shouldShowSoundEffects 
+                        ? "bg-gradient-to-br from-emerald-500/20 to-teal-500/20"
+                        : "bg-gradient-to-br from-purple-500/20 to-pink-500/20"
                     )}>
-                      <Mic className="w-5 h-5 text-purple-400" />
+                      {shouldShowSoundEffects ? (
+                        <Music className="w-5 h-5 text-emerald-400" />
+                      ) : (
+                        <Mic className="w-5 h-5 text-purple-400" />
+                      )}
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-white">Voiceover</h3>
-                      <p className="text-xs text-white/50">AI-generated narration</p>
+                      <h3 className="font-semibold text-white">
+                        {shouldShowSoundEffects ? "Sound Effects" : "Voiceover"}
+                      </h3>
+                      <p className="text-xs text-white/50">
+                        {shouldShowSoundEffects ? "AI-generated sound effects" : "AI-generated narration"}
+                      </p>
                     </div>
                     
                     {/* Status Badge */}
@@ -1304,7 +1348,7 @@ export function ExportStep({
                         
                         // Check platform compatibility with current video settings
                         const compatibility = getPlatformCompatibility(platform, aspectRatio, duration);
-                        const platformConnected = platform.apiPlatform ? isConnected(platform.apiPlatform) : false;
+                        const platformConnected = platform.apiPlatform ? isConnected(platform.apiPlatform as LatePlatform) : false;
                         const isDisabled = !compatibility.compatible || !platformConnected;
 
                 return (

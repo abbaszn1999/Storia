@@ -381,31 +381,55 @@ export async function createVideoGenerator(mode: StoryMode) {
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
-    // DISABLE AUDIO: Story modes should NOT generate audio
-    // Voiceover is handled separately via ElevenLabs
+    // AUDIO SETTINGS: Handle audio generation based on mode and model support
+    // ═══════════════════════════════════════════════════════════════════════════
+    // - auto-asmr mode: Enable audio if model supports it (hasAudio: true)
+    // - Other modes: Disable audio (voiceover handled separately via ElevenLabs)
     // ═══════════════════════════════════════════════════════════════════════════
     let providerSettings: Record<string, any> | undefined;
     
+    // Determine if audio should be enabled
+    const shouldEnableAudio = mode === 'auto-asmr' && modelConfig.hasAudio;
+    
     // Only add providerSettings for models that support audio parameter
-    // Note: Bytedance models don't support audio parameter in providerSettings
-    // for image-to-video mode. The model will generate video without audio by default.
     // Note: Sora 2 Pro (openai:3@2) does NOT support generateAudio parameter
     // The model generates video without audio by default for image-to-video mode
-    if (runwareModelId.startsWith("google:3@")) {
-      providerSettings = { google: { generateAudio: false } };
+    if (runwareModelId === "bytedance:seedance@1.5-pro") {
+      // Seedance 1.5 Pro (ByteDance) - Native audio support
+      if (shouldEnableAudio) {
+        providerSettings = {
+          bytedance: {
+            audio: true,
+            cameraFixed: false,
+          },
+        };
+      }
+      // Note: If audio is disabled, we don't add providerSettings
+      // ByteDance models generate video without audio by default when audio: false is not specified
+    } else if (runwareModelId.startsWith("google:3@")) {
+      providerSettings = { google: { generateAudio: shouldEnableAudio } };
     } else if (runwareModelId.startsWith("lightricks:")) {
-      providerSettings = { lightricks: { generateAudio: false } };
+      providerSettings = { lightricks: { generateAudio: shouldEnableAudio } };
     } else if (runwareModelId.startsWith("pixverse:")) {
-      providerSettings = { pixverse: { audio: false } };
+      providerSettings = { pixverse: { audio: shouldEnableAudio } };
     } else if (runwareModelId === "klingai:kling-video@2.6-pro") {
-      providerSettings = { klingai: { sound: false } };
+      providerSettings = { klingai: { sound: shouldEnableAudio } };
     } else if (runwareModelId.startsWith("alibaba:")) {
-      providerSettings = { alibaba: { audio: false } };
+      providerSettings = { alibaba: { audio: shouldEnableAudio } };
     }
     // Sora 2 Pro (openai:3@2): Skip audio parameter - not supported
     // The model generates video without audio by default for image-to-video mode
     // Bytedance models: Skip audio parameter as it's not supported for image-to-video
-    // The model will generate video without audio by default
+    // The model will generate video without audio by default (unless native audio support)
+    
+    // Log audio settings for debugging
+    if (shouldEnableAudio) {
+      console.log(`[${mode}:video-generator] ✅ Audio enabled for model "${videoModel}" (hasAudio: ${modelConfig.hasAudio})`);
+    } else if (mode !== 'auto-asmr') {
+      console.log(`[${mode}:video-generator] 🔇 Audio disabled (voiceover handled separately via ElevenLabs)`);
+    } else if (mode === 'auto-asmr' && !modelConfig.hasAudio) {
+      console.log(`[${mode}:video-generator] 🔇 Audio disabled - model "${videoModel}" doesn't support native audio`);
+    }
     
     // ═══════════════════════════════════════════════════════════════════════════
     // BUILD PAYLOAD: Some models don't support width/height in image-to-video mode

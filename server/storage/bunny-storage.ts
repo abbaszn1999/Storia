@@ -83,7 +83,7 @@ export interface BunnyStorageConfig {
 /**
  * Subfolder types for organizing project assets
  */
-export type StoryModeSubfolder = 'Reference' | 'VoiceOver' | 'Music' | 'Render';
+export type StoryModeSubfolder = 'Reference' | 'VoiceOver' | 'Music' | 'Render' | 'SoundEffects';
 
 /**
  * Build a Story_Mode path for Bunny storage.

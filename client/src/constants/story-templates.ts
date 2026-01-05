@@ -74,6 +74,18 @@ export const STORY_TEMPLATES: StoryTemplate[] = [
     difficulty: 'beginner',
     category: 'entertainment',
   },
+  {
+    id: 'auto-asmr',
+    name: 'Auto-ASMR',
+    description: 'AI-powered relaxing, meditative stories with satisfying visuals and sounds.',
+    type: 'narrative',
+    iconColor: 'from-emerald-500 to-teal-500',
+    structure: ['Peaceful Opening', 'Sensory Journey', 'Calm Closing'],
+    estimatedDuration: '15-60s',
+    useCases: ['Relaxation content', 'Meditation videos', 'Satisfying visuals', 'Sleep content'],
+    difficulty: 'beginner',
+    category: 'entertainment',
+  },
 ];
 
 export const IMAGE_EFFECTS = [

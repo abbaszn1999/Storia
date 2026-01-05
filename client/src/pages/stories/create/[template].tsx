@@ -33,6 +33,7 @@ const templateAccentMap: Record<string, string> = {
   'tease-reveal': 'violet',
   'before-after': 'blue',
   'myth-busting': 'rose',
+  'auto-asmr': 'emerald',
   'asmr-sensory': 'primary',
 };
 
@@ -313,8 +314,8 @@ export default function StoryCreate() {
         />
       )}
 
-      {/* Step 3: Audio */}
-      {studio.state.currentStep === 'audio' && (
+      {/* Step 3: Audio - Hidden for auto-asmr mode */}
+      {studio.state.currentStep === 'audio' && template.id !== 'auto-asmr' && (
         <AudioStep
           template={template}
           scenes={studio.state.scenes}
@@ -336,7 +337,7 @@ export default function StoryCreate() {
           onClearCustomMusic={studio.clearCustomMusic}
           onVoiceVolumeChange={studio.setVoiceVolume}
           onMusicVolumeChange={studio.setMusicVolume}
-          onGenerateVoiceover={studio.generateVoiceover}
+          onGenerateVoiceover={template?.id === 'auto-asmr' ? studio.generateSoundEffects : studio.generateVoiceover}
           accentColor={accentColor}
         />
       )}
@@ -359,6 +360,7 @@ export default function StoryCreate() {
           generationProgress={studio.state.generationProgress}
           voiceoverEnabled={studio.state.voiceoverEnabled}
           imageModel={studio.state.imageModel}
+          videoModel={studio.state.videoModel}
           isFinalExporting={isFinalExporting}
           hasGeneratedVoiceover={studio.state.hasGeneratedVoiceover}
           hasExportedVideo={studio.state.hasExportedVideo}
@@ -367,7 +369,7 @@ export default function StoryCreate() {
           onExport={studio.exportVideo}
           onRemix={studio.remixVideo}
           onFinalExport={handleFinalExport}
-          onGenerateVoiceover={studio.generateVoiceover}
+          onGenerateVoiceover={template?.id === 'auto-asmr' ? studio.generateSoundEffects : studio.generateVoiceover}
           onVoiceVolumeChange={studio.setVoiceVolume}
           onMusicVolumeChange={studio.setMusicVolume}
           onBusyStateChange={setIsExportStepBusy}

@@ -100,6 +100,7 @@ export async function createStoryboardEnhancer(mode: StoryMode) {
     }
 
     // Validate narration if voiceover is enabled
+    // For auto-asmr mode (voiceoverEnabled = false), narration is always empty string - skip validation
     if (input.voiceoverEnabled) {
       if (!scene.narration || scene.narration.trim().length === 0) {
         throw new Error(`Invalid scene ${index + 1}: narration is required when voiceover is enabled`);
@@ -163,6 +164,7 @@ function validateOutput(
     }
 
     // Validate voiceover fields if enabled
+    // For auto-asmr mode (voiceoverEnabled = false), voiceText and voiceMood are not required - skip validation
     if (input.voiceoverEnabled) {
       if (!scene.voiceText || typeof scene.voiceText !== 'string') {
         throw new Error(`Invalid scene ${index + 1}: voiceText is required when voiceover is enabled`);

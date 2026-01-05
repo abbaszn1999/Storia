@@ -961,8 +961,8 @@ export function ConceptStep({
               </div>
             )}
 
-            {/* Character Reference Upload - Only show if model supports it */}
-            {supportsCharacterReference && (
+            {/* Character Reference Upload - Only show if model supports it and not auto-asmr */}
+            {supportsCharacterReference && template.id !== 'auto-asmr' && (
               <div className="space-y-3">
                 <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">
                   Character Reference {requiresReferenceImages ? '(Required)' : '(Optional)'}
@@ -1067,38 +1067,41 @@ export function ConceptStep({
               </div>
             </div>
 
-            {/* Pacing */}
-            <div className="space-y-2">
-              <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Pacing</label>
-              <div className="grid grid-cols-3 gap-3">
-                {PACING_OPTIONS.map(option => (
-                  <button
-                    key={option.value}
-                    onClick={() => onPacingChange(option.value as any)}
-                    className={cn(
-                      "flex items-center justify-center gap-2 p-3 rounded-xl border transition-all duration-200",
-                      pacing === option.value
-                        ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                        : "bg-white/5 border-white/10 hover:bg-white/10"
-                    )}
-                  >
-                    <span className="text-base">{option.emoji}</span>
-                    <span className="text-sm font-medium text-white">{option.label}</span>
-                  </button>
-                ))}
+            {/* Pacing - Hide for auto-asmr */}
+            {template.id !== 'auto-asmr' && (
+              <div className="space-y-2">
+                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Pacing</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {PACING_OPTIONS.map(option => (
+                    <button
+                      key={option.value}
+                      onClick={() => onPacingChange(option.value as any)}
+                      className={cn(
+                        "flex items-center justify-center gap-2 p-3 rounded-xl border transition-all duration-200",
+                        pacing === option.value
+                          ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
+                          : "bg-white/5 border-white/10 hover:bg-white/10"
+                      )}
+                    >
+                      <span className="text-base">{option.emoji}</span>
+                      <span className="text-sm font-medium text-white">{option.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </GlassPanel>
 
-        {/* BOX 3: Voiceover */}
-        <GlassPanel>
-          <div className="flex items-center gap-2 mb-4">
-            <Mic className="w-5 h-5 text-purple-400" />
-            <h3 className="font-semibold text-white">Voiceover</h3>
-          </div>
-          
-          <div className="space-y-4">
+        {/* BOX 3: Voiceover - Hide for auto-asmr */}
+        {template.id !== 'auto-asmr' && (
+          <GlassPanel>
+            <div className="flex items-center gap-2 mb-4">
+              <Mic className="w-5 h-5 text-purple-400" />
+              <h3 className="font-semibold text-white">Voiceover</h3>
+            </div>
+            
+            <div className="space-y-4">
             {/* Voiceover Toggle */}
             <div className="flex items-center justify-between">
               <label className="text-sm text-white/70">Enable Voiceover</label>
@@ -1229,143 +1232,207 @@ export function ConceptStep({
             )}
           </div>
         </GlassPanel>
+        )}
 
-        {/* BOX 4: Animation Mode */}
+        {/* BOX 4: Animation Mode - أو Video Models للـ auto-asmr */}
         <GlassPanel>
           <div className="flex items-center gap-2 mb-4">
             <Video className="w-5 h-5 text-purple-400" />
-            <h3 className="font-semibold text-white">Animation Mode</h3>
+            <h3 className="font-semibold text-white">
+              {template.id === 'auto-asmr' ? 'Video Model' : 'Animation Mode'}
+            </h3>
           </div>
           
           <div className="space-y-4">
-            {/* Animation Mode Toggle */}
-            <div className="flex items-center justify-between">
-              <label className="text-sm text-white/70">Enable Animation</label>
-              <div className="flex bg-white/5 rounded-lg p-1 border border-white/10">
-                <button
-                  onClick={() => onAnimationModeChange('off')}
-                  className={cn(
-                    "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
-                    animationMode === 'off' ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
-                  )}
-                >
-                  Off
-                </button>
-                <button
-                  onClick={() => onAnimationModeChange('transition')}
-                  className={cn(
-                    "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
-                    animationMode !== 'off' ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
-                  )}
-                >
-                  On
-                </button>
-              </div>
-            </div>
+            {template.id === 'auto-asmr' ? (
+              // للـ auto-asmr: إظهار Video Models مباشرة
+              <>
+                {/* Video Model Selector */}
+                {selectedVideoModel && (
+                  <VideoModelSelector
+                    value={videoModel}
+                    onChange={onVideoModelChange}
+                    selectedModelInfo={selectedVideoModel}
+                    aspectRatio={aspectRatio}
+                    imageModel={imageModel}
+                    videoResolution={videoResolution}
+                  />
+                )}
 
-            {/* Conditional Sub-options */}
-            {animationMode !== 'off' && (
-              <motion.div 
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                className="space-y-4"
-              >
-                {/* Mode Selector: Transition vs Video */}
-                <div className="space-y-2">
-                  <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Animation Type</label>
-                  <div className="grid grid-cols-2 gap-3">
+                {/* Video Resolution */}
+                {selectedVideoModel && selectedVideoModel.resolutions.length > 0 && (() => {
+                  // Get supported resolutions for current aspect ratio
+                  const supportedResolutions = aspectRatio 
+                    ? getSupportedResolutionsForAspectRatio(videoModel, aspectRatio)
+                    : selectedVideoModel.resolutions;
+                  
+                  // If no specific constraints, use all resolutions from model
+                  const resolutionsToShow = supportedResolutions.length > 0 
+                    ? supportedResolutions 
+                    : selectedVideoModel.resolutions;
+                  
+                  return (
+                    <div className="space-y-2">
+                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Video Resolution</label>
+                      <div className={cn(
+                        "grid gap-3",
+                        resolutionsToShow.length === 1 ? "grid-cols-1" :
+                        resolutionsToShow.length === 2 ? "grid-cols-2" :
+                        resolutionsToShow.length === 3 ? "grid-cols-3" :
+                        "grid-cols-4"
+                      )}>
+                        {resolutionsToShow.map(res => (
+                          <button
+                            key={res}
+                            onClick={() => onVideoResolutionChange(res)}
+                            className={cn(
+                              "flex items-center justify-center gap-2 p-2.5 rounded-xl border transition-all duration-200",
+                              videoResolution === res 
+                                ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
+                                : "bg-white/5 border-white/10 hover:bg-white/10"
+                            )}
+                          >
+                            <span className="text-sm font-medium text-white">{res}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </>
+            ) : (
+              // لبقية المودات: Animation Mode toggle (الكود الأصلي)
+              <>
+                {/* Animation Mode Toggle */}
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-white/70">Enable Animation</label>
+                  <div className="flex bg-white/5 rounded-lg p-1 border border-white/10">
+                    <button
+                      onClick={() => onAnimationModeChange('off')}
+                      className={cn(
+                        "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
+                        animationMode === 'off' ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
+                      )}
+                    >
+                      Off
+                    </button>
                     <button
                       onClick={() => onAnimationModeChange('transition')}
                       className={cn(
-                        "py-2.5 px-3 rounded-lg text-sm font-medium border text-center transition-all",
-                        animationMode === 'transition'
-                          ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                          : "bg-white/5 border-white/10 hover:bg-white/10"
+                        "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
+                        animationMode !== 'off' ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
                       )}
                     >
-                      Transition
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        if (!isAspectRatioSupportedByAnyVideoModel) {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          return;
-                        }
-                        onAnimationModeChange('video');
-                      }}
-                      disabled={!isAspectRatioSupportedByAnyVideoModel}
-                      className={cn(
-                        "py-2.5 px-3 rounded-lg text-sm font-medium border text-center transition-all",
-                        animationMode === 'video'
-                          ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                          : "bg-white/5 border-white/10 hover:bg-white/10",
-                        !isAspectRatioSupportedByAnyVideoModel && "opacity-40 cursor-not-allowed hover:bg-white/5 pointer-events-none"
-                      )}
-                    >
-                      Image to Video
+                      On
                     </button>
                   </div>
                 </div>
 
-                {/* Video Settings (Only if Image to Video) */}
-                {animationMode === 'video' && (
-                  <div className="space-y-4">
-                    {/* Video Model Selector */}
-                    {selectedVideoModel && (
-                      <VideoModelSelector
-                        value={videoModel}
-                        onChange={onVideoModelChange}
-                        selectedModelInfo={selectedVideoModel}
-                        aspectRatio={aspectRatio}
-                        imageModel={imageModel}
-                        videoResolution={videoResolution}
-                      />
-                    )}
-
-                    {/* Video Resolution */}
-                    {selectedVideoModel && selectedVideoModel.resolutions.length > 0 && (() => {
-                      // Get supported resolutions for current aspect ratio
-                      const supportedResolutions = aspectRatio 
-                        ? getSupportedResolutionsForAspectRatio(videoModel, aspectRatio)
-                        : selectedVideoModel.resolutions;
-                      
-                      // If no specific constraints, use all resolutions from model
-                      const resolutionsToShow = supportedResolutions.length > 0 
-                        ? supportedResolutions 
-                        : selectedVideoModel.resolutions;
-                      
-                      return (
-                      <div className="space-y-2">
-                        <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Video Resolution</label>
-                        <div className={cn(
-                          "grid gap-3",
-                            resolutionsToShow.length === 1 ? "grid-cols-1" :
-                            resolutionsToShow.length === 2 ? "grid-cols-2" :
-                            resolutionsToShow.length === 3 ? "grid-cols-3" :
-                          "grid-cols-4"
-                        )}>
-                            {resolutionsToShow.map(res => (
-                            <button
-                              key={res}
-                              onClick={() => onVideoResolutionChange(res)}
-                              className={cn(
-                                "flex items-center justify-center gap-2 p-2.5 rounded-xl border transition-all duration-200",
-                                videoResolution === res 
-                                  ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                                  : "bg-white/5 border-white/10 hover:bg-white/10"
-                              )}
-                            >
-                              <span className="text-sm font-medium text-white">{res}</span>
-                            </button>
-                          ))}
-                        </div>
+                {/* Conditional Sub-options */}
+                {animationMode !== 'off' && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    className="space-y-4"
+                  >
+                    {/* Mode Selector: Transition vs Video */}
+                    <div className="space-y-2">
+                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Animation Type</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => onAnimationModeChange('transition')}
+                          className={cn(
+                            "py-2.5 px-3 rounded-lg text-sm font-medium border text-center transition-all",
+                            animationMode === 'transition'
+                              ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
+                              : "bg-white/5 border-white/10 hover:bg-white/10"
+                          )}
+                        >
+                          Transition
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            if (!isAspectRatioSupportedByAnyVideoModel) {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              return;
+                            }
+                            onAnimationModeChange('video');
+                          }}
+                          disabled={!isAspectRatioSupportedByAnyVideoModel}
+                          className={cn(
+                            "py-2.5 px-3 rounded-lg text-sm font-medium border text-center transition-all",
+                            animationMode === 'video'
+                              ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
+                              : "bg-white/5 border-white/10 hover:bg-white/10",
+                            !isAspectRatioSupportedByAnyVideoModel && "opacity-40 cursor-not-allowed hover:bg-white/5 pointer-events-none"
+                          )}
+                        >
+                          Image to Video
+                        </button>
                       </div>
-                      );
-                    })()}
-                  </div>
+                    </div>
+
+                    {/* Video Settings (Only if Image to Video) */}
+                    {animationMode === 'video' && (
+                      <div className="space-y-4">
+                        {/* Video Model Selector */}
+                        {selectedVideoModel && (
+                          <VideoModelSelector
+                            value={videoModel}
+                            onChange={onVideoModelChange}
+                            selectedModelInfo={selectedVideoModel}
+                            aspectRatio={aspectRatio}
+                            imageModel={imageModel}
+                            videoResolution={videoResolution}
+                          />
+                        )}
+
+                        {/* Video Resolution */}
+                        {selectedVideoModel && selectedVideoModel.resolutions.length > 0 && (() => {
+                          // Get supported resolutions for current aspect ratio
+                          const supportedResolutions = aspectRatio 
+                            ? getSupportedResolutionsForAspectRatio(videoModel, aspectRatio)
+                            : selectedVideoModel.resolutions;
+                          
+                          // If no specific constraints, use all resolutions from model
+                          const resolutionsToShow = supportedResolutions.length > 0 
+                            ? supportedResolutions 
+                            : selectedVideoModel.resolutions;
+                          
+                          return (
+                          <div className="space-y-2">
+                            <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Video Resolution</label>
+                            <div className={cn(
+                              "grid gap-3",
+                                resolutionsToShow.length === 1 ? "grid-cols-1" :
+                                resolutionsToShow.length === 2 ? "grid-cols-2" :
+                                resolutionsToShow.length === 3 ? "grid-cols-3" :
+                              "grid-cols-4"
+                            )}>
+                                {resolutionsToShow.map(res => (
+                                <button
+                                  key={res}
+                                  onClick={() => onVideoResolutionChange(res)}
+                                  className={cn(
+                                    "flex items-center justify-center gap-2 p-2.5 rounded-xl border transition-all duration-200",
+                                    videoResolution === res 
+                                      ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
+                                      : "bg-white/5 border-white/10 hover:bg-white/10"
+                                  )}
+                                >
+                                  <span className="text-sm font-medium text-white">{res}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </motion.div>
                 )}
-              </motion.div>
+              </>
             )}
           </div>
         </GlassPanel>

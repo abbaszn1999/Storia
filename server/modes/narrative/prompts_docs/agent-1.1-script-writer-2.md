@@ -1,8 +1,4 @@
-# Agent 1.1: Script Writer - Current Prompt (v2)
-
-This document contains the **current** prompt implementation used in narrative mode before enhancement.
-
----
+# Agent 1.1: SCRIPT GENERATOR - Current Implementation (v2)
 
 ## System Prompt
 
@@ -67,7 +63,7 @@ Endings: Catharsis, reconciliation, or bittersweet acceptance
 
 COMEDY:
 Structure: Setup expectation → escalating complications → subverted payoff
-Must have: Rule of three, character flaw exploited, stakes that feel absurd to audience
+Must have: Rule of three, character flaw exploited, stakes that feel high to characters but absurd to audience
 Endings: Ironic resolution, success through unconventional means, or callback to opening
 
 ROMANCE:
@@ -173,8 +169,6 @@ OUTPUT:
 - NO dialogue, ONLY narration
 ```
 
----
-
 ## User Prompt Template
 
 ```typescript
@@ -210,22 +204,10 @@ Generate the story script now.`;
 };
 ```
 
----
+## Implementation Notes
 
-## Helper Function
-
-```typescript
-function getDurationLabel(seconds: number): string {
-  if (seconds <= 30) return '30s';
-  if (seconds <= 60) return '1min';
-  if (seconds <= 180) return '3min';
-  if (seconds <= 300) return '5min';
-  if (seconds <= 600) return '10min';
-  return '20min+';
-}
-```
-
----
-
-**File Location**: `server/modes/narrative/prompts/script-writer.ts`
+- **File**: `server/modes/narrative/prompts/script-writer.ts`
+- **System Prompt**: `scriptWriterSystemPrompt`
+- **User Prompt Generator**: `generateScriptPrompt()`
+- **Duration Label Helper**: `getDurationLabel()` converts seconds to human-readable labels
 

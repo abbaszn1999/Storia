@@ -1,8 +1,4 @@
-# Agent 2.2: Location Analyzer - Current Prompt (v2)
-
-This document contains the **current** prompt implementation used in narrative mode before enhancement.
-
----
+# Agent 2.2: LOCATION ANALYZER - Current Implementation (v2)
 
 ## System Prompt
 
@@ -228,8 +224,6 @@ Only output the JSON object defined above.
   as an AI model; simply perform the extraction task.
 ```
 
----
-
 ## User Prompt Template
 
 ```typescript
@@ -267,7 +261,10 @@ Important:
 };
 ```
 
----
+## Implementation Notes
 
-**File Location**: `server/modes/narrative/prompts/location-analyzer.ts`
+- **File**: `server/modes/narrative/prompts/location-analyzer.ts`
+- **System Prompt**: `locationAnalyzerSystemPrompt`
+- **User Prompt Generator**: `analyzeLocationsPrompt(script, genre)`
+- **Note**: Field name is `atmosphere` (not `atmosphere_mood` as in some other implementations)
 

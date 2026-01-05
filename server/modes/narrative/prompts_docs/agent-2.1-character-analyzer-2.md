@@ -1,8 +1,4 @@
-# Agent 2.1: Character Analyzer - Current Prompt (v2)
-
-This document contains the **current** prompt implementation used in narrative mode before enhancement.
-
----
+# Agent 2.1: CHARACTER ANALYZER - Current Implementation (v2)
 
 ## System Prompt
 
@@ -235,8 +231,6 @@ Only output the JSON object defined above.
   as an AI model; simply perform the extraction task.
 ```
 
----
-
 ## User Prompt Template
 
 ```typescript
@@ -273,7 +267,9 @@ Important:
 };
 ```
 
----
+## Implementation Notes
 
-**File Location**: `server/modes/narrative/prompts/character-analyzer.ts`
+- **File**: `server/modes/narrative/prompts/character-analyzer.ts`
+- **System Prompt**: `characterAnalyzerSystemPrompt`
+- **User Prompt Generator**: `analyzeCharactersPrompt(script, genre)`
 

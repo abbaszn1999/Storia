@@ -6,6 +6,7 @@ import { StoryboardEditor } from "@/components/narrative/storyboard-editor";
 import { AnimaticPreview } from "@/components/narrative/animatic-preview";
 import { ExportSettings, type ExportData } from "@/components/narrative/export-settings";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import type { Character } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 
@@ -186,12 +187,107 @@ export function NarrativeWorkflow({
     console.log("Export data:", data);
   };
 
-  const handleGenerateShot = (shotId: string) => {
-    console.log("Generating shot:", shotId);
+  const handleGenerateShot = async (shotId: string) => {
+    try {
+      const response = await apiRequest('POST', '/api/narrative/shots/generate-image', {
+        shotId,
+        videoId,
+      }, {
+        'x-workspace-id': workspaceId,
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        toast({
+          title: "Generation Failed",
+          description: data.error || "Failed to generate image",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Update shotVersions with the new version
+      if (data.version) {
+        const currentVersions = shotVersions[shotId] || [];
+        const updatedVersions = [...currentVersions, data.version];
+        onShotVersionsChange({
+          ...shotVersions,
+          [shotId]: updatedVersions,
+        });
+        
+        // Update shot's currentVersionId
+        const allShots = Object.values(shots).flat();
+        const shot = allShots.find(s => s.id === shotId);
+        if (shot) {
+          handleUpdateShot(shotId, { currentVersionId: data.version.id });
+        }
+      }
+      
+      toast({
+        title: "Image Generated",
+        description: "Storyboard image generated successfully",
+      });
+    } catch (error) {
+      console.error('Failed to generate shot image:', error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate image",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleRegenerateShot = (shotId: string) => {
-    console.log("Regenerating shot:", shotId);
+  const handleRegenerateShot = async (shotId: string) => {
+    // Get current version ID if exists
+    const allShots = Object.values(shots).flat();
+    const shot = allShots.find(s => s.id === shotId);
+    const currentVersions = shotVersions[shotId] || [];
+    const versionId = shot?.currentVersionId || currentVersions[currentVersions.length - 1]?.id;
+    
+    try {
+      const response = await apiRequest('POST', '/api/narrative/shots/generate-image', {
+        shotId,
+        videoId,
+        versionId, // Pass versionId to update existing version
+      }, {
+        'x-workspace-id': workspaceId,
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        toast({
+          title: "Regeneration Failed",
+          description: data.error || "Failed to regenerate image",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Update shotVersions with the updated version
+      if (data.version) {
+        const updatedVersions = currentVersions.map(v => 
+          v.id === data.version.id ? data.version : v
+        );
+        onShotVersionsChange({
+          ...shotVersions,
+          [shotId]: updatedVersions,
+        });
+      }
+      
+      toast({
+        title: "Image Regenerated",
+        description: "Storyboard image regenerated successfully",
+      });
+    } catch (error) {
+      console.error('Failed to regenerate shot image:', error);
+      toast({
+        title: "Regeneration Failed",
+        description: error instanceof Error ? error.message : "Failed to regenerate image",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleUpdateShot = (shotId: string, updates: Partial<Shot>) => {
@@ -542,6 +638,7 @@ export function NarrativeWorkflow({
           shotVersions={shotVersions}
           referenceImages={referenceImages}
           characters={characters}
+          locations={worldSettings?.locations || []}
           voiceActorId={voiceActorId}
           voiceOverEnabled={voiceOverEnabled}
           continuityLocked={continuityLocked}

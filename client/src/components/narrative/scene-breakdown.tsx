@@ -648,7 +648,7 @@ export function SceneBreakdown({
     });
   };
 
-  const handleLock = () => {
+  const handleLock = async () => {
     // Lock the continuity (at least one group must be approved)
     const approvedGroupsArray = Object.values(approvedGroups) as ContinuityGroup[][];
     const hasApprovedGroups = approvedGroupsArray.some((groups) => groups.length > 0);
@@ -662,18 +662,49 @@ export function SceneBreakdown({
       return;
     }
 
-    // Set local lock state immediately for UI responsiveness
-    setLocalContinuityLocked(true);
-    
-    // Update parent state to lock continuity
-    if (onContinuityLocked) {
-      onContinuityLocked();
-    }
+    try {
+      // Merge all groups with updated statuses
+      const allGroupsForParent = mergeAllGroups(approvedGroups, {}, declinedGroups);
+      
+      // Save continuity locked state and groups to database
+      const response = await fetch(`/api/narrative/videos/${videoId}/step3`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-workspace-id': workspaceId || '',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          continuityLocked: true,
+          continuityGroups: allGroupsForParent,
+        }),
+      });
 
-    toast({
-      title: "Continuity Locked",
-      description: "Shot connections are now final. Proceeding to storyboard generation.",
-    });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || 'Failed to lock continuity');
+      }
+
+      // Set local lock state after successful save
+      setLocalContinuityLocked(true);
+      
+      // Update parent state to lock continuity
+      if (onContinuityLocked) {
+        onContinuityLocked();
+      }
+
+      toast({
+        title: "Continuity Locked",
+        description: "Shot connections are now final. Proceeding to storyboard generation.",
+      });
+    } catch (error) {
+      console.error('[SceneBreakdown] Failed to lock continuity:', error);
+      toast({
+        title: "Lock Failed",
+        description: error instanceof Error ? error.message : "Failed to lock continuity. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   // TEMPORARY: Load dummy data for testing UI
@@ -1700,6 +1731,8 @@ export function SceneBreakdown({
             shotCount={activeSceneId ? (shots[activeSceneId] || []).length : 0}
             onSubmit={handleShotSubmit}
             isPending={false}
+            characters={characters}
+            locations={locations}
           />
 
           <AlertDialog open={!!deleteSceneId} onOpenChange={(open) => !open && setDeleteSceneId(null)}>

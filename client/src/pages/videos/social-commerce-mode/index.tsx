@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useSearch } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SocialCommerceWorkflow } from "@/components/social-commerce-workflow";
 import { SocialCommerceStudioLayout, type CommerceStepId } from "@/components/commerce/studio";
 import { StepResetWarningDialog } from "@/components/social-commerce/step-reset-warning-dialog";
@@ -10,6 +10,9 @@ import { useWorkspace } from "@/contexts/workspace-context";
 import { Loader2 } from "lucide-react";
 import type { Character, Video } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
+
+// Duration options (beat-based chunking: each duration = N beats × 8s)
+const DURATION_OPTIONS = [8, 16, 24, 32] as const;
 
 interface ProductDetails {
   title: string;
@@ -31,6 +34,7 @@ export default function SocialCommerceMode() {
   // Use workspace from context, fallback to URL param for backwards compatibility
   const workspaceId = currentWorkspace?.id || urlParams.get("workspace");
   const urlTitle = urlParams.get("title") || "Untitled Product Video";
+  const queryClient = useQueryClient();
   
   // Fetch existing video data
   const { data: existingVideo, isLoading: isVideoLoading } = useQuery<Video>({
@@ -44,6 +48,7 @@ export default function SocialCommerceMode() {
   const [isCreating, setIsCreating] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false); // NEW: Track transition state
   const creationAttempted = useRef(false);
+  const agent51TriggeredRef = useRef(false); // Track if Agent 5.1 has been triggered for current Tab 3 entry
   
   // Video ID state (updated after creation)
   const [videoId, setVideoId] = useState<string>(initialVideoId);
@@ -77,19 +82,39 @@ export default function SocialCommerceMode() {
   // Video settings
   const [script, setScript] = useState("");
   const [aspectRatio, setAspectRatio] = useState("9:16");
-  const [duration, setDuration] = useState("30");
+  const [duration, setDuration] = useState("8"); // Sora default: 8 seconds
   const [voiceActorId, setVoiceActorId] = useState<string | null>(null);
   const [voiceOverEnabled, setVoiceOverEnabled] = useState(true);
   
-  // Campaign Configuration settings (Tab 1)
-  // Defaults match constants: nano-banana (default image model) and seedance-1.0-pro (default video model)
-  const [imageModel, setImageModel] = useState("nano-banana");
-  const [imageResolution, setImageResolution] = useState("1k");
-  const [videoModel, setVideoModel] = useState("seedance-1.0-pro");
-  const [videoResolution, setVideoResolution] = useState("1080p");
+  // Campaign Configuration settings (Tab 1) - Sora Only
+  const [videoModel, setVideoModel] = useState("sora-2-pro"); // Default to Sora 2 Pro
+  const [videoResolution, setVideoResolution] = useState("720p");
   const [language, setLanguage] = useState<'ar' | 'en'>('en');
   const [motionPrompt, setMotionPrompt] = useState("");
-  const [imageInstructions, setImageInstructions] = useState("");
+  
+  // Audio Settings (Tab 1)
+  const [audioVolume, setAudioVolume] = useState<'low' | 'medium' | 'high'>('medium');
+  const [speechTempo, setSpeechTempo] = useState<'auto' | 'slow' | 'normal' | 'fast' | 'ultra-fast'>('auto');
+  const [dialogue, setDialogue] = useState<Array<{id: string; character?: string; line: string}>>([]);
+  const [customVoiceoverInstructions, setCustomVoiceoverInstructions] = useState("");
+  
+  const [soundEffectsEnabled, setSoundEffectsEnabled] = useState(false);
+  const [soundEffectsPreset, setSoundEffectsPreset] = useState("");
+  const [soundEffectsCustomInstructions, setSoundEffectsCustomInstructions] = useState("");
+  const [soundEffectsUsePreset, setSoundEffectsUsePreset] = useState(true);
+  
+  const [musicEnabled, setMusicEnabled] = useState(false);
+  const [musicPreset, setMusicPreset] = useState("");
+  const [musicCustomInstructions, setMusicCustomInstructions] = useState("");
+  const [musicMood, setMusicMood] = useState("");
+  const [musicUsePreset, setMusicUsePreset] = useState(true);
+  
+  // Quality Settings (Tab 1)
+  const [productionLevel, setProductionLevel] = useState<'raw' | 'casual' | 'balanced' | 'cinematic' | 'ultra'>('balanced');
+  
+  // Visual Style (Tab 1)
+  const [pacingOverride, setPacingOverride] = useState<number | undefined>(undefined);
+  const [visualIntensity, setVisualIntensity] = useState<number | undefined>(undefined);
   
   // Product DNA & Brand Identity settings (Tab 2)
   const [productImages, setProductImages] = useState<{
@@ -102,8 +127,7 @@ export default function SocialCommerceMode() {
     materialReference: null,
   });
   
-  // Asset IDs for created assets (character, brandkit, product images)
-  const [characterAssetId, setCharacterAssetId] = useState<string | null>(null);
+  // Asset IDs for created assets (product images only - no character/brand assets for Sora)
   const [brandkitAssetId, setBrandkitAssetId] = useState<string | null>(null);
   const [productImageAssetIds, setProductImageAssetIds] = useState<{
     heroProfile: string | null;
@@ -116,59 +140,49 @@ export default function SocialCommerceMode() {
   });
   
   // Names for auto-created assets
-  const [characterName, setCharacterName] = useState('');
   const [brandName, setBrandName] = useState('');
   
   const [materialPreset, setMaterialPreset] = useState("");
   const [objectMass, setObjectMass] = useState(50);
   const [surfaceComplexity, setSurfaceComplexity] = useState(50);
   const [refractionEnabled, setRefractionEnabled] = useState(false);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [brandPrimaryColor, setBrandPrimaryColor] = useState("#FF006E");
-  const [brandSecondaryColor, setBrandSecondaryColor] = useState("#FB5607");
-  const [logoIntegrity, setLogoIntegrity] = useState(7);
-  const [logoDepth, setLogoDepth] = useState(5);
+  // Removed: logoUrl, brandPrimaryColor, brandSecondaryColor, logoIntegrity, logoDepth (no logo support for Sora)
   const [heroFeature, setHeroFeature] = useState("");
   const [originMetaphor, setOriginMetaphor] = useState("");
   
-  // Cast & Character DNA (Tab 2)
+  // Cast & Character DNA (Tab 2) - Simplified for Sora
   const [includeHumanElement, setIncludeHumanElement] = useState(false);
   const [characterMode, setCharacterMode] = useState<'hand-model' | 'full-body' | 'silhouette' | null>(null);
-  const [characterReferenceUrl, setCharacterReferenceUrl] = useState<string | null>(null);
-  const [characterReferenceFile, setCharacterReferenceFile] = useState<File | null>(null);
   const [characterDescription, setCharacterDescription] = useState("");
-  const [characterAIProfile, setCharacterAIProfile] = useState<{
-    identity_id: string;
+  const [characterPersona, setCharacterPersona] = useState<{
     detailed_persona: string;
     cultural_fit: string;
     interaction_protocol: {
       product_engagement: string;
       motion_limitations: string;
     };
-    identity_locking: {
-      strategy: string;
-      vfx_anchor_tags: string;
-    };
-    image_generation_prompt?: string; // Ready-to-use prompt for Agent 2.2b
   } | null>(null);
   const [isGeneratingCharacter, setIsGeneratingCharacter] = useState(false);
+  // Removed: characterReferenceUrl, characterAssetId, characterReferenceFile, characterAIProfile, characterName (no image generation for Sora)
   
-  // Environment & Story Beats (Tab 3)
-  const [environmentConcept, setEnvironmentConcept] = useState("");
-  const [cinematicLighting, setCinematicLighting] = useState("");
-  const [atmosphericDensity, setAtmosphericDensity] = useState(50);
-  const [styleReferenceUrl, setStyleReferenceUrl] = useState<string | null>(null);
+  // Cinematography defaults (Tab 2)
+  const [cameraShotDefault, setCameraShotDefault] = useState<string | null>(null);
+  const [lensDefault, setLensDefault] = useState<string | null>(null);
+  
+  // Environment & Story Beats (Tab 3) - Removed: environmentConcept, cinematicLighting, atmosphericDensity (no longer used)
+  // Removed: styleReferenceUrl - Sora only accepts one image input (product hero)
   const [visualPreset, setVisualPreset] = useState("");
   const [campaignSpark, setCampaignSpark] = useState("");
+  
+  // Product Image Enhancement Dialog
   const [visualBeats, setVisualBeats] = useState({
     beat1: "",
     beat2: "",
     beat3: "",
   });
   
-  // Environment-specific brand colors (initialized from Tab 2, but local to Tab 3)
-  const [environmentBrandPrimaryColor, setEnvironmentBrandPrimaryColor] = useState(brandPrimaryColor);
-  const [environmentBrandSecondaryColor, setEnvironmentBrandSecondaryColor] = useState(brandSecondaryColor);
+  // Environment-specific brand colors (initialized from defaults, but local to Tab 3)
+  // Removed: environmentBrandPrimaryColor, environmentBrandSecondaryColor (no longer used)
   
   // Campaign Objective (optional, can be deselected)
   const [campaignObjective, setCampaignObjective] = useState("");
@@ -193,10 +207,10 @@ export default function SocialCommerceMode() {
         name: string;
         description: string;
         duration: number;
-        shotType: 'image-ref' | 'start-end';
         cameraPath: 'orbit' | 'pan' | 'zoom' | 'dolly' | 'static';
         lens: 'macro' | 'wide' | '85mm' | 'telephoto';
         referenceTags: string[];
+        focusAnchor: string;
         previousShotReferences: Array<{
           shot_id: string;
           reason: string;
@@ -227,6 +241,18 @@ export default function SocialCommerceMode() {
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
   const [continuityLocked, setContinuityLocked] = useState(false);
   const [continuityGroups, setContinuityGroups] = useState<{ [sceneId: string]: any[] }>({});
+  // Step 5: Beat Prompts
+  const [step3Data, setStep3Data] = useState<{
+    beatPrompts?: any;
+    voiceoverScripts?: any;
+    beatVideos?: {
+      [beatId: string]: {
+        videoUrl: string;
+        lastFrameUrl: string;
+        generatedAt: Date;
+      };
+    };
+  }>({});
   const [worldSettings, setWorldSettings] = useState<{ 
     artStyle: string; 
     imageModel?: string;
@@ -252,9 +278,7 @@ export default function SocialCommerceMode() {
     talents: Array<{ id: string; name: string; type: "hands" | "lifestyle" | "spokesperson"; description: string; imageUrl: string | null }>;
     styleReference: string | null;
     additionalInstructions: string;
-    imageModel: string;
     videoModel: string;
-    imageInstructions: string;
     videoInstructions: string;
   }>({
     visualStyle: "minimal",
@@ -264,9 +288,7 @@ export default function SocialCommerceMode() {
     talents: [],
     styleReference: null,
     additionalInstructions: "",
-    imageModel: "nano-banana",
-    videoModel: "seedance-1.0-pro",
-    imageInstructions: "",
+    videoModel: "sora-2-pro", // Sora 2 Pro default
     videoInstructions: "",
   });
 
@@ -287,8 +309,7 @@ export default function SocialCommerceMode() {
       // Helper function to calculate render duration based on speed profile
       const calculateRenderDuration = (
         targetDuration: number, 
-        speedProfile: string | undefined, 
-        shotType: string
+        speedProfile: string | undefined
       ): number => {
         const multipliers: Record<string, number> = {
           'linear': 1.0,
@@ -298,8 +319,7 @@ export default function SocialCommerceMode() {
           'smooth': 1.1,
         };
         const profileMultiplier = multipliers[speedProfile || 'linear'] || 1.0;
-        const typeMultiplier = shotType === 'start-end' ? 1.15 : 1.0;
-        return Math.round(targetDuration * profileMultiplier * typeMultiplier * 10) / 10;
+        return Math.round(targetDuration * profileMultiplier * 10) / 10;
       };
 
       // Convert sceneManifest shots to shots dictionary
@@ -309,13 +329,13 @@ export default function SocialCommerceMode() {
           id: shot.id,
           sceneId: scene.id,
           shotNumber: shotIdx + 1,
-          shotType: shot.shotType || 'image-ref', // Use shotType from sceneManifest (image-ref or start-end)
+          shotType: 'start-end', // Default value since shotType was removed from workflow
           cameraMovement: shot.cameraPath,
           duration: shot.duration,
           description: shot.description,
           currentVersionId: null,
           speedProfile: shot.speedProfile || 'linear',
-          renderDuration: calculateRenderDuration(shot.duration, shot.speedProfile, shot.shotType),
+          renderDuration: calculateRenderDuration(shot.duration, shot.speedProfile),
           createdAt: new Date(),
           updatedAt: new Date(),
         }));
@@ -379,34 +399,27 @@ export default function SocialCommerceMode() {
     if (activeStep === "setup") {
       // Tab 1: Campaign Configuration + Strategic Context validation
       const isValid = 
-        imageModel && 
+        videoModel && 
         videoModel && 
         aspectRatio && 
         duration && 
         motionPrompt.trim().length > 0 &&
         targetAudience !== "";
-      setCanContinue(isValid);
+      setCanContinue(!!isValid);
     } else if (activeStep === "script") {
-      // Tab 2: Product DNA & Brand Identity + Character DNA validation
-      let isValid = 
-        productImages.heroProfile !== null && 
-        materialPreset !== "";
-      // If human element enabled, require character mode
-      if (includeHumanElement) {
-        isValid = isValid && characterMode !== null;
-      }
+      // Tab 2: Creative Spark + Beats validation
+      // Check if creative spark is provided (user-written or AI-generated)
+      const hasCreativeSpark = campaignSpark.trim().length >= 10;
+      // Check if visual beats are generated (from Agent 3.2)
+      const step2 = existingVideo?.step2Data as any;
+      const step3Legacy = existingVideo?.step3Data as any; // Backward compatibility
+      const hasVisualBeats = (step2?.narrative?.visual_beats && step2.narrative.visual_beats.length > 0) ||
+                             (step3Legacy?.narrative?.visual_beats && step3Legacy.narrative.visual_beats.length > 0);
+      const isValid = hasCreativeSpark && hasVisualBeats;
       setCanContinue(isValid);
-    } else if (activeStep === "environment") {
-      // Tab 3: Environment & Story Beats validation (simplified - no audience here)
-      const isValid = 
-        environmentConcept.trim().length >= 20 && 
-        campaignSpark.trim().length >= 10;
-      setCanContinue(isValid);
-    } else if (activeStep === "world") {
-      // Tab 4: Scene Manifest validation
-      const isValid = sceneManifest.scenes.length === 3 && 
-                      sceneManifest.scenes.every(scene => scene.shots.length > 0);
-      setCanContinue(isValid);
+    } else if (activeStep === "storyboard") {
+      // Tab 3: Generate Prompts - no validation needed (just generate)
+      setCanContinue(true);
     } else {
       // Other steps - default to true for now
       setCanContinue(true);
@@ -416,68 +429,69 @@ export default function SocialCommerceMode() {
   // Update validation when relevant state changes
   useEffect(() => {
     updateValidation();
-  }, [activeStep, imageModel, videoModel, aspectRatio, duration, motionPrompt, targetAudience, productImages, materialPreset, includeHumanElement, characterMode, environmentConcept, campaignSpark, sceneManifest]);
+  }, [activeStep, videoModel, aspectRatio, duration, motionPrompt, targetAudience, campaignSpark, existingVideo]);
+  
+  // Listen for beats generated event and refetch video data
+  useEffect(() => {
+    const handleBeatsGenerated = () => {
+      // Refetch video data to update validation
+      if (videoId && videoId !== 'new') {
+        queryClient.invalidateQueries({ queryKey: [`/api/videos/${videoId}`] });
+      }
+    };
+    
+    window.addEventListener('beatsGenerated', handleBeatsGenerated);
+    return () => window.removeEventListener('beatsGenerated', handleBeatsGenerated);
+  }, [videoId, queryClient]);
+
+  // Auto-run Agent 5.1 when entering Tab 3 without existing prompts
+  useEffect(() => {
+    // Only run if:
+    // 1. We're on Tab 3
+    // 2. Video exists (not new)
+    // 3. No beatPrompts exist yet
+    // 4. Agent 5.1 hasn't been triggered for this entry
+    // 5. Not already creating (to prevent duplicate triggers)
+    if (
+      activeStep === "storyboard" &&
+      videoId !== "new" &&
+      !step3Data?.beatPrompts &&
+      !agent51TriggeredRef.current &&
+      !isCreating
+    ) {
+      agent51TriggeredRef.current = true;
+      
+      // Trigger Agent 5.1 generation (don't advance to next step automatically)
+      generateBeatPrompts(false).catch((error) => {
+        // Error is already handled in generateBeatPrompts
+        console.error('[SocialCommerce] Auto-trigger Agent 5.1 failed:', error);
+      });
+    }
+    
+    // Reset trigger ref when leaving Tab 3
+    if (activeStep !== "storyboard") {
+      agent51TriggeredRef.current = false;
+    }
+  }, [activeStep, videoId, step3Data?.beatPrompts, isCreating]);
 
   // Helper function to determine condition from shot
+  // Simplified: only uses isLinkedToPrevious since shotType is removed
   const determineCondition = (shot: any): 1 | 2 | 3 | 4 => {
-    const isImageRef = shot.shotType === 'image-ref';
     const isConnected = shot.isLinkedToPrevious;
     
-    if (isImageRef && !isConnected) return 1;
-    if (!isImageRef && !isConnected) return 2;
-    if (!isImageRef && isConnected) return 3;
-    if (isImageRef && isConnected) return 4;
-    return 1; // Default fallback
+    // Condition 1: Not connected, single image reference
+    // Condition 2: Not connected, start/end frames
+    // Condition 3: Connected, start/end frames (inherits start frame)
+    // Condition 4: Connected, single image reference (inherits image)
+    // Since we removed shotType, we'll default to condition 2 (start/end) for all shots
+    if (!isConnected) return 2;
+    if (isConnected) return 3;
+    return 2; // Default fallback
   };
   
   // Helper function to create ShotVersion from Agent 5.1 prompts
-  const createShotVersionFromPrompts = (
-    shotId: string,
-    shotPrompts: any,
-    condition: 1 | 2 | 3 | 4
-  ): ShotVersion => {
-    const baseVersion: ShotVersion = {
-      id: `version-${shotId}-1`,
-      shotId: shotId,
-      versionNumber: 1,
-      status: 'pending',
-      needsRerender: false,
-      createdAt: new Date(),
-    };
-    
-    // Map prompts based on condition
-    switch (condition) {
-      case 1:
-        return {
-          ...baseVersion,
-          imagePrompt: shotPrompts.prompts?.image?.text || null,
-          videoPrompt: shotPrompts.prompts?.video?.text || null,
-        };
-      case 2:
-        return {
-          ...baseVersion,
-          startFramePrompt: shotPrompts.prompts?.start_frame?.text || null,
-          endFramePrompt: shotPrompts.prompts?.end_frame?.text || null,
-          videoPrompt: shotPrompts.prompts?.video?.text || null,
-        };
-      case 3:
-        return {
-          ...baseVersion,
-          startFramePrompt: null, // Inherited - will be set from previous shot
-          startFrameInherited: true,
-          endFramePrompt: shotPrompts.prompts?.end_frame?.text || null,
-          videoPrompt: shotPrompts.prompts?.video?.text || null,
-        };
-      case 4:
-        return {
-          ...baseVersion,
-          imagePrompt: null, // Inherited
-          videoPrompt: shotPrompts.prompts?.video?.text || null,
-        };
-      default:
-        return baseVersion;
-    }
-  };
+  // Removed: createShotVersionFromPrompts - old shot-based structure no longer used
+  // New structure uses beatPrompts, not shotPrompts
 
   // Capture snapshot when navigating to a completed step
   useEffect(() => {
@@ -499,35 +513,52 @@ export default function SocialCommerceMode() {
       const step1 = existingVideo.step1Data as any;
       if (step1) {
         if (step1.productTitle) setProductDetails(prev => ({ ...prev, title: step1.productTitle }));
+        if (step1.productDescription) setProductDetails(prev => ({ ...prev, description: step1.productDescription }));
         if (step1.aspectRatio) setAspectRatio(step1.aspectRatio);
         if (step1.duration) setDuration(String(step1.duration));
         if (step1.targetAudience) setTargetAudience(step1.targetAudience);
         if (step1.customMotionInstructions) setMotionPrompt(step1.customMotionInstructions);
-        if (step1.customImageInstructions) setImageInstructions(step1.customImageInstructions);
-        // AI Model Settings
-        if (step1.imageModel) setImageModel(step1.imageModel);
-        if (step1.imageResolution) setImageResolution(step1.imageResolution);
+        // Audio Settings
+        if (step1.audioVolume) setAudioVolume(step1.audioVolume);
+        if (step1.speechTempo) setSpeechTempo(step1.speechTempo);
+        if (step1.dialogue) setDialogue(step1.dialogue);
+        if (step1.customVoiceoverInstructions) setCustomVoiceoverInstructions(step1.customVoiceoverInstructions);
+        if (step1.soundEffectsEnabled !== undefined) setSoundEffectsEnabled(step1.soundEffectsEnabled);
+        if (step1.soundEffectsPreset) setSoundEffectsPreset(step1.soundEffectsPreset);
+        if (step1.soundEffectsCustomInstructions) setSoundEffectsCustomInstructions(step1.soundEffectsCustomInstructions);
+        if (step1.soundEffectsUsePreset !== undefined) setSoundEffectsUsePreset(step1.soundEffectsUsePreset);
+        if (step1.musicEnabled !== undefined) setMusicEnabled(step1.musicEnabled);
+        if (step1.musicPreset) setMusicPreset(step1.musicPreset);
+        if (step1.musicCustomInstructions) setMusicCustomInstructions(step1.musicCustomInstructions);
+        if (step1.musicMood) setMusicMood(step1.musicMood);
+        if (step1.musicUsePreset !== undefined) setMusicUsePreset(step1.musicUsePreset);
+        // Quality Settings
+        if (step1.productionLevel) setProductionLevel(step1.productionLevel);
+        // Visual Style
+        if (step1.pacingOverride !== undefined) setPacingOverride(step1.pacingOverride);
+        if (step1.visualIntensity !== undefined) setVisualIntensity(step1.visualIntensity);
         if (step1.videoModel) setVideoModel(step1.videoModel);
         if (step1.videoResolution) setVideoResolution(step1.videoResolution);
         if (step1.language) setLanguage(step1.language);
         if (step1.voiceOverEnabled !== undefined) setVoiceOverEnabled(step1.voiceOverEnabled);
       }
       
+      // Restore step1Data product image (product images belong to Tab 1, not Tab 2)
+      if (step1?.productImageUrl) {
+        setProductImages(prev => ({
+          ...prev,
+          heroProfile: step1.productImageUrl,
+        }));
+        console.log('[SocialCommerce] Restored productImageUrl from step1Data');
+      }
+      
       // Restore step2Data if available (NEW: Nested structure)
       const step2 = existingVideo.step2Data as any;
       if (step2) {
-        // Product data
+        // Product data (material settings only - images are in step1Data)
         if (step2.product) {
-          // Product images
-          if (step2.product.images) {
-            setProductImages({
-              heroProfile: step2.product.images.heroProfile || null,
-              macroDetail: step2.product.images.macroDetail || null,
-              materialReference: step2.product.images.materialReference || null,
-            });
-          }
-          
-          // Material settings
+          // Note: Product images are now in step1Data, not step2Data
+          // Only restore material settings from step2Data
           if (step2.product.material) {
             if (step2.product.material.preset) setMaterialPreset(step2.product.material.preset);
             if (step2.product.material.objectMass !== undefined) setObjectMass(step2.product.material.objectMass);
@@ -538,310 +569,104 @@ export default function SocialCommerceMode() {
           }
         }
         
-        // Character data
+        // Character data (simplified for Sora)
         if (step2.character) {
-          if (step2.character.referenceUrl) setCharacterReferenceUrl(step2.character.referenceUrl);
-          if (step2.character.assetId) setCharacterAssetId(step2.character.assetId);
-          if (step2.character.name) setCharacterName(step2.character.name);
           if (step2.character.description) setCharacterDescription(step2.character.description);
           if (step2.character.mode) {
             setCharacterMode(step2.character.mode);
             setIncludeHumanElement(true);
           }
-          if (step2.character.aiProfile) setCharacterAIProfile(step2.character.aiProfile);
         }
         
-        // Brand data
-        if (step2.brand) {
-          if (step2.brand.logoUrl) setLogoUrl(step2.brand.logoUrl);
-          if (step2.brand.assetId) setBrandkitAssetId(step2.brand.assetId);
-          if (step2.brand.name) setBrandName(step2.brand.name);
-          if (step2.brand.colors) {
-            if (step2.brand.colors.primary) setBrandPrimaryColor(step2.brand.colors.primary);
-            if (step2.brand.colors.secondary) setBrandSecondaryColor(step2.brand.colors.secondary);
+        // Cinematography defaults
+        if (step2.cinematography) {
+          if (step2.cinematography.cameraShotDefault !== undefined) setCameraShotDefault(step2.cinematography.cameraShotDefault);
+          if (step2.cinematography.lensDefault !== undefined) setLensDefault(step2.cinematography.lensDefault);
+        }
+        
+        // Load persona (simplified structure for Sora) - moved outside cinematography block
+        if (step2.character) {
+          if (step2.character.persona) {
+            setCharacterPersona(step2.character.persona);
           }
-          if (step2.brand.logo) {
-            if (step2.brand.logo.integrity !== undefined) setLogoIntegrity(step2.brand.logo.integrity);
-            if (step2.brand.logo.depth !== undefined) setLogoDepth(step2.brand.logo.depth);
+          // Backward compatibility: convert old aiProfile to persona if needed
+          if (!step2.character.persona && step2.character.aiProfile) {
+            setCharacterPersona({
+              detailed_persona: step2.character.aiProfile.detailed_persona || '',
+              cultural_fit: step2.character.aiProfile.cultural_fit || '',
+              interaction_protocol: step2.character.aiProfile.interaction_protocol || {
+                product_engagement: '',
+                motion_limitations: '',
+              },
+            });
           }
         }
         
-        // Style reference
-        if (step2.style?.referenceUrl) {
-          setStyleReferenceUrl(step2.style.referenceUrl);
-        }
+        // Removed: Brand data restoration (no logo support for Sora)
+        // Removed: Style reference restoration (Sora only accepts one image input - product hero)
         
         console.log('[SocialCommerce] Restored step2Data (nested structure):', {
-          hasProductImages: !!step2.product?.images,
-          hasCharacter: !!step2.character?.assetId,
-          hasBrandkit: !!step2.brand?.assetId,
+          hasCharacter: !!step2.character?.persona,
+          // Note: Product images are now in step1Data, not step2Data
         });
       }
       
-      // Restore step3Data if available
-      const step3 = existingVideo.step3Data as any;
-      if (step3) {
+      // Restore step2Data from old step3Data if available (backward compatibility)
+      const step2FromLegacy = existingVideo.step3Data as any;
+      if (step2FromLegacy) {
         // NEW: Prioritize uiInputs if available (most complete)
-        if (step3.uiInputs) {
-          setEnvironmentConcept(step3.uiInputs.environmentConcept || '');
-          setAtmosphericDensity(step3.uiInputs.atmosphericDensity ?? 50);
-          setCinematicLighting(step3.uiInputs.cinematicLighting || '');
-          setVisualPreset(step3.uiInputs.visualPreset || '');
-          setStyleReferenceUrl(step3.uiInputs.styleReferenceUrl || null);
-          setCampaignSpark(step3.uiInputs.campaignSpark || '');
-          setVisualBeats({
-            beat1: step3.uiInputs.visualBeats?.beat1 || '',
-            beat2: step3.uiInputs.visualBeats?.beat2 || '',
-            beat3: step3.uiInputs.visualBeats?.beat3 || '',
-          });
-          setCampaignObjective(step3.uiInputs.campaignObjective || '');
-          if (step3.uiInputs.environmentBrandPrimaryColor) {
-            setEnvironmentBrandPrimaryColor(step3.uiInputs.environmentBrandPrimaryColor);
-          }
-          if (step3.uiInputs.environmentBrandSecondaryColor) {
-            setEnvironmentBrandSecondaryColor(step3.uiInputs.environmentBrandSecondaryColor);
-          }
+        if (step2FromLegacy.uiInputs) {
+          setVisualPreset(step2FromLegacy.uiInputs.visualPreset || '');
+          setCampaignSpark(step2FromLegacy.uiInputs.campaignSpark || '');
+          setCampaignObjective(step2FromLegacy.uiInputs.campaignObjective || '');
         } else {
           // Fallback to old structure (backward compatibility)
           // Creative Spark
-          if (step3.creativeSpark?.creative_spark) {
-            setCampaignSpark(step3.creativeSpark.creative_spark);
-          } else if (typeof step3.campaignSpark === 'string') {
-            setCampaignSpark(step3.campaignSpark);
+          if (step2FromLegacy.creativeSpark?.creative_spark) {
+            setCampaignSpark(step2FromLegacy.creativeSpark.creative_spark);
+          } else if (typeof step2FromLegacy.campaignSpark === 'string') {
+            setCampaignSpark(step2FromLegacy.campaignSpark);
           }
           
           // Campaign Objective (optional)
-          if (step3.campaignObjective) {
-            setCampaignObjective(step3.campaignObjective);
+          if (step2FromLegacy.campaignObjective) {
+            setCampaignObjective(step2FromLegacy.campaignObjective);
           }
           
-          // Visual Beats
-          if (step3.narrative?.script_manifest) {
-            const manifest = step3.narrative.script_manifest;
-            setVisualBeats({
-              beat1: manifest.act_1_hook?.text || '',
-              beat2: manifest.act_2_transform?.text || '',
-              beat3: manifest.act_3_payoff?.text || '',
-            });
-            // CTA Text
-            if (manifest.act_3_payoff?.cta_text) {
-              setCtaText(manifest.act_3_payoff.cta_text);
-            }
-          } else if (step3.visualBeats) {
-            setVisualBeats({
-              beat1: step3.visualBeats.beat1 || '',
-              beat2: step3.visualBeats.beat2 || '',
-              beat3: step3.visualBeats.beat3 || '',
-            });
-          }
-          
-          // Environment
-          if (step3.environment?.concept) {
-            setEnvironmentConcept(step3.environment.concept);
-          }
-          if (step3.environment?.cinematicLighting) {
-            setCinematicLighting(step3.environment.cinematicLighting);
-          }
-          if (step3.environment?.atmosphericDensity !== undefined) {
-            setAtmosphericDensity(step3.environment.atmosphericDensity);
-          }
-          if (step3.environment?.visualPreset) {
-            setVisualPreset(step3.environment.visualPreset);
-          }
-          
-          // Environment brand colors
-          if (step3.environment?.brandColors?.primary) {
-            setEnvironmentBrandPrimaryColor(step3.environment.brandColors.primary);
-          }
-          if (step3.environment?.brandColors?.secondary) {
-            setEnvironmentBrandSecondaryColor(step3.environment.brandColors.secondary);
+          // Visual Preset
+          if (step2FromLegacy.uiInputs?.visualPreset) {
+            setVisualPreset(step2FromLegacy.uiInputs.visualPreset);
           }
         }
         
-        console.log('[SocialCommerce] Restored step3Data:', {
-          hasUiInputs: !!step3.uiInputs,
-          hasCreativeSpark: !!step3.creativeSpark || !!step3.campaignSpark,
-          hasNarrative: !!step3.narrative,
-          hasEnvironment: !!step3.environment,
+        console.log('[SocialCommerce] Restored step2Data from legacy step3Data:', {
+          hasUiInputs: !!step2FromLegacy.uiInputs,
+          hasCreativeSpark: !!step2FromLegacy.creativeSpark || !!step2FromLegacy.campaignSpark,
         });
       }
       
-      // ✨ NEW: Restore step4Data if available
-      const step4 = existingVideo.step4Data as any;
-      let mappedScenes: any[] | null = null;
-      if (step4?.mediaPlanner?.scenes) {
-        // Map Agent 4.1 output to sceneManifest format
-        mappedScenes = step4.mediaPlanner.scenes.map((scene: any, sceneIdx: number) => {
-          // Map timing data by shot_id
-          const timingMap = new Map(
-            (step4.timing?.temporal_map || []).map((t: any) => [t.shot_id, t])
-          );
-          
-          return {
-            id: scene.scene_id,
-            name: scene.scene_name,
-            description: scene.scene_description,
-            duration: scene.shots.reduce((sum: number, shot: any) => {
-              const timing = timingMap.get(shot.shot_id);
-              return sum + (timing?.rendered_duration || 5.0);
-            }, 0),
-            actType: sceneIdx === 0 ? 'hook' : sceneIdx === 1 ? 'transformation' : 'payoff',
-            shots: scene.shots.map((shot: any) => {
-              const timing = timingMap.get(shot.shot_id);
-              
-              // Build reference tags based on identity_references
-              const referenceTags: string[] = [];
-              
-              // Product reference with variant
-              if (shot.identity_references.refer_to_product) {
-                const productRef = shot.identity_references.product_image_ref;
-                if (productRef === 'macroDetail') {
-                  referenceTags.push('@Product_Macro');
-                } else if (productRef === 'materialReference') {
-                  referenceTags.push('@Texture');
-                } else {
-                  referenceTags.push('@Product'); // Default to heroProfile
-                }
-              }
-              
-              // Character reference
-              if (shot.identity_references.refer_to_character) {
-                referenceTags.push('@Character');
-              }
-              
-              // Logo reference
-              if (shot.identity_references.refer_to_logo) {
-                referenceTags.push('@Logo');
-              }
-              
-              // Previous shot references
-              if (shot.identity_references.refer_to_previous_outputs?.length > 0) {
-                shot.identity_references.refer_to_previous_outputs.forEach((ref: any) => {
-                  // Format shot_id: "S1.1" -> "@Shot_1_1", "shot_1_1" -> "@Shot_1_1"
-                  const formattedId = ref.shot_id.replace(/^[Ss]/, '').replace(/[^0-9]/g, '_');
-                  referenceTags.push(`@Shot_${formattedId}`);
-                });
-              }
-              
-              return {
-                id: shot.shot_id,
-                sceneId: scene.scene_id,
-                name: `${shot.shot_id}: ${shot.cinematic_goal}`,
-                description: shot.brief_description,
-                duration: timing?.rendered_duration || 5.0,
-                shotType: shot.generation_mode.shot_type === 'IMAGE_REF' ? 'image-ref' : 'start-end',
-                cameraPath: shot.technical_cinematography.camera_movement.toLowerCase().includes('orbit') ? 'orbit' :
-                           shot.technical_cinematography.camera_movement.toLowerCase().includes('pan') ? 'pan' :
-                           shot.technical_cinematography.camera_movement.toLowerCase().includes('zoom') ? 'zoom' :
-                           shot.technical_cinematography.camera_movement.toLowerCase().includes('dolly') ? 'dolly' : 'static',
-                lens: shot.technical_cinematography.lens.toLowerCase().includes('macro') ? 'macro' :
-                      shot.technical_cinematography.lens.toLowerCase().includes('wide') ? 'wide' :
-                      shot.technical_cinematography.lens.toLowerCase().includes('85') ? '85mm' : 'telephoto',
-                referenceTags,
-                previousShotReferences: shot.identity_references.refer_to_previous_outputs || [],
-                isLinkedToPrevious: shot.continuity_logic.is_connected_to_previous,
-                speedProfile: timing?.speed_curve === 'EASE_IN' ? 'smooth' :
-                             timing?.speed_curve === 'EASE_OUT' ? 'smooth' : 'linear',
-                multiplier: timing?.multiplier || 1.0,
-                sfxHint: timing?.sfx_hint || '',
-              };
-            }),
-          };
-        });
-        
-        setSceneManifest({
-          scenes: mappedScenes,
-          continuityLinksEstablished: mappedScenes.some(s => s.shots.some((shot: any) => shot.isLinkedToPrevious)),
-          durationBudget: step4.timing?.duration_budget || {
-            target_total: 0,
-            actual_total: 0,
-            variance: 0,
-          },
-        });
-        
-        console.log('[SocialCommerce] Restored step4Data:', {
-          sceneCount: mappedScenes.length,
-          totalShots: mappedScenes.reduce((sum: number, s: any) => sum + s.shots.length, 0),
+      // ✨ NEW: Restore step3Data if available (Agent 5.1 and 5.2 outputs)
+      // Check both step3Data (new) and step5Data (backward compatibility)
+      const step3Prompts = existingVideo.step3Data as any;
+      const step5 = existingVideo.step5Data as any; // Backward compatibility
+      const promptsData = step3Prompts || step5;
+      if (promptsData) {
+        setStep3Data({
+          beatPrompts: promptsData.beatPrompts,
+          voiceoverScripts: promptsData.voiceoverScripts,
+          beatVideos: promptsData.beatVideos || {},
         });
       }
-      
-      // ✨ NEW: Restore step5Data if available (Agent 5.1 prompts)
-      const step5 = existingVideo.step5Data as any;
-      if (step5?.shotPrompts) {
-        // Map prompts to ShotVersion objects
-        const initialVersions: { [shotId: string]: ShotVersion[] } = {};
-        
-        // Use mappedScenes if step4Data was just restored, otherwise use sceneManifest
-        const scenesToUse = (mappedScenes && mappedScenes.length > 0) ? mappedScenes : sceneManifest.scenes;
-        
-        // Iterate through all scenes and shots
-        if (scenesToUse.length > 0) {
-          scenesToUse.forEach((scene: any) => {
-            scene.shots.forEach((shot: any) => {
-              const shotPrompts = step5.shotPrompts[shot.id];
-              if (shotPrompts) {
-                // Determine condition from shot type and connection
-                const condition = determineCondition(shot);
-                
-                // Create ShotVersion with prompts based on condition
-                const version = createShotVersionFromPrompts(shot.id, shotPrompts, condition);
-                initialVersions[shot.id] = [version];
-              }
-            });
-          });
-        }
-        
-        // Merge with existing shotVersions and update shot.currentVersionId
-        setShotVersions(prev => {
-          const merged = { ...prev };
-          const updatedShots: { [sceneId: string]: Shot[] } = {};
-          
-          Object.entries(initialVersions).forEach(([shotId, versions]) => {
-            if (!merged[shotId] || merged[shotId].length === 0) {
-              merged[shotId] = versions;
-              
-              // ✨ CRITICAL: Update shot.currentVersionId so getShotVersion() can find the version
-              // Find which scene contains this shot and update it
-              Object.entries(shots).forEach(([sceneId, sceneShots]) => {
-                const shot = sceneShots.find(s => s.id === shotId);
-                if (shot && versions.length > 0) {
-                  if (!updatedShots[sceneId]) {
-                    updatedShots[sceneId] = [...sceneShots];
-                  }
-                  const shotIndex = updatedShots[sceneId].findIndex(s => s.id === shotId);
-                  if (shotIndex >= 0) {
-                    updatedShots[sceneId][shotIndex] = {
-                      ...updatedShots[sceneId][shotIndex],
-                      currentVersionId: versions[0].id,
-                    };
-                  }
-                }
-              });
-            }
-          });
-          
-          // Update shots state with currentVersionId set
-          if (Object.keys(updatedShots).length > 0) {
-            setShots(prev => ({ ...prev, ...updatedShots }));
-          }
-          
-          return merged;
-        });
-        
-        console.log('[SocialCommerce] Restored step5Data:', {
-          shotPromptsCount: Object.keys(step5.shotPrompts || {}).length,
-          versionsCreated: Object.keys(initialVersions).length,
-        });
-      }
+      // Note: shotPrompts removed - new structure uses beatPrompts only
       
       // Restore completedSteps
       if (Array.isArray(existingVideo.completedSteps)) {
         const stepMap: { [key: number]: CommerceStepId } = {
           1: "setup",
           2: "script",
-          3: "environment",
-          4: "world",
-          5: "storyboard",
+          3: "storyboard",
+          4: "animatic",
+          5: "export",
         };
         const restored = existingVideo.completedSteps
           .map(n => stepMap[n as number])
@@ -854,9 +679,9 @@ export default function SocialCommerceMode() {
         const stepMap: { [key: number]: CommerceStepId } = {
           1: "setup",
           2: "script",
-          3: "environment",
-          4: "world",
-          5: "storyboard",
+          3: "storyboard",
+          4: "animatic",
+          5: "export",
         };
         const currentStepId = stepMap[existingVideo.currentStep];
         if (currentStepId) setActiveStep(currentStepId);
@@ -876,6 +701,7 @@ export default function SocialCommerceMode() {
       
       try {
         // Create video in database using the title from URL params
+        // Duration is not set here - user will select it in Tab 1
         const response = await fetch('/api/social-commerce/videos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -885,7 +711,7 @@ export default function SocialCommerceMode() {
             title: urlTitle,
             productTitle: urlTitle,
             aspectRatio: "9:16",
-            duration: 15,
+            // duration removed - user will select in Tab 1
           }),
         });
         
@@ -933,7 +759,7 @@ export default function SocialCommerceMode() {
       }
 
       // Only save if we have meaningful character or material data
-      const hasCharacterData = characterAIProfile || characterMode || materialPreset;
+      const hasCharacterData = characterPersona || characterMode || materialPreset;
       if (!hasCharacterData) {
         return;
       }
@@ -941,13 +767,12 @@ export default function SocialCommerceMode() {
       try {
         const updates: any = {};
 
-        // Build character updates (nested structure)
-        const hasCharacterUpdates = characterAIProfile || characterMode || characterName || characterDescription;
+        // Build character updates (nested structure - simplified for Sora)
+        const hasCharacterUpdates = characterPersona || characterMode || characterDescription;
         if (hasCharacterUpdates) {
           updates.character = {};
-          if (characterAIProfile) updates.character.aiProfile = characterAIProfile;
+          if (characterPersona) updates.character.persona = characterPersona;
           if (characterMode) updates.character.mode = characterMode;
-          if (characterName) updates.character.name = characterName;
           if (characterDescription) updates.character.description = characterDescription;
         }
 
@@ -984,9 +809,8 @@ export default function SocialCommerceMode() {
     videoId,
     isNewVideo,
     existingVideo,
-    characterAIProfile,
+    characterPersona,
     characterMode,
-    characterName,
     characterDescription,
     includeHumanElement,
     materialPreset,
@@ -998,11 +822,9 @@ export default function SocialCommerceMode() {
 
   // Map old workflow step IDs to new studio step IDs
   const workflowStepMap: { [key in CommerceStepId]: string } = {
-    "setup": "script",  // Tab 1 = Campaign Config (ProductSetupTab)
-    "script": "product-dna",  // Tab 2 = Product DNA & Brand Identity (HookFormatTab)
-    "environment": "environment-story",  // Tab 3 = Environment & Story Beats (VisualStyleTab)
-    "world": "world",
-    "storyboard": "storyboard",
+    "setup": "setup",  // Tab 1 = Setup + Product Image (ProductSetupTab)
+    "script": "environment-story",  // Tab 2 = Creative Spark + Beats (VisualStyleTab - simplified)
+    "storyboard": "storyboard",  // Tab 3 = Generate Prompts (BeatStoryboardTab)
     "animatic": "animatic",
     "export": "export"
   };
@@ -1012,11 +834,9 @@ export default function SocialCommerceMode() {
     const stepMap: { [key in CommerceStepId]: number } = {
       "setup": 1,
       "script": 2,
-      "environment": 3,
-      "world": 4,
-      "storyboard": 5,
-      "animatic": 6,
-      "export": 7
+      "storyboard": 3,
+      "animatic": 4,
+      "export": 5
     };
     return stepMap[step];
   };
@@ -1065,30 +885,33 @@ export default function SocialCommerceMode() {
       setProductImages(prev => ({ ...prev, [key]: data.cdnUrl }));
       setProductImageAssetIds(prev => ({ ...prev, [key]: data.assetId }));
 
-      // ✨ Immediately save to step2Data (so user can see images after page refresh)
+      // ✨ Immediately save to step1Data (so user can see images after page refresh)
+      // Product images belong to Tab 1, so they should only be in step1Data
       if (videoId && videoId !== 'new') {
         try {
-          await fetch(`/api/social-commerce/videos/${videoId}/step/2/data`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              product: {
-                images: {
-                  [key]: data.cdnUrl,
-                },
-              },
-            }),
-          });
-          console.log(`[SocialCommerce] Saved product.images.${key} to step2Data`);
+          // For heroProfile, save as productImageUrl in step1Data
+          if (key === 'heroProfile') {
+            await fetch(`/api/social-commerce/videos/${videoId}/step/1/data`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                productImageUrl: data.cdnUrl,
+              }),
+            });
+            console.log(`[SocialCommerce] Saved productImageUrl to step1Data`);
+          }
+          // Note: macroDetail and materialReference are not used by agents, 
+          // but if needed in future, they can be saved to step1Data as well
         } catch (saveError) {
-          console.error('Failed to save to step2Data:', saveError);
+          console.error('Failed to save to step1Data:', saveError);
         }
       }
 
+      // Image uploaded successfully
       toast({
-        title: "Image uploaded to Bunny CDN",
-        description: "Available in Assets → Uploads",
+        title: "Image uploaded",
+        description: "Product image saved successfully",
       });
     } catch (error) {
       console.error('Upload error:', error);
@@ -1099,290 +922,17 @@ export default function SocialCommerceMode() {
     }
   };
 
-  const handleCharacterImageUpload = async (file: File, nameOverride?: string, descriptionOverride?: string) => {
-    try {
-      if (!currentWorkspace?.id || !videoId) {
-        toast({
-          title: "Cannot upload",
-          description: "Workspace or video not ready",
-          variant: "destructive",
-        });
-        return;
-      }
+  // Removed: handleCharacterImageUpload - no character image upload for Sora
+  // Removed: handleLogoUpload - no logo upload for Sora
 
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('category', 'character');
-      formData.append('workspaceId', currentWorkspace.id);
-      formData.append('videoId', videoId);
-      formData.append('characterName', nameOverride || characterName || 'Campaign Character');
-      formData.append('characterDescription', descriptionOverride ?? characterDescription ?? '');
-
-      const response = await fetch('/api/social-commerce/upload-temp', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Upload failed');
-
-      const data = await response.json();
-      
-      // Store CDN URL and asset ID
-      setCharacterReferenceUrl(data.cdnUrl);
-      setCharacterAssetId(data.assetId);
-
-      // ✨ Immediately save to step2Data (so user can see character after page refresh)
-      if (videoId && videoId !== 'new') {
-        try {
-          await fetch(`/api/social-commerce/videos/${videoId}/step/2/data`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              character: {
-                referenceUrl: data.cdnUrl,
-                assetId: data.assetId,
-                name: nameOverride || characterName || 'Campaign Character',
-                mode: 'upload', // User uploaded a character
-              },
-            }),
-          });
-          console.log('[SocialCommerce] Saved character to step2Data');
-        } catch (saveError) {
-          console.error('Failed to save to step2Data:', saveError);
-        }
-      }
-
-      toast({
-        title: "Character uploaded to Bunny CDN",
-        description: "Available in Assets → Characters",
-      });
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast({
-        title: "Upload failed",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleLogoUpload = async (file: File) => {
-    try {
-      if (!currentWorkspace?.id || !videoId) {
-        toast({
-          title: "Cannot upload",
-          description: "Workspace or video not ready",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('category', 'logo');
-      formData.append('workspaceId', currentWorkspace.id);
-      formData.append('videoId', videoId);
-      formData.append('brandName', brandName || 'Campaign Brand');
-      formData.append('brandPrimaryColor', brandPrimaryColor || '#000000');
-      formData.append('brandSecondaryColor', brandSecondaryColor || '#FFFFFF');
-
-      const response = await fetch('/api/social-commerce/upload-temp', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Upload failed');
-
-      const data = await response.json();
-      
-      // Store CDN URL and asset ID
-      setLogoUrl(data.cdnUrl);
-      setBrandkitAssetId(data.assetId);
-
-      // ✨ Immediately save to step2Data (so user can see logo after page refresh)
-      if (videoId && videoId !== 'new') {
-        try {
-          await fetch(`/api/social-commerce/videos/${videoId}/step/2/data`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              brand: {
-                logoUrl: data.cdnUrl,
-                assetId: data.assetId,
-                name: brandName || 'Campaign Brand',
-                colors: {
-                  primary: brandPrimaryColor || '#000000',
-                  secondary: brandSecondaryColor || '#FFFFFF',
-                },
-              },
-            }),
-          });
-          console.log('[SocialCommerce] Saved brand to step2Data');
-        } catch (saveError) {
-          console.error('Failed to save to step2Data:', saveError);
-        }
-      }
-
-      toast({
-        title: "Logo uploaded to Bunny CDN",
-        description: "Available in Assets → Brand Kits",
-      });
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast({
-        title: "Upload failed",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleStyleReferenceUpload = async (file: File) => {
-    try {
-      if (!currentWorkspace?.id || !videoId) {
-        toast({
-          title: "Cannot upload",
-          description: "Workspace or video not ready",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('category', 'style');
-      formData.append('workspaceId', currentWorkspace.id);
-      formData.append('videoId', videoId);
-
-      const response = await fetch('/api/social-commerce/upload-temp', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Upload failed');
-
-      const data = await response.json();
-      
-      // Store CDN URL directly
-      setStyleReferenceUrl(data.cdnUrl);
-
-      // ✨ Immediately save to step2Data (so user can see style reference after page refresh)
-      if (videoId && videoId !== 'new') {
-        try {
-          await fetch(`/api/social-commerce/videos/${videoId}/step/2/data`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              style: {
-                referenceUrl: data.cdnUrl,
-              },
-            }),
-          });
-          console.log('[SocialCommerce] Saved style to step2Data');
-        } catch (saveError) {
-          console.error('Failed to save to step2Data:', saveError);
-        }
-      }
-
-      toast({
-        title: "Style reference uploaded to Bunny CDN",
-        description: "Available in Assets → Uploads",
-      });
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast({
-        title: "Upload failed",
-        variant: "destructive",
-      });
-    }
-  };
+  // Removed: handleStyleReferenceUpload - Sora only accepts one image input (product hero)
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ASSET DELETION HANDLERS
   // ═══════════════════════════════════════════════════════════════════════════
   
-  const handleDeleteCharacter = async () => {
-    if (!characterAssetId) return;
-    
-    try {
-      // Delete from Assets + Bunny + update video's step2Data (backend handles all)
-      const url = videoId && videoId !== 'new' 
-        ? `/api/social-commerce/assets/character/${characterAssetId}?videoId=${videoId}`
-        : `/api/social-commerce/assets/character/${characterAssetId}`;
-        
-      const response = await fetch(url, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete from Assets');
-      }
-      
-      // Clear frontend state (backend already updated step2Data)
-      setCharacterReferenceUrl(null);
-      setCharacterAssetId(null);
-      setCharacterName('');
-      setCharacterAIProfile(null);
-      
-      // Show success toast
-      toast({
-        title: "Character deleted",
-        description: "Removed from Assets and Bunny CDN",
-      });
-    } catch (error) {
-      console.error('Delete character error:', error);
-      toast({
-        title: "Delete failed",
-        description: error instanceof Error ? error.message : "Could not delete character",
-        variant: "destructive",
-      });
-      // State remains unchanged - item still visible in UI
-    }
-  };
-
-  const handleDeleteLogo = async () => {
-    if (!brandkitAssetId) return;
-    
-    try {
-      // Delete from Assets + Bunny + update video's step2Data (backend handles all)
-      const url = videoId && videoId !== 'new' 
-        ? `/api/social-commerce/assets/brandkit/${brandkitAssetId}?videoId=${videoId}`
-        : `/api/social-commerce/assets/brandkit/${brandkitAssetId}`;
-        
-      const response = await fetch(url, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete from Assets');
-      }
-      
-      // Clear frontend state (backend already updated step2Data)
-      setLogoUrl(null);
-      setBrandkitAssetId(null);
-      setBrandName('');
-      
-      // Show success toast
-      toast({
-        title: "Logo deleted",
-        description: "Removed from Assets and Bunny CDN",
-      });
-    } catch (error) {
-      console.error('Delete logo error:', error);
-      toast({
-        title: "Delete failed",
-        description: error instanceof Error ? error.message : "Could not delete logo",
-        variant: "destructive",
-      });
-      // State remains unchanged - item still visible in UI
-    }
-  };
+  // Removed: handleDeleteCharacter - no character image deletion for Sora
+  // Removed: handleDeleteLogo - no logo deletion for Sora
 
   const handleDeleteProductImage = async (key: 'heroProfile' | 'macroDetail' | 'materialReference') => {
     const assetId = productImageAssetIds[key];
@@ -1439,13 +989,28 @@ export default function SocialCommerceMode() {
   const captureStepSnapshot = (step: CommerceStepId): any => {
     if (step === "setup") {
       return {
-        imageModel,
         videoModel,
         aspectRatio,
         duration,
         motionPrompt,
-        imageInstructions,
         targetAudience,
+        // Audio Settings
+        audioVolume,
+        dialogue,
+        customVoiceoverInstructions,
+        soundEffectsEnabled,
+        soundEffectsPreset,
+        soundEffectsCustomInstructions,
+        soundEffectsUsePreset,
+        musicEnabled,
+        musicPreset,
+        musicCustomInstructions,
+        musicMood,
+        musicUsePreset,
+        // Quality Settings
+        productionLevel,
+        // Visual Style
+        pacingOverride,
       };
     }
     if (step === "script") {
@@ -1458,31 +1023,14 @@ export default function SocialCommerceMode() {
         originMetaphor,
         includeHumanElement,
         characterMode,
-        characterReferenceUrl,
-        characterName,
         characterDescription,
-        logoUrl,
-        brandPrimaryColor,
-        brandSecondaryColor,
-        logoIntegrity,
-        logoDepth,
-        styleReferenceUrl,
+        characterPersona, // Use persona instead of characterReferenceUrl, characterName
+        // Removed: logoUrl, brandPrimaryColor, brandSecondaryColor, logoIntegrity, logoDepth (no logo support for Sora)
+        // Removed: styleReferenceUrl (Sora only accepts one image input - product hero)
       };
     }
-    if (step === "environment") {
-      return {
-        environmentConcept,
-        cinematicLighting,
-        atmosphericDensity,
-        visualPreset,
-        styleReferenceUrl,
-        campaignSpark,
-        visualBeats: { ...visualBeats },
-        campaignObjective,
-        environmentBrandPrimaryColor,
-        environmentBrandSecondaryColor,
-      };
-    }
+    // Removed: environment step (consolidated into script step)
+    // Environment settings are now part of script tab
     // Add other steps as they are implemented
     return {};
   };
@@ -1519,8 +1067,154 @@ export default function SocialCommerceMode() {
     }, delay);
   };
 
+  // Extract Agent 5.1 generation logic to reusable function
+  const generateBeatPrompts = async (shouldAdvance: boolean = false) => {
+    if (videoId === "new") {
+      toast({
+        title: "Error",
+        description: "Video not created yet. Please refresh the page.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreating(true);
+
+    try {
+      console.log('[SocialCommerce] Starting prompt generation (Agent 5.1 only)...', {
+        videoId,
+        url: `/api/social-commerce/videos/${videoId}/step/3/generate-prompts`,
+      });
+      
+      // Show loading toast
+      toast({
+        title: "Generating Prompts",
+        description: "Agent 5.1 (Visual Prompts) is generating beat prompts...",
+      });
+      
+      let promptsResponse: Response;
+      try {
+        promptsResponse = await fetch(`/api/social-commerce/videos/${videoId}/step/3/generate-prompts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        });
+      } catch (networkError) {
+        console.error('[SocialCommerce] Network error during prompt generation:', networkError);
+        throw new Error(
+          networkError instanceof Error 
+            ? `Network error: ${networkError.message}` 
+            : 'Failed to connect to server. Please check your internet connection.'
+        );
+      }
+
+      console.log('[SocialCommerce] Prompt generation response status:', {
+        status: promptsResponse.status,
+        statusText: promptsResponse.statusText,
+        ok: promptsResponse.ok,
+      });
+
+      if (!promptsResponse.ok) {
+        let errorData: any = {};
+        try {
+          const errorText = await promptsResponse.text();
+          errorData = errorText ? JSON.parse(errorText) : {};
+          console.error('[SocialCommerce] Prompt generation error response:', {
+            status: promptsResponse.status,
+            errorData,
+          });
+        } catch (parseError) {
+          console.error('[SocialCommerce] Failed to parse error response:', parseError);
+          errorData = { error: 'Failed to parse error response' };
+        }
+        
+        const errorMessage = errorData.details || errorData.error || `Server error (${promptsResponse.status})`;
+        throw new Error(errorMessage);
+      }
+
+      let promptsData: any;
+      try {
+        const responseText = await promptsResponse.text();
+        promptsData = responseText ? JSON.parse(responseText) : {};
+        console.log('[SocialCommerce] Prompts generated successfully:', {
+          beatCount: promptsData.beatCount,
+          hasStep3Data: !!promptsData.step3Data,
+          currentStep: promptsData.currentStep,
+        });
+      } catch (parseError) {
+        console.error('[SocialCommerce] Failed to parse success response:', parseError);
+        throw new Error('Failed to parse server response. Please try again.');
+      }
+
+      // Show success message
+      const beatCount = promptsData.beatCount || 0;
+      toast({
+        title: "Prompts Generated",
+        description: `Agent 5.1 (Prompts) completed for ${beatCount} ${beatCount === 1 ? 'beat' : 'beats'}`,
+      });
+
+      // Save beatPrompts to state (voiceoverScripts will be in Tab 4)
+      if (promptsData.step3Data) {
+        setStep3Data(prev => ({
+          ...prev,
+          beatPrompts: promptsData.step3Data.beatPrompts,
+          // voiceoverScripts will be saved in Tab 4 when Agent 5.2 is implemented
+          beatVideos: promptsData.step3Data.beatVideos || {},
+        }));
+      }
+
+      // Note: shotPrompts removed - new structure uses beatPrompts only
+
+      // Advance to next step only if shouldAdvance is true
+      if (shouldAdvance) {
+        const steps: CommerceStepId[] = ["setup", "script", "storyboard", "animatic", "export"];
+        const currentIndex = steps.indexOf(activeStep);
+        const nextIndex = currentIndex + 1;
+        if (nextIndex < steps.length) {
+          setDirection(1);
+          transitionToStep(steps[nextIndex], 300);
+        }
+      }
+    } catch (error) {
+      console.error('[SocialCommerce] Error in storyboard step:', {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        videoId,
+        activeStep,
+      });
+      setIsTransitioning(false); // Reset transition state on error
+      
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : "An unexpected error occurred";
+      
+      // Determine which step failed based on error message
+      let errorTitle = "Error";
+      if (errorMessage.includes('step 4') || errorMessage.includes('storyboard')) {
+        errorTitle = "Failed to Save Storyboard";
+      } else if (errorMessage.includes('prompt') || errorMessage.includes('Agent 5.1')) {
+        errorTitle = "Failed to Generate Prompts";
+      } else if (errorMessage.includes('Network') || errorMessage.includes('connect')) {
+        errorTitle = "Connection Error";
+      }
+      
+      toast({
+        title: errorTitle,
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      // Reset trigger ref on error so user can retry
+      agent51TriggeredRef.current = false;
+      throw error; // Re-throw to allow caller to handle if needed
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   const handleNext = async () => {
-    const steps: CommerceStepId[] = ["setup", "script", "environment", "world", "storyboard", "animatic", "export"];
+    const steps: CommerceStepId[] = ["setup", "script", "storyboard", "animatic", "export"];
     const currentIndex = steps.indexOf(activeStep);
     const nextIndex = currentIndex + 1;
     
@@ -1536,7 +1230,7 @@ export default function SocialCommerceMode() {
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 1 (SETUP): Run Agent 1.1 and save step1Data
+    // TAB 1 (SETUP): Save step1Data (no agents run - simplified flow)
     // ═══════════════════════════════════════════════════════════════════════════
     if (activeStep === "setup") {
       // ✨ Skip agent if step already completed and no changes made
@@ -1556,10 +1250,21 @@ export default function SocialCommerceMode() {
         return;
       }
       
+      // Validate required fields before proceeding
+      const durationNum = parseInt(duration, 10) as 8 | 16 | 24 | 32;
+      if (!duration || !DURATION_OPTIONS.includes(durationNum)) {
+        toast({
+          title: "Duration Required",
+          description: "Please select a duration (8, 16, 24, or 32 seconds) to continue",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       setIsCreating(true); // Show loading state
       
       try {
-        // Prepare step1Data
+        // Prepare step1Data (Sora Integration)
         const step1Data = {
           productTitle: productDetails.title || urlTitle,
           productDescription: productDetails.description,
@@ -1568,20 +1273,38 @@ export default function SocialCommerceMode() {
           region: undefined, // TODO: Add region field if needed
           aspectRatio,
           duration: parseInt(duration, 10),
-          customImageInstructions: imageInstructions,
           customMotionInstructions: motionPrompt,
-          // AI Model Settings
-          imageModel,
-          imageResolution,
+          // Video Model Settings (Sora Only)
           videoModel,
           videoResolution,
-          language,
+          // Product Image URL (for Agent 5.1 vision analysis)
+          productImageUrl: productImages.heroProfile || undefined,
+          // Audio Settings
           voiceOverEnabled,
+          language: voiceOverEnabled ? language : undefined,
+          audioVolume: voiceOverEnabled ? audioVolume : undefined,
+          speechTempo: voiceOverEnabled ? speechTempo : undefined,
+          dialogue: voiceOverEnabled && dialogue.length > 0 ? dialogue : undefined,
+          customVoiceoverInstructions: voiceOverEnabled && language ? customVoiceoverInstructions : undefined,
+          soundEffectsEnabled,
+          soundEffectsPreset: soundEffectsEnabled && soundEffectsUsePreset ? soundEffectsPreset : undefined,
+          soundEffectsCustomInstructions: soundEffectsEnabled && !soundEffectsUsePreset ? soundEffectsCustomInstructions : undefined,
+          soundEffectsUsePreset: soundEffectsEnabled ? soundEffectsUsePreset : undefined,
+          musicEnabled,
+          musicPreset: musicEnabled && musicUsePreset ? musicPreset : undefined,
+          musicCustomInstructions: musicEnabled && !musicUsePreset ? musicCustomInstructions : undefined,
+          musicMood: musicEnabled ? musicMood : undefined,
+          musicUsePreset: musicEnabled ? musicUsePreset : undefined,
+          // Quality Settings
+          productionLevel,
+          // Visual Style
+          pacingOverride,
+          visualIntensity,
         };
         
-        console.log('[SocialCommerce] Saving step 1 and running Agent 1.1:', step1Data);
+        console.log('[SocialCommerce] Saving step 1 (no agents):', step1Data);
         
-        // Call backend API to run Agent 1.1 and save step1Data
+        // Call backend API to save step1Data (no agents run)
         const response = await fetch(`/api/social-commerce/videos/${videoId}/step/1/continue`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -1595,14 +1318,13 @@ export default function SocialCommerceMode() {
         }
         
         const updatedVideo = await response.json();
-        console.log('[SocialCommerce] Step 1 saved, Agent 1.1 completed:', {
+        console.log('[SocialCommerce] Step 1 saved:', {
           currentStep: updatedVideo.currentStep,
-          strategicContext: updatedVideo.step1Data?.strategicContext,
         });
         
         toast({
-          title: "Strategic Context Generated",
-          description: "Agent 1.1 has optimized your campaign strategy.",
+          title: "Step 1 Completed",
+          description: "Setup data saved successfully.",
         });
         
         // Mark step as completed and advance
@@ -1627,10 +1349,10 @@ export default function SocialCommerceMode() {
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 2 (SCRIPT/PRODUCT DNA): Upload images and run Agents 2.1-2.3
+    // TAB 2 (SCRIPT): Creative Spark + Beats - Save to step2Data (no agents on Continue)
     // ═══════════════════════════════════════════════════════════════════════════
     if (activeStep === "script") {
-      // ✨ Skip agents if step already completed and no changes made
+      // ✨ Skip if step already completed and no changes made
       if (completedSteps.includes(activeStep) && !dirtySteps.has(activeStep)) {
         console.log('[SocialCommerce] Step 2 already completed, no changes - navigating directly');
         setDirection(1);
@@ -1647,117 +1369,37 @@ export default function SocialCommerceMode() {
         return;
       }
       
-      // Validate required fields
-      if (!productImages.heroProfile) {
-        toast({
-          title: "Error",
-          description: "Hero profile image is required",
-          variant: "destructive",
-        });
-        return;
-      }
-      
       setIsCreating(true);
       
       try {
-        console.log('[SocialCommerce] Running Tab 2 agents...');
-        
-        // If there's a reference file for AI generation, upload it first
-        let finalCharacterReferenceUrl = characterReferenceUrl;
-        if (characterReferenceFile && (!characterReferenceUrl || characterReferenceUrl.startsWith('blob:'))) {
-          console.log('[SocialCommerce] Uploading character reference image for AI generation...');
-          
-          const formData = new FormData();
-          formData.append('file', characterReferenceFile);
-          formData.append('category', 'character');
-          formData.append('workspaceId', currentWorkspace!.id);
-          formData.append('videoId', videoId);
-          formData.append('characterName', 'AI Reference');
-          formData.append('characterDescription', characterDescription || 'Reference for AI character generation');
-          
-          const uploadResponse = await fetch('/api/social-commerce/upload-temp', {
-            method: 'POST',
-            credentials: 'include',
-            body: formData,
-          });
-          
-          if (uploadResponse.ok) {
-            const uploadData = await uploadResponse.json();
-            finalCharacterReferenceUrl = uploadData.cdnUrl;
-            console.log('[SocialCommerce] Reference uploaded:', finalCharacterReferenceUrl);
-          } else {
-            console.warn('[SocialCommerce] Reference upload failed, continuing without it');
-          }
-        }
+        console.log('[SocialCommerce] Saving Tab 2 data (no agents on Continue)...');
         
         const response = await fetch(`/api/social-commerce/videos/${videoId}/step/2/continue`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
-            // CDN URLs (already uploaded)
-            heroProfileUrl: productImages.heroProfile,
-            macroDetailUrl: productImages.macroDetail,
-            materialReferenceUrl: productImages.materialReference,
-            characterReferenceUrl: finalCharacterReferenceUrl,
-            logoUrl,
-            styleReferenceUrl,
-            
-            // Asset IDs (already created)
-            characterAssetId,
-            brandkitAssetId,
-            
-            // Asset names (for display)
-            characterName: characterName || `Character for ${videoTitle}`,
-            brandName: brandName || `Brand for ${videoTitle}`,
-            
-            // Material settings
-            materialPreset,
-            objectMass,
-            surfaceComplexity,
-            refractionEnabled,
-            heroFeature,
-            originMetaphor,
-            
-            // Character settings
-            includeHumanElement,
-            characterMode,
-            characterDescription,
-            characterAIProfile, // Send AI profile if character was uploaded (minimal profile)
-            targetAudience,
-            
-            // Brand settings
-            brandPrimaryColor,
-            brandSecondaryColor,
-            logoIntegrity,
-            logoDepth,
+            campaignSpark, // Creative spark (user-written or AI-generated)
+            visualPreset, // Visual style preset
+            campaignObjective: campaignObjective || 'brand-awareness',
           }),
         });
         
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.details || errorData.error || 'Failed to process Tab 2');
+          throw new Error(errorData.details || errorData.error || 'Failed to save step 2');
         }
         
         const data = await response.json();
         
-        console.log('[SocialCommerce] Tab 2 completed:', {
-          costs: data.costs,
-          assets: data.assets,
+        console.log('[SocialCommerce] Step 2 saved:', {
+          step2Data: data.step2Data,
         });
         
         toast({
-          title: "Product DNA Generated",
-          description: `Agents 2.1-2.3 completed successfully (cost: $${data.costs.total.toFixed(4)})`,
+          title: "Step 2 Completed",
+          description: "Creative Spark & Beats data saved successfully.",
         });
-        
-        // Log created assets
-        if (data.assets.characterId) {
-          console.log('Character asset created:', data.assets.characterId);
-        }
-        if (data.assets.brandkitId) {
-          console.log('Brandkit asset created:', data.assets.brandkitId);
-        }
         
         // Mark step as completed and advance
         if (!completedSteps.includes(activeStep)) {
@@ -1770,7 +1412,7 @@ export default function SocialCommerceMode() {
         setIsTransitioning(false); // Reset transition state on error
         toast({
           title: "Error",
-          description: error instanceof Error ? error.message : "Failed to process Tab 2",
+          description: error instanceof Error ? error.message : "Failed to save step 2",
           variant: "destructive",
         });
       } finally {
@@ -1781,417 +1423,12 @@ export default function SocialCommerceMode() {
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 3 (ENVIRONMENT): Run Agents 3.0-3.3 and save step3Data
+    // TAB 3 (STORYBOARD): Generate Prompts - Run Agent 5.1 ONLY
     // ═══════════════════════════════════════════════════════════════════════════
-    if (activeStep === "environment") {
-      // ✨ Skip agents if step already completed and no changes made
-      if (completedSteps.includes(activeStep) && !dirtySteps.has(activeStep)) {
-        console.log('[SocialCommerce] Step 3 already completed, no changes - navigating directly');
-        setDirection(1);
-        transitionToStep(steps[nextIndex], 150); // Faster transition for skip
-        return;
-      }
-      
-      if (videoId === "new") {
-        toast({
-          title: "Error",
-          description: "Video not created yet. Please refresh the page.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Validate required fields
-      if (!environmentConcept || environmentConcept.trim().length < 20) {
-        toast({
-          title: "Error",
-          description: "Environment concept must be at least 20 characters",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      if (!campaignSpark || campaignSpark.trim().length < 10) {
-        toast({
-          title: "Error",
-          description: "Creative spark must be at least 10 characters",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      setIsCreating(true);
-      
-      try {
-        console.log('[SocialCommerce] Running Tab 3 agents...');
-        
-        const response = await fetch(`/api/social-commerce/videos/${videoId}/step/3/continue`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            environmentConcept,
-            atmosphericDensity,
-            cinematicLighting,
-            visualPreset,
-            styleReferenceUrl,
-            campaignSpark, // Use existing if filled, or let backend generate
-            campaignObjective: campaignObjective || '', // Optional - empty string if not selected
-            visualBeats,
-            ctaText, // Manual CTA text edits
-            environmentBrandPrimaryColor,
-            environmentBrandSecondaryColor,
-          }),
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.details || errorData.error || 'Failed to process Tab 3');
-        }
-        
-        const data = await response.json();
-        
-        console.log('[SocialCommerce] Tab 3 and Tab 4 completed:', {
-          totalCost: data.totalCost,
-          step3Data: data.step3Data,
-          step4Data: data.step4Data,
-        });
-        
-        // ✨ NEW: Map step4Data to sceneManifest if available
-        if (data.step4Data?.mediaPlanner?.scenes) {
-          const mappedScenes = data.step4Data.mediaPlanner.scenes.map((scene: any, sceneIdx: number) => {
-            // Map timing data by shot_id
-            const timingMap = new Map(
-              (data.step4Data.timing?.temporal_map || []).map((t: any) => [t.shot_id, t])
-            );
-            
-            return {
-              id: scene.scene_id,
-              name: scene.scene_name,
-              description: scene.scene_description,
-              duration: scene.shots.reduce((sum: number, shot: any) => {
-                const timing = timingMap.get(shot.shot_id);
-                return sum + (timing?.rendered_duration || 5.0);
-              }, 0),
-              actType: sceneIdx === 0 ? 'hook' : sceneIdx === 1 ? 'transformation' : 'payoff',
-              shots: scene.shots.map((shot: any) => {
-                const timing = timingMap.get(shot.shot_id);
-                
-                // Build reference tags based on identity_references
-                const referenceTags: string[] = [];
-                
-                // Product reference with variant
-                if (shot.identity_references.refer_to_product) {
-                  const productRef = shot.identity_references.product_image_ref;
-                  if (productRef === 'macroDetail') {
-                    referenceTags.push('@Product_Macro');
-                  } else if (productRef === 'materialReference') {
-                    referenceTags.push('@Texture');
-                  } else {
-                    referenceTags.push('@Product'); // Default to heroProfile
-                  }
-                }
-                
-                // Character reference
-                if (shot.identity_references.refer_to_character) {
-                  referenceTags.push('@Character');
-                }
-                
-                // Logo reference
-                if (shot.identity_references.refer_to_logo) {
-                  referenceTags.push('@Logo');
-                }
-                
-                // Previous shot references
-                if (shot.identity_references.refer_to_previous_outputs?.length > 0) {
-                  shot.identity_references.refer_to_previous_outputs.forEach((ref: any) => {
-                    // Format shot_id: "S1.1" -> "@Shot_1_1", "shot_1_1" -> "@Shot_1_1"
-                    const formattedId = ref.shot_id.replace(/^[Ss]/, '').replace(/[^0-9]/g, '_');
-                    referenceTags.push(`@Shot_${formattedId}`);
-                  });
-                }
-                
-                return {
-                  id: shot.shot_id,
-                  sceneId: scene.scene_id,
-                  name: `${shot.shot_id}: ${shot.cinematic_goal}`,
-                  description: shot.brief_description,
-                  duration: timing?.rendered_duration || 5.0,
-                  shotType: shot.generation_mode.shot_type === 'IMAGE_REF' ? 'image-ref' : 'start-end',
-                  cameraPath: shot.technical_cinematography.camera_movement.toLowerCase().includes('orbit') ? 'orbit' :
-                             shot.technical_cinematography.camera_movement.toLowerCase().includes('pan') ? 'pan' :
-                             shot.technical_cinematography.camera_movement.toLowerCase().includes('zoom') ? 'zoom' :
-                             shot.technical_cinematography.camera_movement.toLowerCase().includes('dolly') ? 'dolly' : 'static',
-                  lens: shot.technical_cinematography.lens.toLowerCase().includes('macro') ? 'macro' :
-                        shot.technical_cinematography.lens.toLowerCase().includes('wide') ? 'wide' :
-                        shot.technical_cinematography.lens.toLowerCase().includes('85') ? '85mm' : 'telephoto',
-                  referenceTags,
-                  previousShotReferences: shot.identity_references.refer_to_previous_outputs || [],
-                  isLinkedToPrevious: shot.continuity_logic.is_connected_to_previous,
-                  speedProfile: timing?.speed_curve === 'EASE_IN' ? 'smooth' :
-                               timing?.speed_curve === 'EASE_OUT' ? 'smooth' : 'linear',
-                  multiplier: timing?.multiplier || 1.0,
-                  sfxHint: timing?.sfx_hint || '',
-                };
-              }),
-            };
-          });
-          
-          setSceneManifest({
-            scenes: mappedScenes,
-            continuityLinksEstablished: mappedScenes.some(s => s.shots.some((shot: any) => shot.isLinkedToPrevious)),
-            durationBudget: data.step4Data.timing?.duration_budget || {
-              target_total: 0,
-              actual_total: 0,
-              variance: 0,
-            },
-          });
-          
-          console.log('[SocialCommerce] Mapped step4Data to sceneManifest:', {
-            sceneCount: mappedScenes.length,
-            totalShots: mappedScenes.reduce((sum: number, s: any) => sum + s.shots.length, 0),
-          });
-        }
-        
-        toast({
-          title: "Environment, Story & Shots Generated",
-          description: `Agents 3.0-3.3 and 4.1-4.2 completed successfully (cost: $${(data.totalCost || 0).toFixed(4)})`,
-        });
-        
-        // Mark step as completed and advance
-        if (!completedSteps.includes(activeStep)) {
-          setCompletedSteps([...completedSteps, activeStep]);
-        }
-        setDirection(1);
-        transitionToStep(steps[nextIndex], 300);
-      } catch (error) {
-        console.error('[SocialCommerce] Tab 3 error:', error);
-        setIsTransitioning(false); // Reset transition state on error
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to process Tab 3",
-          variant: "destructive",
-        });
-      } finally {
-        setIsCreating(false);
-      }
-      
-      return;
-    }
-    
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 4 (STORYBOARD): Save sceneManifest to step4Data
-    // ═══════════════════════════════════════════════════════════════════════════
-    if (activeStep === "world") {
-      if (videoId === "new") {
-        toast({
-          title: "Error",
-          description: "Video not created yet. Please refresh the page.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      setIsCreating(true);
-
-      try {
-        console.log('[SocialCommerce] Saving step 4 (sceneManifest):', {
-          sceneCount: sceneManifest.scenes.length,
-          totalShots: sceneManifest.scenes.reduce((sum, s) => sum + s.shots.length, 0),
-        });
-
-        const response = await fetch(`/api/social-commerce/videos/${videoId}/step/4/continue`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ sceneManifest }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.details || errorData.error || 'Failed to save step 4');
-        }
-
-        const data = await response.json();
-        
-        console.log('[SocialCommerce] Step 4 saved successfully:', {
-          sceneCount: data.step4Data?.mediaPlanner?.scenes?.length || 0,
-        });
-
-        toast({
-          title: "Storyboard Saved",
-          description: "All scenes and shots have been saved successfully",
-        });
-
-        // Mark step as completed
-        if (!completedSteps.includes(activeStep)) {
-          setCompletedSteps([...completedSteps, activeStep]);
-        }
-
-        // ═══════════════════════════════════════════════════════════════════════
-        // TAB 5: Generate prompts using Agent 5.1
-        // ═══════════════════════════════════════════════════════════════════════
-        const sceneCount = sceneManifest.scenes.length;
-        const shotCount = sceneManifest.scenes.reduce((sum, s) => sum + s.shots.length, 0);
-        
-        console.log('[SocialCommerce] Starting prompt generation...', {
-          videoId,
-          sceneCount,
-          shotCount,
-          url: `/api/social-commerce/videos/${videoId}/step/5/generate-prompts`,
-        });
-        
-        let promptsResponse: Response;
-        try {
-          promptsResponse = await fetch(`/api/social-commerce/videos/${videoId}/step/5/generate-prompts`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-          });
-        } catch (networkError) {
-          console.error('[SocialCommerce] Network error during prompt generation:', networkError);
-          throw new Error(
-            networkError instanceof Error 
-              ? `Network error: ${networkError.message}` 
-              : 'Failed to connect to server. Please check your internet connection.'
-          );
-        }
-
-        console.log('[SocialCommerce] Prompt generation response status:', {
-          status: promptsResponse.status,
-          statusText: promptsResponse.statusText,
-          ok: promptsResponse.ok,
-        });
-
-        if (!promptsResponse.ok) {
-          let errorData: any = {};
-          try {
-            const errorText = await promptsResponse.text();
-            errorData = errorText ? JSON.parse(errorText) : {};
-            console.error('[SocialCommerce] Prompt generation error response:', {
-              status: promptsResponse.status,
-              errorData,
-            });
-          } catch (parseError) {
-            console.error('[SocialCommerce] Failed to parse error response:', parseError);
-            errorData = { error: 'Failed to parse error response' };
-          }
-          
-          const errorMessage = errorData.details || errorData.error || `Server error (${promptsResponse.status})`;
-          throw new Error(errorMessage);
-        }
-
-        let promptsData: any;
-        try {
-          const responseText = await promptsResponse.text();
-          promptsData = responseText ? JSON.parse(responseText) : {};
-          console.log('[SocialCommerce] Prompts generated successfully:', {
-            shotCount: promptsData.shotCount,
-            hasStep5Data: !!promptsData.step5Data,
-            currentStep: promptsData.currentStep,
-          });
-        } catch (parseError) {
-          console.error('[SocialCommerce] Failed to parse success response:', parseError);
-          throw new Error('Failed to parse server response. Please try again.');
-        }
-
-        toast({
-          title: "Prompts Generated",
-          description: `Successfully generated prompts for ${promptsData.shotCount || 0} shots`,
-        });
-
-        // ✨ NEW: Sync prompts to shotVersions when step5Data is returned
-        if (promptsData.step5Data?.shotPrompts) {
-          // Helper to find shot by ID from sceneManifest
-          const findShotById = (shotId: string): any => {
-            for (const scene of sceneManifest.scenes) {
-              const shot = scene.shots.find(s => s.id === shotId);
-              if (shot) return shot;
-            }
-            return null;
-          };
-          
-          // Update shotVersions with new prompts and set currentVersionId on shots
-          setShotVersions(prev => {
-            const updatedVersions = { ...prev };
-            const updatedShots: { [sceneId: string]: Shot[] } = {};
-            
-            Object.entries(promptsData.step5Data.shotPrompts).forEach(([shotId, shotPrompts]: [string, any]) => {
-              const shot = findShotById(shotId);
-              if (shot) {
-                const condition = determineCondition(shot);
-                const version = createShotVersionFromPrompts(shotId, shotPrompts, condition);
-                updatedVersions[shotId] = [version];
-                
-                // ✨ CRITICAL: Update shot.currentVersionId so getShotVersion() can find the version
-                // Find which scene contains this shot and update it
-                Object.entries(shots).forEach(([sceneId, sceneShots]) => {
-                  const foundShot = sceneShots.find(s => s.id === shotId);
-                  if (foundShot) {
-                    if (!updatedShots[sceneId]) {
-                      updatedShots[sceneId] = [...sceneShots];
-                    }
-                    const shotIndex = updatedShots[sceneId].findIndex(s => s.id === shotId);
-                    if (shotIndex >= 0) {
-                      updatedShots[sceneId][shotIndex] = {
-                        ...updatedShots[sceneId][shotIndex],
-                        currentVersionId: version.id,
-                      };
-                    }
-                  }
-                });
-              }
-            });
-            
-            // Update shots state with currentVersionId set
-            if (Object.keys(updatedShots).length > 0) {
-              setShots(prev => ({ ...prev, ...updatedShots }));
-            }
-            
-            return updatedVersions;
-          });
-          
-          console.log('[SocialCommerce] Synced prompts to shotVersions:', {
-            shotCount: Object.keys(promptsData.step5Data.shotPrompts).length,
-          });
-        }
-
-        // Advance to next step
-        setDirection(1);
-        transitionToStep(steps[nextIndex], 300);
-      } catch (error) {
-        console.error('[SocialCommerce] Error in storyboard step:', {
-          error,
-          errorMessage: error instanceof Error ? error.message : String(error),
-          errorStack: error instanceof Error ? error.stack : undefined,
-          videoId,
-          activeStep,
-        });
-        setIsTransitioning(false); // Reset transition state on error
-        
-        const errorMessage = error instanceof Error 
-          ? error.message 
-          : "An unexpected error occurred";
-        
-        // Determine which step failed based on error message
-        let errorTitle = "Error";
-        if (errorMessage.includes('step 4') || errorMessage.includes('storyboard')) {
-          errorTitle = "Failed to Save Storyboard";
-        } else if (errorMessage.includes('prompt') || errorMessage.includes('Agent 5.1')) {
-          errorTitle = "Failed to Generate Prompts";
-        } else if (errorMessage.includes('Network') || errorMessage.includes('connect')) {
-          errorTitle = "Connection Error";
-        }
-        
-        toast({
-          title: errorTitle,
-          description: errorMessage,
-          variant: "destructive",
-        });
-      } finally {
-        setIsCreating(false);
-      }
-      
+    // NOTE: Agent 5.2 (voiceover) will be implemented in Tab 4 later
+    // This runs when user clicks Continue on Tab 3 (manual trigger)
+    if (activeStep === "storyboard") {
+      await generateBeatPrompts(true); // Pass true to advance to next step
       return;
     }
     
@@ -2209,7 +1446,7 @@ export default function SocialCommerceMode() {
   };
 
   const handleBack = () => {
-    const steps: CommerceStepId[] = ["setup", "script", "environment", "world", "storyboard", "animatic", "export"];
+    const steps: CommerceStepId[] = ["setup", "script", "storyboard", "animatic", "export"];
     const currentIndex = steps.indexOf(activeStep);
     const prevIndex = currentIndex - 1;
     
@@ -2235,28 +1472,18 @@ export default function SocialCommerceMode() {
         macroDetail: null,
         materialReference: null,
       });
-      setCharacterAssetId(null);
-      setCharacterReferenceUrl(null);
-      setCharacterReferenceFile(null);
-      setCharacterName('');
+      // Removed: characterAssetId, characterReferenceUrl, characterReferenceFile, characterName, characterAIProfile (no image generation for Sora)
       setCharacterDescription('');
-      setCharacterAIProfile(null);
+      setCharacterPersona(null);
       setCharacterMode(null);
       setIncludeHumanElement(false);
-      setBrandkitAssetId(null);
-      setLogoUrl(null);
-      setBrandName('');
-      setBrandPrimaryColor("#FF006E");
-      setBrandSecondaryColor("#FB5607");
-      setLogoIntegrity(7);
-      setLogoDepth(5);
+      // Removed: brandkitAssetId, logoUrl, brandName, brandPrimaryColor, brandSecondaryColor, logoIntegrity, logoDepth (no logo support for Sora)
       setMaterialPreset("");
       setObjectMass(50);
       setSurfaceComplexity(50);
       setRefractionEnabled(false);
       setHeroFeature("");
       setOriginMetaphor("");
-      setStyleReferenceUrl(null);
     }
     
     // Reset Step 3 state (Environment & Story)
@@ -2269,12 +1496,9 @@ export default function SocialCommerceMode() {
       });
       setCtaText("");
       setCampaignObjective("");
-      setEnvironmentConcept("");
-      setCinematicLighting("");
-      setAtmosphericDensity(50);
+      // Removed: environmentConcept, cinematicLighting, atmosphericDensity (no longer used)
       setVisualPreset("");
-      setEnvironmentBrandPrimaryColor(brandPrimaryColor);
-      setEnvironmentBrandSecondaryColor(brandSecondaryColor);
+      // Removed: environmentBrandPrimaryColor, environmentBrandSecondaryColor (no longer used)
     }
     
     // Reset Step 4 state (Scene Timeline)
@@ -2293,7 +1517,7 @@ export default function SocialCommerceMode() {
       return;
     }
 
-    const steps: CommerceStepId[] = ["setup", "script", "environment", "world", "storyboard", "animatic", "export"];
+    const steps: CommerceStepId[] = ["setup", "script", "storyboard", "animatic", "export"];
     const currentStepNumber = stepToNumber(activeStep);
 
     setIsCreating(true);
@@ -2307,7 +1531,7 @@ export default function SocialCommerceMode() {
 
       // Clear current step's data AND all future step data
       // This ensures that when user changes a completed step, that step and all future steps are reset
-      const stepNumbers = [1, 2, 3, 4, 5, 6];
+      const stepNumbers = [1, 2, 3, 4, 5]; // Simplified: only 3 tabs now (1, 2, 3)
       stepNumbers.forEach(num => {
         if (num >= currentStepNumber) {
           updatePayload[`step${num}Data`] = null;
@@ -2373,16 +1597,14 @@ export default function SocialCommerceMode() {
 
   // Get human-readable step name
   const getStepName = (step: CommerceStepId): string => {
-    const names: { [key in CommerceStepId]: string } = {
-      "setup": "Strategic Context",
-      "script": "Product & Cast DNA",
-      "environment": "Environment & Story",
-      "world": "Shot Orchestrator",
-      "storyboard": "Storyboard",
+    const names: Record<CommerceStepId, string> = {
+      "setup": "Setup & Product",
+      "script": "Creative Spark & Beats",
+      "storyboard": "Generate Prompts",
       "animatic": "Preview",
       "export": "Export",
     };
-    return names[step];
+    return names[step] || step;
   };
 
   // Show loading while workspace is being loaded or video is being created
@@ -2417,7 +1639,12 @@ export default function SocialCommerceMode() {
   if (!narrativeMode) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#0a0a0a]">
-        <NarrativeModeSelector onSelectMode={(mode) => setNarrativeMode(mode)} />
+        <NarrativeModeSelector onSelectMode={(mode) => {
+          // Filter out "auto" - social commerce only supports "image-reference" or "start-end"
+          if (mode !== "auto") {
+            setNarrativeMode(mode);
+          }
+        }} />
       </div>
     );
   }
@@ -2426,10 +1653,9 @@ export default function SocialCommerceMode() {
   const computedNextLabel = isTransitioning 
     ? "Loading..."
     : (isCreating 
-      ? (activeStep === "setup" ? "Running Agent 1.1..." :
-         activeStep === "script" ? "Running Agents 2.1-2.3..." :
-         activeStep === "environment" ? "Running Agents 3.0-3.3 & 4.1-4.2..." :
-         activeStep === "storyboard" ? "Saving storyboard..." :
+      ? (activeStep === "setup" ? "Saving..." :
+         activeStep === "script" ? "Running Agent 3.2..." :
+         activeStep === "storyboard" ? "Running Agents 5.1 & 5.2..." :
          "Processing...")
       : undefined);
 
@@ -2451,6 +1677,7 @@ export default function SocialCommerceMode() {
               activeStep={workflowStepMap[activeStep]}
               videoId={videoId}
               workspaceId={workspaceId}
+              isCreating={isCreating}
               narrativeMode={narrativeMode}
               script={script}
               aspectRatio={aspectRatio}
@@ -2470,22 +1697,34 @@ export default function SocialCommerceMode() {
               continuityLocked={continuityLocked}
               continuityGroups={continuityGroups}
               worldSettings={worldSettings}
-              imageModel={imageModel}
-              imageResolution={imageResolution}
               videoModel={videoModel}
               videoResolution={videoResolution}
               language={language}
               motionPrompt={motionPrompt}
+              // Audio Settings
+              audioVolume={audioVolume}
+              speechTempo={speechTempo}
+              dialogue={dialogue}
+              customVoiceoverInstructions={customVoiceoverInstructions}
+              soundEffectsEnabled={soundEffectsEnabled}
+              soundEffectsPreset={soundEffectsPreset}
+              soundEffectsCustomInstructions={soundEffectsCustomInstructions}
+              soundEffectsUsePreset={soundEffectsUsePreset}
+              musicEnabled={musicEnabled}
+              musicPreset={musicPreset}
+              musicCustomInstructions={musicCustomInstructions}
+              musicMood={musicMood}
+              musicUsePreset={musicUsePreset}
+              // Quality Settings
+              productionLevel={productionLevel}
+              // Visual Style
+              pacingOverride={pacingOverride}
+              visualIntensity={visualIntensity}
               productImages={productImages}
               materialPreset={materialPreset}
               objectMass={objectMass}
               surfaceComplexity={surfaceComplexity}
               refractionEnabled={refractionEnabled}
-              logoUrl={logoUrl}
-              brandPrimaryColor={brandPrimaryColor}
-              brandSecondaryColor={brandSecondaryColor}
-              logoIntegrity={logoIntegrity}
-              logoDepth={logoDepth}
               heroFeature={heroFeature}
               originMetaphor={originMetaphor}
               onScriptChange={setScript}
@@ -2508,14 +1747,41 @@ export default function SocialCommerceMode() {
               onWorldSettingsChange={setWorldSettings}
               commerceSettings={commerceSettings}
               onCommerceSettingsChange={setCommerceSettings}
-              onImageModelChange={(value) => { setImageModel(value); markStepDirty('setup'); }}
-              onImageResolutionChange={(value) => { setImageResolution(value); markStepDirty('setup'); }}
               onVideoModelChange={(value) => { setVideoModel(value); markStepDirty('setup'); }}
               onVideoResolutionChange={(value) => { setVideoResolution(value); markStepDirty('setup'); }}
               onLanguageChange={(value) => { setLanguage(value); markStepDirty('setup'); }}
               onMotionPromptChange={(value) => { setMotionPrompt(value); markStepDirty('setup'); }}
-              onImageInstructionsChange={(value) => { setImageInstructions(value); markStepDirty('setup'); }}
-              imageInstructions={imageInstructions}
+              // Audio Handlers
+              onAudioVolumeChange={(value) => { setAudioVolume(value); markStepDirty('setup'); }}
+              onSpeechTempoChange={(value) => { setSpeechTempo(value); markStepDirty('setup'); }}
+              onDialogueAdd={() => {
+                const newId = `dialogue-${Date.now()}`;
+                setDialogue([...dialogue, { id: newId, line: '' }]);
+                markStepDirty('setup');
+              }}
+              onDialogueChange={(id, entry) => {
+                setDialogue(dialogue.map(d => d.id === id ? { ...d, ...entry } : d));
+                markStepDirty('setup');
+              }}
+              onDialogueRemove={(id) => {
+                setDialogue(dialogue.filter(d => d.id !== id));
+                markStepDirty('setup');
+              }}
+              onCustomVoiceoverInstructionsChange={(value) => { setCustomVoiceoverInstructions(value); markStepDirty('setup'); }}
+              onSoundEffectsToggle={(value) => { setSoundEffectsEnabled(value); markStepDirty('setup'); }}
+              onSoundEffectsPresetChange={(value) => { setSoundEffectsPreset(value); markStepDirty('setup'); }}
+              onSoundEffectsCustomChange={(value) => { setSoundEffectsCustomInstructions(value); markStepDirty('setup'); }}
+              onSoundEffectsUsePresetChange={(value) => { setSoundEffectsUsePreset(value); markStepDirty('setup'); }}
+              onMusicToggle={(value) => { setMusicEnabled(value); markStepDirty('setup'); }}
+              onMusicPresetChange={(value) => { setMusicPreset(value); markStepDirty('setup'); }}
+              onMusicCustomChange={(value) => { setMusicCustomInstructions(value); markStepDirty('setup'); }}
+              onMusicMoodChange={(value) => { setMusicMood(value); markStepDirty('setup'); }}
+              onMusicUsePresetChange={(value) => { setMusicUsePreset(value); markStepDirty('setup'); }}
+              // Quality Handlers
+              onProductionLevelChange={(value) => { setProductionLevel(value); markStepDirty('setup'); }}
+              // Visual Style Handlers
+              onPacingOverrideChange={(value) => { setPacingOverride(value); markStepDirty('setup'); }}
+              onVisualIntensityChange={(value) => { setVisualIntensity(value); markStepDirty('setup'); }}
               onProductImagesChange={(value) => { setProductImages(value); markStepDirty('script'); }}
               onProductImageUpload={handleProductImageUpload}
               onProductImageDelete={handleDeleteProductImage}
@@ -2523,60 +1789,38 @@ export default function SocialCommerceMode() {
               onObjectMassChange={setObjectMass}
               onSurfaceComplexityChange={(value) => { setSurfaceComplexity(value); markStepDirty('script'); }}
               onRefractionEnabledChange={(value) => { setRefractionEnabled(value); markStepDirty('script'); }}
-              onLogoUrlChange={(value) => { setLogoUrl(value); markStepDirty('script'); }}
-              onLogoUpload={handleLogoUpload}
-              onLogoDelete={handleDeleteLogo}
-              onBrandPrimaryColorChange={(value) => { setBrandPrimaryColor(value); markStepDirty('script'); }}
-              onBrandSecondaryColorChange={(value) => { setBrandSecondaryColor(value); markStepDirty('script'); }}
-              onLogoIntegrityChange={(value) => { setLogoIntegrity(value); markStepDirty('script'); }}
-              onLogoDepthChange={(value) => { setLogoDepth(value); markStepDirty('script'); }}
+              // Removed: All logo-related props (no logo support for Sora)
               onHeroFeatureChange={(value) => { setHeroFeature(value); markStepDirty('script'); }}
               onOriginMetaphorChange={(value) => { setOriginMetaphor(value); markStepDirty('script'); }}
-              environmentConcept={environmentConcept}
-              cinematicLighting={cinematicLighting}
-              atmosphericDensity={atmosphericDensity}
-              styleReferenceUrl={styleReferenceUrl}
               visualPreset={visualPreset}
               campaignSpark={campaignSpark}
-              visualBeats={visualBeats}
-              environmentBrandPrimaryColor={environmentBrandPrimaryColor}
-              environmentBrandSecondaryColor={environmentBrandSecondaryColor}
               targetAudience={targetAudience}
               ctaText={ctaText}
               includeHumanElement={includeHumanElement}
               characterMode={characterMode}
-              characterReferenceUrl={characterReferenceUrl}
-              characterAssetId={characterAssetId}
               characterDescription={characterDescription}
-              characterAIProfile={characterAIProfile}
+              characterPersona={characterPersona}
               isGeneratingCharacter={isGeneratingCharacter}
-              onCharacterAIProfileChange={setCharacterAIProfile}
+              onCharacterPersonaChange={setCharacterPersona}
               onIsGeneratingCharacterChange={setIsGeneratingCharacter}
-              onEnvironmentConceptChange={(value) => { setEnvironmentConcept(value); markStepDirty('environment'); }}
-              onCinematicLightingChange={(value) => { setCinematicLighting(value); markStepDirty('environment'); }}
-              onAtmosphericDensityChange={(value) => { setAtmosphericDensity(value); markStepDirty('environment'); }}
-              onStyleReferenceUrlChange={(value) => { setStyleReferenceUrl(value); markStepDirty('environment'); }}
-              onVisualPresetChange={(value) => { setVisualPreset(value); markStepDirty('environment'); }}
-              onCampaignSparkChange={(value) => { setCampaignSpark(value); markStepDirty('environment'); }}
-              onVisualBeatsChange={(value) => { setVisualBeats(value); markStepDirty('environment'); }}
-              onEnvironmentBrandPrimaryColorChange={(value) => { setEnvironmentBrandPrimaryColor(value); markStepDirty('environment'); }}
-              onEnvironmentBrandSecondaryColorChange={(value) => { setEnvironmentBrandSecondaryColor(value); markStepDirty('environment'); }}
+              cameraShotDefault={cameraShotDefault}
+              lensDefault={lensDefault}
+              onCameraShotDefaultChange={(value) => { setCameraShotDefault(value); markStepDirty('script'); }}
+              onLensDefaultChange={(value) => { setLensDefault(value); markStepDirty('script'); }}
+              onVisualPresetChange={(value) => { setVisualPreset(value); markStepDirty('script'); }}
+              onCampaignSparkChange={(value) => { setCampaignSpark(value); markStepDirty('script'); }}
               campaignObjective={campaignObjective}
-              onCampaignObjectiveChange={(value) => { setCampaignObjective(value); markStepDirty('environment'); }}
+              onCampaignObjectiveChange={(value) => { setCampaignObjective(value); markStepDirty('script'); }}
               onTargetAudienceChange={(value) => { setTargetAudience(value); markStepDirty('setup'); }}
               onCtaTextChange={setCtaText}
               onIncludeHumanElementChange={(value) => { setIncludeHumanElement(value); markStepDirty('script'); }}
               onCharacterModeChange={(value) => { setCharacterMode(value); markStepDirty('script'); }}
-              onCharacterReferenceUrlChange={(value) => { setCharacterReferenceUrl(value); markStepDirty('script'); }}
-              onCharacterImageUpload={handleCharacterImageUpload}
-              onCharacterDelete={handleDeleteCharacter}
               onCharacterDescriptionChange={(value) => { setCharacterDescription(value); markStepDirty('script'); }}
-              onCharacterNameChange={(value) => { setCharacterName(value); markStepDirty('script'); }}
-              onCharacterAssetIdChange={setCharacterAssetId}
-              onCharacterReferenceFileChange={setCharacterReferenceFile}
+              // Removed: All character image-related props (no image generation for Sora)
               sceneManifest={sceneManifest}
               onSceneManifestChange={setSceneManifest}
               onNext={handleNext}
+              step3Data={step3Data}
             />
 
       {/* Step Reset Warning Dialog */}
@@ -2586,6 +1830,7 @@ export default function SocialCommerceMode() {
         onAccept={handleAcceptReset}
         currentStepName={getStepName(activeStep)}
       />
+
     </SocialCommerceStudioLayout>
   );
 }

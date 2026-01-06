@@ -7,20 +7,21 @@
  * and cultural context into a singular high-concept creative "Spark".
  * 
  * INPUT:
- * - Strategic context from Agent 1.1
- * - Product DNA from Agent 2.1
- * - Character profile from Agent 2.2 (if applicable)
+ * - Strategic context from user inputs (replaces Agent 1.1)
+ * - Product information from user inputs (replaces Agent 2.1)
+ * - Character info from user inputs (character planning removed)
  * 
  * OUTPUT:
  * - creative_spark: 2-4 sentence conceptual vision
  */
 
 import { callTextModel } from '../../../../ai/service';
+import { getModelConfig } from '../../../../ai/config';
 import {
   CREATIVE_SPARK_SYSTEM_PROMPT,
   buildCreativeSparkUserPrompt,
   CREATIVE_SPARK_SCHEMA,
-} from '../../prompts/tab-3/creative-spark-prompts';
+} from '../../prompts/tab-2/creative-spark-prompts';
 import type { CreativeSparkOutput } from '../../types';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -29,7 +30,7 @@ import type { CreativeSparkOutput } from '../../types';
 
 const AGENT_CONFIG = {
   provider: 'openai' as const,
-  model: 'gpt-4o',
+  model: 'gpt-5.2',
   temperature: 0.7, // Higher creativity for concept generation
   maxRetries: 2,
 };
@@ -43,13 +44,13 @@ export interface CreativeSparkInput {
   targetAudience: string;
   region: string;
   duration: number;
-  pacing_profile: string;
-  geometry_profile: string;
-  material_spec: string;
-  heroFeature: string;
-  originMetaphor: string;
+  // Removed: pacing_profile, geometry_profile, material_spec, heroFeature, originMetaphor (no longer from Agent 1.1/2.1)
   includeHumanElement: boolean;
   productCategory?: string;
+  productTitle?: string;
+  productDescription?: string;
+  visualIntensity?: number;
+  productionLevel?: 'raw' | 'casual' | 'balanced' | 'cinematic' | 'ultra';
   characterMode?: string;
   character_profile?: any;
 }
@@ -74,12 +75,23 @@ export async function generateCreativeSpark(
   console.log('[social-commerce:agent-3.0] Input validation:', {
     hasStrategicDirectives: !!input.strategic_directives && input.strategic_directives.length > 0,
     hasTargetAudience: !!input.targetAudience,
-    hasGeometryProfile: !!input.geometry_profile && input.geometry_profile.length > 0,
-    hasMaterialSpec: !!input.material_spec && input.material_spec.length > 0,
+    hasProductTitle: !!input.productTitle,
+    hasProductDescription: !!input.productDescription,
     strategicDirectivesLength: input.strategic_directives?.length || 0,
-    geometryProfileLength: input.geometry_profile?.length || 0,
-    materialSpecLength: input.material_spec?.length || 0,
   });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CHECK REASONING SUPPORT
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  // Check if model supports reasoning
+  let supportsReasoning = false;
+  try {
+    const modelConfig = getModelConfig(AGENT_CONFIG.provider, AGENT_CONFIG.model);
+    supportsReasoning = modelConfig.metadata?.reasoning === true;
+  } catch {
+    // Model not found in config, assume no reasoning support
+  }
 
   let lastError: Error | null = null;
 
@@ -98,7 +110,6 @@ export async function generateCreativeSpark(
           provider: AGENT_CONFIG.provider,
           model: AGENT_CONFIG.model,
           payload: {
-            temperature: AGENT_CONFIG.temperature,
             input: [
               { role: 'system', content: CREATIVE_SPARK_SYSTEM_PROMPT },
               { role: 'user', content: userPrompt },
@@ -111,6 +122,8 @@ export async function generateCreativeSpark(
                 schema: CREATIVE_SPARK_SCHEMA,
               },
             },
+            // Conditionally add reasoning if supported (temperature not supported with reasoning)
+            ...(supportsReasoning ? { reasoning: { effort: "high" } } : { temperature: AGENT_CONFIG.temperature }),
           },
           userId,
           workspaceId,

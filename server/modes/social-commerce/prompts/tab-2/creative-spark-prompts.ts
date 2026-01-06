@@ -157,44 +157,39 @@ export function buildCreativeSparkUserPrompt(input: {
   targetAudience: string;
   region: string;
   duration: number;
-  pacing_profile: string;
-  geometry_profile: string;
-  material_spec: string;
-  heroFeature: string;
-  originMetaphor: string;
+  // Removed: pacing_profile, geometry_profile, material_spec, heroFeature, originMetaphor (no longer from Agent 1.1/2.1)
   includeHumanElement: boolean;
   productCategory?: string;
+  productTitle?: string;
+  productDescription?: string;
+  visualIntensity?: number;
+  productionLevel?: 'raw' | 'casual' | 'balanced' | 'cinematic' | 'ultra';
   characterMode?: string;
   character_profile?: any;
 }): string {
   return `═══════════════════════════════════════════════════════════════════════════════
-STRATEGIC CONTEXT (From Agent 1.1)
+STRATEGIC CONTEXT (From user inputs)
 ═══════════════════════════════════════════════════════════════════════════════
 
 TARGET AUDIENCE: ${input.targetAudience}
 REGION: ${input.region}
 CAMPAIGN DURATION: ${input.duration} seconds
-PACING PROFILE: ${input.pacing_profile}
 
 STRATEGIC DIRECTIVES:
 ${input.strategic_directives}
 
 ═══════════════════════════════════════════════════════════════════════════════
-PRODUCT DNA (From Agent 2.1)
+PRODUCT INFORMATION (From user inputs)
 ═══════════════════════════════════════════════════════════════════════════════
 
-${input.productCategory ? `PRODUCT CATEGORY: ${input.productCategory}\n\n` : ''}GEOMETRY PROFILE:
-${input.geometry_profile}
+${input.productTitle ? `PRODUCT TITLE: ${input.productTitle}\n` : ''}${input.productDescription ? `PRODUCT DESCRIPTION: ${input.productDescription}\n` : ''}${input.productCategory ? `PRODUCT CATEGORY: ${input.productCategory}\n` : ''}
+// Removed: geometry_profile, material_spec, heroFeature, originMetaphor (no longer from Agent 2.1)
+// Product information is now extracted from user inputs and vision analysis
 
-MATERIAL SPECIFICATION:
-${input.material_spec}
-
-HERO FEATURE: "${input.heroFeature}"
-
-ORIGIN METAPHOR: "${input.originMetaphor}"
+${input.visualIntensity !== undefined ? `VISUAL INTENSITY: ${input.visualIntensity}/100 (0=minimal, 100=maximum wildness/intensity)\n` : ''}${input.productionLevel ? `PRODUCTION LEVEL: ${input.productionLevel} (raw/casual/balanced/cinematic/ultra)\n` : ''}
 
 ═══════════════════════════════════════════════════════════════════════════════
-CHARACTER CONTEXT (From Agent 2.2)
+CHARACTER CONTEXT (From user inputs - character planning removed)
 ═══════════════════════════════════════════════════════════════════════════════
 
 HUMAN ELEMENT INCLUDED: ${input.includeHumanElement}
@@ -211,7 +206,7 @@ unify this entire campaign.
 Your Spark should:
 1. Transform the material properties into visual metaphor
 2. Resonate emotionally with ${input.targetAudience} in ${input.region}
-3. Build upon the origin metaphor: "${input.originMetaphor}"
+3. Create compelling visual narrative from product context
 4. Feel cinematic, not commercial
 
 Return ONLY the JSON object — no explanation, no preamble.`;

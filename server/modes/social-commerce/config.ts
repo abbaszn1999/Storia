@@ -21,9 +21,8 @@ export const SOCIAL_COMMERCE_CONFIG = {
   // Default settings
   defaults: {
     aspectRatio: '9:16' as const,
-    duration: 15 as const, // seconds - must match DurationOption type
+    duration: 16 as const, // seconds - must match DurationOption type
     pacingProfile: 'FAST_CUT' as const,
-    imageModel: 'flux-2-dev',
     videoModel: 'pixverse-v5.5',
   },
   
@@ -55,7 +54,7 @@ export const SOCIAL_COMMERCE_CONFIG = {
     'silhouette',
   ] as const,
   
-  // Speed curve types for Agent 4.2
+  // Speed curve types (used by Agent 4.1 for shot timing)
   speedCurves: [
     'LINEAR',     // Constant speed throughout
     'EASE_IN',    // Slow → Fast (accelerates)
@@ -71,8 +70,8 @@ export const ASPECT_RATIOS = {
   '4:5': { width: 1080, height: 1350, label: 'Portrait (4:5)' },
 } as const;
 
-// Duration options in seconds
-export const DURATION_OPTIONS = [10, 15, 20, 30, 45, 60] as const;
+// Duration options in seconds (beat-based chunking: each duration = N beats × 8s)
+export const DURATION_OPTIONS = [8, 16, 24, 32] as const;
 
 export type AspectRatio = keyof typeof ASPECT_RATIOS;
 export type DurationOption = (typeof DURATION_OPTIONS)[number];

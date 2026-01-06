@@ -6,9 +6,9 @@
  * High-quality VFX promo video creation for products.
  * 
  * Features:
- * - 5-step workflow with 11+ AI agents
- * - Connected shot system for visual continuity
- * - Speed ramping and temporal orchestration
+ * - 3-tab workflow (Setup, Creative Spark & Beats, Prompt Generation)
+ * - Beat-based video generation with Sora
+ * - Connected beat system for visual continuity
  * - Multi-modal generation (text, image, video)
  */
 
@@ -21,8 +21,6 @@ export { SOCIAL_COMMERCE_CONFIG, ASPECT_RATIOS, DURATION_OPTIONS } from './confi
 // Types
 export * from './types';
 
-// Agents (uncomment as implemented)
-// export * from './agents';
-
-
+// Agents
+export * from './agents';
 

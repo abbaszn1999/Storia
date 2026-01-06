@@ -85,7 +85,6 @@ interface Shot {
   name: string;
   description: string;
   duration: number; // This is rendered_duration from Agent 4.2
-  shotType: 'image-ref' | 'start-end';
   cameraPath: 'orbit' | 'pan' | 'zoom' | 'dolly' | 'static';
   lens: 'macro' | 'wide' | '85mm' | 'telephoto';
   referenceTags: string[];
@@ -159,12 +158,10 @@ const SPEED_PROFILES = [
 ];
 
 // Helper: Calculate render duration based on speed profile
-const calculateRenderDuration = (targetDuration: number, speedProfile: Shot['speedProfile'], shotType: Shot['shotType']): number => {
+const calculateRenderDuration = (targetDuration: number, speedProfile: Shot['speedProfile']): number => {
   const profile = SPEED_PROFILES.find(p => p.value === speedProfile);
   const multiplier = profile?.multiplier || 1.0;
-  // Start-end shots take slightly longer to render
-  const typeMultiplier = shotType === 'start-end' ? 1.15 : 1.0;
-  return Math.round(targetDuration * multiplier * typeMultiplier * 10) / 10;
+  return Math.round(targetDuration * multiplier * 10) / 10;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -174,7 +171,6 @@ const calculateRenderDuration = (targetDuration: number, speedProfile: Shot['spe
 // Shot template with type, connection, and speed info
 interface ShotTemplate {
   description: string;
-  shotType: 'image-ref' | 'start-end';
   isLinkedToPrevious: boolean;
   speedProfile: Shot['speedProfile'];
 }
@@ -183,28 +179,19 @@ const getShotTemplates = (sceneType: 'hook' | 'transformation' | 'payoff'): Shot
   // Default shot templates showing variety of types, connections, and speed profiles
   const templates: Record<string, ShotTemplate[]> = {
     hook: [
-      // Shot 1: Image reference, standalone, kinetic burst
-      { description: "Dramatic macro reveal of product emerging from shadow with volumetric lighting", shotType: 'image-ref', isLinkedToPrevious: false, speedProfile: 'kinetic' },
-      // Shot 2: Start-end, LINKED, speed-ramp for dynamic motion
-      { description: "Slow orbit around product showcasing premium materials and craftsmanship", shotType: 'start-end', isLinkedToPrevious: true, speedProfile: 'speed-ramp' },
-      // Shot 3: Start-end, NOT linked, smooth cinematic
-      { description: "Dynamic angle shift revealing hero feature with light refractions", shotType: 'start-end', isLinkedToPrevious: false, speedProfile: 'smooth' },
+      { description: "Dramatic macro reveal of product emerging from shadow with volumetric lighting", isLinkedToPrevious: false, speedProfile: 'kinetic' },
+      { description: "Slow orbit around product showcasing premium materials and craftsmanship", isLinkedToPrevious: true, speedProfile: 'speed-ramp' },
+      { description: "Dynamic angle shift revealing hero feature with light refractions", isLinkedToPrevious: false, speedProfile: 'smooth' },
     ],
     transformation: [
-      // Shot 1: Start-end, standalone, slow motion for impact
-      { description: "Product in motion demonstrating key functionality and design", shotType: 'start-end', isLinkedToPrevious: false, speedProfile: 'slow-motion' },
-      // Shot 2: Image reference, NOT linked, linear
-      { description: "Close-up texture shot highlighting material quality and finish", shotType: 'image-ref', isLinkedToPrevious: false, speedProfile: 'linear' },
-      // Shot 3: Start-end, LINKED, speed-ramp
-      { description: "Wide establishing shot showing product in aspirational context", shotType: 'start-end', isLinkedToPrevious: true, speedProfile: 'speed-ramp' },
+      { description: "Product in motion demonstrating key functionality and design", isLinkedToPrevious: false, speedProfile: 'slow-motion' },
+      { description: "Close-up texture shot highlighting material quality and finish", isLinkedToPrevious: false, speedProfile: 'linear' },
+      { description: "Wide establishing shot showing product in aspirational context", isLinkedToPrevious: true, speedProfile: 'speed-ramp' },
     ],
     payoff: [
-      // Shot 1: Start-end, standalone, cinematic smooth
-      { description: "Hero shot with dramatic lighting and brand colors", shotType: 'start-end', isLinkedToPrevious: false, speedProfile: 'smooth' },
-      // Shot 2: Start-end, LINKED, kinetic burst for finale
-      { description: "Final reveal with logo and call-to-action composition", shotType: 'start-end', isLinkedToPrevious: true, speedProfile: 'kinetic' },
-      // Shot 3: Image reference, NOT linked, linear for CTA
-      { description: "Cinematic closing frame with product as centerpiece", shotType: 'image-ref', isLinkedToPrevious: false, speedProfile: 'linear' },
+      { description: "Hero shot with dramatic lighting and brand colors", isLinkedToPrevious: false, speedProfile: 'smooth' },
+      { description: "Final reveal with logo and call-to-action composition", isLinkedToPrevious: true, speedProfile: 'kinetic' },
+      { description: "Cinematic closing frame with product as centerpiece", isLinkedToPrevious: false, speedProfile: 'linear' },
     ]
   };
   
@@ -225,7 +212,6 @@ const parseShotDescriptions = (beatContent: string, sceneType: 'hook' | 'transfo
     if (sentences.length >= 2) {
       return sentences.slice(0, 3).map((desc, idx) => ({
         description: desc,
-        shotType: defaults[idx]?.shotType || 'image-ref',
         isLinkedToPrevious: defaults[idx]?.isLinkedToPrevious || false,
         speedProfile: defaults[idx]?.speedProfile || 'linear',
       }));
@@ -273,7 +259,7 @@ const generateScenesFromBeats = (
       const shotNum = shotIdx + 1;
       const referenceTags: string[] = ['@Product', '@Texture'];
       if (logoUrl) referenceTags.push('@Logo');
-      if (styleReferenceUrl) referenceTags.push('@Style');
+      // Removed: @Style tag (Sora only accepts one image input - product hero)
       
       return {
         id: `scene${sceneNum}-shot${shotNum}`,
@@ -281,8 +267,7 @@ const generateScenesFromBeats = (
         name: generateShotName(sceneNum, shotNum, template.description),
         description: template.description,
         duration: 3.5,
-        shotType: template.shotType,
-        cameraPath: template.shotType === 'start-end' ? 'orbit' : 'static',
+        cameraPath: 'static',
         lens: '85mm',
         referenceTags,
         isLinkedToPrevious: template.isLinkedToPrevious,
@@ -418,7 +403,6 @@ function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit
   const [name, setName] = useState(shot?.name || '');
   const [description, setDescription] = useState(shot?.description || '');
   const [duration, setDuration] = useState(shot?.duration || 3.5);
-  const [shotType, setShotType] = useState<Shot['shotType']>(shot?.shotType || 'image-ref');
   const [cameraPath, setCameraPath] = useState<Shot['cameraPath']>(shot?.cameraPath || 'static');
   const [lens, setLens] = useState<Shot['lens']>(shot?.lens || '85mm');
   const [speedProfile, setSpeedProfile] = useState<Shot['speedProfile']>(shot?.speedProfile || 'linear');
@@ -445,7 +429,6 @@ function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit
       setName(shot.name);
       setDescription(shot.description);
       setDuration(shot.duration);
-      setShotType(shot.shotType);
       setCameraPath(shot.cameraPath);
       setLens(shot.lens);
       setSpeedProfile(shot.speedProfile);
@@ -469,7 +452,6 @@ function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit
       setName(`Shot ${sceneNum}.${shotCount + 1}: New`);
       setDescription('');
       setDuration(3.5);
-      setShotType('image-ref');
       setCameraPath('static');
       setLens('85mm');
       setSpeedProfile('linear');
@@ -511,7 +493,6 @@ function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit
       name: finalName,
       description, 
       duration, 
-      shotType, 
       cameraPath, 
       lens, 
       speedProfile,
@@ -620,21 +601,6 @@ function ShotEditDialog({ open, onOpenChange, shot, sceneId, shotCount, onSubmit
             </div>
             <div className="space-y-2">
               <Label className="text-white/70">Shot Type *</Label>
-              <ToggleGroup
-                type="single"
-                value={shotType}
-                onValueChange={(v) => v && setShotType(v as Shot['shotType'])}
-                className="bg-white/5 rounded-lg p-1 justify-start"
-              >
-                <ToggleGroupItem value="image-ref" className="text-xs data-[state=on]:bg-pink-500 flex-1">
-                  <ImageIcon className="w-3 h-3 mr-1" />
-                  Single
-                </ToggleGroupItem>
-                <ToggleGroupItem value="start-end" className="text-xs data-[state=on]:bg-purple-500 flex-1">
-                  <Video className="w-3 h-3 mr-1" />
-                  Start/End
-                </ToggleGroupItem>
-              </ToggleGroup>
             </div>
           </div>
           
@@ -939,7 +905,6 @@ export function SceneContinuityTab({
       name: data.name || `Shot ${sceneNum}.${shotNum}: New`,
       description: data.description || '',
       duration: data.duration || 3.5,
-      shotType: data.shotType || 'image-ref',
       cameraPath: data.cameraPath || 'static',
       lens: data.lens || '85mm',
       referenceTags: ['@Product', '@Texture'],
@@ -1002,11 +967,11 @@ export function SceneContinuityTab({
         const updatedShots = s.shots.map((shot, idx) => {
           if (idx === shotIndex - 1) {
             // Previous shot: needs end frame
-            return { ...shot, shotType: 'start-end' as const };
+            return { ...shot };
           }
           if (idx === shotIndex) {
-            // Current shot: linked + needs start frame
-            return { ...shot, isLinkedToPrevious: true, shotType: 'start-end' as const };
+            // Current shot: linked
+            return { ...shot, isLinkedToPrevious: true };
           }
           return shot;
         });
@@ -1243,10 +1208,6 @@ export function SceneContinuityTab({
                                 className={cn(
                                   "bg-white/[0.02] border-white/[0.06] transition-all",
                                   selectedShotId === shot.id && "border-pink-500/40 bg-white/[0.04] shadow-lg shadow-pink-500/5",
-                                  // Add left border color based on shot type
-                                  shot.shotType === 'start-end' 
-                                    ? "border-l-2 border-l-purple-500" 
-                                    : "border-l-2 border-l-pink-500"
                                 )}
                               >
                                 <CardContent className="p-3 space-y-2">
@@ -1261,46 +1222,6 @@ export function SceneContinuityTab({
                                     >
                                       {shot.name}
                                     </Badge>
-                                    
-                                    {/* PROMINENT SHOT TYPE BADGE */}
-                                    <Badge 
-                                      variant="outline" 
-                                      className={cn(
-                                        "text-[10px] font-semibold px-2 py-0.5",
-                                        shot.shotType === 'start-end'
-                                          ? "bg-purple-500/30 border-purple-500/50 text-purple-200"
-                                          : "bg-pink-500/30 border-pink-500/50 text-pink-200"
-                                      )}
-                                    >
-                                      {shot.shotType === 'start-end' ? (
-                                        <>
-                                          <Video className="w-3 h-3 mr-1" />
-                                          Start/End Frame
-                                        </>
-                                      ) : (
-                                        <>
-                                          <ImageIcon className="w-3 h-3 mr-1" />
-                                          Single Image
-                                        </>
-                                      )}
-                                    </Badge>
-                                    
-                                    {/* SPEED PROFILE BADGE */}
-                                    {(() => {
-                                      const profile = SPEED_PROFILES.find(p => p.value === shot.speedProfile);
-                                      return profile ? (
-                                        <Badge 
-                                          variant="outline" 
-                                          className={cn(
-                                            "text-[10px] font-medium px-2 py-0.5",
-                                            profile.color
-                                          )}
-                                        >
-                                          <Zap className="w-3 h-3 mr-1" />
-                                          {profile.label}
-                                        </Badge>
-                                      ) : null;
-                                    })()}
                                     
                                     <div className="flex-1" />
                                     
@@ -1318,39 +1239,6 @@ export function SceneContinuityTab({
                                         {shot.duration.toFixed(1)}s
                                       </span>
                                     </div>
-                                    
-                                    {/* Shot Type Toggle - More Descriptive */}
-                                    <ToggleGroup
-                                      type="single"
-                                      value={shot.shotType}
-                                      onValueChange={(value) => {
-                                        if (value) updateShot(scene.id, shot.id, { shotType: value as any });
-                                      }}
-                                      className="bg-white/5 rounded p-0.5"
-                                    >
-                                      <ToggleGroupItem
-                                        value="image-ref"
-                                        className={cn(
-                                          "text-[10px] px-2 py-1 h-6 gap-1",
-                                          "data-[state=on]:bg-pink-500 data-[state=on]:text-white"
-                                        )}
-                                        title="Single Image Reference - 1 frame needed"
-                                      >
-                                        <ImageIcon className="w-3 h-3" />
-                                        <span className="hidden sm:inline">1F</span>
-                                      </ToggleGroupItem>
-                                      <ToggleGroupItem
-                                        value="start-end"
-                                        className={cn(
-                                          "text-[10px] px-2 py-1 h-6 gap-1",
-                                          "data-[state=on]:bg-purple-500 data-[state=on]:text-white"
-                                        )}
-                                        title="Start/End Frame - 2 frames needed for motion"
-                                      >
-                                        <Video className="w-3 h-3" />
-                                        <span className="hidden sm:inline">2F</span>
-                                      </ToggleGroupItem>
-                                    </ToggleGroup>
                                     
                                     {/* Shot Actions */}
                                     <div className="flex items-center gap-0.5 ml-2">
@@ -1425,29 +1313,15 @@ export function SceneContinuityTab({
                                     </div>
                                   </div>
 
-                                  {/* Row 3: Reference Tags + Temporal Info + Link Toggle */}
+                                  {/* Row 3: Duration + Link Toggle */}
                                   <div className="flex items-center justify-between gap-3">
-                                    <div className="flex flex-wrap gap-1">
-                                      {shot.referenceTags.map((tag) => (
-                                        <Badge
-                                          key={tag}
-                                          variant="outline"
-                                          className="text-[9px] bg-cyan-500/10 border-cyan-500/20 text-cyan-300 px-1.5 py-0"
-                                        >
-                                          {tag}
-                                        </Badge>
-                                      ))}
-                                    </div>
+                                    <div className="flex-1" />
                                     
-                                    {/* DUAL-TIMER DISPLAY */}
+                                    {/* Duration Display */}
                                     <div className="flex items-center gap-2 text-[10px] text-white/50 bg-white/5 rounded-md px-2 py-1">
                                       <Timer className="w-3 h-3 text-white/40" />
                                       <span>
-                                        Original: <span className="text-white/70 font-mono">5.0s</span>
-                                      </span>
-                                      <span className="text-white/20">/</span>
-                                      <span>
-                                        Render: <span className="text-orange-400 font-mono">
+                                        Duration: <span className="text-orange-400 font-mono">
                                           {shot.duration.toFixed(1)}s
                                         </span>
                                       </span>
@@ -1525,14 +1399,6 @@ export function SceneContinuityTab({
                   <Badge variant="outline" className="text-[10px] px-2 py-0 bg-white/5">
                     {selectedShot.name}
                   </Badge>
-                  <Badge variant="outline" className={cn(
-                    "text-[10px] px-2 py-0",
-                    selectedShot.shotType === 'start-end'
-                      ? "bg-purple-500/20 border-purple-500/30 text-purple-300"
-                      : "bg-pink-500/20 border-pink-500/30 text-pink-300"
-                  )}>
-                    {selectedShot.shotType === 'start-end' ? '2 Frames' : '1 Frame'}
-                  </Badge>
                 </div>
                 <Button
                   variant="ghost"
@@ -1545,40 +1411,14 @@ export function SceneContinuityTab({
               </div>
 
               <div className="flex gap-4 justify-center items-center">
-                {selectedShot.shotType === 'start-end' ? (
-                  <>
-                    <div className="w-48">
-                      <div className="aspect-video bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-dashed border-purple-500/30 rounded-lg flex items-center justify-center hover:border-purple-500/50 transition-all">
-                        <div className="text-center">
-                          <ImageIcon className="w-6 h-6 text-purple-400/50 mx-auto mb-1" />
-                          <p className="text-[10px] text-white/50">Start Frame</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-8 h-px bg-gradient-to-r from-purple-500 to-pink-500" />
-                      <span className="text-[9px] text-white/30">→</span>
-                      <div className="w-8 h-px bg-gradient-to-r from-pink-500 to-orange-500" />
-                    </div>
-                    <div className="w-48">
-                      <div className="aspect-video bg-gradient-to-br from-pink-500/10 to-pink-600/5 border border-dashed border-pink-500/30 rounded-lg flex items-center justify-center hover:border-pink-500/50 transition-all">
-                        <div className="text-center">
-                          <ImageIcon className="w-6 h-6 text-pink-400/50 mx-auto mb-1" />
-                          <p className="text-[10px] text-white/50">End Frame</p>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="w-64">
-                    <div className="aspect-video bg-gradient-to-br from-pink-500/10 to-orange-500/5 border border-dashed border-pink-500/30 rounded-lg flex items-center justify-center hover:border-pink-500/50 transition-all">
-                      <div className="text-center">
-                        <ImageIcon className="w-8 h-8 text-pink-400/50 mx-auto mb-1" />
-                        <p className="text-xs text-white/50">Single Frame</p>
-                      </div>
+                <div className="w-64">
+                  <div className="aspect-video bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-dashed border-purple-500/30 rounded-lg flex items-center justify-center hover:border-purple-500/50 transition-all">
+                    <div className="text-center">
+                      <ImageIcon className="w-8 h-8 text-purple-400/50 mx-auto mb-1" />
+                      <p className="text-xs text-white/50">Frame Preview</p>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </motion.div>

@@ -2,7 +2,7 @@
  * Shared type definitions used across the AI calling layer.
  */
 
-export type AiProviderName = "openai" | "gemini" | "runware" | "elevenlabs";
+export type AiProviderName = "openai" | "gemini" | "runware" | "elevenlabs" | "mmaudio";
 
 export type AiTask =
   | "text-generation"
@@ -16,6 +16,7 @@ export type AiTask =
   | "image-to-image"
   | "image-to-video"
   | "video-to-video"
+  | "video-to-audio"
   | "inpainting"
   | "sound-effects";
 

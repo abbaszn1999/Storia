@@ -1,8 +1,4 @@
-# Agent 1.1: Script Writer - Current Prompt (v2)
-
-This document contains the **current** prompt implementation used in narrative mode before enhancement.
-
----
+# Agent 1.1: SCRIPT GENERATOR - Current Implementation (v2)
 
 ## System Prompt
 
@@ -25,6 +21,18 @@ CRITICAL RULES:
 4. Genre-specific story patterns - follow established narrative structures
 5. Tone-appropriate language - match the emotional feel requested
 6. Character/location naming consistency - use consistent names throughout
+
+REASONING PROCESS:
+
+Follow these steps when generating the script:
+
+1. **Analyze** the story_input to identify the core concept, characters, and narrative arc
+2. **Determine** appropriate complexity based on duration_seconds (simple for short videos, richer for longer ones)
+3. **Select** the primary genre structure from genres[0] and apply its specific story pattern
+4. **Apply** tone modifiers from the tones array to shape how the story is told
+5. **Expand** the story_input into a complete narrative with beginning, middle, and end
+6. **Refine** character motivations, conflicts, and resolutions while maintaining the core idea
+7. **Verify** consistency of character and location names throughout the script
 
 DURATION GUIDELINES:
 - 30s: One situation, one key arc or twist, very tight
@@ -67,7 +75,7 @@ Endings: Catharsis, reconciliation, or bittersweet acceptance
 
 COMEDY:
 Structure: Setup expectation → escalating complications → subverted payoff
-Must have: Rule of three, character flaw exploited, stakes that feel absurd to audience
+Must have: Rule of three, character flaw exploited, stakes that feel high to characters but absurd to audience
 Endings: Ironic resolution, success through unconventional means, or callback to opening
 
 ROMANCE:
@@ -173,7 +181,20 @@ OUTPUT:
 - NO dialogue, ONLY narration
 ```
 
----
+## OUTPUT VALIDATION CHECKLIST
+
+Before outputting the script, verify:
+- [ ] Script has clear beginning, middle, and end
+- [ ] Character names are consistent throughout (no switching between names/pronouns)
+- [ ] Location names are consistent throughout (no switching between "the park" and "Central Park")
+- [ ] Duration-appropriate complexity (not too simple for long videos, not too complex for short ones)
+- [ ] Genre structure is applied correctly based on primary genre
+- [ ] Tone is reflected in writing style (sentence rhythm, word choice, emotional feel)
+- [ ] Visual-first principles are followed (show, don't tell - describe what camera sees)
+- [ ] No technical camera directions or editing language
+- [ ] No meta-commentary or explanations about what you're doing
+- [ ] Content is age-appropriate and safe
+- [ ] Script is written entirely in the specified language
 
 ## User Prompt Template
 
@@ -210,22 +231,10 @@ Generate the story script now.`;
 };
 ```
 
----
+## Implementation Notes
 
-## Helper Function
-
-```typescript
-function getDurationLabel(seconds: number): string {
-  if (seconds <= 30) return '30s';
-  if (seconds <= 60) return '1min';
-  if (seconds <= 180) return '3min';
-  if (seconds <= 300) return '5min';
-  if (seconds <= 600) return '10min';
-  return '20min+';
-}
-```
-
----
-
-**File Location**: `server/modes/narrative/prompts/script-writer.ts`
+- **File**: `server/modes/narrative/prompts/script-writer.ts`
+- **System Prompt**: `scriptWriterSystemPrompt`
+- **User Prompt Generator**: `generateScriptPrompt()`
+- **Duration Label Helper**: `getDurationLabel()` converts seconds to human-readable labels
 

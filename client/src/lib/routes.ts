@@ -8,6 +8,11 @@ export const VIDEO_MODE_ROUTES: Record<string, string> = {
 };
 
 export const STORY_TEMPLATE_ROUTES: Record<string, string> = {
+  "problem-solution": "/stories/create/problem-solution",
+  "before-after": "/stories/create/before-after",
+  "myth-busting": "/stories/create/myth-busting",
+  "tease-reveal": "/stories/create/tease-reveal",
+  "auto-asmr": "/stories/create/auto-asmr",
   "quick-tip": "/stories/new",
   "behind-scenes": "/stories/new",
   "product-showcase": "/stories/new",

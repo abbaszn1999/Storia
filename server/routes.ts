@@ -47,6 +47,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   const { trRouter: teaseRevealRouter } = await import("./stories/tease-reveal");
   app.use('/api/tease-reveal', teaseRevealRouter);
+  
+  const { autoAsmrRouter } = await import("./stories/auto-asmr");
+  app.use('/api/auto-asmr', autoAsmrRouter);
+  
   app.use('/api/storage', storageRoutes);
   app.use('/api/characters', characterRoutes);
   app.use('/api/locations', locationRoutes);

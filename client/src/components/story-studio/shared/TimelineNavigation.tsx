@@ -3,11 +3,12 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { STEPS, StepId } from "../types";
+import { STEPS, Step, StepId } from "../types";
 import { Check, ChevronLeft, ChevronRight, Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface TimelineNavigationProps {
+  steps?: Step[];  // Optional: filtered steps (e.g., hide 'audio' for auto-asmr)
   currentStep: StepId;
   completedSteps: StepId[];
   onStepClick: (step: StepId) => void;
@@ -23,6 +24,7 @@ interface TimelineNavigationProps {
 }
 
 export function TimelineNavigation({
+  steps = STEPS,  // Default to all steps if not provided (for backward compatibility)
   currentStep,
   completedSteps,
   onStepClick,
@@ -35,14 +37,14 @@ export function TimelineNavigation({
   nextLabel,
   accentColor = "primary"
 }: TimelineNavigationProps) {
-  const currentIndex = STEPS.findIndex(s => s.id === currentStep);
+  const currentIndex = steps.findIndex(s => s.id === currentStep);
   const isFirstStep = currentIndex === 0;
-  const isLastStep = currentIndex === STEPS.length - 1;
+  const isLastStep = currentIndex === steps.length - 1;
 
   const getStepStatus = (stepId: StepId) => {
     if (completedSteps.includes(stepId)) return 'completed';
     if (stepId === currentStep) return 'active';
-    const stepIndex = STEPS.findIndex(s => s.id === stepId);
+    const stepIndex = steps.findIndex(s => s.id === stepId);
     if (stepIndex < currentIndex) return 'completed';
     return 'upcoming';
   };
@@ -51,7 +53,7 @@ export function TimelineNavigation({
     // If step clicking is disabled (during generation), block all navigation
     if (isStepClickDisabled) return false;
     
-    const stepIndex = STEPS.findIndex(s => s.id === stepId);
+    const stepIndex = steps.findIndex(s => s.id === stepId);
     // Can always go back
     if (stepIndex < currentIndex) return true;
     // Can go forward only if current is completed
@@ -138,7 +140,7 @@ export function TimelineNavigation({
           {/* Timeline Steps */}
           <div className="flex-1 flex items-center justify-center">
             <div className="flex items-center gap-1">
-              {STEPS.map((step, index) => {
+              {steps.map((step, index) => {
                 const status = getStepStatus(step.id);
                 const isClickable = canNavigateTo(step.id);
                 
@@ -226,7 +228,7 @@ export function TimelineNavigation({
                     </motion.button>
 
                     {/* Connector Line */}
-                    {index < STEPS.length - 1 && (
+                    {index < steps.length - 1 && (
                       <div className="w-12 h-0.5 mx-1 relative overflow-hidden rounded-full bg-white/10">
                         <motion.div
                           className={cn("h-full rounded-full bg-gradient-to-r", accentClasses.gradient)}

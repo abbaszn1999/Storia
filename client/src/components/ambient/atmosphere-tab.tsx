@@ -284,6 +284,8 @@ interface AtmosphereTabProps {
   imageResolution?: string;
   aspectRatio?: string;
   voiceoverEnabled?: boolean;
+  voiceoverStory?: string;   // User's narration theme for voiceover
+  voiceId?: string;          // Selected ElevenLabs voice ID
   language?: 'ar' | 'en';
   textOverlayEnabled?: boolean;
   textOverlayStyle?: 'modern' | 'cinematic' | 'bold';
@@ -324,6 +326,8 @@ interface AtmosphereTabProps {
   onImageResolutionChange?: (resolution: string) => void;
   onAspectRatioChange?: (aspectRatio: string) => void;
   onVoiceoverChange?: (enabled: boolean) => void;
+  onVoiceoverStoryChange?: (story: string) => void;
+  onVoiceIdChange?: (voiceId: string) => void;
   onLanguageChange?: (lang: 'ar' | 'en') => void;
   onTextOverlayEnabledChange?: (enabled: boolean) => void;
   onTextOverlayStyleChange?: (style: 'modern' | 'cinematic' | 'bold') => void;
@@ -362,6 +366,8 @@ export function AtmosphereTab({
   imageResolution = "1k",
   aspectRatio = "16:9",
   voiceoverEnabled = false,
+  voiceoverStory = '',
+  voiceId = '',
   language = 'en',
   textOverlayEnabled = false,
   textOverlayStyle = 'modern',
@@ -395,6 +401,8 @@ export function AtmosphereTab({
   onImageResolutionChange,
   onAspectRatioChange,
   onVoiceoverChange,
+  onVoiceoverStoryChange,
+  onVoiceIdChange,
   onLanguageChange,
   onTextOverlayEnabledChange,
   onTextOverlayStyleChange,
@@ -1917,14 +1925,119 @@ export function AtmosphereTab({
                     {/* Language */}
                     <div className="space-y-2">
                       <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Language</label>
-                      <select 
+                      <Select 
                         value={language}
-                        onChange={(e) => onLanguageChange?.(e.target.value as 'ar' | 'en')}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-white/30 transition-colors cursor-pointer"
+                        onValueChange={(value) => onLanguageChange?.(value as 'ar' | 'en')}
                       >
-                        <option value="en">English (US)</option>
-                        <option value="ar">Arabic (العربية)</option>
-                      </select>
+                        <SelectTrigger className="h-12 bg-white/5 border-white/10 text-white">
+                          <SelectValue placeholder="Select language" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#0a0a0a] border-white/10">
+                          <SelectItem 
+                            value="en"
+                            className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                          >
+                            English (US)
+                          </SelectItem>
+                          <SelectItem 
+                            value="ar"
+                            className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                          >
+                            Arabic (العربية)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Voice Selector */}
+                    <div className="space-y-2">
+                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Voice</label>
+                      <Select 
+                        value={voiceId || undefined}
+                        onValueChange={(value) => onVoiceIdChange?.(value)}
+                      >
+                        <SelectTrigger className="h-12 bg-white/5 border-white/10 text-white">
+                          <SelectValue placeholder="Select a voice..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#0a0a0a] border-white/10">
+                          {language === 'ar' ? (
+                            <>
+                              <SelectItem 
+                                value="pFZP5JQG7iQjIQuC4Bku"
+                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                              >
+                                Lily (Female, Calm)
+                              </SelectItem>
+                              <SelectItem 
+                                value="onwK4e9ZLuTAKqWW03F9"
+                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                              >
+                                Daniel (Male, Warm)
+                              </SelectItem>
+                              <SelectItem 
+                                value="XrExE9yKIg1WjnnlVkGX"
+                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                              >
+                                Matilda (Female, Soothing)
+                              </SelectItem>
+                            </>
+                          ) : (
+                            <>
+                              <SelectItem 
+                                value="21m00Tcm4TlvDq8ikWAM"
+                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                              >
+                                Rachel (Female, Calm)
+                              </SelectItem>
+                              <SelectItem 
+                                value="AZnzlk1XvdvUeBnXmlld"
+                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                              >
+                                Domi (Female, Gentle)
+                              </SelectItem>
+                              <SelectItem 
+                                value="EXAVITQu4vr4xnSDxMaL"
+                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                              >
+                                Bella (Female, Warm)
+                              </SelectItem>
+                              <SelectItem 
+                                value="ErXwobaYiN019PkySvjV"
+                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                              >
+                                Antoni (Male, Deep)
+                              </SelectItem>
+                              <SelectItem 
+                                value="TxGEqnHWrfWFTfGW9XjX"
+                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                              >
+                                Josh (Male, Warm)
+                              </SelectItem>
+                              <SelectItem 
+                                value="IKne3meq5aSn9XLyUdCD"
+                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
+                              >
+                                Charlie (Male, Calm)
+                              </SelectItem>
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Voiceover Story */}
+                    <div className="space-y-2">
+                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Narration Theme</label>
+                      <textarea
+                        value={voiceoverStory}
+                        onChange={(e) => onVoiceoverStoryChange?.(e.target.value)}
+                        placeholder="Describe what the voiceover narration should be about... (e.g., 'A meditation guiding the viewer through a peaceful forest journey, focusing on breath and present moment awareness')"
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-white/30 transition-colors resize-none min-h-[100px]"
+                        rows={4}
+                      />
+                      <p className="text-xs text-white/40">
+                        This will guide the AI to generate narration that matches your vision.
+                      </p>
                     </div>
 
                     {/* Text Overlay Toggle */}

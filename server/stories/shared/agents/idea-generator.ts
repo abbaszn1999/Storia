@@ -1,7 +1,7 @@
 import { callTextModel } from "../../../ai/service";
 
 // Type for mode parameter
-export type StoryMode = "problem-solution" | "before-after" | "myth-busting" | "tease-reveal";
+export type StoryMode = "problem-solution" | "before-after" | "myth-busting" | "tease-reveal" | "auto-asmr";
 
 const STORY_CONFIG = {
   provider: "openai" as const,

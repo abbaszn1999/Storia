@@ -87,14 +87,16 @@ export default function History() {
   const historyItems = useMemo(() => {
     return storiesData.map(story => ({
       id: story.id,
-      title: story.title,
+      title: story.projectName || "Untitled",
       type: "story" as const,
-      mode: story.template.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase()), // "asmr-sensory" -> "Asmr Sensory"
+      mode: story.storyMode 
+        ? story.storyMode.replace(/-/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()) 
+        : "Unknown", // "asmr-sensory" -> "Asmr Sensory"
       status: "completed" as const, // Stories are always completed when saved
       updatedAt: new Date(story.updatedAt),
       url: `/stories/${story.id}`,
       thumbnailUrl: story.thumbnailUrl || undefined,
-      exportUrl: story.exportUrl || undefined,
+      exportUrl: story.videoUrl || undefined,
       duration: story.duration,
       aspectRatio: story.aspectRatio,
     }));
@@ -112,8 +114,10 @@ export default function History() {
 
   const filteredItems = useMemo(() => {
     return historyItems.filter(item => {
-      // Search filter
-      const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
+      // Search filter - handle missing title
+      const matchesSearch = item.title 
+        ? item.title.toLowerCase().includes(searchQuery.toLowerCase())
+        : false;
       
       // Month filter
       let matchesMonth = true;
@@ -373,14 +377,14 @@ export default function History() {
       <Dialog open={!!previewStory} onOpenChange={(open) => !open && setPreviewStory(null)}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>{previewStory?.title}</DialogTitle>
+            <DialogTitle>{previewStory?.projectName || "Untitled"}</DialogTitle>
           </DialogHeader>
           {previewStory && (
             <div className="space-y-4">
-              {previewStory.exportUrl && (
+              {previewStory.videoUrl && (
                 <div className="aspect-video bg-black rounded-lg overflow-hidden">
                   <video
-                    src={previewStory.exportUrl}
+                    src={previewStory.videoUrl}
                     controls
                     className="w-full h-full"
                     autoPlay
@@ -390,7 +394,9 @@ export default function History() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">Template:</span>
-                  <p className="font-medium">{previewStory.template.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</p>
+                  <p className="font-medium">{previewStory.storyMode 
+                    ? previewStory.storyMode.replace(/-/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()) 
+                    : "Unknown"}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Aspect Ratio:</span>
@@ -408,7 +414,7 @@ export default function History() {
                 </div>
               </div>
               <div className="flex gap-2 justify-end">
-                {previewStory.exportUrl && (
+                {previewStory.videoUrl && (
                   <Button
                     variant="outline"
                     disabled={isDownloading}
@@ -417,14 +423,14 @@ export default function History() {
                         setIsDownloading(true);
                         
                         // Fetch video as blob
-                        const response = await fetch(previewStory.exportUrl!);
+                        const response = await fetch(previewStory.videoUrl!);
                         const blob = await response.blob();
                         const blobUrl = URL.createObjectURL(blob);
                         
                         // Create download link
                         const link = document.createElement("a");
                         link.href = blobUrl;
-                        link.download = `${previewStory.title}.mp4`;
+                        link.download = `${previewStory.projectName || "Untitled"}.mp4`;
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
@@ -449,7 +455,7 @@ export default function History() {
                 <Button
                   variant="destructive"
                   onClick={() => {
-                    if (confirm(`Are you sure you want to delete "${previewStory.title}"? This action cannot be undone.`)) {
+                    if (confirm(`Are you sure you want to delete "${previewStory.projectName || "Untitled"}"? This action cannot be undone.`)) {
                       deleteMutation.mutate(previewStory.id);
                     }
                   }}

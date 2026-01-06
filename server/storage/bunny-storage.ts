@@ -83,7 +83,7 @@ export interface BunnyStorageConfig {
 /**
  * Subfolder types for organizing project assets
  */
-export type StoryModeSubfolder = 'Reference' | 'VoiceOver' | 'Music' | 'Render';
+export type StoryModeSubfolder = 'Reference' | 'VoiceOver' | 'Music' | 'Render' | 'SoundEffects';
 
 /**
  * Build a Story_Mode path for Bunny storage.
@@ -156,7 +156,7 @@ export function buildVideoModePath(params: {
   workspaceName: string;
   toolMode: string;     // e.g., "ambient", "narrative", "commerce"
   projectName: string;  // video title
-  subFolder: string;    // e.g., "References", "Images", "Final", "Shots", "Voice-Over"
+  subFolder: string;    // e.g., "References", "Images", "Final", "Shots", "Voice-Over", or "Sound-Effects/Scene-{id}" for nested
   filename: string;
   dateLabel?: string;   // optional, default: today YYYYMMDD
 }): string {
@@ -168,7 +168,12 @@ export function buildVideoModePath(params: {
   const workspace = clean(workspaceName);
   const tool = clean(toolMode);
   const project = clean(projectName);
-  const sub = clean(subFolder);
+  
+  // Handle nested subfolders (preserve forward slashes)
+  // Split by slash, clean each part, then rejoin
+  const subParts = subFolder.split('/').map(part => clean(part));
+  const sub = subParts.join('/');
+  
   const file = filename.replace(/[^a-zA-Z0-9-_.]/g, "_");
   return `${user}/${workspace}/video_mode/${tool}/${project}_${safeDate}/Rendered/${sub}/${file}`;
 }

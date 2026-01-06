@@ -82,7 +82,7 @@ export interface ASMRGeneratorActions {
   enhancePrompt: () => Promise<void>;
   enhanceSoundPrompt: () => Promise<void>;
   generateImage: () => Promise<void>;
-  generateVideo: () => Promise<void>;
+  generateVideo: (workspaceId: string) => Promise<void>;
   useCategorySuggestion: () => void;
   reset: () => void;
 }

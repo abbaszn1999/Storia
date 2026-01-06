@@ -258,6 +258,17 @@ export function ScriptStep({
     return <ErrorState onRetry={onGenerateScenes} accentColor={accentColor} errorMessage={error} />;
   }
 
+  // Debug: Log scenes for auto-asmr mode
+  if (template.id === 'auto-asmr') {
+    console.log('[ScriptStep] Rendering with scenes:', scenes.map(s => ({
+      sceneNumber: s.sceneNumber,
+      soundDescription: s.soundDescription,
+      hasSoundDesc: !!s.soundDescription,
+      soundDescLength: s.soundDescription?.length || 0
+    })));
+    console.log('[ScriptStep] Model config:', modelConfig);
+  }
+
   // Show scene cards
   return (
     <div className="h-full w-full overflow-hidden flex flex-col">
@@ -384,50 +395,136 @@ export function ScriptStep({
                     />
                   </div>
 
-                  {/* Narration Field - Only if Voiceover Enabled */}
-                  {voiceoverEnabled && (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <Mic className="w-3.5 h-3.5 text-purple-400" />
-                        <span className="text-xs font-medium text-white/60">Voiceover Text</span>
-                      </div>
-                      <Textarea
-                        value={scene.narration || ''}
-                        onChange={(e) => onSceneUpdate(scene.id, { narration: e.target.value })}
-                        className={cn(
-                          "min-h-[80px] bg-white/5 border-white/10",
-                          "focus:border-purple-500/30 resize-none",
-                          "text-sm leading-relaxed text-white/90",
-                          "placeholder:text-white/20"
-                        )}
-                        placeholder="Enter voiceover narration..."
-                      />
-                      
-                      {/* Text Duration Warning */}
-                      {(() => {
-                        const status = getTextDurationStatus(scene.narration || '', scene.duration);
-                        if (status.status === 'ok') {
-                          return (
-                            <div className="flex items-center gap-1.5 text-xs text-white/40">
-                              <Clock className="w-3 h-3" />
-                              <span>{status.message}</span>
-                            </div>
-                          );
-                        }
+                  {/* Narration/Sound Effect Field - Conditional based on mode and model */}
+                  {(() => {
+                    // For auto-asmr mode: Show sound effect if model doesn't support audio
+                    if (template.id === 'auto-asmr') {
+                      // Ensure modelConfig is available
+                      if (!modelConfig) {
+                        console.warn(`[ScriptStep] modelConfig is undefined for videoModel: ${videoModel}`);
+                        // Show field anyway if modelConfig is not available (fallback)
+                        const soundDescValue = scene.soundDescription ?? '';
                         return (
-                          <div className={cn(
-                            "flex items-center gap-1.5 text-xs px-2 py-1 rounded",
-                            status.status === 'error' 
-                              ? "bg-red-500/10 text-red-400" 
-                              : "bg-yellow-500/10 text-yellow-400"
-                          )}>
-                            <AlertTriangle className="w-3 h-3" />
-                            <span>{status.message}</span>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                              <span className="text-xs font-medium text-white/60">Sound Effect</span>
+                            </div>
+                            <Textarea
+                              value={soundDescValue}
+                              onChange={(e) => {
+                                console.log(`[ScriptStep] Updating scene ${scene.sceneNumber} soundDescription:`, e.target.value);
+                                onSceneUpdate(scene.id, { soundDescription: e.target.value });
+                              }}
+                              className={cn(
+                                "min-h-[80px] bg-white/5 border-white/10",
+                                "focus:border-emerald-500/30 resize-none",
+                                "text-sm leading-relaxed text-white/90",
+                                "placeholder:text-white/20"
+                              )}
+                              placeholder="Enter sound effect description..."
+                            />
                           </div>
                         );
-                      })()}
-                    </div>
-                  )}
+                      }
+                      
+                      const hasAudio = modelConfig.hasAudio ?? false;
+                      
+                      // Debug logging
+                      console.log(`[ScriptStep] Scene ${scene.sceneNumber}:`, {
+                        hasAudio,
+                        soundDescription: scene.soundDescription,
+                        modelConfig: modelConfig.label,
+                        videoModel,
+                      });
+                      
+                      // If model has native audio, hide the field completely
+                      if (hasAudio) {
+                        return null;
+                      }
+                      // If model doesn't have audio, show sound effect field
+                      // Ensure soundDescription is displayed (use empty string if undefined)
+                      const soundDescValue = scene.soundDescription ?? '';
+                      
+                      return (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                            <span className="text-xs font-medium text-white/60">Sound Effect</span>
+                          </div>
+                          <Textarea
+                            value={soundDescValue}
+                            onChange={(e) => {
+                              console.log(`[ScriptStep] Updating scene ${scene.sceneNumber} soundDescription:`, e.target.value);
+                              onSceneUpdate(scene.id, { soundDescription: e.target.value });
+                            }}
+                            className={cn(
+                              "min-h-[80px] bg-white/5 border-white/10",
+                              "focus:border-emerald-500/30 resize-none",
+                              "text-sm leading-relaxed text-white/90",
+                              "placeholder:text-white/20"
+                            )}
+                            placeholder="Enter sound effect description..."
+                          />
+                          {/* Debug: Show if soundDescription exists */}
+                          {soundDescValue && (
+                            <div className="text-xs text-white/40 italic">
+                              Sound effect loaded ({soundDescValue.length} chars)
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    
+                    // For other modes: Show voiceover if enabled
+                    if (voiceoverEnabled) {
+                      return (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <Mic className="w-3.5 h-3.5 text-purple-400" />
+                            <span className="text-xs font-medium text-white/60">Voiceover Text</span>
+                          </div>
+                          <Textarea
+                            value={scene.narration || ''}
+                            onChange={(e) => onSceneUpdate(scene.id, { narration: e.target.value })}
+                            className={cn(
+                              "min-h-[80px] bg-white/5 border-white/10",
+                              "focus:border-purple-500/30 resize-none",
+                              "text-sm leading-relaxed text-white/90",
+                              "placeholder:text-white/20"
+                            )}
+                            placeholder="Enter voiceover narration..."
+                          />
+                          
+                          {/* Text Duration Warning */}
+                          {(() => {
+                            const status = getTextDurationStatus(scene.narration || '', scene.duration);
+                            if (status.status === 'ok') {
+                              return (
+                                <div className="flex items-center gap-1.5 text-xs text-white/40">
+                                  <Clock className="w-3 h-3" />
+                                  <span>{status.message}</span>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className={cn(
+                                "flex items-center gap-1.5 text-xs px-2 py-1 rounded",
+                                status.status === 'error' 
+                                  ? "bg-red-500/10 text-red-400" 
+                                  : "bg-yellow-500/10 text-yellow-400"
+                              )}>
+                                <AlertTriangle className="w-3 h-3" />
+                                <span>{status.message}</span>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      );
+                    }
+                    
+                    return null;
+                  })()}
                 </div>
               </GlassPanel>
             </motion.div>

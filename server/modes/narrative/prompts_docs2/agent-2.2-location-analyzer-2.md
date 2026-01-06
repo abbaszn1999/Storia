@@ -1,8 +1,4 @@
-# Agent 2.2: Location Analyzer - Current Prompt (v2)
-
-This document contains the **current** prompt implementation used in narrative mode before enhancement.
-
----
+# Agent 2.2: LOCATION ANALYZER - Current Implementation (v2)
 
 ## System Prompt
 
@@ -68,6 +64,18 @@ Therefore, you must:
 - Capture locations in a way that reflects their visual and narrative role.
 - Provide enough detail to inspire visuals, but avoid contradicting
   the script.
+
+REASONING PROCESS:
+
+Follow these steps when analyzing locations:
+
+1. **Read** the entire script to identify all location mentions
+2. **Identify** locations that appear multiple times or are visually significant
+3. **Merge** different references to the same location (named vs generic mentions) into a single location object
+4. **Analyze** physical environment, atmosphere, and time of day from script evidence
+5. **Assign** importance scores based on narrative and visual significance (1-10 scale)
+6. **Sort** locations by importance_score in descending order (most important first)
+7. **Validate** that all locations meet inclusion criteria and are not duplicates
 
 
 ========================
@@ -228,7 +236,18 @@ Only output the JSON object defined above.
   as an AI model; simply perform the extraction task.
 ```
 
----
+## OUTPUT VALIDATION CHECKLIST
+
+Before outputting JSON, verify:
+- [ ] All locations meet inclusion criteria (appear multiple times or are visually significant)
+- [ ] No duplicate locations (merged correctly - same place not listed twice)
+- [ ] All required fields are present for each location (name, description, atmosphere, time_of_day, importance_score)
+- [ ] importance_score is between 1-10 for each location
+- [ ] Locations are sorted by importance_score in descending order (most important first)
+- [ ] JSON is valid (no trailing commas, proper escaping, valid syntax)
+- [ ] No extra keys or fields beyond the defined schema
+- [ ] No commentary or explanations outside the JSON object
+- [ ] All text fields (description, atmosphere) are in the same language as script_text
 
 ## User Prompt Template
 
@@ -267,7 +286,10 @@ Important:
 };
 ```
 
----
+## Implementation Notes
 
-**File Location**: `server/modes/narrative/prompts/location-analyzer.ts`
+- **File**: `server/modes/narrative/prompts/location-analyzer.ts`
+- **System Prompt**: `locationAnalyzerSystemPrompt`
+- **User Prompt Generator**: `analyzeLocationsPrompt(script, genre)`
+- **Note**: Field name is `atmosphere` (not `atmosphere_mood` as in some other implementations)
 

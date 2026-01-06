@@ -1,8 +1,4 @@
-# Agent 2.1: Character Analyzer - Current Prompt (v2)
-
-This document contains the **current** prompt implementation used in narrative mode before enhancement.
-
----
+# Agent 2.1: CHARACTER ANALYZER - Current Implementation (v2)
 
 ## System Prompt
 
@@ -68,6 +64,18 @@ Therefore, you must:
 - Capture characters in a way that reflects their narrative role.
 - Provide enough detail to inspire visuals, but avoid contradicting
   the script.
+
+REASONING PROCESS:
+
+Follow these steps when analyzing characters:
+
+1. **Read** the entire script carefully to identify all character mentions
+2. **Identify** characters that appear multiple times or are clearly central to the story
+3. **Merge** different references to the same character (names, titles, pronouns) into a single character object
+4. **Analyze** each character's role, personality, and appearance from script evidence
+5. **Assign** importance scores based on narrative significance (1-10 scale)
+6. **Sort** characters by importance_score in descending order (most important first)
+7. **Validate** that all characters meet inclusion criteria and are not duplicates
 
 
 ========================
@@ -235,7 +243,56 @@ Only output the JSON object defined above.
   as an AI model; simply perform the extraction task.
 ```
 
----
+## FEW-SHOT EXAMPLE
+
+**Input script (short excerpt, in English):**
+```
+A shy boy named Leo dreams of performing at the school talent show, but he's terrified of the crowd. His best friend, Amira, pushes him to practice after school in the empty gym. On the night of the show, the strict principal almost cancels Leo's performance, but Amira convinces her to give him a chance.
+```
+
+**Genre:** "Drama"
+
+**Expected Output:**
+```json
+{
+  "characters": [
+    {
+      "name": "Leo",
+      "description": "A shy schoolboy who dreams of performing at the talent show and serves as the story's main protagonist.",
+      "personality": "Introverted, anxious in front of crowds, but quietly ambitious and determined.",
+      "appearance": "Middle-school aged boy in casual school clothes; often seen clutching his backpack or looking down.",
+      "importance_score": 10
+    },
+    {
+      "name": "Amira",
+      "description": "Leo's confident best friend who encourages him to practice and advocates for him with the principal.",
+      "personality": "Supportive, outgoing, persuasive, and protective of Leo.",
+      "appearance": "Student around Leo's age, expressive and energetic, often moving or gesturing when she talks.",
+      "importance_score": 8
+    },
+    {
+      "name": "The Principal",
+      "description": "The strict school principal who initially wants to cancel Leo's performance, but ultimately allows him to go on stage.",
+      "personality": "Serious, rule-focused, but capable of being convinced when shown sincerity.",
+      "appearance": "Adult in formal school administrator attire, with a composed and authoritative presence.",
+      "importance_score": 6
+    }
+  ]
+}
+```
+
+## OUTPUT VALIDATION CHECKLIST
+
+Before outputting JSON, verify:
+- [ ] All characters meet inclusion criteria (appear multiple times or are clearly central to the story)
+- [ ] No duplicate characters (merged correctly - same person not listed twice)
+- [ ] All required fields are present for each character (name, description, personality, appearance, importance_score)
+- [ ] importance_score is between 1-10 for each character
+- [ ] Characters are sorted by importance_score in descending order (most important first)
+- [ ] JSON is valid (no trailing commas, proper escaping, valid syntax)
+- [ ] No extra keys or fields beyond the defined schema
+- [ ] No commentary or explanations outside the JSON object
+- [ ] All text fields (description, personality, appearance) are in the same language as script_text
 
 ## User Prompt Template
 
@@ -273,7 +330,9 @@ Important:
 };
 ```
 
----
+## Implementation Notes
 
-**File Location**: `server/modes/narrative/prompts/character-analyzer.ts`
+- **File**: `server/modes/narrative/prompts/character-analyzer.ts`
+- **System Prompt**: `characterAnalyzerSystemPrompt`
+- **User Prompt Generator**: `analyzeCharactersPrompt(script, genre)`
 

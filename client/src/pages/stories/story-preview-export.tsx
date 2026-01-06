@@ -363,12 +363,23 @@ export default function StoryPreviewExport() {
           // Build published platforms object
           const publishedPlatformsData: Record<string, any> = {};
           for (const platformId of selectedPlatforms) {
-            publishedPlatformsData[platformId] = {
-              status: publishType === 'schedule' ? 'scheduled' : 'published',
-              video_id: result.results?.find((r: any) => r.platform === platformId)?.videoId,
-              published_at: new Date().toISOString(),
-              scheduled_for: publishType === 'schedule' ? `${scheduleDate}T${scheduleTime}` : undefined,
-            };
+            // Map display platformId to API platform name
+            const platformConfig = PLATFORMS.find(p => p.id === platformId);
+            const apiPlatform = platformConfig?.apiPlatform || platformId;
+            
+            // Find the platform result from API response
+            const platformResult = result.platforms.find((p) => p.platform === apiPlatform);
+            
+            if (platformResult && (platformResult.status === 'published' || platformResult.status === 'pending')) {
+              publishedPlatformsData[platformId] = {
+                status: publishType === 'schedule' ? 'scheduled' : 'published',
+                published_url: platformResult.publishedUrl,
+                published_at: new Date().toISOString(),
+                scheduled_for: publishType === 'schedule' && scheduleDate && scheduleTime
+                  ? `${scheduleDate}T${scheduleTime}`
+                  : undefined,
+              };
+            }
           }
           
           await apiRequest("PUT", `/api/stories/${exportData.storyId}/publish`, {

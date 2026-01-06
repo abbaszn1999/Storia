@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X, Sparkles, FileText, Lightbulb, RefreshCw, AlertCircle, Image, Film } from "lucide-react";
+import { Plus, X, Sparkles, FileText, Lightbulb, RefreshCw, AlertCircle, Image, Film, Music } from "lucide-react";
 
 interface Step3StoryTopicsProps {
   campaignName: string;
@@ -38,6 +38,11 @@ const templateStructures: Record<string, { name: string; icon: typeof Lightbulb;
     name: "Myth-Busting",
     icon: AlertCircle,
     structure: ["Common Myth", "Why It's Wrong", "The Truth", "Takeaway"],
+  },
+  "auto-asmr": {
+    name: "Auto-ASMR",
+    icon: Music,
+    structure: ["Peaceful Opening", "Sensory Journey", "Calm Closing"],
   },
 };
 

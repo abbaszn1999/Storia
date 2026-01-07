@@ -54,6 +54,11 @@ interface CharacterVlogWorkflowProps {
   onNumberOfScenesChange: (scenes: number | 'auto') => void;
   onShotsPerSceneChange: (shots: number | 'auto') => void;
   onCharacterPersonalityChange: (personality: string) => void;
+  onUserPromptChange?: (prompt: string) => void;
+  onDurationChange?: (duration: string) => void;
+  onGenresChange?: (genres: string[]) => void;
+  onTonesChange?: (tones: string[]) => void;
+  onLanguageChange?: (language: string) => void;
   onScenesChange: (scenes: Scene[]) => void;
   onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
   onShotVersionsChange: (shotVersions: { [shotId: string]: ShotVersion[] }) => void;
@@ -112,6 +117,11 @@ export function CharacterVlogWorkflow({
   onNumberOfScenesChange,
   onShotsPerSceneChange,
   onCharacterPersonalityChange,
+  onUserPromptChange,
+  onDurationChange,
+  onGenresChange,
+  onTonesChange,
+  onLanguageChange,
   onScenesChange,
   onShotsChange,
   onShotVersionsChange,
@@ -438,6 +448,8 @@ export function CharacterVlogWorkflow({
     <div>
       {activeStep === "script" && (
         <CharacterVlogScriptEditor
+          videoId={videoId}
+          workspaceId={workspaceId}
           initialScript={script}
           scriptModel={scriptModel}
           videoModel={videoModel}
@@ -446,6 +458,8 @@ export function CharacterVlogWorkflow({
           numberOfScenes={numberOfScenes}
           shotsPerScene={shotsPerScene}
           characterPersonality={characterPersonality}
+          aspectRatio={aspectRatio}
+          referenceMode={referenceMode}
           onScriptChange={onScriptChange}
           onScriptModelChange={onScriptModelChange}
           onVideoModelChange={onVideoModelChange}
@@ -454,6 +468,11 @@ export function CharacterVlogWorkflow({
           onNumberOfScenesChange={onNumberOfScenesChange}
           onShotsPerSceneChange={onShotsPerSceneChange}
           onCharacterPersonalityChange={onCharacterPersonalityChange}
+          onUserPromptChange={onUserPromptChange}
+          onDurationChange={onDurationChange}
+          onGenresChange={onGenresChange}
+          onTonesChange={onTonesChange}
+          onLanguageChange={onLanguageChange}
           onNext={onNext}
         />
       )}
@@ -461,6 +480,7 @@ export function CharacterVlogWorkflow({
       {activeStep === "scenes" && (
         <CharacterVlogSceneBreakdown
           videoId={videoId}
+          workspaceId={workspaceId}
           narrativeMode={narrativeMode}
           referenceMode={referenceMode}
           script={script}
@@ -479,18 +499,41 @@ export function CharacterVlogWorkflow({
           shots={Object.fromEntries(
             Object.entries(shots).map(([sceneId, sceneShots]) => [
               sceneId,
-              sceneShots.map(shot => ({
-                id: shot.id,
-                sceneId: shot.sceneId,
-                name: `Shot ${shot.shotNumber}`,
-                description: shot.description || "",
-                shotType: shot.shotType === "Medium" ? "start-end" : "start-end" as "image-ref" | "start-end",
-                cameraShot: shot.shotType || "Medium",
-                isLinkedToPrevious: false,
-                referenceTags: [],
-              }))
+              sceneShots.map(shot => {
+                // shot.shotType should be the frame type (image-ref/start-end) from database
+                // Check if it's a valid frame type
+                const isFrameType = shot.shotType === 'image-ref' || shot.shotType === 'start-end';
+                const frameType = isFrameType 
+                  ? shot.shotType as "image-ref" | "start-end"
+                  : "start-end" as "image-ref" | "start-end"; // Default fallback if invalid
+                
+                // cameraMovement is the camera shot type (Medium Shot, Wide Shot, etc.)
+                // If shotType is not a frame type, it might be a camera shot, so use it as fallback
+                const cameraShot = shot.cameraMovement || (!isFrameType ? shot.shotType : null) || "Medium Shot";
+                
+                return {
+                  id: shot.id,
+                  sceneId: shot.sceneId,
+                  name: `Shot ${shot.shotNumber}`,
+                  description: shot.description || "",
+                  shotType: frameType,
+                  cameraShot: cameraShot,
+                  isLinkedToPrevious: false,
+                  referenceTags: [],
+                };
+              })
             ])
           )}
+          characters={characters.map(c => ({
+            id: c.id,
+            name: c.name,
+            description: c.description || c.appearance || '',
+          }))}
+          locations={locations.map(l => ({
+            id: l.id,
+            name: l.name,
+            description: l.description || l.details || '',
+          }))}
           onScenesChange={(newScenes) => {
             onScenesChange(newScenes.map((scene, idx) => ({
               id: scene.id,

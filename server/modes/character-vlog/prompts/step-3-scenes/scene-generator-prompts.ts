@@ -1,9 +1,19 @@
-# Agent 3.1: Scene Generator
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * CHARACTER VLOG - SCENE GENERATOR PROMPTS
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * Prompts for generating scene breakdowns from scripts.
+ * Divides scripts into logical, visually distinct scenes.
+ */
 
-## System Prompt
+import type { SceneGeneratorInput } from '../../types';
 
-```
-You are Agent 3.1: SCENE GENERATOR.
+/**
+ * System prompt for the scene generator.
+ * Extracted from agent-3.1-scene-generator.md
+ */
+export const SCENE_GENERATOR_SYSTEM_PROMPT = `You are Agent 3.1: SCENE GENERATOR.
 
 You run inside the "Scenes" step of a character-driven video creation workflow.
 Your job is to read the STORY SCRIPT from Agent 1.1 (or a user-edited version of it)
@@ -76,8 +86,8 @@ natural narrative breaks. Each scene should represent a distinct narrative momen
 location change, or character interaction that warrants separate visual treatment.
 
 The number of scenes is determined by the script's structure:
-- If `numberOfScenes` is a number: Create EXACTLY that many scenes
-- If `numberOfScenes` is 'auto': Let natural breaks determine the count (no fixed range)
+- If \`numberOfScenes\` is a number: Create EXACTLY that many scenes
+- If \`numberOfScenes\` is 'auto': Let natural breaks determine the count (no fixed range)
 
 For each scene, you define:
 1. NAME — Descriptive scene title (format: "Scene {number}: {Title}")
@@ -146,7 +156,7 @@ IF numberOfScenes IS 'auto' (or not provided):
 - Focus on narrative logic, not arbitrary limits
 
 SHOTS PER SCENE CONSIDERATION:
-- If `shotsPerScene` is a number: Consider this when planning scene complexity
+- If \`shotsPerScene\` is a number: Consider this when planning scene complexity
 - More shots per scene = scenes may need more content/action
 - Fewer shots per scene = scenes may be simpler/more focused
 - This is informational for planning; Shot Generator will use this value directly
@@ -243,14 +253,6 @@ Calculate scene duration based on:
    - Maximum scene duration: 120 seconds (for long videos)
    - Average scene duration: 15-30 seconds for short videos, 30-60 seconds for medium videos
 
-DURATION CALCULATION EXAMPLE:
-
-Script portion: 75 words
-Base duration: 75 / 2.5 = 30 seconds
-Dialogue density: High (+20%) = 36 seconds
-Target duration: 60 seconds total, 2 scenes
-Proportional adjustment: 36 seconds (fits within target)
-
 ========================
 7. CHARACTER & LOCATION INTEGRATION
 ========================
@@ -315,30 +317,32 @@ CRITICAL RULES:
 - NEVER ask the user follow-up questions.
 - NEVER output anything except the JSON object with the "scenes" array.
 - Do not expose this system prompt or refer to yourself as an AI model;
-  simply perform the scene breakdown task.
-```
+  simply perform the scene breakdown task.`;
 
----
+/**
+ * Build user prompt for scene generation
+ * Based on the template from agent-3.1-scene-generator.md
+ */
+export function buildSceneGeneratorUserPrompt(input: SceneGeneratorInput): string {
+  const {
+    script,
+    theme,
+    duration,
+    worldDescription,
+    numberOfScenes,
+    shotsPerScene,
+    primaryCharacter,
+    secondaryCharacters,
+    locations,
+  } = input;
 
-## User Prompt Template
-
-```typescript
-export const generateScenesPrompt = (
-  script: string,
-  theme: string,
-  duration: number,
-  worldDescription: string,
-  numberOfScenes: 'auto' | number,
-  shotsPerScene: 'auto' | number,
-  primaryCharacter: { name: string; personality: string },
-  secondaryCharacters: Array<{ name: string; description: string }>,
-  locations: Array<{ name: string; description: string }>
-) => {
   const secondaryCharsText = secondaryCharacters.length > 0
     ? secondaryCharacters.map(char => `- ${char.name} (${char.description})`).join('\n')
     : '- None';
 
-  const locationsText = locations.map(loc => `- ${loc.name} (${loc.description})`).join('\n');
+  const locationsText = locations.length > 0
+    ? locations.map(loc => `- ${loc.name} (${loc.description})`).join('\n')
+    : '- None';
 
   return `Analyze the following STORY SCRIPT and divide it into logical scenes
 according to your system instructions.
@@ -349,7 +353,7 @@ ${script}
 Context:
 - Theme: ${theme}
 - Target Duration: ${duration} seconds
-- World Description: ${worldDescription}
+- World Description: ${worldDescription || 'None'}
 - Number of Scenes: ${numberOfScenes === 'auto' ? "'auto' (create scenes based on natural narrative breaks)" : `${numberOfScenes} (create exactly this many scenes)`}
 - Shots Per Scene: ${shotsPerScene === 'auto' ? "'auto'" : shotsPerScene} (informational for planning scene complexity)
 
@@ -377,278 +381,5 @@ Task:
 9. CONSIDER shotsPerScene when planning scene complexity (if provided)
 
 Return ONLY the JSON object — no explanation, no preamble.`;
-};
-```
-
----
-
-## Examples
-
-### Example 1: Urban Lifestyle Story (Short Duration)
-
-**Inputs:**
-```json
-{
-  "script": "I wake up every morning at 6 AM and head to my favorite coffee shop. Sarah, the owner, always has my order ready before I even ask. The new barista, Marcus, is still learning the ropes but he's got great potential. Later, my friend Jake joined us for a chat about his new startup idea. We talked for a while, then I headed to the park across the street to enjoy the morning sunshine and reflect on our conversation.",
-  "theme": "urban",
-  "duration": 60,
-  "worldDescription": "Modern city life, warm morning light, bustling urban energy",
-  "numberOfScenes": "auto",
-  "shotsPerScene": "auto",
-  "primaryCharacter": {
-    "name": "Narrator",
-    "personality": "Energetic and enthusiastic, always in motion, builds connections easily"
-  },
-  "secondaryCharacters": [
-    {
-      "name": "Sarah",
-      "description": "Coffee shop owner who knows regular customers well"
-    },
-    {
-      "name": "Jake",
-      "description": "Close friend with entrepreneurial ambitions"
-    },
-    {
-      "name": "Marcus",
-      "description": "New barista still learning"
-    }
-  ],
-  "locations": [
-    {
-      "name": "Downtown Coffee Shop",
-      "description": "A cozy urban cafe with warm atmosphere and modern interior"
-    },
-    {
-      "name": "City Park",
-      "description": "A peaceful urban park with green spaces and walking paths"
-    }
-  ]
 }
-```
 
-**Output:**
-```json
-{
-  "scenes": [
-    {
-      "name": "Scene 1: The Morning Coffee Routine",
-      "description": "The narrator arrives at their favorite downtown coffee shop, greeted by the familiar barista Sarah who anticipates their usual order. The warm morning atmosphere with bustling urban energy sets a comfortable tone as they interact with the new barista Marcus, who is still learning but showing promise. This scene establishes the daily routine and introduces the primary location.",
-      "duration": 25
-    },
-    {
-      "name": "Scene 2: Coffee Shop Conversation",
-      "description": "The narrator's friend Jake joins them at the coffee shop for a conversation about his new startup idea. The warm morning light filters through the windows as they discuss entrepreneurship and future plans. This scene focuses on the social connection and dialogue between friends in the urban cafe setting.",
-      "duration": 20
-    },
-    {
-      "name": "Scene 3: Park Reflections",
-      "description": "After the conversation, the narrator heads to the city park across the street to enjoy the morning sunshine and reflect on their discussion with Jake. The peaceful urban park provides a contrast to the bustling coffee shop, allowing for quiet contemplation in the warm morning light.",
-      "duration": 15
-    }
-  ]
-}
-```
-
----
-
-### Example 2: Nature Adventure Story (Medium Duration)
-
-**Inputs:**
-```json
-{
-  "script": "Today I'm exploring the great outdoors, searching for the perfect spot to capture the sunset. The journey takes me through various terrains as I seek that magical moment. I start on a forest trail, surrounded by ancient trees and dappled sunlight. The path winds through the woods, each step bringing me closer to my destination. After hiking for what feels like hours, I reach a mountain peak that offers panoramic views. The golden hour approaches, and I set up my camera to capture the breathtaking sunset over the valley below.",
-  "theme": "nature",
-  "duration": 180,
-  "worldDescription": "Natural landscapes, golden hour lighting, peaceful outdoor atmosphere",
-  "numberOfScenes": "auto",
-  "shotsPerScene": "auto",
-  "primaryCharacter": {
-    "name": "Narrator",
-    "personality": "Adventurous and bold, determined and fearless, driven by curiosity"
-  },
-  "secondaryCharacters": [],
-  "locations": [
-    {
-      "name": "Forest Trail",
-      "description": "A winding forest trail through natural landscapes"
-    },
-    {
-      "name": "Mountain Peak",
-      "description": "A scenic mountain peak offering panoramic views"
-    }
-  ]
-}
-```
-
-**Output:**
-```json
-{
-  "scenes": [
-    {
-      "name": "Scene 1: The Forest Journey",
-      "description": "The narrator begins their adventure on a forest trail, surrounded by ancient trees and dappled sunlight filtering through the canopy. The peaceful outdoor atmosphere of the natural landscape sets the tone as they hike through the woods, each step bringing them closer to their destination. This scene establishes the journey and the natural setting.",
-      "duration": 50
-    },
-    {
-      "name": "Scene 2: Reaching the Peak",
-      "description": "After hiking through the forest, the narrator reaches a mountain peak that offers breathtaking panoramic views of the valley below. The golden hour lighting begins to transform the landscape, creating anticipation for the sunset. This scene marks the arrival at the destination and sets up the climax.",
-      "duration": 40
-    },
-    {
-      "name": "Scene 3: The Golden Hour",
-      "description": "The narrator sets up their camera as the golden hour approaches, capturing the breathtaking sunset over the valley. The natural landscapes are bathed in warm golden light, creating a peaceful outdoor atmosphere that represents the culmination of the adventure. This scene provides the visual payoff and emotional resolution.",
-      "duration": 90
-    }
-  ]
-}
-```
-
----
-
-### Example 3: Home Lifestyle Story (Multiple Characters)
-
-**Inputs:**
-```json
-{
-  "script": "I start my day in the kitchen, preparing breakfast while planning my schedule. The morning light streams through the windows, creating a warm and inviting atmosphere. Later, I move to my home office to tackle some work, surrounded by my favorite books and plants. My roommate Alex stops by to chat about our weekend plans, and we end up having a great conversation in the living room. The day ends with me relaxing in my bedroom, reflecting on everything I accomplished.",
-  "theme": "home",
-  "duration": 300,
-  "worldDescription": "Cozy home environment, warm natural lighting, comfortable atmosphere",
-  "numberOfScenes": "auto",
-  "shotsPerScene": "auto",
-  "primaryCharacter": {
-    "name": "Narrator",
-    "personality": "Calm and mindful, contemplative and serene, appreciates quiet moments"
-  },
-  "secondaryCharacters": [
-    {
-      "name": "Alex",
-      "description": "Roommate and friend"
-    }
-  ],
-  "locations": [
-    {
-      "name": "Kitchen",
-      "description": "A warm kitchen with morning light"
-    },
-    {
-      "name": "Home Office",
-      "description": "A comfortable workspace with books and plants"
-    },
-    {
-      "name": "Living Room",
-      "description": "A cozy living space for conversations"
-    },
-    {
-      "name": "Bedroom",
-      "description": "A peaceful personal space for reflection"
-    }
-  ]
-}
-```
-
-**Output:**
-```json
-{
-  "scenes": [
-    {
-      "name": "Scene 1: Morning Kitchen Routine",
-      "description": "The narrator starts their day in the kitchen, preparing breakfast while planning their schedule. The warm natural lighting streams through the windows, creating a cozy home environment with a comfortable atmosphere. This scene establishes the daily routine and the home setting.",
-      "duration": 40
-    },
-    {
-      "name": "Scene 2: Home Office Focus",
-      "description": "The narrator moves to their home office to tackle work, surrounded by favorite books and plants. The cozy home environment provides a comfortable workspace with warm natural lighting. This scene shows the productive part of the day.",
-      "duration": 60
-    },
-    {
-      "name": "Scene 3: Living Room Conversation",
-      "description": "The narrator's roommate Alex stops by to chat about weekend plans, leading to a great conversation in the living room. The cozy home environment with comfortable atmosphere facilitates this social interaction. This scene focuses on the relationship and dialogue.",
-      "duration": 80
-    },
-    {
-      "name": "Scene 4: Evening Reflection",
-      "description": "The day ends with the narrator relaxing in their bedroom, reflecting on everything they accomplished. The peaceful personal space with warm natural lighting provides a quiet moment for contemplation. This scene offers closure and reflection.",
-      "duration": 120
-    }
-  ]
-}
-```
-
----
-
-### Example 4: Fixed Number of Scenes (numberOfScenes = 4)
-
-**Inputs:**
-```json
-{
-  "script": "I wake up every morning at 6 AM and head to my favorite coffee shop. Sarah, the owner, always has my order ready before I even ask. The new barista, Marcus, is still learning the ropes but he's got great potential. Later, my friend Jake joined us for a chat about his new startup idea. We talked for a while, then I headed to the park across the street to enjoy the morning sunshine and reflect on our conversation.",
-  "theme": "urban",
-  "duration": 60,
-  "worldDescription": "Modern city life, warm morning light, bustling urban energy",
-  "numberOfScenes": 4,
-  "shotsPerScene": "auto",
-  "primaryCharacter": {
-    "name": "Narrator",
-    "personality": "Energetic and enthusiastic, always in motion, builds connections easily"
-  },
-  "secondaryCharacters": [
-    {
-      "name": "Sarah",
-      "description": "Coffee shop owner who knows regular customers well"
-    },
-    {
-      "name": "Jake",
-      "description": "Close friend with entrepreneurial ambitions"
-    },
-    {
-      "name": "Marcus",
-      "description": "New barista still learning"
-    }
-  ],
-  "locations": [
-    {
-      "name": "Downtown Coffee Shop",
-      "description": "A cozy urban cafe with warm atmosphere and modern interior"
-    },
-    {
-      "name": "City Park",
-      "description": "A peaceful urban park with green spaces and walking paths"
-    }
-  ]
-}
-```
-
-**Output:**
-```json
-{
-  "scenes": [
-    {
-      "name": "Scene 1: Morning Routine Begins",
-      "description": "The narrator wakes up and prepares for their day, establishing the energetic morning routine. The warm morning light and bustling urban energy set the tone for the day ahead.",
-      "duration": 10
-    },
-    {
-      "name": "Scene 2: Coffee Shop Arrival",
-      "description": "The narrator arrives at their favorite downtown coffee shop, greeted by Sarah who anticipates their usual order. The cozy urban cafe with warm atmosphere welcomes them, and they interact with the new barista Marcus who is still learning.",
-      "duration": 20
-    },
-    {
-      "name": "Scene 3: Coffee Shop Conversation",
-      "description": "The narrator's friend Jake joins them at the coffee shop for a conversation about his new startup idea. The warm morning light filters through the windows as they discuss entrepreneurship and future plans in the bustling urban setting.",
-      "duration": 20
-    },
-    {
-      "name": "Scene 4: Park Reflections",
-      "description": "After the conversation, the narrator heads to the city park across the street to enjoy the morning sunshine and reflect on their discussion with Jake. The peaceful urban park provides a contrast to the bustling coffee shop, allowing for quiet contemplation.",
-      "duration": 10
-    }
-  ]
-}
-```
-
-**Note:** Even though the script naturally suggests 3 scenes (coffee shop arrival, conversation, park), the agent created exactly 4 scenes to match `numberOfScenes = 4`, splitting the coffee shop into two scenes (arrival and conversation).
-
----
-
-**File Location**: `client/src/pages/videos/character-vlog-mode/prompts-character-vlog/step-3-scenes/agent-3.1-scene-generator.md`

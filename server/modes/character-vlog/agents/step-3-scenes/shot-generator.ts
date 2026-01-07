@@ -1,0 +1,297 @@
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * CHARACTER VLOG - SHOT GENERATOR AGENT
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * Generates shot breakdowns from scenes with continuity analysis for character vlog content.
+ * Breaks down scenes into detailed, visually distinct shots.
+ */
+
+import { callTextModel } from "../../../../ai/service";
+import {
+  SHOT_GENERATOR_SYSTEM_PROMPT,
+  buildShotGeneratorUserPrompt,
+} from "../../prompts/step-3-scenes/shot-generator-prompts";
+import type {
+  ShotGeneratorInput,
+  ShotGeneratorOutput,
+} from "../../types";
+
+const SHOT_GENERATOR_CONFIG = {
+  provider: "openai" as const,
+  model: "gpt-4o", // As specified in prompt docs
+};
+
+/**
+ * JSON Schema for shot generator output validation
+ */
+const SHOT_GENERATOR_OUTPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    shots: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "Shot name in format 'Shot {sceneNumber}.{shotNumber}: {Title}'",
+          },
+          description: {
+            type: "string",
+            description: "Detailed visual description (50-300 words) - action, composition, focus, atmosphere",
+          },
+          shotType: {
+            type: "string",
+            enum: ["1F", "2F"],
+            description: "Frame type: '1F' (single image) or '2F' (start/end frames)",
+          },
+          cameraShot: {
+            type: "string",
+            description: "Camera angle from 10 preset options",
+          },
+          referenceTags: {
+            type: "array",
+            items: {
+              type: "string",
+            },
+            description: "Character and location tags (e.g., ['@PrimaryCharacter', '@Location1'])",
+          },
+          duration: {
+            type: "number",
+            description: "Duration in seconds (must be from videoModelDurations array)",
+          },
+          isLinkedToPrevious: {
+            type: "boolean",
+            description: "Whether this shot links to the previous shot for continuity",
+          },
+          isFirstInGroup: {
+            type: "boolean",
+            description: "Whether this shot is the first in a continuity group",
+          },
+        },
+        required: ["name", "description", "shotType", "cameraShot", "referenceTags", "duration", "isLinkedToPrevious", "isFirstInGroup"],
+        additionalProperties: false,
+      },
+      minItems: 1,
+      maxItems: 20,
+    },
+  },
+  required: ["shots"],
+  additionalProperties: false,
+};
+
+/**
+ * Parse JSON response from AI, handling potential formatting issues
+ */
+function parseShotResponse(rawOutput: string): ShotGeneratorOutput {
+  const trimmed = rawOutput.trim();
+  
+  // Try to extract JSON if wrapped in markdown code blocks
+  let jsonStr = trimmed;
+  const jsonMatch = trimmed.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+  if (jsonMatch) {
+    jsonStr = jsonMatch[1];
+  }
+  
+  try {
+    const parsed = JSON.parse(jsonStr);
+    
+    // Validate structure
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error('Response is not a valid object');
+    }
+    
+    if (!Array.isArray(parsed.shots)) {
+      throw new Error('Response missing "shots" array');
+    }
+    
+    // Validate each shot
+    const shots = parsed.shots.map((shot: any, index: number) => {
+      if (!shot || typeof shot !== 'object') {
+        throw new Error(`Shot ${index + 1} is not a valid object`);
+      }
+      if (!shot.name || typeof shot.name !== 'string') {
+        throw new Error(`Shot ${index + 1} missing or invalid "name" field`);
+      }
+      if (!shot.description || typeof shot.description !== 'string') {
+        throw new Error(`Shot ${index + 1} missing or invalid "description" field`);
+      }
+      if (shot.shotType !== '1F' && shot.shotType !== '2F') {
+        throw new Error(`Shot ${index + 1} has invalid "shotType" (must be "1F" or "2F")`);
+      }
+      if (!shot.cameraShot || typeof shot.cameraShot !== 'string') {
+        throw new Error(`Shot ${index + 1} missing or invalid "cameraShot" field`);
+      }
+      if (!Array.isArray(shot.referenceTags)) {
+        throw new Error(`Shot ${index + 1} missing or invalid "referenceTags" field (must be array)`);
+      }
+      if (typeof shot.duration !== 'number' || shot.duration <= 0) {
+        throw new Error(`Shot ${index + 1} has invalid "duration" (must be positive number)`);
+      }
+      if (typeof shot.isLinkedToPrevious !== 'boolean') {
+        throw new Error(`Shot ${index + 1} missing or invalid "isLinkedToPrevious" field (must be boolean)`);
+      }
+      if (typeof shot.isFirstInGroup !== 'boolean') {
+        throw new Error(`Shot ${index + 1} missing or invalid "isFirstInGroup" field (must be boolean)`);
+      }
+      return {
+        name: shot.name,
+        description: shot.description,
+        shotType: shot.shotType as '1F' | '2F',
+        cameraShot: shot.cameraShot,
+        referenceTags: shot.referenceTags,
+        duration: shot.duration,
+        isLinkedToPrevious: shot.isLinkedToPrevious,
+        isFirstInGroup: shot.isFirstInGroup,
+      };
+    });
+    
+    return {
+      shots,
+      cost: parsed.cost,
+    };
+  } catch (error) {
+    console.error('[character-vlog:shot-generator] Failed to parse response:', error);
+    throw new Error(`Failed to parse shot response: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Generate shots from scene analysis.
+ * 
+ * @param input - The shot generation input (scene info, script, characters, locations, etc.)
+ * @param userId - User ID for tracking/billing
+ * @param workspaceId - Workspace ID for organization
+ * @returns Generated shots and cost
+ */
+export async function generateShots(
+  input: ShotGeneratorInput,
+  userId?: string,
+  workspaceId?: string
+): Promise<ShotGeneratorOutput> {
+  console.log('[character-vlog:shot-generator] Generating shots:', {
+    sceneName: input.sceneName,
+    sceneDuration: input.sceneDuration,
+    referenceMode: input.referenceMode,
+    shotsPerScene: input.shotsPerScene,
+    videoModel: input.videoModel,
+    availableDurations: input.videoModelDurations,
+    characterCount: input.characters.length,
+    locationCount: input.locations.length,
+    worldDescription: input.worldDescription || 'None',
+    userId,
+    workspaceId,
+  });
+
+  // Build the user prompt with all shot generation parameters
+  const userPrompt = buildShotGeneratorUserPrompt(input);
+
+  try {
+    const response = await callTextModel(
+      {
+        provider: SHOT_GENERATOR_CONFIG.provider,
+        model: SHOT_GENERATOR_CONFIG.model,
+        payload: {
+          input: [
+            { role: "system", content: SHOT_GENERATOR_SYSTEM_PROMPT },
+            { role: "user", content: userPrompt },
+          ],
+          text: {
+            format: {
+              type: "json_schema",
+              name: "shot_generator_output",
+              strict: true,
+              schema: SHOT_GENERATOR_OUTPUT_SCHEMA,
+            },
+          },
+        },
+        userId,
+        workspaceId,
+      },
+      {
+        expectedOutputTokens: 6000, // Shots can have multiple items with detailed descriptions
+      }
+    );
+
+    const rawOutput = response.output.trim();
+    
+    console.log('[character-vlog:shot-generator] AI response received:', {
+      outputLength: rawOutput.length,
+      cost: response.usage?.totalCostUsd,
+    });
+    
+    // Parse JSON response
+    const parsed = parseShotResponse(rawOutput);
+    
+    // Validate reference mode constraints
+    if (input.referenceMode === '1F') {
+      const invalidShots = parsed.shots.filter(s => s.shotType !== '1F');
+      if (invalidShots.length > 0) {
+        console.warn('[character-vlog:shot-generator] Warning: Some shots are not 1F in 1F mode:', invalidShots.map(s => s.name));
+      }
+      // Ensure all continuity fields are false in 1F mode
+      parsed.shots = parsed.shots.map(shot => ({
+        ...shot,
+        shotType: '1F' as const,
+        isLinkedToPrevious: false,
+        isFirstInGroup: false,
+      }));
+    } else if (input.referenceMode === '2F') {
+      const invalidShots = parsed.shots.filter(s => s.shotType !== '2F');
+      if (invalidShots.length > 0) {
+        console.warn('[character-vlog:shot-generator] Warning: Some shots are not 2F in 2F mode:', invalidShots.map(s => s.name));
+      }
+      // Ensure all shots are 2F in 2F mode
+      parsed.shots = parsed.shots.map(shot => ({
+        ...shot,
+        shotType: '2F' as const,
+      }));
+    }
+    
+    // Validate shot count if specified
+    if (typeof input.shotsPerScene === 'number') {
+      if (parsed.shots.length !== input.shotsPerScene) {
+        console.warn(
+          `[character-vlog:shot-generator] Shot count mismatch: expected ${input.shotsPerScene}, got ${parsed.shots.length}`
+        );
+      }
+    }
+    
+    // Validate duration distribution
+    const totalDuration = parsed.shots.reduce((sum, shot) => sum + shot.duration, 0);
+    const durationDiff = Math.abs(totalDuration - input.sceneDuration);
+    const durationTolerance = input.sceneDuration * 0.1; // ±10%
+    if (durationDiff > durationTolerance) {
+      console.warn(
+        `[character-vlog:shot-generator] Duration mismatch: sceneDuration ${input.sceneDuration}s, total ${totalDuration}s (diff: ${durationDiff}s, tolerance: ±${durationTolerance}s)`
+      );
+    }
+    
+    // Validate durations are from allowed array
+    const invalidDurations = parsed.shots.filter(s => !input.videoModelDurations.includes(s.duration));
+    if (invalidDurations.length > 0) {
+      console.warn(
+        `[character-vlog:shot-generator] Warning: Some shots have invalid durations (not in videoModelDurations):`,
+        invalidDurations.map(s => `${s.name}: ${s.duration}s`)
+      );
+    }
+    
+    console.log('[character-vlog:shot-generator] Shots generated:', {
+      shotCount: parsed.shots.length,
+      totalDuration,
+      sceneDuration: input.sceneDuration,
+      durationDiff,
+      cost: parsed.cost || response.usage?.totalCostUsd,
+    });
+
+    return {
+      shots: parsed.shots,
+      cost: parsed.cost || response.usage?.totalCostUsd,
+    };
+  } catch (error) {
+    console.error("[character-vlog:shot-generator] Failed to generate shots:", error);
+    throw new Error(`Failed to generate shots: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+

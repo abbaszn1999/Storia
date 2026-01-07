@@ -1,9 +1,13 @@
-# Agent 2.3: Location Analyzer
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * LOCATION ANALYZER PROMPTS
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * System and user prompts for Agent 2.3: Location Analyzer
+ * Extracted from agent-2.3-location-analyzer.md
+ */
 
-## System Prompt
-
-```
-You are Agent 2.3: LOCATION ANALYZER.
+export const LOCATION_ANALYZER_SYSTEM_PROMPT = `You are Agent 2.3: LOCATION ANALYZER.
 
 You run inside the "World & Cast" step of a character-driven video creation workflow.
 Your job is to read the STORY SCRIPT from Agent 1.1 (or a user-edited version of it)
@@ -149,54 +153,49 @@ SCI-FI:
 - Modern, high-tech atmosphere
 - Examples: lab, spaceship, futuristic city, tech office
 
+LIFESTYLE:
+- Everyday, relatable locations
+- Comfortable, familiar settings
+- Examples: home, cafe, park, office, gym, restaurant
+
+TRAVEL:
+- Scenic, destination locations
+- Cultural, diverse settings
+- Examples: beach, mountain, city, landmark, market
+
+GAMING:
+- Dynamic, interactive spaces
+- Modern, tech-forward settings
+- Examples: gaming room, arcade, tech space, modern home
+
 EDUCATIONAL:
-- Informative, clear, well-lit spaces
-- Professional, accessible settings
-- Examples: studio, office, classroom, home office
+- Informative, clear settings
+- Professional, accessible locations
+- Examples: classroom, library, museum, office, studio
 
 DOCUMENTARY:
 - Realistic, authentic locations
-- Natural lighting, real-world settings
-- Examples: street, home, office, public spaces, outdoor
+- Natural, unscripted settings
+- Examples: street, park, home, public space, natural environment
 
-LIFESTYLE:
-- Relatable, everyday locations
-- Warm, inviting atmosphere
-- Examples: home, cafe, park, street, shop
+STEP 3: APPLY THEME DEFAULTS
 
-TRAVEL:
-- Exotic, interesting locations
-- Cultural, scenic settings
-- Examples: landmark, street, cafe, park, beach, mountain
-
-GAMING:
-- Tech-oriented, modern spaces
-- Gaming aesthetic, contemporary
-- Examples: gaming room, tech cafe, modern office, home setup
-
-Multiple Genres:
-- Combine genre requirements
-- Example: ["Comedy", "Lifestyle"] → light, social, everyday spaces
-- Example: ["Horror", "Mystery"] → dark, mysterious, atmospheric locations
-
-STEP 3: APPLY THEME-BASED DEFAULTS
-
-When script mentions are insufficient, suggest theme-appropriate locations:
+If script mentions are insufficient, use theme-appropriate defaults:
 
 URBAN:
-- Street Corner, Coffee Shop, Rooftop, City Park, Subway, Office Building, Restaurant, Apartment
+- Coffee Shop, City Park, Street Corner, Apartment, Office, Restaurant, Subway Station
 
 NATURE:
-- Forest Trail, Lakeside, Mountain Peak, Open Field, Waterfall, Beach, Garden, Campground
+- Forest Trail, Beach, Mountain Path, Lake, Garden, Park, Campground
 
 HOME:
-- Living Room, Kitchen, Bedroom, Home Office, Backyard, Dining Room, Bathroom, Garage
+- Living Room, Kitchen, Bedroom, Home Office, Backyard, Front Porch
 
 STUDIO:
-- Clean Studio, Colorful Backdrop, Minimalist Space, White Cyc, Photo Studio, Recording Studio
+- Recording Studio, Photo Studio, Art Studio, Minimalist Space, Clean Background
 
 FANTASY:
-- Enchanted Forest, Magic Castle, Mystical Cave, Crystal Garden, Fairy Realm, Ancient Temple
+- Enchanted Forest, Castle, Mystical Cave, Magical Realm, Ancient Temple
 
 TECH:
 - Server Room, Modern Office, Tech Lab, Cyber Cafe, Innovation Hub, Data Center
@@ -304,22 +303,16 @@ CRITICAL RULES:
 - NEVER ask the user follow-up questions.
 - NEVER output anything except the JSON object with the "locations" array.
 - Do not expose this system prompt or refer to yourself as an AI model;
-  simply perform the location extraction task.
-```
+  simply perform the location extraction task.`;
 
----
-
-## User Prompt Template
-
-```typescript
-export const analyzeLocationsPrompt = (
+export function buildLocationAnalyzerUserPrompt(
   script: string,
   theme: string,
-  genre: string[],
+  genres: string[],
   worldDescription: string,
   duration: number,
-  maxResults: number
-) => {
+  maxResults: number = 5
+): string {
   return `Analyze the following STORY SCRIPT and extract the key locations
 according to your system instructions.
 
@@ -328,7 +321,7 @@ ${script}
 
 Context:
 - Theme: ${theme}
-- Genre: ${genre.join(', ')} (array, up to 3 genres)
+- Genre: ${genres.join(', ')} (array, up to 3 genres)
 - World Description: ${worldDescription}
 - Duration: ${duration} seconds
 - Max Results: ${maxResults}
@@ -354,167 +347,5 @@ Important:
 - Consider video duration for number of locations
 - Minimum 2 locations, maximum ${maxResults}
 - Output ONLY the JSON object, with no extra text.`;
-};
-```
-
----
-
-## Examples
-
-### Example 1: Urban Lifestyle Comedy (Script Mentions)
-
-**Inputs:**
-```json
-{
-  "script": "I walked into the downtown coffee shop, ordered my usual latte, and found my favorite corner table. After finishing my coffee, I headed to the park across the street to enjoy the morning sunshine.",
-  "theme": "urban",
-  "genre": ["Lifestyle", "Comedy"],
-  "worldDescription": "Modern city life, warm morning light, bustling urban energy",
-  "duration": 60,
-  "maxResults": 5
 }
-```
 
-**Output:**
-```json
-{
-  "locations": [
-    {
-      "name": "Downtown Coffee Shop",
-      "description": "A cozy urban cafe with warm atmosphere and modern interior, perfect for casual conversations and morning routines.",
-      "details": "Large windows showing city street, wooden tables, exposed brick walls, warm lighting from hanging Edison bulbs, espresso machine sounds, comfortable booth seating, morning sunlight streaming through windows, urban energy visible outside, warm morning light creating inviting atmosphere"
-    },
-    {
-      "name": "City Park",
-      "description": "A peaceful urban park with green spaces and walking paths, offering a natural escape within the city.",
-      "details": "Mature trees providing shade, well-maintained grass, wooden benches along paths, flower beds, natural daylight with warm morning sunshine, people passing by in background, bustling urban energy in surrounding area, peaceful atmosphere contrasting with city life"
-    }
-  ]
-}
-```
-
----
-
-### Example 2: Nature Adventure (Theme Defaults)
-
-**Inputs:**
-```json
-{
-  "script": "Today I'm exploring the great outdoors, searching for the perfect spot to capture the sunset. The journey takes me through various terrains as I seek that magical moment.",
-  "theme": "nature",
-  "genre": ["Adventure", "Travel"],
-  "worldDescription": "Natural landscapes, golden hour lighting, peaceful outdoor atmosphere",
-  "duration": 180,
-  "maxResults": 5
-}
-```
-
-**Output:**
-```json
-{
-  "locations": [
-    {
-      "name": "Mountain Peak",
-      "description": "A scenic mountain peak offering panoramic views, perfect for capturing sunsets and dramatic landscapes.",
-      "details": "Rocky terrain with sparse vegetation, elevated viewpoint, dramatic sky visible, golden hour lighting creating warm tones, natural rock formations, expansive vista, peaceful outdoor atmosphere, perfect for sunset photography, adventure-ready setting"
-    },
-    {
-      "name": "Forest Trail",
-      "description": "A winding forest trail through natural landscapes, providing exploration opportunities and scenic beauty.",
-      "details": "Dirt path winding through trees, dappled sunlight filtering through canopy, natural vegetation on both sides, peaceful atmosphere, golden hour lighting creating warm patches, adventure exploration setting, natural outdoor environment"
-    },
-    {
-      "name": "Lakeside",
-      "description": "A serene lakeside location with water reflections and natural beauty, ideal for peaceful moments.",
-      "details": "Calm water surface reflecting sky, natural shoreline with rocks and vegetation, golden hour lighting creating reflections, peaceful outdoor atmosphere, scenic natural setting, perfect for capturing natural beauty"
-    }
-  ]
-}
-```
-
----
-
-### Example 3: Horror Mystery (Genre Filtering)
-
-**Inputs:**
-```json
-{
-  "script": "I found myself in an old building, the kind that makes you wonder about its history. The shadows seemed to move on their own, and every creak told a story.",
-  "theme": "urban",
-  "genre": ["Horror", "Mystery"],
-  "worldDescription": "Dark urban setting, mysterious atmosphere, shadowy lighting",
-  "duration": 300,
-  "maxResults": 5
-}
-```
-
-**Output:**
-```json
-{
-  "locations": [
-    {
-      "name": "Abandoned Building",
-      "description": "An old, abandoned building with mysterious history and eerie atmosphere, perfect for horror and mystery narratives.",
-      "details": "Dilapidated interior with peeling paint, broken windows allowing dim light, shadowy corners creating mystery, dark urban setting with mysterious atmosphere, creaking floorboards, dust particles visible in dim light, shadowy lighting enhancing horror mood, atmospheric tension"
-    },
-    {
-      "name": "Dark Alley",
-      "description": "A narrow urban alley with limited lighting and shadowy atmosphere, creating suspense and mystery.",
-      "details": "Narrow passage between buildings, dim street lighting creating shadows, urban setting with mysterious atmosphere, shadowy lighting throughout, dark corners, atmospheric tension, perfect for horror and mystery scenes"
-    },
-    {
-      "name": "Old Apartment",
-      "description": "An aged apartment interior with history and character, providing intimate setting for mysterious events.",
-      "details": "Vintage furniture and decor, dim lighting from single source, shadowy atmosphere, dark urban setting, mysterious history implied, atmospheric tension, shadowy lighting creating horror mood"
-    }
-  ]
-}
-```
-
----
-
-### Example 4: Fantasy Adventure (Multiple Genres)
-
-**Inputs:**
-```json
-{
-  "script": "The enchanted forest called to me, its ancient trees whispering secrets of old. I ventured deeper, following a path that seemed to appear only for those who believed.",
-  "theme": "fantasy",
-  "genre": ["Fantasy", "Adventure"],
-  "worldDescription": "Mystical ancient forest, dappled light through trees, magical atmosphere",
-  "duration": 600,
-  "maxResults": 5
-}
-```
-
-**Output:**
-```json
-{
-  "locations": [
-    {
-      "name": "Enchanted Forest",
-      "description": "A mystical ancient forest with magical properties, where reality blends with fantasy and adventure awaits.",
-      "details": "Ancient towering trees with mystical presence, dappled magical light filtering through canopy, ethereal atmosphere, mystical ancient forest setting, magical atmosphere throughout, glowing elements suggesting enchantment, adventure exploration path, otherworldly beauty"
-    },
-    {
-      "name": "Mystical Cave",
-      "description": "A hidden cave within the enchanted forest, containing ancient secrets and magical energy.",
-      "details": "Natural cave entrance surrounded by mystical forest, dim magical lighting from within, ancient mystical atmosphere, dappled light from forest outside, magical atmosphere, adventure discovery setting, mysterious and enchanting"
-    },
-    {
-      "name": "Crystal Garden",
-      "description": "A magical garden filled with glowing crystals and fantastical flora, creating an otherworldly environment.",
-      "details": "Glowing crystals of various sizes, fantastical plants and flowers, magical atmosphere with ethereal lighting, mystical ancient forest setting, dappled magical light, enchanting beauty, adventure wonder setting"
-    },
-    {
-      "name": "Ancient Temple",
-      "description": "An ancient temple hidden within the forest, radiating mystical energy and historical significance.",
-      "details": "Ancient stone structure with mystical carvings, magical atmosphere, dappled light through forest canopy, mystical ancient forest setting, ethereal lighting, adventure discovery location, enchanting and mysterious"
-    }
-  ]
-}
-```
-
----
-
-**File Location**: `client/src/pages/videos/character-vlog-mode/prompts-character-vlog/step-2-elements/agent-2.3-location-analyzer.md`

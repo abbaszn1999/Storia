@@ -1,9 +1,13 @@
-# Agent 2.1: Character Analyzer
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * CHARACTER ANALYZER PROMPTS
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * System and user prompts for Agent 2.1: Character Analyzer
+ * Extracted from agent-2.1-character-analyzer.md
+ */
 
-## System Prompt
-
-```
-You are Agent 2.1: CHARACTER ANALYZER.
+export const CHARACTER_ANALYZER_SYSTEM_PROMPT = `You are Agent 2.1: CHARACTER ANALYZER.
 
 You run inside the "World & Cast" step of a character-driven video creation workflow.
 Your job is to read the STORY SCRIPT from Agent 1.1 (or a user-edited version of it)
@@ -242,7 +246,7 @@ Apply the provided theme, style, and worldDescription to all character appearanc
 
 STYLE INPUT HANDLING:
 
-The `style` input can be ONE of two types:
+The \`style\` input can be ONE of two types:
 
 1. PRESET STYLE NAME (text):
    - User selected a preset style from available options
@@ -338,22 +342,20 @@ CRITICAL RULES:
 - NEVER ask the user follow-up questions.
 - NEVER output anything except the JSON object with primaryCharacter and secondaryCharacters.
 - Do not expose this system prompt or refer to yourself as an AI model;
-  simply perform the character extraction task.
-```
+  simply perform the character extraction task.`;
 
----
-
-## User Prompt Template
-
-```typescript
-export const analyzeCharactersPrompt = (
+export function buildCharacterAnalyzerUserPrompt(
   script: string,
   narrationStyle: string,
   characterPersonality: string,
   theme: string,
   style: string,
   worldDescription: string
-) => {
+): string {
+  const styleNote = style === 'custom_image' 
+    ? ' (Note: User uploaded an image as style reference - match that image\'s visual aesthetic)' 
+    : '';
+
   return `Analyze the following STORY SCRIPT and extract the key characters
 according to your system instructions.
 
@@ -364,7 +366,7 @@ Context:
 - Narration Style: ${narrationStyle}
 - Character Personality: ${characterPersonality} (PRIMARY CHARACTER ONLY)
 - Theme: ${theme}
-- Style: ${style}${style === 'custom_image' ? ' (Note: User uploaded an image as style reference - match that image\'s visual aesthetic)' : ''}
+- Style: ${style}${styleNote}
 - World Description: ${worldDescription}
 
 Task:
@@ -403,191 +405,5 @@ Important:
 - Infer age when possible from script context
 - Maximum 4 secondary characters
 - Output ONLY the JSON object, with no extra text.`;
-};
-```
-
----
-
-## Examples
-
-### Example 1: First-Person with Multiple Characters
-
-**Inputs:**
-```json
-{
-  "script": "I wake up every morning at 6 AM and head to my favorite coffee shop. Sarah, the owner, always has my order ready before I even ask. The new barista, Marcus, is still learning the ropes but he's got great potential. Later, my friend Jake joined us for a chat about his new startup idea.",
-  "narrationStyle": "first-person",
-  "characterPersonality": "energetic",
-  "theme": "urban",
-  "style": "Realistic Cinematic",
-  "worldDescription": "Modern city life, warm morning light, bustling urban energy"
 }
-```
 
-**Output:**
-```json
-{
-  "primaryCharacter": {
-    "name": "Narrator",
-    "summaryDescription": "An energetic young professional with a structured morning routine and passion for coffee culture.",
-    "summaryAppearance": "Young adult, late 20s, athletic build, bright alert eyes, modern urban casual wear, energetic demeanor.",
-    "description": "An energetic young professional with a structured morning routine and passion for coffee culture. Regular customer who has built relationships at the local coffee shop. Dynamic personality with enthusiasm for daily adventures and social connections.",
-    "appearance": "Young adult in late 20s with bright, alert eyes showing energetic enthusiasm. Athletic build with dynamic posture suggesting constant motion and vitality. Dressed in modern urban casual wear - fitted jeans, stylish sneaker-boots, layered clothing suitable for city commuting. Expressive face with animated features and warm smile. Clean, put-together appearance with attention to contemporary style. Radiates approachable energy and confident demeanor. Captured in warm morning urban lighting with bustling city atmosphere in background.",
-    "personality": "Energetic and enthusiastic, always in motion, builds connections easily, structured and organized, passionate about daily routines.",
-    "age": 28,
-    "mentionCount": "implicit"
-  },
-  "secondaryCharacters": [
-    {
-      "name": "Sarah",
-      "summaryDescription": "Coffee shop owner who knows regular customers well and anticipates their orders.",
-      "summaryAppearance": "Woman, mid-30s, warm professional appearance, business casual attire, welcoming smile.",
-      "description": "Coffee shop owner who knows regular customers well and anticipates their orders. Experienced business owner with warm, welcoming demeanor.",
-      "appearance": "Woman in her mid-30s with warm, professional appearance and welcoming smile. Business casual attire suitable for running a cafe - comfortable yet polished. Natural, friendly expression showing years of customer service experience. Modern urban style with practical elements.",
-      "age": 34,
-      "mentionCount": 3
-    },
-    {
-      "name": "Jake",
-      "summaryDescription": "Close friend of the narrator with entrepreneurial ambitions and startup ideas.",
-      "summaryAppearance": "Man, late 20s, relaxed friendly style, casual urban clothing, tech-worker aesthetic.",
-      "description": "Close friend of the narrator with entrepreneurial ambitions. Startup founder seeking advice and conversation.",
-      "appearance": "Man in late 20s with relaxed, friendly style and approachable demeanor. Casual urban clothing with slight tech-worker aesthetic. Open body language suggesting conversation-oriented personality. Contemporary city fashion.",
-      "age": 27,
-      "mentionCount": 2
-    },
-    {
-      "name": "Marcus",
-      "summaryDescription": "New barista at the coffee shop, still in training but showing promise.",
-      "summaryAppearance": "Young man, early 20s, cafe uniform, eager attentive expression, clean-cut appearance.",
-      "description": "New barista at the coffee shop, still in training but showing promise and dedication to learning.",
-      "appearance": "Young man in early 20s wearing cafe uniform with slight nervous energy of a trainee. Eager, attentive expression showing focus on learning. Clean-cut appearance with professional barista attire. Urban coffee shop aesthetic.",
-      "age": 22,
-      "mentionCount": 2
-    }
-  ]
-}
-```
-
----
-
-### Example 2: Third-Person Adventure Theme
-
-**Inputs:**
-```json
-{
-  "script": "Elena stepped into the ancient forest, her hiking boots crunching on fallen leaves. The mysterious guide, known only as The Watcher, appeared from behind a massive oak tree. 'You shouldn't be here,' he warned. But Elena was determined to find the hidden waterfall her grandmother had told her about.",
-  "narrationStyle": "third-person",
-  "characterPersonality": "adventurous",
-  "theme": "nature",
-  "style": "Cinematic Fantasy",
-  "worldDescription": "Mystical ancient forest, dappled light through trees, magical atmosphere"
-}
-```
-
-**Output:**
-```json
-{
-  "primaryCharacter": {
-    "name": "Elena",
-    "summaryDescription": "An adventurous explorer searching for a hidden waterfall from her grandmother's stories.",
-    "summaryAppearance": "Young woman, mid-20s, confident adventurous stance, rugged outdoor clothing, hiking gear, determined expression.",
-    "description": "An adventurous explorer searching for a hidden waterfall from her grandmother's stories. Bold and determined with strong willpower. Unafraid of mysterious warnings or challenges. Driven by curiosity and family legacy.",
-    "appearance": "Young woman in mid-20s with confident, adventurous stance and determined expression. Rugged outdoor clothing including practical hiking boots, weather-resistant jacket, and cargo pants with multiple pockets. Athletic build suggesting physical fitness and outdoor experience. Windswept hair with natural, unpolished look. Daring eyes showing courage and explorative spirit. Equipped with hiking gear and backpack. Captured in mystical dappled forest light with ancient trees in background. Features show bold determination and fearless energy characteristic of an adventurer.",
-    "personality": "Adventurous and bold, determined and fearless, driven by curiosity, unafraid of challenges, values family legacy.",
-    "age": 25,
-    "mentionCount": 4
-  },
-  "secondaryCharacters": [
-    {
-      "name": "The Watcher",
-      "summaryDescription": "Mysterious guide who inhabits the ancient forest and warns outsiders away.",
-      "summaryAppearance": "Middle-aged man, enigmatic presence, earth-toned weathered clothing, cloaked with hood, wise ancient eyes.",
-      "description": "Mysterious guide who inhabits the ancient forest. Cryptic figure who warns outsiders away from the area.",
-      "appearance": "Middle-aged man emerging from shadows with enigmatic presence. Earth-toned, weathered clothing blending with forest environment. Cloaked appearance with hood partially obscuring features. Wise, ancient eyes with knowing expression. Positioned in dappled magical forest lighting.",
-      "age": 45,
-      "mentionCount": 2
-    }
-  ]
-}
-```
-
----
-
-### Example 3: Tech Theme with No Secondary Characters
-
-**Inputs:**
-```json
-{
-  "script": "I've been coding this AI app for six months straight. Today is launch day. My hands are shaking as I click the deploy button. This is it. Everything I've worked for comes down to this moment.",
-  "narrationStyle": "first-person",
-  "characterPersonality": "serious",
-  "theme": "tech",
-  "style": "Modern Realistic",
-  "worldDescription": "Minimalist tech workspace, cool blue lighting, professional development environment"
-}
-```
-
-**Output:**
-```json
-{
-  "primaryCharacter": {
-    "name": "Narrator",
-    "summaryDescription": "A serious, focused software developer launching their first major AI application after six months of work.",
-    "summaryAppearance": "Young professional, late 20s-early 30s, focused intense gaze, minimalist tech attire, professional glasses, composed presence.",
-    "description": "A serious, focused software developer launching their first major AI application. Six months of intensive work culminating in a high-stakes moment. Professional and composed despite the pressure. Dedicated and meticulous in their craft.",
-    "appearance": "Young professional in late 20s to early 30s with focused, intense gaze showing serious concentration. Lean build from long work hours. Dressed in minimalist tech professional attire - dark fitted t-shirt or button-up, jeans, comfortable yet modern shoes. Professional glasses adding to composed, authoritative presence. Clean, purposeful aesthetic. Sitting at sleek minimalist desk with multiple monitors. Expression shows controlled tension and professional gravity. Captured in cool blue tech lighting of modern development workspace. Posture demonstrates discipline and serious dedication to craft.",
-    "personality": "Serious and focused, professional and composed, dedicated and meticulous, disciplined approach to work, handles pressure with control.",
-    "age": 29,
-    "mentionCount": "implicit"
-  },
-  "secondaryCharacters": []
-}
-```
-
----
-
-### Example 4: Calm Personality with Multiple Mentions
-
-**Inputs:**
-```json
-{
-  "script": "This morning, I chose to walk through the quiet park. Mrs. Chen was feeding the ducks as always. 'Beautiful day,' she said with her gentle smile. I nodded and continued my peaceful stroll. The young couple on the bench, lost in conversation. The old man with his newspaper. Everyone existing in their own moment.",
-  "narrationStyle": "first-person",
-  "characterPersonality": "calm",
-  "theme": "nature",
-  "style": "Soft Illustrated",
-  "worldDescription": "Tranquil park setting, soft morning light, peaceful atmosphere"
-}
-```
-
-**Output:**
-```json
-{
-  "primaryCharacter": {
-    "name": "Narrator",
-    "summaryDescription": "A calm, mindful observer who finds peace in morning park walks and appreciates quiet moments.",
-    "summaryAppearance": "Person, 30s-40s, serene peaceful expression, comfortable muted-color casual wear, gentle demeanor, contemplative gaze.",
-    "description": "A calm, mindful observer who finds peace in morning park walks. Contemplative personality with appreciation for quiet moments and simple observations. Serene presence who notices details others miss.",
-    "appearance": "Person in their 30s-40s with serene, peaceful expression and soft features. Relaxed, flowing posture suggesting complete ease and mindfulness. Dressed in comfortable, muted-color casual wear - soft cardigan or light jacket, loose-fitting pants, comfortable walking shoes. Gentle demeanor radiating tranquility. Soft, unhurried movements. Kind eyes with contemplative gaze. Captured in gentle morning park light with peaceful natural atmosphere. Overall presence conveys calmness and inner peace through every aspect of appearance and bearing.",
-    "personality": "Calm and mindful, contemplative and serene, appreciates quiet moments, notices details, peaceful inner presence.",
-    "age": 36,
-    "mentionCount": "implicit"
-  },
-  "secondaryCharacters": [
-    {
-      "name": "Mrs. Chen",
-      "summaryDescription": "Regular park visitor who feeds ducks every morning with gentle demeanor.",
-      "summaryAppearance": "Elderly woman, gentle warm smile, traditional comfortable clothing, kind expression.",
-      "description": "Regular park visitor who feeds ducks every morning. Elderly woman with gentle demeanor and friendly nature.",
-      "appearance": "Elderly woman with gentle, warm smile and kind expression. Traditional comfortable clothing suitable for morning park visits. Soft features showing years of peaceful routine. Holding bread for feeding ducks. Captured in tranquil morning light.",
-      "age": 68,
-      "mentionCount": 2
-    }
-  ]
-}
-```
-
----
-
-**File Location**: `client/src/pages/videos/character-vlog-mode/prompts-character-vlog/step-2-elements/agent-2.1-character-analyzer.md`

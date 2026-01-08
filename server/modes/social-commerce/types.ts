@@ -93,7 +93,7 @@ export interface Step1Data {
   // Audio Settings
   audioVolume?: 'low' | 'medium' | 'high';
   speechTempo?: 'auto' | 'slow' | 'normal' | 'fast' | 'ultra-fast';
-  dialogue?: Array<{id: string; character?: string; line: string}>;
+  voiceoverScript?: string; // Optional user-written voiceover script (if empty, AI will generate)
   customVoiceoverInstructions?: string;
   soundEffectsEnabled?: boolean;
   soundEffectsPreset?: string;
@@ -114,6 +114,27 @@ export interface Step1Data {
   
   // Product Image (single hero image for Agent 5.1 vision analysis)
   productImageUrl?: string;
+  
+  // Enhanced product image structure
+  productImages?: {
+    mode?: 'manual' | 'ai_generated';
+    // Manual mode
+    heroProfile?: string | null;
+    productAngles?: Array<{ id: string; url: string; uploadedAt: number }>;
+    elements?: Array<{ id: string; url: string; uploadedAt: number; description?: string }>;
+    // AI mode
+    aiModeImages?: Array<{ id: string; url: string; uploadedAt: number }>;
+    // Shared
+    compositeImage?: {
+      url: string;
+      generatedAt: number;
+      mode: 'manual' | 'ai_generated';
+      sourceImages: string[];
+      isApplied?: boolean;
+      prompt?: string; // Store generated prompt for AI mode
+    };
+    aiContext?: { description?: string; generatedAt?: number };
+  };
   
   // Agent 1.1 output (kept for backward compatibility, but no longer populated)
   /** @deprecated Agent 1.1 has been removed */
@@ -382,13 +403,11 @@ export interface EnvironmentOutput {
  */
 export interface NarrativeOutput {
   visual_beats: Array<{
-    beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4';
+    beatId: 'beat1' | 'beat2' | 'beat3';
     beatName: string;
     beatDescription: string;
-    duration: 8;
-    isConnectedToPrevious: boolean;
+    duration: 12;
   }>;
-  connection_strategy: 'all_connected' | 'all_distinct' | 'mixed';
   cost?: number;
 }
 
@@ -444,7 +463,6 @@ export interface Step3Data {
       beat1: string;
       beat2: string;
       beat3: string;
-      beat4?: string;
     };
     campaignObjective: string;
     /** @deprecated Removed - no longer used */
@@ -488,7 +506,7 @@ export interface ShotDefinition {
   rendered_duration: number; // Duration in seconds (e.g., 0.5, 1.2, 2.0)
   
   // Beat assignment (for beat-based chunking)
-  beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4'; // Which beat this shot belongs to
+  beatId: 'beat1' | 'beat2' | 'beat3'; // Which beat this shot belongs to
 }
 
 /**
@@ -740,14 +758,11 @@ export interface BatchBeatPromptInput {
   
   // Visual Beats (from Agent 3.2)
   beats: Array<{
-    beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4';
+    beatId: 'beat1' | 'beat2' | 'beat3';
     beatName: string;
     beatDescription: string;
-    duration: 8;
-    isConnectedToPrevious: boolean;
+    duration: 12;
   }>;
-  
-  connection_strategy: 'all_connected' | 'all_standalone' | 'mixed';
   
   // Raw User Inputs (from step1Data - replaces Agent 1.1 outputs)
   productTitle: string;
@@ -784,27 +799,30 @@ export interface BatchBeatPromptInput {
     };
   };
   
-  // Technical Settings
-  videoModel?: string;
-  videoResolution?: string;
-  custom_image_instructions?: string;
-  global_motion_dna?: string;
+  // Image Mode Context (from step1Data.productImages)
+  imageMode?: 'hero' | 'composite';
+  compositeElements?: {
+    hasHeroProduct: boolean;
+    hasProductAngles: boolean;
+    hasDecorativeElements: boolean;
+    elementDescriptions?: string[];
+  };
 }
 
 /**
  * Output from Agent 5.1: Beat Prompts for Sora
+ * 
+ * Simplified structure: All beats use the same reference image (hero or composite).
+ * No connection logic between beats - each beat is independent.
  */
 export interface BeatPromptOutput {
   beat_prompts: Array<{
-    beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4';
+    beatId: 'beat1' | 'beat2' | 'beat3';
     beatName: string;
-    isConnectedToPrevious: boolean;
     sora_prompt: {
-      text: string; // Complete comprehensive Sora prompt following approved structure
+      text: string; // Complete comprehensive Sora prompt following simplified 8-section structure
     };
-    input_image_type: 'hero' | 'previous_frame';
-    shots_in_beat: string[]; // Array of shot_ids included in this beat
-    total_duration: 8;
+    total_duration: 12;
     audio_guidance?: {
       // Note: voiceover removed, handled by Agent 5.2 separately
       sound_effects?: {
@@ -829,12 +847,12 @@ export interface BeatPromptOutput {
 export interface VoiceoverScriptInput {
   // Beat Information (from Agent 3.2/4.1)
   beats: Array<{
-    beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4';
+    beatId: 'beat1' | 'beat2' | 'beat3';
     beatName: string;
     beatDescription: string; // Visual beat description
     narrativeRole: 'hook' | 'transformation' | 'payoff';
     emotionalTone: string; // e.g., "confident", "energetic", "satisfying"
-    duration: 8;
+    duration: 12;
   }>;
   
   // Voiceover Settings (from Tab 1)
@@ -872,7 +890,6 @@ export interface VoiceoverScriptInput {
       beat1: string;
       beat2: string;
       beat3: string;
-      beat4?: string;
     };
   };
   
@@ -888,7 +905,7 @@ export interface VoiceoverScriptInput {
  */
 export interface VoiceoverScriptOutput {
   beat_scripts: Array<{
-    beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4';
+    beatId: 'beat1' | 'beat2' | 'beat3';
     voiceoverScript: {
       enabled: boolean;
       language: 'ar' | 'en';

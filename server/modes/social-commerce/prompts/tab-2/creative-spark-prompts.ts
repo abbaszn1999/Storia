@@ -43,16 +43,18 @@ YOUR CREATIVE PROCESS
    - Find the unexpected connection
    - Create tension that resolves beautifully
    - Make it cinematic, not commercial
+   - When environment/setting enhances the concept, weave it naturally into the vision
 
 CREATIVE SPARK QUALITY STANDARDS
 
 A GREAT Spark:
-✓ Evokes immediate visual imagery
+✓ Evokes immediate visual imagery (including environment/setting when relevant)
 ✓ Has emotional resonance for the target audience
 ✓ Connects product texture to human experience
 ✓ Feels cinematic and premium
 ✓ Inspires downstream agents (world-building, narrative, VFX)
 ✓ Is specific enough to guide, open enough to interpret
+✓ Naturally incorporates environment/setting when it enhances the concept
 
 A WEAK Spark:
 ✗ Generic ("Product excellence meets lifestyle")
@@ -108,25 +110,56 @@ WATCH (Luxury):
 precision, revealed through light that dances across the surface like 
 memories forming. The watch doesn't just tell time; it embodies it."
 
+WATCH (Luxury - with environment):
+"In a minimalist studio where light becomes architecture, time crystallizes 
+in titanium. Each brushed grain captures a moment of precision, revealed 
+through golden hour rays that dance across the surface like memories 
+forming. The watch doesn't just tell time; it embodies it within this 
+sanctuary of light and shadow."
+
 SNEAKER (Youth):
 "Velocity made visible. The mesh breathes like a living thing, each fiber 
 capturing the blur between launch and landing. Not just a shoe — a 
 frozen moment of becoming airborne."
+
+SNEAKER (Youth - with environment):
+"On urban streets where concrete meets sky, velocity becomes visible. The 
+mesh breathes like a living thing, each fiber capturing the blur between 
+launch and landing against graffiti-scarred walls. Not just a shoe — a 
+frozen moment of becoming airborne in the city's pulse."
 
 PERFUME (Feminine Luxury):
 "Glass holds liquid midnight. A single drop catches light like a falling 
 star — transformation from vessel to vapor, from scent to memory. 
 Elegance isn't worn; it's exhaled."
 
+PERFUME (Feminine Luxury - with environment):
+"In a sun-drenched boudoir where morning light filters through silk curtains, 
+glass holds liquid midnight. A single drop catches light like a falling 
+star — transformation from vessel to vapor, from scent to memory. 
+Elegance isn't worn; it's exhaled into this intimate sanctuary."
+
 TECH DEVICE (Premium):
 "Darkness yields to a single edge of light. Metal awakens. In this 
 moment between off and on, between silence and symphony, lies the 
 anticipation of everything possible."
 
+TECH DEVICE (Premium - with environment):
+"In the quiet of a modern workspace where minimalism meets function, darkness 
+yields to a single edge of light. Metal awakens. In this moment between 
+off and on, between silence and symphony, lies the anticipation of 
+everything possible within this temple of productivity."
+
 CAR (Performance):
 "Steel shaped by wind, painted by motion. The air itself becomes 
 sculptor — every curve a negotiation between power and grace. 
 Not driving. Dancing with physics."
+
+CAR (Performance - with environment):
+"On mountain passes where asphalt ribbons through mist, steel is shaped by 
+wind and painted by motion. The air itself becomes sculptor — every curve 
+a negotiation between power and grace against the backdrop of peaks. 
+Not driving. Dancing with physics in nature's cathedral."
 
 ═══════════════════════════════════════════════════════════════════════════════
 OUTPUT REQUIREMENTS
@@ -208,6 +241,13 @@ Your Spark should:
 2. Resonate emotionally with ${input.targetAudience} in ${input.region}
 3. Create compelling visual narrative from product context
 4. Feel cinematic, not commercial
+5. When relevant, naturally incorporate environment/setting that enhances the concept
+
+Note: Environment/setting should be woven organically into the creative vision when it 
+strengthens the emotional or visual impact. Don't force it, but don't avoid it if it 
+serves the concept. Examples: a minimalist studio for luxury products, urban streets 
+for youth culture, intimate spaces for personal products, natural landscapes for 
+premium experiences.
 
 Return ONLY the JSON object — no explanation, no preamble.`;
 }

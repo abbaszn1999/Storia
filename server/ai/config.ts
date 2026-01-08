@@ -149,6 +149,42 @@ const openAiModels: AiModelConfig[] = [
       cacheInputCostPer1KTokens: 0.000275,
     },
   },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // OpenAI Sora 2 - Video Generation
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    name: "sora-2",
+    provider: "openai",
+    metadata: {
+      label: "Sora 2",
+      description: "OpenAI Sora 2 video generation model - Standard quality",
+      supports: ["video-generation", "image-to-video"],
+      defaultResolution: "720p",
+      defaultDuration: 8,
+    },
+    pricing: {
+      currency: "usd",
+      pricePerSecond: 0.10, // $0.10 per second
+    },
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // OpenAI Sora 2 Pro - Video Generation
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    name: "sora-2-pro",
+    provider: "openai",
+    metadata: {
+      label: "Sora 2 Pro",
+      description: "OpenAI Sora 2 Pro - Higher quality with additional resolutions (7:4, 4:7), refined control, better consistency for professional use",
+      supports: ["video-generation", "image-to-video"],
+      defaultResolution: "720p",
+      defaultDuration: 8,
+    },
+    pricing: {
+      currency: "usd",
+      pricePerSecond: 0.30, // $0.30/sec for 720p, $0.50/sec for higher res (1024x1792, 1792x1024)
+    },
+  },
 ];
 
 const geminiModels: AiModelConfig[] = [

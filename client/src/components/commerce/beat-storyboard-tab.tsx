@@ -19,7 +19,6 @@ function getSampleBeatPrompts(): BeatPromptOutput {
       {
         beatId: 'beat1',
         beatName: 'The Ignition',
-        isConnectedToPrevious: false,
         sora_prompt: {
           text: `═══════════════════════════════════════════════════════════════════════════════
 EXCLUSIONS (CRITICAL)
@@ -67,7 +66,7 @@ VISUAL METAPHOR INTEGRATION:
 - Metaphor Elements: Clean lines, geometric precision, structured movement
 
 ═══════════════════════════════════════════════════════════════════════════════
-TIMELINE (8.0 seconds total — continuous motion, high energy)
+TIMELINE (12.0 seconds total — continuous motion, high energy)
 ═══════════════════════════════════════════════════════════════════════════════
 NARRATIVE CONTEXT:
 - Beat Position: beat1 — Hook/Opening moment
@@ -150,9 +149,7 @@ FINAL FRAME REQUIREMENTS
 ═══════════════════════════════════════════════════════════════════════════════
 For connected beats: Final frame must show product cleanly and clearly visible, centered composition, ready for seamless continuation in next beat.`
         },
-        input_image_type: 'hero',
-        shots_in_beat: ['shot_001', 'shot_002', 'shot_003'],
-        total_duration: 8,
+        total_duration: 12,
         audio_guidance: {
           // Note: voiceover handled by Agent 5.2 separately
           sound_effects: {
@@ -174,7 +171,6 @@ For connected beats: Final frame must show product cleanly and clearly visible, 
       {
         beatId: 'beat2',
         beatName: 'The Transformation',
-        isConnectedToPrevious: true,
         sora_prompt: {
           text: `═══════════════════════════════════════════════════════════════════════════════
 EXCLUSIONS (CRITICAL)
@@ -222,7 +218,7 @@ VISUAL METAPHOR INTEGRATION:
 - Metaphor Elements: Clean lines, geometric precision, structured movement
 
 ═══════════════════════════════════════════════════════════════════════════════
-TIMELINE (8.0 seconds total — continuous motion, high energy)
+TIMELINE (12.0 seconds total — continuous motion, high energy)
 ═══════════════════════════════════════════════════════════════════════════════
 NARRATIVE CONTEXT:
 - Beat Position: beat2 — Transformation/Development moment
@@ -305,9 +301,7 @@ FINAL FRAME REQUIREMENTS
 ═══════════════════════════════════════════════════════════════════════════════
 For connected beats: Final frame must show product cleanly and clearly visible, centered composition, ready for seamless continuation in next beat.`
         },
-        input_image_type: 'previous_frame',
-        shots_in_beat: ['shot_004', 'shot_005', 'shot_006'],
-        total_duration: 8,
+        total_duration: 12,
         audio_guidance: {
           // Note: voiceover handled by Agent 5.2 separately
           sound_effects: {
@@ -329,7 +323,6 @@ For connected beats: Final frame must show product cleanly and clearly visible, 
       {
         beatId: 'beat3',
         beatName: 'The Payoff',
-        isConnectedToPrevious: true,
         sora_prompt: {
           text: `═══════════════════════════════════════════════════════════════════════════════
 EXCLUSIONS (CRITICAL)
@@ -342,7 +335,7 @@ Use the previous beat's final frame as the starting point. Maintain continuity w
 PHYSICS & MATERIAL RULES
 Product: Medium mass, gravity-driven motion, smooth continuation from previous beat.
 
-TIMELINE (8.0 seconds total)
+TIMELINE (12.0 seconds total)
 [0.0-0.1] Seamless continuation from beat2
 [0.1-3.0] Dramatic reveal - Product showcased in new perspective
 [3.0-6.0] Feature demonstration - Key features highlighted
@@ -363,9 +356,7 @@ Music: Ambient electronic, minimal, high-energy
 FINAL FRAME REQUIREMENTS
 Final frame shows product cleanly and clearly visible, centered composition.`
         },
-        input_image_type: 'previous_frame',
-        shots_in_beat: ['shot_007', 'shot_008', 'shot_009'],
-        total_duration: 8,
+        total_duration: 12,
         audio_guidance: {
           // Note: voiceover handled by Agent 5.2 separately
           sound_effects: {
@@ -497,22 +488,7 @@ export function BeatStoryboardTab({
     const state = generationState[beatId];
     if (state) return state.status;
     
-    // Check if locked
-    const beat = beats.find(b => b.beatId === beatId);
-    if (beat?.isConnectedToPrevious) {
-      const previousBeat = beats.find((b, index) => {
-        const currentIndex = beats.indexOf(beat);
-        return index === currentIndex - 1;
-      });
-      
-      if (previousBeat) {
-        const previousStatus = generationState[previousBeat.beatId]?.status;
-        if (previousStatus !== 'completed') {
-          return 'locked';
-        }
-      }
-    }
-    
+    // All beats are now independent - no connection logic needed
     return 'pending';
   };
 
@@ -705,7 +681,7 @@ export function BeatStoryboardTab({
                 <div>
                   <h1 className="text-lg font-bold text-foreground">Beat Storyboard</h1>
                   <p className="text-xs text-muted-foreground">
-                    {beats.length} beat{beats.length !== 1 ? 's' : ''} • {beats[0]?.total_duration || 8}s each
+                    {beats.length} beat{beats.length !== 1 ? 's' : ''} • {beats[0]?.total_duration || 12}s each
                   </p>
                 </div>
               </div>
@@ -790,6 +766,11 @@ export function BeatStoryboardTab({
                             handleGenerate(beat.beatId);
                           } : undefined}
                           onPromptUpdate={handlePromptUpdate}
+                          videoUrl={generationState[beat.beatId]?.videoUrl}
+                          onRegenerate={beatStatus === 'completed' && onBeatRegenerate ? () => {
+                            setSelectedBeatId(beat.beatId);
+                            handleRetry();
+                          } : undefined}
                         />
                       </div>
                     </div>

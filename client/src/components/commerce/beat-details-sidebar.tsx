@@ -92,13 +92,6 @@ export function BeatDetailsSidebar({
         </div>
       </div>
 
-      {/* Connection Status */}
-      {beat.isConnectedToPrevious && (
-        <div className="flex items-center gap-2 text-xs text-cyan-400">
-          <Link2 className="h-3.5 w-3.5" />
-          <span>Connected to previous beat</span>
-        </div>
-      )}
 
       {/* Duration */}
       <div className="flex items-center gap-2 text-xs text-white/50">

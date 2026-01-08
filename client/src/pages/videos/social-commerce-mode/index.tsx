@@ -11,8 +11,8 @@ import { Loader2 } from "lucide-react";
 import type { Character, Video } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 
-// Duration options (beat-based chunking: each duration = N beats × 8s)
-const DURATION_OPTIONS = [8, 16, 24, 32] as const;
+// Duration options (beat-based chunking: each duration = N beats × 12s)
+const DURATION_OPTIONS = [12, 24, 36] as const;
 
 interface ProductDetails {
   title: string;
@@ -82,7 +82,7 @@ export default function SocialCommerceMode() {
   // Video settings
   const [script, setScript] = useState("");
   const [aspectRatio, setAspectRatio] = useState("9:16");
-  const [duration, setDuration] = useState("8"); // Sora default: 8 seconds
+  const [duration, setDuration] = useState("12"); // Sora default: 12 seconds
   const [voiceActorId, setVoiceActorId] = useState<string | null>(null);
   const [voiceOverEnabled, setVoiceOverEnabled] = useState(true);
   
@@ -95,7 +95,7 @@ export default function SocialCommerceMode() {
   // Audio Settings (Tab 1)
   const [audioVolume, setAudioVolume] = useState<'low' | 'medium' | 'high'>('medium');
   const [speechTempo, setSpeechTempo] = useState<'auto' | 'slow' | 'normal' | 'fast' | 'ultra-fast'>('auto');
-  const [dialogue, setDialogue] = useState<Array<{id: string; character?: string; line: string}>>([]);
+  const [voiceoverScript, setVoiceoverScript] = useState<string>('');
   const [customVoiceoverInstructions, setCustomVoiceoverInstructions] = useState("");
   
   const [soundEffectsEnabled, setSoundEffectsEnabled] = useState(false);
@@ -118,25 +118,37 @@ export default function SocialCommerceMode() {
   
   // Product DNA & Brand Identity settings (Tab 2)
   const [productImages, setProductImages] = useState<{
+    mode?: 'manual' | 'ai_generated';
     heroProfile: string | null;
-    macroDetail: string | null;
-    materialReference: string | null;
+    productAngles?: Array<{ id: string; url: string; uploadedAt: number }>;
+    elements?: Array<{ id: string; url: string; uploadedAt: number; description?: string }>;
+    compositeImage?: { 
+      url: string; 
+      generatedAt: number; 
+      mode: 'manual' | 'ai_generated'; 
+      sourceImages: string[];
+      isApplied?: boolean;
+    };
+    aiContext?: { description?: string; generatedAt?: number };
   }>({
+    mode: 'manual',
     heroProfile: null,
-    macroDetail: null,
-    materialReference: null,
+    productAngles: [],
+    elements: [],
   });
   
   // Asset IDs for created assets (product images only - no character/brand assets for Sora)
   const [brandkitAssetId, setBrandkitAssetId] = useState<string | null>(null);
   const [productImageAssetIds, setProductImageAssetIds] = useState<{
     heroProfile: string | null;
-    macroDetail: string | null;
-    materialReference: string | null;
+    productAngles?: Record<string, string>;
+    elements?: Record<string, string>;
+    aiModeImages?: Record<string, string>;
+    compositeImage?: string;
   }>({
     heroProfile: null,
-    macroDetail: null,
-    materialReference: null,
+    productAngles: {},
+    elements: {},
   });
   
   // Names for auto-created assets
@@ -521,7 +533,7 @@ export default function SocialCommerceMode() {
         // Audio Settings
         if (step1.audioVolume) setAudioVolume(step1.audioVolume);
         if (step1.speechTempo) setSpeechTempo(step1.speechTempo);
-        if (step1.dialogue) setDialogue(step1.dialogue);
+        if (step1.voiceoverScript) setVoiceoverScript(step1.voiceoverScript);
         if (step1.customVoiceoverInstructions) setCustomVoiceoverInstructions(step1.customVoiceoverInstructions);
         if (step1.soundEffectsEnabled !== undefined) setSoundEffectsEnabled(step1.soundEffectsEnabled);
         if (step1.soundEffectsPreset) setSoundEffectsPreset(step1.soundEffectsPreset);
@@ -555,6 +567,30 @@ export default function SocialCommerceMode() {
       // Restore step2Data if available (NEW: Nested structure)
       const step2 = existingVideo.step2Data as any;
       if (step2) {
+        // ✨ NEW: Restore UI inputs first (visualPreset, campaignSpark, campaignObjective)
+        if (step2.uiInputs) {
+          if (step2.uiInputs.visualPreset) {
+            setVisualPreset(step2.uiInputs.visualPreset);
+          }
+          if (step2.uiInputs.campaignSpark) {
+            setCampaignSpark(step2.uiInputs.campaignSpark);
+          }
+          if (step2.uiInputs.campaignObjective) {
+            setCampaignObjective(step2.uiInputs.campaignObjective);
+          }
+          console.log('[SocialCommerce] Restored uiInputs from step2Data:', {
+            hasVisualPreset: !!step2.uiInputs.visualPreset,
+            hasCampaignSpark: !!step2.uiInputs.campaignSpark,
+            hasCampaignObjective: !!step2.uiInputs.campaignObjective,
+          });
+        }
+        
+        // Also check creativeSpark for campaignSpark (if uiInputs doesn't have it)
+        if (!step2.uiInputs?.campaignSpark && step2.creativeSpark?.creative_spark) {
+          setCampaignSpark(step2.creativeSpark.creative_spark);
+          console.log('[SocialCommerce] Restored campaignSpark from step2Data.creativeSpark');
+        }
+        
         // Product data (material settings only - images are in step1Data)
         if (step2.product) {
           // Note: Product images are now in step1Data, not step2Data
@@ -605,8 +641,39 @@ export default function SocialCommerceMode() {
         // Removed: Brand data restoration (no logo support for Sora)
         // Removed: Style reference restoration (Sora only accepts one image input - product hero)
         
+        // ✨ NEW: Restore generated visual beats from narrative output
+        if (step2.narrative?.visual_beats && Array.isArray(step2.narrative.visual_beats)) {
+          const restoredBeats: { beat1: string; beat2: string; beat3: string } = {
+            beat1: "",
+            beat2: "",
+            beat3: "",
+          };
+          
+          // Map narrative beats to visualBeats state format
+          step2.narrative.visual_beats.forEach((beat: any) => {
+            if (beat.beatId === 'beat1' && beat.beatDescription) {
+              restoredBeats.beat1 = beat.beatDescription;
+            } else if (beat.beatId === 'beat2' && beat.beatDescription) {
+              restoredBeats.beat2 = beat.beatDescription;
+            } else if (beat.beatId === 'beat3' && beat.beatDescription) {
+              restoredBeats.beat3 = beat.beatDescription;
+            }
+          });
+          
+          setVisualBeats(restoredBeats);
+          console.log('[SocialCommerce] Restored visual beats from step2Data.narrative:', {
+            beatCount: step2.narrative.visual_beats.length,
+            hasBeat1: !!restoredBeats.beat1,
+            hasBeat2: !!restoredBeats.beat2,
+            hasBeat3: !!restoredBeats.beat3,
+          });
+        }
+        
         console.log('[SocialCommerce] Restored step2Data (nested structure):', {
+          hasUiInputs: !!step2.uiInputs,
           hasCharacter: !!step2.character?.persona,
+          hasNarrative: !!step2.narrative,
+          hasVisualBeats: !!(step2.narrative?.visual_beats && step2.narrative.visual_beats.length > 0),
           // Note: Product images are now in step1Data, not step2Data
         });
       }
@@ -639,9 +706,35 @@ export default function SocialCommerceMode() {
           }
         }
         
+        // ✨ NEW: Also restore visual beats from legacy step3Data
+        if (step2FromLegacy.narrative?.visual_beats && Array.isArray(step2FromLegacy.narrative.visual_beats)) {
+          const restoredBeats: { beat1: string; beat2: string; beat3: string } = {
+            beat1: "",
+            beat2: "",
+            beat3: "",
+          };
+          
+          step2FromLegacy.narrative.visual_beats.forEach((beat: any) => {
+            if (beat.beatId === 'beat1' && beat.beatDescription) {
+              restoredBeats.beat1 = beat.beatDescription;
+            } else if (beat.beatId === 'beat2' && beat.beatDescription) {
+              restoredBeats.beat2 = beat.beatDescription;
+            } else if (beat.beatId === 'beat3' && beat.beatDescription) {
+              restoredBeats.beat3 = beat.beatDescription;
+            }
+          });
+          
+          setVisualBeats(restoredBeats);
+          console.log('[SocialCommerce] Restored visual beats from legacy step3Data.narrative:', {
+            beatCount: step2FromLegacy.narrative.visual_beats.length,
+          });
+        }
+        
         console.log('[SocialCommerce] Restored step2Data from legacy step3Data:', {
           hasUiInputs: !!step2FromLegacy.uiInputs,
           hasCreativeSpark: !!step2FromLegacy.creativeSpark || !!step2FromLegacy.campaignSpark,
+          hasNarrative: !!step2FromLegacy.narrative,
+          hasVisualBeats: !!(step2FromLegacy.narrative?.visual_beats && step2FromLegacy.narrative.visual_beats.length > 0),
         });
       }
       
@@ -665,8 +758,9 @@ export default function SocialCommerceMode() {
           1: "setup",
           2: "script",
           3: "storyboard",
-          4: "animatic",
-          5: "export",
+          4: "voiceover",
+          5: "animatic",
+          6: "export",
         };
         const restored = existingVideo.completedSteps
           .map(n => stepMap[n as number])
@@ -680,8 +774,9 @@ export default function SocialCommerceMode() {
           1: "setup",
           2: "script",
           3: "storyboard",
-          4: "animatic",
-          5: "export",
+          4: "voiceover",
+          5: "animatic",
+          6: "export",
         };
         const currentStepId = stepMap[existingVideo.currentStep];
         if (currentStepId) setActiveStep(currentStepId);
@@ -825,6 +920,7 @@ export default function SocialCommerceMode() {
     "setup": "setup",  // Tab 1 = Setup + Product Image (ProductSetupTab)
     "script": "environment-story",  // Tab 2 = Creative Spark + Beats (VisualStyleTab - simplified)
     "storyboard": "storyboard",  // Tab 3 = Generate Prompts (BeatStoryboardTab)
+    "voiceover": "voiceover",  // Tab 4 = Voiceover (VoiceoverTab)
     "animatic": "animatic",
     "export": "export"
   };
@@ -852,8 +948,10 @@ export default function SocialCommerceMode() {
   // ═══════════════════════════════════════════════════════════════════════════
   
   const handleProductImageUpload = async (
-    key: 'heroProfile' | 'macroDetail' | 'materialReference',
-    file: File
+    type: 'hero' | 'angle' | 'element' | 'ai_mode',
+    file: File,
+    description?: string,
+    existingId?: string
   ) => {
     try {
       if (!currentWorkspace?.id || !videoId) {
@@ -881,30 +979,216 @@ export default function SocialCommerceMode() {
 
       const data = await response.json();
       
-      // Store CDN URL and asset ID
-      setProductImages(prev => ({ ...prev, [key]: data.cdnUrl }));
-      setProductImageAssetIds(prev => ({ ...prev, [key]: data.assetId }));
-
-      // ✨ Immediately save to step1Data (so user can see images after page refresh)
-      // Product images belong to Tab 1, so they should only be in step1Data
-      if (videoId && videoId !== 'new') {
-        try {
-          // For heroProfile, save as productImageUrl in step1Data
-          if (key === 'heroProfile') {
+      // Store CDN URL and asset ID based on type
+      if (type === 'hero') {
+        setProductImages(prev => ({ ...prev, heroProfile: data.cdnUrl }));
+        setProductImageAssetIds(prev => ({ ...prev, heroProfile: data.assetId }));
+        
+        // Save to step1Data for backward compatibility
+        if (videoId && videoId !== 'new') {
+          try {
+            const updatedImages = {
+              ...productImages,
+              heroProfile: data.cdnUrl,
+            };
             await fetch(`/api/social-commerce/videos/${videoId}/step/1/data`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
               body: JSON.stringify({
                 productImageUrl: data.cdnUrl,
+                productImages: updatedImages,
               }),
             });
             console.log(`[SocialCommerce] Saved productImageUrl to step1Data`);
+          } catch (saveError) {
+            console.error('Failed to save to step1Data:', saveError);
           }
-          // Note: macroDetail and materialReference are not used by agents, 
-          // but if needed in future, they can be saved to step1Data as well
-        } catch (saveError) {
-          console.error('Failed to save to step1Data:', saveError);
+        }
+      } else if (type === 'angle') {
+        if (existingId) {
+          // Replace existing image
+          setProductImages(prev => ({
+            ...prev,
+            productAngles: (prev.productAngles || []).map(angle =>
+              angle.id === existingId
+                ? { ...angle, url: data.cdnUrl, uploadedAt: Date.now() }
+                : angle
+            ),
+          }));
+          setProductImageAssetIds(prev => ({
+            ...prev,
+            productAngles: {
+              ...(prev.productAngles || {}),
+              [existingId]: data.assetId,
+            },
+          }));
+        } else {
+          // Add new image
+          const id = `angle_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          setProductImages(prev => ({
+            ...prev,
+            productAngles: [
+              ...(prev.productAngles || []),
+              { id, url: data.cdnUrl, uploadedAt: Date.now() }
+            ],
+          }));
+          setProductImageAssetIds(prev => ({
+            ...prev,
+            productAngles: {
+              ...(prev.productAngles || {}),
+              [id]: data.assetId,
+            },
+          }));
+        }
+        
+        // Save to step1Data after state update
+        if (videoId && videoId !== 'new') {
+          try {
+            // Calculate updated state
+            const updatedImages = existingId
+              ? {
+                  ...productImages,
+                  productAngles: (productImages?.productAngles || []).map(angle =>
+                    angle.id === existingId
+                      ? { ...angle, url: data.cdnUrl, uploadedAt: Date.now() }
+                      : angle
+                  ),
+                }
+              : {
+                  ...productImages,
+                  productAngles: [
+                    ...(productImages?.productAngles || []),
+                    { id: existingId || `angle_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, url: data.cdnUrl, uploadedAt: Date.now() }
+                  ],
+                };
+            
+            // Save to backend
+            await fetch(`/api/social-commerce/videos/${videoId}/step/1/data`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                productImages: updatedImages,
+              }),
+            });
+            console.log(`[SocialCommerce] Saved productAngles to step1Data`);
+          } catch (saveError) {
+            console.error('Failed to save to step1Data:', saveError);
+          }
+        }
+      } else if (type === 'element') {
+        if (existingId) {
+          // Replace existing image
+          setProductImages(prev => ({
+            ...prev,
+            elements: (prev.elements || []).map(element =>
+              element.id === existingId
+                ? { ...element, url: data.cdnUrl, uploadedAt: Date.now(), description: description || element.description }
+                : element
+            ),
+          }));
+          setProductImageAssetIds(prev => ({
+            ...prev,
+            elements: {
+              ...(prev.elements || {}),
+              [existingId]: data.assetId,
+            },
+          }));
+        } else {
+          // Add new image
+          const id = `element_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          setProductImages(prev => ({
+            ...prev,
+            elements: [
+              ...(prev.elements || []),
+              { id, url: data.cdnUrl, uploadedAt: Date.now(), description }
+            ],
+          }));
+          setProductImageAssetIds(prev => ({
+            ...prev,
+            elements: {
+              ...(prev.elements || {}),
+              [id]: data.assetId,
+            },
+          }));
+        }
+        
+        // Save to step1Data after state update
+        if (videoId && videoId !== 'new') {
+          try {
+            // Calculate updated state
+            const updatedImages = existingId
+              ? {
+                  ...productImages,
+                  elements: (productImages?.elements || []).map(element =>
+                    element.id === existingId
+                      ? { ...element, url: data.cdnUrl, uploadedAt: Date.now(), description: description || element.description }
+                      : element
+                  ),
+                }
+              : {
+                  ...productImages,
+                  elements: [
+                    ...(productImages?.elements || []),
+                    { id: existingId || `element_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, url: data.cdnUrl, uploadedAt: Date.now(), description }
+                  ],
+                };
+            
+            // Save to backend
+            await fetch(`/api/social-commerce/videos/${videoId}/step/1/data`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                productImages: updatedImages,
+              }),
+            });
+            console.log(`[SocialCommerce] Saved elements to step1Data`);
+          } catch (saveError) {
+            console.error('Failed to save to step1Data:', saveError);
+          }
+        }
+      } else if (type === 'ai_mode') {
+        // AI mode: Add to aiModeImages array
+        const id = `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        setProductImages(prev => ({
+          ...prev,
+          aiModeImages: [
+            ...(prev.aiModeImages || []),
+            { id, url: data.cdnUrl, uploadedAt: Date.now() }
+          ],
+        }));
+        setProductImageAssetIds(prev => ({
+          ...prev,
+          aiModeImages: {
+            ...(prev.aiModeImages || {}),
+            [id]: data.assetId,
+          },
+        }));
+        
+        // Save to step1Data
+        if (videoId && videoId !== 'new') {
+          try {
+            const updatedImages = {
+              ...productImages,
+              aiModeImages: [
+                ...(productImages?.aiModeImages || []),
+                { id, url: data.cdnUrl, uploadedAt: Date.now() }
+              ],
+            };
+            await fetch(`/api/social-commerce/videos/${videoId}/step/1/data`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                productImages: updatedImages,
+              }),
+            });
+            console.log(`[SocialCommerce] Saved aiModeImages to step1Data`);
+          } catch (saveError) {
+            console.error('Failed to save to step1Data:', saveError);
+          }
         }
       }
 
@@ -934,46 +1218,688 @@ export default function SocialCommerceMode() {
   // Removed: handleDeleteCharacter - no character image deletion for Sora
   // Removed: handleDeleteLogo - no logo deletion for Sora
 
-  const handleDeleteProductImage = async (key: 'heroProfile' | 'macroDetail' | 'materialReference') => {
-    const assetId = productImageAssetIds[key];
-    if (!assetId) {
-      // If no asset ID, just clear from state (not yet uploaded to DB)
-      setProductImages(prev => ({ ...prev, [key]: null }));
-      toast({
-        title: "Image removed",
-        description: "Product image cleared",
-      });
-      return;
-    }
-    
+  // Prompt preview dialog state
+  const [isPromptPreviewOpen, setIsPromptPreviewOpen] = useState(false);
+  const [previewPrompt, setPreviewPrompt] = useState<string>('');
+  const [previewMetadata, setPreviewMetadata] = useState<{
+    layoutDescription: string;
+    styleGuidance: string;
+    sourceImages: string[];
+  } | null>(null);
+  const [editedPrompt, setEditedPrompt] = useState<string>('');
+
+  // Generate prompt only (for AI mode)
+  const handleGeneratePrompt = async (context?: string): Promise<void> => {
     try {
-      // Delete from Assets + Bunny + update video's step2Data (backend handles all)
-      // Pass imageKey so backend knows exactly which product image to clear
-      const params = new URLSearchParams();
-      if (videoId && videoId !== 'new') {
-        params.append('videoId', videoId);
-        params.append('imageKey', key);
-        params.append('imageType', 'product');
+      if (!videoId || videoId === 'new') {
+        const errorMsg = 'Please wait for the video to be created. If this persists, please refresh the page.';
+        console.error('[Generate Prompt] Video ID not available:', videoId);
+        throw new Error(errorMsg);
       }
-      const url = `/api/social-commerce/assets/upload/${assetId}${params.toString() ? '?' + params.toString() : ''}`;
-        
-      const response = await fetch(url, {
-        method: 'DELETE',
-        credentials: 'include',
+
+      // Collect all AI mode image URLs
+      const sourceImages: string[] = [];
+      if (productImages?.aiModeImages) {
+        sourceImages.push(...productImages.aiModeImages.map(img => img.url));
+      }
+
+      if (sourceImages.length === 0) {
+        throw new Error('No images to combine. Please upload at least one image.');
+      }
+
+      if (sourceImages.length > 6) {
+        throw new Error('Maximum 6 images allowed for AI mode.');
+      }
+
+      console.log('[Generate Prompt] Starting prompt generation:', {
+        videoId,
+        imageCount: sourceImages.length,
+        hasContext: !!context,
       });
-      
+
+      // Call prompt generation endpoint
+      const response = await fetch(`/api/social-commerce/videos/${videoId}/composite/generate-prompt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          images: sourceImages,
+          context: context || undefined,
+        }),
+      });
+
       if (!response.ok) {
-        throw new Error('Failed to delete from Assets');
+        const error = await response.json().catch(() => ({ error: 'Failed to generate prompt' }));
+        console.error('[Generate Prompt] API error:', error);
+        throw new Error(error.error || error.details || 'Failed to generate prompt');
       }
-      
-      // Clear frontend state (backend already updated step2Data)
-      setProductImages(prev => ({ ...prev, [key]: null }));
-      setProductImageAssetIds(prev => ({ ...prev, [key]: null }));
-      
+
+      const data = await response.json();
+      console.log('[Generate Prompt] Success:', data);
+
+      // Set preview data and open dialog
+      setPreviewPrompt(data.prompt);
+      setEditedPrompt(data.prompt);
+      setPreviewMetadata({
+        layoutDescription: data.layoutDescription,
+        styleGuidance: data.styleGuidance,
+        sourceImages: data.sourceImages || sourceImages,
+      });
+      setIsPromptPreviewOpen(true);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to generate prompt";
+      console.error('[Generate Prompt] Error:', error);
+      toast({
+        title: "Prompt generation failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  // Generate image with prompt (for AI mode)
+  const handleGenerateImage = async (
+    prompt: string,
+    layoutDescription: string,
+    styleGuidance: string,
+    sourceImages: string[],
+    context?: string
+  ): Promise<string> => {
+    try {
+      if (!videoId || videoId === 'new') {
+        const errorMsg = 'Please wait for the video to be created. If this persists, please refresh the page.';
+        console.error('[Generate Image] Video ID not available:', videoId);
+        throw new Error(errorMsg);
+      }
+
+      console.log('[Generate Image] Starting image generation:', {
+        videoId,
+        imageCount: sourceImages.length,
+        promptLength: prompt.length,
+      });
+
+      // Call backend API with prompt
+      const response = await fetch(`/api/social-commerce/videos/${videoId}/composite/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          mode: 'ai_generated',
+          images: sourceImages,
+          context: context || undefined,
+          prompt,
+          layoutDescription,
+          styleGuidance,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to generate composite' }));
+        console.error('[Generate Image] API error:', error);
+        throw new Error(error.error || error.details || 'Failed to generate composite');
+      }
+
+      const data = await response.json();
+      console.log('[Generate Image] Success:', data);
+
+      // Update state
+      setProductImages(prev => ({
+        ...prev,
+        compositeImage: {
+          url: data.compositeUrl,
+          generatedAt: data.generatedAt || Date.now(),
+          mode: 'ai_generated',
+          sourceImages: data.sourceImages || sourceImages,
+          prompt: prompt,
+        },
+        aiContext: context ? {
+          description: context,
+          generatedAt: Date.now(),
+        } : prev.aiContext,
+      }));
+
+      // Save to step1Data
+      try {
+        await fetch(`/api/social-commerce/videos/${videoId}/step/1/data`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            productImages: {
+              ...productImages,
+              compositeImage: {
+                url: data.compositeUrl,
+                generatedAt: data.generatedAt || Date.now(),
+                mode: 'ai_generated',
+                sourceImages: data.sourceImages || sourceImages,
+                prompt: prompt,
+              },
+              aiContext: context ? {
+                description: context,
+                generatedAt: Date.now(),
+              } : productImages?.aiContext,
+            },
+          }),
+        });
+      } catch (saveError) {
+        console.error('Failed to save composite to step1Data:', saveError);
+        // Don't throw - composite was generated successfully
+      }
+
+      // Close preview dialog
+      setIsPromptPreviewOpen(false);
+
       // Show success toast
       toast({
+        title: "Composite generated",
+        description: "AI composite image created successfully",
+      });
+
+      return data.compositeUrl;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to generate composite image";
+      console.error('[Generate Image] Error:', error);
+      toast({
+        title: "Generation failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  const handleCompositeGenerate = async (
+    mode: 'manual' | 'ai_generated',
+    context?: string
+  ): Promise<string> => {
+    try {
+      // Better error message if video not created yet
+      if (!videoId || videoId === 'new') {
+        const errorMsg = 'Please wait for the video to be created. If this persists, please refresh the page.';
+        console.error('[Composite Generate] Video ID not available:', videoId);
+        throw new Error(errorMsg);
+      }
+      
+      if (mode === 'manual') {
+        // Collect all image URLs
+        const sourceImages: string[] = [];
+        if (productImages?.heroProfile) sourceImages.push(productImages.heroProfile);
+        if (productImages?.productAngles) {
+          sourceImages.push(...productImages.productAngles.map(a => a.url));
+        }
+        if (productImages?.elements) {
+          sourceImages.push(...productImages.elements.map(e => e.url));
+        }
+        
+        if (sourceImages.length === 0) {
+          throw new Error('No images to combine. Please upload at least the hero image.');
+        }
+        
+        console.log('[Composite Generate] Starting generation:', {
+          videoId,
+          imageCount: sourceImages.length,
+          mode,
+        });
+        
+        // Call backend API
+        const response = await fetch(`/api/social-commerce/videos/${videoId}/composite/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            mode: 'manual',
+            heroImage: productImages.heroProfile,
+            productAngles: productImages.productAngles?.map(a => a.url) || [],
+            elements: productImages.elements?.map(e => e.url) || [],
+          }),
+        });
+        
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ error: 'Failed to generate composite' }));
+          console.error('[Composite Generate] API error:', error);
+          throw new Error(error.error || error.details || 'Failed to generate composite');
+        }
+        
+        const data = await response.json();
+        console.log('[Composite Generate] Success:', data);
+        
+        // Update state
+        setProductImages(prev => ({
+          ...prev,
+          compositeImage: {
+            url: data.compositeUrl,
+            generatedAt: data.generatedAt || Date.now(),
+            mode: 'manual',
+            sourceImages: data.sourceImages || sourceImages,
+          },
+        }));
+        
+        // Save to step1Data
+        try {
+          await fetch(`/api/social-commerce/videos/${videoId}/step/1/data`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              productImages: {
+                ...productImages,
+                compositeImage: {
+                  url: data.compositeUrl,
+                  generatedAt: data.generatedAt || Date.now(),
+                  mode: 'manual',
+                  sourceImages: data.sourceImages || sourceImages,
+                },
+              },
+            }),
+          });
+        } catch (saveError) {
+          console.error('Failed to save composite to step1Data:', saveError);
+          // Don't throw - composite was generated successfully
+        }
+        
+        // Show success toast
+        toast({
+          title: "Composite generated",
+          description: "Composite image created successfully",
+        });
+        
+        return data.compositeUrl;
+      } else {
+        // AI mode - use Nano Banana Pro via Runware
+        // Collect all AI mode image URLs
+        const sourceImages: string[] = [];
+        if (productImages?.aiModeImages) {
+          sourceImages.push(...productImages.aiModeImages.map(img => img.url));
+        }
+        
+        if (sourceImages.length === 0) {
+          throw new Error('No images to combine. Please upload at least one image.');
+        }
+        
+        if (sourceImages.length > 6) {
+          throw new Error('Maximum 6 images allowed for AI mode.');
+        }
+        
+        console.log('[Composite Generate] Starting AI generation:', {
+          videoId,
+          imageCount: sourceImages.length,
+          mode,
+          hasContext: !!context,
+        });
+        
+        // Call backend API
+        const response = await fetch(`/api/social-commerce/videos/${videoId}/composite/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            mode: 'ai_generated',
+            images: sourceImages,
+            context: context || undefined,
+          }),
+        });
+        
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ error: 'Failed to generate composite' }));
+          console.error('[Composite Generate] API error:', error);
+          throw new Error(error.error || error.details || 'Failed to generate composite');
+        }
+        
+        const data = await response.json();
+        console.log('[Composite Generate] AI Success:', data);
+        
+        // Update state
+        setProductImages(prev => ({
+          ...prev,
+          compositeImage: {
+            url: data.compositeUrl,
+            generatedAt: data.generatedAt || Date.now(),
+            mode: 'ai_generated',
+            sourceImages: data.sourceImages || sourceImages,
+            ...(data.prompt && { prompt: data.prompt }),
+          },
+          aiContext: context ? {
+            description: context,
+            generatedAt: Date.now(),
+          } : prev.aiContext,
+        }));
+        
+        // Save to step1Data
+        try {
+          await fetch(`/api/social-commerce/videos/${videoId}/step/1/data`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              productImages: {
+                ...productImages,
+                compositeImage: {
+                  url: data.compositeUrl,
+                  generatedAt: data.generatedAt || Date.now(),
+                  mode: 'ai_generated',
+                  sourceImages: data.sourceImages || sourceImages,
+                  ...(data.prompt && { prompt: data.prompt }),
+                },
+                aiContext: context ? {
+                  description: context,
+                  generatedAt: Date.now(),
+                } : productImages?.aiContext,
+              },
+            }),
+          });
+        } catch (saveError) {
+          console.error('Failed to save composite to step1Data:', saveError);
+          // Don't throw - composite was generated successfully
+        }
+        
+        // Show success toast
+        toast({
+          title: "Composite generated",
+          description: "AI composite image created successfully",
+        });
+        
+        return data.compositeUrl;
+      }
+    } catch (error) {
+      // Show error toast with more details
+      const errorMessage = error instanceof Error ? error.message : "Failed to generate composite image";
+      console.error('[Composite Generate] Error:', error);
+      toast({
+        title: "Generation failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      throw error; // Re-throw to let component handle it
+    }
+  };
+
+  const handleModeChange = (mode: 'manual' | 'ai_generated') => {
+    setProductImages(prev => ({ ...prev, mode }));
+  };
+
+  const handleModeSwitchWithCleanup = async (newMode: 'manual' | 'ai_generated') => {
+    // Check if there's a composite image to delete
+    if (productImages?.compositeImage?.url && videoId && videoId !== 'new') {
+      try {
+        // Delete composite image from CDN
+        const compositeUrl = productImages.compositeImage.url;
+        const response = await fetch(`/api/social-commerce/composite`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ url: compositeUrl }),
+        });
+
+        if (!response.ok) {
+          console.warn('[Mode Switch] Failed to delete composite from CDN, continuing anyway');
+        } else {
+          console.log('[Mode Switch] Composite image deleted from CDN');
+        }
+      } catch (error) {
+        console.error('[Mode Switch] Error deleting composite:', error);
+        // Continue with mode switch even if deletion fails
+      }
+    }
+
+    // Clear composite state
+    setProductImages(prev => ({
+      ...prev,
+      mode: newMode,
+      compositeImage: undefined,
+      // Clear mode-specific images when switching
+      ...(newMode === 'manual' ? { aiModeImages: undefined } : { 
+        productAngles: undefined,
+        elements: undefined,
+      }),
+    }));
+
+    // Save to step1Data (clearing composite from database)
+    if (videoId && videoId !== 'new') {
+      try {
+        // Get current step1Data to merge properly
+        const videoResponse = await fetch(`/api/social-commerce/videos/${videoId}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        });
+        
+        if (videoResponse.ok) {
+          const video = await videoResponse.json();
+          const currentStep1Data = video.step1Data || {};
+          
+          // Clear composite image from step1Data (use null for deepMerge to delete)
+          const updatedProductImages: any = {
+            ...(currentStep1Data.productImages || {}),
+            mode: newMode,
+            compositeImage: null, // Use null so deepMerge removes it from database
+            // Clear mode-specific images when switching
+            ...(newMode === 'manual' 
+              ? { aiModeImages: null, aiContext: null }
+              : { productAngles: null, elements: null }
+            ),
+          };
+          
+          await fetch(`/api/social-commerce/videos/${videoId}/step/1/data`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              productImages: updatedProductImages,
+            }),
+          });
+          console.log('[Mode Switch] Mode switch and composite deletion saved to step1Data');
+        }
+      } catch (error) {
+        console.error('[Mode Switch] Failed to save mode switch:', error);
+        // Continue even if save fails
+      }
+    }
+  };
+
+  const handleApplyComposite = async () => {
+    if (!productImages?.compositeImage) return;
+    
+    setProductImages(prev => ({
+      ...prev,
+      compositeImage: {
+        ...prev.compositeImage!,
+        isApplied: true,
+      },
+    }));
+    
+    // Save to step1Data
+    if (videoId && videoId !== 'new') {
+      try {
+        await fetch(`/api/social-commerce/videos/${videoId}/step/1/data`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            productImages: {
+              ...productImages,
+              compositeImage: {
+                ...productImages.compositeImage!,
+                isApplied: true,
+              },
+            },
+          }),
+        });
+        console.log('[SocialCommerce] Applied composite saved to step1Data');
+      } catch (error) {
+        console.error('Failed to save applied composite:', error);
+      }
+    }
+  };
+
+  const handleRemoveAppliedComposite = () => {
+    setProductImages(prev => ({
+      ...prev,
+      compositeImage: undefined, // Remove composite to return to upload sections
+    }));
+    
+    // Save to step1Data
+    if (videoId && videoId !== 'new') {
+      try {
+        fetch(`/api/social-commerce/videos/${videoId}/step/1/data`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            productImages: {
+              ...productImages,
+              compositeImage: undefined,
+            },
+          }),
+        });
+        console.log('[SocialCommerce] Removed applied composite from step1Data');
+      } catch (error) {
+        console.error('Failed to remove applied composite:', error);
+      }
+    }
+  };
+
+  const handleDeleteProductImage = async (
+    type: 'hero' | 'angle' | 'element' | 'ai_mode',
+    id?: string
+  ) => {
+    try {
+      if (type === 'hero') {
+        const assetId = productImageAssetIds.heroProfile;
+        if (assetId && videoId && videoId !== 'new') {
+          // Delete from backend (will be fully implemented in backend sprint)
+          const params = new URLSearchParams();
+          params.append('videoId', videoId);
+          params.append('imageKey', 'heroProfile');
+          params.append('imageType', 'product');
+          const url = `/api/social-commerce/assets/upload/${assetId}?${params.toString()}`;
+          
+          const response = await fetch(url, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to delete from Assets');
+          }
+        }
+        setProductImages(prev => ({ ...prev, heroProfile: null }));
+        setProductImageAssetIds(prev => ({ ...prev, heroProfile: null }));
+      } else if (type === 'angle' && id) {
+        const assetId = productImageAssetIds.productAngles?.[id];
+        if (assetId && videoId && videoId !== 'new') {
+          // Delete from backend (will be fully implemented in backend sprint)
+          const params = new URLSearchParams();
+          params.append('videoId', videoId);
+          params.append('imageKey', `productAngles.${id}`);
+          params.append('imageType', 'product');
+          const url = `/api/social-commerce/assets/upload/${assetId}?${params.toString()}`;
+          
+          const response = await fetch(url, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to delete from Assets');
+          }
+        }
+        setProductImages(prev => ({
+          ...prev,
+          productAngles: (prev.productAngles || []).filter(a => a.id !== id),
+        }));
+        setProductImageAssetIds(prev => ({
+          ...prev,
+          productAngles: {
+            ...(prev.productAngles || {}),
+            [id]: undefined,
+          },
+        }));
+      } else if (type === 'element' && id) {
+        const assetId = productImageAssetIds.elements?.[id];
+        if (assetId && videoId && videoId !== 'new') {
+          // Delete from backend (will be fully implemented in backend sprint)
+          const params = new URLSearchParams();
+          params.append('videoId', videoId);
+          params.append('imageKey', `elements.${id}`);
+          params.append('imageType', 'product');
+          const url = `/api/social-commerce/assets/upload/${assetId}?${params.toString()}`;
+          
+          const response = await fetch(url, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to delete from Assets');
+          }
+        }
+        setProductImages(prev => ({
+          ...prev,
+          elements: (prev.elements || []).filter(e => e.id !== id),
+        }));
+        setProductImageAssetIds(prev => ({
+          ...prev,
+          elements: {
+            ...(prev.elements || {}),
+            [id]: undefined,
+          },
+        }));
+      } else if (type === 'ai_mode' && id) {
+        const assetId = productImageAssetIds.aiModeImages?.[id];
+        if (assetId && videoId && videoId !== 'new') {
+          // Delete from backend
+          const params = new URLSearchParams();
+          params.append('videoId', videoId);
+          params.append('imageKey', `aiModeImages.${id}`);
+          params.append('imageType', 'product');
+          const url = `/api/social-commerce/assets/upload/${assetId}?${params.toString()}`;
+          
+          const response = await fetch(url, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to delete from Assets');
+          }
+        }
+        setProductImages(prev => ({
+          ...prev,
+          aiModeImages: (prev.aiModeImages || []).filter(img => img.id !== id),
+        }));
+        setProductImageAssetIds(prev => ({
+          ...prev,
+          aiModeImages: {
+            ...(prev.aiModeImages || {}),
+            [id]: undefined,
+          },
+        }));
+        
+        // Save to step1Data
+        if (videoId && videoId !== 'new') {
+          try {
+            const updatedImages = {
+              ...productImages,
+              aiModeImages: (productImages?.aiModeImages || []).filter(img => img.id !== id),
+            };
+            await fetch(`/api/social-commerce/videos/${videoId}/step/1/data`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                productImages: updatedImages,
+              }),
+            });
+          } catch (saveError) {
+            console.error('Failed to save to step1Data:', saveError);
+          }
+        }
+      }
+
+      toast({
         title: "Image deleted",
-        description: "Removed from Assets and Bunny CDN",
+        description: "Product image removed successfully",
       });
     } catch (error) {
       console.error('Delete product image error:', error);
@@ -996,7 +1922,7 @@ export default function SocialCommerceMode() {
         targetAudience,
         // Audio Settings
         audioVolume,
-        dialogue,
+        voiceoverScript,
         customVoiceoverInstructions,
         soundEffectsEnabled,
         soundEffectsPreset,
@@ -1060,9 +1986,15 @@ export default function SocialCommerceMode() {
 
   // Helper function for smooth step transitions
   const transitionToStep = (nextStep: CommerceStepId, delay: number = 300) => {
+    console.log('[SocialCommerce] transitionToStep called', {
+      nextStep,
+      currentActiveStep: activeStep,
+      isVoiceover: nextStep === "voiceover",
+    });
     setIsTransitioning(true);
     setTimeout(() => {
       setActiveStep(nextStep);
+      console.log('[SocialCommerce] activeStep updated to:', nextStep);
       setTimeout(() => setIsTransitioning(false), 100); // Small delay for animation to complete
     }, delay);
   };
@@ -1167,7 +2099,7 @@ export default function SocialCommerceMode() {
 
       // Advance to next step only if shouldAdvance is true
       if (shouldAdvance) {
-        const steps: CommerceStepId[] = ["setup", "script", "storyboard", "animatic", "export"];
+        const steps: CommerceStepId[] = ["setup", "script", "storyboard", "voiceover", "animatic", "export"];
         const currentIndex = steps.indexOf(activeStep);
         const nextIndex = currentIndex + 1;
         if (nextIndex < steps.length) {
@@ -1214,7 +2146,7 @@ export default function SocialCommerceMode() {
   };
 
   const handleNext = async () => {
-    const steps: CommerceStepId[] = ["setup", "script", "storyboard", "animatic", "export"];
+    const steps: CommerceStepId[] = ["setup", "script", "storyboard", "voiceover", "animatic", "export"];
     const currentIndex = steps.indexOf(activeStep);
     const nextIndex = currentIndex + 1;
     
@@ -1251,11 +2183,11 @@ export default function SocialCommerceMode() {
       }
       
       // Validate required fields before proceeding
-      const durationNum = parseInt(duration, 10) as 8 | 16 | 24 | 32;
+      const durationNum = parseInt(duration, 10) as 12 | 24 | 36;
       if (!duration || !DURATION_OPTIONS.includes(durationNum)) {
         toast({
           title: "Duration Required",
-          description: "Please select a duration (8, 16, 24, or 32 seconds) to continue",
+          description: "Please select a duration (12, 24, or 36 seconds) to continue",
           variant: "destructive",
         });
         return;
@@ -1279,12 +2211,22 @@ export default function SocialCommerceMode() {
           videoResolution,
           // Product Image URL (for Agent 5.1 vision analysis)
           productImageUrl: productImages.heroProfile || undefined,
+          // Product Images (including composite)
+          productImages: productImages ? {
+            mode: productImages.mode,
+            heroProfile: productImages.heroProfile,
+            productAngles: productImages.productAngles,
+            elements: productImages.elements,
+            aiModeImages: productImages.aiModeImages,
+            compositeImage: productImages.compositeImage,
+            aiContext: productImages.aiContext,
+          } : undefined,
           // Audio Settings
           voiceOverEnabled,
           language: voiceOverEnabled ? language : undefined,
           audioVolume: voiceOverEnabled ? audioVolume : undefined,
           speechTempo: voiceOverEnabled ? speechTempo : undefined,
-          dialogue: voiceOverEnabled && dialogue.length > 0 ? dialogue : undefined,
+          voiceoverScript: voiceOverEnabled && voiceoverScript.trim().length > 0 ? voiceoverScript : undefined,
           customVoiceoverInstructions: voiceOverEnabled && language ? customVoiceoverInstructions : undefined,
           soundEffectsEnabled,
           soundEffectsPreset: soundEffectsEnabled && soundEffectsUsePreset ? soundEffectsPreset : undefined,
@@ -1423,11 +2365,23 @@ export default function SocialCommerceMode() {
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 3 (STORYBOARD): Generate Prompts - Run Agent 5.1 ONLY
+    // TAB 3 (STORYBOARD): Navigate to Tab 4 (Voiceover) - No agents run
     // ═══════════════════════════════════════════════════════════════════════════
-    // NOTE: Agent 5.2 (voiceover) will be implemented in Tab 4 later
-    // This runs when user clicks Continue on Tab 3 (manual trigger)
+    // Agent 5.1 only runs when entering Tab 3 (auto-trigger) or manually via button
+    // When clicking "Next" from Tab 3, just navigate to Tab 4 if prompts exist
     if (activeStep === "storyboard") {
+      // If beatPrompts already exist, just navigate to next step (no agent run)
+      if (step3Data?.beatPrompts) {
+        // Mark step as completed and advance
+        if (!completedSteps.includes(activeStep)) {
+          setCompletedSteps([...completedSteps, activeStep]);
+        }
+        setDirection(1);
+        transitionToStep(steps[nextIndex], 200);
+        return;
+      }
+      
+      // Only run Agent 5.1 if prompts don't exist yet
       await generateBeatPrompts(true); // Pass true to advance to next step
       return;
     }
@@ -1446,7 +2400,7 @@ export default function SocialCommerceMode() {
   };
 
   const handleBack = () => {
-    const steps: CommerceStepId[] = ["setup", "script", "storyboard", "animatic", "export"];
+    const steps: CommerceStepId[] = ["setup", "script", "storyboard", "voiceover", "animatic", "export"];
     const currentIndex = steps.indexOf(activeStep);
     const prevIndex = currentIndex - 1;
     
@@ -1517,7 +2471,7 @@ export default function SocialCommerceMode() {
       return;
     }
 
-    const steps: CommerceStepId[] = ["setup", "script", "storyboard", "animatic", "export"];
+    const steps: CommerceStepId[] = ["setup", "script", "storyboard", "voiceover", "animatic", "export"];
     const currentStepNumber = stepToNumber(activeStep);
 
     setIsCreating(true);
@@ -1704,7 +2658,7 @@ export default function SocialCommerceMode() {
               // Audio Settings
               audioVolume={audioVolume}
               speechTempo={speechTempo}
-              dialogue={dialogue}
+              voiceoverScript={voiceoverScript}
               customVoiceoverInstructions={customVoiceoverInstructions}
               soundEffectsEnabled={soundEffectsEnabled}
               soundEffectsPreset={soundEffectsPreset}
@@ -1754,17 +2708,8 @@ export default function SocialCommerceMode() {
               // Audio Handlers
               onAudioVolumeChange={(value) => { setAudioVolume(value); markStepDirty('setup'); }}
               onSpeechTempoChange={(value) => { setSpeechTempo(value); markStepDirty('setup'); }}
-              onDialogueAdd={() => {
-                const newId = `dialogue-${Date.now()}`;
-                setDialogue([...dialogue, { id: newId, line: '' }]);
-                markStepDirty('setup');
-              }}
-              onDialogueChange={(id, entry) => {
-                setDialogue(dialogue.map(d => d.id === id ? { ...d, ...entry } : d));
-                markStepDirty('setup');
-              }}
-              onDialogueRemove={(id) => {
-                setDialogue(dialogue.filter(d => d.id !== id));
+              onVoiceoverScriptChange={(script) => {
+                setVoiceoverScript(script);
                 markStepDirty('setup');
               }}
               onCustomVoiceoverInstructionsChange={(value) => { setCustomVoiceoverInstructions(value); markStepDirty('setup'); }}
@@ -1785,6 +2730,19 @@ export default function SocialCommerceMode() {
               onProductImagesChange={(value) => { setProductImages(value); markStepDirty('script'); }}
               onProductImageUpload={handleProductImageUpload}
               onProductImageDelete={handleDeleteProductImage}
+              onCompositeGenerate={handleCompositeGenerate}
+              onGeneratePrompt={handleGeneratePrompt}
+              onGenerateImage={handleGenerateImage}
+              onModeChange={handleModeChange}
+              onModeSwitchWithCleanup={handleModeSwitchWithCleanup}
+              onApplyComposite={handleApplyComposite}
+              onRemoveAppliedComposite={handleRemoveAppliedComposite}
+              isPromptPreviewOpen={isPromptPreviewOpen}
+              previewPrompt={previewPrompt}
+              previewMetadata={previewMetadata}
+              editedPrompt={editedPrompt}
+              onPromptPreviewOpenChange={setIsPromptPreviewOpen}
+              onEditedPromptChange={setEditedPrompt}
               onMaterialPresetChange={(value) => { setMaterialPreset(value); markStepDirty('script'); }}
               onObjectMassChange={setObjectMass}
               onSurfaceComplexityChange={(value) => { setSurfaceComplexity(value); markStepDirty('script'); }}
@@ -1809,6 +2767,8 @@ export default function SocialCommerceMode() {
               onLensDefaultChange={(value) => { setLensDefault(value); markStepDirty('script'); }}
               onVisualPresetChange={(value) => { setVisualPreset(value); markStepDirty('script'); }}
               onCampaignSparkChange={(value) => { setCampaignSpark(value); markStepDirty('script'); }}
+              visualBeats={visualBeats}
+              onVisualBeatsChange={(beats) => { setVisualBeats(beats); markStepDirty('script'); }}
               campaignObjective={campaignObjective}
               onCampaignObjectiveChange={(value) => { setCampaignObjective(value); markStepDirty('script'); }}
               onTargetAudienceChange={(value) => { setTargetAudience(value); markStepDirty('setup'); }}

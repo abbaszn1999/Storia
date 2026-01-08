@@ -11,11 +11,14 @@ import type { Request, Response } from 'express';
 import multer from 'multer';
 import { randomUUID } from 'crypto';
 import { storage } from '../../../storage';
-import { bunnyStorage } from '../../../storage/bunny-storage';
+import { bunnyStorage, buildVideoModePath } from '../../../storage/bunny-storage';
 import { isAuthenticated, getCurrentUserId } from '../../../auth';
+import { callAi } from '../../../ai/service';
+import { getVideoDimensionsForImageGeneration } from '../../../ai/config';
 import { SOCIAL_COMMERCE_CONFIG } from '../config';
 import { generateBeatPrompts } from '../agents/tab-3/prompt-architect';
 // Removed: generateVoiceoverScripts import - Agent 5.2 will be implemented in Tab 4
+import { generateComposite } from '../services/composite-generator';
 import type { BatchBeatPromptInput, BeatPromptOutput, VoiceoverScriptInput } from '../types';
 import type {
   CreateVideoRequest,
@@ -81,6 +84,22 @@ export function getTempUpload(tempId: string): TempUpload | undefined {
 
 export function deleteTempUpload(tempId: string): void {
   tempUploads.delete(tempId);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTHORIZATION HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Verify user has access to a workspace
+ * Returns the workspace if accessible, null otherwise
+ * 
+ * Note: Videos belong to workspaces, not directly to users.
+ * Access control is workspace-based, not video-based.
+ */
+async function verifyWorkspaceAccess(workspaceId: string, userId: string) {
+  const workspaces = await storage.getWorkspacesByUserId(userId);
+  return workspaces.find(w => w.id === workspaceId) || null;
 }
 
 /**
@@ -206,6 +225,48 @@ router.delete('/upload-temp/:tempId', isAuthenticated, async (req: Request, res:
   }
 });
 
+/**
+ * DELETE /api/social-commerce/composite
+ * Delete composite image from CDN by URL
+ */
+router.delete('/composite', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    // Extract file path from CDN URL
+    const filePath = extractFilePathFromUrl(url);
+    if (!filePath) {
+      return res.status(400).json({ error: 'Invalid CDN URL' });
+    }
+
+    // Check if it's a composite image path
+    if (!filePath.includes('/Assets/Composites/')) {
+      return res.status(400).json({ error: 'URL is not a composite image' });
+    }
+
+    // Delete from Bunny CDN
+    try {
+      await bunnyStorage.deleteFile(filePath);
+      console.log(`[social-commerce] ✓ Deleted composite image from Bunny CDN: ${filePath}`);
+      res.json({ success: true, message: 'Composite image deleted' });
+    } catch (bunnyError) {
+      console.error('[social-commerce] Failed to delete composite from Bunny CDN:', bunnyError);
+      res.status(500).json({ error: 'Failed to delete composite image' });
+    }
+  } catch (error) {
+    console.error('[social-commerce] Delete composite error:', error);
+    res.status(500).json({ error: 'Failed to delete composite' });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ASSET DELETION ENDPOINTS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -233,6 +294,35 @@ function extractFilePathFromUrl(cdnUrl: string): string {
   });
   
   return filePath;
+}
+
+/**
+ * Helper: Resolve product image URL with priority:
+ * 1. Composite image (if applied)
+ * 2. Hero profile image
+ * 3. Legacy productImageUrl (backward compatibility)
+ */
+function resolveProductImageUrl(step1Data: Step1Data): string | null {
+  // Priority 1: Applied composite image
+  if (step1Data.productImages?.compositeImage?.isApplied && step1Data.productImages.compositeImage.url) {
+    console.log('[social-commerce] Using applied composite image:', step1Data.productImages.compositeImage.url);
+    return step1Data.productImages.compositeImage.url;
+  }
+  
+  // Priority 2: Hero profile image
+  if (step1Data.productImages?.heroProfile) {
+    console.log('[social-commerce] Using hero profile image:', step1Data.productImages.heroProfile);
+    return step1Data.productImages.heroProfile;
+  }
+  
+  // Priority 3: Legacy productImageUrl (backward compatibility)
+  if (step1Data.productImageUrl) {
+    console.log('[social-commerce] Using legacy productImageUrl:', step1Data.productImageUrl);
+    return step1Data.productImageUrl;
+  }
+  
+  console.warn('[social-commerce] No product image found in step1Data');
+  return null;
 }
 
 /**
@@ -612,9 +702,9 @@ router.post('/videos', isAuthenticated, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'productTitle is required' });
     }
     
-    // Validate and cast duration to allowed values (beat-based: multiples of 8)
+    // Validate and cast duration to allowed values (beat-based: multiples of 12)
     // Duration is optional when creating video - user will select in Tab 1
-    const validDurations = [8, 16, 24, 32] as const;
+    const validDurations = [12, 24, 36] as const;
     type ValidDuration = (typeof validDurations)[number];
     
     // Only validate if duration is provided (optional during creation)
@@ -623,8 +713,8 @@ router.post('/videos', isAuthenticated, async (req: Request, res: Response) => {
       if (!validDurations.includes(duration as any)) {
         return res.status(400).json({ 
           error: 'Invalid duration',
-          details: 'Duration must be one of: 8, 16, 24, or 32 seconds',
-          validDurations: [8, 16, 24, 32]
+          details: 'Duration must be one of: 12, 24, or 36 seconds',
+          validDurations: [12, 24, 36]
         });
       }
       validatedDuration = duration as ValidDuration;
@@ -684,6 +774,12 @@ router.get('/videos/:id', isAuthenticated, async (req: Request, res: Response) =
       return res.status(400).json({ error: 'Not a social commerce video' });
     }
     
+    // Verify workspace access (videos belong to workspaces, not directly to users)
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
+    }
+    
     res.json(video);
   } catch (error) {
     console.error('[social-commerce:routes] Get video error:', error);
@@ -713,6 +809,12 @@ router.patch('/videos/:id', isAuthenticated, async (req: Request, res: Response)
     // Verify it's a social commerce video
     if (video.mode !== SOCIAL_COMMERCE_CONFIG.mode) {
       return res.status(400).json({ error: 'Not a social commerce video' });
+    }
+    
+    // Verify workspace access (videos belong to workspaces, not directly to users)
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -765,6 +867,12 @@ router.delete('/videos/:id', isAuthenticated, async (req: Request, res: Response
     
     if (!video) {
       return res.status(404).json({ error: 'Video not found' });
+    }
+    
+    // Verify workspace access (videos belong to workspaces, not directly to users)
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
     }
     
     // TODO: Clean up Bunny CDN assets when deleting
@@ -852,6 +960,12 @@ router.patch('/videos/:id/step/2/data', isAuthenticated, async (req: Request, re
         const video = await storage.getVideo(id);
         if (!video) {
           return res.status(404).json({ error: 'Video not found' });
+        }
+
+        // Verify workspace access (videos belong to workspaces, not directly to users)
+        const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+        if (!workspace) {
+          return res.status(403).json({ error: 'Access denied to this workspace' });
         }
 
         // Deep merge with existing step2Data (handles nested objects properly)
@@ -956,6 +1070,12 @@ router.patch('/videos/:id/step/1/data', isAuthenticated, async (req: Request, re
           return res.status(404).json({ error: 'Video not found' });
         }
 
+        // Verify workspace access (videos belong to workspaces, not directly to users)
+        const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+        if (!workspace) {
+          return res.status(403).json({ error: 'Access denied to this workspace' });
+        }
+
         // Deep merge with existing step1Data (handles nested objects properly)
         const currentStep1Data = (video.step1Data as any) || {};
         const updatedStep1Data = deepMerge(currentStep1Data, updates);
@@ -999,6 +1119,221 @@ router.patch('/videos/:id/step/1/data', isAuthenticated, async (req: Request, re
 });
 
 /**
+ * POST /api/social-commerce/videos/:id/composite/generate-prompt
+ * Generate prompt only for AI composite generation (without generating image)
+ */
+router.post('/videos/:id/composite/generate-prompt', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id: videoId } = req.params;
+    const { images, context } = req.body;
+
+    if (!videoId || videoId === 'new') {
+      return res.status(400).json({ error: 'Video ID is required' });
+    }
+
+    if (!images || images.length === 0) {
+      return res.status(400).json({ error: 'At least one image is required' });
+    }
+
+    if (images.length > 6) {
+      return res.status(400).json({ error: 'Maximum 6 images allowed' });
+    }
+
+    // Get video to access workspaceId and step1Data
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Verify workspace access
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
+    }
+
+    const step1Data = (video.step1Data as Step1Data) || {};
+
+    // Generate prompt using agent
+    const { generateCompositePrompt } = await import('../agents/composite-prompt-architect');
+    const promptOutput = await generateCompositePrompt(
+      {
+        images,
+        userContext: context,
+        productTitle: step1Data.productTitle,
+        productDescription: step1Data.productDescription,
+        targetAudience: step1Data.targetAudience,
+        aspectRatio: step1Data.aspectRatio || '9:16',
+      },
+      userId,
+      video.workspaceId
+    );
+
+    console.log('[social-commerce:routes] Prompt generated:', {
+      videoId,
+      promptLength: promptOutput.prompt.length,
+      imageCount: images.length,
+      cost: promptOutput.cost,
+    });
+
+    res.json({
+      prompt: promptOutput.prompt,
+      layoutDescription: promptOutput.layoutDescription,
+      styleGuidance: promptOutput.styleGuidance,
+      sourceImages: images,
+      cost: promptOutput.cost,
+    });
+  } catch (error) {
+    console.error('[social-commerce:routes] Prompt generation error:', error);
+    res.status(500).json({
+      error: 'Failed to generate prompt',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * POST /api/social-commerce/videos/:id/composite/generate
+ * Generate composite image from uploaded product images
+ * Supports both manual mode (Sharp compositing) and AI mode (Nano Banana Pro)
+ * For AI mode, accepts optional prompt parameter (if provided, skips prompt generation)
+ */
+router.post('/videos/:id/composite/generate', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id: videoId } = req.params;
+    const { mode, heroImage, productAngles, elements, images, context, prompt, layoutDescription, styleGuidance } = req.body;
+
+    if (!videoId || videoId === 'new') {
+      return res.status(400).json({ error: 'Video ID is required' });
+    }
+
+    if (mode !== 'manual' && mode !== 'ai_generated') {
+      return res.status(400).json({ error: 'Mode must be "manual" or "ai_generated"' });
+    }
+
+    // Get video to access workspaceId and step1Data
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Verify workspace access (videos belong to workspaces, not directly to users)
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
+    }
+
+    const step1Data = (video.step1Data as Step1Data) || {};
+
+    let result;
+    if (mode === 'manual') {
+      // Manual mode: Use Sharp to composite images
+      if (!heroImage) {
+        return res.status(400).json({ error: 'Hero image is required for manual mode' });
+      }
+
+      result = await generateComposite(
+        {
+          mode: 'manual',
+          heroImage,
+          productAngles: productAngles || [],
+          elements: elements || [],
+          aspectRatio: step1Data.aspectRatio || '9:16',
+        },
+        userId,
+        video.workspaceId
+      );
+    } else {
+      // AI mode: Use Nano Banana Pro to generate composite
+      if (!images || images.length === 0) {
+        return res.status(400).json({ error: 'At least one image is required for AI mode' });
+      }
+
+      if (images.length > 6) {
+        return res.status(400).json({ error: 'Maximum 6 images allowed for AI mode' });
+      }
+
+      result = await generateComposite(
+        {
+          mode: 'ai_generated',
+          images,
+          context,
+          productTitle: step1Data.productTitle,
+          productDescription: step1Data.productDescription,
+          targetAudience: step1Data.targetAudience,
+          aspectRatio: step1Data.aspectRatio || '9:16',
+          // If prompt is provided, use it (from preview dialog)
+          ...(prompt && {
+            prompt,
+            layoutDescription,
+            styleGuidance,
+          }),
+        },
+        userId,
+        video.workspaceId
+      );
+    }
+
+    // Update step1Data with composite
+    const updatedStep1Data: Step1Data = {
+      ...step1Data,
+      productImages: {
+        ...step1Data.productImages,
+        compositeImage: {
+          url: result.compositeUrl,
+          generatedAt: result.generatedAt,
+          mode,
+          sourceImages: result.sourceImages,
+          ...(result.prompt && { prompt: result.prompt }),
+        },
+        ...(context && mode === 'ai_generated' && {
+          aiContext: {
+            description: context,
+            generatedAt: Date.now(),
+          },
+        }),
+      },
+    };
+
+    await storage.updateVideo(videoId, {
+      step1Data: updatedStep1Data,
+    });
+
+    console.log('[social-commerce:routes] Composite generated:', {
+      videoId,
+      mode,
+      compositeUrl: result.compositeUrl,
+      layout: result.layout,
+      imageCount: result.sourceImages.length,
+      hasPrompt: !!result.prompt,
+    });
+
+    res.json({
+      compositeUrl: result.compositeUrl,
+      sourceImages: result.sourceImages,
+      layout: result.layout,
+      generatedAt: result.generatedAt,
+      ...(result.prompt && { prompt: result.prompt }),
+    });
+  } catch (error) {
+    console.error('[social-commerce:routes] Composite generation error:', error);
+    res.status(500).json({
+      error: 'Failed to generate composite',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
  * PATCH /api/social-commerce/videos/:id/step/1/continue
  * Save Step 1 data and proceed to Step 2
  * 
@@ -1023,6 +1358,12 @@ router.patch('/videos/:id/step/1/continue', isAuthenticated, async (req: Request
       return res.status(404).json({ error: 'Video not found' });
     }
 
+    // Verify workspace access (videos belong to workspaces, not directly to users)
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
+    }
+
     // Validate required fields
     if (!step1Data.productTitle || !step1Data.targetAudience || !step1Data.duration) {
       return res.status(400).json({ 
@@ -1030,12 +1371,19 @@ router.patch('/videos/:id/step/1/continue', isAuthenticated, async (req: Request
       });
     }
 
+    // Resolve product image URL for logging
+    const resolvedImageUrl = resolveProductImageUrl(step1Data);
+    
     console.log('[social-commerce:routes] Step 1 continue - saving data (no agents):', {
       videoId: id,
       product: step1Data.productTitle,
       audience: step1Data.targetAudience,
       duration: step1Data.duration,
-      hasProductImage: !!step1Data.productImageUrl,
+      hasProductImage: !!resolvedImageUrl,
+      imageSource: resolvedImageUrl 
+        ? (step1Data.productImages?.compositeImage?.isApplied ? 'composite' : 
+           step1Data.productImages?.heroProfile ? 'hero' : 'legacy')
+        : 'none',
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1101,6 +1449,12 @@ router.post('/videos/:id/creative-spark/generate', isAuthenticated, async (req: 
     // Get video and previous step data
     const video = await storage.getVideo(id);
     if (!video) return res.status(404).json({ error: 'Video not found' });
+
+    // Verify workspace access (videos belong to workspaces, not directly to users)
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
+    }
 
     const step1Data = video.step1Data as Step1Data | null;
 
@@ -1209,6 +1563,12 @@ router.post('/step/2/generate-beats', isAuthenticated, async (req: Request, res:
     const video = await storage.getVideo(videoId);
     if (!video) return res.status(404).json({ error: 'Video not found' });
 
+    // Verify workspace access (videos belong to workspaces, not directly to users)
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
+    }
+
     const step1Data = video.step1Data as Step1Data | null;
     const step2Data = video.step2Data as any;
     const step3Data = video.step3Data as any; // Check for backward compatibility
@@ -1237,6 +1597,49 @@ router.post('/step/2/generate-beats', isAuthenticated, async (req: Request, res:
     // Import agent dynamically
     const { createNarrative } = await import('../agents/tab-2/narrative-architect');
 
+    // Extract image mode and composite elements info
+    let imageMode: 'hero' | 'composite' | undefined;
+    let compositeElements: {
+      hasHeroProduct: boolean;
+      hasProductAngles: boolean;
+      hasDecorativeElements: boolean;
+      elementDescriptions?: string[];
+    } | undefined;
+
+    if (step1Data.productImages) {
+      // Check if composite image is applied
+      if (step1Data.productImages.compositeImage?.isApplied) {
+        imageMode = 'composite';
+        
+        // Extract composite elements info
+        const sourceImages = step1Data.productImages.compositeImage.sourceImages || [];
+        const hasHeroProduct = !!step1Data.productImages.heroProfile && 
+                               sourceImages.includes(step1Data.productImages.heroProfile);
+        const hasProductAngles = !!(step1Data.productImages.productAngles && 
+                                    step1Data.productImages.productAngles.length > 0);
+        const hasDecorativeElements = !!(step1Data.productImages.elements && 
+                                         step1Data.productImages.elements.length > 0);
+        
+        // Extract element descriptions if available
+        const elementDescriptions = step1Data.productImages.elements
+          ?.filter(el => el.description)
+          .map(el => el.description!)
+          .filter(Boolean);
+
+        compositeElements = {
+          hasHeroProduct: hasHeroProduct || !!step1Data.productImages.heroProfile,
+          hasProductAngles,
+          hasDecorativeElements,
+          ...(elementDescriptions && elementDescriptions.length > 0 ? { elementDescriptions } : {}),
+        };
+      } else if (step1Data.productImages.heroProfile) {
+        imageMode = 'hero';
+      }
+    } else if (step1Data.productImageUrl) {
+      // Legacy: fallback to hero mode if only productImageUrl exists
+      imageMode = 'hero';
+    }
+
     const narrativeInput = {
       creative_spark: creativeSpark,
       campaignSpark: campaignSpark || '',
@@ -1254,20 +1657,42 @@ router.post('/step/2/generate-beats', isAuthenticated, async (req: Request, res:
       productDescription: step1Data.productDescription || undefined,
       visualIntensity: step1Data.visualIntensity,
       productionLevel: step1Data.productionLevel,
+      // NEW: Image context
+      imageMode,
+      compositeElements,
+      // NEW: Pacing
+      pacingOverride: step1Data.pacingOverride,
     };
 
     console.log('[social-commerce] Calling Agent 3.2 with:', {
       hasCreativeSpark: !!narrativeInput.creative_spark,
       objective: narrativeInput.campaignObjective,
       duration: narrativeInput.duration,
+      imageMode: narrativeInput.imageMode,
+      hasCompositeElements: !!narrativeInput.compositeElements,
+      pacingOverride: narrativeInput.pacingOverride,
     });
 
     const narrativeOutput = await createNarrative(narrativeInput, userId, video.workspaceId);
 
+    // Validate beat count matches duration (additional validation at route level)
+    const expectedBeatCount = step1Data.duration / 12;
+    if (narrativeOutput.visual_beats.length !== expectedBeatCount) {
+      console.error('[social-commerce] Beat count validation failed:', {
+        expected: expectedBeatCount,
+        actual: narrativeOutput.visual_beats.length,
+        duration: step1Data.duration,
+      });
+      return res.status(500).json({
+        error: 'Beat count mismatch',
+        details: `Expected ${expectedBeatCount} beat(s) for ${step1Data.duration}s duration, but got ${narrativeOutput.visual_beats.length} beat(s)`,
+      });
+    }
+
     console.log('[social-commerce] Visual beats generated:', {
       beatCount: narrativeOutput.visual_beats.length,
-      connectionStrategy: narrativeOutput.connection_strategy,
-      beats: narrativeOutput.visual_beats.map(b => ({ id: b.beatId, name: b.beatName, connected: b.isConnectedToPrevious })),
+      expectedBeatCount,
+      beats: narrativeOutput.visual_beats.map(b => ({ id: b.beatId, name: b.beatName })),
       cost: narrativeOutput.cost,
     });
 
@@ -1297,7 +1722,6 @@ router.post('/step/2/generate-beats', isAuthenticated, async (req: Request, res:
     res.json({
       success: true,
       visual_beats: narrativeOutput.visual_beats,
-      connection_strategy: narrativeOutput.connection_strategy,
       cost: narrativeOutput.cost,
     });
   } catch (error) {
@@ -1333,6 +1757,12 @@ router.patch('/videos/:id/step/2/continue', isAuthenticated, async (req: Request
     // Get video and previous step data
     const video = await storage.getVideo(id);
     if (!video) return res.status(404).json({ error: 'Video not found' });
+
+    // Verify workspace access (videos belong to workspaces, not directly to users)
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
+    }
 
     const step1Data = video.step1Data as Step1Data | null;
 
@@ -1443,19 +1873,15 @@ router.patch('/videos/:id/step/2/continue', isAuthenticated, async (req: Request
  */
 function assembleBatchBeatPromptInput(
   visualBeats: Array<{
-    beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4';
+    beatId: 'beat1' | 'beat2' | 'beat3';
     beatName: string;
     beatDescription: string;
-    duration: 8;
-    isConnectedToPrevious: boolean;
+    duration: 12;
   }>,
   step1Data: Step1DataType,
   step2Data: Step2Data
 ): BatchBeatPromptInput {
-  // Get connection strategy from narrative (map 'all_distinct' to 'all_standalone' for compatibility)
-  const rawStrategy = step2Data.narrative?.connection_strategy || 'mixed';
-  const connection_strategy = (rawStrategy === 'all_distinct' ? 'all_standalone' : rawStrategy) as 'all_connected' | 'all_standalone' | 'mixed';
-
+  // Note: Max duration is 36s = 3 beats × 12s each
   // Get creative spark from step2Data
   const creativeSpark = step2Data.creativeSpark?.creative_spark || step2Data.uiInputs?.campaignSpark || '';
 
@@ -1474,14 +1900,58 @@ function assembleBatchBeatPromptInput(
     } : undefined,
   };
 
+  // Resolve product image URL with priority (composite > hero > legacy)
+  const productImageUrl = resolveProductImageUrl(step1Data);
+
+  // Extract image mode and composite elements info (same logic as narrative route)
+  let imageMode: 'hero' | 'composite' | undefined;
+  let compositeElements: {
+    hasHeroProduct: boolean;
+    hasProductAngles: boolean;
+    hasDecorativeElements: boolean;
+    elementDescriptions?: string[];
+  } | undefined;
+
+  if (step1Data.productImages) {
+    // Check if composite image is applied
+    if (step1Data.productImages.compositeImage?.isApplied) {
+      imageMode = 'composite';
+      
+      // Extract composite elements info
+      const sourceImages = step1Data.productImages.compositeImage.sourceImages || [];
+      const hasHeroProduct = !!step1Data.productImages.heroProfile && 
+                             sourceImages.includes(step1Data.productImages.heroProfile);
+      const hasProductAngles = !!(step1Data.productImages.productAngles && 
+                                  step1Data.productImages.productAngles.length > 0);
+      const hasDecorativeElements = !!(step1Data.productImages.elements && 
+                                       step1Data.productImages.elements.length > 0);
+      
+      // Extract element descriptions if available
+      const elementDescriptions = step1Data.productImages.elements
+        ?.filter(el => el.description)
+        .map(el => el.description!)
+        .filter(Boolean);
+      
+      compositeElements = {
+        hasHeroProduct: hasHeroProduct || !!step1Data.productImages.heroProfile,
+        hasProductAngles,
+        hasDecorativeElements,
+        ...(elementDescriptions && elementDescriptions.length > 0 ? { elementDescriptions } : {}),
+      };
+    } else if (step1Data.productImages.heroProfile) {
+      imageMode = 'hero';
+    }
+  } else if (step1Data.productImageUrl) {
+    // Legacy: fallback to hero mode if only productImageUrl exists
+    imageMode = 'hero';
+  }
+
   return {
     // Product Image (single hero image for vision analysis)
-    productImageUrl: step1Data.productImageUrl || '',
+    productImageUrl: productImageUrl || '',
     
     // Visual Beats (from Agent 3.2)
     beats: visualBeats,
-    
-    connection_strategy,
     
     // Raw User Inputs (from step1Data - replaces Agent 1.1 outputs)
     productTitle: step1Data.productTitle,
@@ -1506,11 +1976,9 @@ function assembleBatchBeatPromptInput(
     // Audio Settings
     audioSettings,
     
-    // Technical Settings
-    videoModel: step1Data.videoModel,
-    videoResolution: step1Data.videoResolution,
-    custom_image_instructions: step1Data.customImageInstructions,
-    global_motion_dna: step1Data.customMotionInstructions,
+    // Image Mode Context
+    imageMode,
+    compositeElements,
   };
 }
 
@@ -1519,11 +1987,10 @@ function assembleBatchBeatPromptInput(
  */
 function assembleVoiceoverScriptInput(
   visualBeats: Array<{
-    beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4';
+    beatId: 'beat1' | 'beat2' | 'beat3';
     beatName: string;
     beatDescription: string;
-    duration: 8;
-    isConnectedToPrevious: boolean;
+    duration: 12;
   }>,
   step1Data: Step1DataType,
   step2Data: Step2Data,
@@ -1547,7 +2014,7 @@ function assembleVoiceoverScriptInput(
       : beat.beatName.toLowerCase().includes('transformation') || beat.beatName.toLowerCase().includes('build')
       ? 'energetic'
       : 'satisfying',
-    duration: 8 as const,
+    duration: 12 as const,
   }));
 
   // Voiceover Settings (from Tab 1)
@@ -1557,12 +2024,7 @@ function assembleVoiceoverScriptInput(
     tempo: (step1Data.speechTempo || 'auto') as 'auto' | 'slow' | 'normal' | 'fast' | 'ultra-fast',
     volume: (step1Data.audioVolume || 'medium') as 'low' | 'medium' | 'high',
     customInstructions: step1Data.customVoiceoverInstructions,
-    existingDialogue: step1Data.dialogue?.map(d => ({
-      id: d.id,
-      line: d.line,
-      timestamp: (d as any).timestamp, // Optional field - may not exist
-      beatId: undefined, // Will be assigned by agent
-    })),
+    userScript: step1Data.voiceoverScript, // Optional user-written script (if provided, AI will use it; if empty, AI will generate)
   };
 
   // Strategic Context (from user inputs - replaces Agent 1.1)
@@ -1585,7 +2047,6 @@ function assembleVoiceoverScriptInput(
       beat1: visualBeats.find(b => b.beatId === 'beat1')?.beatDescription || '',
       beat2: visualBeats.find(b => b.beatId === 'beat2')?.beatDescription || '',
       beat3: visualBeats.find(b => b.beatId === 'beat3')?.beatDescription || '',
-      beat4: visualBeats.find(b => b.beatId === 'beat4')?.beatDescription,
     },
   };
 
@@ -1635,6 +2096,12 @@ router.post('/videos/:id/step/3/generate-prompts', isAuthenticated, async (req: 
       return res.status(404).json({ error: 'Video not found' });
     }
 
+    // Verify workspace access (videos belong to workspaces, not directly to users)
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
+    }
+
     const workspaceId = video.workspaceId;
     console.log('[social-commerce:agent-5.1] Video loaded:', {
       videoId: id,
@@ -1676,8 +2143,8 @@ router.post('/videos/:id/step/3/generate-prompts', isAuthenticated, async (req: 
 
     const visualBeats = narrative.visual_beats;
 
-    // Validate product image is uploaded (product images should only be in step1Data)
-    const productImageUrl = step1Data.productImageUrl;
+    // Resolve product image URL with priority (composite > hero > legacy)
+    const productImageUrl = resolveProductImageUrl(step1Data);
     
     if (!productImageUrl) {
       return res.status(400).json({
@@ -1690,6 +2157,8 @@ router.post('/videos/:id/step/3/generate-prompts', isAuthenticated, async (req: 
       beatCount: visualBeats.length,
       beatIds: visualBeats.map((b: any) => b.beatId),
       hasProductImage: !!productImageUrl,
+      imageSource: step1Data.productImages?.compositeImage?.isApplied ? 'composite' : 
+                   step1Data.productImages?.heroProfile ? 'hero' : 'legacy',
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1698,7 +2167,7 @@ router.post('/videos/:id/step/3/generate-prompts', isAuthenticated, async (req: 
     // Pass step1Data with resolved productImageUrl
     const step1DataWithImage = {
       ...step1Data,
-      productImageUrl: productImageUrl,
+      productImageUrl: productImageUrl, // Resolved URL (composite > hero > legacy)
     };
 
     const batchInput = assembleBatchBeatPromptInput(
@@ -1711,6 +2180,8 @@ router.post('/videos/:id/step/3/generate-prompts', isAuthenticated, async (req: 
       beatCount: batchInput.beats.length,
       beatIds: batchInput.beats.map(b => b.beatId),
       hasProductImage: !!batchInput.productImageUrl,
+      imageMode: batchInput.imageMode,
+      hasCompositeElements: !!batchInput.compositeElements,
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1815,6 +2286,12 @@ router.post('/videos/:id/beats/:beatId/generate', isAuthenticated, async (req: R
       return res.status(404).json({ error: 'Video not found' });
     }
 
+    // Verify workspace access (videos belong to workspaces, not directly to users)
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
+    }
+
     // Get beat prompts from step3Data (migrated from step5Data)
     // Check both step3Data and step5Data for backward compatibility
     const step3Data = video.step3Data as any;
@@ -1834,60 +2311,120 @@ router.post('/videos/:id/beats/:beatId/generate', isAuthenticated, async (req: R
     }
 
     // Get input image
-    let inputImageUrl: string | undefined;
+    // All beats now use the same reference image (hero or composite)
     const step1Data = video.step1Data as any;
-
-    if (beat.input_image_type === 'hero') {
-      // Use productImageUrl from step1Data (product images should only be in step1Data)
-      inputImageUrl = step1Data?.productImageUrl;
-      // Note: Removed fallback to step2Data - product images should only be in step1Data
-    } else if (beat.input_image_type === 'previous_frame') {
-      // Get last frame from previous beat
-      const beatVideos = step3Data?.beatVideos || step5Data?.beatVideos;
-      const beatIndex = beatPrompts.beat_prompts.findIndex((b: any) => b.beatId === beatId);
-      if (beatIndex > 0) {
-        const previousBeatId = beatPrompts.beat_prompts[beatIndex - 1].beatId;
-        const previousBeatVideo = beatVideos?.[previousBeatId];
-        if (previousBeatVideo?.lastFrameUrl) {
-          inputImageUrl = previousBeatVideo.lastFrameUrl;
-        } else {
-          return res.status(400).json({
-            error: 'Previous beat not completed',
-            details: 'The previous connected beat must be generated first',
-          });
-        }
-      }
-    }
+    const inputImageUrl = resolveProductImageUrl(step1Data) || undefined;
 
     if (!inputImageUrl) {
       return res.status(400).json({
         error: 'Input image not found',
-        details: beat.input_image_type === 'hero' 
-          ? 'Product hero image is required'
-          : 'Previous beat frame is required',
+        details: 'Product image (hero or composite) is required. Please upload a product image in Tab 1.',
       });
     }
 
-    // TODO: Call Sora API to generate video
-    // For now, return a placeholder response
-    // This should be implemented with actual Sora API integration
+    // Get video model and resolution from step1Data
+    const videoModel = step1Data.videoModel || 'sora-2-pro';
+    const videoResolution = step1Data.videoResolution || '720p';
+    const aspectRatio = step1Data.aspectRatio || '9:16';
+
+    // Get dimensions for the selected model, aspect ratio, and resolution
+    const dimensions = getVideoDimensionsForImageGeneration(
+      videoModel,
+      aspectRatio,
+      videoResolution
+    );
+
+    if (!dimensions) {
+      return res.status(400).json({
+        error: 'Invalid video configuration',
+        details: `Unsupported combination: ${videoModel}, ${aspectRatio}, ${videoResolution}`,
+      });
+    }
+
+    // Format resolution as "WIDTHxHEIGHT" for Sora API
+    const resolution = `${dimensions.width}x${dimensions.height}`;
+
     console.log('[social-commerce:beat-generation] Generating beat:', {
       beatId,
-      prompt: beat.sora_prompt.text.substring(0, 100) + '...',
-      inputImageType: beat.input_image_type,
+      videoModel,
+      resolution,
+      duration: beat.total_duration || 12,
+      promptLength: beat.sora_prompt.text.length,
       inputImageUrl: inputImageUrl.substring(0, 80) + '...',
+      imageSource: step1Data.productImages?.compositeImage?.isApplied ? 'composite' : 
+                   step1Data.productImages?.heroProfile ? 'hero' : 'legacy',
     });
 
-    // Placeholder: In real implementation, this would:
-    // 1. Call Sora API with prompt and input image
-    // 2. Wait for video generation
-    // 3. Extract last frame from video
-    // 4. Upload video and frame to CDN
-    // 5. Save URLs to database
+    // Call Sora API to generate video
+    const soraResponse = await callAi({
+      provider: 'openai',
+      model: videoModel,
+      task: 'image-to-video',
+      payload: {
+        prompt: beat.sora_prompt.text,
+        duration: beat.total_duration || 12,
+        resolution: resolution,
+        image: inputImageUrl, // Reference image (hero or composite) - CDN URL, publicly accessible
+      },
+      userId,
+      workspaceId: video.workspaceId,
+    });
 
-    // For now, return success with placeholder URLs
-    const videoUrl = `https://placeholder.com/video/${beatId}.mp4`;
-    const lastFrameUrl = `https://placeholder.com/frame/${beatId}.jpg`;
+    // Extract video buffer or URL from response
+    const soraOutput = soraResponse.output as any;
+    let videoBuffer: Buffer;
+    
+    if (soraOutput.videoBuffer) {
+      // Video was downloaded directly from Sora API /content endpoint
+      console.log('[social-commerce:beat-generation] Video buffer received from Sora API, uploading to CDN...');
+      videoBuffer = soraOutput.videoBuffer;
+    } else if (soraOutput.videoUrl) {
+      // Legacy: Download from URL (if API changes back)
+      console.log('[social-commerce:beat-generation] Video generated, downloading from OpenAI CDN...');
+      const videoResponse = await fetch(soraOutput.videoUrl);
+      if (!videoResponse.ok) {
+        throw new Error(`Failed to download video from OpenAI: ${videoResponse.status} ${videoResponse.statusText}`);
+      }
+      videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+    } else {
+      throw new Error('No video buffer or URL in Sora API response');
+    }
+
+    // Get workspace info for path building (workspace variable already exists from verifyWorkspaceAccess)
+    const workspaceInfo = await storage.getWorkspace(video.workspaceId);
+    if (!workspaceInfo) {
+      throw new Error('Workspace not found');
+    }
+
+    // Build Bunny CDN path for the video
+    const videoFileName = `${beatId}_${Date.now()}.mp4`;
+    const videoPath = buildVideoModePath({
+      userId,
+      workspaceName: workspaceInfo.name,
+      toolMode: 'commerce',
+      projectName: video.title || 'untitled',
+      subFolder: 'Beats',
+      filename: videoFileName,
+    });
+
+    // Upload video to Bunny CDN
+    console.log('[social-commerce:beat-generation] Uploading video to Bunny CDN...');
+    const videoCdnUrl = await bunnyStorage.uploadFile(
+      videoPath,
+      videoBuffer,
+      'video/mp4'
+    );
+
+    // Extract last frame from video (optional - TODO: implement with ffmpeg)
+    // For now, we'll skip this and set it to undefined
+    let lastFrameUrl: string | undefined;
+    // TODO: Implement last frame extraction using ffmpeg:
+    // ffmpeg -i video.mp4 -vf "select=eq(n\\,N-1)" -vframes 1 frame.jpg
+
+    console.log('[social-commerce:beat-generation] ✓ Video uploaded to CDN:', videoCdnUrl);
+
+    // Use the real CDN URL instead of placeholder
+    const videoUrl = videoCdnUrl;
 
     // Update step3Data with generated video (migrated from step5Data)
     const existingStep3Data = video.step3Data as any || {};
@@ -1912,7 +2449,7 @@ router.post('/videos/:id/beats/:beatId/generate', isAuthenticated, async (req: R
       beatId,
       videoUrl,
       lastFrameUrl,
-      duration: 8,
+      duration: beat.total_duration || 12,
       status: 'completed',
     });
   } catch (error) {
@@ -1940,6 +2477,12 @@ router.get('/videos/:id/beats/:beatId/status', isAuthenticated, async (req: Requ
     const video = await storage.getVideo(id);
     if (!video) {
       return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Verify workspace access (videos belong to workspaces, not directly to users)
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
     }
 
     // Check step3Data (migrated from step5Data) and step5Data (backward compatibility)

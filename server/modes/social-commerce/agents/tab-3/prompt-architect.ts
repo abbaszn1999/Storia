@@ -15,8 +15,8 @@
  * - Audio settings from Tab 1
  * 
  * OUTPUT:
- * - Comprehensive Sora prompt for EACH beat (8 seconds each)
- * - Following approved 10-section structure
+ * - Comprehensive Sora prompt for EACH beat (12 seconds each)
+ * - Following simplified 8-section structure
  * - With all technical rules included
  */
 
@@ -63,7 +63,7 @@ async function validateImageUrl(url: string, timeout: number = 5000): Promise<bo
     
     clearTimeout(timeoutId);
     const contentType = response.headers.get('content-type');
-    const isValid = response.ok && contentType?.startsWith('image/');
+    const isValid = response.ok && (contentType?.startsWith('image/') ?? false);
     
     if (!isValid) {
       console.warn(`[social-commerce:agent-5.1] Image URL validation failed: ${url}`, {
@@ -138,13 +138,13 @@ function validateBatchBeatPromptInput(input: BatchBeatPromptInput): void {
     throw new Error('No beats provided in input');
   }
 
-  if (input.beats.length > 4) {
-    throw new Error(`Too many beats provided: ${input.beats.length} (maximum 4)`);
+  if (input.beats.length > 3) {
+    throw new Error(`Too many beats provided: ${input.beats.length} (maximum 3)`);
   }
 
   // Validate each beat
   for (const beat of input.beats) {
-    if (!beat.beatId || !['beat1', 'beat2', 'beat3', 'beat4'].includes(beat.beatId)) {
+    if (!beat.beatId || !['beat1', 'beat2', 'beat3'].includes(beat.beatId)) {
       throw new Error(`Invalid beatId: ${beat.beatId}`);
     }
 
@@ -152,14 +152,9 @@ function validateBatchBeatPromptInput(input: BatchBeatPromptInput): void {
       throw new Error(`Beat ${beat.beatId} has no description`);
     }
 
-    // Validate duration is 8 seconds (fixed for all beats)
-    if (beat.duration !== 8) {
-      throw new Error(`Beat ${beat.beatId} duration is ${beat.duration}s, must equal 8s`);
-    }
-
-    // Validate beat1 is not connected
-    if (beat.beatId === 'beat1' && beat.isConnectedToPrevious) {
-      throw new Error('Beat1 must have isConnectedToPrevious = false');
+    // Validate duration is 12 seconds (fixed for all beats)
+    if (beat.duration !== 12) {
+      throw new Error(`Beat ${beat.beatId} duration is ${beat.duration}s, must equal 12s`);
     }
   }
 
@@ -215,25 +210,9 @@ export function validateBeatPromptOutput(
       throw new Error(`Beat ID mismatch: output ${beatPrompt.beatId} vs input ${inputBeat.beatId}`);
     }
 
-    // Validate isConnectedToPrevious matches
-    if (beatPrompt.isConnectedToPrevious !== inputBeat.isConnectedToPrevious) {
-      throw new Error(`Connection status mismatch for ${beatPrompt.beatId}`);
-    }
-
-    // Validate input_image_type
-    const expectedInputType = beatPrompt.isConnectedToPrevious ? 'previous_frame' : 'hero';
-    if (beatPrompt.input_image_type !== expectedInputType) {
-      throw new Error(`Input image type mismatch for ${beatPrompt.beatId}: expected ${expectedInputType}, got ${beatPrompt.input_image_type}`);
-    }
-
-    // Validate total_duration
-    if (beatPrompt.total_duration !== 8) {
-      throw new Error(`Total duration mismatch for ${beatPrompt.beatId}: expected 8, got ${beatPrompt.total_duration}`);
-    }
-
-    // Validate timeline_segments exist (replaces shots_in_beat)
-    if (!beatPrompt.timeline_segments || beatPrompt.timeline_segments.length === 0) {
-      throw new Error(`Missing timeline_segments for ${beatPrompt.beatId}`);
+    // Validate total_duration is 12 seconds
+    if (beatPrompt.total_duration !== 12) {
+      throw new Error(`Total duration mismatch for ${beatPrompt.beatId}: expected 12, got ${beatPrompt.total_duration}`);
     }
 
     // Validate sora_prompt.text is not empty
@@ -241,12 +220,17 @@ export function validateBeatPromptOutput(
       throw new Error(`Empty sora_prompt.text for ${beatPrompt.beatId}`);
     }
 
+    // Validate sora_prompt.text exists and is not empty
+    if (!beatPrompt.sora_prompt.text || beatPrompt.sora_prompt.text.trim().length === 0) {
+      throw new Error(`sora_prompt.text for ${beatPrompt.beatId} is empty or missing`);
+    }
+
     // Validate sora_prompt.text contains required sections (basic check)
     const promptText = beatPrompt.sora_prompt.text.toLowerCase();
     const requiredSections = [
       'exclusions',
-      'reference image lock',
-      'timeline',
+      'reference image',
+      'shot breakdown',
     ];
     
     for (const section of requiredSections) {
@@ -255,18 +239,14 @@ export function validateBeatPromptOutput(
       }
     }
 
-    // Validate non-connected beats have 0.1s first shot mentioned
-    if (!beatPrompt.isConnectedToPrevious) {
-      if (!promptText.includes('0.1') && !promptText.includes('0.0-0.1')) {
-        console.warn(`[social-commerce:agent-5.1] Warning: ${beatPrompt.beatId} (non-connected) may be missing 0.1s first shot rule`);
-      }
+    // Validate that prompt starts with motion (reference image skip)
+    if (!promptText.includes('start') && !promptText.includes('motion') && !promptText.includes('destroys')) {
+      console.warn(`[social-commerce:agent-5.1] Warning: ${beatPrompt.beatId} prompt may be missing reference image skip instruction`);
     }
 
-    // Validate connected beats have final frame requirements
-    if (beatPrompt.isConnectedToPrevious) {
-      if (!promptText.includes('final frame') && !promptText.includes('final frame requirements')) {
-        console.warn(`[social-commerce:agent-5.1] Warning: ${beatPrompt.beatId} (connected) may be missing FINAL FRAME REQUIREMENTS section`);
-      }
+    // Validate that prompt includes fixed reference instruction at end
+    if (!promptText.includes('reference image') || !promptText.includes('visual reference only')) {
+      console.warn(`[social-commerce:agent-5.1] Warning: ${beatPrompt.beatId} prompt may be missing fixed reference image instruction at end`);
     }
   }
 }
@@ -286,7 +266,8 @@ export async function generateBeatPrompts(
   console.log('[social-commerce:agent-5.1] Generating prompts for beats:', {
     beatCount: input.beats.length,
     beatIds: input.beats.map(b => b.beatId),
-    connectionStrategy: input.connection_strategy,
+    imageMode: input.imageMode,
+    hasCompositeElements: !!input.compositeElements,
   });
 
   // Validate input
@@ -372,7 +353,7 @@ export async function generateBeatPrompts(
       validateBeatPromptOutput(output, input);
 
       // Calculate cost
-      const cost = result.cost || 0;
+      const cost = result.usage?.totalCostUsd || 0;
 
       console.log(`[social-commerce:agent-5.1] Successfully generated prompts for ${output.beat_prompts.length} beat(s)`, {
         beatIds: output.beat_prompts.map(bp => bp.beatId),

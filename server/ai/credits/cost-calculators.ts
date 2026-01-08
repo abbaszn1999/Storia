@@ -223,7 +223,7 @@ function estimateFixedPriceCost(
   }
 
   // Handle video generation with resolution+duration pricing
-  if (request.task === "video-generation") {
+  if (request.task === "video-generation" || request.task === "image-to-video") {
     return items.reduce((total, task) => {
       const numResults =
         typeof task?.numberResults === "number" && task.numberResults > 0

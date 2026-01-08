@@ -1,22 +1,41 @@
-import { Home, Video, Zap, Calendar, Settings, History, User, MapPin, Mic, LayoutTemplate, FolderOpen, ChevronDown, Sparkles, Plus, TrendingUp, Archive, BarChart } from "lucide-react";
+import { 
+  Home, 
+  Video, 
+  Zap, 
+  Calendar, 
+  History, 
+  User, 
+  MapPin, 
+  Mic, 
+  LayoutTemplate, 
+  FolderOpen, 
+  ChevronDown, 
+  Sparkles, 
+  Plus, 
+  Archive, 
+  BarChart, 
+  Library
+} from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
-} from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+} from "@/components/ui/sidebar"; 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher"; 
+import { cn } from "@/lib/utils";
 
+// --- بيانات القوائم ---
 const mainNavItems = [
   { title: "Dashboard", url: "/", icon: Home },
   { title: "Videos", url: "/videos", icon: Video },
@@ -39,63 +58,141 @@ const productionNavItems = [
   { title: "Campaign History", url: "/production", icon: Archive },
 ];
 
-
 export function AppSidebar() {
   const [location] = useLocation();
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    const checkTheme = () => {
+      const root = document.documentElement;
+      setIsDark(root.classList.contains("dark"));
+    };
+    checkTheme();
+    const observer = new MutationObserver(checkTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
+  const logoSrc = isDark ? "/storia-logo-white.png" : "/storia-logo-black.png";
 
   return (
-    <Sidebar>
-      <SidebarHeader className="p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <img src="/storia-logo.png" alt="Storia" className="h-8 w-8" />
-          <span className="text-xl font-display font-semibold">Storia</span>
-        </div>
-        <WorkspaceSwitcher />
+    <Sidebar collapsible="icon">
+      {/* --- Header / Logo --- */}
+      <SidebarHeader className={cn(
+        "bg-gradient-to-b from-sidebar/50 to-transparent p-4",
+        "group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:items-center"
+      )}>
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="flex items-center justify-center"
+        >
+          <img 
+            src={logoSrc} 
+            alt="Storia" 
+            className="h-9 w-auto object-contain transition-all duration-300 group-data-[collapsible=icon]:h-6"
+          />
+        </motion.div>
       </SidebarHeader>
       
       <SidebarContent>
+        {/* --- Main Navigation --- */}
         <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => (
+              {mainNavItems.map((item, index) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={location === item.url} data-testid={`link-${item.title.toLowerCase()}`}>
-                    <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
+                  <motion.div
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05, duration: 0.3 }}
+                  >
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={location === item.url} 
+                      tooltip={item.title}
+                      className={cn(
+                        "mx-2 transition-all duration-200",
+                        // التعديل الجوهري هنا:
+                        // 1. عند الإغلاق، نجعل العرض كامل (w-full)
+                        // 2. نحذف الهوامش (mx-0)
+                        // 3. نوسط المحتوى (justify-center) بدلاً من justify-start الافتراضي
+                        "group-data-[collapsible=icon]:mx-0 group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2",
+                        location === item.url 
+                          ? "bg-primary/20 text-primary font-semibold shadow-sm shadow-primary/10"
+                          : "text-sidebar-foreground/70 hover:bg-primary/10 hover:text-primary"
+                      )}
+                    >
+                      <Link href={item.url}>
+                        <item.icon className={cn(
+                          "transition-transform",
+                          location === item.url && "scale-110"
+                        )} />
+                        {/* النص يختفي تلقائياً بفضل مكتبة sidebar لكن التنسيق يبقى مهماً */}
+                        <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </motion.div>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator />
+        <SidebarSeparator className="my-2" />
 
+        {/* --- Auto Production Section --- */}
         <Collapsible defaultOpen className="group/production">
           <SidebarGroup>
-            <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex w-full items-center justify-between hover-elevate active-elevate-2 rounded-md px-2 py-1.5" data-testid="button-toggle-production">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  Auto Production
-                </div>
-                <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=closed]/production:-rotate-90" />
-              </CollapsibleTrigger>
-            </SidebarGroupLabel>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <CollapsibleTrigger asChild>
+                  <SidebarMenuButton 
+                    tooltip="Auto Production"
+                    // هنا أيضاً: عند الإغلاق نوسط الأيقونة
+                    className={cn(
+                      "w-full justify-between mx-2",
+                      "group-data-[collapsible=icon]:mx-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2"
+                    )}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    <span className="font-semibold text-sidebar-foreground/80 group-data-[collapsible=icon]:hidden">Auto Production</span>
+                    <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/production:rotate-180 group-data-[collapsible=icon]:hidden" />
+                  </SidebarMenuButton>
+                </CollapsibleTrigger>
+              </SidebarMenuItem>
+            </SidebarMenu>
+
             <CollapsibleContent>
-              <SidebarGroupContent>
+              <SidebarGroupContent className="mt-1">
                 <SidebarMenu>
-                  {productionNavItems.map((item) => (
+                  {productionNavItems.map((item, index) => (
                     <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild isActive={location === item.url} data-testid={`link-${item.title.toLowerCase().replace(/ /g, '-')}`}>
-                        <Link href={item.url}>
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
+                      <motion.div
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05, duration: 0.3 }}
+                      >
+                        <SidebarMenuButton 
+                          asChild 
+                          isActive={location === item.url} 
+                          tooltip={item.title}
+                          className={cn(
+                            "mx-2 mb-1 pl-8", // pl-8 لعمل Indent للعناصر الفرعية
+                            // عند الإغلاق: نلغي الـ Indent ونوسط الأيقونة
+                            "group-data-[collapsible=icon]:mx-0 group-data-[collapsible=icon]:pl-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-full",
+                            location === item.url 
+                              ? "bg-sidebar-accent text-sidebar-foreground font-semibold"
+                              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/80 hover:text-sidebar-foreground"
+                          )}
+                        >
+                          <Link href={item.url}>
+                            <item.icon />
+                            <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </motion.div>
                     </SidebarMenuItem>
                   ))}
                 </SidebarMenu>
@@ -104,27 +201,58 @@ export function AppSidebar() {
           </SidebarGroup>
         </Collapsible>
 
-        <SidebarSeparator />
+        <SidebarSeparator className="my-2" />
 
-        <Collapsible defaultOpen className="group/collapsible">
+        {/* --- Assets Library Section --- */}
+        <Collapsible defaultOpen className="group/assets">
           <SidebarGroup>
-            <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex w-full items-center justify-between hover-elevate active-elevate-2 rounded-md px-2 py-1.5" data-testid="button-toggle-assets">
-                Assets Library
-                <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=closed]/collapsible:-rotate-90" />
-              </CollapsibleTrigger>
-            </SidebarGroupLabel>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <CollapsibleTrigger asChild>
+                  <SidebarMenuButton 
+                    tooltip="Assets Library"
+                    className={cn(
+                      "w-full justify-between mx-2",
+                      "group-data-[collapsible=icon]:mx-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2"
+                    )}
+                  >
+                    <Library className="h-4 w-4" />
+                    <span className="font-semibold text-sidebar-foreground/80 group-data-[collapsible=icon]:hidden">Assets Library</span>
+                    <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/assets:rotate-180 group-data-[collapsible=icon]:hidden" />
+                  </SidebarMenuButton>
+                </CollapsibleTrigger>
+              </SidebarMenuItem>
+            </SidebarMenu>
+
             <CollapsibleContent>
-              <SidebarGroupContent>
+              <SidebarGroupContent className="mt-1">
                 <SidebarMenu>
-                  {assetNavItems.map((item) => (
+                  {assetNavItems.map((item, index) => (
                     <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild isActive={location === item.url} data-testid={`link-${item.title.toLowerCase().replace(' ', '-')}`}>
-                        <Link href={item.url}>
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
+                      <motion.div
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05, duration: 0.3 }}
+                      >
+                        <SidebarMenuButton 
+                          asChild 
+                          isActive={location === item.url} 
+                          tooltip={item.title}
+                          className={cn(
+                            "mx-2 mb-1 pl-8", // Indent للعناصر الفرعية
+                             // عند الإغلاق: نلغي الـ Indent ونوسط الأيقونة
+                            "group-data-[collapsible=icon]:mx-0 group-data-[collapsible=icon]:pl-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-full",
+                            location === item.url 
+                              ? "bg-sidebar-accent text-sidebar-foreground font-semibold"
+                              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/80 hover:text-sidebar-foreground"
+                          )}
+                        >
+                          <Link href={item.url}>
+                            <item.icon />
+                            <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </motion.div>
                     </SidebarMenuItem>
                   ))}
                 </SidebarMenu>
@@ -135,17 +263,17 @@ export function AppSidebar() {
 
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={location === "/workspace/settings"} data-testid="link-workspace-settings">
-              <Link href="/workspace/settings">
-                <Settings className="h-4 w-4" />
-                <span>Workspace Settings</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+      <SidebarFooter className="p-4 group-data-[collapsible=icon]:p-2 border-t border-sidebar-border bg-gradient-to-t from-sidebar/50 to-transparent flex justify-center">
+        <div className="group-data-[collapsible=icon]:hidden w-full">
+          <WorkspaceSwitcher />
+        </div>
+        
+        {/* أيقونة المستخدم تظهر فقط عند الإغلاق وتكون في الوسط */}
+        <div className="hidden group-data-[collapsible=icon]:flex items-center justify-center w-full">
+            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+               <User className="h-4 w-4 text-muted-foreground" />
+            </div>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );

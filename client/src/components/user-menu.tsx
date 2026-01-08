@@ -42,13 +42,14 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="rounded-full" data-testid="button-user-menu">
-          <Avatar className="h-8 w-8">
+        <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 p-0 relative" data-testid="button-user-menu">
+          <Avatar className="h-10 w-10 ring-2 ring-sidebar-border ring-offset-2 ring-offset-sidebar">
             <AvatarImage src={user?.profileImageUrl || undefined} alt={displayName} />
-            <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+            <AvatarFallback className="bg-sidebar-accent text-sidebar-foreground text-sm font-semibold">
               {initials}
             </AvatarFallback>
           </Avatar>
+          <div className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-sidebar pointer-events-none"></div>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

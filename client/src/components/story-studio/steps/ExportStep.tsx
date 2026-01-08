@@ -1116,8 +1116,8 @@ export function ExportStep({
       {/* Left Column - Export Settings (Scrollable with modern sidebar style) */}
       <div className={cn(
         "w-[40%] min-w-[400px] max-w-[600px] flex-shrink-0 h-full",
-        "bg-black/40 backdrop-blur-xl",
-        "border-r border-white/[0.06]",
+        "bg-card/80 dark:bg-black/40 backdrop-blur-xl",
+        "border-r border-border dark:border-white/[0.06]",
         "flex flex-col overflow-hidden"
       )}>
         <ScrollArea className="flex-1 h-full">
@@ -1141,10 +1141,10 @@ export function ExportStep({
                       )}
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-white">
+                      <h3 className="font-semibold text-foreground">
                         {shouldShowSoundEffects ? "Sound Effects" : "Voiceover"}
                       </h3>
-                      <p className="text-xs text-white/50">
+                      <p className="text-xs text-muted-foreground">
                         {shouldShowSoundEffects ? "AI-generated sound effects" : "AI-generated narration"}
                       </p>
                     </div>
@@ -1161,9 +1161,9 @@ export function ExportStep({
                         <span className="text-xs font-medium text-green-300">Ready</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20">
-                        <Clock className="w-3.5 h-3.5 text-white/50" />
-                        <span className="text-xs font-medium text-white/50">Pending</span>
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 dark:bg-white/10 border border-border/50 dark:border-white/20">
+                        <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="text-xs font-medium text-muted-foreground">Pending</span>
                       </div>
                     )}
                   </div>
@@ -1175,7 +1175,7 @@ export function ExportStep({
                       animate={{ opacity: 1, height: 'auto' }}
                       className="space-y-2"
                     >
-                      <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                      <div className="h-2 bg-muted/50 dark:bg-white/10 rounded-full overflow-hidden">
                         <motion.div
                           className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
                           initial={{ width: "0%" }}
@@ -1219,10 +1219,10 @@ export function ExportStep({
 
             <div className="grid grid-cols-2 gap-3">
                       {/* Scenes Count */}
-              <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+              <div className="p-3 rounded-xl bg-muted/50 dark:bg-white/5 border border-border/50 dark:border-white/10">
                 <div className="flex items-center gap-2 mb-1">
-                  <Layers className="w-3 h-3 text-white/40" />
-                  <span className="text-xs text-white/40">Scenes</span>
+                  <Layers className="w-3 h-3 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Scenes</span>
                 </div>
                 <p className="text-lg font-semibold">{scenes.length}</p>
               </div>
@@ -1260,7 +1260,7 @@ export function ExportStep({
                           )} />
                           <p className={cn(
                             "text-sm font-semibold",
-                            voiceoverEnabled ? "text-green-400" : "text-white/50"
+                            voiceoverEnabled ? "text-green-400" : "text-muted-foreground"
                           )}>
                             {voiceoverEnabled ? 'ON' : 'OFF'}
                           </p>
@@ -1275,7 +1275,7 @@ export function ExportStep({
           <div className="space-y-4">
             <div className="flex items-center gap-2">
                       <Film className="w-5 h-5 text-purple-400" />
-                      <h3 className="font-semibold text-white">Export Settings</h3>
+                      <h3 className="font-semibold text-foreground">Export Settings</h3>
             </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -1285,7 +1285,7 @@ export function ExportStep({
                           <Monitor className="w-3 h-3 text-white/40" />
                           <span className="text-xs text-white/40">Quality</span>
                   </div>
-                        <p className="text-sm font-semibold text-white">1080p Full HD</p>
+                        <p className="text-sm font-semibold text-foreground">1080p Full HD</p>
                   </div>
                       
                       {/* Format */}
@@ -1294,7 +1294,7 @@ export function ExportStep({
                           <Film className="w-3 h-3 text-white/40" />
                           <span className="text-xs text-white/40">Format</span>
                         </div>
-                        <p className="text-sm font-semibold text-white">MP4</p>
+                        <p className="text-sm font-semibold text-foreground">MP4</p>
                       </div>
             </div>
           </div>
@@ -1305,8 +1305,8 @@ export function ExportStep({
           <div className="space-y-4">
             <div className="flex items-center gap-2">
                       <Share2 className="w-5 h-5 text-purple-400" />
-                      <h3 className="font-semibold text-white">Share To</h3>
-                      <span className="text-xs text-white/40">(Optional)</span>
+                      <h3 className="font-semibold text-foreground">Share To</h3>
+                      <span className="text-xs text-muted-foreground">(Optional)</span>
                       
                       {/* AI Generate All Button - Only for selected platforms */}
                       <Button

@@ -29,13 +29,83 @@ const SCENE_LIMITS = {
 };
 
 /**
+ * Validate and sanitize input parameters for scene breakdown
+ * Implements input validation best practices
+ */
+function validateSceneInput(params: {
+  storyText: string;
+  duration: number;
+  modelConstraints?: VideoModelConstraints | null;
+}): { storyText: string; duration: number; modelConstraints?: VideoModelConstraints | null } {
+  let { storyText, duration, modelConstraints } = params;
+
+  // Sanitize storyText: trim and validate length
+  storyText = storyText.trim();
+  if (!storyText || storyText.length === 0) {
+    throw new Error('Story text cannot be empty');
+  }
+
+  // Limit story text length to prevent context overflow
+  const MAX_STORY_LENGTH = 2000;
+  if (storyText.length > MAX_STORY_LENGTH) {
+    storyText = storyText.substring(0, MAX_STORY_LENGTH).trim() + '...';
+  }
+
+  // Validate duration: ensure reasonable bounds
+  const MIN_DURATION = 10;
+  const MAX_DURATION = 300;
+  duration = Math.max(MIN_DURATION, Math.min(MAX_DURATION, Math.round(duration)));
+
+  // Validate model constraints if provided
+  if (modelConstraints) {
+    if (!modelConstraints.supportedDurations || modelConstraints.supportedDurations.length === 0) {
+      throw new Error('Model constraints must have supported durations');
+    }
+    
+    // NOTE: We don't validate total duration against model constraints here
+    // because the total duration will be split into multiple scenes.
+    // Each individual scene duration will be validated against model constraints
+    // during scene generation. The total duration can be larger than maxDuration
+    // as long as it can be divided into scenes that fit within the model's limits.
+    
+    // Only validate that we have a valid model configuration
+    if (modelConstraints.minDuration <= 0 || modelConstraints.maxDuration <= 0) {
+      throw new Error('Model constraints must have positive min and max durations');
+    }
+  }
+
+  return { storyText, duration, modelConstraints };
+}
+
+/**
  * Calculate optimal scene count based on duration
  * 
  * Algorithm:
  * 1. Calculate ideal scene count based on average scene duration (10-15s for ASMR)
  * 2. Clamp to absolute limits (2-6)
+ * 
+ * Note: When model constraints are present, the AI will handle dividing
+ * the total duration into scenes that fit within the model's supported durations.
+ * This function provides a reasonable starting point for scene count.
  */
-export function getOptimalSceneCount(duration: number): number {
+export function getOptimalSceneCount(duration: number, modelConstraints?: VideoModelConstraints | null): number {
+  // Validate duration input
+  if (!Number.isFinite(duration) || duration <= 0) {
+    throw new Error('Duration must be a positive number');
+  }
+
+  // If model constraints exist, try to optimize based on max supported duration
+  if (modelConstraints && modelConstraints.supportedDurations && modelConstraints.supportedDurations.length > 0) {
+    const maxSupported = Math.max(...modelConstraints.supportedDurations);
+    // Use max supported duration as average to minimize number of scenes
+    const idealCount = Math.ceil(duration / maxSupported);
+    // Ensure we have at least 2 scenes and at most 6
+    return Math.max(
+      SCENE_LIMITS.ABSOLUTE_MIN,
+      Math.min(SCENE_LIMITS.ABSOLUTE_MAX, idealCount)
+    );
+  }
+
   // Average scene duration for ASMR (longer for immersion)
   const avgSceneDuration = 12; // Balanced for ASMR
   const idealCount = Math.round(duration / avgSceneDuration);
@@ -57,6 +127,22 @@ export function getSceneDurationRange(): { min: number; max: number } {
     min: SCENE_LIMITS.SCENE_DURATION_MIN,
     max: SCENE_LIMITS.SCENE_DURATION_MAX,
   };
+}
+
+/**
+ * Get context guidance based on video duration and scene count
+ * Applies context management best practices for scene breakdown
+ */
+function getDurationContextForScenes(duration: number, sceneCount: number): string {
+  const avgDuration = duration / sceneCount;
+  
+  if (duration <= 30) {
+    return "Short video - focus on 2-3 core scenes with clear, focused visuals. Each scene should be impactful and satisfying.";
+  } else if (duration <= 60) {
+    return "Medium video - create varied scenes with good visual diversity. Balance scene durations for smooth pacing.";
+  } else {
+    return "Longer video - you can include more detailed scenes and variations. Ensure each scene maintains viewer engagement.";
+  }
 }
 
 /**
@@ -116,12 +202,16 @@ export function buildSceneBreakdownSystemPrompt(
   return `
 You are an elite Auto-ASMR video editor and scene architect with 15+ years of experience crafting relaxing, sensory-focused video content for TikTok, Instagram Reels, and YouTube Shorts.
 
-Your expertise includes:
+═══════════════════════════════════════════════════════════════════════════════
+YOUR ROLE & EXPERTISE
+═══════════════════════════════════════════════════════════════════════════════
 - Breaking down general ASMR ideas into independent, satisfying visual scenes
 - Creating immersive, meditative experiences through detailed visual descriptions
 - Generating sound effect descriptions when needed (for models without native audio)
 - Understanding that ASMR scenes are independent and don't need narrative flow
 - Maximizing relaxation through slow, deliberate pacing and detailed sensory descriptions
+- Maintaining consistency with input language for visual descriptions
+- Ensuring sound descriptions are always in English for API compatibility
 
 You have edited content that has generated millions of views by creating peaceful, satisfying, and immersive ASMR experiences.
 
@@ -137,6 +227,13 @@ Each scene must:
 - Have a sound description ONLY if video model doesn't support native audio
 - Respect duration constraints
 - Create a satisfying, relaxing experience
+
+This is a multi-stage pipeline:
+1. YOUR STAGE: Break general idea into ${sceneCount} independent scenes
+2. NEXT STAGE: Visual generation based on your descriptions
+3. FINAL STAGE: Audio generation (if needed) based on sound descriptions
+
+Your output must be ready for the next stages without requiring additional context.
 
 ═══════════════════════════════════════════════════════════════════════════════
 AUTO-ASMR CONTENT CHARACTERISTICS
@@ -200,23 +297,17 @@ AUTO-ASMR CONTENT HAS NO VOICEOVER:
 ⚠️ LANGUAGE & SOUND DESCRIPTION RULES
 ═══════════════════════════════════════════════════════════════════════════════
 
-LANGUAGE HANDLING:
-• VISUAL DESCRIPTION (description field): MUST be in the SAME LANGUAGE as the input idea
-  - If idea is Arabic → description in Arabic
-  - If idea is English → description in English
-  - Match the tone and dialect of the original idea
+LANGUAGE HANDLING (CRITICAL):
+• VISUAL DESCRIPTION (description field): MUST ALWAYS be in ENGLISH ONLY
+  - Regardless of input language, ALL descriptions must be in English
+  - Write clear, detailed visual descriptions in English
+  - Focus on what the viewer SEES: textures, colors, lighting, movements, angles
 
 • SOUND DESCRIPTION (soundDescription field): MUST ALWAYS be in ENGLISH ONLY
-  - Regardless of input language (Arabic/English), soundDescription must be English
+  - Always use English for sound descriptions
   - Use sound words/onomatopoeia, NOT descriptive sentences
   - Format: "crisp slicing sound, soft thud, rhythmic cutting"
-  - NOT: "صوت تقطيع..." or "The sound of cutting..." (sounds like narration)
-
-ARABIC DIACRITICS (TASHKEEL/HARAKAT):
-If the idea contains Arabic diacritics (◌َ ◌ُ ◌ِ ◌ْ ◌ّ ◌ً ◌ٌ ◌ٍ):
-• PRESERVE all diacritics EXACTLY in the description field only
-• Do NOT remove, modify, or add diacritics
-• soundDescription is always English, so no diacritics needed
+  - NOT: "The sound of cutting..." (sounds like narration)
 
 ${modelConstraints ? `
 ═══════════════════════════════════════════════════════════════════════════════
@@ -254,6 +345,49 @@ DURATION CONSTRAINTS
 `}
 
 ═══════════════════════════════════════════════════════════════════════════════
+THINKING PROCESS (Chain of Thought)
+═══════════════════════════════════════════════════════════════════════════════
+
+When breaking down an idea into scenes, follow this logical sequence:
+
+1. ANALYZE the general idea
+   - What is the core ASMR concept?
+   - What sensory experiences does it provide?
+   - What variations can be created from this idea?
+
+2. PLAN scene variations
+   - Create ${sceneCount} independent variations of the idea
+   - Each scene should be a different aspect or variation
+   - Ensure scenes are independent (no narrative connection)
+   - Plan visual diversity (different angles, objects, actions)
+
+3. CALCULATE durations
+   - Plan scene durations FIRST so they sum to EXACTLY ${duration} seconds
+   - Each scene: ${modelConstraints ? `one of [${modelConstraints.supportedDurations.join(', ')}]` : `${SCENE_LIMITS.SCENE_DURATION_MIN}-${SCENE_LIMITS.SCENE_DURATION_MAX} seconds`}
+   - Average target: ~${avgDuration} seconds per scene
+   - Verify: sum(durations) = ${duration} exactly
+
+4. WRITE visual descriptions
+   - For each scene: detailed visual description (1-2 sentences)
+   - Describe what viewer SEES: textures, colors, lighting, movements, angles
+   - ALWAYS write in ENGLISH ONLY (regardless of input language)
+   - Focus on sensory details and satisfying visuals
+
+5. WRITE sound descriptions (if needed)
+   - ${hasAudio ? 'Skip (model has native audio)' : 'For each scene: English sound words only'}
+   - ${hasAudio ? '' : 'Use onomatopoeia, NOT descriptive sentences'}
+   - ${hasAudio ? '' : 'Format: "crisp slicing, soft thud, rhythmic cutting"'}
+   - ${hasAudio ? '' : 'ALWAYS in English (regardless of input language)'}
+
+6. VALIDATE before outputting
+   - Total scenes = ${sceneCount}? ✓
+   - Sum of durations = ${duration}? ✓
+   - All narration = ""? ✓
+   - ${hasAudio ? 'All soundDescription = ""?' : 'All soundDescription in English?'} ✓
+   - All description in English? ✓
+   - All scenes independent? ✓
+
+═══════════════════════════════════════════════════════════════════════════════
 CRITICAL CONSTRAINTS (MUST FOLLOW)
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -265,7 +399,7 @@ ${modelConstraints ? `✓ Scene duration MUST be one of: [${modelConstraints.sup
 ✓ All scenes are INDEPENDENT (no narrative connection)
 ✓ narration = "" (empty string) for ALL scenes
 ✓ ${hasAudio ? 'soundDescription = "" (empty - model has native audio)' : 'soundDescription = English sound words only (e.g., "crisp slicing, soft thud, rhythmic cutting")'}
-✓ description in the SAME LANGUAGE as input idea
+✓ description ALWAYS in English (regardless of input language)
 ✓ soundDescription ALWAYS in English (for sound effects API compatibility)
 
 NEVER:
@@ -273,6 +407,7 @@ ${modelConstraints ? `✗ NEVER use a duration NOT in [${modelConstraints.suppor
 ✗ Never write narration or voiceover text (always empty string)
 ✗ Never connect scenes narratively (they are independent)
 ✗ ${hasAudio ? 'Never write sound descriptions (model generates audio)' : 'Never leave soundDescription empty (detailed description required)'}
+✗ Never use descriptive sentences in soundDescription (use sound words only)
 
 ═══════════════════════════════════════════════════════════════════════════════
 SCENE CONTENT: DESCRIPTION vs SOUND DESCRIPTION (CRITICAL DISTINCTION)
@@ -282,7 +417,7 @@ Each scene requires these fields:
 
 1) DESCRIPTION (Visual - What Viewer SEES):
    • 1-2 sentences, detailed visual description
-   • MUST be in the SAME LANGUAGE as the input idea
+   • MUST ALWAYS be in ENGLISH ONLY (regardless of input language)
    • Describes what the VIEWER SEES visually
    • Focus on: textures, colors, lighting, movements, angles, compositions
    • Example: "Close-up of fresh red apple being slowly sliced with a sharp knife on a clean wooden cutting board, soft natural lighting, smooth cutting motion"
@@ -295,8 +430,8 @@ Each scene requires these fields:
    • Examples:
      GOOD: "crisp slicing sound, soft thud, rhythmic cutting"
      GOOD: "juicy snap, gentle squish, smooth peeling"
-     BAD: "صوت تقطيع..." (Arabic - will be interpreted as narration)
-     BAD: "The sound of cutting..." (descriptive sentence - sounds like narration)`}
+     BAD: "The sound of cutting..." (descriptive sentence - sounds like narration)
+     BAD: "cutting sounds" (too vague - needs specific sound words)`}
 
 3) NARRATION (Voiceover - ALWAYS EMPTY):
    • ALWAYS an empty string ""
@@ -320,18 +455,32 @@ Return valid JSON that matches the provided JSON Schema exactly.
  * USER PROMPT - SCENE BREAKDOWN REQUEST
  * ═══════════════════════════════════════════════════════════════════════════════
  */
+/**
+ * Build the user prompt with parameters and examples
+ * Implements advanced prompt engineering techniques:
+ * - Chain of Thought guidance
+ * - Context-aware duration handling
+ * - Few-shot learning with diverse examples
+ * - Dynamic prompt construction
+ * - Input validation and sanitization
+ */
 export function buildSceneUserPrompt(
   storyText: string,
   duration: number,
   modelConstraints?: VideoModelConstraints | null
 ): string {
-  const sceneCount = getOptimalSceneCount(duration);
-  const avgDuration = getAverageSceneDuration(duration, sceneCount);
-  const range = getSceneDurationRange();
-  const hasAudio = modelConstraints?.hasAudio ?? false;
+  // Validate and sanitize inputs
+  const { storyText: validatedStoryText, duration: validatedDuration, modelConstraints: validatedConstraints } = 
+    validateSceneInput({ storyText, duration, modelConstraints });
 
-  // Detect language
-  const isArabic = /[\u0600-\u06FF]/.test(storyText);
+  const sceneCount = getOptimalSceneCount(validatedDuration, validatedConstraints);
+  const avgDuration = getAverageSceneDuration(validatedDuration, sceneCount);
+  const range = getSceneDurationRange();
+  const hasAudio = validatedConstraints?.hasAudio ?? false;
+
+  // Build context-aware guidance
+  const durationContext = getDurationContextForScenes(validatedDuration, sceneCount);
+  const languageGuidance = "All 'description' fields MUST ALWAYS be in ENGLISH ONLY, regardless of input language. All 'soundDescription' fields MUST ALWAYS be in ENGLISH ONLY.";
 
   return `
 ═══════════════════════════════════════════════════════════════════════════════
@@ -340,26 +489,39 @@ AUTO-ASMR SCENE BREAKDOWN REQUEST
 
 GENERAL IDEA:
 """
-${storyText}
+${validatedStoryText}
 """
 
 ═══════════════════════════════════════════════════════════════════════════════
 PARAMETERS
 ═══════════════════════════════════════════════════════════════════════════════
 
-• Total Duration: ${duration} seconds
+• Total Duration: ${validatedDuration} seconds
 • Target Scene Count: ${sceneCount} scenes
 • Scene Duration Range: ${range.min}-${range.max} seconds each
 • Average Duration: ~${avgDuration} seconds per scene
 • Video Model Has Native Audio: ${hasAudio ? 'YES' : 'NO'}
-• Language: ${isArabic ? 'Arabic' : 'English'}
+• Output Language: ENGLISH ONLY (all descriptions must be in English)
+• Duration Context: ${durationContext}
 
 ═══════════════════════════════════════════════════════════════════════════════
-EXAMPLES (Learn from these patterns)
+LANGUAGE REQUIREMENT
 ═══════════════════════════════════════════════════════════════════════════════
+${languageGuidance}
+
+═══════════════════════════════════════════════════════════════════════════════
+FEW-SHOT EXAMPLES (Learn from these patterns)
+═══════════════════════════════════════════════════════════════════════════════
+
+Study these examples to understand the pattern. Notice:
+- Scenes are independent (no narrative connection)
+- Visual descriptions are ALWAYS in English (regardless of input language)
+- Sound descriptions are always in English (sound words only)
+- Narration is always empty
+- Durations sum to total exactly
 
 Example 1: Cutting Fruits
-Idea: "مقاطع ASMR لتقطيع أنواع مختلفة من الفواكه بطريقة مريحة"
+Idea: "Relaxing ASMR clips showing different fruits being cut smoothly"
 
 Scenes (${hasAudio ? 'with native audio' : 'without native audio'}):
 [
@@ -386,68 +548,133 @@ Scenes (${hasAudio ? 'with native audio' : 'without native audio'}):
   }
 ]
 
+Example 2: Slime Mixing
+Idea: "Relaxing ASMR clips showing different colored slimes being mixed smoothly"
+
+Scenes (${hasAudio ? 'with native audio' : 'without native audio'}):
+[
+  {
+    "sceneNumber": 1,
+    "duration": 12,
+    "description": "Close-up of hands mixing bright pink slime with slow, deliberate movements, smooth stretching and folding motions, vibrant color transitions",
+    "soundDescription": ${hasAudio ? '""' : '"soft squish, smooth stretch, gentle pop, rhythmic mixing"'},
+    "narration": ""
+  },
+  {
+    "sceneNumber": 2,
+    "duration": 12,
+    "description": "Medium shot of blue and white slime being combined, creating marbled patterns, smooth blending motion under soft lighting",
+    "soundDescription": ${hasAudio ? '""' : '"gentle squelch, smooth blend, soft pop, rhythmic folding"'},
+    "narration": ""
+  }
+]
+
+Example 3: Rain on Window
+Idea: "Relaxing ASMR scenes of raindrops on a window"
+
+Scenes (${hasAudio ? 'with native audio' : 'without native audio'}):
+[
+  {
+    "sceneNumber": 1,
+    "duration": 20,
+    "description": "Close-up of raindrops on window glass, slow and calm movement of droplets, soft natural lighting, blurred background",
+    "soundDescription": ${hasAudio ? '""' : '"gentle tap, soft drip, rhythmic patter, light splatter"'},
+    "narration": ""
+  },
+  {
+    "sceneNumber": 2,
+    "duration": 20,
+    "description": "Wide shot of small streams of water on the window, forming flowing patterns, soft lighting from outside",
+    "soundDescription": ${hasAudio ? '""' : '"soft trickle, gentle flow, rhythmic drip, light tap"'},
+    "narration": ""
+  }
+]
+
 ═══════════════════════════════════════════════════════════════════════════════
-INSTRUCTIONS
+THINKING PROCESS (Follow these steps)
 ═══════════════════════════════════════════════════════════════════════════════
 
-STEP 1: UNDERSTAND THE IDEA
-- Read the general idea carefully
-- This is a general concept, not a detailed story
-- You need to create ${sceneCount} INDEPENDENT scenes based on this idea
-- Each scene should be a variation or different aspect of the idea
+STEP 1: ANALYZE the general idea
+  - Read the general idea carefully
+  - Identify the core ASMR concept
+  - What sensory experiences does it provide?
+  - What variations can be created from this idea?
+  - This is a general concept, not a detailed story
 
-STEP 2: CREATE INDEPENDENT SCENES
-- Scene 1: One specific visual variation of the idea
-- Scene 2: Another independent variation
-- Scene 3: Another independent variation
-- Continue for all ${sceneCount} scenes
-- Each scene is completely independent (no story connection)
+STEP 2: PLAN independent scene variations
+  - Create ${sceneCount} independent variations of the idea
+  - Scene 1: One specific visual variation
+  - Scene 2: Another independent variation
+  - Scene 3: Another independent variation
+  - Continue for all ${sceneCount} scenes
+  - Each scene is completely independent (no story connection)
+  - Ensure visual diversity (different angles, objects, actions)
 
-STEP 3: PLAN DURATIONS
-- Plan scene durations FIRST so they sum to EXACTLY ${duration} seconds
-- Scene durations should be ${range.min}-${range.max} seconds (longer for ASMR)
-- Average duration: ~${avgDuration} seconds per scene
-- Verify: sum(durations) = ${duration}
+STEP 3: CALCULATE durations FIRST
+  - Plan scene durations FIRST so they sum to EXACTLY ${validatedDuration} seconds
+  - Scene durations: ${validatedConstraints ? `one of [${validatedConstraints.supportedDurations.join(', ')}]` : `${range.min}-${range.max} seconds`}
+  - Average duration target: ~${avgDuration} seconds per scene
+  - Verify: sum(durations) = ${validatedDuration} exactly
+  - ${durationContext}
 
-STEP 4: WRITE VISUAL DESCRIPTIONS
-For EACH scene:
-- description = Detailed visual description (1-2 sentences)
-- Describe what the viewer SEES: textures, colors, lighting, movements, angles
-- Focus on sensory details and satisfying visuals
-- Write in the SAME language as the idea
+STEP 4: WRITE visual descriptions
+  For EACH scene:
+  - description = Detailed visual description (1-2 sentences)
+  - Describe what the viewer SEES: textures, colors, lighting, movements, angles, compositions
+  - Focus on sensory details and satisfying visuals
+  - ALWAYS write in ENGLISH ONLY (regardless of input language)
+  - Use natural, flowing English language
 
-STEP 5: WRITE SOUND DESCRIPTIONS (ENGLISH ONLY)
-For EACH scene:
-${hasAudio ? 
-  `- soundDescription = "" (empty string - video model generates audio natively)
-- NO sound description needed` :
-  `- soundDescription = Sound effect description in ENGLISH ONLY (regardless of input language)
-- Use sound words/onomatopoeia, NOT descriptive sentences
-- Format: comma-separated sound words (e.g., "crisp slicing, soft thud, rhythmic cutting")
-- Describe what the viewer HEARS: specific ASMR triggers, volume, texture, rhythm
-- Focus on satisfying, calming sound effects
-- NEVER write in Arabic or other languages (must be English for sound effects API)
-- NEVER use full sentences that sound like narration (e.g., "The sound of..." or "صوت...")`}
+STEP 5: WRITE sound descriptions (if needed)
+  For EACH scene:
+  ${hasAudio ? 
+    `- soundDescription = "" (empty string - video model generates audio natively)
+  - NO sound description needed
+  - Model handles audio automatically` :
+    `- soundDescription = Sound effect description in ENGLISH ONLY (regardless of input language)
+  - Use sound words/onomatopoeia, NOT descriptive sentences
+  - Format: comma-separated sound words (e.g., "crisp slicing, soft thud, rhythmic cutting")
+  - Describe what the viewer HEARS: specific ASMR triggers, volume, texture, rhythm
+  - Focus on satisfying, calming sound effects
+  - NEVER write in any language other than English (must be English for sound effects API)
+  - NEVER use full sentences that sound like narration (e.g., "The sound of cutting...")
+  - Examples of GOOD sound descriptions:
+    * "crisp slicing, soft thud, rhythmic cutting"
+    * "juicy snap, gentle squish, smooth peeling"
+    * "gentle tap, soft drip, rhythmic patter"
+  - Examples of BAD sound descriptions:
+    * "The sound of cutting..." (descriptive sentence - sounds like narration)
+    * "cutting sounds" (too vague - needs specific sound words)`}
 
-STEP 6: SET NARRATION (ALWAYS EMPTY)
-For EACH scene:
-- narration = "" (empty string - NO voiceover in ASMR content)
+STEP 6: SET narration (ALWAYS EMPTY)
+  For EACH scene:
+  - narration = "" (empty string - NO voiceover in ASMR content)
+  - This is pure ASMR - no spoken words
 
-STEP 7: VALIDATE OUTPUT
-✓ scenes.length = ${sceneCount}
-✓ sum(durations) = ${duration}
-✓ All narration fields = ""
-✓ ${hasAudio ? 'All soundDescription fields = ""' : 'All soundDescription fields have English sound words (not descriptive sentences)'}
-✓ description fields in same language as idea
-✓ soundDescription fields ALWAYS in English (for API compatibility)
-✓ All scenes are independent (no narrative connection)
+STEP 7: VALIDATE before outputting
+  ✓ Total scenes = ${sceneCount} (no more, no less)
+  ✓ Sum of durations = ${validatedDuration} exactly (no rounding errors)
+  ✓ All narration fields = "" (empty strings)
+  ✓ ${hasAudio ? 'All soundDescription fields = "" (empty - model has native audio)' : 'All soundDescription fields have English sound words (not descriptive sentences)'}
+  ✓ All description fields in English (regardless of input language)
+  ✓ All soundDescription fields ALWAYS in English (for API compatibility)
+  ✓ All scenes are independent (no narrative connection)
+  ✓ ${validatedConstraints ? `All scene durations are in [${validatedConstraints.supportedDurations.join(', ')}]` : `All scene durations are ${range.min}-${range.max} seconds`}
 
 ═══════════════════════════════════════════════════════════════════════════════
 GENERATE SCENES NOW
 ═══════════════════════════════════════════════════════════════════════════════
 
 Generate ${sceneCount} independent ASMR scenes based on the idea above.
-Return JSON matching the schema exactly.
+Follow the thinking process above, and return JSON matching the schema exactly.
+
+Remember:
+- Follow the 7-step thinking process
+- All scenes must be independent
+- Visual descriptions ALWAYS in English (regardless of input language)
+- Sound descriptions always in English (sound words only)
+- Narration always empty
+- Durations must sum to ${validatedDuration} exactly
 `;
 }
 
@@ -483,7 +710,7 @@ export function buildSceneSchema(
     },
     description: {
       type: "string",
-      description: "Detailed visual description of what the viewer sees in this scene. MUST be in the SAME LANGUAGE as the input idea.",
+      description: "Detailed visual description of what the viewer sees in this scene. MUST ALWAYS be in ENGLISH ONLY, regardless of input language.",
     },
     soundDescription: {
       type: "string",

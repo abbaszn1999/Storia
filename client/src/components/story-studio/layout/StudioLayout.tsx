@@ -81,7 +81,7 @@ export function StudioLayout({
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground overflow-hidden">
       {/* Ambient Background */}
       <AmbientBackground accentColor={gradientColor} />
 
@@ -91,7 +91,7 @@ export function StudioLayout({
           {/* Back to Templates - Fixed Left Position */}
           <motion.button
             onClick={() => navigate('/stories')}
-            className="absolute left-6 flex items-center gap-2 text-white/50 hover:text-white transition-colors"
+            className="absolute left-6 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             whileHover={{ x: -3 }}
           >
             <ArrowLeft className="w-4 h-4" />
@@ -102,16 +102,16 @@ export function StudioLayout({
           <div className="flex items-center gap-4">
             <div className={cn(
               "flex items-center gap-2 px-3 py-1.5 rounded-lg",
-              "bg-white/5 border border-white/10"
+              "bg-muted/50 border border-border backdrop-blur-sm"
             )}>
               <span 
                 className="w-2 h-2 rounded-full"
                 style={{ backgroundColor: template.iconColor }}
               />
-              <span className="text-sm font-medium text-white/70">{template.name}</span>
+              <span className="text-sm font-medium text-foreground/70">{template.name}</span>
             </div>
             
-            <div className="h-4 w-px bg-white/10" />
+            <div className="h-4 w-px bg-border" />
             
             <motion.div
               key={currentStep}
@@ -120,7 +120,7 @@ export function StudioLayout({
               className="flex items-center gap-2"
             >
               <span className="text-2xl">{currentStepInfo.icon}</span>
-              <span className="text-lg font-semibold">{currentStepInfo.label}</span>
+              <span className="text-lg font-semibold text-foreground">{currentStepInfo.label}</span>
             </motion.div>
           </div>
         </div>

@@ -51,6 +51,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const { autoAsmrRouter } = await import("./stories/auto-asmr");
   app.use('/api/auto-asmr', autoAsmrRouter);
   
+  const { logoAnimationRoutes } = await import("./modes/logo-animation");
+  app.use('/api/videos/logo-animation', logoAnimationRoutes);
+  
   app.use('/api/storage', storageRoutes);
   app.use('/api/characters', characterRoutes);
   app.use('/api/locations', locationRoutes);

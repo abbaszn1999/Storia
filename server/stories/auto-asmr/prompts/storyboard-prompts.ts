@@ -95,13 +95,17 @@ export function buildStoryboardEnhancerSystemPrompt(
   let systemPrompt = `
 You are an elite ASMR visual director and prompt engineer with 15+ years of experience crafting relaxing, sensory-focused short-form video content for TikTok, Instagram Reels, and YouTube Shorts.
 
-Your expertise includes:
+═══════════════════════════════════════════════════════════════════════════════
+YOUR ROLE & EXPERTISE
+═══════════════════════════════════════════════════════════════════════════════
 - Creating stunning image prompts for AI image generation that produce calming, visually satisfying ASMR content
 - Understanding the psychology of sensory experiences and relaxation
 - Mastering aspect ratio-specific composition techniques for immersive visuals
 - Generating smooth, subtle motion descriptions that enhance the ASMR experience
 - Selecting gentle, imperceptible transitions that maintain a continuous flow
 - Matching visual style to sensory triggers and peaceful mood
+- Writing all prompts in English for optimal AI model performance
+- Maintaining visual consistency across independent ASMR scenes
 
 You have created prompts that have generated millions of views by creating deeply relaxing and satisfying visual experiences.
 
@@ -118,6 +122,13 @@ ${animationMode ? '- Scene transitions (transitionToNext) - Soft, fluid transiti
 CRITICAL: Auto-ASMR content has NO voiceover, NO narration, NO spoken words.
 Scenes are independent sensory experiences - each scene is a distinct visual moment.
 Each prompt must be optimized for maximum sensory satisfaction and relaxation.
+
+This is a multi-stage pipeline:
+1. YOUR STAGE: Transform scene descriptions into production-ready prompts
+2. NEXT STAGE: AI image/video generation based on your prompts
+3. FINAL STAGE: Assembly and post-production
+
+Your output must be ready for the next stages without requiring additional context.
 
 ═══════════════════════════════════════════════════════════════════════════════
 VISUAL SETTINGS
@@ -398,7 +409,7 @@ ${fieldNumber}. videoPrompt (REQUIRED for image-to-video):
 │ "Camera moves" (too vague, lacks detail)                                   │
 │ "Smooth motion" (lacks specificity, no camera/subject details)             │
 │ "Movement" (completely generic, useless)                                    │
-│ "زوم على الشخصية" (not in English - AI video models require English!)      │
+│ "Zoom on character" (not descriptive enough - needs specific details)      │
 └─────────────────────────────────────────────────────────────────────────────┘`;
     } else if (animationType === 'transition') {
       systemPrompt += `
@@ -516,6 +527,57 @@ ${fieldNumber}. transitionToNext (REQUIRED for all scenes except last):
   systemPrompt += `
 
 ═══════════════════════════════════════════════════════════════════════════════
+THINKING PROCESS (Chain of Thought)
+═══════════════════════════════════════════════════════════════════════════════
+
+When transforming a scene description into production-ready prompts, follow this logical sequence:
+
+1. ANALYZE the scene description
+   - What is the core visual element?
+   - What sensory details are mentioned?
+   - What mood or atmosphere should be conveyed?
+   - What makes this scene relaxing or satisfying?
+
+2. PLAN the imagePrompt structure
+   - Subject: What/who is the focus?
+   - Environment: Where is it set?
+   - Composition: How to frame for ${aspectRatio}?
+   - Lighting: What atmosphere does it need?
+   - Style: Which keywords fit naturally?
+
+3. WRITE the imagePrompt
+   - Start with subject description
+   - Add environment and context
+   - Describe composition for ${aspectRatio}
+   - Include lighting details
+   - Integrate 3-5 style keywords naturally
+   - Write in ENGLISH (80-150 words)
+   - Focus on sensory details and textures
+
+4. ${animationMode && animationType === 'image-to-video' ? `GENERATE videoPrompt (if needed)
+   - Choose camera movement
+   - Describe subject motion
+   - Add environmental effects
+   - Write in ENGLISH (30-60 words)
+   - Match style to ${imageStyle}` : animationMode && animationType === 'transition' ? `SELECT animationName and effectName (if needed)
+   - Choose camera movement based on mood
+   - Select visual filter matching tone
+   - Ensure gentle, imperceptible transitions` : ''}
+
+5. ${animationMode ? `SELECT transitionToNext (if not last scene)
+   - Match transition to mood shift
+   - Choose from trending 2025 options
+   - Ensure smooth flow between scenes` : ''}
+
+6. VALIDATE before outputting
+   - imagePrompt in English? ✓
+   - 3-5 style keywords included? ✓
+   - ${aspectRatio} composition optimized? ✓
+   - 80-150 words? ✓
+   - Sensory details emphasized? ✓
+   - ${animationMode && animationType === 'image-to-video' ? 'videoPrompt in English? ✓' : ''}
+
+═══════════════════════════════════════════════════════════════════════════════
 CRITICAL RULES (MUST FOLLOW)
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -524,11 +586,12 @@ DO:
 ✓ ALWAYS write videoPrompt in ENGLISH (AI video models require English)
 ✓ Include 3-5 style keywords in EVERY imagePrompt (integrated naturally)
 ✓ Maintain visual consistency across all scenes (same character, same style)
-✓ Match mood and tone to the narrative arc
+✓ Match mood and tone to the sensory experience
 ✓ Create vivid, specific, cinematic descriptions (80-150 words)
 ✓ Optimize composition for ${aspectRatio} format
-✓ Use original narration as voiceText (don't rewrite)
-✓ Match voiceMood to scene emotional content
+✓ Focus on sensory satisfaction and relaxation (ASMR focus)
+✓ ${voiceoverEnabled ? 'Use original narration as voiceText (don\'t rewrite)' : ''}
+✓ ${voiceoverEnabled ? 'Match voiceMood to scene emotional content' : ''}
 
 DON'T:
 ✗ Never use generic or vague descriptions
@@ -630,7 +693,73 @@ ${voiceoverEnabled ? `2. voiceText:
 }
 
 /**
- * User prompt for storyboard enhancement
+ * Validate and sanitize input parameters for storyboard enhancement
+ * Implements input validation best practices
+ */
+function validateStoryboardInput(params: {
+  scenes: Array<{ sceneNumber: number; duration: number; description: string; narration?: string }>;
+  aspectRatio: string;
+  imageStyle: ImageStyle;
+}): {
+  scenes: Array<{ sceneNumber: number; duration: number; description: string; narration?: string }>;
+  aspectRatio: string;
+  imageStyle: ImageStyle;
+} {
+  let { scenes, aspectRatio, imageStyle } = params;
+
+  // Validate scenes
+  if (!scenes || scenes.length === 0) {
+    throw new Error('Scenes array cannot be empty');
+  }
+
+  // Sanitize scene descriptions
+  scenes = scenes.map(scene => {
+    let description = scene.description.trim();
+    if (!description || description.length === 0) {
+      throw new Error(`Scene ${scene.sceneNumber} description cannot be empty`);
+    }
+
+    // Limit description length
+    const MAX_DESCRIPTION_LENGTH = 2000;
+    if (description.length > MAX_DESCRIPTION_LENGTH) {
+      description = description.substring(0, MAX_DESCRIPTION_LENGTH).trim() + '...';
+    }
+
+    // Validate duration
+    const MIN_DURATION = 1;
+    const MAX_DURATION = 300;
+    const duration = Math.max(MIN_DURATION, Math.min(MAX_DURATION, Math.round(scene.duration)));
+
+    return {
+      ...scene,
+      description,
+      duration
+    };
+  });
+
+  // Validate aspect ratio
+  const validAspectRatios = ['9:16', '16:9', '1:1', '4:5'];
+  if (!validAspectRatios.includes(aspectRatio)) {
+    aspectRatio = '9:16'; // Default fallback
+  }
+
+  // Validate image style
+  const validStyles: ImageStyle[] = ['photorealistic', 'cinematic', '3d-render', 'digital-art', 'anime', 'illustration', 'watercolor', 'minimalist'];
+  if (!validStyles.includes(imageStyle)) {
+    imageStyle = 'photorealistic'; // Default fallback
+  }
+
+  return { scenes, aspectRatio, imageStyle };
+}
+
+/**
+ * Build the user prompt with parameters and examples
+ * Implements advanced prompt engineering techniques:
+ * - Chain of Thought guidance
+ * - Context-aware handling
+ * - Few-shot learning with diverse examples
+ * - Dynamic prompt construction
+ * - Input validation and sanitization
  */
 export function buildStoryboardUserPrompt(
   scenes: Array<{ sceneNumber: number; duration: number; description: string; narration?: string }>,
@@ -642,7 +771,10 @@ export function buildStoryboardUserPrompt(
   animationMode?: boolean,
   animationType?: 'transition' | 'image-to-video'
 ): string {
-  const scenesList = scenes
+  // Validate and sanitize inputs
+  const { scenes: validatedScenes, aspectRatio: validatedAspectRatio, imageStyle: validatedImageStyle } = 
+    validateStoryboardInput({ scenes, aspectRatio, imageStyle });
+  const scenesList = validatedScenes
     .map(
       (s) =>
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -651,22 +783,23 @@ SCENE ${s.sceneNumber} (${s.duration} seconds)
 Visual Description:
 "${s.description}"${voiceoverEnabled && s.narration ? `
 
+
 Voiceover Text:
 "${s.narration}"` : ''}`
     )
     .join('\n\n');
 
   const wordsPerSecond = language === 'Arabic' || language === 'ar' ? 2 : 2.5;
-  const styleGuide = IMAGE_STYLE_GUIDES[imageStyle] || IMAGE_STYLE_GUIDES['photorealistic'];
+  const styleGuide = IMAGE_STYLE_GUIDES[validatedImageStyle] || IMAGE_STYLE_GUIDES['photorealistic'];
   
   let prompt = `
 ═══════════════════════════════════════════════════════════════════════════════
 STORYBOARD ENHANCEMENT REQUEST
 ═══════════════════════════════════════════════════════════════════════════════
 
-You will receive ${scenes.length} scene(s) to enhance. Transform each scene description into production-ready prompts for AI generation.
+You will receive ${validatedScenes.length} scene(s) to enhance. Transform each scene description into production-ready prompts for AI generation.
 
-${buildStoryboardExamples(imageStyle, voiceoverEnabled, animationMode, animationType)}
+${buildStoryboardExamples(validatedImageStyle, voiceoverEnabled, animationMode, animationType)}
 
 ═══════════════════════════════════════════════════════════════════════════════
 YOUR SCENES TO ENHANCE
@@ -678,10 +811,11 @@ ${scenesList}
 PROJECT SETTINGS
 ═══════════════════════════════════════════════════════════════════════════════
 
-• Aspect Ratio: ${aspectRatio}
-• Image Style: ${imageStyle.toUpperCase()} - ${styleGuide.description}
+• Aspect Ratio: ${validatedAspectRatio}
+• Image Style: ${validatedImageStyle.toUpperCase()} - ${styleGuide.description}
 • Voiceover: ✗ Disabled (ASMR content has no narration)
 • Animation: ${animationMode ? `✓ Enabled (${animationType})` : '✗ Disabled'}
+• Output Language: ENGLISH ONLY (all prompts must be in English)
 
 ═══════════════════════════════════════════════════════════════════════════════
 STYLE KEYWORDS (use 3-5 in each imagePrompt)
@@ -715,22 +849,75 @@ RULES:
   prompt += `
 
 ═══════════════════════════════════════════════════════════════════════════════
+THINKING PROCESS (Follow these steps)
+═══════════════════════════════════════════════════════════════════════════════
+
+For each of the ${validatedScenes.length} scene(s) above, follow this process:
+
+STEP 1: ANALYZE the scene description
+  - Read the visual description carefully
+  - Identify core visual elements and sensory details
+  - Determine the mood and atmosphere
+  - Note any specific textures, colors, or materials mentioned
+
+STEP 2: PLAN the imagePrompt structure
+  - Subject: What is the main focus?
+  - Environment: What is the setting?
+  - Composition: How to frame for ${validatedAspectRatio}?
+  - Lighting: What atmosphere is needed?
+  - Style: Which keywords fit naturally?
+
+STEP 3: WRITE the imagePrompt
+  - Start with subject description (detailed, specific)
+  - Add environment and context
+  - Describe composition optimized for ${validatedAspectRatio}
+  - Include lighting details (source, quality, mood)
+  - Integrate 3-5 style keywords naturally
+  - Write in ENGLISH ONLY (80-150 words)
+  - Focus on sensory details: textures, colors, materials, movements
+  - Make it vivid and cinematic, not generic
+
+STEP 4: ${animationMode && animationType === 'image-to-video' ? `GENERATE videoPrompt
+  - Choose appropriate camera movement
+  - Describe subject motion (if any)
+  - Add environmental effects for atmosphere
+  - Write in ENGLISH ONLY (30-60 words)
+  - Match style to ${validatedImageStyle}` : animationMode && animationType === 'transition' ? `SELECT animationName and effectName
+  - Choose camera movement based on scene mood
+  - Select visual filter matching emotional tone
+  - Ensure gentle, imperceptible transitions` : ''}
+
+STEP 5: ${animationMode ? `SELECT transitionToNext (if not last scene)
+  - Match transition to mood shift between scenes
+  - Choose from trending 2025 options
+  - Ensure smooth flow maintaining relaxation
+  - Use "none" for the last scene` : ''}
+
+STEP 6: VALIDATE before outputting
+  - imagePrompt in English? ✓
+  - 3-5 style keywords included? ✓
+  - ${validatedAspectRatio} composition optimized? ✓
+  - 80-150 words? ✓
+  - Sensory details emphasized? ✓
+  - ${animationMode && animationType === 'image-to-video' ? 'videoPrompt in English? ✓' : ''}
+
+═══════════════════════════════════════════════════════════════════════════════
 YOUR TASK
 ═══════════════════════════════════════════════════════════════════════════════
 
-For each of the ${scenes.length} scene(s) above:
+For each of the ${validatedScenes.length} scene(s) above:
 
-1. Generate imagePrompt (80-150 words, ENGLISH, with style keywords)
+1. Generate imagePrompt (80-150 words, ENGLISH ONLY, with style keywords)
 ${voiceoverEnabled ? `2. Set voiceText to EXACT original narration text
 3. Select voiceMood based on emotional content` : ''}
-${animationMode && animationType === 'image-to-video' ? `2. Generate videoPrompt (30-60 words, ENGLISH, motion description)` : ''}
+${animationMode && animationType === 'image-to-video' ? `2. Generate videoPrompt (30-60 words, ENGLISH ONLY, motion description)` : ''}
 ${animationMode && animationType === 'transition' ? `2. Select animationName based on scene mood
 3. Select effectName based on emotional tone` : ''}
 ${animationMode ? `${voiceoverEnabled ? '4' : animationMode && animationType === 'transition' ? '4' : '3'}. Select transitionToNext based on mood shift (use "none" for last scene)` : ''}
 
 CRITICAL REMINDERS:
-• ALWAYS write imagePrompt in ENGLISH (AI models work best with English)
-${animationMode && animationType === 'image-to-video' ? '• ALWAYS write videoPrompt in ENGLISH (AI video models require English)' : ''}
+• ALWAYS write imagePrompt in ENGLISH ONLY (AI models work best with English)
+${animationMode && animationType === 'image-to-video' ? '• ALWAYS write videoPrompt in ENGLISH ONLY (AI video models require English)' : ''}
 • Include 3-5 style keywords naturally in each imagePrompt
 • Maintain visual consistency across scenes
 • Focus on sensory satisfaction - each scene is an independent visual experience

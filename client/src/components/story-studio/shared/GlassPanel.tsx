@@ -27,9 +27,9 @@ export const GlassPanel = forwardRef<HTMLDivElement, GlassPanelProps>(
     ...props 
   }, ref) => {
     const variants = {
-      default: "bg-black/40 backdrop-blur-xl border-white/[0.08]",
-      subtle: "bg-black/20 backdrop-blur-lg border-white/[0.05]",
-      solid: "bg-[#111111] border-white/[0.1]",
+      default: "bg-card/80 dark:bg-black/40 backdrop-blur-xl border-[#e5e7eb] dark:border-border",
+      subtle: "bg-muted/60 dark:bg-black/20 backdrop-blur-lg border-[#e5e7eb] dark:border-border",
+      solid: "bg-card dark:bg-[#111111] border-[#e5e7eb] dark:border-border",
     };
 
     return (

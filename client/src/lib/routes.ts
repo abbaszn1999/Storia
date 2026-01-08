@@ -4,7 +4,7 @@ export const VIDEO_MODE_ROUTES: Record<string, string> = {
   ambient: "/videos/ambient/new",
   podcast: "/videos/podcast/new",
   commerce: "/videos/commerce/new",
-  logo: "/videos/logo/new",
+  logo: "/videos/logo",
 };
 
 export const STORY_TEMPLATE_ROUTES: Record<string, string> = {
@@ -20,3 +20,22 @@ export const STORY_TEMPLATE_ROUTES: Record<string, string> = {
   "trending": "/stories/new",
   "inspirational": "/stories/new",
 };
+
+export function getHistoryItemUrl(item: { type: "video" | "story"; mode: string; id: string }): string {
+  if (item.type === "story") {
+    return `/stories/${item.id}`;
+  }
+  
+  // Video routes based on mode
+  const videoRoutes: Record<string, string> = {
+    narrative: "/videos/narrative",
+    ambient: "/videos/ambient",
+    commerce: "/videos/commerce",
+    vlog: "/videos/vlog",
+    logo: "/videos/logo",
+    podcast: "/videos/podcast",
+  };
+  
+  const baseRoute = videoRoutes[item.mode] || "/videos";
+  return `${baseRoute}/${item.id}`;
+}

@@ -171,10 +171,10 @@ export default function StoryCreate() {
   // Template not found
   if (!template || !rawTemplate) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#0a0a0a]">
+      <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-white">Template not found</h1>
-          <p className="text-white/50 mt-2">The template "{templateId}" doesn't exist.</p>
+          <h1 className="text-2xl font-bold text-foreground">Template not found</h1>
+          <p className="text-muted-foreground mt-2">The template "{templateId}" doesn't exist.</p>
           <Link href="/stories">
             <Button className="mt-4">Back to Templates</Button>
           </Link>

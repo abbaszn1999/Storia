@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, Search, Video, Zap, Loader2 } from "lucide-react";
+import { Plus, Search, Video, Zap, Loader2, Filter, FileText, RefreshCw, CheckCircle, Upload } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -7,13 +7,7 @@ import { Input } from "@/components/ui/input";
 import { VideoCard } from "@/components/video-card";
 import { ModeSelector } from "@/components/mode-selector";
 import { TemplateSelector } from "@/components/template-selector";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -40,13 +34,23 @@ const MODE_DISPLAY_NAMES: Record<string, string> = {
   podcast: "Podcast",
 };
 
+type StatusFilter = 'all' | 'draft' | 'processing' | 'completed' | 'published';
+
+const STATUS_FILTERS: { id: StatusFilter; label: string; icon: typeof Filter }[] = [
+  { id: 'all', label: 'All Videos', icon: Filter },
+  { id: 'draft', label: 'Draft', icon: FileText },
+  { id: 'processing', label: 'Processing', icon: RefreshCw },
+  { id: 'completed', label: 'Completed', icon: CheckCircle },
+  { id: 'published', label: 'Published', icon: Upload },
+];
+
 export default function Videos() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentWorkspace } = useWorkspace();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [projectType, setProjectType] = useState<"video" | "story" | null>(null);
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
@@ -163,26 +167,67 @@ export default function Videos() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Videos</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage all your video projects
-          </p>
-        </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogClose}>
-          <DialogTrigger asChild>
-            <Button size="lg" className="gap-2" data-testid="button-create-video">
-              <Plus className="h-4 w-4" />
-              New Video
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl bg-[#0d1117] border-white/10 p-0 overflow-hidden">
+      <div className="border-b bg-background/80 backdrop-blur-xl">
+        <div className="px-4 py-5">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              {STATUS_FILTERS.map((filter) => {
+            const Icon = filter.icon;
+            const isActive = statusFilter === filter.id;
+            return (
+              <Button
+                key={filter.id}
+                onClick={() => setStatusFilter(filter.id)}
+                variant="ghost"
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl",
+                  "text-sm font-medium transition-all duration-200",
+                  isActive 
+                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
+                    : "bg-muted text-foreground hover:bg-muted/80"
+                )}
+                data-testid={`button-filter-${filter.id}`}
+              >
+                <Icon className="h-4 w-4" />
+                {filter.label}
+              </Button>
+              );
+            })}
+            </div>
+            
+            <div className="flex items-center gap-2">
+          {/* Search Input */}
+          <div className="relative min-w-[200px] max-w-[300px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search videos..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={cn(
+                "pl-11 h-10 rounded-xl",
+                "bg-background border-border",
+                "text-foreground placeholder:text-muted-foreground",
+                "focus:border-primary focus:ring-2 focus:ring-primary/20",
+                "transition-all duration-200"
+              )}
+              data-testid="input-search"
+            />
+          </div>
+
+          {/* New Video Button */}
+          <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogClose}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" data-testid="button-create-video">
+                <Plus className="h-4 w-4" />
+                New Video
+              </Button>
+            </DialogTrigger>
+          <DialogContent className="w-[60%] max-w-none bg-popover border-popover-border p-0 overflow-hidden">
             {/* Header Section */}
-            <div className="px-8 pt-8 pb-6 border-b border-white/5">
+            <div className="px-8 pt-8 pb-6 border-b border-popover-border">
               <DialogHeader>
-                <DialogTitle className="text-2xl font-semibold text-white">Create New Video</DialogTitle>
-                <DialogDescription className="text-white/60 mt-2">
+                <DialogTitle className="text-2xl font-semibold text-foreground">Create New Video</DialogTitle>
+                <DialogDescription className="text-muted-foreground mt-2">
                   {!projectType && "Choose what type of content you want to create"}
                   {projectType === "video" && "Choose a video creation mode"}
                   {projectType === "story" && "Choose a story template"}
@@ -195,7 +240,7 @@ export default function Videos() {
               {!projectType ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div
-                    className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.02] p-5 transition-all hover:bg-white/[0.05] hover:border-primary/50"
+                    className="group cursor-pointer rounded-xl border border-border bg-card p-5 transition-all hover:bg-accent hover:border-primary/50"
                     onClick={() => handleProjectTypeSelect("video")}
                     data-testid="card-type-video"
                   >
@@ -204,13 +249,13 @@ export default function Videos() {
                         <Video className="h-6 w-6" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-white text-lg">Video</h3>
-                        <p className="text-sm text-white/50 mt-0.5">Create long-form video content</p>
+                        <h3 className="font-semibold text-card-foreground text-lg">Video</h3>
+                        <p className="text-sm text-muted-foreground mt-0.5">Create long-form video content</p>
                       </div>
                     </div>
                   </div>
                   <div
-                    className="group cursor-pointer rounded-xl border border-white/10 bg-white/[0.02] p-5 transition-all hover:bg-white/[0.05] hover:border-primary/50"
+                    className="group cursor-pointer rounded-xl border border-border bg-card p-5 transition-all hover:bg-accent hover:border-primary/50"
                     onClick={() => handleProjectTypeSelect("story")}
                     data-testid="card-type-story"
                   >
@@ -219,8 +264,8 @@ export default function Videos() {
                         <Zap className="h-6 w-6" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-white text-lg">Story</h3>
-                        <p className="text-sm text-white/50 mt-0.5">Create short-form viral content</p>
+                        <h3 className="font-semibold text-card-foreground text-lg">Story</h3>
+                        <p className="text-sm text-muted-foreground mt-0.5">Create short-form viral content</p>
                       </div>
                     </div>
                   </div>
@@ -229,20 +274,20 @@ export default function Videos() {
                 <>
                   {/* Video Name Input */}
                   <div className="space-y-3">
-                    <Label htmlFor="project-name" className="text-white/80 font-medium">Video Name</Label>
+                    <Label htmlFor="project-name" className="text-foreground font-medium">Video Name</Label>
                     <Input
                       id="project-name"
                       placeholder={projectType === "video" ? "e.g., Summer Product Launch" : "e.g., Quick Product Demo"}
                       value={projectName}
                       onChange={(e) => setProjectName(e.target.value)}
-                      className="bg-white/[0.03] border-white/10 text-white placeholder:text-white/30 h-12 rounded-xl focus:border-primary/50 focus:ring-primary/20"
+                      className="h-12 rounded-xl"
                       data-testid="input-project-name"
                     />
                   </div>
                   
                   {/* Mode/Template Selection */}
                   <div className="space-y-3">
-                    <Label className="text-white/80 font-medium">{projectType === "video" ? "Select Mode" : "Select Template"}</Label>
+                    <Label className="text-foreground font-medium">{projectType === "video" ? "Select Mode" : "Select Template"}</Label>
                     {projectType === "video" ? (
                       <ModeSelector onSelect={handleModeSelect} selectedMode={selectedMode} />
                     ) : (
@@ -254,13 +299,13 @@ export default function Videos() {
             </div>
             
             {/* Footer Section */}
-            <div className="px-8 py-5 border-t border-white/5 bg-white/[0.01]">
+            <div className="px-8 py-5 border-t border-popover-border bg-muted/30">
               <div className="flex justify-between items-center">
                 {projectType ? (
                   <Button 
                     variant="ghost" 
                     onClick={handleBack} 
-                    className="text-white/60 hover:text-white hover:bg-white/5"
+                    className="text-muted-foreground hover:text-foreground"
                     data-testid="button-back"
                   >
                     Back
@@ -272,7 +317,7 @@ export default function Videos() {
                   <Button 
                     variant="ghost" 
                     onClick={() => handleDialogClose(false)} 
-                    className="text-white/60 hover:text-white hover:bg-white/5"
+                    className="text-muted-foreground hover:text-foreground"
                     data-testid="button-cancel"
                   >
                     Cancel
@@ -281,7 +326,7 @@ export default function Videos() {
                     <Button
                       onClick={handleCreateProject}
                       disabled={!projectName || !selectedMode}
-                      className="bg-primary hover:bg-primary/90 text-white px-6"
+                      className="px-6"
                       data-testid="button-create"
                     >
                       Create Video
@@ -292,31 +337,9 @@ export default function Videos() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search videos..."
-            className="pl-10"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            data-testid="input-search"
-          />
+            </div>
+          </div>
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-48" data-testid="select-status-filter">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Videos</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
-            <SelectItem value="processing">Processing</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="published">Published</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Loading state */}
@@ -339,7 +362,10 @@ export default function Videos() {
           {videos.length === 0 && (
             <Button 
               className="mt-4 gap-2" 
-              onClick={() => setIsCreateDialogOpen(true)}
+              onClick={() => {
+                setProjectType("video");
+                setIsCreateDialogOpen(true);
+              }}
             >
               <Plus className="h-4 w-4" />
               Create Your First Video

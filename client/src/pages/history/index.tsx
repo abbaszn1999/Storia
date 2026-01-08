@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Video, Zap, Search, Calendar, MoreVertical, Scissors, Edit, Copy, Trash2, Loader2, Play } from "lucide-react";
+import { Video, Zap, Search, Calendar, MoreVertical, Scissors, Edit, Copy, Trash2, Loader2, Play, Filter, ArrowUpDown, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,9 @@ import { formatDistanceToNow, format, startOfMonth, endOfMonth, isWithinInterval
 import { Link, useLocation } from "wouter";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { apiRequest } from "@/lib/queryClient";
-import type { Story } from "@shared/schema";
+import type { Story, Video as VideoType } from "@shared/schema";
+import { MODE_DISPLAY_NAMES, MODE_COLORS, formatModeName } from "@/constants/history-modes";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -40,10 +42,30 @@ const statusColors: Record<string, string> = {
   published: "bg-primary text-primary-foreground",
 };
 
+// Unified History Item Type
+interface HistoryItem {
+  id: string;
+  title: string;
+  type: "video" | "story";
+  mode: string;
+  modeDisplayName: string;
+  status: "draft" | "processing" | "completed" | "published";
+  updatedAt: Date;
+  createdAt: Date;
+  url: string;
+  thumbnailUrl?: string;
+  exportUrl?: string;
+  duration?: number;
+  aspectRatio?: string;
+}
+
 export default function History() {
   const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("all");
+  const [selectedMode, setSelectedMode] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "name" | "duration">("newest");
+  const [activeTab, setActiveTab] = useState("all");
   const [previewStory, setPreviewStory] = useState<Story | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const { currentWorkspace, isLoading: isLoadingWorkspace } = useWorkspace();
@@ -56,6 +78,14 @@ export default function History() {
     enabled: !!currentWorkspace,
     refetchOnMount: 'always',  // Force fresh data on every mount
     staleTime: 0,              // Treat data as always stale
+  });
+
+  // Fetch videos from API
+  const { data: videosData = [], isLoading: isLoadingVideos } = useQuery<VideoType[]>({
+    queryKey: currentWorkspace ? [`/api/workspaces/${currentWorkspace.id}/videos`] : [],
+    enabled: !!currentWorkspace,
+    refetchOnMount: 'always',
+    staleTime: 0,
   });
 
   // Delete mutation
@@ -83,24 +113,67 @@ export default function History() {
     },
   });
 
-  // Map stories to history items format
+  // Map stories and videos to unified history items format
   const historyItems = useMemo(() => {
-    return storiesData.map(story => ({
-      id: story.id,
-      title: story.projectName || "Untitled",
-      type: "story" as const,
-      mode: story.storyMode 
-        ? story.storyMode.replace(/-/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()) 
-        : "Unknown", // "asmr-sensory" -> "Asmr Sensory"
-      status: "completed" as const, // Stories are always completed when saved
-      updatedAt: new Date(story.updatedAt),
-      url: `/stories/${story.id}`,
-      thumbnailUrl: story.thumbnailUrl || undefined,
-      exportUrl: story.videoUrl || undefined,
-      duration: story.duration,
-      aspectRatio: story.aspectRatio,
+    // Filter out logo-animation from stories (it's a video mode, not a story mode)
+    const stories = storiesData
+      .filter(story => story.storyMode !== "logo-animation")
+      .map(story => ({
+        id: story.id,
+        title: story.projectName || "Untitled",
+        type: "story" as const,
+        mode: story.storyMode || "unknown",
+        modeDisplayName: MODE_DISPLAY_NAMES[story.storyMode || ""] || formatModeName(story.storyMode || "unknown"),
+        status: "completed" as const,
+        updatedAt: new Date(story.updatedAt),
+        createdAt: new Date(story.createdAt),
+        url: `/stories/${story.id}`,
+        thumbnailUrl: story.thumbnailUrl || undefined,
+        exportUrl: story.videoUrl || undefined,
+        duration: story.duration || undefined,
+        aspectRatio: story.aspectRatio || undefined,
+      }));
+    
+    // Handle logo-animation stories as videos (temporary until backend is fixed)
+    // Logo Animation is a VIDEO mode, not a story mode
+    const logoAnimationStories = storiesData
+      .filter(story => story.storyMode === "logo-animation")
+      .map(story => ({
+        id: story.id,
+        title: story.projectName || "Untitled",
+        type: "video" as const,
+        mode: "logo" as const,
+        modeDisplayName: "Logo Animation",
+        status: "completed" as const,
+        updatedAt: new Date(story.updatedAt),
+        createdAt: new Date(story.createdAt),
+        url: `/videos/logo/${story.id}`,
+        thumbnailUrl: story.thumbnailUrl || undefined,
+        exportUrl: story.videoUrl || undefined,
+        duration: story.duration || undefined,
+        aspectRatio: story.aspectRatio || undefined,
+      }));
+    
+    const videos = videosData.map(video => ({
+      id: video.id,
+      title: video.title || "Untitled",
+      type: "video" as const,
+      mode: video.mode || "unknown",
+      modeDisplayName: MODE_DISPLAY_NAMES[video.mode || ""] || formatModeName(video.mode || "unknown"),
+      status: (video.status || "draft") as "draft" | "processing" | "completed" | "published",
+      updatedAt: new Date(video.updatedAt),
+      createdAt: new Date(video.createdAt),
+      url: `/videos/${video.mode}/${video.id}`,
+      thumbnailUrl: video.thumbnailUrl || undefined,
+      exportUrl: video.exportUrl || undefined,
+      duration: undefined,
+      aspectRatio: undefined,
     }));
-  }, [storiesData]);
+    
+    // Combine all items and sort by newest first (default)
+    return [...stories, ...logoAnimationStories, ...videos]
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  }, [storiesData, videosData]);
 
   // Generate available months from history data
   const availableMonths = useMemo(() => {
@@ -112,9 +185,21 @@ export default function History() {
     return Array.from(months).sort().reverse();
   }, [historyItems]);
 
+  // Generate available modes from history data
+  const availableModes = useMemo(() => {
+    const modes = new Set<string>();
+    historyItems.forEach(item => {
+      if (item.mode && item.mode !== "unknown") {
+        modes.add(item.mode);
+      }
+    });
+    return Array.from(modes).sort();
+  }, [historyItems]);
+
+  // Filter items by search, month, and mode
   const filteredItems = useMemo(() => {
     return historyItems.filter(item => {
-      // Search filter - handle missing title
+      // Search filter
       const matchesSearch = item.title 
         ? item.title.toLowerCase().includes(searchQuery.toLowerCase())
         : false;
@@ -127,17 +212,46 @@ export default function History() {
         matchesMonth = isWithinInterval(item.updatedAt, { start: monthStart, end: monthEnd });
       }
       
-      return matchesSearch && matchesMonth;
+      // Mode filter
+      const matchesMode = selectedMode === "all" || item.mode === selectedMode;
+      
+      return matchesSearch && matchesMonth && matchesMode;
     });
-  }, [searchQuery, selectedMonth, historyItems]);
+  }, [searchQuery, selectedMonth, selectedMode, historyItems]);
 
-  // Currently only showing stories (videos would need to be fetched separately)
-  const videos: typeof historyItems = []; // No videos yet, only stories
-  const stories = filteredItems;
+  // Filter by tab (All, Videos, Stories)
+  const filteredByTab = useMemo(() => {
+    if (activeTab === "all") return filteredItems;
+    if (activeTab === "videos") return filteredItems.filter(item => item.type === "video");
+    if (activeTab === "stories") return filteredItems.filter(item => item.type === "story");
+    return filteredItems;
+  }, [activeTab, filteredItems]);
 
-  const HistoryItemCard = ({ item }: { item: (typeof historyItems)[0] }) => {
-    const Icon = Zap; // Currently only showing stories
-    const canCreateShorts = false; // Shorts creation only available for videos
+  // Sort items
+  const sortedItems = useMemo(() => {
+    const items = [...filteredByTab];
+    
+    switch (sortBy) {
+      case "newest":
+        return items.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+      case "oldest":
+        return items.sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime());
+      case "name":
+        return items.sort((a, b) => a.title.localeCompare(b.title));
+      case "duration":
+        return items.sort((a, b) => (b.duration || 0) - (a.duration || 0));
+      default:
+        return items;
+    }
+  }, [filteredByTab, sortBy]);
+
+  // Count videos and stories for tabs
+  const videosCount = useMemo(() => filteredItems.filter(item => item.type === "video").length, [filteredItems]);
+  const storiesCount = useMemo(() => filteredItems.filter(item => item.type === "story").length, [filteredItems]);
+
+  const HistoryItemCard = ({ item }: { item: HistoryItem }) => {
+    const Icon = item.type === "video" ? Video : Zap;
+    const canCreateShorts = item.type === "video"; // Shorts creation only available for videos
     
     const handleCreateShorts = (e: React.MouseEvent) => {
       e.preventDefault();
@@ -158,7 +272,16 @@ export default function History() {
       e.preventDefault();
       e.stopPropagation();
       if (confirm(`Are you sure you want to delete "${item.title}"? This action cannot be undone.`)) {
-        deleteMutation.mutate(item.id);
+        if (item.type === "story") {
+          deleteMutation.mutate(item.id);
+        } else {
+          // TODO: Implement video deletion
+          toast({
+            title: "Not implemented",
+            description: "Video deletion is not yet implemented.",
+            variant: "destructive",
+          });
+        }
       }
     };
     
@@ -245,9 +368,17 @@ export default function History() {
               <h3 className="font-semibold text-base line-clamp-2 mb-2" data-testid={`text-history-title-${item.id}`}>
                 {item.title}
               </h3>
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span className="capitalize">{item.type}</span>
-                <span>{formatDistanceToNow(item.updatedAt, { addSuffix: true })}</span>
+              <div className="flex items-center justify-between text-xs">
+                <Badge 
+                  className={cn(
+                    MODE_COLORS[item.mode]?.bg || "bg-muted",
+                    MODE_COLORS[item.mode]?.text || "text-muted-foreground",
+                    "text-[10px] px-2 py-0.5"
+                  )}
+                >
+                  {item.modeDisplayName}
+                </Badge>
+                <span className="text-muted-foreground">{formatDistanceToNow(item.updatedAt, { addSuffix: true })}</span>
               </div>
             </CardContent>
           </Card>
@@ -255,8 +386,8 @@ export default function History() {
     );
   };
 
-  // Show loading state until BOTH workspace and stories are ready
-  if (isLoadingWorkspace || (currentWorkspace && isLoadingStories)) {
+  // Show loading state until workspace, stories, and videos are ready
+  if (isLoadingWorkspace || (currentWorkspace && (isLoadingStories || isLoadingVideos))) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -274,22 +405,45 @@ export default function History() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">History</h1>
-        <p className="text-muted-foreground mt-1">
-          View all your recently created videos and stories
-        </p>
-      </div>
-
-      <Tabs defaultValue="all">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="border-b bg-background/80 backdrop-blur-xl">
+          <div className="px-4 py-5">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
           <TabsList>
             <TabsTrigger value="all" data-testid="tab-all">All ({filteredItems.length})</TabsTrigger>
-            <TabsTrigger value="videos" data-testid="tab-videos">Videos ({videos.length})</TabsTrigger>
-            <TabsTrigger value="stories" data-testid="tab-stories">Stories ({stories.length})</TabsTrigger>
+            <TabsTrigger value="videos" data-testid="tab-videos">Videos ({videosCount})</TabsTrigger>
+            <TabsTrigger value="stories" data-testid="tab-stories">Stories ({storiesCount})</TabsTrigger>
           </TabsList>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Select value={selectedMode} onValueChange={setSelectedMode}>
+              <SelectTrigger className="w-48" data-testid="select-mode">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="All modes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Modes</SelectItem>
+                {availableModes.map(mode => (
+                  <SelectItem key={mode} value={mode}>
+                    {MODE_DISPLAY_NAMES[mode] || formatModeName(mode)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+              <SelectTrigger className="w-40" data-testid="select-sort">
+                <ArrowUpDown className="h-4 w-4 mr-2" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="newest">Newest First</SelectItem>
+                <SelectItem value="oldest">Oldest First</SelectItem>
+                <SelectItem value="name">Name (A-Z)</SelectItem>
+                <SelectItem value="duration">Duration</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
               <SelectTrigger className="w-48" data-testid="select-month">
                 <Calendar className="h-4 w-4 mr-2" />
@@ -315,21 +469,41 @@ export default function History() {
                 data-testid="input-search-history"
               />
             </div>
+
+            {(searchQuery || selectedMode !== "all" || selectedMonth !== "all") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedMode("all");
+                  setSelectedMonth("all");
+                }}
+                className="h-9"
+              >
+                <X className="h-4 w-4 mr-1.5" />
+                Clear Filters
+              </Button>
+            )}
+            </div>
           </div>
+        </div>
         </div>
 
         <TabsContent value="all" className="mt-6">
-          {filteredItems.length === 0 ? (
+          {sortedItems.length === 0 ? (
             <div className="text-center py-12">
               <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">No results found</h3>
               <p className="text-muted-foreground">
-                Try adjusting your search query
+                {searchQuery || selectedMode !== "all" || selectedMonth !== "all"
+                  ? "Try adjusting your filters"
+                  : "No items in your history yet"}
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredItems.map((item) => (
+              {sortedItems.map((item) => (
                 <HistoryItemCard key={item.id} item={item} />
               ))}
             </div>
@@ -337,17 +511,19 @@ export default function History() {
         </TabsContent>
 
         <TabsContent value="videos" className="mt-6">
-          {videos.length === 0 ? (
+          {sortedItems.filter(item => item.type === "video").length === 0 ? (
             <div className="text-center py-12">
               <Video className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">No videos found</h3>
               <p className="text-muted-foreground">
-                {searchQuery ? "Try adjusting your search query" : "No videos in your history yet"}
+                {searchQuery || selectedMode !== "all" || selectedMonth !== "all"
+                  ? "Try adjusting your filters"
+                  : "No videos in your history yet"}
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {videos.map((item) => (
+              {sortedItems.filter(item => item.type === "video").map((item) => (
                 <HistoryItemCard key={item.id} item={item} />
               ))}
             </div>
@@ -355,17 +531,19 @@ export default function History() {
         </TabsContent>
 
         <TabsContent value="stories" className="mt-6">
-          {stories.length === 0 ? (
+          {sortedItems.filter(item => item.type === "story").length === 0 ? (
             <div className="text-center py-12">
               <Zap className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">No stories found</h3>
               <p className="text-muted-foreground">
-                {searchQuery ? "Try adjusting your search query" : "No stories in your history yet"}
+                {searchQuery || selectedMode !== "all" || selectedMonth !== "all"
+                  ? "Try adjusting your filters"
+                  : "No stories in your history yet"}
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {stories.map((item) => (
+              {sortedItems.filter(item => item.type === "story").map((item) => (
                 <HistoryItemCard key={item.id} item={item} />
               ))}
             </div>

@@ -122,7 +122,12 @@ const ASPECT_RATIO_GUIDANCE: Record<string, {
 
 /**
  * Build character consistency suffix for maintaining visual continuity
- * Uses weighted keywords to emphasize consistency
+ * Uses weighted keywords to emphasize consistency across scenes
+ * 
+ * This is critical for ASMR content where visual consistency enhances
+ * the relaxing, continuous experience.
+ * 
+ * @returns Consistency suffix with weighted keywords
  */
 export function buildConsistencySuffix(): string {
   return ', ((same person)), ((identical features)), ((consistent appearance)), maintaining visual continuity, character consistency';
@@ -131,12 +136,60 @@ export function buildConsistencySuffix(): string {
 /**
  * Build quality boosters string
  * Adds weighted keywords for enhanced quality
+ * 
+ * Uses top 2-3 boosters with weighted emphasis (double parentheses)
+ * to maximize AI model attention to quality keywords.
+ * 
+ * @param imageStyle - Selected visual style
+ * @returns Quality boosters string with weighted keywords
  */
 function buildQualityBoosters(imageStyle: ImageStyle): string {
   const modifiers = STYLE_MODIFIERS[imageStyle] || STYLE_MODIFIERS['photorealistic'];
   // Use top 2-3 boosters with weighted emphasis
   const boosters = modifiers.boosters.slice(0, 3);
   return boosters.join(', ');
+}
+
+/**
+ * Validate and sanitize input parameters for image prompt enhancement
+ * Implements input validation best practices
+ */
+function validateImagePromptInput(params: {
+  prompt: string;
+  aspectRatio: string;
+  imageStyle: ImageStyle;
+}): {
+  prompt: string;
+  aspectRatio: string;
+  imageStyle: ImageStyle;
+} {
+  let { prompt, aspectRatio, imageStyle } = params;
+
+  // Sanitize prompt: trim and validate length
+  prompt = prompt.trim();
+  if (!prompt || prompt.length === 0) {
+    throw new Error('Image prompt cannot be empty');
+  }
+
+  // Limit prompt length to prevent context overflow
+  const MAX_PROMPT_LENGTH = 2000;
+  if (prompt.length > MAX_PROMPT_LENGTH) {
+    prompt = prompt.substring(0, MAX_PROMPT_LENGTH).trim() + '...';
+  }
+
+  // Validate aspect ratio
+  const validAspectRatios = ['9:16', '16:9', '1:1', '4:5'];
+  if (!validAspectRatios.includes(aspectRatio)) {
+    aspectRatio = '9:16'; // Default fallback
+  }
+
+  // Validate image style
+  const validStyles: ImageStyle[] = ['photorealistic', 'cinematic', '3d-render', 'digital-art', 'anime', 'illustration', 'watercolor', 'minimalist'];
+  if (!validStyles.includes(imageStyle)) {
+    imageStyle = 'photorealistic'; // Default fallback
+  }
+
+  return { prompt, aspectRatio, imageStyle };
 }
 
 /**
@@ -148,6 +201,15 @@ function buildQualityBoosters(imageStyle: ImageStyle): string {
  * 3. Style modifiers (quality, composition, lighting)
  * 4. Aspect ratio guidance (composition, framing, focus)
  * 5. Consistency suffix (for non-first scenes)
+ * 
+ * THINKING PROCESS:
+ * 1. VALIDATE inputs (prompt, aspectRatio, imageStyle)
+ * 2. START with original prompt (already well-crafted)
+ * 3. ADD quality boosters (weighted keywords for emphasis)
+ * 4. ADD style-specific modifiers (quality, composition, lighting)
+ * 5. ADD aspect ratio guidance (composition, framing, focus)
+ * 6. ADD consistency suffix (if not first scene)
+ * 7. RETURN enhanced prompt
  * 
  * @param prompt - Original image prompt from storyboard-enhancer
  * @param aspectRatio - Target aspect ratio
@@ -161,16 +223,20 @@ export function enhanceImagePrompt(
   imageStyle: ImageStyle,
   isFirstScene: boolean
 ): string {
+  // Validate and sanitize inputs
+  const { prompt: validatedPrompt, aspectRatio: validatedAspectRatio, imageStyle: validatedImageStyle } = 
+    validateImagePromptInput({ prompt, aspectRatio, imageStyle });
+
   // Start with original prompt (already well-crafted by storyboard-enhancer)
-  let enhanced = prompt.trim();
+  let enhanced = validatedPrompt.trim();
   
   // Get style-specific modifiers
-  const modifiers = STYLE_MODIFIERS[imageStyle] || STYLE_MODIFIERS['photorealistic'];
+  const modifiers = STYLE_MODIFIERS[validatedImageStyle] || STYLE_MODIFIERS['photorealistic'];
   
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 1: Add quality boosters (weighted keywords for emphasis)
   // ═══════════════════════════════════════════════════════════════════════════
-  const qualityBoosters = buildQualityBoosters(imageStyle);
+  const qualityBoosters = buildQualityBoosters(validatedImageStyle);
   if (qualityBoosters) {
     enhanced += `, ${qualityBoosters}`;
   }
@@ -192,7 +258,7 @@ export function enhanceImagePrompt(
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 3: Add aspect ratio guidance
   // ═══════════════════════════════════════════════════════════════════════════
-  const aspectGuidance = ASPECT_RATIO_GUIDANCE[aspectRatio];
+  const aspectGuidance = ASPECT_RATIO_GUIDANCE[validatedAspectRatio];
   if (aspectGuidance) {
     // Add composition, framing, and focus guidance
     enhanced += `, ${aspectGuidance.composition}, ${aspectGuidance.framing}, ${aspectGuidance.focus}`;
@@ -211,6 +277,9 @@ export function enhanceImagePrompt(
 /**
  * Get style modifiers for a specific style
  * Useful for debugging or displaying in UI
+ * 
+ * @param imageStyle - Selected visual style
+ * @returns Style modifiers object with quality, composition, lighting, and boosters
  */
 export function getStyleModifiers(imageStyle: ImageStyle): {
   quality: string[];
@@ -218,17 +287,30 @@ export function getStyleModifiers(imageStyle: ImageStyle): {
   lighting: string[];
   boosters: string[];
 } {
-  return STYLE_MODIFIERS[imageStyle] || STYLE_MODIFIERS['photorealistic'];
+  // Validate image style
+  const validStyles: ImageStyle[] = ['photorealistic', 'cinematic', '3d-render', 'digital-art', 'anime', 'illustration', 'watercolor', 'minimalist'];
+  const validatedStyle = validStyles.includes(imageStyle) ? imageStyle : 'photorealistic';
+  
+  return STYLE_MODIFIERS[validatedStyle] || STYLE_MODIFIERS['photorealistic'];
 }
 
 /**
  * Get aspect ratio guidance for a specific aspect ratio
  * Useful for debugging or displaying in UI
+ * 
+ * @param aspectRatio - Target aspect ratio
+ * @returns Aspect ratio guidance object or null if invalid
  */
 export function getAspectRatioGuidance(aspectRatio: string): {
   composition: string;
   framing: string;
   focus: string;
 } | null {
+  // Validate aspect ratio
+  const validAspectRatios = ['9:16', '16:9', '1:1', '4:5'];
+  if (!validAspectRatios.includes(aspectRatio)) {
+    return null;
+  }
+  
   return ASPECT_RATIO_GUIDANCE[aspectRatio] || null;
 }

@@ -117,18 +117,18 @@ function GeneratingScenes({ accentColor }: { accentColor: string }) {
   }[accentColor] || "from-primary to-violet-500";
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div className="fixed inset-0 bg-background/90 dark:bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center">
       <div className="text-center space-y-6">
         <div className={cn(
           "w-20 h-20 mx-auto rounded-full animate-spin",
-          "border-4 border-white/10",
+          "border-4 border-border/50 dark:border-white/10",
           "border-t-4",
           "bg-gradient-to-r",
           accentClasses
         )} style={{ borderTopColor: 'transparent' }} />
         <div className="space-y-2">
-          <h3 className="text-2xl font-semibold text-white">Generating Scenes...</h3>
-          <p className="text-white/50">Breaking down your story into perfect scenes</p>
+          <h3 className="text-2xl font-semibold text-foreground">Generating Scenes...</h3>
+          <p className="text-muted-foreground">Breaking down your story into perfect scenes</p>
         </div>
       </div>
     </div>
@@ -162,7 +162,7 @@ function ErrorState({
           </div>
           <div>
             <h3 className="text-xl font-semibold mb-2">Failed to Generate Scenes</h3>
-            <p className="text-white/60 text-sm">
+            <p className="text-muted-foreground text-sm">
               {errorMessage || 'Something went wrong while generating your scenes. Please try again.'}
             </p>
           </div>
@@ -273,7 +273,7 @@ export function ScriptStep({
   return (
     <div className="h-full w-full overflow-hidden flex flex-col">
       {/* Header - Fixed */}
-      <div className="flex-shrink-0 px-8 py-6 border-b border-white/[0.06]">
+      <div className="flex-shrink-0 px-8 py-6 border-b border-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className={cn(
@@ -283,8 +283,8 @@ export function ScriptStep({
               <Layers className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Scene Breakdown</h2>
-              <p className="text-white/40 text-sm">
+              <h2 className="text-xl font-bold text-foreground">Scene Breakdown</h2>
+              <p className="text-muted-foreground text-sm">
                 {scenes.length} scenes · {totalDuration}s total
               </p>
             </div>
@@ -327,7 +327,7 @@ export function ScriptStep({
                   "px-3 py-2.5 flex items-center justify-between",
                   "bg-gradient-to-r",
                   accentClasses,
-                  "bg-opacity-10 border-b border-white/10"
+                  "bg-opacity-10 border-b border-border/50 dark:border-white/10"
                 )}>
                   <div className={cn(
                     "px-2.5 py-1 rounded-md text-xs font-bold",
@@ -339,18 +339,18 @@ export function ScriptStep({
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 bg-black/30 px-1 py-0.5 rounded-md">
-                      <Clock className="w-3.5 h-3.5 text-white/60" />
+                    <div className="flex items-center gap-1.5 bg-muted/60 dark:bg-black/30 px-1 py-0.5 rounded-md">
+                      <Clock className="w-3.5 h-3.5 text-muted-foreground" />
                       <Select
                         value={scene.duration.toString()}
                         onValueChange={(val) => {
                           onSceneUpdate(scene.id, { duration: parseInt(val) });
                         }}
                       >
-                        <SelectTrigger className="w-14 h-6 bg-transparent border-none text-xs text-white p-1 gap-1">
+                        <SelectTrigger className="w-14 h-6 bg-transparent border-none text-xs text-foreground p-1 gap-1">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-zinc-900 border-white/10">
+                        <SelectContent className="bg-popover border-border">
                           {supportedDurations.map((d) => (
                             <SelectItem 
                               key={d} 
@@ -380,16 +380,16 @@ export function ScriptStep({
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-1.5">
                       <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
-                      <span className="text-xs font-medium text-white/60">Visual Description</span>
+                      <span className="text-xs font-medium text-muted-foreground">Visual Description</span>
                     </div>
                     <Textarea
                       value={scene.description || ''}
                       onChange={(e) => onSceneUpdate(scene.id, { description: e.target.value })}
                       className={cn(
-                        "min-h-[80px] bg-white/5 border-white/10",
+                        "min-h-[80px] bg-muted/50 dark:bg-white/5 border-border dark:border-white/10",
                         "focus:border-blue-500/30 resize-none",
-                        "text-sm leading-relaxed text-white/90",
-                        "placeholder:text-white/20"
+                        "text-sm leading-relaxed text-foreground",
+                        "placeholder:text-muted-foreground/50 dark:placeholder:text-white/20"
                       )}
                       placeholder="Describe what the viewer sees..."
                     />
@@ -450,7 +450,7 @@ export function ScriptStep({
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-1.5">
                             <Mic className="w-3.5 h-3.5 text-emerald-400" />
-                            <span className="text-xs font-medium text-white/60">Sound Effect</span>
+                            <span className="text-xs font-medium text-muted-foreground">Sound Effect</span>
                           </div>
                           <Textarea
                             value={soundDescValue}
@@ -459,16 +459,16 @@ export function ScriptStep({
                               onSceneUpdate(scene.id, { soundDescription: e.target.value });
                             }}
                             className={cn(
-                              "min-h-[80px] bg-white/5 border-white/10",
+                              "min-h-[80px] bg-muted/50 dark:bg-white/5 border-border dark:border-white/10",
                               "focus:border-emerald-500/30 resize-none",
-                              "text-sm leading-relaxed text-white/90",
-                              "placeholder:text-white/20"
+                              "text-sm leading-relaxed text-foreground",
+                              "placeholder:text-muted-foreground/50 dark:placeholder:text-white/20"
                             )}
                             placeholder="Enter sound effect description..."
                           />
                           {/* Debug: Show if soundDescription exists */}
                           {soundDescValue && (
-                            <div className="text-xs text-white/40 italic">
+                            <div className="text-xs text-muted-foreground italic">
                               Sound effect loaded ({soundDescValue.length} chars)
                             </div>
                           )}
@@ -482,16 +482,16 @@ export function ScriptStep({
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-1.5">
                             <Mic className="w-3.5 h-3.5 text-purple-400" />
-                            <span className="text-xs font-medium text-white/60">Voiceover Text</span>
+                            <span className="text-xs font-medium text-muted-foreground">Voiceover Text</span>
                           </div>
                           <Textarea
                             value={scene.narration || ''}
                             onChange={(e) => onSceneUpdate(scene.id, { narration: e.target.value })}
                             className={cn(
-                              "min-h-[80px] bg-white/5 border-white/10",
+                              "min-h-[80px] bg-muted/50 dark:bg-white/5 border-border dark:border-white/10",
                               "focus:border-purple-500/30 resize-none",
-                              "text-sm leading-relaxed text-white/90",
-                              "placeholder:text-white/20"
+                              "text-sm leading-relaxed text-foreground",
+                              "placeholder:text-muted-foreground/50 dark:placeholder:text-white/20"
                             )}
                             placeholder="Enter voiceover narration..."
                           />
@@ -501,7 +501,7 @@ export function ScriptStep({
                             const status = getTextDurationStatus(scene.narration || '', scene.duration);
                             if (status.status === 'ok') {
                               return (
-                                <div className="flex items-center gap-1.5 text-xs text-white/40">
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                   <Clock className="w-3 h-3" />
                                   <span>{status.message}</span>
                                 </div>
@@ -540,8 +540,8 @@ export function ScriptStep({
             <button
               onClick={onSceneAdd}
               className={cn(
-                "w-full h-full rounded-xl border-2 border-dashed border-white/20",
-                "bg-white/[0.02] hover:bg-white/[0.05]",
+                "w-full h-full rounded-xl border-2 border-dashed border-border",
+                "bg-muted/30 dark:bg-white/[0.02] hover:bg-muted/50 dark:hover:bg-white/[0.05]",
                 "flex flex-col items-center justify-center gap-3",
                 "transition-all duration-200 group"
               )}
@@ -554,8 +554,8 @@ export function ScriptStep({
                 <Plus className="w-6 h-6 text-white" />
               </div>
               <div className="text-center">
-                <p className="text-sm font-medium text-white/70">Add New Scene</p>
-                <p className="text-xs text-white/40 mt-1">Click to add a scene</p>
+                <p className="text-sm font-medium text-foreground/70">Add New Scene</p>
+                <p className="text-xs text-muted-foreground mt-1">Click to add a scene</p>
               </div>
             </button>
           </motion.div>
@@ -563,10 +563,10 @@ export function ScriptStep({
       </div>
 
       {/* Footer Stats - Fixed */}
-      <div className="flex-shrink-0 px-8 py-4 border-t border-white/[0.06] bg-black/20">
+      <div className="flex-shrink-0 px-8 py-4 border-t border-border bg-muted/30 dark:bg-black/20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <p className="text-sm text-white/50">
+            <p className="text-sm text-muted-foreground">
               Total Duration: 
               <span className={cn(
                 "ml-2 font-semibold",
@@ -592,9 +592,9 @@ export function ScriptStep({
               </span>
             ) : null}
           </div>
-          <div className="flex items-center gap-3 text-xs text-white/30">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
             {imageMode === 'image-to-video' && modelConfig && (
-              <span className="text-white/40">
+              <span className="text-foreground/60">
                 {modelConfig.label}: [{modelConfig.durations.join(', ')}]s
               </span>
             )}

@@ -601,8 +601,8 @@ export function ConceptStep({
       */}
       <div className={cn(
         "w-[40%] min-w-[400px] max-w-[600px] flex-shrink-0 h-full",
-        "bg-black/40 backdrop-blur-xl",
-        "border-r border-white/[0.06]",
+        "bg-card/80 dark:bg-black/40 backdrop-blur-xl",
+        "border-r border-[#e5e7eb] dark:border-border",
         "flex flex-col overflow-hidden"
       )}>
         {/* Scrollable Content */}
@@ -613,10 +613,10 @@ export function ConceptStep({
         <GlassPanel>
           <div className="flex items-center gap-2 mb-3">
             <AlignLeft className="w-5 h-5 text-purple-400" />
-            <h3 className="font-semibold text-white">Project Name</h3>
+            <h3 className="font-semibold text-foreground">Project Name</h3>
             <span className={cn(
               "text-[10px] ml-auto",
-              isProjectLocked ? "text-amber-400/70" : "text-red-400/70"
+              isProjectLocked ? "text-amber-400/70 dark:text-amber-400/70" : "text-red-400/70 dark:text-red-400/70"
             )}>
               {isProjectLocked ? "🔒 Locked" : "* Required"}
             </span>
@@ -629,16 +629,16 @@ export function ConceptStep({
             disabled={isProjectLocked}
             className={cn(
               "w-full px-4 py-3 rounded-lg",
-              "bg-white/[0.03] border border-white/10",
-              "text-white placeholder:text-white/30",
+              "bg-muted/50 dark:bg-white/[0.03] border border-[#e5e7eb] dark:border-border",
+              "text-foreground placeholder:text-muted-foreground/50 dark:placeholder:text-white/30",
               "focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50",
               "transition-all duration-200",
-              isProjectLocked && "opacity-60 cursor-not-allowed bg-white/[0.01]"
+              isProjectLocked && "opacity-60 cursor-not-allowed bg-muted/30 dark:bg-white/[0.01]"
             )}
           />
           <p className={cn(
             "mt-2 text-[10px]",
-            isProjectLocked ? "text-amber-400/60" : "text-white/40"
+            isProjectLocked ? "text-amber-400/80 dark:text-amber-400/60" : "text-muted-foreground dark:text-white/40"
           )}>
             {isProjectLocked 
               ? "Project name cannot be changed after starting" 
@@ -651,7 +651,7 @@ export function ConceptStep({
         <GlassPanel>
           <div className="flex items-center gap-2 mb-4">
             <ImageIcon className="w-5 h-5 text-purple-400" />
-            <h3 className="font-semibold text-white">Image Settings</h3>
+            <h3 className="font-semibold text-foreground">Image Settings</h3>
           </div>
           
           <div className="space-y-6">
@@ -666,7 +666,7 @@ export function ConceptStep({
 
             {/* Aspect Ratio */}
             <div className="space-y-2">
-              <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Aspect Ratio</label>
+              <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Aspect Ratio</label>
               <div className="grid grid-cols-4 gap-3">
                 {ASPECT_RATIOS
                   .filter(ratio => {
@@ -723,24 +723,24 @@ export function ConceptStep({
                         className={cn(
                           "flex flex-col items-center gap-2 p-3 rounded-xl border transition-all duration-200 w-full",
                           aspectRatio === ratio.value 
-                            ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                            : "bg-white/5 border-white/10 hover:bg-white/10",
-                          !isSupportedByVideoModel && "opacity-40 cursor-not-allowed hover:bg-white/5 pointer-events-none"
+                            ? cn("bg-gradient-to-br border-primary", accentClasses, "bg-opacity-20 dark:bg-opacity-20")
+                            : "bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border hover:bg-muted dark:hover:bg-white/10",
+                          !isSupportedByVideoModel && "opacity-40 cursor-not-allowed hover:bg-muted/50 dark:hover:bg-white/5 pointer-events-none"
                         )}
                       >
                         <div className={cn(
-                          "rounded border border-white/30 transition-all",
+                          "rounded border border-[#e5e7eb] dark:border-border transition-all",
                           ratio.value === '9:16' && "w-3 h-5",
                           ratio.value === '16:9' && "w-5 h-3",
                           ratio.value === '1:1' && "w-4 h-4",
                           ratio.value === '4:3' && "w-4 h-3",
                           ratio.value === '3:2' && "w-5 h-3.5", // Landscape photo ratio
                           ratio.value === '2:3' && "w-3.5 h-5", // Portrait photo ratio
-                          aspectRatio === ratio.value && "border-white bg-white/20"
+                          aspectRatio === ratio.value && "border-primary bg-primary/10 dark:bg-white/20"
                         )} />
                         <div className="text-center">
-                          <span className="block text-xs font-medium text-white">{ratio.label}</span>
-                          <span className="block text-[10px] text-white/60 mt-0.5 font-mono">{ratio.value}</span>
+                          <span className="block text-xs font-medium text-foreground">{ratio.label}</span>
+                          <span className="block text-[10px] text-muted-foreground mt-0.5 font-mono">{ratio.value}</span>
                         </div>
                       </button>
                       
@@ -756,15 +756,15 @@ export function ConceptStep({
                             tooltipPositionClass
                           )}
                         >
-                          <div className="bg-gradient-to-br from-gray-900/95 to-gray-800/95 backdrop-blur-md border border-white/20 rounded-lg shadow-2xl p-3">
-                            <div className="text-xs font-semibold text-white/90 mb-2 text-center">
+                          <div className="bg-popover dark:bg-gradient-to-br dark:from-gray-900/95 dark:to-gray-800/95 backdrop-blur-md border border-[#e5e7eb] dark:border-border rounded-lg shadow-2xl p-3">
+                            <div className="text-xs font-semibold text-foreground dark:text-white/90 mb-2 text-center">
                               Supports
                             </div>
                             <div className="flex flex-wrap gap-1.5 justify-center">
                               {platforms.map((platform, idx) => (
                                 <span
                                   key={idx}
-                                  className="inline-flex items-center px-2 py-1 rounded-md bg-white/10 text-[10px] font-medium text-white/80 border border-white/10"
+                                  className="inline-flex items-center px-2 py-1 rounded-md bg-muted dark:bg-white/10 text-[10px] font-medium text-foreground/80 dark:text-white/80 border border-[#e5e7eb] dark:border-border"
                                 >
                                   {platform}
                                 </span>
@@ -772,7 +772,7 @@ export function ConceptStep({
                             </div>
                             {/* Arrow */}
                             <div className={cn("absolute top-full -mt-1", arrowPositionClass)}>
-                              <div className="w-2 h-2 bg-gray-900/95 border-r border-b border-white/20 rotate-45"></div>
+                              <div className="w-2 h-2 bg-popover dark:bg-gray-900/95 border-r border-b border-[#e5e7eb] dark:border-border rotate-45"></div>
                             </div>
                           </div>
                         </motion.div>
@@ -786,7 +786,7 @@ export function ConceptStep({
             {/* Resolution - Always show if model has resolutions */}
             {selectedImageModel && selectedImageModel.resolutions.length > 0 && (
               <div className="space-y-2">
-                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Resolution</label>
+                <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Resolution</label>
                 <div className={cn(
                   "grid gap-3",
                   selectedImageModel.resolutions.length === 1 ? "grid-cols-1" :
@@ -808,11 +808,11 @@ export function ConceptStep({
                         className={cn(
                           "flex items-center justify-center gap-2 p-3 rounded-xl border transition-all duration-200",
                           imageResolution === res 
-                            ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                            : "bg-white/5 border-white/10 hover:bg-white/10"
+                            ? cn("bg-gradient-to-br border-primary", accentClasses, "bg-opacity-20 dark:bg-opacity-20")
+                            : "bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border hover:bg-muted dark:hover:bg-white/10"
                         )}
                       >
-                        <span className="text-sm font-medium text-white">{labels[res] || res}</span>
+                        <span className="text-sm font-medium text-foreground">{labels[res] || res}</span>
                       </button>
                     );
                   })}
@@ -823,9 +823,9 @@ export function ConceptStep({
             {/* Image Style - Disabled when custom style reference is uploaded */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Visual Style</label>
+                <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Visual Style</label>
                 {styleReferenceUrl && (
-                  <span className="text-[10px] text-amber-400/80 font-medium">Using custom reference</span>
+                  <span className="text-[10px] text-amber-400/80 dark:text-amber-400/80 font-medium">Using custom reference</span>
                 )}
               </div>
               <div className={cn(
@@ -840,8 +840,8 @@ export function ConceptStep({
                     className={cn(
                       "group relative flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all duration-200 overflow-hidden",
                       imageStyle === style.value 
-                        ? "border-white/30 bg-white/10"
-                        : "bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06] hover:border-white/10",
+                        ? "border-primary bg-primary/10 dark:bg-white/10"
+                        : "bg-muted/50 dark:bg-white/[0.03] border border-[#e5e7eb] dark:border-border hover:bg-muted dark:hover:bg-white/[0.06] hover:border-primary",
                       styleReferenceUrl && "cursor-not-allowed"
                     )}
                   >
@@ -864,7 +864,7 @@ export function ConceptStep({
                     {/* Label */}
                     <span className={cn(
                       "text-[10px] font-medium transition-colors",
-                      imageStyle === style.value ? "text-white" : "text-white/60"
+                      imageStyle === style.value ? "text-foreground" : "text-muted-foreground"
                     )}>
                       {style.label}
                     </span>
@@ -876,7 +876,7 @@ export function ConceptStep({
             {/* Custom Style Reference Upload - Only show if model supports it */}
             {supportsStyleReference ? (
               <div className="space-y-3">
-                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">
+                <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
                   Style Reference {requiresReferenceImages ? '(Required)' : '(Optional)'}
                 </label>
                 
@@ -895,16 +895,16 @@ export function ConceptStep({
                 {styleReferenceUrl ? (
                 // Show uploaded image preview
                 <div className="relative group">
-                  <div className="relative aspect-video rounded-xl overflow-hidden border border-white/20 bg-black/40">
+                  <div className="relative aspect-video rounded-xl overflow-hidden border border-[#e5e7eb] dark:border-border bg-muted dark:bg-black/40">
                     <img 
                       src={styleReferenceUrl} 
                       alt="Style reference" 
                       className="w-full h-full object-cover"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/60 dark:from-black/60 via-transparent to-transparent" />
                     <div className="absolute bottom-2 left-2 right-2">
-                      <p className="text-xs text-white/80 font-medium">Custom Style Active</p>
-                      <p className="text-[10px] text-white/50">AI will match this visual style</p>
+                      <p className="text-xs text-foreground/80 dark:text-white/80 font-medium">Custom Style Active</p>
+                      <p className="text-[10px] text-muted-foreground dark:text-white/50">AI will match this visual style</p>
                     </div>
                   </div>
                   <button
@@ -921,8 +921,8 @@ export function ConceptStep({
                   className={cn(
                     "relative border-2 border-dashed rounded-xl p-4 text-center transition-all cursor-pointer",
                     isUploadingStyle 
-                      ? "border-white/30 bg-white/10" 
-                      : "border-white/10 hover:border-white/20 hover:bg-white/5"
+                      ? "border-primary bg-primary/10 dark:bg-white/10" 
+                      : "border-[#e5e7eb] dark:border-border hover:border-primary hover:bg-muted/50 dark:hover:bg-white/5"
                   )}
                   onClick={() => !isUploadingStyle && fileInputRef.current?.click()}
                 >
@@ -940,15 +940,15 @@ export function ConceptStep({
                   
                   {isUploadingStyle ? (
                     <div className="flex flex-col items-center gap-2">
-                      <RefreshCw className="w-6 h-6 text-white/60 animate-spin" />
-                      <span className="text-xs text-white/60">Uploading...</span>
+                      <RefreshCw className="w-6 h-6 text-muted-foreground animate-spin" />
+                      <span className="text-xs text-muted-foreground">Uploading...</span>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-2">
-                      <Upload className="w-6 h-6 text-white/40" />
+                      <Upload className="w-6 h-6 text-muted-foreground" />
                       <div>
-                        <p className="text-xs text-white/60 font-medium">Upload reference image</p>
-                        <p className="text-[10px] text-white/40 mt-0.5">AI will generate images in this style</p>
+                        <p className="text-xs text-muted-foreground font-medium">Upload reference image</p>
+                        <p className="text-[10px] text-muted-foreground/70 mt-0.5">AI will generate images in this style</p>
                       </div>
                     </div>
                   )}
@@ -956,7 +956,7 @@ export function ConceptStep({
               )}
               </div>
             ) : (
-              <div className="text-xs text-white/40 italic p-4 border border-white/5 rounded-xl bg-white/[0.02]">
+              <div className="text-xs text-muted-foreground italic p-4 border border-[#e5e7eb] dark:border-border rounded-xl bg-muted/30 dark:bg-white/[0.02]">
                 ℹ️ This model supports text-to-image only. Reference images are not available.
               </div>
             )}
@@ -964,23 +964,23 @@ export function ConceptStep({
             {/* Character Reference Upload - Only show if model supports it and not auto-asmr */}
             {supportsCharacterReference && template.id !== 'auto-asmr' && (
               <div className="space-y-3">
-                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">
+                <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
                   Character Reference {requiresReferenceImages ? '(Required)' : '(Optional)'}
                 </label>
                 
                 {characterReferenceUrl ? (
                 // Show uploaded character preview
                 <div className="relative group">
-                  <div className="relative aspect-video rounded-xl overflow-hidden border border-white/20 bg-black/40">
+                  <div className="relative aspect-video rounded-xl overflow-hidden border border-[#e5e7eb] dark:border-border bg-muted dark:bg-black/40">
                     <img 
                       src={characterReferenceUrl} 
                       alt="Character reference" 
                       className="w-full h-full object-cover"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/60 dark:from-black/60 via-transparent to-transparent" />
                     <div className="absolute bottom-2 left-2 right-2">
-                      <p className="text-xs text-white/80 font-medium">Character Reference Active</p>
-                      <p className="text-[10px] text-white/50">This character will appear in images</p>
+                      <p className="text-xs text-foreground/80 dark:text-white/80 font-medium">Character Reference Active</p>
+                      <p className="text-[10px] text-muted-foreground dark:text-white/50">This character will appear in images</p>
                     </div>
                   </div>
                   <button
@@ -997,8 +997,8 @@ export function ConceptStep({
                   className={cn(
                     "relative border-2 border-dashed rounded-xl p-4 text-center transition-all cursor-pointer",
                     isUploadingCharacter 
-                      ? "border-white/30 bg-white/10" 
-                      : "border-white/10 hover:border-white/20 hover:bg-white/5"
+                      ? "border-primary bg-primary/10 dark:bg-white/10" 
+                      : "border-[#e5e7eb] dark:border-border hover:border-primary hover:bg-muted/50 dark:hover:bg-white/5"
                   )}
                   onClick={() => !isUploadingCharacter && characterInputRef.current?.click()}
                 >
@@ -1016,15 +1016,15 @@ export function ConceptStep({
                   
                   {isUploadingCharacter ? (
                     <div className="flex flex-col items-center gap-2">
-                      <RefreshCw className="w-6 h-6 text-white/60 animate-spin" />
-                      <span className="text-xs text-white/60">Uploading...</span>
+                      <RefreshCw className="w-6 h-6 text-muted-foreground animate-spin" />
+                      <span className="text-xs text-muted-foreground">Uploading...</span>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-2">
-                      <Upload className="w-6 h-6 text-white/40" />
+                      <Upload className="w-6 h-6 text-muted-foreground" />
                       <div>
-                        <p className="text-xs text-white/60 font-medium">Upload character image</p>
-                        <p className="text-[10px] text-white/40 mt-0.5">Face or character to include in images</p>
+                        <p className="text-xs text-muted-foreground font-medium">Upload character image</p>
+                        <p className="text-[10px] text-muted-foreground/70 mt-0.5">Face or character to include in images</p>
                       </div>
                     </div>
                   )}
@@ -1039,15 +1039,15 @@ export function ConceptStep({
         <GlassPanel>
           <div className="flex items-center gap-2 mb-4">
             <Clock className="w-5 h-5 text-purple-400" />
-            <h3 className="font-semibold text-white">Duration & Pacing</h3>
+            <h3 className="font-semibold text-foreground">Duration & Pacing</h3>
           </div>
           
           <div className="space-y-6">
             {/* Duration */}
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Duration</label>
-                <span className="text-xs font-mono text-white/70 bg-white/10 px-2 py-0.5 rounded">{duration}s</span>
+                <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Duration</label>
+                <span className="text-xs font-mono text-foreground/70 dark:text-white/70 bg-muted dark:bg-white/10 px-2 py-0.5 rounded">{duration}s</span>
               </div>
               <div className="grid grid-cols-4 gap-3">
                 {DURATIONS.map(d => (
@@ -1057,8 +1057,8 @@ export function ConceptStep({
                     className={cn(
                       "py-2.5 rounded-lg text-sm font-medium border transition-all duration-200",
                       duration === d
-                        ? cn("bg-gradient-to-br border-white/20 shadow-lg", accentClasses)
-                        : "bg-white/5 border-white/10 hover:bg-white/10"
+                        ? cn("bg-gradient-to-br border-primary shadow-lg", accentClasses)
+                        : "bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border hover:bg-muted dark:hover:bg-white/10"
                     )}
                   >
                     {d}s
@@ -1070,7 +1070,7 @@ export function ConceptStep({
             {/* Pacing - Hide for auto-asmr */}
             {template.id !== 'auto-asmr' && (
               <div className="space-y-2">
-                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Pacing</label>
+                <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Pacing</label>
                 <div className="grid grid-cols-3 gap-3">
                   {PACING_OPTIONS.map(option => (
                     <button
@@ -1079,12 +1079,12 @@ export function ConceptStep({
                       className={cn(
                         "flex items-center justify-center gap-2 p-3 rounded-xl border transition-all duration-200",
                         pacing === option.value
-                          ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                          : "bg-white/5 border-white/10 hover:bg-white/10"
+                          ? cn("bg-gradient-to-br border-primary", accentClasses, "bg-opacity-20 dark:bg-opacity-20")
+                          : "bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border hover:bg-muted dark:hover:bg-white/10"
                       )}
                     >
                       <span className="text-base">{option.emoji}</span>
-                      <span className="text-sm font-medium text-white">{option.label}</span>
+                      <span className="text-sm font-medium text-foreground">{option.label}</span>
                     </button>
                   ))}
                 </div>
@@ -1098,19 +1098,19 @@ export function ConceptStep({
           <GlassPanel>
             <div className="flex items-center gap-2 mb-4">
               <Mic className="w-5 h-5 text-purple-400" />
-              <h3 className="font-semibold text-white">Voiceover</h3>
+              <h3 className="font-semibold text-foreground">Voiceover</h3>
             </div>
             
             <div className="space-y-4">
             {/* Voiceover Toggle */}
             <div className="flex items-center justify-between">
-              <label className="text-sm text-white/70">Enable Voiceover</label>
-              <div className="flex bg-white/5 rounded-lg p-1 border border-white/10">
+              <label className="text-sm text-foreground/70">Enable Voiceover</label>
+              <div className="flex bg-muted/50 dark:bg-white/5 rounded-lg p-1 border border-[#e5e7eb] dark:border-border">
                 <button
                   onClick={() => onVoiceoverChange(true)}
                   className={cn(
                     "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
-                    voiceoverEnabled ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
+                    voiceoverEnabled ? "bg-primary/10 dark:bg-white/10 text-foreground dark:text-white shadow-sm" : "text-muted-foreground hover:text-foreground/80 dark:text-white/40 dark:hover:text-white/60"
                   )}
                 >
                   On
@@ -1119,7 +1119,7 @@ export function ConceptStep({
                   onClick={() => onVoiceoverChange(false)}
                   className={cn(
                     "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
-                    !voiceoverEnabled ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
+                    !voiceoverEnabled ? "bg-primary/10 dark:bg-white/10 text-foreground dark:text-white shadow-sm" : "text-muted-foreground hover:text-foreground/80 dark:text-white/40 dark:hover:text-white/60"
                   )}
                 >
                   Off
@@ -1136,29 +1136,29 @@ export function ConceptStep({
               >
                 {/* Language */}
                 <div className="space-y-2">
-                  <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Language</label>
+                  <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Language</label>
                   <div className="relative">
                     <select 
                       value={language}
                       onChange={(e) => onLanguageChange(e.target.value as 'ar' | 'en')}
                       className={cn(
                         "w-full appearance-none",
-                        "bg-white/[0.03] hover:bg-white/[0.06]",
-                        "border border-white/10 hover:border-white/20",
+                        "bg-muted/50 dark:bg-white/[0.03] hover:bg-muted dark:hover:bg-white/[0.06]",
+                        "border border-[#e5e7eb] dark:border-border hover:border-primary",
                         "rounded-xl px-4 py-3",
-                        "text-sm text-white font-medium",
-                        "focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/10",
+                        "text-sm text-foreground dark:text-white font-medium",
+                        "focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20",
                         "transition-all duration-200 cursor-pointer",
                         "pr-10" // Space for arrow
                       )}
                     >
-                      <option value="en" className="bg-zinc-900 text-white">🇺🇸  English (US)</option>
-                      <option value="ar" className="bg-zinc-900 text-white">🇸🇦  العربية (Arabic)</option>
+                      <option value="en" className="bg-background dark:bg-zinc-900 text-foreground dark:text-white">🇺🇸  English (US)</option>
+                      <option value="ar" className="bg-background dark:bg-zinc-900 text-foreground dark:text-white">🇸🇦  العربية (Arabic)</option>
                     </select>
                     {/* Custom Arrow */}
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                       <svg 
-                        className="w-4 h-4 text-white/40" 
+                        className="w-4 h-4 text-muted-foreground dark:text-white/40" 
                         fill="none" 
                         stroke="currentColor" 
                         viewBox="0 0 24 24"
@@ -1172,14 +1172,14 @@ export function ConceptStep({
                 {/* Text Overlay Toggle */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Text Overlay</label>
-                    <div className="flex bg-white/5 rounded-lg p-1 border border-white/10">
+                    <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Text Overlay</label>
+                    <div className="flex bg-muted/50 dark:bg-white/5 rounded-lg p-1 border border-[#e5e7eb] dark:border-border">
                       <button
                         type="button"
                         onClick={() => onTextOverlayEnabledChange(true)}
                         className={cn(
                           "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
-                          textOverlayEnabled ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
+                          textOverlayEnabled ? "bg-primary/10 dark:bg-white/10 text-foreground dark:text-white shadow-sm" : "text-muted-foreground hover:text-foreground/80 dark:text-white/40 dark:hover:text-white/60"
                         )}
                       >
                         On
@@ -1189,7 +1189,7 @@ export function ConceptStep({
                         onClick={() => onTextOverlayEnabledChange(false)}
                         className={cn(
                           "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
-                          !textOverlayEnabled ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
+                          !textOverlayEnabled ? "bg-primary/10 dark:bg-white/10 text-foreground dark:text-white shadow-sm" : "text-muted-foreground hover:text-foreground/80 dark:text-white/40 dark:hover:text-white/60"
                         )}
                       >
                         Off
@@ -1208,7 +1208,7 @@ export function ConceptStep({
                     transition={{ duration: 0.2 }}
                     className="space-y-2 overflow-hidden"
                   >
-                    <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Style</label>
+                    <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Style</label>
                     <div className="grid grid-cols-3 gap-3">
                       {TEXT_OVERLAY_STYLES.map(style => (
                         <button
@@ -1218,8 +1218,8 @@ export function ConceptStep({
                           className={cn(
                             "py-2.5 px-3 rounded-lg text-sm font-medium border transition-all",
                             textOverlayStyle === style.value
-                              ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                              : "bg-white/5 border-white/10 hover:bg-white/10"
+                              ? cn("bg-gradient-to-br border-primary", accentClasses, "bg-opacity-20 dark:bg-opacity-20")
+                              : "bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border hover:bg-muted dark:hover:bg-white/10"
                           )}
                         >
                           {style.label}
@@ -1238,7 +1238,7 @@ export function ConceptStep({
         <GlassPanel>
           <div className="flex items-center gap-2 mb-4">
             <Video className="w-5 h-5 text-purple-400" />
-            <h3 className="font-semibold text-white">
+            <h3 className="font-semibold text-foreground">
               {template.id === 'auto-asmr' ? 'Video Model' : 'Animation Mode'}
             </h3>
           </div>
@@ -1288,11 +1288,11 @@ export function ConceptStep({
                             className={cn(
                               "flex items-center justify-center gap-2 p-2.5 rounded-xl border transition-all duration-200",
                               videoResolution === res 
-                                ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                                : "bg-white/5 border-white/10 hover:bg-white/10"
+                                ? cn("bg-gradient-to-br border-primary", accentClasses, "bg-opacity-20 dark:bg-opacity-20")
+                                : "bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border hover:bg-muted dark:hover:bg-white/10"
                             )}
                           >
-                            <span className="text-sm font-medium text-white">{res}</span>
+                            <span className="text-sm font-medium text-foreground">{res}</span>
                           </button>
                         ))}
                       </div>
@@ -1305,13 +1305,13 @@ export function ConceptStep({
               <>
                 {/* Animation Mode Toggle */}
                 <div className="flex items-center justify-between">
-                  <label className="text-sm text-white/70">Enable Animation</label>
-                  <div className="flex bg-white/5 rounded-lg p-1 border border-white/10">
+                  <label className="text-sm text-foreground/70">Enable Animation</label>
+                  <div className="flex bg-muted/50 dark:bg-white/5 rounded-lg p-1 border border-[#e5e7eb] dark:border-border">
                     <button
                       onClick={() => onAnimationModeChange('off')}
                       className={cn(
                         "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
-                        animationMode === 'off' ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
+                        animationMode === 'off' ? "bg-primary/10 dark:bg-white/10 text-foreground dark:text-white shadow-sm" : "text-muted-foreground hover:text-foreground/80 dark:text-white/40 dark:hover:text-white/60"
                       )}
                     >
                       Off
@@ -1320,7 +1320,7 @@ export function ConceptStep({
                       onClick={() => onAnimationModeChange('transition')}
                       className={cn(
                         "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
-                        animationMode !== 'off' ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
+                        animationMode !== 'off' ? "bg-primary/10 dark:bg-white/10 text-foreground dark:text-white shadow-sm" : "text-muted-foreground hover:text-foreground/80 dark:text-white/40 dark:hover:text-white/60"
                       )}
                     >
                       On
@@ -1337,15 +1337,15 @@ export function ConceptStep({
                   >
                     {/* Mode Selector: Transition vs Video */}
                     <div className="space-y-2">
-                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Animation Type</label>
+                      <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Animation Type</label>
                       <div className="grid grid-cols-2 gap-3">
                         <button
                           onClick={() => onAnimationModeChange('transition')}
                           className={cn(
                             "py-2.5 px-3 rounded-lg text-sm font-medium border text-center transition-all",
                             animationMode === 'transition'
-                              ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                              : "bg-white/5 border-white/10 hover:bg-white/10"
+                              ? cn("bg-gradient-to-br border-primary", accentClasses, "bg-opacity-20 dark:bg-opacity-20")
+                              : "bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border hover:bg-muted dark:hover:bg-white/10"
                           )}
                         >
                           Transition
@@ -1363,9 +1363,9 @@ export function ConceptStep({
                           className={cn(
                             "py-2.5 px-3 rounded-lg text-sm font-medium border text-center transition-all",
                             animationMode === 'video'
-                              ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                              : "bg-white/5 border-white/10 hover:bg-white/10",
-                            !isAspectRatioSupportedByAnyVideoModel && "opacity-40 cursor-not-allowed hover:bg-white/5 pointer-events-none"
+                              ? cn("bg-gradient-to-br border-primary", accentClasses, "bg-opacity-20 dark:bg-opacity-20")
+                              : "bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border hover:bg-muted dark:hover:bg-white/10",
+                            !isAspectRatioSupportedByAnyVideoModel && "opacity-40 cursor-not-allowed hover:bg-muted/50 dark:hover:bg-white/5 pointer-events-none"
                           )}
                         >
                           Image to Video
@@ -1402,7 +1402,7 @@ export function ConceptStep({
                           
                           return (
                           <div className="space-y-2">
-                            <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Video Resolution</label>
+                            <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Video Resolution</label>
                             <div className={cn(
                               "grid gap-3",
                                 resolutionsToShow.length === 1 ? "grid-cols-1" :
@@ -1417,11 +1417,11 @@ export function ConceptStep({
                                   className={cn(
                                     "flex items-center justify-center gap-2 p-2.5 rounded-xl border transition-all duration-200",
                                     videoResolution === res 
-                                      ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                                      : "bg-white/5 border-white/10 hover:bg-white/10"
+                                      ? cn("bg-gradient-to-br border-primary", accentClasses, "bg-opacity-20 dark:bg-opacity-20")
+                                      : "bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border hover:bg-muted dark:hover:bg-white/10"
                                   )}
                                 >
-                                  <span className="text-sm font-medium text-white">{res}</span>
+                                  <span className="text-sm font-medium text-foreground">{res}</span>
                                 </button>
                               ))}
                             </div>
@@ -1445,7 +1445,7 @@ export function ConceptStep({
       */}
       <div className="flex-1 relative flex flex-col overflow-hidden h-full">
         {/* Top Section - AI Generator */}
-        <div className="flex-shrink-0 p-6 border-b border-white/[0.04]">
+        <div className="flex-shrink-0 p-6 border-b border-[#e5e7eb] dark:border-border">
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <div className={cn(
@@ -1454,7 +1454,7 @@ export function ConceptStep({
               )}>
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <h3 className="text-base font-semibold text-white">AI Idea Generator</h3>
+              <h3 className="text-base font-semibold text-foreground">AI Idea Generator</h3>
             </div>
             
             <div className="flex gap-3">
@@ -1465,9 +1465,9 @@ export function ConceptStep({
                 disabled={isGenerating}
                 placeholder="Ask AI to write a story about..."
                 className={cn(
-                  "flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white",
-                  "focus:outline-none focus:border-white/20 focus:bg-white/10 transition-all",
-                  "placeholder:text-white/30"
+                  "flex-1 bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border rounded-lg px-4 py-2.5 text-sm text-foreground",
+                  "focus:outline-none focus:border-primary focus:bg-muted dark:focus:bg-white/10 transition-all",
+                  "placeholder:text-muted-foreground/50 dark:placeholder:text-white/30"
                 )}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !isGenerating && aiPrompt.trim()) {
@@ -1497,7 +1497,7 @@ export function ConceptStep({
               </Button>
             </div>
             
-            <p className="text-[10px] text-white/40">
+            <p className="text-[10px] text-muted-foreground dark:text-white/40">
               This will generate a detailed story and fill the "Your Idea" box below.
             </p>
           </div>
@@ -1513,12 +1513,12 @@ export function ConceptStep({
               <Lightbulb className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-base text-white">Your Idea</h3>
-              <p className="text-xs text-white/40">Describe your video concept in detail</p>
+              <h3 className="font-semibold text-base text-foreground">Your Idea</h3>
+              <p className="text-xs text-muted-foreground dark:text-white/40">Describe your video concept in detail</p>
             </div>
           </div>
           
-          <div className="flex-1 relative rounded-lg border border-white/10 bg-white/[0.02] overflow-hidden">
+          <div className="flex-1 relative rounded-lg border border-[#e5e7eb] dark:border-border bg-muted/30 dark:bg-white/[0.02] overflow-hidden">
             <Textarea
               value={topic}
               onChange={(e) => onTopicChange(e.target.value)}
@@ -1526,8 +1526,8 @@ export function ConceptStep({
               className={cn(
                 "w-full h-full bg-transparent border-0 p-5 text-[15px] leading-relaxed",
                 "focus:outline-none focus:ring-0 resize-none",
-                "placeholder:text-white/20 text-white/90",
-                "scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
+                "placeholder:text-muted-foreground/50 dark:placeholder:text-white/20 text-foreground dark:text-white/90",
+                "scrollbar-thin scrollbar-thumb-muted dark:scrollbar-thumb-white/10 scrollbar-track-transparent"
               )}
             />
           </div>

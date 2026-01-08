@@ -6,6 +6,7 @@ import "./openai";
 import "./gemini";
 import "./runware";
 import "./elevenlabs";
+import "./mmaudio";
 
 export { getProviderAdapter, listRegisteredProviders } from "./base-provider";
 

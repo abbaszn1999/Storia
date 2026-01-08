@@ -88,8 +88,8 @@ export function AmbientStudioLayout({
       </header>
 
       {/* Main Content Area - Scrollable */}
-      <main className="relative z-10 flex-1 overflow-y-auto">
-        <div className="px-6 pb-6">
+      <main className="relative z-10 flex-1 overflow-y-auto scrollbar-thin">
+        <div className="px-6 pb-40">
           {children}
         </div>
       </main>

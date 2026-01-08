@@ -57,6 +57,8 @@ export interface Step1Data {
   
   // Voiceover
   voiceoverEnabled: boolean;
+  voiceoverStory?: string;    // User's narration theme/topic for voiceover generation
+  voiceId?: string;           // Selected ElevenLabs voice ID
   language?: Language;
   textOverlayEnabled?: boolean;
   textOverlayStyle?: TextOverlayStyle;
@@ -125,6 +127,7 @@ export interface Scene {
   cameraMotion?: string | null;
   lighting?: string | null;
   weather?: string | null;
+  loopCount?: number | null;  // Per-scene loop count (for Soundscape step)
   createdAt: Date;
 }
 
@@ -141,6 +144,9 @@ export interface Shot {
   soundEffects?: string | null;
   transition?: string | null;
   currentVersionId?: string | null;
+  loopCount?: number | null;           // Per-shot loop count
+  soundEffectDescription?: string | null;  // Description for SFX generation
+  soundEffectUrl?: string | null;      // Generated/uploaded SFX audio URL
   createdAt: Date;
   updatedAt: Date;
 }
@@ -166,6 +172,10 @@ export interface ShotVersion {
   // Video URLs (from Agent 4.3: Video Clip Generator)
   videoUrl?: string | null;
   videoDuration?: number | null;
+  
+  // Sound Effect (from Agent 5.4: Sound Effect Generator)
+  videoWithAudioUrl?: string | null;  // Video URL with embedded sound effects
+  soundEffectPrompt?: string | null;  // Prompt used for sound effect generation
   
   // Status tracking
   status: string;  // 'pending' | 'prompt_generated' | 'images_generated' | 'completed' | 'failed'
@@ -557,14 +567,170 @@ export interface Step4Data {
   }>;
 }
 
+// Voiceover status tracking
+export type VoiceoverStatus = 'pending' | 'script_generated' | 'audio_generated';
+
 export interface Step5Data {
   previewUrl?: string;
   ambientSound?: string;
+  
+  // Voiceover data (from Agent 5.1 and 5.2)
+  voiceoverScript?: string;       // Generated/edited narration script
+  voiceoverAudioUrl?: string;     // CDN URL of generated audio
+  voiceoverDuration?: number;     // Audio duration in seconds
+  voiceoverStatus?: VoiceoverStatus;
+  
+  // Loop settings (initialized from Step1Data on step 4->5 transition)
+  scenesWithLoops?: Scene[];              // Scenes with initialized loopCount
+  shotsWithLoops?: Record<string, Shot[]>; // Shots keyed by sceneId with loopCount
+  loopSettingsLocked?: boolean;           // User can lock to prevent accidental changes
 }
 
 export interface Step6Data {
   exportQuality?: string;
   fileFormat?: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOICEOVER SCRIPT GENERATOR - AI INPUT/OUTPUT (Agent 5.1)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for voiceover script generation (Agent 5.1)
+ * Generates narration text based on video context
+ */
+export interface VoiceoverScriptGeneratorInput {
+  // Language setting
+  language: Language;              // 'en' | 'ar'
+  
+  // User's narration theme/topic
+  voiceoverStory: string;          // User's description of what the voiceover should be about
+  
+  // Duration context (calculated with loops)
+  totalDuration: number;           // Total video duration in seconds (including loop repetitions)
+  
+  // Atmosphere context (from Step1Data)
+  mood: string;
+  theme: string;
+  moodDescription: string;
+  
+  // Scene context (for narrative flow)
+  scenes: Array<{
+    sceneNumber: number;
+    title: string;
+    description?: string | null;
+    duration?: number | null;
+  }>;
+}
+
+export interface VoiceoverScriptGeneratorOutput {
+  script: string;                  // Generated narration text
+  estimatedDuration: number;       // Estimated speaking time in seconds
+  cost?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SOUND EFFECT PROMPT GENERATOR - AI INPUT/OUTPUT (Agent 5.3)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for sound effect prompt generation (Agent 5.3)
+ * Generates recommended sound effect descriptions based on visual context
+ */
+export interface SoundEffectPromptGeneratorInput {
+  // Shot context
+  shotDescription: string | null;  // Shot visual description
+  shotType: string;                // e.g., "wide", "close-up", "tracking"
+  shotDuration: number;            // Duration in seconds
+  
+  // Video prompt context (from ShotVersion)
+  videoPrompt: string | null;      // Generated video prompt for this shot
+  
+  // Scene context
+  sceneTitle: string;              // Title of the containing scene
+  sceneDescription: string | null; // Scene description
+  
+  // Atmosphere context (from Step1Data)
+  mood: string;                    // e.g., "calm", "mysterious"
+  theme: string;                   // e.g., "nature", "urban"
+  moodDescription: string;         // AI-generated mood description
+}
+
+export interface SoundEffectPromptGeneratorOutput {
+  prompt: string;                  // Recommended sound effect description
+  cost?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SOUND EFFECT GENERATOR - AI INPUT/OUTPUT (Agent 5.4)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for sound effect generation using MMAudio (Agent 5.4)
+ * Takes a video URL and prompt to generate audio synchronized with the video
+ */
+export interface SoundEffectGeneratorInput {
+  // Video source
+  videoUrl: string;                // Public URL of the video to add audio to
+  
+  // Audio generation
+  prompt: string;                  // Sound effect description
+  duration?: number;               // Audio duration in seconds (1-30, default: 8)
+  
+  // Generation settings
+  numSteps?: number;               // Inference steps (1-50, default: 25)
+  cfgStrength?: number;            // Guidance strength (1-10, default: 4.5)
+  seed?: number;                   // For reproducibility
+  
+  // Context for CDN upload
+  videoId: string;
+  videoTitle: string;            // Video title for path (same as voiceover)
+  videoCreatedAt?: Date | string; // Video creation date for path (same as voiceover)
+  shotId: string;
+  sceneId: string;               // Scene ID for organizing files
+  userId: string;
+  workspaceId: string;
+  workspaceName: string;
+}
+
+export interface SoundEffectGeneratorOutput {
+  videoWithAudioUrl: string;       // CDN URL of video with embedded audio
+  originalMMAudioUrl: string;      // Original MMAudio URL (expires in 24h)
+  fileSize: number;                // File size in bytes
+  cost?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOICEOVER AUDIO GENERATOR - AI INPUT/OUTPUT (Agent 5.2)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for voiceover audio generation (Agent 5.2)
+ * Converts approved text to audio using ElevenLabs TTS
+ */
+export interface VoiceoverAudioGeneratorInput {
+  // Script to convert
+  script: string;                  // Approved voiceover text
+  
+  // Voice settings
+  voiceId: string;                 // Selected ElevenLabs voice ID
+  language: Language;              // For model selection
+  
+  // Video context (for CDN path)
+  videoId: string;
+  videoTitle: string;
+  videoCreatedAt?: Date | string;   // Video creation date for path (YYYYMMDD format)
+  
+  // User context (for CDN path)
+  userId: string;
+  workspaceId: string;
+  workspaceName: string;
+}
+
+export interface VoiceoverAudioGeneratorOutput {
+  audioUrl: string;                // CDN URL of generated audio
+  duration: number;                // Actual audio duration in seconds
+  cost?: number;
 }
 
 // Video creation request

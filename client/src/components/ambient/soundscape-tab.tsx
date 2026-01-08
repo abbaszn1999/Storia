@@ -1,0 +1,1034 @@
+import { useState, useEffect, Fragment } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { 
+  Volume2, 
+  Music, 
+  Upload, 
+  Repeat,
+  Play,
+  Mic,
+  Sparkles,
+  X,
+  Lock,
+  Unlock,
+  ArrowRight,
+  Loader2,
+  RefreshCw,
+  Eye,
+  Clock
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import type { Scene, Shot, ShotVersion, LoopType } from "@/types/storyboard";
+
+interface SoundscapeTabProps {
+  videoId: string;
+  scenes: Scene[];
+  shots: { [sceneId: string]: Shot[] };
+  shotVersions: { [shotId: string]: ShotVersion[] };
+  // Loop settings from Step 1
+  loopMode: boolean;
+  loopType: LoopType;
+  segmentLoopEnabled: boolean;
+  segmentLoopCount: 'auto' | number;
+  shotLoopEnabled: boolean;
+  shotLoopCount: 'auto' | number;
+  // Loop settings lock state (from Step 5 data)
+  loopSettingsLocked: boolean;
+  onLockToggle: (locked: boolean) => void;
+  // Voiceover settings from Step 1
+  voiceoverEnabled: boolean;
+  // Voiceover data from Step 5
+  voiceoverScript?: string;
+  voiceoverAudioUrl?: string;
+  // Callbacks
+  onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
+  onUpdateScene: (sceneId: string, updates: Partial<Scene>) => void;
+}
+
+// Shot card component for Soundscape - Sound Effects only (Voiceover is global)
+function SoundscapeShotCard({
+  shot,
+  shotIndex,
+  version,
+  loopMode,
+  shotLoopEnabled,
+  defaultShotLoopCount,
+  loopSettingsLocked,
+  videoId,
+  sceneId,
+  onUpdateShot,
+}: {
+  shot: Shot;
+  shotIndex: number;
+  version: ShotVersion | null;
+  loopMode: boolean;
+  shotLoopEnabled: boolean;
+  defaultShotLoopCount: number | null;
+  loopSettingsLocked: boolean;
+  videoId: string;
+  sceneId: string;
+  onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
+}) {
+  const { toast } = useToast();
+  const [loopPopoverOpen, setLoopPopoverOpen] = useState(false);
+  const [isRecommendingSfx, setIsRecommendingSfx] = useState(false);
+  const [isGeneratingSfx, setIsGeneratingSfx] = useState(false);
+  
+  const hasVideo = version?.videoUrl && 
+                   typeof version.videoUrl === 'string' && 
+                   version.videoUrl.trim().length > 0;
+
+  // Get current loop count - use saved value or default to 1
+  // NOTE: Loop counts are now initialized by the backend during step 4->5 transition
+  // Do NOT auto-initialize here as it causes race conditions that overwrite saved data
+  const currentLoopCount = shot.loopCount ?? defaultShotLoopCount ?? 1;
+
+  return (
+    <Card className="shrink-0 w-80 overflow-visible bg-white/[0.02] border-white/[0.06]">
+      {/* Video Preview - matches Composition phase image preview area */}
+      <div className="aspect-video bg-black/30 relative group rounded-t-lg overflow-hidden">
+        {hasVideo ? (
+          <video
+            src={version?.videoUrl || ''}
+            className="w-full h-full object-cover"
+            controls
+            muted
+            loop
+            playsInline
+          />
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 gap-2">
+            <Play className="h-12 w-12 text-white/30" />
+            <p className="text-xs text-white/50">No video generated</p>
+          </div>
+        )}
+        
+        {/* Shot badge - top left */}
+        <div className="absolute top-2 left-2 flex items-center gap-2">
+          <Badge variant="outline" className="bg-gradient-to-r from-cyan-500/20 to-teal-500/20 text-cyan-300 border-cyan-500/50">
+            # {shot.shotNumber}
+          </Badge>
+          <Badge variant="outline" className="bg-black/60 backdrop-blur-sm text-white/70 border-white/20">
+            {shot.duration}s
+          </Badge>
+        </div>
+        
+        {/* Loop count badge - top right (only if loop mode enabled) */}
+        {loopMode && shotLoopEnabled && (
+          <div className="absolute top-2 right-2">
+            <Popover open={loopSettingsLocked ? false : loopPopoverOpen} onOpenChange={loopSettingsLocked ? undefined : setLoopPopoverOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  className={`flex items-center gap-1 px-2 py-1 rounded-md backdrop-blur-sm border transition-colors ${
+                    loopSettingsLocked 
+                      ? 'bg-amber-500/10 border-amber-500/20 cursor-not-allowed' 
+                      : 'bg-amber-500/20 border-amber-500/40 hover:bg-amber-500/30'
+                  }`}
+                  title={loopSettingsLocked ? "Loop settings are locked" : "Edit loop count"}
+                  disabled={loopSettingsLocked}
+                >
+                  {loopSettingsLocked ? (
+                    <Lock className="h-3 w-3 text-amber-400/60" />
+                  ) : (
+                    <Repeat className="h-3 w-3 text-amber-400" />
+                  )}
+                  <span className={`text-xs font-medium ${loopSettingsLocked ? 'text-amber-300/60' : 'text-amber-300'}`}>×{currentLoopCount}</span>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-3 bg-[#0a0a0a] border-white/10" align="end">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-white/70 font-medium">Loop Count</Label>
+                    <button 
+                      onClick={() => setLoopPopoverOpen(false)}
+                      className="text-white/40 hover:text-white/60"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-center gap-3">
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="h-8 w-8 border-white/10 hover:bg-white/5"
+                      onClick={() => {
+                        const newCount = Math.max(1, currentLoopCount - 1);
+                        onUpdateShot(shot.id, { loopCount: newCount });
+                      }}
+                    >
+                      <span className="text-base font-medium">−</span>
+                    </Button>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={currentLoopCount}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 1;
+                        onUpdateShot(shot.id, { loopCount: Math.min(99, Math.max(1, val)) });
+                      }}
+                      className="h-8 text-sm text-center bg-white/5 border-white/10 w-16 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="h-8 w-8 border-white/10 hover:bg-white/5"
+                      onClick={() => {
+                        const newCount = Math.min(99, currentLoopCount + 1);
+                        onUpdateShot(shot.id, { loopCount: newCount });
+                      }}
+                    >
+                      <span className="text-base font-medium">+</span>
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-white/40 text-center">
+                    Times this shot repeats
+                  </p>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+      </div>
+
+      <CardContent className="p-4 space-y-3">
+        {/* Sound Effects Section Header with Recommend Button */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Music className="h-4 w-4 text-teal-400" />
+            <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Sound Effects</Label>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 text-xs px-2 hover:bg-white/5 text-teal-400 hover:text-teal-300"
+            disabled={isRecommendingSfx}
+            onClick={async () => {
+              setIsRecommendingSfx(true);
+              try {
+                const response = await fetch(`/api/ambient-visual/videos/${videoId}/shots/${shot.id}/sound-effect/recommend`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                });
+                
+                if (!response.ok) {
+                  const error = await response.json();
+                  throw new Error(error.error || 'Failed to get recommendation');
+                }
+                
+                const data = await response.json();
+                onUpdateShot(shot.id, { soundEffectDescription: data.prompt });
+                toast({
+                  title: "Sound effect recommended",
+                  description: "AI-generated sound effect description added",
+                });
+              } catch (error) {
+                console.error('[SoundscapeShotCard] Failed to get recommendation:', error);
+                toast({
+                  title: "Recommendation failed",
+                  description: error instanceof Error ? error.message : "Failed to get sound effect recommendation",
+                  variant: "destructive",
+                });
+              } finally {
+                setIsRecommendingSfx(false);
+              }
+            }}
+          >
+            {isRecommendingSfx ? (
+              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+            ) : (
+              <Sparkles className="mr-1 h-3 w-3" />
+            )}
+            Recommend
+          </Button>
+        </div>
+        
+        {/* Sound Effects Description */}
+        <Textarea
+          placeholder="Describe sound effects (e.g., rain, wind, birds)..."
+          className="min-h-[80px] text-xs bg-white/5 border-white/10 resize-none"
+          value={shot.soundEffectDescription || ''}
+          onChange={(e) => onUpdateShot(shot.id, { soundEffectDescription: e.target.value })}
+        />
+        
+        {/* Generate SFX Button */}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white disabled:opacity-50"
+          disabled={isGeneratingSfx || !shot.soundEffectDescription?.trim() || !hasVideo}
+          onClick={async () => {
+            if (!shot.soundEffectDescription?.trim()) {
+              toast({
+                title: "No sound effect description",
+                description: "Please add a sound effect description or use the Recommend button",
+                variant: "destructive",
+              });
+              return;
+            }
+            
+            if (!hasVideo) {
+              toast({
+                title: "No video available",
+                description: "Generate video for this shot first",
+                variant: "destructive",
+              });
+              return;
+            }
+
+            setIsGeneratingSfx(true);
+            try {
+              const response = await fetch(`/api/ambient-visual/videos/${videoId}/shots/${shot.id}/sound-effect/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  prompt: shot.soundEffectDescription,
+                }),
+              });
+              
+              if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to generate sound effect');
+              }
+              
+              const data = await response.json();
+              onUpdateShot(shot.id, { 
+                soundEffectUrl: data.videoWithAudioUrl,
+                videoWithAudioUrl: data.videoWithAudioUrl,
+              });
+              toast({
+                title: "Sound effect generated",
+                description: "Video with sound effects is ready",
+              });
+            } catch (error) {
+              console.error('[SoundscapeShotCard] Failed to generate sound effect:', error);
+              toast({
+                title: "Generation failed",
+                description: error instanceof Error ? error.message : "Failed to generate sound effect",
+                variant: "destructive",
+              });
+            } finally {
+              setIsGeneratingSfx(false);
+            }
+          }}
+        >
+          {isGeneratingSfx ? (
+            <>
+              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <Sparkles className="mr-2 h-3 w-3" />
+              Generate SFX
+            </>
+          )}
+        </Button>
+        
+        {/* SFX Uploaded Indicator */}
+        {shot.soundEffectUrl && (
+          <div className="flex items-center gap-2 p-2 rounded-md bg-teal-500/10 border border-teal-500/20">
+            <Music className="h-3.5 w-3.5 text-teal-400" />
+            <span className="text-xs text-teal-300 truncate flex-1">SFX uploaded</span>
+            <button 
+              className="text-white/40 hover:text-red-400 transition-colors"
+              onClick={() => onUpdateShot(shot.id, { soundEffectUrl: null })}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Scene row component to properly use hooks
+function SceneRow({
+  scene,
+  sceneIndex,
+  sceneShots,
+  shotVersions,
+  loopMode,
+  segmentLoopEnabled,
+  defaultSegmentLoopCount,
+  shotLoopEnabled,
+  defaultShotLoopCount,
+  loopSettingsLocked,
+  videoId,
+  onUpdateScene,
+  onUpdateShot,
+  getShotVersion,
+}: {
+  scene: Scene;
+  sceneIndex: number;
+  sceneShots: Shot[];
+  shotVersions: { [shotId: string]: ShotVersion[] };
+  loopMode: boolean;
+  segmentLoopEnabled: boolean;
+  defaultSegmentLoopCount: number | null;
+  shotLoopEnabled: boolean;
+  defaultShotLoopCount: number | null;
+  loopSettingsLocked: boolean;
+  videoId: string;
+  onUpdateScene: (sceneId: string, updates: Partial<Scene>) => void;
+  onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
+  getShotVersion: (shot: Shot) => ShotVersion | null;
+}) {
+  // NOTE: Scene loop counts are now initialized by the backend during step 4->5 transition
+  // Do NOT auto-initialize here as it causes race conditions that overwrite saved data
+
+  // Calculate total duration with loops:
+  // 1. Each shot duration = shot.duration × shot.loopCount
+  // 2. Scene total = sum(shot durations) × scene.loopCount
+  const calculateTotalDuration = () => {
+    // Sum all shot durations × their loop counts
+    const shotsWithLoopsDuration = sceneShots.reduce((total, shot) => {
+      const shotLoopCount = shot.loopCount ?? 1;
+      return total + (shot.duration * shotLoopCount);
+    }, 0);
+    
+    // Multiply by scene loop count
+    const sceneLoopCount = scene.loopCount ?? 1;
+    return shotsWithLoopsDuration * sceneLoopCount;
+  };
+
+  const totalDuration = calculateTotalDuration();
+  const baseDuration = sceneShots.reduce((total, shot) => total + shot.duration, 0);
+
+  // Format duration as minutes:seconds if over 60 seconds
+  const formatDuration = (seconds: number) => {
+    if (seconds >= 60) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}m ${secs}s`;
+    }
+    return `${seconds}s`;
+  };
+
+  return (
+    <Card className="bg-white/[0.02] border-white/[0.06]">
+      <CardContent className="p-4">
+        <div className="flex items-start gap-4">
+          {/* Left Sidebar - Scene Info */}
+          <div className="w-72 shrink-0 space-y-3">
+            {/* Scene Header */}
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="bg-gradient-to-r from-cyan-500/20 to-teal-500/20 text-cyan-300 border-cyan-500/50 text-xs px-2">
+                # {sceneIndex + 1}
+              </Badge>
+              <span className="text-sm font-medium text-white truncate">{scene.title}</span>
+            </div>
+
+            {/* Scene Description */}
+            <p className="text-xs text-white/50 line-clamp-3">
+              {scene.description || "No description"}
+            </p>
+
+            {/* Scene Stats */}
+            <div className="space-y-2 pt-2 border-t border-white/10">
+              <div className="flex justify-between text-xs">
+                <span className="text-white/50">Shots</span>
+                <span className="text-white/70">{sceneShots.length}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-white/50">Duration</span>
+                <span className="text-white/70" title={`Base: ${baseDuration}s, With loops: ${totalDuration}s`}>
+                  {formatDuration(totalDuration)}
+                </span>
+              </div>
+            </div>
+
+            {/* Scene Loop Count (conditional) */}
+            {loopMode && segmentLoopEnabled && (
+              <div className="space-y-2 pt-2 border-t border-white/10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Repeat className="h-4 w-4 text-amber-400" />
+                    <Label className="text-xs text-white/70 uppercase tracking-wider font-medium">
+                      Scene Loop
+                    </Label>
+                  </div>
+                  {loopSettingsLocked && (
+                    <Lock className="h-3 w-3 text-amber-400/60" />
+                  )}
+                </div>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={scene.loopCount ?? defaultSegmentLoopCount ?? 1}
+                  onChange={(e) => onUpdateScene(scene.id, { loopCount: parseInt(e.target.value) || 1 })}
+                  disabled={loopSettingsLocked}
+                  className={`h-8 text-xs bg-white/5 border-white/10 ${loopSettingsLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+                />
+                <p className="text-[10px] text-white/40">
+                  Times this scene repeats
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Shot Cards - Horizontal Scroll */}
+          <div className="flex-1 overflow-x-auto scrollbar-thin">
+            <div className="flex items-start gap-0 pb-2">
+              {sceneShots.map((shot, shotIndex) => {
+                const version = getShotVersion(shot);
+                const isLastShot = shotIndex === sceneShots.length - 1;
+                
+                return (
+                  <Fragment key={shot.id}>
+                    <SoundscapeShotCard
+                      shot={shot}
+                      shotIndex={shotIndex}
+                      version={version}
+                      loopMode={loopMode}
+                      shotLoopEnabled={shotLoopEnabled}
+                      defaultShotLoopCount={defaultShotLoopCount}
+                      loopSettingsLocked={loopSettingsLocked}
+                      videoId={videoId}
+                      sceneId={scene.id}
+                      onUpdateShot={onUpdateShot}
+                    />
+                    
+                    {/* Transition indicator between shots */}
+                    {!isLastShot && (
+                      <div className="shrink-0 flex items-center self-center mx-2 h-[180px]">
+                        <div className="flex flex-col items-center justify-center w-10 gap-0.5 py-1 rounded-md bg-white/5 border border-dashed border-white/10">
+                          <ArrowRight className="h-3 w-3 text-white/60" />
+                          <span className="text-[9px] text-white/60 font-medium">
+                            {shot.transition || "Cut"}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </Fragment>
+                );
+              })}
+
+              {/* Empty State */}
+              {sceneShots.length === 0 && (
+                <div className="w-full flex items-center justify-center py-12 text-white/30">
+                  <div className="text-center">
+                    <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No shots in this scene</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function SoundscapeTab({
+  videoId,
+  scenes,
+  shots,
+  shotVersions,
+  loopMode,
+  loopType,
+  segmentLoopEnabled,
+  segmentLoopCount,
+  shotLoopEnabled,
+  shotLoopCount,
+  loopSettingsLocked,
+  onLockToggle,
+  voiceoverEnabled = false,
+  voiceoverScript: initialVoiceoverScript = '',
+  voiceoverAudioUrl: initialVoiceoverAudioUrl,
+  onUpdateShot,
+  onUpdateScene,
+}: SoundscapeTabProps) {
+  const { toast } = useToast();
+  const [isScrolled, setIsScrolled] = useState(false);
+  
+  // Voiceover state
+  const [voiceoverScript, setVoiceoverScript] = useState<string>(initialVoiceoverScript);
+  const [voiceoverAudioUrl, setVoiceoverAudioUrl] = useState<string | null>(initialVoiceoverAudioUrl || null);
+  const [isVoiceoverGenerated, setIsVoiceoverGenerated] = useState(!!initialVoiceoverScript);
+  const [showVoiceoverModal, setShowVoiceoverModal] = useState(false);
+  const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+
+  // Calculate total video duration with all loops
+  const calculateTotalVideoDuration = () => {
+    let total = 0;
+    for (const scene of scenes) {
+      const sceneShots = shots[scene.id] || [];
+      let sceneDuration = 0;
+      for (const shot of sceneShots) {
+        const shotLoopCount = shot.loopCount ?? 1;
+        sceneDuration += shot.duration * shotLoopCount;
+      }
+      const sceneLoopCount = scene.loopCount ?? 1;
+      total += sceneDuration * sceneLoopCount;
+    }
+    return total;
+  };
+
+  const totalVideoDuration = calculateTotalVideoDuration();
+
+  // Format duration as hours:minutes:seconds
+  const formatTotalDuration = (seconds: number) => {
+    if (seconds >= 3600) {
+      const hrs = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+      return `${hrs}h ${mins}m ${secs}s`;
+    } else if (seconds >= 60) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}m ${secs}s`;
+    }
+    return `${seconds}s`;
+  };
+
+  // Sync with props when they change (e.g., on video reload)
+  useEffect(() => {
+    if (initialVoiceoverScript && initialVoiceoverScript.trim().length > 0) {
+      setVoiceoverScript(initialVoiceoverScript);
+      setIsVoiceoverGenerated(true);
+    } else if (initialVoiceoverScript === undefined || initialVoiceoverScript === '') {
+      // Only reset if explicitly undefined or empty (not just whitespace)
+      setVoiceoverScript('');
+      setIsVoiceoverGenerated(false);
+    }
+    if (initialVoiceoverAudioUrl) {
+      setVoiceoverAudioUrl(initialVoiceoverAudioUrl);
+    } else if (initialVoiceoverAudioUrl === undefined || initialVoiceoverAudioUrl === '') {
+      setVoiceoverAudioUrl(null);
+    }
+  }, [initialVoiceoverScript, initialVoiceoverAudioUrl]);
+
+  // Calculate default loop counts from Step 1 settings
+  const defaultSegmentLoopCount = segmentLoopCount !== 'auto' ? segmentLoopCount : null;
+  const defaultShotLoopCount = shotLoopCount !== 'auto' ? shotLoopCount : null;
+
+  // Get total counts
+  const allShots = Object.values(shots).flat();
+  const totalShots = allShots.length;
+  const shotsWithVideo = allShots.filter(s => {
+    const v = shotVersions[s.id]?.[shotVersions[s.id]?.length - 1];
+    return v?.videoUrl && typeof v.videoUrl === 'string' && v.videoUrl.trim().length > 0;
+  }).length;
+
+  // Track scroll position for header blur effect
+  useEffect(() => {
+    const handleScroll = () => {
+      // Find the scrolling container (main element with overflow-y-auto)
+      const scrollContainer = document.querySelector('main.overflow-y-auto');
+      if (scrollContainer) {
+        setIsScrolled(scrollContainer.scrollTop > 10);
+      }
+    };
+    
+    const scrollContainer = document.querySelector('main.overflow-y-auto');
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', handleScroll);
+      return () => scrollContainer.removeEventListener('scroll', handleScroll);
+    }
+  }, []);
+
+  // Get version for a shot
+  const getShotVersion = (shot: Shot): ShotVersion | null => {
+    const versions = shotVersions[shot.id];
+    if (!versions || versions.length === 0) return null;
+    if (shot.currentVersionId) {
+      return versions.find(v => v.id === shot.currentVersionId) || versions[versions.length - 1];
+    }
+    return versions[versions.length - 1];
+  };
+
+  return (
+    <div className="space-y-8">
+      {/* Page Header */}
+      <div className="text-center max-w-2xl mx-auto">
+        <h2 className="text-2xl font-bold mb-2">Design Your Soundscape</h2>
+        <p className="text-muted-foreground">
+          Add voiceover and sound effects to enhance your ambient visual
+        </p>
+      </div>
+
+      {/* Sticky Controls Bar */}
+      <Card className={`sticky top-0 z-50 border-white/[0.06] transition-all duration-300 ${
+        isScrolled 
+          ? 'bg-black/40 backdrop-blur-xl backdrop-saturate-150' 
+          : 'bg-white/[0.02]'
+      }`}>
+        <CardContent className="py-4 px-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500/20 to-teal-500/20">
+                  <Volume2 className="h-5 w-5 text-cyan-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Soundscape</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {shotsWithVideo} of {totalShots} shots have videos
+                  </p>
+                </div>
+              </div>
+              
+              {/* Total Video Duration */}
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20">
+                <Clock className="h-4 w-4 text-purple-400" />
+                <span className="text-sm font-medium text-white/80">
+                  Total: {formatTotalDuration(totalVideoDuration)}
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              {/* Loop Mode Indicator */}
+              {loopMode && (
+                <Badge variant="outline" className="border-amber-500/50 text-amber-400">
+                  <Repeat className="mr-1 h-3 w-3" />
+                  Loop Mode: {loopType}
+                </Badge>
+              )}
+              
+              {/* Lock Loop Settings Button */}
+              {loopMode && (
+                <Button
+                  onClick={() => {
+                    const newLocked = !loopSettingsLocked;
+                    onLockToggle(newLocked);
+                    toast({
+                      title: newLocked ? "Loop Settings Locked" : "Loop Settings Unlocked",
+                      description: newLocked 
+                        ? "Loop counts are now locked and cannot be changed" 
+                        : "You can now edit loop counts",
+                    });
+                  }}
+                  variant={loopSettingsLocked ? "default" : "outline"}
+                  className={loopSettingsLocked 
+                    ? "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white" 
+                    : "border-white/20 hover:bg-white/5"
+                  }
+                >
+                  {loopSettingsLocked ? (
+                    <>
+                      <Lock className="mr-2 h-4 w-4" />
+                      Loop Settings Locked
+                    </>
+                  ) : (
+                    <>
+                      <Unlock className="mr-2 h-4 w-4" />
+                      Lock Loop Settings
+                    </>
+                  )}
+                </Button>
+              )}
+              
+              {/* Generate/View Voiceover Button - Only shown if voiceover is enabled */}
+              {voiceoverEnabled && (
+                <Button
+                  onClick={async () => {
+                    if (isVoiceoverGenerated) {
+                      // Open modal to view voiceover
+                      setShowVoiceoverModal(true);
+                    } else {
+                      // Generate voiceover script via API
+                      setIsGeneratingVoiceover(true);
+                      try {
+                        const response = await fetch(`/api/ambient-visual/videos/${videoId}/voiceover/generate-script`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include',
+                        });
+                        
+                        if (!response.ok) {
+                          const error = await response.json();
+                          throw new Error(error.error || 'Failed to generate voiceover script');
+                        }
+                        
+                        const data = await response.json();
+                        setVoiceoverScript(data.script);
+                        setIsVoiceoverGenerated(true);
+                        setShowVoiceoverModal(true);
+                        toast({
+                          title: "Voiceover Script Generated",
+                          description: `Estimated duration: ${Math.round(data.estimatedDuration / 60)}min ${data.estimatedDuration % 60}s`,
+                        });
+                      } catch (error) {
+                        console.error('[SoundscapeTab] Failed to generate voiceover:', error);
+                        toast({
+                          title: "Generation Failed",
+                          description: error instanceof Error ? error.message : "Failed to generate voiceover script",
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setIsGeneratingVoiceover(false);
+                      }
+                    }
+                  }}
+                  disabled={isGeneratingVoiceover}
+                  className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
+                >
+                  {isGeneratingVoiceover ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating Script...
+                    </>
+                  ) : isVoiceoverGenerated ? (
+                    <>
+                      <Eye className="mr-2 h-4 w-4" />
+                      View Voiceover
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate Voiceover
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Scenes and Shots */}
+      <div className="space-y-8">
+        {scenes.map((scene, sceneIndex) => (
+          <SceneRow
+            key={scene.id}
+            scene={scene}
+            sceneIndex={sceneIndex}
+            sceneShots={shots[scene.id] || []}
+            shotVersions={shotVersions}
+            loopMode={loopMode}
+            segmentLoopEnabled={segmentLoopEnabled}
+            defaultSegmentLoopCount={defaultSegmentLoopCount}
+            shotLoopEnabled={shotLoopEnabled}
+            defaultShotLoopCount={defaultShotLoopCount}
+            loopSettingsLocked={loopSettingsLocked}
+            videoId={videoId}
+            onUpdateScene={onUpdateScene}
+            onUpdateShot={onUpdateShot}
+            getShotVersion={getShotVersion}
+          />
+        ))}
+      </div>
+
+      {/* Empty State - No Scenes */}
+      {scenes.length === 0 && (
+        <Card className="border-dashed border-2 border-white/10 bg-white/[0.02]">
+          <CardContent className="py-16 px-8">
+            <div className="text-center space-y-4">
+              <div className="inline-flex p-4 rounded-full bg-gradient-to-br from-cyan-500/20 to-teal-500/20">
+                <Volume2 className="h-8 w-8 text-cyan-400" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-semibold">No Scenes Available</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  Complete the previous steps to generate scenes and shots before adding audio.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Voiceover Modal */}
+      <Dialog open={showVoiceoverModal} onOpenChange={setShowVoiceoverModal}>
+        <DialogContent className="sm:max-w-[650px] bg-[#0a0a0a] border-white/[0.08] p-0 gap-0 overflow-hidden">
+          {/* Header with gradient background */}
+          <div className="relative px-6 pt-6 pb-4 bg-gradient-to-b from-cyan-500/10 to-transparent">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border border-cyan-500/30">
+                <Mic className="h-6 w-6 text-cyan-400" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-semibold">Voiceover Script</DialogTitle>
+                <p className="text-sm text-white/50 mt-0.5">Edit and preview your narration</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="px-6 pb-6 space-y-5">
+            {/* Script Editor Card */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-white/70 font-medium flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                  Script
+                </Label>
+                <span className="text-xs text-white/40">{voiceoverScript.length} characters</span>
+              </div>
+              <div className="relative">
+                <Textarea
+                  value={voiceoverScript}
+                  onChange={(e) => setVoiceoverScript(e.target.value)}
+                  placeholder="Your voiceover script will appear here..."
+                  className="min-h-[180px] bg-white/[0.03] border-white/[0.08] hover:border-white/[0.15] focus:border-cyan-500/50 resize-none text-sm transition-colors rounded-xl"
+                />
+              </div>
+            </div>
+
+            {/* Audio Player Section */}
+            <div className="space-y-3">
+              <Label className="text-sm text-white/70 font-medium flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-400"></span>
+                Audio Preview
+              </Label>
+              {voiceoverAudioUrl ? (
+                <div className="p-4 rounded-xl bg-gradient-to-br from-cyan-500/5 to-teal-500/5 border border-cyan-500/20">
+                  <audio 
+                    controls 
+                    src={voiceoverAudioUrl} 
+                    className="w-full"
+                  />
+                </div>
+              ) : (
+                <div className="relative p-8 rounded-xl bg-white/[0.02] border border-dashed border-white/[0.08] text-center overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/[0.02] to-teal-500/[0.02]"></div>
+                  <div className="relative">
+                    <div className="inline-flex p-3 rounded-full bg-white/[0.03] mb-3">
+                      <Volume2 className="h-6 w-6 text-white/20" />
+                    </div>
+                    <p className="text-sm text-white/40">
+                      Audio will be generated from your script
+                    </p>
+                    <p className="text-xs text-white/25 mt-1">
+                      Click "Regenerate" to create audio
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-3 border-t border-white/[0.06]">
+              <Button
+                variant="outline"
+                onClick={() => setShowVoiceoverModal(false)}
+                className="flex-1 h-11 border-white/[0.1] hover:bg-white/[0.03] hover:border-white/[0.15] transition-colors"
+              >
+                Close
+              </Button>
+              <Button
+                variant="outline"
+                disabled={isGeneratingVoiceover}
+                onClick={async () => {
+                  // Regenerate voiceover script via API
+                  setIsGeneratingVoiceover(true);
+                  try {
+                    const response = await fetch(`/api/ambient-visual/videos/${videoId}/voiceover/generate-script`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                    });
+                    
+                    if (!response.ok) {
+                      const error = await response.json();
+                      throw new Error(error.error || 'Failed to regenerate voiceover script');
+                    }
+                    
+                    const data = await response.json();
+                    setVoiceoverScript(data.script);
+                    setVoiceoverAudioUrl(null); // Clear old audio
+                    toast({
+                      title: "Script Regenerated",
+                      description: `New estimated duration: ${Math.round(data.estimatedDuration / 60)}min ${data.estimatedDuration % 60}s`,
+                    });
+                  } catch (error) {
+                    console.error('[SoundscapeTab] Failed to regenerate voiceover:', error);
+                    toast({
+                      title: "Regeneration Failed",
+                      description: error instanceof Error ? error.message : "Failed to regenerate voiceover script",
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setIsGeneratingVoiceover(false);
+                  }
+                }}
+                className="h-11 border-white/[0.1] hover:bg-white/[0.03] hover:border-white/[0.15] transition-colors"
+              >
+                {isGeneratingVoiceover ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                )}
+                Regenerate Script
+              </Button>
+              <Button
+                disabled={isGeneratingAudio || !voiceoverScript.trim()}
+                onClick={async () => {
+                  // Generate audio from the current script
+                  setIsGeneratingAudio(true);
+                  try {
+                    const response = await fetch(`/api/ambient-visual/videos/${videoId}/voiceover/generate-audio`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({ script: voiceoverScript }),
+                    });
+                    
+                    if (!response.ok) {
+                      const error = await response.json();
+                      throw new Error(error.error || 'Failed to generate voiceover audio');
+                    }
+                    
+                    const data = await response.json();
+                    setVoiceoverAudioUrl(data.audioUrl);
+                    toast({
+                      title: "Voiceover Audio Generated",
+                      description: `Duration: ${Math.floor(data.duration / 60)}min ${Math.round(data.duration % 60)}s`,
+                    });
+                  } catch (error) {
+                    console.error('[SoundscapeTab] Failed to generate audio:', error);
+                    toast({
+                      title: "Audio Generation Failed",
+                      description: error instanceof Error ? error.message : "Failed to generate voiceover audio",
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setIsGeneratingAudio(false);
+                  }
+                }}
+                className="flex-1 h-11 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white font-medium shadow-lg shadow-cyan-500/20"
+              >
+                {isGeneratingAudio ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating Audio...
+                  </>
+                ) : voiceoverAudioUrl ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Regenerate Audio
+                  </>
+                ) : (
+                  <>
+                    <Mic className="mr-2 h-4 w-4" />
+                    Create Voiceover
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+

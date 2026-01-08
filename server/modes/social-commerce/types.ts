@@ -19,6 +19,7 @@ import type {
 
 /**
  * Input for Agent 1.1: Strategic Context Optimizer
+ * @deprecated Agent 1.1 has been removed. This type is kept for backward compatibility only.
  */
 export interface StrategicContextInput {
   // Product basics
@@ -34,9 +35,14 @@ export interface StrategicContextInput {
   aspectRatio: AspectRatio;
   duration: DurationOption;
   
+  // Visual Style Settings (NEW)
+  pacingOverride?: number; // 0-100, influences pacing_profile
+  visualIntensity?: number; // 0-100, influences visual style and motion DNA
+  productionLevel?: 'raw' | 'casual' | 'balanced' | 'cinematic' | 'ultra'; // Influences quality standards
+  
   // Optional user instructions
-  customImageInstructions?: string;
-  customMotionInstructions?: string;
+  customMotionInstructions?: string; // Maps to motionPrompt from UI
+  // REMOVED: customImageInstructions (not used in UI anymore)
 }
 
 /**
@@ -44,6 +50,7 @@ export interface StrategicContextInput {
  * 
  * This is the "Visual Bible" that guides all downstream agents.
  * Fields match the JSON output schema from agent-1.1-strategic-context-optimizer.md
+ * @deprecated Agent 1.1 has been removed. This type is kept for backward compatibility only.
  */
 export interface StrategicContextOutput {
   /** Visual/cultural laws covering: cultural laws, visual hierarchy, emotional targeting, quality standards (4-8 sentences) */
@@ -78,14 +85,38 @@ export interface Step1Data {
   customMotionInstructions?: string;
   
   // AI Model Settings
-  imageModel?: string;
-  imageResolution?: string;
   videoModel?: string;
   videoResolution?: string;
   language?: 'ar' | 'en';
   voiceOverEnabled?: boolean;
   
-  // Agent 1.1 output
+  // Audio Settings
+  audioVolume?: 'low' | 'medium' | 'high';
+  speechTempo?: 'auto' | 'slow' | 'normal' | 'fast' | 'ultra-fast';
+  dialogue?: Array<{id: string; character?: string; line: string}>;
+  customVoiceoverInstructions?: string;
+  soundEffectsEnabled?: boolean;
+  soundEffectsPreset?: string;
+  soundEffectsCustomInstructions?: string;
+  soundEffectsUsePreset?: boolean;
+  musicEnabled?: boolean;
+  musicPreset?: string;
+  musicCustomInstructions?: string;
+  musicMood?: string;
+  musicUsePreset?: boolean;
+  
+  // Quality Settings
+  productionLevel?: 'raw' | 'casual' | 'balanced' | 'cinematic' | 'ultra';
+  
+  // Visual Style
+  pacingOverride?: number; // 0-100
+  visualIntensity?: number; // 0-100 (Craziness/Intensity of wildness)
+  
+  // Product Image (single hero image for Agent 5.1 vision analysis)
+  productImageUrl?: string;
+  
+  // Agent 1.1 output (kept for backward compatibility, but no longer populated)
+  /** @deprecated Agent 1.1 has been removed */
   strategicContext?: StrategicContextOutput;
 }
 
@@ -107,6 +138,7 @@ export interface ProductImage {
  * Output from Agent 2.1: Product DNA Visionary
  * 
  * NOTE: This matches the JSON schema output from the agent
+ * @deprecated Agent 2.1 has been removed. This type is kept for backward compatibility only.
  */
 export interface ProductDNAOutput {
   geometry_profile: string;        // Mathematical description of form
@@ -151,9 +183,24 @@ export interface BrandIdentityOutput {
 }
 
 /**
- * Step 2 Data stored in database (Organized Structure)
+ * Step 2 Data stored in database (Creative Spark + Beats)
+ * Migrated from old step3Data
  */
 export interface Step2Data {
+  // Agent 3.0 output (Creative Spark)
+  creativeSpark?: CreativeSparkOutput;
+  
+  // Agent 3.2 output (Visual Beats)
+  narrative?: NarrativeOutput;
+  
+  // UI Inputs (user-entered settings)
+  uiInputs?: {
+    visualPreset: string; // photorealistic, cinematic, editorial, anime
+    campaignSpark?: string; // User-written creative spark
+    campaignObjective?: 'brand-awareness' | 'feature-showcase' | 'sales-cta';
+  };
+  
+  // Legacy fields (kept for backward compatibility, but no longer used)
   product?: {
     images?: {
       heroProfile?: string | null;
@@ -168,46 +215,50 @@ export interface Step2Data {
       heroFeature?: string;
       originMetaphor?: string;
     };
-    dna?: ProductDNAOutput; // Agent 2.1 output
+    /** @deprecated Agent 2.1 has been removed */
+    dna?: ProductDNAOutput; // Agent 2.1 output (no longer used)
   };
   
   character?: {
-    mode?: string;
+    mode?: 'hand-model' | 'full-body' | 'silhouette';
     name?: string;
     description?: string;
-    referenceUrl?: string | null;
-    assetId?: string | null;
-    aiProfile?: CharacterAIProfile; // Agent 2.2 output
+    persona?: {
+      detailed_persona: string;
+      cultural_fit: string;
+      interaction_protocol: {
+        product_engagement: string;
+        motion_limitations: string;
+      };
+    };
   };
   
-  brand?: {
-    logoUrl?: string | null;
-    name?: string;
-    assetId?: string | null;
-    colors?: {
-      primary?: string;
-      secondary?: string;
-    };
-    logo?: {
-      integrity?: number; // 1-10 slider
-      depth?: number; // 1-5 slider
-    };
-    identity?: BrandIdentityOutput; // Agent 2.3 output
+  firstFrameUrl?: string;
+  firstFrameDimensions?: {
+    width: number;
+    height: number;
   };
   
   style?: {
     referenceUrl?: string | null;
   };
+  
+  cinematography?: {
+    cameraShotDefault?: string | null;
+    lensDefault?: string | null;
+  };
 }
 
 /**
  * Input for Agent 2.1: Product DNA Visionary
+ * @deprecated Agent 2.1 has been removed. This type is kept for backward compatibility only.
  */
 export interface ProductDNAInput {
   heroProfile: string;
   macroDetail: string | null;
   materialReference: string | null;
   materialPreset: string;
+  objectMass: number; // 0-100, influences material behavior and physics
   surfaceComplexity: number;
   refractionEnabled: boolean;
   heroFeature: string;
@@ -215,7 +266,7 @@ export interface ProductDNAInput {
 }
 
 /**
- * Input for Agent 2.2: Character Curator
+ * Input for Agent 2.2a: Character Planning (simplified for Sora)
  */
 export interface CharacterCuratorInput {
   strategic_directives: string;
@@ -223,12 +274,13 @@ export interface CharacterCuratorInput {
   optimized_image_instruction: string;
   characterMode: string;
   character_description: string;
-  characterReferenceUrl: string | null;
+  // Removed: characterReferenceUrl (no image upload for Sora)
 }
 
 /**
  * Input for Character Planning Agent (AI Recommend)
  * Generates 3 character suggestions based on description and/or reference image
+ * @deprecated Character Planning Agent has been removed. This type is kept for backward compatibility only.
  */
 export interface CharacterPlanningInput {
   // Context from Tab 1
@@ -242,7 +294,7 @@ export interface CharacterPlanningInput {
   
   // User input (optional - can work from context alone)
   character_description?: string;  // User's text description
-  referenceImageUrl?: string;      // Temporary reference image URL
+  // REMOVED: referenceImageUrl (no image upload for Sora - character is described in prompts only)
   
   // Campaign settings
   aspectRatio: string;
@@ -251,27 +303,16 @@ export interface CharacterPlanningInput {
 
 /**
  * Single character recommendation from Planning Agent (Agent 2.2a)
- * Each recommendation is a COMPLETE profile ready for execution by Agent 2.2b
+ * Simplified for Sora - no image generation, persona only
  */
 export interface CharacterRecommendation {
   id: string;                      // Unique ID like "REC_ASPIRATIONAL_001"
   name: string;                    // Short name like "Elegant Minimalist"
   mode: 'hand-model' | 'full-body' | 'silhouette';
   
-  // Character Profile (detailed persona)
-  character_profile: {
-    identity_id: string;           // Unique reference ID like "LUXURY_ELEGANT_F1"
-    detailed_persona: string;      // Complete physical specification (4-6 sentences)
-    cultural_fit: string;          // How character matches target audience (2-3 sentences)
-  };
-  
-  // Visual profile (for UI display)
-  appearance: {
-    age_range: string;             // "25-35"
-    skin_tone: string;             // "warm olive with golden undertones"
-    build: string;                 // "athletic", "elegant", "professional"
-    style_notes: string;           // Key visual characteristics
-  };
+  // Character Persona (editable by user)
+  detailed_persona: string;       // Complete physical specification (4-6 sentences)
+  cultural_fit: string;            // How character matches target audience (2-3 sentences)
   
   // Interaction Protocol (how character engages with product)
   interaction_protocol: {
@@ -279,16 +320,16 @@ export interface CharacterRecommendation {
     motion_limitations: string;    // AI-safe movement constraints (2-4 sentences)
   };
   
-  // Identity Locking (VFX consistency strategy)
-  identity_locking: {
-    strategy: 'IP_ADAPTER_STRICT' | 'PROMPT_EMBEDDING' | 'SEED_CONSISTENCY' | 'COMBINED';
-    vfx_anchor_tags: string[];     // Keywords for shot-to-shot consistency
-    reference_image_required: boolean;
-  };
+  // Removed fields (not needed for Sora):
+  // - identity_id
+  // - identity_locking
+  // - image_generation_prompt
+  // - appearance (merged into detailed_persona)
 }
 
 /**
  * Output from Character Planning Agent
+ * @deprecated Character Planning Agent has been removed. This type is kept for backward compatibility only.
  */
 export interface CharacterPlanningOutput {
   recommendations: CharacterRecommendation[];
@@ -297,15 +338,9 @@ export interface CharacterPlanningOutput {
 }
 
 /**
- * Input for Agent 2.3: Brand Identity Guardian
+ * Removed: Agent 2.3 (Brand Identity Guardian) - not needed for Sora
+ * Logo section removed entirely from Tab 2
  */
-export interface BrandIdentityInput {
-  logoUrl: string | null;
-  brandPrimaryColor: string;
-  brandSecondaryColor: string;
-  logoIntegrity: number;
-  logoDepth: number;
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STEP 3: ENVIRONMENT & STORY
@@ -343,35 +378,23 @@ export interface EnvironmentOutput {
 }
 
 /**
- * Output from Agent 3.2: 3-Act Narrative Architect
+ * Output from Agent 3.2: Visual Beats Architect
  */
 export interface NarrativeOutput {
-  script_manifest: {
-    act_1_hook: {
-      text: string;
-      emotional_goal: string;
-      target_energy: number;
-      sfx_cue: string;
-    };
-    act_2_transform: {
-      text: string;
-      emotional_goal: string;
-      target_energy: number;
-      sfx_cue: string;
-    };
-    act_3_payoff: {
-      text: string;
-      emotional_goal: string;
-      target_energy: number;
-      sfx_cue: string;
-      cta_text: string; // Always present, but can be empty string if not applicable
-    };
-  };
+  visual_beats: Array<{
+    beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4';
+    beatName: string;
+    beatDescription: string;
+    duration: 8;
+    isConnectedToPrevious: boolean;
+  }>;
+  connection_strategy: 'all_connected' | 'all_distinct' | 'mixed';
   cost?: number;
 }
 
 /**
  * Output from Agent 3.3: Asset-Environment Harmonizer
+ * @deprecated Agent 3.3 has been removed. This type is kept for backward compatibility only.
  */
 export interface HarmonizerOutput {
   interaction_physics: {
@@ -383,37 +406,52 @@ export interface HarmonizerOutput {
 }
 
 /**
- * Step 3 Data stored in database
+ * Step 3 Data stored in database (Generate Prompts)
+ * Migrated from old step5Data
  */
 export interface Step3Data {
-  // Agent 3.0 output
-  creativeSpark?: CreativeSparkOutput;
+  // Agent 5.1 output (Beat Prompts)
+  beatPrompts?: BeatPromptOutput;
   
-  // Agent 3.1 output
-  environment?: EnvironmentOutput;
+  // Agent 5.2 output (Voiceover Scripts)
+  voiceoverScripts?: VoiceoverScriptOutput;
   
-  // Agent 3.2 output
-  narrative?: NarrativeOutput;
+  // Generated beat videos
+  beatVideos?: {
+    [beatId: string]: {
+      videoUrl: string;
+      lastFrameUrl: string;
+      generatedAt: Date;
+    };
+  };
   
-  // Agent 3.3 output
-  harmonizer?: HarmonizerOutput;
-  
-  // UI Inputs (user-entered settings)
+  // Legacy fields (kept for backward compatibility, but no longer used)
+  creativeSpark?: CreativeSparkOutput; // Moved to step2Data
+  environment?: EnvironmentOutput; // No longer used
+  narrative?: NarrativeOutput; // Moved to step2Data
+  /** @deprecated Agent 3.3 has been removed */
+  harmonizer?: HarmonizerOutput; // No longer used
   uiInputs?: {
-    environmentConcept: string;
-    atmosphericDensity: number;
-    cinematicLighting: string;
+    /** @deprecated Removed - no longer used */
+    environmentConcept?: string;
+    /** @deprecated Removed - no longer used */
+    atmosphericDensity?: number;
+    /** @deprecated Removed - no longer used */
+    cinematicLighting?: string;
     visualPreset: string;
-    styleReferenceUrl?: string | null;
     campaignSpark: string;
     visualBeats: {
       beat1: string;
       beat2: string;
       beat3: string;
+      beat4?: string;
     };
     campaignObjective: string;
+    /** @deprecated Removed - no longer used */
     environmentBrandPrimaryColor?: string;
+    /** @deprecated Removed - no longer used */
     environmentBrandSecondaryColor?: string;
+    colorPalette?: string[];
   };
 }
 
@@ -438,34 +476,19 @@ export interface ShotDefinition {
     motion_intensity: number; // 1-10
   };
   
-  // Generation mode
-  generation_mode: {
-    shot_type: ShotType;
-    reason: string;
-  };
-  
-  // Identity references (dynamic decisions by Agent 4.1)
-  identity_references: {
-    refer_to_product: boolean;
-    product_image_ref?: "heroProfile" | "macroDetail" | "materialReference";
-    refer_to_character: boolean;
-    refer_to_logo: boolean;
-    refer_to_previous_outputs: Array<{
-      shot_id: string;
-      reason: string;
-      reference_type: "VISUAL_CALLBACK" | "LIGHTING_MATCH" | "PRODUCT_STATE" | "COMPOSITION_ECHO";
-    }>;
-  };
-  
-  // Continuity logic
+  // Continuity logic (simplified for Sora cumulative camera consistency)
   continuity_logic: {
     is_connected_to_previous: boolean;
-    is_connected_to_next: boolean;
-    handover_type: "SEAMLESS_FLOW" | "MATCH_CUT" | "JUMP_CUT";
   };
   
   composition_safe_zones: string;
   lighting_event: string;
+  
+  // Duration (moved from Agent 4.2)
+  rendered_duration: number; // Duration in seconds (e.g., 0.5, 1.2, 2.0)
+  
+  // Beat assignment (for beat-based chunking)
+  beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4'; // Which beat this shot belongs to
 }
 
 /**
@@ -480,6 +503,7 @@ export interface SceneDefinition {
 
 /**
  * Output from Agent 4.1: Cinematic Media Planner
+ * @deprecated Agent 4.1 and Tab 4 have been removed. This type is kept for backward compatibility only.
  */
 export interface MediaPlannerOutput {
   scenes: SceneDefinition[];
@@ -487,51 +511,25 @@ export interface MediaPlannerOutput {
 }
 
 /**
- * Timing data from Agent 4.2
+ * Removed: ShotTiming and TimingOutput interfaces
+ * Timing is now part of ShotDefinition (rendered_duration)
+ * Duration calculation was moved from Agent 4.2 to Agent 4.1
  */
-export interface ShotTiming {
-  shot_id: string;
-  rendered_duration: number;
-  multiplier: number;
-  speed_curve: SpeedCurve;
-  sfx_hint: string;
-}
 
 /**
- * Output from Agent 4.2: Temporal Rhythmic Orchestrator
+ * Removed: VfxSeeds interface - not needed for Sora integration
  */
-export interface TimingOutput {
-  temporal_map: ShotTiming[];
-  duration_budget: {
-    target_total: number;
-    actual_total: number;
-    variance: number;
-  };
-  cost?: number;
-}
-
-/**
- * VFX Seeds from algorithmic calculator
- */
-export interface VfxSeeds {
-  shot_id: string;
-  motion_bucket: number; // 1-10
-  frame_consistency_scale: number; // 0.70-0.90
-  target_handover_image: string | null;
-}
 
 /**
  * Step 4 Data stored in database
  */
+/**
+ * @deprecated Tab 4 has been removed. This type is kept for backward compatibility only.
+ */
 export interface Step4Data {
-  // Agent 4.1 output
+  // Agent 4.1 output (now includes timing in shots: rendered_duration)
+  /** @deprecated Agent 4.1 has been removed */
   mediaPlanner?: MediaPlannerOutput;
-  
-  // Agent 4.2 output
-  timing?: TimingOutput;
-  
-  // VFX Seeds (algorithmic)
-  vfxSeeds?: VfxSeeds[];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -733,10 +731,212 @@ export interface ShotVersion {
 }
 
 /**
- * Step 5 Data stored in database
+ * Batch input for Agent 5.1: Generate prompts for ALL beats in one request
+ * Simplified: No Agent 1.1, 2.1, 3.1, 4.1 dependencies - uses raw user inputs and vision analysis
+ */
+export interface BatchBeatPromptInput {
+  // Product Image (for vision analysis - single hero image)
+  productImageUrl: string;
+  
+  // Visual Beats (from Agent 3.2)
+  beats: Array<{
+    beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4';
+    beatName: string;
+    beatDescription: string;
+    duration: 8;
+    isConnectedToPrevious: boolean;
+  }>;
+  
+  connection_strategy: 'all_connected' | 'all_standalone' | 'mixed';
+  
+  // Raw User Inputs (from step1Data - replaces Agent 1.1 outputs)
+  productTitle: string;
+  productDescription?: string;
+  targetAudience: string;
+  region?: string;
+  aspectRatio: AspectRatio;
+  productionLevel?: 'raw' | 'casual' | 'balanced' | 'cinematic' | 'ultra';
+  visualIntensity?: number; // 0-100
+  pacingOverride?: number; // 0-100
+  customMotionInstructions?: string;
+  
+  // Visual Style (from step2Data - replaces Agent 3.1 outputs)
+  visualPreset: string; // photorealistic, cinematic, editorial, anime
+  
+  // Creative Spark (from step2Data - Agent 3.0 output)
+  creativeSpark?: string;
+  
+  // Campaign Objective (from step2Data.uiInputs)
+  campaign_objective?: 'brand-awareness' | 'feature-showcase' | 'sales-cta';
+  
+  // Audio Settings (from step1Data)
+  audioSettings: {
+    soundEffects?: {
+      enabled: boolean;
+      preset?: string;
+      customInstructions?: string;
+    };
+    music?: {
+      enabled: boolean;
+      preset?: string;
+      mood?: string;
+      customInstructions?: string;
+    };
+  };
+  
+  // Technical Settings
+  videoModel?: string;
+  videoResolution?: string;
+  custom_image_instructions?: string;
+  global_motion_dna?: string;
+}
+
+/**
+ * Output from Agent 5.1: Beat Prompts for Sora
+ */
+export interface BeatPromptOutput {
+  beat_prompts: Array<{
+    beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4';
+    beatName: string;
+    isConnectedToPrevious: boolean;
+    sora_prompt: {
+      text: string; // Complete comprehensive Sora prompt following approved structure
+    };
+    input_image_type: 'hero' | 'previous_frame';
+    shots_in_beat: string[]; // Array of shot_ids included in this beat
+    total_duration: 8;
+    audio_guidance?: {
+      // Note: voiceover removed, handled by Agent 5.2 separately
+      sound_effects?: {
+        enabled: boolean;
+        preset: string;
+        timing_sync?: Array<{timestamp: number; description: string}>;
+      };
+      music?: {
+        enabled: boolean;
+        preset: string;
+        mood?: string;
+        energy_level: string;
+      };
+    };
+  }>;
+  cost?: number;
+}
+
+/**
+ * Input for Agent 5.2: Voiceover Script Architect
+ */
+export interface VoiceoverScriptInput {
+  // Beat Information (from Agent 3.2/4.1)
+  beats: Array<{
+    beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4';
+    beatName: string;
+    beatDescription: string; // Visual beat description
+    narrativeRole: 'hook' | 'transformation' | 'payoff';
+    emotionalTone: string; // e.g., "confident", "energetic", "satisfying"
+    duration: 8;
+  }>;
+  
+  // Voiceover Settings (from Tab 1)
+  voiceoverSettings: {
+    enabled: boolean;
+    language: 'ar' | 'en';
+    tempo: 'auto' | 'slow' | 'normal' | 'fast' | 'ultra-fast';
+    volume: 'low' | 'medium' | 'high';
+    customInstructions?: string;
+    existingDialogue?: Array<{
+      id: string;
+      line: string;
+      timestamp?: number; // Optional - user may not have timed it
+      beatId?: string; // Which beat this belongs to
+    }>;
+  };
+  
+  // Strategic Context (from user inputs - replaces Agent 1.1)
+  strategicContext: {
+    targetAudience: string; // e.g., "MENA Gen Z", "Luxury consumers"
+    campaignObjective: 'brand-awareness' | 'feature-showcase' | 'sales-cta';
+    region?: string;
+  };
+  
+  // Product Info (from user inputs - replaces Agent 2.1)
+  productInfo: {
+    productName: string;
+    productDescription?: string;
+  };
+  
+  // Narrative Context (from Agent 3.0/3.2)
+  narrativeContext: {
+    creativeSpark: string;
+    visualBeats: {
+      beat1: string;
+      beat2: string;
+      beat3: string;
+      beat4?: string;
+    };
+  };
+  
+  // Character Info (if applicable, from Agent 2.2a)
+  character?: {
+    persona?: string;
+    culturalFit?: string;
+  };
+}
+
+/**
+ * Output from Agent 5.2: Voiceover Script Architect
+ */
+export interface VoiceoverScriptOutput {
+  beat_scripts: Array<{
+    beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4';
+    voiceoverScript: {
+      enabled: boolean;
+      language: 'ar' | 'en';
+      tempo: string;
+      volume: string;
+      dialogue: Array<{
+        timestamp: number; // Start time (0.0-8.0)
+        duration: number; // Duration of this line (calculated)
+        line: string;
+        wordCount: number;
+        emotionalTone: string;
+        pacing: 'slow' | 'normal' | 'fast';
+      }>;
+      totalDuration: number; // Sum of all dialogue + pauses
+      totalWordCount: number;
+      scriptSummary: string; // Brief description of script approach
+    };
+  }>;
+  
+  // Full script (only when generated, not when user provided)
+  fullScript?: {
+    text: string; // The complete continuous script
+    totalDuration: number; // Total seconds across all beats
+    totalWordCount: number;
+  };
+}
+
+/**
+ * Step 5 Data stored in database (LEGACY - kept for backward compatibility)
+ * @deprecated New data is stored in step3Data. This interface is kept for migration purposes.
  */
 export interface Step5Data {
-  // All shot prompts from Agent 5.1
+  // All beat prompts from Agent 5.1 (new batch format)
+  beatPrompts?: BeatPromptOutput;
+  
+  // Voiceover scripts from Agent 5.2
+  voiceoverScripts?: VoiceoverScriptOutput;
+  
+  // Generated beat videos
+  beatVideos?: {
+    [beatId: string]: {
+      videoUrl: string;
+      lastFrameUrl: string;
+      generatedAt: Date;
+    };
+  };
+  
+  // Legacy: All shot prompts from Agent 5.1 (for backward compatibility)
   shotPrompts?: Record<string, ShotPrompts>;
   
   // Generated versions

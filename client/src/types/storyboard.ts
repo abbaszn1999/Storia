@@ -76,6 +76,7 @@ export interface Scene {
   cameraMotion?: string | null;
   lighting?: string | null;
   weather?: string | null;
+  loopCount?: number | null;  // Per-scene loop count (for Soundscape step)
   createdAt: Date;
 }
 
@@ -95,6 +96,12 @@ export interface Shot {
   speedProfile?: 'linear' | 'speed-ramp' | 'slow-motion' | 'kinetic' | 'smooth' | null;
   renderDuration?: number | null;
   frameMode?: "image-reference" | "start-end"; // Per-shot mode (only used when narrativeMode === "auto")
+  // Soundscape step fields
+  voiceoverText?: string | null;
+  voiceoverUrl?: string | null;
+  soundEffectDescription?: string | null;
+  soundEffectUrl?: string | null;
+  loopCount?: number | null;  // Per-shot loop count
   createdAt: Date;
   updatedAt: Date;
 }

@@ -7,7 +7,7 @@ import { SceneContinuityTab } from "@/components/commerce/scene-continuity-tab";
 import { ProductScriptEditor } from "@/components/social-commerce/product-script-editor";
 import { ProductWorldCast } from "@/components/social-commerce/product-world-cast";
 import { ProductBreakdown } from "@/components/social-commerce/product-breakdown";
-import { StoryboardEditor } from "@/components/narrative/storyboard-editor";
+import { BeatStoryboardTab } from "@/components/commerce/beat-storyboard-tab";
 import { AnimaticPreview } from "@/components/narrative/animatic-preview";
 import { ExportSettings, type ExportData } from "@/components/narrative/export-settings";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -84,19 +84,33 @@ interface SocialCommerceWorkflowProps {
     talents: Array<{ id: string; name: string; type: "hands" | "lifestyle" | "spokesperson"; description: string; imageUrl: string | null }>;
     styleReference: string | null;
     additionalInstructions: string;
-    imageModel: string;
     videoModel: string;
-    imageInstructions: string;
     videoInstructions: string;
   };
-  // Campaign Configuration (Tab 1) props
-  imageModel: string;
-  imageResolution: string;
+  // Campaign Configuration (Tab 1) props - Sora Only
   videoModel: string;
   videoResolution: string;
   language: 'ar' | 'en';
   motionPrompt: string;
-  imageInstructions: string;
+  // Audio Settings (Tab 1)
+  audioVolume?: 'low' | 'medium' | 'high';
+  speechTempo?: 'auto' | 'slow' | 'normal' | 'fast' | 'ultra-fast';
+  dialogue?: Array<{id: string; character?: string; line: string}>;
+  customVoiceoverInstructions?: string;
+  soundEffectsEnabled?: boolean;
+  soundEffectsPreset?: string;
+  soundEffectsCustomInstructions?: string;
+  soundEffectsUsePreset?: boolean;
+  musicEnabled?: boolean;
+  musicPreset?: string;
+  musicCustomInstructions?: string;
+  musicMood?: string;
+  musicUsePreset?: boolean;
+  // Quality Settings (Tab 1)
+  productionLevel?: 'raw' | 'casual' | 'balanced' | 'cinematic' | 'ultra';
+  // Visual Style (Tab 1)
+  pacingOverride?: number;
+  visualIntensity?: number;
   // Product DNA & Brand Identity (Tab 2) props
   productImages: {
     heroProfile: string | null;
@@ -107,52 +121,30 @@ interface SocialCommerceWorkflowProps {
   objectMass: number;
   surfaceComplexity: number;
   refractionEnabled: boolean;
-  logoUrl: string | null;
-  brandPrimaryColor: string;
-  brandSecondaryColor: string;
-  logoIntegrity: number;
-  logoDepth: number;
+  // Removed: logoUrl, brandPrimaryColor, brandSecondaryColor, logoIntegrity, logoDepth (no logo support for Sora)
   heroFeature: string;
   originMetaphor: string;
-  // Environment & Story Beats (Tab 3) props
-  environmentConcept: string;
-  cinematicLighting: string;
-  atmosphericDensity: number;
-  styleReferenceUrl: string | null;
+  // Creative Spark & Beats (Tab 2) props
   visualPreset: string;
   campaignSpark: string;
-  visualBeats: {
-    beat1: string;
-    beat2: string;
-    beat3: string;
-  };
-  // Environment-specific brand colors
-  environmentBrandPrimaryColor: string;
-  environmentBrandSecondaryColor: string;
   // Campaign Intelligence (Tab 1 & 3)
   targetAudience: string;
   campaignObjective: string;
   ctaText: string;
-  // Character DNA (Tab 2)
+  // Character DNA (Tab 2) - Simplified for Sora
   includeHumanElement: boolean;
   characterMode: 'hand-model' | 'full-body' | 'silhouette' | null;
-  characterReferenceUrl: string | null;
-  characterAssetId: string | null;
   characterDescription: string;
-  characterAIProfile: {
-    identity_id: string;
+  characterPersona?: {
     detailed_persona: string;
     cultural_fit: string;
     interaction_protocol: {
       product_engagement: string;
       motion_limitations: string;
     };
-    identity_locking: {
-      strategy: string;
-      vfx_anchor_tags: string;
-    };
   } | null;
   isGeneratingCharacter: boolean;
+  // Removed: characterReferenceUrl, characterAssetId, characterAIProfile (no image generation for Sora)
   // Scene Manifest (Tab 4) props
   sceneManifest: {
     scenes: Array<{
@@ -167,7 +159,6 @@ interface SocialCommerceWorkflowProps {
         name: string;
         description: string;
         duration: number;
-        shotType: 'image-ref' | 'start-end';
         cameraPath: 'orbit' | 'pan' | 'zoom' | 'dolly' | 'static';
         lens: 'macro' | 'wide' | '85mm' | 'telephoto';
         referenceTags: string[];
@@ -223,26 +214,39 @@ interface SocialCommerceWorkflowProps {
     talents: Array<{ id: string; name: string; type: "hands" | "lifestyle" | "spokesperson"; description: string; imageUrl: string | null }>;
     styleReference: string | null;
     additionalInstructions: string;
-    imageModel: string;
     videoModel: string;
-    imageInstructions: string;
     videoInstructions: string;
   }) => void;
-  onImageModelChange: (model: string) => void;
-  onImageResolutionChange: (resolution: string) => void;
   onVideoModelChange: (model: string) => void;
   onVideoResolutionChange: (resolution: string) => void;
   onLanguageChange: (lang: 'ar' | 'en') => void;
   onMotionPromptChange: (prompt: string) => void;
-  onImageInstructionsChange: (instructions: string) => void;
+  // Audio Handlers
+  onAudioVolumeChange?: (volume: 'low' | 'medium' | 'high') => void;
+  onSpeechTempoChange?: (tempo: 'auto' | 'slow' | 'normal' | 'fast' | 'ultra-fast') => void;
+  onDialogueAdd?: () => void;
+  onDialogueChange?: (id: string, entry: Partial<{character?: string; line: string}>) => void;
+  onDialogueRemove?: (id: string) => void;
+  onCustomVoiceoverInstructionsChange?: (instructions: string) => void;
+  onSoundEffectsToggle?: (enabled: boolean) => void;
+  onSoundEffectsPresetChange?: (preset: string) => void;
+  onSoundEffectsCustomChange?: (instructions: string) => void;
+  onSoundEffectsUsePresetChange?: (usePreset: boolean) => void;
+  onMusicToggle?: (enabled: boolean) => void;
+  onMusicPresetChange?: (preset: string) => void;
+  onMusicCustomChange?: (instructions: string) => void;
+  onMusicMoodChange?: (mood: string) => void;
+  onMusicUsePresetChange?: (usePreset: boolean) => void;
+  // Quality Handlers
+  onProductionLevelChange?: (level: 'raw' | 'casual' | 'balanced' | 'cinematic' | 'ultra') => void;
+  // Visual Style Handlers
+  onPacingOverrideChange?: (value: number) => void;
+  onVisualIntensityChange?: (value: number) => void;
   // Tab 2 handlers
   onProductImagesChange: (images: {
-    heroView: string | null;
-    reverseView: string | null;
-    topView: string | null;
-    baseView: string | null;
-    sideProfiles: string | null;
-    macroTexture: string | null;
+    heroProfile: string | null;
+    macroDetail: string | null;
+    materialReference: string | null;
   }) => void;
   onProductImageUpload?: (key: 'heroProfile' | 'macroDetail' | 'materialReference', file: File) => Promise<void>;
   onProductImageDelete?: (key: 'heroProfile' | 'macroDetail' | 'materialReference') => Promise<void>;
@@ -250,56 +254,53 @@ interface SocialCommerceWorkflowProps {
   onObjectMassChange: (mass: number) => void;
   onSurfaceComplexityChange: (complexity: number) => void;
   onRefractionEnabledChange: (enabled: boolean) => void;
-  onLogoUrlChange: (url: string | null) => void;
-  onLogoUpload?: (file: File) => Promise<void>;
-  onLogoDelete?: () => Promise<void>;
-  onBrandPrimaryColorChange: (color: string) => void;
-  onBrandSecondaryColorChange: (color: string) => void;
-  onLogoIntegrityChange: (integrity: number) => void;
-  onLogoDepthChange: (depth: number) => void;
+  // Removed: All logo-related handlers (no logo support for Sora)
   onHeroFeatureChange: (feature: string) => void;
   onOriginMetaphorChange: (metaphor: string) => void;
   // Tab 3 handlers
-  onEnvironmentConceptChange: (concept: string) => void;
-  onCinematicLightingChange: (lighting: string) => void;
-  onAtmosphericDensityChange: (density: number) => void;
-  onStyleReferenceUrlChange: (url: string | null) => void;
   onVisualPresetChange: (preset: string) => void;
   onCampaignSparkChange: (spark: string) => void;
-  onVisualBeatsChange: (beats: { beat1: string; beat2: string; beat3: string }) => void;
-  onEnvironmentBrandPrimaryColorChange: (color: string) => void;
-  onEnvironmentBrandSecondaryColorChange: (color: string) => void;
   // Campaign Intelligence handlers
   onTargetAudienceChange: (audience: string) => void;
   onCampaignObjectiveChange: (objective: string) => void;
   onCtaTextChange: (cta: string) => void;
-  // Character DNA handlers
+  // Character DNA handlers (simplified for Sora)
   onIncludeHumanElementChange: (include: boolean) => void;
   onCharacterModeChange: (mode: 'hand-model' | 'full-body' | 'silhouette' | null) => void;
-  onCharacterReferenceUrlChange: (url: string | null) => void;
-  onCharacterImageUpload?: (file: File, name?: string, description?: string) => Promise<void>;
-  onCharacterDelete?: () => Promise<void>;
   onCharacterDescriptionChange: (description: string) => void;
-  onCharacterNameChange?: (name: string) => void;
-  onCharacterAssetIdChange?: (assetId: string | null) => void;
-  onCharacterReferenceFileChange?: (file: File | null) => void;
-  onCharacterAIProfileChange: (profile: {
-    identity_id: string;
+  onCharacterPersonaChange?: (persona: {
     detailed_persona: string;
     cultural_fit: string;
     interaction_protocol: {
       product_engagement: string;
       motion_limitations: string;
     };
-    identity_locking: {
-      strategy: string;
-      vfx_anchor_tags: string;
-    };
   } | null) => void;
   onIsGeneratingCharacterChange: (generating: boolean) => void;
-  // Shot Orchestrator handler
+  // Removed: All character image-related handlers (no image generation for Sora)
+  // Cinematography defaults (Tab 2)
+  cameraShotDefault?: string | null;
+  lensDefault?: string | null;
+  onCameraShotDefaultChange?: (shot: string | null) => void;
+  onLensDefaultChange?: (lens: string | null) => void;
+  // Removed: Color Palette (Tab 3) - no longer used
+  // Shot Orchestrator handler (removed - Tab 4 no longer exists)
   onSceneManifestChange: (manifest: any) => void;
   onNext: () => void;
+  // Step 3: Beat Prompts (migrated from step5Data)
+  step3Data?: {
+    beatPrompts?: any;
+    voiceoverScripts?: any;
+    beatVideos?: {
+      [beatId: string]: {
+        videoUrl: string;
+        lastFrameUrl: string;
+        generatedAt: Date;
+      };
+    };
+  };
+  // Loading state for Agent 5.1
+  isCreating?: boolean;
 }
 
 export function SocialCommerceWorkflow({
@@ -326,44 +327,48 @@ export function SocialCommerceWorkflow({
   continuityGroups,
   worldSettings,
   commerceSettings,
-  imageModel,
-  imageResolution,
   videoModel,
   videoResolution,
   language,
   motionPrompt,
-  imageInstructions,
+  audioVolume,
+  speechTempo,
+  dialogue,
+  customVoiceoverInstructions,
+  soundEffectsEnabled,
+  soundEffectsPreset,
+  soundEffectsCustomInstructions,
+  soundEffectsUsePreset,
+  musicEnabled,
+  musicPreset,
+  musicCustomInstructions,
+  musicMood,
+  musicUsePreset,
+  productionLevel,
+  pacingOverride,
+  visualIntensity,
   productImages,
   materialPreset,
   objectMass,
   surfaceComplexity,
   refractionEnabled,
-  logoUrl,
-  brandPrimaryColor,
-  brandSecondaryColor,
-  logoIntegrity,
-  logoDepth,
+  // Removed: logoUrl, brandPrimaryColor, brandSecondaryColor, logoIntegrity, logoDepth (no logo support for Sora)
   heroFeature,
   originMetaphor,
-  environmentConcept,
-  cinematicLighting,
-  atmosphericDensity,
-  styleReferenceUrl,
+  // Removed: environmentConcept, cinematicLighting, atmosphericDensity (no longer used)
   visualPreset,
   campaignSpark,
   visualBeats,
-  environmentBrandPrimaryColor,
-  environmentBrandSecondaryColor,
+  // Removed: environmentBrandPrimaryColor, environmentBrandSecondaryColor (no longer used)
   targetAudience,
   campaignObjective,
   ctaText,
   includeHumanElement,
   characterMode,
-  characterReferenceUrl,
-  characterAssetId,
   characterDescription,
-  characterAIProfile,
+  characterPersona,
   isGeneratingCharacter,
+  // Removed: characterReferenceUrl, characterAssetId, characterAIProfile (no image generation for Sora)
   sceneManifest,
   onScriptChange,
   onAspectRatioChange,
@@ -384,13 +389,28 @@ export function SocialCommerceWorkflow({
   onContinuityGroupsChange,
   onWorldSettingsChange,
   onCommerceSettingsChange,
-  onImageModelChange,
-  onImageResolutionChange,
   onVideoModelChange,
   onVideoResolutionChange,
   onLanguageChange,
   onMotionPromptChange,
-  onImageInstructionsChange,
+  onAudioVolumeChange,
+  onSpeechTempoChange,
+  onDialogueAdd,
+  onDialogueChange,
+  onDialogueRemove,
+  onCustomVoiceoverInstructionsChange,
+  onSoundEffectsToggle,
+  onSoundEffectsPresetChange,
+  onSoundEffectsCustomChange,
+  onSoundEffectsUsePresetChange,
+  onMusicToggle,
+  onMusicPresetChange,
+  onMusicCustomChange,
+  onMusicMoodChange,
+  onMusicUsePresetChange,
+  onProductionLevelChange,
+  onPacingOverrideChange,
+  onVisualIntensityChange,
   onProductImagesChange,
   onProductImageUpload,
   onProductImageDelete,
@@ -398,40 +418,30 @@ export function SocialCommerceWorkflow({
   onObjectMassChange,
   onSurfaceComplexityChange,
   onRefractionEnabledChange,
-  onLogoUrlChange,
-  onLogoUpload,
-  onLogoDelete,
-  onBrandPrimaryColorChange,
-  onBrandSecondaryColorChange,
-  onLogoIntegrityChange,
-  onLogoDepthChange,
+  // Removed: All logo-related handlers (no logo support for Sora)
   onHeroFeatureChange,
   onOriginMetaphorChange,
-  onEnvironmentConceptChange,
-  onCinematicLightingChange,
-  onAtmosphericDensityChange,
-  onStyleReferenceUrlChange,
+  // Removed: onEnvironmentConceptChange, onCinematicLightingChange, onAtmosphericDensityChange (no longer used)
   onVisualPresetChange,
   onCampaignSparkChange,
-  onVisualBeatsChange,
-  onEnvironmentBrandPrimaryColorChange,
-  onEnvironmentBrandSecondaryColorChange,
   onTargetAudienceChange,
   onCampaignObjectiveChange,
   onCtaTextChange,
   onIncludeHumanElementChange,
   onCharacterModeChange,
-  onCharacterReferenceUrlChange,
-  onCharacterImageUpload,
-  onCharacterDelete,
   onCharacterDescriptionChange,
-  onCharacterNameChange,
-  onCharacterAssetIdChange,
-  onCharacterReferenceFileChange,
-  onCharacterAIProfileChange,
+  onCharacterPersonaChange,
   onIsGeneratingCharacterChange,
+  // Removed: All character image-related handlers (no image generation for Sora)
+  cameraShotDefault,
+  lensDefault,
+  onCameraShotDefaultChange,
+  onLensDefaultChange,
   onSceneManifestChange,
   onNext,
+  // Step 5: Beat Prompts
+  step3Data,
+  isCreating,
 }: SocialCommerceWorkflowProps) {
   const { toast } = useToast();
   
@@ -502,7 +512,6 @@ export function SocialCommerceWorkflow({
           id: shot.id,
           segmentId: shot.sceneId,
           shotNumber: shot.shotNumber,
-          shotType: shot.shotType || "hero",
           description: shot.description || "",
           voiceoverText: voiceoverTextMap[shot.id] || "",
           duration: shot.duration || 3,
@@ -574,7 +583,6 @@ export function SocialCommerceWorkflow({
             ...existing,
             sceneId: shot.segmentId,
             shotNumber: shot.shotNumber,
-            shotType: shot.shotType,
             description: shot.description,
             duration: shot.duration,
             updatedAt: new Date(),
@@ -963,14 +971,13 @@ export function SocialCommerceWorkflow({
       name: `${shotId}: ${shotFormData.cinematic_goal}`,
       description: shotFormData.brief_description,
       duration: 5.0, // Default, will be updated by timing
-      shotType: shotFormData.shot_type === 'IMAGE_REF' ? 'image-ref' : 'start-end',
-      cameraPath: shotFormData.camera_movement.toLowerCase().includes('orbit') ? 'orbit' :
+      cameraPath: (shotFormData.camera_movement.toLowerCase().includes('orbit') ? 'orbit' :
                  shotFormData.camera_movement.toLowerCase().includes('pan') ? 'pan' :
                  shotFormData.camera_movement.toLowerCase().includes('zoom') ? 'zoom' :
-                 shotFormData.camera_movement.toLowerCase().includes('dolly') ? 'dolly' : 'static',
-      lens: shotFormData.lens.toLowerCase().includes('macro') ? 'macro' :
+                 shotFormData.camera_movement.toLowerCase().includes('dolly') ? 'dolly' : 'static') as 'orbit' | 'pan' | 'zoom' | 'dolly' | 'static',
+      lens: (shotFormData.lens.toLowerCase().includes('macro') ? 'macro' :
             shotFormData.lens.toLowerCase().includes('wide') ? 'wide' :
-            shotFormData.lens.toLowerCase().includes('85') ? '85mm' : 'telephoto',
+            shotFormData.lens.toLowerCase().includes('85') ? '85mm' : 'telephoto') as 'macro' | 'wide' | '85mm' | 'telephoto',
       referenceTags: [
         ...(shotFormData.refer_to_product ? [
           shotFormData.product_image_ref === 'macroDetail' ? '@Product_Macro' :
@@ -979,6 +986,7 @@ export function SocialCommerceWorkflow({
         ...(shotFormData.refer_to_character ? ['@Character'] : []),
         ...(shotFormData.refer_to_logo ? ['@Logo'] : []),
       ],
+      focusAnchor: null,
       previousShotReferences: [],
       isLinkedToPrevious: shotFormData.is_connected_to_previous,
       speedProfile: 'linear' as const,
@@ -999,7 +1007,6 @@ export function SocialCommerceWorkflow({
       shotNumber: pendingShotIndex + 2,
       description: shotFormData.brief_description,
       cameraMovement: shotFormData.camera_movement,
-      shotType: shotFormData.framing,
       soundEffects: null,
       duration: 5.0,
       transition: "cut",
@@ -1406,29 +1413,63 @@ export function SocialCommerceWorkflow({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {activeStep === "script" && (
+      {activeStep === "setup" && (
         <ProductSetupTab
-          imageModel={imageModel}
-          imageResolution={imageResolution}
           videoModel={videoModel}
           videoResolution={videoResolution}
           aspectRatio={aspectRatio}
-          duration={parseInt(duration) || 30}
+          duration={parseInt(duration) || 8}
           voiceOverEnabled={voiceOverEnabled}
           language={language}
+          audioVolume={audioVolume}
+          speechTempo={speechTempo}
+          dialogue={dialogue}
+          customVoiceoverInstructions={customVoiceoverInstructions}
+          soundEffectsEnabled={soundEffectsEnabled}
+          soundEffectsPreset={soundEffectsPreset}
+          soundEffectsCustomInstructions={soundEffectsCustomInstructions}
+          soundEffectsUsePreset={soundEffectsUsePreset}
+          musicEnabled={musicEnabled}
+          musicPreset={musicPreset}
+          musicCustomInstructions={musicCustomInstructions}
+          musicMood={musicMood}
+          musicUsePreset={musicUsePreset}
+          productionLevel={productionLevel}
+          pacingOverride={pacingOverride}
           motionPrompt={motionPrompt}
           targetAudience={targetAudience}
-          onImageModelChange={onImageModelChange}
-          onImageResolutionChange={onImageResolutionChange}
+          productTitle={productDetails.title}
+          productDescription={productDetails.description}
+          onProductTitleChange={(title) => onProductDetailsChange({ ...productDetails, title })}
+          onProductDescriptionChange={(description) => onProductDetailsChange({ ...productDetails, description })}
+          productImages={productImages}
+          onProductImageUpload={onProductImageUpload}
+          onProductImageDelete={onProductImageDelete}
           onVideoModelChange={onVideoModelChange}
           onVideoResolutionChange={onVideoResolutionChange}
           onAspectRatioChange={onAspectRatioChange}
           onDurationChange={(dur) => onDurationChange(dur.toString())}
           onVoiceOverToggle={onVoiceOverToggle}
           onLanguageChange={onLanguageChange}
+          onAudioVolumeChange={onAudioVolumeChange}
+          onSpeechTempoChange={onSpeechTempoChange}
+          onDialogueAdd={onDialogueAdd}
+          onDialogueChange={onDialogueChange}
+          onDialogueRemove={onDialogueRemove}
+          onCustomVoiceoverInstructionsChange={onCustomVoiceoverInstructionsChange}
+          onSoundEffectsToggle={onSoundEffectsToggle}
+          onSoundEffectsPresetChange={onSoundEffectsPresetChange}
+          onSoundEffectsCustomChange={onSoundEffectsCustomChange}
+          onSoundEffectsUsePresetChange={onSoundEffectsUsePresetChange}
+          onMusicToggle={onMusicToggle}
+          onMusicPresetChange={onMusicPresetChange}
+          onMusicCustomChange={onMusicCustomChange}
+          onMusicMoodChange={onMusicMoodChange}
+          onMusicUsePresetChange={onMusicUsePresetChange}
+          onProductionLevelChange={onProductionLevelChange}
+          onPacingOverrideChange={onPacingOverrideChange}
+          onVisualIntensityChange={onVisualIntensityChange}
           onMotionPromptChange={onMotionPromptChange}
-          onImageInstructionsChange={onImageInstructionsChange}
-          imageInstructions={imageInstructions}
           onTargetAudienceChange={onTargetAudienceChange}
           onNext={onNext}
         />
@@ -1443,19 +1484,13 @@ export function SocialCommerceWorkflow({
           objectMass={objectMass}
           surfaceComplexity={surfaceComplexity}
           refractionEnabled={refractionEnabled}
-          logoUrl={logoUrl}
-          brandPrimaryColor={brandPrimaryColor}
-          brandSecondaryColor={brandSecondaryColor}
-          logoIntegrity={logoIntegrity}
-          logoDepth={logoDepth}
+          // Removed: logoUrl, brandPrimaryColor, brandSecondaryColor, logoIntegrity, logoDepth (no logo support for Sora)
           heroFeature={heroFeature}
           originMetaphor={originMetaphor}
           includeHumanElement={includeHumanElement}
           characterMode={characterMode}
-          characterReferenceUrl={characterReferenceUrl}
-          characterAssetId={characterAssetId}
           characterDescription={characterDescription}
-          characterAIProfile={characterAIProfile}
+          characterPersona={characterPersona}
           isGeneratingCharacter={isGeneratingCharacter}
           targetAudience={targetAudience}
           onProductImagesChange={onProductImagesChange}
@@ -1465,26 +1500,19 @@ export function SocialCommerceWorkflow({
           onObjectMassChange={onObjectMassChange}
           onSurfaceComplexityChange={onSurfaceComplexityChange}
           onRefractionEnabledChange={onRefractionEnabledChange}
-          onLogoUrlChange={onLogoUrlChange}
-          onLogoUpload={onLogoUpload}
-          onLogoDelete={onLogoDelete}
-          onBrandPrimaryColorChange={onBrandPrimaryColorChange}
-          onBrandSecondaryColorChange={onBrandSecondaryColorChange}
-          onLogoIntegrityChange={onLogoIntegrityChange}
-          onLogoDepthChange={onLogoDepthChange}
+          // Removed: All logo-related handlers (no logo support for Sora)
           onHeroFeatureChange={onHeroFeatureChange}
           onOriginMetaphorChange={onOriginMetaphorChange}
           onIncludeHumanElementChange={onIncludeHumanElementChange}
           onCharacterModeChange={onCharacterModeChange}
-          onCharacterReferenceUrlChange={onCharacterReferenceUrlChange}
-          onCharacterImageUpload={onCharacterImageUpload}
-          onCharacterDelete={onCharacterDelete}
           onCharacterDescriptionChange={onCharacterDescriptionChange}
-          onCharacterNameChange={onCharacterNameChange}
-          onCharacterAssetIdChange={onCharacterAssetIdChange}
-          onCharacterReferenceFileChange={onCharacterReferenceFileChange}
-          onCharacterAIProfileChange={onCharacterAIProfileChange}
+          onCharacterPersonaChange={onCharacterPersonaChange}
           onIsGeneratingCharacterChange={onIsGeneratingCharacterChange}
+          // Removed: All character image-related handlers (no image generation for Sora)
+          cameraShotDefault={cameraShotDefault ?? null}
+          lensDefault={lensDefault ?? null}
+          onCameraShotDefaultChange={onCameraShotDefaultChange ?? (() => {})}
+          onLensDefaultChange={onLensDefaultChange ?? (() => {})}
           onNext={onNext}
         />
       )}
@@ -1493,28 +1521,14 @@ export function SocialCommerceWorkflow({
         <VisualStyleTab
           workspaceId={workspaceId}
           videoId={videoId}
-          environmentConcept={environmentConcept}
-          cinematicLighting={cinematicLighting}
-          atmosphericDensity={atmosphericDensity}
-          styleReferenceUrl={styleReferenceUrl}
           visualPreset={visualPreset}
           campaignSpark={campaignSpark}
           visualBeats={visualBeats}
-          brandPrimaryColor={brandPrimaryColor}
-          brandSecondaryColor={brandSecondaryColor}
-          environmentBrandPrimaryColor={environmentBrandPrimaryColor}
-          environmentBrandSecondaryColor={environmentBrandSecondaryColor}
           campaignObjective={campaignObjective}
           ctaText={ctaText}
-          onEnvironmentConceptChange={onEnvironmentConceptChange}
-          onCinematicLightingChange={onCinematicLightingChange}
-          onAtmosphericDensityChange={onAtmosphericDensityChange}
-          onStyleReferenceUrlChange={onStyleReferenceUrlChange}
           onVisualPresetChange={onVisualPresetChange}
           onCampaignSparkChange={onCampaignSparkChange}
-          onVisualBeatsChange={onVisualBeatsChange}
-          onEnvironmentBrandPrimaryColorChange={onEnvironmentBrandPrimaryColorChange}
-          onEnvironmentBrandSecondaryColorChange={onEnvironmentBrandSecondaryColorChange}
+          onVisualBeatsChange={() => {}}
           onCampaignObjectiveChange={onCampaignObjectiveChange}
           onCtaTextChange={onCtaTextChange}
           onNext={onNext}
@@ -1540,49 +1554,40 @@ export function SocialCommerceWorkflow({
         />
       )}
 
-      {activeStep === "world" && (
-        <SceneContinuityTab
-          workspaceId={workspaceId}
-          visualBeats={visualBeats}
-          sceneManifest={sceneManifest}
-          onSceneManifestChange={onSceneManifestChange}
-          heroFeature={heroFeature}
-          logoUrl={logoUrl}
-          styleReferenceUrl={styleReferenceUrl}
-          onNext={onNext}
-        />
-      )}
+      {/* Removed: Tab 4 (Scene Continuity) - no longer needed */}
 
       {activeStep === "storyboard" && (
-        <StoryboardEditor
+        <BeatStoryboardTab
           videoId={videoId}
-          narrativeMode={narrativeMode}
-          scenes={scenes}
-          shots={shots}
-          shotVersions={shotVersions}
-          referenceImages={referenceImages}
-          characters={characters}
-          voiceActorId={voiceActorId}
-          voiceOverEnabled={voiceOverEnabled}
-          continuityLocked={continuityLocked}
-          continuityGroups={continuityGroups}
-          isCommerceMode={true}
-          onVoiceActorChange={onVoiceActorChange}
-          onVoiceOverToggle={onVoiceOverToggle}
-          onGenerateShot={handleGenerateShot}
-          onRegenerateShot={handleRegenerateShot}
-          onUpdateShot={handleUpdateShot}
-          onUpdateShotVersion={handleUpdateShotVersion}
-          onUpdateScene={handleUpdateScene}
-          onReorderShots={handleReorderShots}
-          onUploadShotReference={handleUploadShotReference}
-          onDeleteShotReference={handleDeleteShotReference}
-          onSelectVersion={handleSelectVersion}
-          onDeleteVersion={handleDeleteVersion}
-          onAddScene={handleAddScene}
-          onAddShot={handleAddShot}
-          onDeleteScene={handleDeleteScene}
-          onDeleteShot={handleDeleteShot}
+          workspaceId={workspaceId}
+          beatPrompts={step3Data?.beatPrompts}
+          voiceoverScripts={step3Data?.voiceoverScripts}
+          heroImageUrl={productImages?.heroProfile || undefined}
+          isCreating={isCreating}
+          onBeatGenerate={async (beatId: string) => {
+            const response = await fetch(`/api/social-commerce/videos/${videoId}/beats/${beatId}/generate`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+            });
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.details || error.error || 'Failed to generate beat');
+            }
+            return response.json();
+          }}
+          onBeatRegenerate={async (beatId: string) => {
+            const response = await fetch(`/api/social-commerce/videos/${videoId}/beats/${beatId}/generate`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+            });
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.details || error.error || 'Failed to regenerate beat');
+            }
+            return response.json();
+          }}
           onNext={onNext}
         />
       )}

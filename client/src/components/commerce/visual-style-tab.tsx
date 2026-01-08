@@ -17,7 +17,6 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   Lightbulb,
   Sparkles,
-  Upload,
   X,
   Loader2,
   Zap,
@@ -28,6 +27,7 @@ import {
   Target,
   Wind,
   ImageIcon,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { uploadFile } from "@/assets/uploads/routes";
@@ -39,10 +39,6 @@ import { uploadFile } from "@/assets/uploads/routes";
 interface VisualStyleTabProps {
   workspaceId: string;
   videoId?: string;
-  environmentConcept: string;
-  cinematicLighting: string;
-  atmosphericDensity: number;
-  styleReferenceUrl: string | null;
   visualPreset: string;
   campaignSpark: string;
   visualBeats: {
@@ -50,21 +46,15 @@ interface VisualStyleTabProps {
     beat2: string;
     beat3: string;
   };
-  brandPrimaryColor: string;
-  brandSecondaryColor: string;
-  environmentBrandPrimaryColor: string;
-  environmentBrandSecondaryColor: string;
+  // Removed: environmentConcept, cinematicLighting, atmosphericDensity, environmentBrandPrimaryColor, environmentBrandSecondaryColor (no longer used)
+  // Removed: colorPalette (no longer used)
   campaignObjective: string;
   ctaText: string;
-  onEnvironmentConceptChange: (concept: string) => void;
-  onCinematicLightingChange: (lighting: string) => void;
-  onAtmosphericDensityChange: (density: number) => void;
-  onStyleReferenceUrlChange: (url: string | null) => void;
   onVisualPresetChange: (preset: string) => void;
   onCampaignSparkChange: (spark: string) => void;
   onVisualBeatsChange: (beats: { beat1: string; beat2: string; beat3: string }) => void;
-  onEnvironmentBrandPrimaryColorChange: (color: string) => void;
-  onEnvironmentBrandSecondaryColorChange: (color: string) => void;
+  // Removed: onEnvironmentConceptChange, onCinematicLightingChange, onAtmosphericDensityChange, onEnvironmentBrandPrimaryColorChange, onEnvironmentBrandSecondaryColorChange (no longer used)
+  // Removed: onColorPaletteChange (no longer used)
   onCampaignObjectiveChange: (objective: string) => void;
   onCtaTextChange: (cta: string) => void;
   onNext: () => void;
@@ -73,13 +63,6 @@ interface VisualStyleTabProps {
 // ═══════════════════════════════════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
-
-const CINEMATIC_LIGHTING = [
-  { id: "volumetric", label: "Volumetric", description: "God rays & dramatic beams", icon: "🌟" },
-  { id: "neon", label: "Neon Noir", description: "Vibrant glow & shadows", icon: "💜" },
-  { id: "editorial", label: "Editorial", description: "Clean, high-key studio", icon: "💡" },
-  { id: "golden", label: "Golden Hour", description: "Warm natural light", icon: "🌅" },
-];
 
 const VISUAL_PRESETS = [
   { id: "photorealistic", label: "Photorealistic", description: "Lifelike rendering", icon: "📸" },
@@ -95,11 +78,7 @@ const OBJECTIVES = [
   { id: "sales", label: "Sales/CTA", icon: "🛒" },
 ];
 
-const BEAT_INFO = [
-  { key: "beat1" as const, title: "The Hook", timeRange: "0-4s", description: "Grab attention instantly" },
-  { key: "beat2" as const, title: "The Transformation", timeRange: "4-8s", description: "Show the journey" },
-  { key: "beat3" as const, title: "The Payoff", timeRange: "8-12s", description: "Deliver impact" },
-];
+// BEAT_INFO removed - now using dynamic beats from agent output
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SECTION HEADER COMPONENT
@@ -136,42 +115,44 @@ function SectionHeader({
 export function VisualStyleTab({
   workspaceId,
   videoId,
-  environmentConcept,
-  cinematicLighting,
-  atmosphericDensity,
-  styleReferenceUrl,
   visualPreset,
   campaignSpark,
   visualBeats,
-  environmentBrandPrimaryColor,
-  environmentBrandSecondaryColor,
   campaignObjective,
   ctaText,
-  onEnvironmentConceptChange,
-  onCinematicLightingChange,
-  onAtmosphericDensityChange,
-  onStyleReferenceUrlChange,
   onVisualPresetChange,
   onCampaignSparkChange,
   onVisualBeatsChange,
-  onEnvironmentBrandPrimaryColorChange,
-  onEnvironmentBrandSecondaryColorChange,
   onCampaignObjectiveChange,
   onCtaTextChange,
 }: VisualStyleTabProps) {
   const { toast } = useToast();
   const [beatsGenerated, setBeatsGenerated] = useState(false);
-  const [uploadingReference, setUploadingReference] = useState(false);
   const [previewOverlayEnabled, setPreviewOverlayEnabled] = useState(false);
   const [isGeneratingSpark, setIsGeneratingSpark] = useState(false);
   const [isGeneratingBeats, setIsGeneratingBeats] = useState(false);
-  const referenceInputRef = useRef<HTMLInputElement>(null);
+  
+  // Store full beat data for dynamic display
+  const [generatedBeatsData, setGeneratedBeatsData] = useState<Array<{
+    beatId: string;
+    beatName: string;
+    beatDescription: string;
+    duration: number;
+    isConnectedToPrevious: boolean;
+  }>>([]);
 
-  // Validation states (FIXED: removed targetAudience dependency)
-  const isEnvironmentSet = environmentConcept.trim().length >= 20;
-  const isStyleDefined = visualPreset !== "" || styleReferenceUrl !== null;
-  const isStoryReady = campaignSpark.trim().length >= 10;
-  const beatsFilledCount = [visualBeats.beat1, visualBeats.beat2, visualBeats.beat3].filter(b => b.trim().length > 0).length;
+  // Validation states
+  const isStyleDefined = visualPreset !== "";
+  const isStoryReady = (campaignSpark || "").trim().length >= 10;
+  // Count filled beats dynamically based on generated beats or fallback to flat format
+  const beatsFilledCount = generatedBeatsData.length > 0
+    ? generatedBeatsData.filter(b => {
+        const beatKey = b.beatId as keyof typeof visualBeats;
+        return visualBeats?.[beatKey]?.trim().length > 0;
+      }).length
+    : visualBeats 
+      ? [visualBeats.beat1, visualBeats.beat2, visualBeats.beat3].filter(b => b?.trim().length > 0).length
+      : 0;
 
   // Handlers
   const handleGenerateBeats = async () => {
@@ -197,11 +178,12 @@ export function VisualStyleTab({
     try {
       console.log('[VisualStyleTab] Calling visual beats API for video:', videoId);
       
-      const response = await fetch(`/api/social-commerce/videos/${videoId}/visual-beats/generate`, {
+      const response = await fetch(`/api/social-commerce/step/2/generate-beats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
+          id: videoId, // Pass videoId in body since route doesn't have :id param
           campaignSpark,
           campaignObjective: campaignObjective || 'awareness',
         }),
@@ -211,7 +193,8 @@ export function VisualStyleTab({
       console.log('[VisualStyleTab] Beats API Response:', {
         ok: response.ok,
         status: response.status,
-        hasScriptManifest: !!responseData.script_manifest,
+        hasVisualBeats: !!responseData.visual_beats,
+        beatCount: responseData.visual_beats?.length || 0,
       });
 
       if (!response.ok) {
@@ -220,41 +203,51 @@ export function VisualStyleTab({
         throw new Error(errorMessage);
       }
 
-      // Verify response structure
-      if (!responseData.script_manifest) {
+      // Verify response structure (new beat-based structure)
+      if (!responseData.visual_beats || !Array.isArray(responseData.visual_beats)) {
         console.error('[VisualStyleTab] Invalid response structure:', responseData);
-        throw new Error('Invalid response from server: missing script_manifest');
+        throw new Error('Invalid response from server: missing visual_beats');
       }
 
-      const scriptManifest = responseData.script_manifest;
+      const visualBeats = responseData.visual_beats;
 
-      // Extract beats from script manifest
+      // Store full beat data for dynamic display (with beatName, beatId, etc.)
+      setGeneratedBeatsData(visualBeats);
+
+      // Extract beats from visual_beats array (new beat-based structure)
+      // Map beat1, beat2, beat3, beat4 from the array by beatId
+      // This is for backward compatibility with parent component's flat format
       const generatedBeats = {
-        beat1: scriptManifest.act_1_hook?.text || '',
-        beat2: scriptManifest.act_2_transform?.text || '',
-        beat3: scriptManifest.act_3_payoff?.text || '',
+        beat1: visualBeats.find(b => b.beatId === 'beat1')?.beatDescription || '',
+        beat2: visualBeats.find(b => b.beatId === 'beat2')?.beatDescription || '',
+        beat3: visualBeats.find(b => b.beatId === 'beat3')?.beatDescription || '',
+        beat4: visualBeats.find(b => b.beatId === 'beat4')?.beatDescription || '',
       };
 
       console.log('[VisualStyleTab] Setting generated beats:', {
         beat1Length: generatedBeats.beat1.length,
         beat2Length: generatedBeats.beat2.length,
         beat3Length: generatedBeats.beat3.length,
+        beat4Length: generatedBeats.beat4.length,
+        totalBeats: visualBeats.length,
+        connectionStrategy: responseData.connection_strategy,
+        beatNames: visualBeats.map(b => b.beatName),
       });
 
-      // Update beats state
+      // Update beats state (flat format for parent component)
       onVisualBeatsChange(generatedBeats);
 
-      // Update CTA text if available and not empty
-      if (scriptManifest.act_3_payoff?.cta_text && scriptManifest.act_3_payoff.cta_text.trim().length > 0) {
-        console.log('[VisualStyleTab] Setting CTA text:', scriptManifest.act_3_payoff.cta_text);
-        onCtaTextChange(scriptManifest.act_3_payoff.cta_text);
-      }
+      // Note: CTA text is no longer in the response (removed with script_manifest)
+      // User can manually add CTA text if needed
 
       setBeatsGenerated(true);
       
+      // Trigger refetch of video data so parent validation can see the new beats
+      window.dispatchEvent(new CustomEvent('beatsGenerated'));
+      
       toast({
         title: "Visual Beats Generated",
-        description: `AI has generated 3-act narrative beats for your campaign (cost: $${(responseData.cost || 0).toFixed(4)})`,
+        description: `AI has generated ${visualBeats.length} visual beat(s) for your campaign (cost: $${(responseData.cost || 0).toFixed(4)})`,
       });
     } catch (error) {
       console.error('[VisualStyleTab] Error generating visual beats:', error);
@@ -331,26 +324,8 @@ export function VisualStyleTab({
     }
   };
 
-  const handleReferenceUpload = async (file: File) => {
-    setUploadingReference(true);
-    try {
-      const response = await uploadFile(workspaceId, file, file.name, "Style Reference");
-      onStyleReferenceUrlChange(response.upload.storageUrl);
-      if (visualPreset) {
-        onVisualPresetChange("");
-      }
-    } catch (error) {
-      console.error("Error uploading reference:", error);
-    } finally {
-      setUploadingReference(false);
-    }
-  };
-
   const handlePresetSelect = (presetId: string) => {
     onVisualPresetChange(presetId);
-    if (styleReferenceUrl) {
-      onStyleReferenceUrlChange(null);
-    }
   };
 
   return (
@@ -380,38 +355,6 @@ export function VisualStyleTab({
             </div>
 
             {/* ═══════════════════════════════════════════════════════════════ */}
-            {/* ENVIRONMENT CONCEPT CARD */}
-            {/* ═══════════════════════════════════════════════════════════════ */}
-            <Card className="bg-white/[0.02] border-white/[0.06]">
-              <CardContent className="p-5 space-y-3">
-                <SectionHeader
-                  icon={Wind}
-                  title="Environment Concept"
-                  description="Describe the world and atmosphere"
-                  iconColor="text-cyan-400"
-                />
-                
-                <Textarea
-                  value={environmentConcept}
-                  onChange={(e) => onEnvironmentConceptChange(e.target.value)}
-                  placeholder="e.g., A dark underwater cavern with jagged obsidian walls and bioluminescent particles..."
-                  className="bg-white/5 border-white/10 text-white min-h-[100px] resize-none text-sm"
-                  maxLength={500}
-                />
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-white/40">{environmentConcept.length}/500</span>
-                  {isEnvironmentSet ? (
-                    <span className="text-[10px] text-green-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> Valid
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-amber-400">Min 20 chars</span>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* ═══════════════════════════════════════════════════════════════ */}
             {/* VISUAL STYLE CARD */}
             {/* ═══════════════════════════════════════════════════════════════ */}
             <Card className="bg-white/[0.02] border-white/[0.06]">
@@ -424,7 +367,7 @@ export function VisualStyleTab({
                     iconColor="text-pink-400"
                   />
                   <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-white/5 border-white/20">
-                    {visualPreset ? "Preset" : styleReferenceUrl ? "Custom" : "None"}
+                    {visualPreset ? "Preset" : "None"}
                   </Badge>
                 </div>
 
@@ -446,193 +389,6 @@ export function VisualStyleTab({
                       <p className="text-[9px] text-white/40">{preset.description}</p>
                     </button>
                   ))}
-                </div>
-
-                {/* Style Reference Upload */}
-                <div className="pt-2 border-t border-white/10">
-                  <div
-                    onClick={() => !uploadingReference && referenceInputRef.current?.click()}
-                    className={cn(
-                      "h-20 rounded-lg border-2 border-dashed cursor-pointer flex items-center justify-center transition-all",
-                      styleReferenceUrl
-                        ? "border-pink-500/30 bg-white/[0.02]"
-                        : "border-white/10 hover:border-pink-500/30"
-                    )}
-                  >
-                    {uploadingReference ? (
-                      <Loader2 className="w-5 h-5 text-pink-400 animate-spin" />
-                    ) : styleReferenceUrl ? (
-                      <div className="relative w-full h-full">
-                        <img src={styleReferenceUrl} alt="Reference" className="w-full h-full object-cover rounded-lg" />
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onStyleReferenceUrlChange(null);
-                          }}
-                          className="absolute top-1 right-1 p-1 bg-black/60 rounded-full"
-                        >
-                          <X className="w-3 h-3 text-white" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 text-white/40">
-                        <Upload className="w-4 h-4" />
-                        <span className="text-xs">Upload style reference</span>
-                      </div>
-                    )}
-                  </div>
-                  <input
-                    ref={referenceInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleReferenceUpload(file);
-                    }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* ═══════════════════════════════════════════════════════════════ */}
-            {/* BRAND COLORS CARD */}
-            {/* ═══════════════════════════════════════════════════════════════ */}
-            <Card className="bg-white/[0.02] border-white/[0.06]">
-              <CardContent className="p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <SectionHeader
-                    icon={Palette}
-                    title="Campaign Colors"
-                    description="Override brand colors for this environment"
-                    iconColor="text-purple-400"
-                  />
-                  <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-purple-500/20 border-purple-500/30 text-purple-300">
-                    Local
-                  </Badge>
-                </div>
-
-                <div className="flex gap-3">
-                  {/* Primary Color */}
-                  <div className="flex-1">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button 
-                          className="w-full h-10 rounded-lg border border-white/10 hover:border-purple-500/50 transition-all cursor-pointer relative group" 
-                          style={{ backgroundColor: environmentBrandPrimaryColor }}
-                        >
-                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Palette className="w-4 h-4 text-white drop-shadow-lg" />
-                          </div>
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-56 bg-[#0a0a0a] border-white/10">
-                        <div className="space-y-2">
-                          <Label className="text-xs text-white">Primary Color</Label>
-                          <div className="flex gap-2">
-                            <input
-                              type="color"
-                              value={environmentBrandPrimaryColor}
-                              onChange={(e) => onEnvironmentBrandPrimaryColorChange(e.target.value)}
-                              className="w-10 h-10 rounded cursor-pointer border border-white/10"
-                            />
-                            <Input
-                              value={environmentBrandPrimaryColor}
-                              onChange={(e) => onEnvironmentBrandPrimaryColorChange(e.target.value)}
-                              className="flex-1 h-10 bg-white/5 border-white/10 text-white text-xs"
-                            />
-                          </div>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                    <p className="text-[10px] text-white/40 mt-1 text-center">Primary</p>
-                  </div>
-
-                  {/* Secondary Color */}
-                  <div className="flex-1">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button 
-                          className="w-full h-10 rounded-lg border border-white/10 hover:border-purple-500/50 transition-all cursor-pointer relative group" 
-                          style={{ backgroundColor: environmentBrandSecondaryColor }}
-                        >
-                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Palette className="w-4 h-4 text-white drop-shadow-lg" />
-                          </div>
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-56 bg-[#0a0a0a] border-white/10">
-                        <div className="space-y-2">
-                          <Label className="text-xs text-white">Secondary Color</Label>
-                          <div className="flex gap-2">
-                            <input
-                              type="color"
-                              value={environmentBrandSecondaryColor}
-                              onChange={(e) => onEnvironmentBrandSecondaryColorChange(e.target.value)}
-                              className="w-10 h-10 rounded cursor-pointer border border-white/10"
-                            />
-                            <Input
-                              value={environmentBrandSecondaryColor}
-                              onChange={(e) => onEnvironmentBrandSecondaryColorChange(e.target.value)}
-                              className="flex-1 h-10 bg-white/5 border-white/10 text-white text-xs"
-                            />
-                          </div>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                    <p className="text-[10px] text-white/40 mt-1 text-center">Secondary</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* ═══════════════════════════════════════════════════════════════ */}
-            {/* CINEMATIC LIGHTING CARD */}
-            {/* ═══════════════════════════════════════════════════════════════ */}
-            <Card className="bg-white/[0.02] border-white/[0.06]">
-              <CardContent className="p-5 space-y-3">
-                <SectionHeader
-                  icon={Lightbulb}
-                  title="Cinematic Lighting"
-                  description="Set the mood and atmosphere"
-                  iconColor="text-amber-400"
-                />
-
-                <div className="grid grid-cols-2 gap-2">
-                  {CINEMATIC_LIGHTING.map((lighting) => (
-                    <button
-                      key={lighting.id}
-                      onClick={() => onCinematicLightingChange(lighting.id)}
-                      className={cn(
-                        "p-2.5 rounded-lg border transition-all text-left",
-                        cinematicLighting === lighting.id
-                          ? "bg-amber-500/20 border-amber-500/50"
-                          : "bg-white/[0.02] border-white/10 hover:border-amber-500/30"
-                      )}
-                    >
-                      <span className="text-lg block mb-0.5">{lighting.icon}</span>
-                      <p className="text-[11px] font-medium text-white">{lighting.label}</p>
-                      <p className="text-[9px] text-white/40">{lighting.description}</p>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Atmospheric Density */}
-                <div className="pt-3 border-t border-white/10 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-white/50">Atmospheric Density</Label>
-                    <span className="text-xs text-amber-400">{atmosphericDensity}%</span>
-                  </div>
-                  <Slider
-                    value={[atmosphericDensity]}
-                    onValueChange={([v]) => onAtmosphericDensityChange(v)}
-                    min={0}
-                    max={100}
-                  />
-                  <div className="flex justify-between text-[10px] text-white/30">
-                    <span>Clear</span>
-                    <span>Dense</span>
-                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -794,61 +550,87 @@ export function VisualStyleTab({
                   </Button>
                 )}
 
-                {/* Beat Cards */}
+                {/* Beat Cards - Dynamic based on actual generated beats */}
                 <AnimatePresence>
-                  {beatsGenerated && (
+                  {generatedBeatsData.length > 0 ? (
                     <div className="space-y-3">
-                      {BEAT_INFO.map((beat, index) => (
-                        <motion.div
-                          key={beat.key}
-                          initial={{ opacity: 0, x: 30 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.3, delay: index * 0.1 }}
-                          className="p-3 rounded-lg bg-white/[0.02] border border-white/10"
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-xs font-bold text-white">
-                                {index + 1}
+                      {generatedBeatsData.map((beat, index) => {
+                        const BEAT_DURATION = 8; // Each beat is 8 seconds
+                        const startTime = index * BEAT_DURATION;
+                        const endTime = (index + 1) * BEAT_DURATION;
+                        const timeRange = `${startTime}-${endTime}s`;
+                        
+                        // Get the description from visualBeats prop (flat format) or use beat's description
+                        const beatKey = beat.beatId as keyof typeof visualBeats;
+                        const currentDescription = visualBeats?.[beatKey] || beat.beatDescription;
+                        
+                        return (
+                          <motion.div
+                            key={beat.beatId}
+                            initial={{ opacity: 0, x: 30 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.3, delay: index * 0.1 }}
+                            className="p-3 rounded-lg bg-white/[0.02] border border-white/10"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-xs font-bold text-white">
+                                  {index + 1}
+                                </div>
+                                <div>
+                                  <p className="text-xs font-semibold text-white">{beat.beatName}</p>
+                                  <p className="text-[9px] text-white/40">
+                                    {beat.isConnectedToPrevious ? 'Connected to previous beat' : 'New start'}
+                                  </p>
+                                </div>
                               </div>
-                              <div>
-                                <p className="text-xs font-semibold text-white">{beat.title}</p>
-                                <p className="text-[9px] text-white/40">{beat.description}</p>
+                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-purple-500/10 border-purple-500/30 text-purple-300">
+                                {timeRange}
+                              </Badge>
+                            </div>
+                            
+                            <Textarea
+                              value={currentDescription}
+                              onChange={(e) => {
+                                // Update parent's flat format
+                                const updated = { ...(visualBeats || { beat1: '', beat2: '', beat3: '' }) };
+                                updated[beatKey] = e.target.value;
+                                onVisualBeatsChange(updated);
+                                
+                                // Also update local state
+                                setGeneratedBeatsData(prev => prev.map(b => 
+                                  b.beatId === beat.beatId 
+                                    ? { ...b, beatDescription: e.target.value }
+                                    : b
+                                ));
+                              }}
+                              placeholder={`Describe ${beat.beatName.toLowerCase()}...`}
+                              className="bg-white/5 border-white/10 text-white min-h-[60px] resize-none text-xs"
+                              maxLength={200}
+                            />
+                            
+                            {/* CTA Text for last beat */}
+                            {index === generatedBeatsData.length - 1 && (
+                              <div className="mt-2 pt-2 border-t border-white/10">
+                                <Label className="text-[10px] text-white/50 mb-1 block">CTA Text</Label>
+                                <Input
+                                  value={ctaText}
+                                  onChange={(e) => onCtaTextChange(e.target.value)}
+                                  placeholder="e.g., SHOP NOW at www.website.com"
+                                  className="h-8 bg-white/5 border-white/10 text-white text-xs"
+                                  maxLength={100}
+                                />
                               </div>
-                            </div>
-                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-purple-500/10 border-purple-500/30 text-purple-300">
-                              {beat.timeRange}
-                            </Badge>
-                          </div>
-                          
-                          <Textarea
-                            value={visualBeats[beat.key]}
-                            onChange={(e) => onVisualBeatsChange({
-                              ...visualBeats,
-                              [beat.key]: e.target.value,
-                            })}
-                            placeholder={`Describe ${beat.title.toLowerCase()}...`}
-                            className="bg-white/5 border-white/10 text-white min-h-[60px] resize-none text-xs"
-                            maxLength={200}
-                          />
-                          
-                          {/* CTA Text for Beat 3 */}
-                          {beat.key === "beat3" && (
-                            <div className="mt-2 pt-2 border-t border-white/10">
-                              <Label className="text-[10px] text-white/50 mb-1 block">CTA Text</Label>
-                              <Input
-                                value={ctaText}
-                                onChange={(e) => onCtaTextChange(e.target.value)}
-                                placeholder="e.g., SHOP NOW at www.website.com"
-                                className="h-8 bg-white/5 border-white/10 text-white text-xs"
-                                maxLength={100}
-                              />
-                            </div>
-                          )}
-                        </motion.div>
-                      ))}
+                            )}
+                          </motion.div>
+                        );
+                      })}
                     </div>
-                  )}
+                  ) : beatsGenerated ? (
+                    <div className="text-center py-8 text-white/40 text-xs">
+                      No beats generated yet. Click "Generate Visual Beats" to create your narrative structure.
+                    </div>
+                  ) : null}
                 </AnimatePresence>
               </CardContent>
             </Card>
@@ -865,20 +647,6 @@ export function VisualStyleTab({
           
           {/* Validation Checkmarks */}
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              {isEnvironmentSet ? (
-                <CheckCircle2 className="w-4 h-4 text-green-400" />
-              ) : (
-                <div className="w-4 h-4 rounded-full border-2 border-white/20" />
-              )}
-              <span className={cn(
-                "text-xs font-medium",
-                isEnvironmentSet ? "text-white/70" : "text-white/40"
-              )}>
-                Environment Set
-              </span>
-            </div>
-
             <div className="flex items-center gap-2">
               {isStyleDefined ? (
                 <CheckCircle2 className="w-4 h-4 text-green-400" />

@@ -10,7 +10,13 @@ import {
   generateScenes, 
   composeShotsForScenes, 
   proposeContinuity,
-  generateVideoPrompts
+  generateVideoPrompts,
+  generateVoiceoverScript,
+  generateVoiceoverAudio,
+  calculateTotalDurationWithLoops,
+  AMBIENT_VOICES,
+  generateSoundEffectPrompt,
+  generateSoundEffect,
 } from '../agents';
 import { generateAllShotImages, mergeResultsIntoShotVersions } from '../agents/video-image-generator-batch';
 import type { 
@@ -19,9 +25,14 @@ import type {
   Step2Data,
   Step3Data,
   Step4Data,
+  Step5Data,
   MoodDescriptionGeneratorInput,
   SceneGeneratorInput,
   VideoPromptEngineerInput,
+  VoiceoverScriptGeneratorInput,
+  VoiceoverAudioGeneratorInput,
+  SoundEffectPromptGeneratorInput,
+  SoundEffectGeneratorInput,
   Scene,
   Shot,
   ShotVersion,
@@ -271,6 +282,8 @@ router.post('/atmosphere/generate', isAuthenticated, async (req: Request, res: R
       
       // Voiceover
       voiceoverEnabled: allSettings.voiceoverEnabled,
+      voiceoverStory: allSettings.voiceoverStory,
+      voiceId: allSettings.voiceId,
       language: allSettings.language,
       textOverlayEnabled: allSettings.textOverlayEnabled,
       textOverlayStyle: allSettings.textOverlayStyle,
@@ -400,6 +413,8 @@ router.patch('/videos/:id/step/1/continue', isAuthenticated, async (req: Request
       
       // Voiceover
       voiceoverEnabled: allSettings.voiceoverEnabled,
+      voiceoverStory: allSettings.voiceoverStory,
+      voiceId: allSettings.voiceId,
       language: allSettings.language,
       textOverlayEnabled: allSettings.textOverlayEnabled,
       textOverlayStyle: allSettings.textOverlayStyle,
@@ -1597,6 +1612,189 @@ router.patch('/videos/:id/step/4/continue', isAuthenticated, async (req: Request
 });
 
 /**
+ * Helper function to calculate loop count based on settings
+ * @param enabled - Whether looping is enabled
+ * @param countSetting - 'auto' or a specific number
+ * @returns The loop count (1 if disabled, random 2-10 for auto, or the specified number)
+ */
+function calculateLoopCount(enabled: boolean, countSetting: 'auto' | number): number {
+  if (!enabled) {
+    return 1; // No looping
+  }
+  if (countSetting === 'auto') {
+    // Random number between 2 and 10 (inclusive)
+    return Math.floor(Math.random() * 9) + 2;
+  }
+  return countSetting;
+}
+
+/**
+ * PATCH /api/ambient-visual/videos/:id/step/4/continue-to-5
+ * Continue from Composition (Step 4) to Soundscape (Step 5)
+ * 
+ * Called when user clicks Continue after all videos are generated
+ * - Updates currentStep to 5
+ * - Adds 4 to completedSteps array
+ * - Initializes loop counts for scenes and shots based on Step1Data settings
+ */
+router.patch('/videos/:id/step/4/continue-to-5', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+
+    console.log('[ambient-visual:routes] Continuing from Step 4 to Step 5:', { videoId: id });
+
+    const video = await storage.getVideo(id);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Verify all videos are generated
+    const step4Data = video.step4Data as Step4Data;
+    if (!step4Data || !step4Data.shotVersions) {
+      return res.status(400).json({ 
+        error: 'No step 4 data found.' 
+      });
+    }
+
+    // Check if all shots have videos
+    const step3Data = video.step3Data as Step3Data;
+    if (!step3Data || !step3Data.shots) {
+      return res.status(400).json({ 
+        error: 'No shots found in step 3 data.' 
+      });
+    }
+
+    const allShots = Object.values(step3Data.shots).flat();
+    const shotsWithoutVideo = allShots.filter(shot => {
+      const versions = step4Data.shotVersions[shot.id] || [];
+      const latestVersion = versions[versions.length - 1];
+      const hasVideo = latestVersion?.videoUrl && 
+                       typeof latestVersion.videoUrl === 'string' && 
+                       latestVersion.videoUrl.trim().length > 0;
+      return !hasVideo;
+    });
+
+    if (shotsWithoutVideo.length > 0) {
+      return res.status(400).json({ 
+        error: `Cannot continue: ${shotsWithoutVideo.length} shot(s) still need video generation.` 
+      });
+    }
+
+    // Preserve existing step5Data - ONLY initialize loop data if not already present
+    const existingStep5Data = video.step5Data as Step5Data || {};
+    const hasExistingLoopData = existingStep5Data.scenesWithLoops && 
+                                 existingStep5Data.scenesWithLoops.length > 0;
+
+    let scenesWithLoops: Scene[] | undefined;
+    let shotsWithLoops: Record<string, Shot[]> | undefined;
+    let loopSettingsLocked: boolean | undefined;
+
+    if (hasExistingLoopData) {
+      // PRESERVE existing loop data - user has already edited these values
+      console.log('[ambient-visual:routes] Preserving existing step5Data loop settings:', {
+        scenesCount: existingStep5Data.scenesWithLoops?.length,
+        shotsCount: existingStep5Data.shotsWithLoops ? Object.keys(existingStep5Data.shotsWithLoops).length : 0,
+        loopSettingsLocked: existingStep5Data.loopSettingsLocked,
+      });
+      scenesWithLoops = existingStep5Data.scenesWithLoops;
+      shotsWithLoops = existingStep5Data.shotsWithLoops;
+      loopSettingsLocked = existingStep5Data.loopSettingsLocked;
+    } else {
+      // FIRST TIME entering step 5 - initialize loop counts from Step1Data settings
+      const step1Data = video.step1Data as Step1Data;
+      const segmentLoopEnabled = step1Data?.segmentLoopEnabled ?? false;
+      const segmentLoopCount = step1Data?.segmentLoopCount ?? 1;
+      const shotLoopEnabled = step1Data?.shotLoopEnabled ?? false;
+      const shotLoopCount = step1Data?.shotLoopCount ?? 1;
+
+      console.log('[ambient-visual:routes] First time step 5 - initializing loop counts from Step1Data:', {
+        segmentLoopEnabled,
+        segmentLoopCount,
+        shotLoopEnabled,
+        shotLoopCount,
+      });
+
+      // Initialize scenes with loop counts (exclude videoModel/imageModel - those stay in step4Data)
+      const scenes = step3Data.scenes || step4Data.scenes || [];
+      scenesWithLoops = scenes.map(scene => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { videoModel, imageModel, ...sceneWithoutModels } = scene;
+        return {
+          ...sceneWithoutModels,
+          loopCount: calculateLoopCount(segmentLoopEnabled, segmentLoopCount),
+        };
+      });
+
+      // Initialize shots with loop counts (exclude videoModel/imageModel - those stay in step4Data)
+      const shots = step3Data.shots || step4Data.shots || {};
+      shotsWithLoops = {};
+      for (const sceneId of Object.keys(shots)) {
+        shotsWithLoops[sceneId] = shots[sceneId].map(shot => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { videoModel, imageModel, ...shotWithoutModels } = shot;
+          return {
+            ...shotWithoutModels,
+            loopCount: calculateLoopCount(shotLoopEnabled, shotLoopCount),
+          };
+        });
+      }
+
+      loopSettingsLocked = false; // Default to unlocked on first entry
+
+      console.log('[ambient-visual:routes] Initialized loop counts:', {
+        scenesCount: scenesWithLoops.length,
+        sceneSampleLoop: scenesWithLoops[0]?.loopCount,
+        shotsScenesCount: Object.keys(shotsWithLoops).length,
+        shotSampleLoop: Object.values(shotsWithLoops)[0]?.[0]?.loopCount,
+      });
+    }
+
+    // Build completed steps array
+    const completedSteps = Array.isArray(video.completedSteps) 
+      ? [...video.completedSteps] 
+      : [];
+    
+    // Add step 4 if not already completed
+    if (!completedSteps.includes(4)) {
+      completedSteps.push(4);
+    }
+
+    // Build updated step5Data, preserving voiceover and other existing data
+    const updatedStep5Data: Step5Data = {
+      ...existingStep5Data,
+      scenesWithLoops,
+      shotsWithLoops,
+      loopSettingsLocked,
+    };
+
+    // Update video: mark step 4 complete, move to step 5, save loop data
+    const updated = await storage.updateVideo(id, {
+      currentStep: 5,  // Move to Soundscape phase
+      completedSteps,
+      step5Data: updatedStep5Data,
+    });
+
+    console.log('[ambient-visual:routes] Step 4 completed, moved to Step 5:', {
+      videoId: id,
+      currentStep: 5,
+      completedSteps,
+      totalShots: allShots.length,
+      loopSettingsInitialized: true,
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('[ambient-visual:routes] Step 4 -> 5 transition error:', error);
+    res.status(500).json({ error: 'Failed to continue to Step 5' });
+  }
+});
+
+/**
  * PATCH /api/ambient-visual/videos/:id/step4/settings
  * Auto-save scene/shot model changes to step4Data
  * Called from Compose phase when user changes model settings
@@ -1657,6 +1855,686 @@ router.patch('/videos/:id/step4/settings', isAuthenticated, async (req: Request,
 // The following routes are now handled by the videoGenerationRouter:
 // - POST /videos/:id/shots/:shotId/generate-video
 // - POST /videos/:id/generate-all-videos
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 5: SOUNDSCAPE PHASE - LOOP SETTINGS & AUTOSAVE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * PATCH /api/ambient-visual/videos/:id/step5/settings
+ * Auto-save Step 5 soundscape data (loop counts, lock state, sound effects, etc.)
+ * Called from Soundscape phase when user changes loop counts or other settings
+ */
+router.patch('/videos/:id/step5/settings', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      console.log('[ambient-visual:routes] Step 5 settings auto-save FAILED: No userId');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const videoId = req.params.id;
+    const { 
+      scenesWithLoops, 
+      shotsWithLoops, 
+      loopSettingsLocked,
+      ambientSound,
+    } = req.body;
+
+    console.log('[ambient-visual:routes] Step 5 settings auto-save START:', {
+      videoId,
+      userId,
+      hasScenesWithLoops: !!scenesWithLoops,
+      hasShotsWithLoops: !!shotsWithLoops,
+      loopSettingsLocked,
+      hasAmbientSound: !!ambientSound,
+    });
+
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      console.log('[ambient-visual:routes] Step 5 settings auto-save FAILED: Video not found');
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Get existing step5Data (preserve voiceover data)
+    const existingStep5Data = video.step5Data as Step5Data || {};
+
+    // Build updated step5Data, only updating provided fields
+    const updatedStep5Data: Step5Data = {
+      ...existingStep5Data,
+    };
+
+    // Only update fields that were provided
+    // Strip videoModel and imageModel from scenes/shots (those belong in step4Data)
+    if (scenesWithLoops !== undefined) {
+      updatedStep5Data.scenesWithLoops = scenesWithLoops.map((scene: Scene) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { videoModel, imageModel, ...sceneWithoutModels } = scene;
+        return sceneWithoutModels;
+      });
+    }
+    if (shotsWithLoops !== undefined) {
+      const cleanedShots: Record<string, Shot[]> = {};
+      for (const sceneId of Object.keys(shotsWithLoops)) {
+        cleanedShots[sceneId] = shotsWithLoops[sceneId].map((shot: Shot) => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { videoModel, imageModel, ...shotWithoutModels } = shot;
+          return shotWithoutModels;
+        });
+      }
+      updatedStep5Data.shotsWithLoops = cleanedShots;
+    }
+    if (loopSettingsLocked !== undefined) {
+      updatedStep5Data.loopSettingsLocked = loopSettingsLocked;
+    }
+    if (ambientSound !== undefined) {
+      updatedStep5Data.ambientSound = ambientSound;
+    }
+
+    await storage.updateVideo(videoId, { step5Data: updatedStep5Data });
+
+    console.log('[ambient-visual:routes] Step 5 settings auto-saved:', {
+      videoId,
+      scenesCount: scenesWithLoops?.length,
+      shotsSceneCount: shotsWithLoops ? Object.keys(shotsWithLoops).length : undefined,
+      loopSettingsLocked,
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[ambient-visual:routes] Step 5 auto-save settings error:', error);
+    res.status(500).json({ error: 'Failed to save Step 5 settings' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 5: SOUNDSCAPE PHASE - VOICEOVER GENERATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/ambient-visual/voices
+ * Get available voices for voiceover generation
+ */
+router.get('/voices', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const language = req.query.language as string || 'en';
+    
+    // Return voices filtered by language
+    const voices = language === 'ar' ? AMBIENT_VOICES.ar : AMBIENT_VOICES.en;
+    
+    res.json({ voices });
+  } catch (error) {
+    console.error('[ambient-visual:routes] Voices fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch voices' });
+  }
+});
+
+/**
+ * POST /api/ambient-visual/videos/:id/voiceover/generate-script
+ * Generate voiceover narration script (Agent 5.1)
+ */
+router.post('/videos/:id/voiceover/generate-script', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const video = await storage.getVideo(id);
+    
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    const step1Data = video.step1Data as Step1Data;
+    const step3Data = video.step3Data as Step3Data;
+
+    // Validate voiceover is enabled
+    if (!step1Data?.voiceoverEnabled) {
+      return res.status(400).json({ error: 'Voiceover is not enabled for this video' });
+    }
+
+    // Get voiceover story from step1Data
+    const voiceoverStory = step1Data.voiceoverStory;
+    if (!voiceoverStory || voiceoverStory.trim().length === 0) {
+      return res.status(400).json({ error: 'Voiceover story is required. Please add a narration theme in Atmosphere settings.' });
+    }
+
+    // Get scenes and shots with loop counts from step5Data (where loops are initialized)
+    // Fall back to step3Data if step5Data doesn't have the data yet
+    const step5Data = video.step5Data as Step5Data || {};
+    const scenesWithLoops = step5Data.scenesWithLoops || step3Data?.scenes || [];
+    const shotsWithLoops = step5Data.shotsWithLoops || step3Data?.shots || {};
+
+    if (scenesWithLoops.length === 0) {
+      return res.status(400).json({ error: 'No scenes found. Complete Flow Design phase first.' });
+    }
+
+    // Calculate total duration with loop repetitions using step5Data (which has actual loopCount values)
+    const totalDuration = calculateTotalDurationWithLoops(
+      scenesWithLoops.map(s => ({ id: s.id, loopCount: s.loopCount ?? 1 })),
+      Object.fromEntries(
+        Object.entries(shotsWithLoops).map(([sceneId, shots]) => [
+          sceneId,
+          (shots as Shot[]).map(shot => ({ duration: shot.duration, loopCount: shot.loopCount ?? 1 }))
+        ])
+      )
+    );
+
+    console.log('[ambient-visual:routes] Generating voiceover script:', {
+      videoId: id,
+      language: step1Data.language || 'en',
+      voiceoverStoryLength: voiceoverStory.length,
+      totalDuration,
+      scenesCount: scenesWithLoops.length,
+      usingStep5Data: !!step5Data.scenesWithLoops,
+    });
+
+    // Build input for Agent 5.1
+    const input: VoiceoverScriptGeneratorInput = {
+      language: step1Data.language || 'en',
+      voiceoverStory,
+      totalDuration,
+      mood: step1Data.mood,
+      theme: step1Data.theme,
+      moodDescription: step1Data.moodDescription,
+      scenes: scenesWithLoops.map(s => ({
+        sceneNumber: s.sceneNumber,
+        title: s.title,
+        description: s.description,
+        duration: s.duration,
+      })),
+    };
+
+    // Get workspace for billing context
+    const workspace = await storage.getWorkspace(video.workspaceId);
+
+    // Generate script
+    const result = await generateVoiceoverScript(
+      input,
+      userId,
+      video.workspaceId
+    );
+
+    // Update step5Data with the generated script
+    const existingStep5Data = video.step5Data as Step5Data || {};
+    const updatedStep5Data: Step5Data = {
+      ...existingStep5Data,
+      voiceoverScript: result.script,
+      voiceoverStatus: 'script_generated',
+    };
+
+    await storage.updateVideo(id, { step5Data: updatedStep5Data });
+
+    console.log('[ambient-visual:routes] Voiceover script generated:', {
+      videoId: id,
+      scriptLength: result.script.length,
+      estimatedDuration: result.estimatedDuration,
+      cost: result.cost,
+    });
+
+    res.json({
+      script: result.script,
+      estimatedDuration: result.estimatedDuration,
+      cost: result.cost,
+    });
+  } catch (error) {
+    console.error('[ambient-visual:routes] Voiceover script generation error:', error);
+    res.status(500).json({ error: 'Failed to generate voiceover script' });
+  }
+});
+
+/**
+ * POST /api/ambient-visual/videos/:id/voiceover/generate-audio
+ * Generate voiceover audio from approved script (Agent 5.2)
+ */
+router.post('/videos/:id/voiceover/generate-audio', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const { script } = req.body;  // Allow passing edited script
+    
+    const video = await storage.getVideo(id);
+    
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    const step1Data = video.step1Data as Step1Data;
+    const step5Data = video.step5Data as Step5Data || {};
+
+    // Validate voiceover is enabled
+    if (!step1Data?.voiceoverEnabled) {
+      return res.status(400).json({ error: 'Voiceover is not enabled for this video' });
+    }
+
+    // Use provided script or existing script from step5Data
+    const scriptToUse = script || step5Data.voiceoverScript;
+    if (!scriptToUse || scriptToUse.trim().length === 0) {
+      return res.status(400).json({ error: 'No voiceover script available. Generate a script first.' });
+    }
+
+    // Get voice ID from step1Data
+    const voiceId = step1Data.voiceId;
+    if (!voiceId) {
+      return res.status(400).json({ error: 'No voice selected. Please select a voice in Atmosphere settings.' });
+    }
+
+    // Get workspace for path building
+    const workspace = await storage.getWorkspace(video.workspaceId);
+    if (!workspace) {
+      return res.status(404).json({ error: 'Workspace not found' });
+    }
+
+    console.log('[ambient-visual:routes] Generating voiceover audio:', {
+      videoId: id,
+      voiceId,
+      language: step1Data.language || 'en',
+      scriptLength: scriptToUse.length,
+    });
+
+    // Build input for Agent 5.2
+    const input: VoiceoverAudioGeneratorInput = {
+      script: scriptToUse,
+      voiceId,
+      language: step1Data.language || 'en',
+      videoId: id,
+      videoTitle: video.title,
+      videoCreatedAt: video.createdAt,  // Use video's creation date for path
+      userId,
+      workspaceId: video.workspaceId,
+      workspaceName: workspace.name,
+    };
+
+    // Generate audio
+    const result = await generateVoiceoverAudio(input);
+
+    // Update step5Data with the generated audio
+    const updatedStep5Data: Step5Data = {
+      ...step5Data,
+      voiceoverScript: scriptToUse,  // Save the final script used
+      voiceoverAudioUrl: result.audioUrl,
+      voiceoverDuration: result.duration,
+      voiceoverStatus: 'audio_generated',
+    };
+
+    await storage.updateVideo(id, { step5Data: updatedStep5Data });
+
+    console.log('[ambient-visual:routes] Voiceover audio generated:', {
+      videoId: id,
+      audioUrl: result.audioUrl,
+      duration: result.duration,
+      cost: result.cost,
+    });
+
+    res.json({
+      audioUrl: result.audioUrl,
+      duration: result.duration,
+      cost: result.cost,
+    });
+  } catch (error) {
+    console.error('[ambient-visual:routes] Voiceover audio generation error:', error);
+    res.status(500).json({ error: 'Failed to generate voiceover audio' });
+  }
+});
+
+/**
+ * PATCH /api/ambient-visual/videos/:id/voiceover/script
+ * Update/save edited voiceover script
+ */
+router.patch('/videos/:id/voiceover/script', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const { script } = req.body;
+
+    if (!script || typeof script !== 'string') {
+      return res.status(400).json({ error: 'Script is required' });
+    }
+
+    const video = await storage.getVideo(id);
+    
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Update step5Data with edited script
+    const existingStep5Data = video.step5Data as Step5Data || {};
+    const updatedStep5Data: Step5Data = {
+      ...existingStep5Data,
+      voiceoverScript: script,
+      voiceoverStatus: 'script_generated',  // Reset status since script changed
+      // Clear audio since script changed
+      voiceoverAudioUrl: undefined,
+      voiceoverDuration: undefined,
+    };
+
+    await storage.updateVideo(id, { step5Data: updatedStep5Data });
+
+    console.log('[ambient-visual:routes] Voiceover script updated:', {
+      videoId: id,
+      scriptLength: script.length,
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[ambient-visual:routes] Voiceover script update error:', error);
+    res.status(500).json({ error: 'Failed to update voiceover script' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SOUND EFFECT PROMPT RECOMMENDATION (Agent 5.3)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/ambient-visual/videos/:id/shots/:shotId/sound-effect/recommend
+ * Generate AI recommendation for sound effect description
+ * 
+ * Uses shot context (description, video prompt, scene info) and atmosphere
+ * data (mood, theme) to generate contextual sound effect recommendations.
+ */
+router.post('/videos/:id/shots/:shotId/sound-effect/recommend', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id: videoId, shotId } = req.params;
+
+    console.log('[ambient-visual:routes] Sound effect recommendation request:', { videoId, shotId });
+
+    // Get video for Step1Data
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    const step1Data = video.step1Data as Step1Data;
+    if (!step1Data) {
+      return res.status(400).json({ error: 'No atmosphere data found. Complete Atmosphere phase first.' });
+    }
+
+    // Get step3Data for scenes and shots
+    const step3Data = video.step3Data as Step3Data;
+    if (!step3Data?.shots) {
+      return res.status(400).json({ error: 'No shots found. Complete Flow Design phase first.' });
+    }
+
+    // Find the shot across all scenes
+    let targetShot: Shot | null = null;
+    let targetScene: Scene | null = null;
+    
+    for (const sceneId of Object.keys(step3Data.shots)) {
+      const shots = step3Data.shots[sceneId] as Shot[];
+      const foundShot = shots.find(s => s.id === shotId);
+      if (foundShot) {
+        targetShot = foundShot;
+        targetScene = step3Data.scenes?.find(s => s.id === sceneId) || null;
+        break;
+      }
+    }
+
+    if (!targetShot) {
+      return res.status(404).json({ error: 'Shot not found' });
+    }
+
+    // Get shot version for video prompt (from step4Data)
+    const step4Data = video.step4Data as Step4Data;
+    const shotVersions = step4Data?.shotVersions?.[shotId] || [];
+    const latestVersion = shotVersions.length > 0 
+      ? shotVersions[shotVersions.length - 1] 
+      : null;
+
+    // Build input for Agent 5.3
+    const input: SoundEffectPromptGeneratorInput = {
+      shotDescription: targetShot.description || null,
+      shotType: targetShot.shotType || 'wide',
+      shotDuration: targetShot.duration || 5,
+      videoPrompt: latestVersion?.videoPrompt || null,
+      sceneTitle: targetScene?.title || 'Untitled Scene',
+      sceneDescription: targetScene?.description || null,
+      mood: step1Data.mood || 'calm',
+      theme: step1Data.theme || 'nature',
+      moodDescription: step1Data.moodDescription || '',
+    };
+
+    console.log('[ambient-visual:routes] Generating sound effect recommendation:', {
+      videoId,
+      shotId,
+      shotType: input.shotType,
+      hasVideoPrompt: !!input.videoPrompt,
+      mood: input.mood,
+      theme: input.theme,
+    });
+
+    // Generate recommendation
+    const result = await generateSoundEffectPrompt(
+      input,
+      userId,
+      video.workspaceId
+    );
+
+    console.log('[ambient-visual:routes] Sound effect recommendation generated:', {
+      videoId,
+      shotId,
+      promptLength: result.prompt.length,
+      cost: result.cost,
+    });
+
+    res.json({
+      prompt: result.prompt,
+      cost: result.cost,
+    });
+  } catch (error) {
+    console.error('[ambient-visual:routes] Sound effect recommendation error:', error);
+    res.status(500).json({ error: 'Failed to generate sound effect recommendation' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SOUND EFFECT GENERATION (Agent 5.4)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/ambient-visual/videos/:id/shots/:shotId/sound-effect/generate
+ * Generate sound effect for a shot using MMAudio
+ * 
+ * Takes the shot's video URL and a sound effect prompt, generates audio
+ * synchronized with the video using MMAudio, and uploads to CDN.
+ * 
+ * Request body:
+ * - prompt: string (required) - Sound effect description
+ * - duration?: number - Audio duration in seconds (1-30)
+ * - numSteps?: number - Inference steps (1-50)
+ * - cfgStrength?: number - Guidance strength (1-10)
+ * - seed?: number - For reproducibility
+ */
+router.post('/videos/:id/shots/:shotId/sound-effect/generate', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id: videoId, shotId } = req.params;
+    const { prompt, duration, numSteps, cfgStrength, seed } = req.body;
+
+    console.log('[ambient-visual:routes] Sound effect generation request:', { videoId, shotId, prompt: prompt?.substring(0, 50) });
+
+    if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    // Get video
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Get workspace for CDN path
+    const workspace = await storage.getWorkspace(video.workspaceId);
+    if (!workspace) {
+      return res.status(404).json({ error: 'Workspace not found' });
+    }
+
+    // Get step3Data for shots
+    const step3Data = video.step3Data as Step3Data;
+    if (!step3Data?.shots) {
+      return res.status(400).json({ error: 'No shots found. Complete Flow Design phase first.' });
+    }
+
+    // Find the shot across all scenes and capture sceneId
+    let targetShot: Shot | null = null;
+    let targetSceneId: string | null = null;
+    
+    for (const sceneId of Object.keys(step3Data.shots)) {
+      const shots = step3Data.shots[sceneId] as Shot[];
+      const foundShot = shots.find(s => s.id === shotId);
+      if (foundShot) {
+        targetShot = foundShot;
+        targetSceneId = sceneId;
+        break;
+      }
+    }
+
+    if (!targetShot) {
+      return res.status(404).json({ error: 'Shot not found' });
+    }
+    
+    if (!targetSceneId) {
+      return res.status(400).json({ error: 'Scene ID not found for shot' });
+    }
+
+    // Get shot version for video URL (from step4Data)
+    const step4Data = video.step4Data as Step4Data;
+    const shotVersions = step4Data?.shotVersions?.[shotId] || [];
+    const latestVersion = shotVersions.length > 0 
+      ? shotVersions[shotVersions.length - 1] 
+      : null;
+
+    if (!latestVersion?.videoUrl) {
+      return res.status(400).json({ error: 'No video found for this shot. Generate video first.' });
+    }
+
+    // Build input for Agent 5.4
+    const input: SoundEffectGeneratorInput = {
+      videoUrl: latestVersion.videoUrl,
+      prompt: prompt.trim(),
+      duration,
+      numSteps,
+      cfgStrength,
+      seed,
+      videoId,
+      videoTitle: video.title,
+      videoCreatedAt: video.createdAt,
+      shotId,
+      sceneId: targetSceneId,
+      userId,
+      workspaceId: video.workspaceId,
+      workspaceName: workspace.name || 'default',
+    };
+
+    console.log('[ambient-visual:routes] Generating sound effect:', {
+      videoId,
+      shotId,
+      videoUrl: input.videoUrl.substring(0, 50) + '...',
+      prompt: input.prompt.substring(0, 100),
+      duration: input.duration,
+    });
+
+    // Generate sound effect
+    const result = await generateSoundEffect(input);
+
+    console.log('[ambient-visual:routes] Sound effect generated:', {
+      videoId,
+      shotId,
+      videoWithAudioUrl: result.videoWithAudioUrl.substring(0, 50) + '...',
+      fileSize: result.fileSize,
+      cost: result.cost,
+    });
+
+    // Update the shot version with the new video URL (with audio)
+    if (latestVersion) {
+      latestVersion.videoWithAudioUrl = result.videoWithAudioUrl;
+      latestVersion.soundEffectPrompt = prompt.trim();
+      
+      // Update in storage
+      await storage.updateVideo(videoId, {
+        step4Data: {
+          ...step4Data,
+          shotVersions: {
+            ...step4Data?.shotVersions,
+            [shotId]: shotVersions,
+          },
+        },
+      });
+    }
+
+    // Also update step5Data to save soundEffectUrl on the shot
+    const step5Data = video.step5Data as Step5Data || {};
+    const shotsWithLoops = step5Data.shotsWithLoops || {};
+    
+    // Initialize scene shots array if it doesn't exist
+    if (!shotsWithLoops[targetSceneId]) {
+      // Get shots from step3Data or step4Data as fallback
+      const step3Data = video.step3Data as Step3Data;
+      const fallbackShots = step3Data?.shots?.[targetSceneId] || [];
+      shotsWithLoops[targetSceneId] = fallbackShots.map(shot => ({
+        ...shot,
+        loopCount: shot.loopCount ?? 1,
+      }));
+    }
+    
+    const sceneShots = shotsWithLoops[targetSceneId];
+    const shotIndex = sceneShots.findIndex(s => s.id === shotId);
+    
+    if (shotIndex >= 0) {
+      sceneShots[shotIndex] = {
+        ...sceneShots[shotIndex],
+        soundEffectUrl: result.videoWithAudioUrl,
+        soundEffectDescription: prompt.trim(),
+      };
+    } else {
+      // Shot not found in step5Data, add it
+      sceneShots.push({
+        ...targetShot,
+        soundEffectUrl: result.videoWithAudioUrl,
+        soundEffectDescription: prompt.trim(),
+        loopCount: targetShot.loopCount ?? 1,
+      });
+    }
+    
+    shotsWithLoops[targetSceneId] = sceneShots;
+    
+    await storage.updateVideo(videoId, {
+      step5Data: {
+        ...step5Data,
+        shotsWithLoops,
+      },
+    });
+
+    res.json({
+      videoWithAudioUrl: result.videoWithAudioUrl,
+      originalMMAudioUrl: result.originalMMAudioUrl,
+      fileSize: result.fileSize,
+      cost: result.cost,
+    });
+  } catch (error) {
+    console.error('[ambient-visual:routes] Sound effect generation error:', error);
+    res.status(500).json({ error: 'Failed to generate sound effect' });
+  }
+});
 
 export default router;
 

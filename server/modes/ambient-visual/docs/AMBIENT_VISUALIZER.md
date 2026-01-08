@@ -9,7 +9,7 @@ The Ambient Visualizer is a tool for creating long-form, loopable ambient videos
 ## Table of Contents
 
 1. [Onboarding](#onboarding)
-2. [Workflow Steps](#workflow-steps)
+2. [Workflow Steps](#workflow-steps)pnpm 
 3. [Step 1: Atmosphere](#step-1-atmosphere)
 4. [Step 2: Visual World](#step-2-visual-world)
 5. [Step 3: Flow Design](#step-3-flow-design)

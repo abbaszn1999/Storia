@@ -40,6 +40,7 @@ export default function AmbientVisualModePage() {
       step2Data: existingVideo?.step2Data,
       step3Data: existingVideo?.step3Data,
       step4Data: existingVideo?.step4Data,
+      step5Data: existingVideo?.step5Data,
     });
   }, [existingVideo]);
   
@@ -125,8 +126,28 @@ export default function AmbientVisualModePage() {
 
   const handleNext = async () => {
     const nextStep = (activeStep + 1) as AmbientStepId;
-    if (nextStep <= 6) {
-      // Save current step data before advancing
+    if (nextStep <= 7) {
+      // For step 4, use the workflow's goToNextStep which handles database update
+      if (activeStep === 4 && workflowRef.current) {
+        setIsSaving(true);
+        try {
+          await workflowRef.current.goToNextStep();
+          // The workflow's goToNextStep will call onStepChange to update the step
+          // and update the database, so we don't need to do it here
+          // Also mark step 4 as completed
+          if (!completedSteps.includes(4)) {
+            setCompletedSteps([...completedSteps, 4]);
+          }
+        } catch (error) {
+          console.error('Failed to continue from step 4:', error);
+          // Error is already shown by the workflow component
+        } finally {
+          setIsSaving(false);
+        }
+        return;
+      }
+      
+      // For other steps, save current step data before advancing
       if (workflowRef.current) {
         setIsSaving(true);
         const success = await workflowRef.current.saveCurrentStep();
@@ -248,6 +269,7 @@ export default function AmbientVisualModePage() {
         initialStep2Data={existingVideo?.step2Data as Record<string, unknown> | undefined}
         initialStep3Data={existingVideo?.step3Data as Record<string, unknown> | undefined}
         initialStep4Data={existingVideo?.step4Data as Record<string, unknown> | undefined}
+        initialStep5Data={existingVideo?.step5Data as Record<string, unknown> | undefined}
         initialAnimationMode={animationMode}
         initialVideoGenerationMode={videoGenerationMode}
       />

@@ -3,7 +3,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Check, ChevronLeft, ChevronRight, FileText, Users, Split, Image, Play, Download } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, FileText, Users, Split, Image, Play, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export type NarrativeStepId = "script" | "world" | "breakdown" | "storyboard" | "animatic" | "export";
@@ -225,11 +225,13 @@ export function NarrativeTimelineNavigation({
                 accentClasses.bg,
                 "hover:opacity-90 transition-opacity",
                 "shadow-lg",
-                accentClasses.glow
+                accentClasses.glow,
+                isNextDisabled && "opacity-50 cursor-not-allowed"
               )}
             >
               {nextLabel || (isLastStep ? "Export Video" : "Continue")}
-              {!isLastStep && <ChevronRight className="w-4 h-4" />}
+              {!isLastStep && !nextLabel && <ChevronRight className="w-4 h-4" />}
+              {nextLabel && <Loader2 className="w-4 h-4 animate-spin" />}
             </Button>
           </motion.div>
         </div>

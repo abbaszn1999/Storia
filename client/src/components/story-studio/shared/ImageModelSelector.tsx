@@ -42,8 +42,8 @@ export function ImageModelSelector({ value, onChange, selectedModelInfo }: Image
         <SelectTrigger 
           className={cn(
             "w-full h-auto py-2.5 px-3",
-            "bg-white/[0.03] border-white/[0.08]",
-            "hover:bg-white/[0.05] hover:border-white/[0.12]",
+            "bg-white/[0.03] border-[#e5e7eb] dark:border-border",
+            "hover:bg-white/[0.05] hover:border-[#e5e7eb] dark:hover:border-border",
             "focus:ring-1 focus:ring-primary/40",
             "transition-all duration-200"
           )}
@@ -54,7 +54,7 @@ export function ImageModelSelector({ value, onChange, selectedModelInfo }: Image
               "flex-shrink-0 w-7 h-7 rounded-md",
               "bg-gradient-to-br from-primary/20 to-purple-500/20",
               "flex items-center justify-center",
-              "border border-primary/20"
+              "border border-[#e5e7eb] dark:border-border"
             )}>
               <ImageIcon className="h-3.5 w-3.5 text-primary" />
             </div>
@@ -73,7 +73,7 @@ export function ImageModelSelector({ value, onChange, selectedModelInfo }: Image
             {selectedModelInfo.badge && (
               <div className={cn(
                 "flex-shrink-0 px-1.5 py-0.5 rounded",
-                "bg-primary/20 border border-primary/30",
+                "bg-primary/20 border border-[#e5e7eb]",
                 "flex items-center gap-1"
               )}>
                 <Sparkles className="h-2.5 w-2.5 text-primary" />
@@ -83,7 +83,7 @@ export function ImageModelSelector({ value, onChange, selectedModelInfo }: Image
           </div>
         </SelectTrigger>
 
-        <SelectContent className="bg-[#1a1a1a] border-white/10 max-h-[400px]">
+        <SelectContent className="bg-[#1a1a1a] border-border max-h-[400px]">
           {IMAGE_MODELS.map((model) => (
             <SelectItem
               key={model.value}
@@ -100,8 +100,8 @@ export function ImageModelSelector({ value, onChange, selectedModelInfo }: Image
                   "flex-shrink-0 w-8 h-8 rounded-lg mt-0.5",
                   "bg-gradient-to-br",
                   model.value === value 
-                    ? "from-primary/30 to-purple-500/30 border-primary/30" 
-                    : "from-white/5 to-white/10 border-white/10",
+                    ? "from-primary/30 to-purple-500/30 border-primary" 
+                    : "from-white/5 to-white/10 border-[#e5e7eb]",
                   "flex items-center justify-center",
                   "border"
                 )}>

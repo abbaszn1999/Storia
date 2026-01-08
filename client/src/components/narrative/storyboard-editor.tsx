@@ -35,8 +35,12 @@ import {
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { renderTextWithMentions } from "./mention-renderer";
+import { TextareaWithMentions } from "./textarea-with-mentions";
+import { apiRequest } from "@/lib/queryClient";
 
-const VIDEO_MODELS = [
+// Default models (fallback if API fails)
+const DEFAULT_VIDEO_MODELS = [
   "Kling AI",
   "Runway Gen-4",
   "Luma Dream Machine",
@@ -45,12 +49,29 @@ const VIDEO_MODELS = [
   "Minimax",
 ];
 
+// Comprehensive list of all available image models (matching world-cast.tsx)
 const IMAGE_MODELS = [
-  "Flux",
-  "Midjourney",
-  "Nano Banana",
-  "GPT Image",
+  { name: "flux-2-dev", label: "FLUX.2 Dev", description: "Open weights release with full architectural control" },
+  { name: "flux-2-pro", label: "FLUX.2 Pro", description: "Production-ready with robust reference-image editing" },
+  { name: "flux-2-flex", label: "FLUX.2 Flex", description: "Strongest text rendering accuracy in FLUX family" },
+  { name: "flux-2-max", label: "FLUX.2 Max", description: "Pinnacle of FLUX.2 family with professional-grade visual intelligence" },
+  { name: "openai-gpt-image-1", label: "GPT Image 1", description: "GPT-4o architecture for high-fidelity images" },
+  { name: "openai-gpt-image-1.5", label: "GPT Image 1.5", description: "Newest flagship powering ChatGPT Images" },
+  { name: "runway-gen-4-image", label: "Runway Gen-4 Image", description: "High-fidelity with advanced stylistic control" },
+  { name: "runway-gen-4-image-turbo", label: "Runway Gen-4 Image Turbo", description: "Faster variant for rapid iterations" },
+  { name: "kling-image-o1", label: "Kling IMAGE O1", description: "High-control for consistent character handling" },
+  { name: "ideogram-3.0", label: "Ideogram 3.0", description: "Design-level generation with sharper text rendering" },
+  { name: "nano-banana", label: "Nano Banana (Gemini Flash 2.5)", description: "Rapid, interactive workflows with multi-image fusion" },
+  { name: "nano-banana-2-pro", label: "Nano Banana 2 Pro (Gemini 3 Pro)", description: "Professional-grade with advanced text rendering" },
+  { name: "seedream-4.0", label: "Seedream 4.0", description: "Ultra-fast 2K/4K rendering with sequential image capabilities" },
+  { name: "seedream-4.5", label: "Seedream 4.5", description: "Production-focused with fixed face distortion" },
+  { name: "google-imagen-3.0", label: "Google Imagen 3.0", description: "High-quality images with advanced prompt understanding" },
+  { name: "google-imagen-4.0-ultra", label: "Google Imagen 4.0 Ultra", description: "Most advanced Google image model" },
+  { name: "midjourney-v7", label: "Midjourney V7", description: "Cinematic style with artistic and photorealistic capabilities" },
+  { name: "riverflow-2-max", label: "Riverflow 2 Max", description: "Maximum detail with high-quality output" },
 ];
+
+const DEFAULT_IMAGE_MODELS = IMAGE_MODELS.map(m => m.name);
 
 const VIDEO_MODEL_DURATIONS: { [key: string]: number[] } = {
   "Kling AI": [5, 10],
@@ -142,6 +163,7 @@ interface StoryboardEditorProps {
   shotVersions: { [shotId: string]: ShotVersion[] };
   referenceImages: ReferenceImage[];
   characters: Character[];
+  locations?: Array<{ id: string; name: string; description?: string }>;
   voiceActorId: string | null;
   voiceOverEnabled: boolean;
   continuityLocked: boolean;
@@ -178,11 +200,17 @@ interface SortableShotCardProps {
   isGenerating: boolean;
   voiceOverEnabled: boolean;
   narrativeMode: "image-reference" | "start-end" | "auto";
+  characters: Character[];
+  locations?: Array<{ id: string; name: string; description?: string }>;
   isCommerceMode?: boolean; // For commerce mode, use shot.shotType instead of narrativeMode
   isConnectedToNext: boolean;
   showEndFrame: boolean;
   isPartOfConnection: boolean;
+  isStartFrameInherited?: boolean;
+  availableImageModels: Array<{ name: string; label: string; description: string }>;
+  availableVideoModels: Array<{ name: string; label: string; description: string }>;
   onSelectShot: (shot: Shot) => void;
+  onGenerateShot: (shotId: string) => void;
   onRegenerateShot: (shotId: string) => void;
   onUpdatePrompt: (shotId: string, prompt: string) => void;
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
@@ -265,7 +293,7 @@ function StyledPromptDisplay({
   if (isInherited || !isEditable) {
     return (
       <div
-        className={`min-h-20 text-xs resize-none bg-white/[0.02] border-white/[0.06] rounded-md p-3 whitespace-pre-wrap ${
+        className={`min-h-[120px] text-sm resize-none bg-white/[0.02] border-white/[0.06] rounded-md p-3 whitespace-pre-wrap custom-scrollbar overflow-y-auto ${
           isInherited ? "opacity-70 cursor-not-allowed border-cyan-500/30" : ""
         } ${className}`}
       >
@@ -500,7 +528,7 @@ function StyledPromptDisplay({
         onInput={handleInput}
         onBlur={onBlur}
         onKeyDown={handleKeyDown}
-        className={`min-h-20 text-xs resize-none bg-white/[0.02] border-white/[0.06] rounded-md p-3 focus:border-purple-500/50 focus:outline-none whitespace-pre-wrap ${className}`}
+        className={`min-h-[120px] text-sm resize-none bg-white/[0.02] border-white/[0.06] rounded-md p-3 focus:border-purple-500/50 focus:outline-none whitespace-pre-wrap custom-scrollbar overflow-y-auto ${className}`}
       />
       {showPlaceholder && (
         <div className="absolute top-3 left-3 text-xs text-muted-foreground pointer-events-none">
@@ -522,11 +550,17 @@ function SortableShotCard({
   isGenerating,
   voiceOverEnabled,
   narrativeMode,
+  characters,
+  locations = [],
   isCommerceMode = false,
   isConnectedToNext,
   showEndFrame,
   isPartOfConnection,
+  isStartFrameInherited = false,
+  availableImageModels,
+  availableVideoModels,
   onSelectShot,
+  onGenerateShot,
   onRegenerateShot,
   onUpdatePrompt,
   onUpdateShot,
@@ -591,10 +625,24 @@ function SortableShotCard({
   };
   
   const [localPrompt, setLocalPrompt] = useState(getPromptFromVersion());
+  const lastSyncedPromptRef = useRef<string>(getPromptFromVersion());
 
   // Update localPrompt when activeFrame, version, effectiveMode changes
+  // But preserve user edits - only sync if localPrompt matches what we last synced
   useEffect(() => {
-    setLocalPrompt(getPromptFromVersion());
+    const versionPrompt = getPromptFromVersion();
+    
+    // Only update localPrompt if:
+    // 1. The version prompt changed from what we last synced (external update)
+    // 2. AND localPrompt matches what we last synced (no unsaved user edits)
+    if (versionPrompt !== lastSyncedPromptRef.current) {
+      if (localPrompt === lastSyncedPromptRef.current) {
+        // No unsaved edits - safe to sync with new version value
+        setLocalPrompt(versionPrompt);
+        lastSyncedPromptRef.current = versionPrompt;
+      }
+      // If localPrompt !== lastSyncedPromptRef.current, user has edits - preserve them
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFrame, version, effectiveMode]);
 
@@ -603,8 +651,20 @@ function SortableShotCard({
     const currentPrompt = getPromptFromVersion();
     if (localPrompt !== currentPrompt) {
       onUpdatePrompt(shot.id, localPrompt);
+      // Don't update lastSyncedPromptRef here - wait for version prop to update
+      // The useEffect will update it when the version prop reflects the saved value
     }
   };
+  
+  // Sync the ref when version prop updates to match our saved value
+  useEffect(() => {
+    const versionPrompt = getPromptFromVersion();
+    // If version now matches what we have in localPrompt, update the ref
+    if (versionPrompt === localPrompt && versionPrompt !== lastSyncedPromptRef.current) {
+      lastSyncedPromptRef.current = versionPrompt;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version, localPrompt]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -629,7 +689,7 @@ function SortableShotCard({
     if (effectiveMode === "image-reference" && version?.imagePrompt === null && isPartOfConnection) {
       return true; // Condition 4: Image is inherited
     }
-    if (effectiveMode === "start-end" && activeFrame === "start" && version?.startFrameInherited) {
+    if (effectiveMode === "start-end" && activeFrame === "start" && isStartFrameInherited) {
       return true; // Condition 3: Start frame is inherited
     }
     return false;
@@ -676,7 +736,7 @@ function SortableShotCard({
           <div className="absolute top-2 left-2 flex gap-1 bg-background/90 backdrop-blur-sm rounded-md p-1 z-10">
             <button
               onClick={() => setActiveFrame("start")}
-              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              className={`px-3 py-1 text-xs font-medium rounded transition-colors relative ${
                 activeFrame === "start"
                   ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
                   : "text-muted-foreground hover:text-foreground"
@@ -684,6 +744,10 @@ function SortableShotCard({
               data-testid={`button-start-frame-${shot.id}`}
             >
               Start
+              {/* Show connection indicator on Start button if this shot's start frame is inherited from previous */}
+              {effectiveMode === "start-end" && isStartFrameInherited && (
+                <span className="ml-1 text-[10px]">↻</span>
+              )}
             </button>
             <button
               onClick={() => {
@@ -707,7 +771,7 @@ function SortableShotCard({
                   : ""
               }
             >
-              End {isConnectedToNext && <span className="ml-1 text-[10px]">↻</span>}
+              End
             </button>
           </div>
         )}
@@ -767,15 +831,6 @@ function SortableShotCard({
                shot.speedProfile === 'kinetic' ? 'Kinetic' :
                shot.speedProfile === 'smooth' ? 'Smooth' : 'Linear'}
             </Badge>
-          )}
-          {/* Dual Timer Display (Commerce Mode) */}
-          {shot.duration && (
-            <div className="flex items-center gap-1.5 bg-background/80 rounded px-2 py-0.5 text-[10px]">
-              <Clock className="w-3 h-3 text-muted-foreground" />
-              <span className="text-muted-foreground">Original: 5.0s</span>
-              <span className="text-muted-foreground">/</span>
-              <span className="text-orange-400">Render: {shot.duration.toFixed(1)}s</span>
-            </div>
           )}
         </div>
         <div className="absolute top-2 right-2 flex items-center gap-1">
@@ -874,41 +929,69 @@ function SortableShotCard({
                   className={isInherited ? "opacity-70 cursor-not-allowed border-cyan-500/30" : ""}
                 />
               ) : (
-                <Textarea
+                <TextareaWithMentions
                   value={localPrompt}
-                  onChange={(e) => {
+                  onChange={(newValue) => {
                     if (!isInherited) {
-                      setLocalPrompt(e.target.value);
+                      setLocalPrompt(newValue);
                     }
                   }}
                   onBlur={handlePromptBlur}
+                  onScroll={(e) => {
+                    const overlay = e.currentTarget.nextElementSibling as HTMLElement;
+                    if (overlay) {
+                      overlay.scrollTop = e.currentTarget.scrollTop;
+                      overlay.scrollLeft = e.currentTarget.scrollLeft;
+                    }
+                  }}
+                  characters={characters.map(c => ({ id: c.id, name: c.name, description: c.description ?? undefined }))}
+                  locations={locations}
                   readOnly={isInherited}
-                  placeholder={isInherited ? "Inherited from previous shot" : "Describe the shot..."}
-                  className={`min-h-20 text-xs resize-none bg-white/[0.02] border-white/[0.06] focus:border-purple-500/50 ${
+                  placeholder={isInherited ? "Inherited from previous shot" : "Describe the shot... (type @ to mention characters or locations)"}
+                  className={`min-h-[120px] text-sm resize-none bg-white/[0.02] border-white/[0.06] focus:border-purple-500/50 custom-scrollbar ${
                     isInherited ? "opacity-70 cursor-not-allowed border-cyan-500/30" : ""
                   }`}
+                  showMentionOverlay={!isInherited}
                   data-testid={`input-prompt-${shot.id}`}
                 />
               )}
             </div>
 
-            <Collapsible open={advancedImageOpen} onOpenChange={setAdvancedImageOpen}>
+            <Collapsible 
+              open={advancedImageOpen && !isInherited} 
+              onOpenChange={(open) => {
+                if (!isInherited) {
+                  setAdvancedImageOpen(open);
+                }
+              }}
+            >
               <CollapsibleTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full justify-between p-2 h-auto text-xs font-medium"
+                  className={`w-full justify-between p-2 h-auto text-xs font-medium ${
+                    isInherited ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
                   data-testid={`button-toggle-advanced-image-${shot.id}`}
+                  disabled={isInherited}
+                  title={isInherited ? "Advanced settings disabled for inherited frames" : undefined}
+                  onClick={(e) => {
+                    if (isInherited) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }
+                  }}
                 >
                   <span className="text-muted-foreground">Advanced Settings</span>
-                  {advancedImageOpen ? (
+                  {advancedImageOpen && !isInherited ? (
                     <ChevronDown className="h-3 w-3 text-muted-foreground" />
                   ) : (
                     <ChevronRight className="h-3 w-3 text-muted-foreground" />
                   )}
                 </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-3 mt-2">
+              {!isInherited && (
+                <CollapsibleContent className="space-y-3 mt-2">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Image Model</Label>
                   <Select
@@ -922,9 +1005,9 @@ function SortableShotCard({
                       <SelectItem value="scene-default">
                         Scene Default {sceneImageModel ? `(${sceneImageModel})` : ""}
                       </SelectItem>
-                      {IMAGE_MODELS.map((model) => (
-                        <SelectItem key={model} value={model}>
-                          {model}
+                      {availableImageModels.map((model) => (
+                        <SelectItem key={model.name} value={model.name}>
+                          {model.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -994,7 +1077,8 @@ function SortableShotCard({
                     </SelectContent>
                   </Select>
                 </div>
-              </CollapsibleContent>
+                </CollapsibleContent>
+              )}
             </Collapsible>
 
             <div className="flex gap-2">
@@ -1012,12 +1096,27 @@ function SortableShotCard({
                 size="sm"
                 variant="outline"
                 className="flex-1"
-                onClick={() => onRegenerateShot(shot.id)}
-                disabled={!version}
+                onClick={() => {
+                  if (hasStartFrame || displayImageUrl) {
+                    onRegenerateShot(shot.id);
+                  } else {
+                    onGenerateShot(shot.id);
+                  }
+                }}
+                disabled={isGenerating}
                 data-testid={`button-regenerate-${shot.id}`}
               >
-                <RefreshCw className="mr-2 h-3 w-3" />
-                Re-generate
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-3 w-3" />
+                    {hasStartFrame || displayImageUrl ? "Re-generate" : "Generate"}
+                  </>
+                )}
               </Button>
             </div>
           </TabsContent>
@@ -1025,11 +1124,14 @@ function SortableShotCard({
           <TabsContent value="video" className="space-y-3 mt-0">
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Video Prompt</Label>
-              <Textarea
-                placeholder="Describe the motion and action for this shot..."
+              <TextareaWithMentions
                 value={version?.videoPrompt || ""}
-                onChange={(e) => onUpdateVideoPrompt(shot.id, e.target.value)}
-                className="min-h-[60px] text-xs resize-none bg-white/[0.02] border-white/[0.06] focus:border-purple-500/50"
+                onChange={(newValue) => onUpdateVideoPrompt(shot.id, newValue)}
+                characters={characters.map(c => ({ id: c.id, name: c.name, description: c.description ?? undefined }))}
+                locations={locations}
+                placeholder="Describe the motion and action for this shot... (type @ to mention characters or locations)"
+                className="min-h-[120px] text-sm resize-none bg-white/[0.02] border-white/[0.06] focus:border-purple-500/50 custom-scrollbar"
+                showMentionOverlay={true}
                 data-testid={`textarea-video-prompt-${shot.id}`}
               />
             </div>
@@ -1064,9 +1166,9 @@ function SortableShotCard({
                       <SelectItem value="scene-default">
                         Scene Default {sceneModel ? `(${sceneModel})` : ""}
                       </SelectItem>
-                      {VIDEO_MODELS.map((model) => (
-                        <SelectItem key={model} value={model}>
-                          {model}
+                      {availableVideoModels.map((model) => (
+                        <SelectItem key={model.name} value={model.name}>
+                          {model.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1174,6 +1276,7 @@ export function StoryboardEditor({
   shotVersions,
   referenceImages,
   characters,
+  locations = [],
   voiceActorId,
   voiceOverEnabled,
   continuityLocked,
@@ -1222,7 +1325,35 @@ export function StoryboardEditor({
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
   const editReferenceInputRef = useRef<HTMLInputElement>(null);
+  const [generatingShots, setGeneratingShots] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+  
+  // Model lists fetched from API
+  const [videoModels, setVideoModels] = useState<Array<{ name: string; label: string; description: string }>>([]);
+  
+  // Fetch available video models on component mount (image models are hardcoded)
+  useEffect(() => {
+    const fetchVideoModels = async () => {
+      try {
+        const response = await apiRequest('GET', '/api/narrative/models', {});
+        const data = await response.json();
+        if (data.videoModels && Array.isArray(data.videoModels) && data.videoModels.length > 0) {
+          setVideoModels(data.videoModels);
+        } else {
+          setVideoModels(DEFAULT_VIDEO_MODELS.map(name => ({ name, label: name, description: '' })));
+        }
+      } catch (error) {
+        console.error('[storyboard-editor] Failed to fetch video models:', error);
+        setVideoModels(DEFAULT_VIDEO_MODELS.map(name => ({ name, label: name, description: '' })));
+      }
+    };
+    
+    fetchVideoModels();
+  }, []);
+  
+  // Use hardcoded image models (matching world-cast.tsx approach)
+  const availableImageModels = IMAGE_MODELS;
+  const availableVideoModels = videoModels.length > 0 ? videoModels : DEFAULT_VIDEO_MODELS.map(name => ({ name, label: name, description: '' }));
 
   // Sync localShots with incoming shots prop to reflect updates
   useEffect(() => {
@@ -1281,6 +1412,33 @@ export function StoryboardEditor({
       if (preview) return preview;
     }
     return getShotVersion(shot);
+  };
+
+  // Wrapper handlers that track loading state
+  const handleGenerateShotWithLoading = async (shotId: string) => {
+    setGeneratingShots(prev => new Set(prev).add(shotId));
+    try {
+      await onGenerateShot(shotId);
+    } finally {
+      setGeneratingShots(prev => {
+        const next = new Set(prev);
+        next.delete(shotId);
+        return next;
+      });
+    }
+  };
+
+  const handleRegenerateShotWithLoading = async (shotId: string) => {
+    setGeneratingShots(prev => new Set(prev).add(shotId));
+    try {
+      await onRegenerateShot(shotId);
+    } finally {
+      setGeneratingShots(prev => {
+        const next = new Set(prev);
+        next.delete(shotId);
+        return next;
+      });
+    }
   };
 
   // Helper: Check if a shot is connected to the next shot in Start-End Frame mode
@@ -1375,6 +1533,30 @@ export function StoryboardEditor({
     return null;
   };
 
+  // Helper: Check if a shot's start frame is inherited from previous shot
+  const isShotStartFrameInherited = (sceneId: string, shotIndex: number): boolean => {
+    if (narrativeMode !== "start-end" || !continuityLocked || shotIndex === 0) return false;
+    
+    const sceneGroups = continuityGroups[sceneId] || [];
+    const sceneShots = localShots[sceneId] || [];
+    
+    const currentShot = sceneShots[shotIndex];
+    const previousShot = sceneShots[shotIndex - 1];
+    
+    // Check if previous and current shots are in the same continuity group
+    for (const group of sceneGroups) {
+      const shotIds = group.shotIds || [];
+      const previousIdx = shotIds.indexOf(previousShot.id);
+      const currentIdx = shotIds.indexOf(currentShot.id);
+      
+      if (previousIdx !== -1 && currentIdx === previousIdx + 1) {
+        return true; // Current shot's start frame is inherited from previous shot's end
+      }
+    }
+    
+    return false;
+  };
+
   // Count shots that have been animated to video
   const animatedCount = allShots.filter((shot) => {
     const version = getShotVersion(shot);
@@ -1453,7 +1635,12 @@ export function StoryboardEditor({
   };
 
   const handleUpdatePrompt = (shotId: string, prompt: string) => {
-    onUpdateShot(shotId, { description: prompt });
+    // Update the shot version's imagePrompt, not the shot's description
+    // The shot description is from breakdown and should remain separate
+    const shot = allShots.find(s => s.id === shotId);
+    if (shot?.currentVersionId && onUpdateShotVersion) {
+      onUpdateShotVersion(shotId, shot.currentVersionId, { imagePrompt: prompt });
+    }
   };
 
   const handleUpdateVideoPrompt = (shotId: string, prompt: string) => {
@@ -1723,16 +1910,16 @@ export function StoryboardEditor({
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Image Model</Label>
                       <Select
-                        value={scene.imageModel || IMAGE_MODELS[0]}
+                        value={scene.imageModel || availableImageModels[0]?.name || 'nano-banana'}
                         onValueChange={(value) => onUpdateScene?.(scene.id, { imageModel: value })}
                       >
                         <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-scene-image-model-${scene.id}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-black/90 border-white/[0.06]">
-                          {IMAGE_MODELS.map((model) => (
-                            <SelectItem key={model} value={model}>
-                              {model}
+                          {availableImageModels.map((model) => (
+                            <SelectItem key={model.name} value={model.name}>
+                              {model.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1742,16 +1929,16 @@ export function StoryboardEditor({
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Video Model</Label>
                       <Select
-                        value={scene.videoModel || VIDEO_MODELS[0]}
+                        value={scene.videoModel || availableVideoModels[0]?.name || 'kling'}
                         onValueChange={(value) => onUpdateScene?.(scene.id, { videoModel: value })}
                       >
                         <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-scene-video-model-${scene.id}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-black/90 border-white/[0.06]">
-                          {VIDEO_MODELS.map((model) => (
-                            <SelectItem key={model} value={model}>
-                              {model}
+                          {availableVideoModels.map((model) => (
+                            <SelectItem key={model.name} value={model.name}>
+                              {model.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1837,10 +2024,11 @@ export function StoryboardEditor({
                         {sceneShots.map((shot, shotIndex) => {
                           const version = getShotVersion(shot);
                           const referenceImage = getShotReferenceImage(shot.id);
-                          const isGenerating = false;
+                          const isGenerating = generatingShots.has(shot.id);
                           const isConnectedToNext = isShotConnectedToNext(scene.id, shotIndex);
                           const showEndFrame = isShotStandalone(scene.id, shotIndex);
                           const isPartOfConnection = isShotPartOfConnection(scene.id, shotIndex);
+                          const isStartFrameInherited = isShotStartFrameInherited(scene.id, shotIndex);
                           
                           // Get next shot's version for connected shots
                           const nextShot = getNextConnectedShot(scene.id, shotIndex);
@@ -1852,20 +2040,26 @@ export function StoryboardEditor({
                                 key={shot.id}
                                 shot={shot}
                                 shotIndex={shotIndex}
-                                sceneModel={scene.videoModel || VIDEO_MODELS[0]}
-                                sceneImageModel={scene.imageModel || IMAGE_MODELS[0]}
+                                sceneModel={scene.videoModel || availableVideoModels[0]?.name || 'kling'}
+                                sceneImageModel={scene.imageModel || availableImageModels[0]?.name || 'nano-banana'}
                                 version={version}
                                 nextShotVersion={nextShotVersion}
                                 referenceImage={referenceImage}
                                 isGenerating={isGenerating}
                                 voiceOverEnabled={voiceOverEnabled}
                                 narrativeMode={narrativeMode}
+                                characters={characters}
+                                locations={locations}
                                 isCommerceMode={isCommerceMode}
                                 isConnectedToNext={isConnectedToNext}
+                                availableImageModels={availableImageModels}
+                                availableVideoModels={availableVideoModels}
                                 showEndFrame={showEndFrame}
                                 isPartOfConnection={isPartOfConnection}
+                                isStartFrameInherited={isStartFrameInherited}
                                 onSelectShot={handleSelectShot}
-                                onRegenerateShot={onRegenerateShot}
+                                onGenerateShot={handleGenerateShotWithLoading}
+                                onRegenerateShot={handleRegenerateShotWithLoading}
                                 onUpdatePrompt={handleUpdatePrompt}
                                 onUpdateShot={onUpdateShot}
                                 onUploadReference={handleUploadReference}

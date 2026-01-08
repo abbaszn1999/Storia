@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { TextareaWithMentions } from "./textarea-with-mentions";
 import {
   Select,
   SelectContent,
@@ -49,6 +50,8 @@ interface ShotDialogProps {
   shotCount: number;
   onSubmit: (data: ShotFormValues) => Promise<void>;
   isPending: boolean;
+  characters?: Array<{ id: string; name: string; description?: string }>;
+  locations?: Array<{ id: string; name: string; description?: string }>;
 }
 
 const SHOT_TYPES = [
@@ -83,6 +86,8 @@ export function ShotDialog({
   shotCount,
   onSubmit,
   isPending,
+  characters = [],
+  locations = [],
 }: ShotDialogProps) {
   const isEdit = !!shot;
 
@@ -235,11 +240,13 @@ export function ShotDialog({
                 <FormItem>
                   <FormLabel>Description</FormLabel>
                   <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="Describe the shot composition and action"
-                      className="resize-none"
-                      rows={3}
+                    <TextareaWithMentions
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                      characters={characters}
+                      locations={locations}
+                      placeholder="Describe the shot composition and action (type @ to mention characters or locations)"
+                      className="resize-none min-h-[80px]"
                       data-testid="input-shot-description"
                     />
                   </FormControl>

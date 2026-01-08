@@ -21,6 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useQuery } from "@tanstack/react-query";
 import type { Character, Location } from "@shared/schema";
 import type { ReferenceImage } from "@/types/storyboard";
 import { cn } from "@/lib/utils";
@@ -129,68 +130,6 @@ const MOCK_RECOMMENDED_LOCATIONS = [
 ];
 
 // Mock character library - previously created characters
-const MOCK_CHARACTER_LIBRARY = [
-  {
-    id: "lib-char-1",
-    name: "Alex Turner",
-    description: "Tech entrepreneur and startup founder",
-    appearance: "Young adult with glasses, casual hoodie style",
-    imageUrl: "https://placehold.co/400x600/1a472a/ffffff?text=Alex+Turner",
-  },
-  {
-    id: "lib-char-2",
-    name: "Maya Johnson",
-    description: "Professional chef and food blogger",
-    appearance: "Woman in her 30s, confident smile, chef's attire",
-    imageUrl: "https://placehold.co/400x600/4a2a1a/ffffff?text=Maya+Johnson",
-  },
-  {
-    id: "lib-char-3",
-    name: "Jordan Lee",
-    description: "Fitness instructor and wellness coach",
-    appearance: "Athletic build, sporty outfit, energetic vibe",
-    imageUrl: "https://placehold.co/400x600/1a3a4a/ffffff?text=Jordan+Lee",
-  },
-  {
-    id: "lib-char-4",
-    name: "Riley Martinez",
-    description: "Travel vlogger and adventure seeker",
-    appearance: "Young adult, backpack, outdoor gear",
-    imageUrl: "https://placehold.co/400x600/3a1a4a/ffffff?text=Riley+Martinez",
-  },
-];
-
-// Mock location library - previously created locations
-const MOCK_LOCATION_LIBRARY = [
-  {
-    id: "lib-loc-1",
-    name: "Modern Home Studio",
-    description: "Well-lit home setup with clean background",
-    details: "Minimalist design, soft lighting, plants, bookshelf",
-    imageUrl: "https://placehold.co/800x600/2a2a3a/ffffff?text=Home+Studio",
-  },
-  {
-    id: "lib-loc-2",
-    name: "Urban Street Corner",
-    description: "Busy city intersection with colorful storefronts",
-    details: "Graffiti walls, street signs, pedestrian traffic, vibrant atmosphere",
-    imageUrl: "https://placehold.co/800x600/3a2a2a/ffffff?text=Urban+Street",
-  },
-  {
-    id: "lib-loc-3",
-    name: "Beach Boardwalk",
-    description: "Scenic coastal walkway with ocean views",
-    details: "Wooden planks, palm trees, blue sky, seagulls, beach vibes",
-    imageUrl: "https://placehold.co/800x600/2a3a4a/ffffff?text=Beach+Boardwalk",
-  },
-  {
-    id: "lib-loc-4",
-    name: "Mountain Trail",
-    description: "Scenic hiking path with forest backdrop",
-    details: "Pine trees, rocky terrain, mountain peaks, natural lighting",
-    imageUrl: "https://placehold.co/800x600/3a4a2a/ffffff?text=Mountain+Trail",
-  },
-];
 
 export function ElementsTab({
   videoId,
@@ -220,7 +159,11 @@ export function ElementsTab({
   const [isLocationLibraryOpen, setIsLocationLibraryOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isLocationAnalyzing, setIsLocationAnalyzing] = useState(false);
-  const [recommendations, setRecommendations] = useState<typeof MOCK_RECOMMENDED_CHARACTERS>([]);
+  const [recommendationsBySection, setRecommendationsBySection] = useState<{
+    primary: Array<{ name: string; description: string; appearance: string }>;
+    secondary: Array<{ name: string; description: string; appearance: string }>;
+  }>({ primary: [], secondary: [] });
+  const [selectedLibrarySection, setSelectedLibrarySection] = useState<'primary' | 'secondary'>('primary');
   const [locationRecommendations, setLocationRecommendations] = useState<any[]>([]);
   const [currentStylePage, setCurrentStylePage] = useState(0);
   const [isGeneratingLocation, setIsGeneratingLocation] = useState(false);
@@ -241,6 +184,32 @@ export function ElementsTab({
 
   const styleRefs = referenceImages.filter((r) => r.type === "style");
   const accentClasses = "from-[#FF4081] via-[#FF5C8D] to-[#FF6B4A]"; // Gradient pink to orange from logo
+
+  // Fetch character library from database
+  const { data: libraryCharacters, isLoading: isLoadingCharacterLibrary } = useQuery<Character[]>({
+    queryKey: [`/api/characters?workspaceId=${workspaceId}`],
+    enabled: isCharacterLibraryOpen && !!workspaceId,
+    queryFn: async () => {
+      const response = await fetch(`/api/characters?workspaceId=${workspaceId}`, {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch characters');
+      return response.json();
+    },
+  });
+
+  // Fetch location library from database
+  const { data: libraryLocations, isLoading: isLoadingLocationLibrary } = useQuery<Location[]>({
+    queryKey: [`/api/locations?workspaceId=${workspaceId}`],
+    enabled: isLocationLibraryOpen && !!workspaceId,
+    queryFn: async () => {
+      const response = await fetch(`/api/locations?workspaceId=${workspaceId}`, {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch locations');
+      return response.json();
+    },
+  });
   
   // Pagination for styles - show 4 at a time
   const STYLES_PER_PAGE = 4;
@@ -249,28 +218,315 @@ export function ElementsTab({
   const endIndex = startIndex + STYLES_PER_PAGE;
   const displayedStyles = STYLES.slice(startIndex, endIndex);
 
-  const handleOpenRecommendations = () => {
+  const handleOpenRecommendations = async () => {
     setIsRecommendationModalOpen(true);
     setIsAnalyzing(true);
     
-    // Simulate AI analysis
-    setTimeout(() => {
-      setRecommendations(MOCK_RECOMMENDED_CHARACTERS);
+    try {
+      console.log('[elements-tab] Starting character analysis...', { videoId, workspaceId });
+      
+      // Get script and settings from parent - we need to pass these as props
+      // For now, we'll need to get them from the video data or pass them as props
+      // This is a temporary solution - we should pass script and settings as props
+      const videoResponse = await fetch(`/api/character-vlog/videos/${videoId}`, {
+        credentials: 'include',
+      });
+      
+      if (!videoResponse.ok) {
+        console.error('[elements-tab] Failed to fetch video:', { status: videoResponse.status, statusText: videoResponse.statusText });
+        throw new Error('Failed to fetch video data');
+      }
+      
+      const video = await videoResponse.json();
+      console.log('[elements-tab] Video fetched:', {
+        videoId: video.id,
+        hasStep1Data: !!video.step1Data,
+        hasStep2Data: !!video.step2Data,
+        step1DataKeys: video.step1Data ? Object.keys(video.step1Data) : [],
+        step2DataKeys: video.step2Data ? Object.keys(video.step2Data) : [],
+      });
+      
+      const step1Data = video.step1Data || {};
+      const step2Data = video.step2Data || {};
+      
+      console.log('[elements-tab] Step1Data extracted:', {
+        hasScript: !!step1Data.script,
+        scriptLength: step1Data.script ? step1Data.script.length : 0,
+        scriptPreview: step1Data.script ? step1Data.script.substring(0, 100) + '...' : 'N/A',
+        narrationStyle: step1Data.narrationStyle,
+        characterPersonality: step1Data.characterPersonality,
+        theme: step1Data.theme,
+        allStep1Keys: Object.keys(step1Data),
+      });
+      
+      console.log('[elements-tab] Step2Data extracted:', {
+        artStyle: step2Data.artStyle,
+        imageModel: step2Data.imageModel,
+        worldDescription: step2Data.worldDescription,
+        styleRefsCount: styleRefs.length,
+        allStep2Keys: Object.keys(step2Data),
+      });
+      
+      // Validate required fields
+      const script = step1Data.script || '';
+      if (!script || script.trim().length === 0) {
+        console.error('[elements-tab] Script is empty or missing:', {
+          scriptExists: !!step1Data.script,
+          scriptType: typeof step1Data.script,
+          scriptLength: script.length,
+          step1DataFull: step1Data,
+        });
+        toast({
+          title: "Script Required",
+          description: "Please generate a script first before analyzing characters.",
+          variant: "destructive",
+        });
+        setIsAnalyzing(false);
+        setIsRecommendationModalOpen(false);
+        return;
+      }
+      
+      // Determine style - if none is selected, use a default
+      let style = step2Data.artStyle;
+      if (!style || style === 'none') {
+        style = styleRefs.length > 0 ? 'custom_image' : 'Realistic Cinematic';
+      }
+      
+      const requestBody = {
+        videoId,
+        script: script.trim(),
+        narrationStyle: step1Data.narrationStyle || 'first-person',
+        characterPersonality: step1Data.characterPersonality || 'energetic',
+        theme: step1Data.theme || 'urban',
+        style: style,
+        worldDescription: step2Data.worldDescription || '',
+      };
+      
+      console.log('[elements-tab] Sending analyze request:', {
+        ...requestBody,
+        scriptLength: requestBody.script.length,
+        scriptPreview: requestBody.script.substring(0, 100) + '...',
+      });
+      
+      // Call character analyzer endpoint
+      const analyzeResponse = await fetch('/api/character-vlog/characters/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify(requestBody),
+      });
+      
+      if (!analyzeResponse.ok) {
+        const errorData = await analyzeResponse.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('[elements-tab] Analyze request failed:', {
+          status: analyzeResponse.status,
+          statusText: analyzeResponse.statusText,
+          errorData,
+        });
+        const errorMessage = errorData.details || errorData.error || `HTTP ${analyzeResponse.status}`;
+        throw new Error(errorMessage);
+      }
+      
+      const result = await analyzeResponse.json();
+      console.log('[elements-tab] Analysis result received:', {
+        hasPrimaryCharacter: !!result.primaryCharacter,
+        primaryCharacterName: result.primaryCharacter?.name,
+        secondaryCount: result.secondaryCharacters?.length || 0,
+        cost: result.cost,
+      });
+      
+      // Transform result to match expected format
+      const primaryRecommendations = result.primaryCharacter ? [{
+        name: result.primaryCharacter.name,
+        description: result.primaryCharacter.summaryDescription,
+        appearance: result.primaryCharacter.summaryAppearance,
+      }] : [];
+      
+      const secondaryRecommendations = (result.secondaryCharacters || []).slice(0, 4).map((char: any) => ({
+        name: char.name,
+        description: char.summaryDescription,
+        appearance: char.summaryAppearance,
+      }));
+      
+      setRecommendationsBySection({
+        primary: primaryRecommendations,
+        secondary: secondaryRecommendations,
+      });
+    } catch (error) {
+      console.error('Failed to analyze characters:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast({
+        title: "Analysis Failed",
+        description: errorMessage || "Failed to analyze characters. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
       setIsAnalyzing(false);
-    }, 2000);
+    }
   };
 
-  const handleOpenLocationRecommendations = () => {
+  const handleOpenLocationRecommendations = async () => {
     setIsLocationRecommendationOpen(true);
     setIsLocationAnalyzing(true);
     
-    setTimeout(() => {
-      setLocationRecommendations(MOCK_RECOMMENDED_LOCATIONS);
+    try {
+      console.log('[elements-tab] Starting location analysis...', { videoId, workspaceId });
+      
+      // Fetch video data to get script and settings
+      const videoResponse = await fetch(`/api/character-vlog/videos/${videoId}`, {
+        credentials: 'include',
+      });
+      
+      if (!videoResponse.ok) {
+        console.error('[elements-tab] Failed to fetch video:', { status: videoResponse.status, statusText: videoResponse.statusText });
+        throw new Error('Failed to fetch video data');
+      }
+      
+      const video = await videoResponse.json();
+      console.log('[elements-tab] Video fetched for location analysis:', {
+        videoId: video.id,
+        hasStep1Data: !!video.step1Data,
+        hasStep2Data: !!video.step2Data,
+      });
+      
+      const step1Data = video.step1Data || {};
+      const step2Data = video.step2Data || {};
+      
+      console.log('[elements-tab] Step1Data for location analysis:', {
+        hasGenres: !!step1Data.genres,
+        genresType: typeof step1Data.genres,
+        genresValue: step1Data.genres,
+        genresIsArray: Array.isArray(step1Data.genres),
+        allStep1Keys: Object.keys(step1Data),
+      });
+      
+      // Validate required fields
+      const script = step1Data.script || '';
+      if (!script || script.trim().length === 0) {
+        console.error('[elements-tab] Script is empty or missing for location analysis');
+        toast({
+          title: "Script Required",
+          description: "Please generate a script first before analyzing locations.",
+          variant: "destructive",
+        });
+        setIsLocationAnalyzing(false);
+        setIsLocationRecommendationOpen(false);
+        return;
+      }
+      
+      const theme = step1Data.theme || 'urban';
+      
+      // Handle genres - could be array, string, or null/undefined
+      let genres: string[] = [];
+      if (step1Data.genres) {
+        if (Array.isArray(step1Data.genres)) {
+          genres = step1Data.genres.filter((g: any) => g && typeof g === 'string'); // Filter out invalid entries
+        } else if (typeof step1Data.genres === 'string') {
+          // Try to parse if it's a JSON string
+          try {
+            const parsed = JSON.parse(step1Data.genres);
+            genres = Array.isArray(parsed) ? parsed.filter((g: any) => g && typeof g === 'string') : [step1Data.genres];
+          } catch {
+            // If not JSON, treat as single genre
+            genres = [step1Data.genres];
+          }
+        }
+      }
+      
+      // Fallback to default genre if none found (same as script editor)
+      if (genres.length === 0) {
+        console.warn('[elements-tab] No genres found in step1Data, using default "Lifestyle"');
+        genres = ['Lifestyle'];
+      }
+      
+      console.log('[elements-tab] Processed genres:', {
+        original: step1Data.genres,
+        processed: genres,
+        length: genres.length,
+      });
+      
+      const duration = step1Data.duration ? parseInt(step1Data.duration, 10) : 300;
+      if (isNaN(duration)) {
+        console.error('[elements-tab] Invalid duration for location analysis');
+        toast({
+          title: "Duration Required",
+          description: "Please set a valid duration before analyzing locations.",
+          variant: "destructive",
+        });
+        setIsLocationAnalyzing(false);
+        setIsLocationRecommendationOpen(false);
+        return;
+      }
+      
+      const requestBody = {
+        videoId,
+        script: script.trim(),
+        theme,
+        genres,
+        worldDescription: step2Data.worldDescription || '',
+        duration,
+        maxResults: 5,
+      };
+      
+      console.log('[elements-tab] Sending location analyze request:', {
+        ...requestBody,
+        scriptLength: requestBody.script.length,
+        scriptPreview: requestBody.script.substring(0, 100) + '...',
+      });
+      
+      // Call location analyzer endpoint
+      const analyzeResponse = await fetch('/api/character-vlog/locations/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify(requestBody),
+      });
+      
+      if (!analyzeResponse.ok) {
+        const errorData = await analyzeResponse.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('[elements-tab] Location analyze request failed:', {
+          status: analyzeResponse.status,
+          statusText: analyzeResponse.statusText,
+          errorData,
+        });
+        const errorMessage = errorData.details || errorData.error || `HTTP ${analyzeResponse.status}`;
+        throw new Error(errorMessage);
+      }
+      
+      const result = await analyzeResponse.json();
+      console.log('[elements-tab] Location analysis result received:', {
+        locationCount: result.locations?.length || 0,
+        cost: result.cost,
+      });
+      
+      // Transform result to match expected format
+      const transformedLocations = (result.locations || []).map((loc: any) => ({
+        name: loc.name,
+        description: loc.description,
+        visualDetails: loc.details, // Map 'details' to 'visualDetails' for the UI
+      }));
+      
+      setLocationRecommendations(transformedLocations);
+    } catch (error) {
+      console.error('Failed to analyze locations:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast({
+        title: "Analysis Failed",
+        description: errorMessage || "Failed to analyze locations. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
       setIsLocationAnalyzing(false);
-    }, 2000);
+    }
   };
 
-  const handleGenerateLocation = () => {
+  const handleGenerateLocation = async () => {
     if (!newLocation.details.trim()) {
       toast({
         title: "Details Required",
@@ -280,18 +536,165 @@ export function ElementsTab({
       return;
     }
 
-    setIsGeneratingLocation(true);
-    
-    setTimeout(() => {
-      const generatedImageUrl = "https://placehold.co/800x600/2a1a4a/ffffff?text=Location+Generated";
-      setGeneratedLocationImage(generatedImageUrl);
-      setIsGeneratingLocation(false);
-      
+    if (!newLocation.name.trim()) {
       toast({
-        title: "Location Generated",
-        description: "Location image has been created.",
+        title: "Name Required",
+        description: "Please enter a location name before generating.",
+        variant: "destructive",
       });
-    }, 2000);
+      return;
+    }
+
+    setIsGeneratingLocation(true);
+
+    try {
+      // Ensure location exists in database before generating image
+      let locationId = editingLocation?.id;
+      
+      // Check if location ID looks like a temporary ID (starts with 'loc-' or 'temp-')
+      // Real database IDs are UUIDs, not prefixed with 'loc-' or 'temp-'
+      const isTemporaryId = !locationId || locationId.startsWith('loc-') || locationId.startsWith('temp-');
+      
+      if (isTemporaryId) {
+        console.log('[elements-tab] Location not in DB, creating first...', { 
+          locationId, 
+          editingLocation,
+          isTemporaryId,
+        });
+        
+        // Create location in database first
+        const createResponse = await fetch('/api/character-vlog/locations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            videoId,
+            name: newLocation.name,
+            description: newLocation.description || undefined,
+            details: newLocation.details || undefined,
+          }),
+        });
+
+        if (!createResponse.ok) {
+          const errorData = await createResponse.json().catch(() => ({ error: 'Failed to create location' }));
+          console.error('[elements-tab] Location creation failed:', {
+            status: createResponse.status,
+            error: errorData,
+          });
+          throw new Error(errorData.error || errorData.details || 'Failed to create location');
+        }
+
+        const savedLocation = await createResponse.json();
+        locationId = savedLocation.id;
+        
+        console.log('[elements-tab] Location created in DB:', { 
+          locationId, 
+          name: savedLocation.name,
+          oldId: editingLocation?.id,
+        });
+        
+        // Update local state with the saved location
+        const location: Location = {
+          ...savedLocation,
+        };
+        
+        // If editing, update the existing location in the list
+        if (editingLocation && onLocationsChange) {
+          const updatedLocations = locations.map(l => 
+            l.id === editingLocation.id ? location : l
+          );
+          onLocationsChange(updatedLocations);
+          setEditingLocation(location);
+        } else if (onLocationsChange) {
+          // Add new location to list
+          onLocationsChange([...locations, location]);
+          setEditingLocation(location);
+        }
+      } else {
+        console.log('[elements-tab] Using existing location ID:', { locationId });
+      }
+
+      // Get art style description from selected style
+      let artStyleDescription = '';
+      if (selectedArtStyle && selectedArtStyle !== 'none') {
+        const styleObj = STYLES.find(s => s.id === selectedArtStyle);
+        if (styleObj) {
+          artStyleDescription = styleObj.name;
+        }
+      }
+
+      // Get style reference image if custom image is selected
+      const styleReferenceImage = selectedArtStyle === 'custom_image' && styleRefs.length > 0 
+        ? styleRefs[0].imageUrl 
+        : undefined;
+
+      // Get reference images
+      const referenceImages = locationReferenceImages.length > 0 
+        ? locationReferenceImages 
+        : undefined;
+
+      console.log('[elements-tab] Generating location image:', {
+        locationId,
+        name: newLocation.name,
+        hasDescription: !!newLocation.description,
+        hasDetails: !!newLocation.details,
+        artStyle: selectedArtStyle,
+        imageModel: selectedImageModel,
+        hasWorldDescription: !!selectedWorldDescription,
+        hasStyleReference: !!styleReferenceImage,
+        referenceImageCount: referenceImages?.length || 0,
+      });
+
+      const response = await fetch(`/api/character-vlog/locations/${locationId}/generate-image`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          videoId, // Required for Bunny CDN path building
+          name: newLocation.name,
+          description: newLocation.description || newLocation.details,
+          details: newLocation.details,
+          artStyleDescription: artStyleDescription || undefined,
+          styleReferenceImage: styleReferenceImage,
+          worldDescription: selectedWorldDescription || undefined,
+          // Note: model is always 'nano-banana' for location images (hardcoded in backend)
+          referenceImages: referenceImages,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        const errorMessage = errorData.details || errorData.error || `HTTP ${response.status}`;
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+
+      if (data.imageUrl) {
+        setGeneratedLocationImage(data.imageUrl);
+        toast({
+          title: "Location Generated",
+          description: `Location image for ${newLocation.name} has been created.`,
+        });
+      } else {
+        throw new Error('No image URL in response');
+      }
+    } catch (error) {
+      console.error('[elements-tab] Location image generation failed:', error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate location image.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingLocation(false);
+    }
   };
 
   const handleUploadLocationReference = (file: File) => {
@@ -316,7 +719,7 @@ export function ElementsTab({
     setLocationReferenceImages(locationReferenceImages.filter((_, i) => i !== index));
   };
 
-  const handleSaveLocation = () => {
+  const handleSaveLocation = async () => {
     if (!newLocation.name.trim()) {
       toast({
         title: "Name Required",
@@ -329,42 +732,97 @@ export function ElementsTab({
     if (!onLocationsChange) return;
 
     if (editingLocation) {
-      const updatedLocations = locations.map(l => 
-        l.id === editingLocation.id 
-          ? { 
-              ...l, 
-              name: newLocation.name, 
-              description: newLocation.description || null,
-              details: newLocation.details || null,
-              imageUrl: generatedLocationImage || l.imageUrl
-            }
-          : l
-      );
-      onLocationsChange(updatedLocations);
-      
-      toast({
-        title: "Location Updated",
-        description: `${newLocation.name} has been updated.`,
-      });
-    } else {
-      const locationId = `loc-${Date.now()}`;
-      const location: any = {
-        id: locationId,
-        workspaceId: workspaceId,
-        name: newLocation.name,
-        description: newLocation.description || null,
-        details: newLocation.details || null,
-        imageUrl: generatedLocationImage,
-        referenceImages: null,
-        createdAt: new Date(),
-      };
+      // Update existing location in database
+      try {
+        const response = await fetch(`/api/character-vlog/locations/${editingLocation.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            name: newLocation.name,
+            description: newLocation.description || undefined,
+            details: newLocation.details || undefined,
+          }),
+        });
 
-      onLocationsChange([...locations, location]);
-      
-      toast({
-        title: "Location Added",
-        description: `${location.name} has been added.`,
-      });
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ error: 'Failed to update location' }));
+          throw new Error(error.error || 'Failed to update location');
+        }
+
+        const updatedLocation = await response.json();
+        
+        const updatedLocations = locations.map(l => 
+          l.id === editingLocation.id 
+            ? { 
+                ...updatedLocation,
+                imageUrl: generatedLocationImage || updatedLocation.imageUrl,
+              }
+            : l
+        );
+        onLocationsChange(updatedLocations);
+        
+        toast({
+          title: "Location Updated",
+          description: `${newLocation.name} has been updated.`,
+        });
+      } catch (error) {
+        console.error('Failed to update location:', error);
+        toast({
+          title: "Failed to Update Location",
+          description: error instanceof Error ? error.message : "Failed to update location in database.",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      // Create location in database immediately
+      try {
+        const response = await fetch('/api/character-vlog/locations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            videoId,
+            name: newLocation.name,
+            description: newLocation.description || undefined,
+            details: newLocation.details || undefined,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ error: 'Failed to create location' }));
+          throw new Error(error.error || 'Failed to create location');
+        }
+
+        const savedLocation = await response.json();
+        
+        const location: Location = {
+          ...savedLocation,
+          imageUrl: generatedLocationImage || savedLocation.imageUrl, // Use generated image if available
+        };
+
+        onLocationsChange([...locations, location]);
+        
+        toast({
+          title: "Location Added",
+          description: `${newLocation.name} has been added.`,
+        });
+      } catch (error) {
+        console.error('Failed to create location:', error);
+        toast({
+          title: "Failed to Save Location",
+          description: error instanceof Error ? error.message : "Failed to save location to database.",
+          variant: "destructive",
+        });
+        return; // Don't proceed if save failed
+      }
     }
 
     setNewLocation({ name: "", description: "", details: "" });
@@ -385,7 +843,7 @@ export function ElementsTab({
     setIsAddLocationOpen(true);
   };
 
-  const handleAddRecommendedLocation = (recLoc: typeof MOCK_RECOMMENDED_LOCATIONS[0]) => {
+  const handleAddRecommendedLocation = async (recLoc: typeof MOCK_RECOMMENDED_LOCATIONS[0]) => {
     if (!onLocationsChange) return;
     
     const alreadyExists = locations.some(l => l.name === recLoc.name);
@@ -398,27 +856,52 @@ export function ElementsTab({
       return;
     }
 
-    const locationId = `loc-${Date.now()}-${Math.random()}`;
-    const location: any = {
-      id: locationId,
-      workspaceId: workspaceId,
-      name: recLoc.name,
-      description: recLoc.description,
-      details: recLoc.visualDetails,
-      imageUrl: null,
-      referenceImages: null,
-      createdAt: new Date(),
-    };
+    // Save location to database immediately (even without image)
+    try {
+      const response = await fetch('/api/character-vlog/locations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          videoId,
+          name: recLoc.name,
+          description: recLoc.description || undefined,
+          details: recLoc.visualDetails || undefined,
+        }),
+      });
 
-    onLocationsChange([...locations, location]);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to create location' }));
+        throw new Error(error.error || 'Failed to create location');
+      }
 
-    toast({
-      title: "Location Added",
-      description: `${recLoc.name} has been added.`,
-    });
+      const savedLocation = await response.json();
+      
+      const location: Location = {
+        ...savedLocation,
+        imageUrl: null, // Will be updated when image is generated
+      };
+
+      onLocationsChange([...locations, location]);
+
+      toast({
+        title: "Location Added",
+        description: `${recLoc.name} has been added.`,
+      });
+    } catch (error) {
+      console.error('Failed to save location:', error);
+      toast({
+        title: "Failed to Save Location",
+        description: error instanceof Error ? error.message : "Failed to save location to database.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleAddRecommendedCharacter = (recChar: typeof MOCK_RECOMMENDED_CHARACTERS[0]) => {
+  const handleAddRecommendedCharacter = async (recChar: typeof MOCK_RECOMMENDED_CHARACTERS[0], section: 'primary' | 'secondary') => {
     const alreadyExists = characters.some(c => c.name === recChar.name);
     if (alreadyExists) {
       toast({
@@ -429,60 +912,125 @@ export function ElementsTab({
       return;
     }
 
-    const characterId = `char-${Date.now()}-${Math.random()}`;
-    const character: any = {
-      id: characterId,
-      workspaceId: workspaceId,
-      name: recChar.name,
-      description: recChar.description,
-      personality: null,
-      appearance: recChar.appearance,
-      voiceSettings: null,
-      imageUrl: null,
-      createdAt: new Date(),
-      section: addingToSection, // Use the section from which Recommend was clicked
-    };
+    // Save character to database immediately (even without image)
+    try {
+      const response = await fetch('/api/character-vlog/characters', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          videoId,
+          name: recChar.name,
+          description: recChar.description || undefined,
+          personality: null,
+          appearance: recChar.appearance || undefined,
+          section: section,
+        }),
+      });
 
-    onCharactersChange([...characters, character]);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to create character' }));
+        throw new Error(error.error || 'Failed to create character');
+      }
 
-    toast({
-      title: "Character Added",
-      description: `${recChar.name} has been added to ${addingToSection === 'primary' ? 'Primary' : 'Secondary'}.`,
-    });
+      const savedCharacter = await response.json();
+      
+      // Add section info to character
+      const character: any = {
+        ...savedCharacter,
+        section: section,
+        imageUrl: null, // Will be updated when image is generated
+      };
+
+      onCharactersChange([...characters, character]);
+
+      toast({
+        title: "Character Added",
+        description: `${recChar.name} has been added to ${section === 'primary' ? 'Primary' : 'Secondary'}.`,
+      });
+    } catch (error) {
+      console.error('Failed to save character:', error);
+      toast({
+        title: "Failed to Save Character",
+        description: error instanceof Error ? error.message : "Failed to save character to database.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleAddFromCharacterLibrary = (libChar: typeof MOCK_CHARACTER_LIBRARY[0]) => {
-    const alreadyExists = characters.some(c => c.name === libChar.name);
-    if (alreadyExists) {
+  const handleAddFromCharacterLibrary = async (libChar: Character, section: 'primary' | 'secondary') => {
+    // Check if character already exists in ANY section (primary or secondary)
+    // Check both by ID and by libraryCharacterId (in case it was added from library before)
+    const existingCharacter = characters.find(c => 
+      c.id === libChar.id || (c as any).libraryCharacterId === libChar.id
+    );
+    if (existingCharacter) {
+      const existingSection = (existingCharacter as any).section || 'unknown';
       toast({
         title: "Already Added",
-        description: `${libChar.name} is already in your cast.`,
+        description: `${libChar.name} is already in your ${existingSection === 'primary' ? 'Primary' : 'Secondary'} cast. Remove it first to add it to ${section === 'primary' ? 'Primary' : 'Secondary'}.`,
         variant: "destructive",
       });
       return;
     }
 
-    const character: any = {
-      ...libChar,
-      workspaceId: workspaceId,
-      personality: null,
-      voiceSettings: null,
-      createdAt: new Date(),
-      section: addingToSection,
-    };
+    // Save character to database immediately (even without image)
+    try {
+      const response = await fetch('/api/character-vlog/characters', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          videoId,
+          name: libChar.name,
+          description: libChar.description || undefined,
+          personality: libChar.personality || undefined,
+          appearance: (libChar.appearance as string) || undefined,
+          section: section,
+          libraryCharacterId: libChar.id, // Store original library character ID to prevent duplicates
+        }),
+      });
 
-    onCharactersChange([...characters, character]);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to create character' }));
+        throw new Error(error.error || 'Failed to create character');
+      }
 
-    toast({
-      title: "Character Added",
-      description: `${libChar.name} has been added to ${addingToSection === 'primary' ? 'Primary' : 'Secondary'}.`,
-    });
+      const savedCharacter = await response.json();
+      
+      // Add section info to character
+      const character: any = {
+        ...savedCharacter,
+        section: section,
+        imageUrl: libChar.imageUrl || null, // Use library image if available, otherwise null
+      };
+
+      onCharactersChange([...characters, character]);
+
+      toast({
+        title: "Character Added",
+        description: `${libChar.name} has been added to ${section === 'primary' ? 'Primary' : 'Secondary'}.`,
+      });
+    } catch (error) {
+      console.error('Failed to save character:', error);
+      toast({
+        title: "Failed to Save Character",
+        description: error instanceof Error ? error.message : "Failed to save character to database.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleAddFromLocationLibrary = (libLoc: typeof MOCK_LOCATION_LIBRARY[0]) => {
+  const handleAddFromLocationLibrary = async (libLoc: Location) => {
     if (!onLocationsChange) return;
 
-    const alreadyExists = locations.some(l => l.name === libLoc.name);
+    const alreadyExists = locations.some(l => l.id === libLoc.id);
     if (alreadyExists) {
       toast({
         title: "Already Added",
@@ -492,23 +1040,55 @@ export function ElementsTab({
       return;
     }
 
-    const location: any = {
-      ...libLoc,
-      workspaceId: workspaceId,
-      referenceImages: null,
-      createdAt: new Date(),
-    };
+    // Save location to database immediately (even without image)
+    try {
+      const response = await fetch('/api/character-vlog/locations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          videoId,
+          name: libLoc.name,
+          description: libLoc.description || undefined,
+          details: libLoc.details || undefined,
+        }),
+      });
 
-    onLocationsChange([...locations, location]);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to create location' }));
+        throw new Error(error.error || 'Failed to create location');
+      }
 
-    toast({
-      title: "Location Added",
-      description: `${libLoc.name} has been added.`,
-    });
+      const savedLocation = await response.json();
+      
+      const location: Location = {
+        ...savedLocation,
+        imageUrl: libLoc.imageUrl || null, // Use library image if available, otherwise null
+      };
+
+      onLocationsChange([...locations, location]);
+
+      toast({
+        title: "Location Added",
+        description: `${libLoc.name} has been added.`,
+      });
+    } catch (error) {
+      console.error('Failed to save location:', error);
+      toast({
+        title: "Failed to Save Location",
+        description: error instanceof Error ? error.message : "Failed to save location to database.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleArtStyleChange = (styleId: string) => {
+  const handleArtStyleChange = async (styleId: string) => {
     setSelectedArtStyle(styleId);
+    
+    // Update local state callback
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: styleId, 
@@ -516,10 +1096,33 @@ export function ElementsTab({
         worldDescription: selectedWorldDescription,
       });
     }
+
+    // Auto-save to backend
+    try {
+      const styleRefImageUrl = styleRefs.length > 0 ? styleRefs[0].imageUrl : undefined;
+      await fetch(`/api/character-vlog/videos/${videoId}/step/2/settings`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          artStyle: styleId === 'none' ? undefined : styleId,
+          imageModel: selectedImageModel,
+          worldDescription: selectedWorldDescription,
+          styleReferenceImageUrl: styleRefImageUrl,
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+    }
   };
 
-  const handleImageModelChange = (model: string) => {
+  const handleImageModelChange = async (model: string) => {
     setSelectedImageModel(model);
+    
+    // Update local state callback
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: selectedArtStyle, 
@@ -527,10 +1130,33 @@ export function ElementsTab({
         worldDescription: selectedWorldDescription,
       });
     }
+
+    // Auto-save to backend
+    try {
+      const styleRefImageUrl = styleRefs.length > 0 ? styleRefs[0].imageUrl : undefined;
+      await fetch(`/api/character-vlog/videos/${videoId}/step/2/settings`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          artStyle: selectedArtStyle === 'none' ? undefined : selectedArtStyle,
+          imageModel: model,
+          worldDescription: selectedWorldDescription,
+          styleReferenceImageUrl: styleRefImageUrl,
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+    }
   };
 
-  const handleWorldDescriptionChange = (description: string) => {
+  const handleWorldDescriptionChange = async (description: string) => {
     setSelectedWorldDescription(description);
+    
+    // Update local state callback
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: selectedArtStyle, 
@@ -538,9 +1164,30 @@ export function ElementsTab({
         worldDescription: description,
       });
     }
+
+    // Auto-save to backend
+    try {
+      const styleRefImageUrl = styleRefs.length > 0 ? styleRefs[0].imageUrl : undefined;
+      await fetch(`/api/character-vlog/videos/${videoId}/step/2/settings`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          artStyle: selectedArtStyle === 'none' ? undefined : selectedArtStyle,
+          imageModel: selectedImageModel,
+          worldDescription: description,
+          styleReferenceImageUrl: styleRefImageUrl,
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+    }
   };
 
-  const handleUploadReference = (file: File) => {
+  const handleUploadReference = async (file: File) => {
     if (styleRefs.length >= 1) {
       toast({
         title: "Maximum Reached",
@@ -550,26 +1197,78 @@ export function ElementsTab({
       return;
     }
 
-    const refImage: ReferenceImage = {
-      id: `ref-${Date.now()}`,
-      videoId,
-      shotId: null,
-      characterId: null,
-      type: "style",
-      imageUrl: URL.createObjectURL(file),
-      description: null,
-      createdAt: new Date(),
-    };
+    // Upload file to backend to get Bunny CDN URL
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('videoId', videoId);
 
-    onReferenceImagesChange([...referenceImages, refImage]);
-    
-    // Clear selected preset style when custom reference is uploaded
-    handleArtStyleChange("none");
-    
-    toast({
-      title: "Reference Uploaded",
-      description: "Style reference image added. Preset styles disabled.",
-    });
+      const uploadResponse = await fetch('/api/character-vlog/upload-style-reference', {
+        method: 'POST',
+        headers: {
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        const error = await uploadResponse.json().catch(() => ({ error: 'Failed to upload image' }));
+        throw new Error(error.error || 'Failed to upload image');
+      }
+
+      const uploadData = await uploadResponse.json();
+      const cdnUrl = uploadData.url;
+
+      // Create reference image with CDN URL
+      const refImage: ReferenceImage = {
+        id: `ref-${Date.now()}`,
+        videoId,
+        shotId: null,
+        characterId: null,
+        type: "style",
+        imageUrl: cdnUrl,
+        description: null,
+        createdAt: new Date(),
+      };
+
+      onReferenceImagesChange([...referenceImages, refImage]);
+      
+      // Clear selected preset style when custom reference is uploaded
+      setSelectedArtStyle("none");
+      
+      // Auto-save to backend with custom image style and CDN URL
+      try {
+        await fetch(`/api/character-vlog/videos/${videoId}/step/2/settings`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            artStyle: 'custom_image',
+            imageModel: selectedImageModel,
+            worldDescription: selectedWorldDescription,
+            styleReferenceImageUrl: cdnUrl,
+          }),
+        });
+      } catch (error) {
+        console.error('Failed to save style reference:', error);
+      }
+      
+      toast({
+        title: "Reference Uploaded",
+        description: "Style reference image added. Preset styles disabled.",
+      });
+    } catch (error) {
+      console.error('Failed to upload style reference:', error);
+      toast({
+        title: "Upload Failed",
+        description: error instanceof Error ? error.message : "Failed to upload style reference image.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleRemoveStyleReference = (refId: string) => {
@@ -581,7 +1280,7 @@ export function ElementsTab({
     });
   };
 
-  const handleSaveCharacter = () => {
+  const handleSaveCharacter = async () => {
     if (!newCharacter.name.trim()) {
       toast({
         title: "Name Required",
@@ -592,73 +1291,130 @@ export function ElementsTab({
     }
 
     if (editingCharacter) {
-      const updatedCharacters = characters.map(c => 
-        c.id === editingCharacter.id 
-          ? { 
-              ...c, 
-              name: newCharacter.name, 
-              description: newCharacter.role,
-              personality: newCharacter.personality || null,
-              appearance: newCharacter.appearance,
-              imageUrl: generatedCharacterImage || c.imageUrl,
-              section: (c as any).section || addingToSection // Preserve or set section
-            }
-          : c
-      );
-      onCharactersChange(updatedCharacters);
-      
-      const updatedRefs = characterReferenceImages.map((url, idx) => ({
-        id: `ref-${editingCharacter.id}-${idx}`,
-        videoId,
-        shotId: null,
-        characterId: editingCharacter.id,
-        type: "character" as const,
-        imageUrl: url,
-        description: null,
-        createdAt: new Date(),
-      }));
-      
-      const otherRefs = referenceImages.filter(r => r.characterId !== editingCharacter.id);
-      onReferenceImagesChange([...otherRefs, ...updatedRefs]);
-      
-      toast({
-        title: "Character Updated",
-        description: `${newCharacter.name} has been updated.`,
-      });
-    } else {
-      const characterId = `char-${Date.now()}`;
-      const character: any = {
-        id: characterId,
-        workspaceId: workspaceId,
-        name: newCharacter.name,
-        description: newCharacter.role || null,
-        personality: newCharacter.personality || null,
-        appearance: newCharacter.appearance || null,
-        voiceSettings: null,
-        imageUrl: generatedCharacterImage,
-        createdAt: new Date(),
-        section: addingToSection, // Add to the section that was clicked
-      };
+      // Update existing character in database
+      try {
+        const response = await fetch(`/api/character-vlog/characters/${editingCharacter.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            name: newCharacter.name,
+            description: newCharacter.role || undefined,
+            personality: newCharacter.personality || undefined,
+            appearance: newCharacter.appearance || undefined,
+          }),
+        });
 
-      onCharactersChange([...characters, character]);
-      
-      const newRefs = characterReferenceImages.map((url, idx) => ({
-        id: `ref-${characterId}-${idx}`,
-        videoId,
-        shotId: null,
-        characterId: characterId,
-        type: "character" as const,
-        imageUrl: url,
-        description: null,
-        createdAt: new Date(),
-      }));
-      
-      onReferenceImagesChange([...referenceImages, ...newRefs]);
-      
-      toast({
-        title: "Character Added",
-        description: `${character.name} has been added to ${addingToSection === 'primary' ? 'Primary' : 'Secondary'}.`,
-      });
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ error: 'Failed to update character' }));
+          throw new Error(error.error || 'Failed to update character');
+        }
+
+        const updatedCharacter = await response.json();
+        
+        const updatedCharacters = characters.map(c => 
+          c.id === editingCharacter.id 
+            ? { 
+                ...updatedCharacter,
+                imageUrl: generatedCharacterImage || updatedCharacter.imageUrl,
+                section: (c as any).section || addingToSection // Preserve or set section
+              }
+            : c
+        );
+        onCharactersChange(updatedCharacters);
+        
+        const updatedRefs = characterReferenceImages.map((url, idx) => ({
+          id: `ref-${editingCharacter.id}-${idx}`,
+          videoId,
+          shotId: null,
+          characterId: editingCharacter.id,
+          type: "character" as const,
+          imageUrl: url,
+          description: null,
+          createdAt: new Date(),
+        }));
+        
+        const otherRefs = referenceImages.filter(r => r.characterId !== editingCharacter.id);
+        onReferenceImagesChange([...otherRefs, ...updatedRefs]);
+        
+        toast({
+          title: "Character Updated",
+          description: `${newCharacter.name} has been updated.`,
+        });
+      } catch (error) {
+        console.error('Failed to update character:', error);
+        toast({
+          title: "Failed to Update Character",
+          description: error instanceof Error ? error.message : "Failed to update character in database.",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      // Create character in database immediately
+      try {
+        const response = await fetch('/api/character-vlog/characters', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            videoId,
+            name: newCharacter.name,
+            description: newCharacter.role || undefined,
+            personality: newCharacter.personality || undefined,
+            appearance: newCharacter.appearance || undefined,
+            section: addingToSection,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ error: 'Failed to create character' }));
+          throw new Error(error.error || 'Failed to create character');
+        }
+
+        const savedCharacter = await response.json();
+        
+        // Add section info to character
+        const character: any = {
+          ...savedCharacter,
+          section: addingToSection,
+          imageUrl: generatedCharacterImage || savedCharacter.imageUrl, // Use generated image if available
+        };
+
+        onCharactersChange([...characters, character]);
+        
+        const newRefs = characterReferenceImages.map((url, idx) => ({
+          id: `ref-${savedCharacter.id}-${idx}`,
+          videoId,
+          shotId: null,
+          characterId: savedCharacter.id,
+          type: "character" as const,
+          imageUrl: url,
+          description: null,
+          createdAt: new Date(),
+        }));
+        
+        onReferenceImagesChange([...referenceImages, ...newRefs]);
+        
+        toast({
+          title: "Character Added",
+          description: `${character.name} has been added to ${addingToSection === 'primary' ? 'Primary' : 'Secondary'}.`,
+        });
+      } catch (error) {
+        console.error('Failed to create character:', error);
+        toast({
+          title: "Failed to Save Character",
+          description: error instanceof Error ? error.message : "Failed to save character to database.",
+          variant: "destructive",
+        });
+        return; // Don't proceed if save failed
+      }
     }
 
     setNewCharacter({ name: "", age: "", role: "", personality: "", appearance: "" });
@@ -711,7 +1467,7 @@ export function ElementsTab({
     setCharacterReferenceImages(characterReferenceImages.filter((_, i) => i !== index));
   };
 
-  const handleGenerateCharacter = () => {
+  const handleGenerateCharacter = async () => {
     if (!newCharacter.appearance.trim()) {
       toast({
         title: "Appearance Required",
@@ -721,18 +1477,169 @@ export function ElementsTab({
       return;
     }
 
-    setIsGenerating(true);
-    
-    setTimeout(() => {
-      const generatedImageUrl = "https://placehold.co/400x600/1a472a/ffffff?text=AI+Generated";
-      setGeneratedCharacterImage(generatedImageUrl);
-      setIsGenerating(false);
-      
+    if (!newCharacter.name.trim()) {
       toast({
-        title: "Character Generated",
-        description: "Character image has been created.",
+        title: "Name Required",
+        description: "Please enter a character name before generating.",
+        variant: "destructive",
       });
-    }, 2000);
+      return;
+    }
+
+    setIsGenerating(true);
+
+    try {
+      // Ensure character exists in database before generating image
+      let characterId = editingCharacter?.id;
+      
+      // Check if character ID looks like a temporary ID (starts with 'char-' or 'temp-')
+      // Real database IDs are UUIDs, not prefixed with 'char-' or 'temp-'
+      const isTemporaryId = !characterId || characterId.startsWith('char-') || characterId.startsWith('temp-');
+      
+      if (isTemporaryId) {
+        console.log('[elements-tab] Character not in DB, creating first...', { 
+          characterId, 
+          editingCharacter,
+          isTemporaryId,
+        });
+        
+        // Create character in database first
+        const createResponse = await fetch('/api/character-vlog/characters', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            videoId,
+            name: newCharacter.name,
+            description: newCharacter.role || undefined,
+            personality: newCharacter.personality || undefined,
+            appearance: newCharacter.appearance || undefined,
+            section: addingToSection,
+          }),
+        });
+
+        if (!createResponse.ok) {
+          const errorData = await createResponse.json().catch(() => ({ error: 'Failed to create character' }));
+          console.error('[elements-tab] Character creation failed:', {
+            status: createResponse.status,
+            error: errorData,
+          });
+          throw new Error(errorData.error || errorData.details || 'Failed to create character');
+        }
+
+        const savedCharacter = await createResponse.json();
+        characterId = savedCharacter.id;
+        
+        console.log('[elements-tab] Character created in DB:', { 
+          characterId, 
+          name: savedCharacter.name,
+          oldId: editingCharacter?.id,
+        });
+        
+        // Update local state with the saved character
+        const character: any = {
+          ...savedCharacter,
+          section: addingToSection,
+        };
+        
+        // If editing, update the existing character in the list
+        if (editingCharacter) {
+          const updatedCharacters = characters.map(c => 
+            c.id === editingCharacter.id ? character : c
+          );
+          onCharactersChange(updatedCharacters);
+          setEditingCharacter(character);
+        } else {
+          // Add new character to list
+          onCharactersChange([...characters, character]);
+          setEditingCharacter(character);
+        }
+      } else {
+        console.log('[elements-tab] Using existing character ID:', { characterId });
+      }
+
+      // Get art style description from selected style
+      let artStyleDescription = '';
+      if (selectedArtStyle && selectedArtStyle !== 'none') {
+        const styleObj = STYLES.find(s => s.id === selectedArtStyle);
+        if (styleObj) {
+          artStyleDescription = styleObj.name;
+        }
+      }
+
+      // Get style reference image if custom image is selected
+      const styleReferenceImage = selectedArtStyle === 'custom_image' && styleRefs.length > 0 
+        ? styleRefs[0].imageUrl 
+        : undefined;
+
+      // Get reference images
+      const referenceImages = characterReferenceImages.length > 0 
+        ? characterReferenceImages 
+        : undefined;
+
+      console.log('[elements-tab] Generating character image:', {
+        characterId,
+        name: newCharacter.name,
+        hasAppearance: !!newCharacter.appearance,
+        hasPersonality: !!newCharacter.personality,
+        artStyle: selectedArtStyle,
+        imageModel: selectedImageModel,
+        hasWorldDescription: !!selectedWorldDescription,
+        hasStyleReference: !!styleReferenceImage,
+        referenceImageCount: referenceImages?.length || 0,
+      });
+
+      const response = await fetch(`/api/character-vlog/characters/${characterId}/generate-image`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          videoId, // Required for Bunny CDN path building
+          name: newCharacter.name,
+          appearance: newCharacter.appearance,
+          personality: newCharacter.personality || undefined,
+          age: newCharacter.age ? parseInt(newCharacter.age, 10) : undefined,
+          artStyleDescription: artStyleDescription || undefined,
+          styleReferenceImage: styleReferenceImage,
+          worldDescription: selectedWorldDescription || undefined,
+          // Note: model is always 'nano-banana' for character images (hardcoded in backend)
+          referenceImages: referenceImages,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        const errorMessage = errorData.details || errorData.error || `HTTP ${response.status}`;
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+
+      if (data.imageUrl) {
+        setGeneratedCharacterImage(data.imageUrl);
+        toast({
+          title: "Character Generated",
+          description: `Character image for ${newCharacter.name} has been created.`,
+        });
+      } else {
+        throw new Error('No image URL in response');
+      }
+    } catch (error) {
+      console.error('[elements-tab] Character image generation failed:', error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate character image.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -953,8 +1860,18 @@ export function ElementsTab({
           <div className="p-6 space-y-8 pb-4">
             {/* CAST SECTION */}
             <div className="space-y-6">
-              {/* Cast Title */}
-              <h2 className="text-2xl font-bold text-white">Cast</h2>
+              {/* Cast Title with Recommend Button */}
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Cast</h2>
+                <Button
+                  size="sm"
+                  onClick={handleOpenRecommendations}
+                  className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-[#FF4081]/30 hover:bg-white/[0.04]"
+                >
+                  <Sparkles className="mr-2 h-4 w-4 text-[#FF4081]" />
+                  Recommend
+                </Button>
+              </div>
               
               {/* PRIMARY CHARACTER */}
               <div className="space-y-4">
@@ -965,23 +1882,13 @@ export function ElementsTab({
                       size="sm"
                       onClick={() => {
                         setAddingToSection('primary');
+                        setSelectedLibrarySection('primary');
                         setIsCharacterLibraryOpen(true);
                       }}
                       className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-[#FF4081]/30 hover:bg-white/[0.04]"
                     >
                       <LayoutGrid className="mr-2 h-4 w-4 text-cyan-400" />
                       Browse Library
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setAddingToSection('primary');
-                        handleOpenRecommendations();
-                      }}
-                      className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-[#FF4081]/30 hover:bg-white/[0.04]"
-                    >
-                      <Sparkles className="mr-2 h-4 w-4 text-[#FF4081]" />
-                      Recommend
                     </Button>
                   </div>
                 </div>
@@ -1057,12 +1964,39 @@ export function ElementsTab({
                             <DropdownMenuContent align="end" className="bg-[#1a1a1a] border-white/10">
                               <DropdownMenuItem 
                                 className="text-red-400 hover:text-red-300 hover:bg-red-500/10 cursor-pointer"
-                                onClick={() => {
-                                  onCharactersChange(characters.filter(c => c.id !== character.id));
-                                  toast({
-                                    title: "Character Deleted",
-                                    description: `${character.name} has been removed.`,
-                                  });
+                                onClick={async () => {
+                                  try {
+                                    // Delete from database
+                                    const response = await fetch(`/api/character-vlog/characters/${character.id}`, {
+                                      method: 'DELETE',
+                                      headers: {
+                                        'Content-Type': 'application/json',
+                                        ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+                                      },
+                                      credentials: 'include',
+                                      body: JSON.stringify({ videoId }),
+                                    });
+
+                                    if (!response.ok) {
+                                      const error = await response.json().catch(() => ({ error: 'Failed to delete character' }));
+                                      throw new Error(error.error || 'Failed to delete character');
+                                    }
+
+                                    // Remove from local state
+                                    onCharactersChange(characters.filter(c => c.id !== character.id));
+                                    
+                                    toast({
+                                      title: "Character Deleted",
+                                      description: `${character.name} has been removed from database and cast.`,
+                                    });
+                                  } catch (error) {
+                                    console.error('Failed to delete character:', error);
+                                    toast({
+                                      title: "Failed to Delete Character",
+                                      description: error instanceof Error ? error.message : "Failed to delete character from database.",
+                                      variant: "destructive",
+                                    });
+                                  }
                                 }}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
@@ -1095,23 +2029,13 @@ export function ElementsTab({
                       size="sm"
                       onClick={() => {
                         setAddingToSection('secondary');
+                        setSelectedLibrarySection('secondary');
                         setIsCharacterLibraryOpen(true);
                       }}
                       className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-[#FF4081]/30 hover:bg-white/[0.04]"
                     >
                       <LayoutGrid className="mr-2 h-4 w-4 text-cyan-400" />
                       Browse Library
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setAddingToSection('secondary');
-                        handleOpenRecommendations();
-                      }}
-                      className="bg-white/[0.02] border border-white/[0.06] text-white hover:border-[#FF4081]/30 hover:bg-white/[0.04]"
-                    >
-                      <Sparkles className="mr-2 h-4 w-4 text-[#FF4081]" />
-                      Recommend
                     </Button>
                   </div>
                 </div>
@@ -1186,12 +2110,39 @@ export function ElementsTab({
                             <DropdownMenuContent align="end" className="bg-[#1a1a1a] border-white/10">
                               <DropdownMenuItem 
                                 className="text-red-400 hover:text-red-300 hover:bg-red-500/10 cursor-pointer"
-                                onClick={() => {
-                                  onCharactersChange(characters.filter(c => c.id !== character.id));
-                                  toast({
-                                    title: "Character Deleted",
-                                    description: `${character.name} has been removed.`,
-                                  });
+                                onClick={async () => {
+                                  try {
+                                    // Delete from database
+                                    const response = await fetch(`/api/character-vlog/characters/${character.id}`, {
+                                      method: 'DELETE',
+                                      headers: {
+                                        'Content-Type': 'application/json',
+                                        ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+                                      },
+                                      credentials: 'include',
+                                      body: JSON.stringify({ videoId }),
+                                    });
+
+                                    if (!response.ok) {
+                                      const error = await response.json().catch(() => ({ error: 'Failed to delete character' }));
+                                      throw new Error(error.error || 'Failed to delete character');
+                                    }
+
+                                    // Remove from local state
+                                    onCharactersChange(characters.filter(c => c.id !== character.id));
+                                    
+                                    toast({
+                                      title: "Character Deleted",
+                                      description: `${character.name} has been removed from database and cast.`,
+                                    });
+                                  } catch (error) {
+                                    console.error('Failed to delete character:', error);
+                                    toast({
+                                      title: "Failed to Delete Character",
+                                      description: error instanceof Error ? error.message : "Failed to delete character from database.",
+                                      variant: "destructive",
+                                    });
+                                  }
                                 }}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
@@ -1311,12 +2262,39 @@ export function ElementsTab({
                             <DropdownMenuContent align="end" className="bg-[#1a1a1a] border-white/10">
                               <DropdownMenuItem 
                                 className="text-red-400 hover:text-red-300 hover:bg-red-500/10 cursor-pointer"
-                                onClick={() => {
-                                  if (onLocationsChange) {
+                                onClick={async () => {
+                                  if (!onLocationsChange) return;
+                                  
+                                  try {
+                                    // Delete from database
+                                    const response = await fetch(`/api/character-vlog/locations/${location.id}`, {
+                                      method: 'DELETE',
+                                      headers: {
+                                        'Content-Type': 'application/json',
+                                        ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+                                      },
+                                      credentials: 'include',
+                                      body: JSON.stringify({ videoId }),
+                                    });
+
+                                    if (!response.ok) {
+                                      const error = await response.json().catch(() => ({ error: 'Failed to delete location' }));
+                                      throw new Error(error.error || 'Failed to delete location');
+                                    }
+
+                                    // Remove from local state
                                     onLocationsChange(locations.filter(l => l.id !== location.id));
+                                    
                                     toast({
                                       title: "Location Deleted",
-                                      description: `${location.name} has been removed.`,
+                                      description: `${location.name} has been removed from database and locations.`,
+                                    });
+                                  } catch (error) {
+                                    console.error('Failed to delete location:', error);
+                                    toast({
+                                      title: "Failed to Delete Location",
+                                      description: error instanceof Error ? error.message : "Failed to delete location from database.",
+                                      variant: "destructive",
                                     });
                                   }
                                 }}
@@ -1409,7 +2387,7 @@ export function ElementsTab({
                   style={{
                     background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
                   }}
-                  disabled={isGeneratingLocation || !newLocation.details.trim()}
+                  disabled={isGeneratingLocation || !newLocation.details.trim() || !newLocation.name.trim()}
                 >
                   {isGeneratingLocation ? (
                     <>
@@ -1591,47 +2569,100 @@ export function ElementsTab({
               <p className="text-sm text-white/50">Analyzing your story...</p>
             </div>
           ) : (
-            <div className="space-y-4 mt-4">
-              {recommendations.map((recChar, index) => {
-                const isAdded = characters.some(c => c.name === recChar.name);
-                return (
-                  <Card key={index} className="overflow-hidden bg-white/[0.02] border-white/[0.06]">
-                    <CardContent className="p-5">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 space-y-2">
-                          <h4 className="font-semibold text-base text-white">{recChar.name}</h4>
-                          <p className="text-sm text-white/70">{recChar.description}</p>
-                          <div className="pt-2">
-                            <Label className="text-xs font-medium text-white/50">APPEARANCE</Label>
-                            <p className="text-sm mt-1 text-white/80">{recChar.appearance}</p>
+            <div className="space-y-6 mt-4">
+              {/* Primary Characters Section */}
+              {recommendationsBySection.primary.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-lg font-semibold text-white/90">Primary Character</h3>
+                  {recommendationsBySection.primary.map((recChar, index) => {
+                    const isAdded = characters.some(c => c.name === recChar.name && (c as any).section === 'primary');
+                    return (
+                      <Card key={`primary-${index}`} className="overflow-hidden bg-white/[0.02] border-white/[0.06]">
+                        <CardContent className="p-5">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 space-y-2">
+                              <h4 className="font-semibold text-base text-white">{recChar.name}</h4>
+                              <p className="text-sm text-white/70">{recChar.description}</p>
+                              <div className="pt-2">
+                                <Label className="text-xs font-medium text-white/50">APPEARANCE</Label>
+                                <p className="text-sm mt-1 text-white/80">{recChar.appearance}</p>
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => handleAddRecommendedCharacter(recChar, 'primary')}
+                              disabled={isAdded}
+                              className={isAdded ? "" : "text-white hover:opacity-90 relative overflow-hidden"}
+                              style={!isAdded ? {
+                                background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                              } : undefined}
+                            >
+                              {isAdded ? (
+                                <>
+                                  <Check className="mr-2 h-3 w-3" />
+                                  Added
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="mr-2 h-3 w-3" />
+                                  Add to Cast
+                                </>
+                              )}
+                            </Button>
                           </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => handleAddRecommendedCharacter(recChar)}
-                          disabled={isAdded}
-                          className={isAdded ? "" : "text-white hover:opacity-90 relative overflow-hidden"}
-                          style={!isAdded ? {
-                            background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
-                          } : undefined}
-                        >
-                          {isAdded ? (
-                            <>
-                              <Check className="mr-2 h-3 w-3" />
-                              Added
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="mr-2 h-3 w-3" />
-                              Add to Cast
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Secondary Characters Section */}
+              {recommendationsBySection.secondary.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-lg font-semibold text-white/90">Secondary Characters</h3>
+                  {recommendationsBySection.secondary.map((recChar, index) => {
+                    const isAdded = characters.some(c => c.name === recChar.name && (c as any).section === 'secondary');
+                    return (
+                      <Card key={`secondary-${index}`} className="overflow-hidden bg-white/[0.02] border-white/[0.06]">
+                        <CardContent className="p-5">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 space-y-2">
+                              <h4 className="font-semibold text-base text-white">{recChar.name}</h4>
+                              <p className="text-sm text-white/70">{recChar.description}</p>
+                              <div className="pt-2">
+                                <Label className="text-xs font-medium text-white/50">APPEARANCE</Label>
+                                <p className="text-sm mt-1 text-white/80">{recChar.appearance}</p>
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => handleAddRecommendedCharacter(recChar, 'secondary')}
+                              disabled={isAdded}
+                              className={isAdded ? "" : "text-white hover:opacity-90 relative overflow-hidden"}
+                              style={!isAdded ? {
+                                background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                              } : undefined}
+                            >
+                              {isAdded ? (
+                                <>
+                                  <Check className="mr-2 h-3 w-3" />
+                                  Added
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="mr-2 h-3 w-3" />
+                                  Add to Cast
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
@@ -1771,7 +2802,7 @@ export function ElementsTab({
                   style={{
                     background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
                   }}
-                  disabled={isGenerating || !newCharacter.appearance.trim()}
+                  disabled={isGenerating || !newCharacter.appearance.trim() || !newCharacter.name.trim()}
                 >
                   {isGenerating ? (
                     <>
@@ -1844,49 +2875,111 @@ export function ElementsTab({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-4">
-            {MOCK_CHARACTER_LIBRARY.map((libChar) => {
-              const isAdded = characters.some(c => c.name === libChar.name);
-              return (
-                <Card key={libChar.id} className="overflow-hidden bg-white/[0.02] border-white/[0.06] hover:border-cyan-500/30 transition-all">
-                  <CardContent className="p-0">
-                    <div className="aspect-[3/4] bg-muted flex items-center justify-center relative">
-                      {libChar.imageUrl ? (
-                        <img src={libChar.imageUrl} alt={libChar.name} className="h-full w-full object-cover" />
-                      ) : (
-                        <User className="h-16 w-16 text-muted-foreground" />
-                      )}
-                    </div>
-                    <div className="p-3 space-y-2">
-                      <h4 className="font-semibold text-sm text-white truncate">{libChar.name}</h4>
-                      <p className="text-xs text-white/60 line-clamp-2">{libChar.description}</p>
-                      <Button
-                        size="sm"
-                        onClick={() => handleAddFromCharacterLibrary(libChar)}
-                        disabled={isAdded}
-                        className={isAdded ? "w-full" : "w-full text-white hover:opacity-90 relative overflow-hidden"}
-                        style={!isAdded ? {
-                          background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
-                        } : undefined}
-                      >
-                        {isAdded ? (
-                          <>
-                            <Check className="mr-2 h-3 w-3" />
-                            Added
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="mr-2 h-3 w-3" />
-                            Add to Cast
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+          {/* Section Selector */}
+          <div className="flex items-center gap-4 mt-4 mb-4">
+            <Label className="text-white text-sm font-medium">Add to:</Label>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant={selectedLibrarySection === 'primary' ? 'default' : 'outline'}
+                onClick={() => setSelectedLibrarySection('primary')}
+                className={selectedLibrarySection === 'primary' ? "text-white hover:opacity-90 relative overflow-hidden" : "text-white/70 hover:text-white border-white/20"}
+                style={selectedLibrarySection === 'primary' ? {
+                  background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                } : undefined}
+              >
+                Primary
+              </Button>
+              <Button
+                size="sm"
+                variant={selectedLibrarySection === 'secondary' ? 'default' : 'outline'}
+                onClick={() => setSelectedLibrarySection('secondary')}
+                className={selectedLibrarySection === 'secondary' ? "text-white hover:opacity-90 relative overflow-hidden" : "text-white/70 hover:text-white border-white/20"}
+                style={selectedLibrarySection === 'secondary' ? {
+                  background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                } : undefined}
+              >
+                Secondary
+              </Button>
+            </div>
           </div>
+
+          {isLoadingCharacterLibrary ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+              <p className="text-sm text-muted-foreground">Loading characters...</p>
+            </div>
+          ) : libraryCharacters && libraryCharacters.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {libraryCharacters.map((libChar) => {
+                // Check if character is already in ANY section (primary or secondary)
+                // Check both by ID and by libraryCharacterId (in case it was added from library before)
+                const existingCharacter = characters.find(c => 
+                  c.id === libChar.id || (c as any).libraryCharacterId === libChar.id
+                );
+                const isAdded = !!existingCharacter;
+                const existingSection = existingCharacter ? ((existingCharacter as any).section || 'unknown') : null;
+                return (
+                  <Card key={libChar.id} className={`overflow-hidden bg-white/[0.02] border-white/[0.06] hover:border-cyan-500/30 transition-all ${isAdded ? 'opacity-50' : ''}`}>
+                    <CardContent className="p-0">
+                      <div className="aspect-[3/4] bg-muted flex items-center justify-center relative">
+                        {libChar.imageUrl ? (
+                          <img src={libChar.imageUrl} alt={libChar.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <User className="h-16 w-16 text-muted-foreground" />
+                        )}
+                        {isAdded && (
+                          <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center">
+                            <Check className="h-8 w-8 text-white mb-1" />
+                            <span className="text-xs text-white font-medium">
+                              In {existingSection === 'primary' ? 'Primary' : 'Secondary'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-3 space-y-2">
+                        <h4 className="font-semibold text-sm text-white truncate">{libChar.name}</h4>
+                        {libChar.description && (
+                          <p className="text-xs text-white/60 line-clamp-2">{libChar.description}</p>
+                        )}
+                        <Button
+                          size="sm"
+                          onClick={() => !isAdded && handleAddFromCharacterLibrary(libChar, selectedLibrarySection)}
+                          disabled={isAdded}
+                          className={isAdded ? "w-full" : "w-full text-white hover:opacity-90 relative overflow-hidden"}
+                          style={!isAdded ? {
+                            background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                          } : undefined}
+                        >
+                          {isAdded ? (
+                            <>
+                              <Check className="mr-2 h-3 w-3" />
+                              Added
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="mr-2 h-3 w-3" />
+                              Add to {selectedLibrarySection === 'primary' ? 'Primary' : 'Secondary'}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12">
+              <User className="h-12 w-12 text-muted-foreground mb-3" />
+              <p className="text-sm text-muted-foreground text-center">
+                No characters in your library yet
+              </p>
+              <p className="text-xs text-muted-foreground text-center mt-1">
+                Create characters to reuse them across projects
+              </p>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -1903,49 +2996,83 @@ export function ElementsTab({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
-            {MOCK_LOCATION_LIBRARY.map((libLoc) => {
-              const isAdded = locations.some(l => l.name === libLoc.name);
-              return (
-                <Card key={libLoc.id} className="overflow-hidden bg-white/[0.02] border-white/[0.06] hover:border-cyan-500/30 transition-all">
-                  <CardContent className="p-0">
-                    <div className="aspect-video bg-muted flex items-center justify-center relative">
-                      {libLoc.imageUrl ? (
-                        <img src={libLoc.imageUrl} alt={libLoc.name} className="h-full w-full object-cover" />
-                      ) : (
-                        <MapPin className="h-16 w-16 text-muted-foreground" />
-                      )}
-                    </div>
-                    <div className="p-3 space-y-2">
-                      <h4 className="font-semibold text-sm text-white truncate">{libLoc.name}</h4>
-                      <p className="text-xs text-white/60 line-clamp-2">{libLoc.description}</p>
-                      <Button
-                        size="sm"
-                        onClick={() => handleAddFromLocationLibrary(libLoc)}
-                        disabled={isAdded}
-                        className={isAdded ? "w-full" : "w-full text-white hover:opacity-90 relative overflow-hidden"}
-                        style={!isAdded ? {
-                          background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
-                        } : undefined}
-                      >
-                        {isAdded ? (
-                          <>
-                            <Check className="mr-2 h-3 w-3" />
-                            Added
-                          </>
+          {isLoadingLocationLibrary ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+              <p className="text-sm text-muted-foreground">Loading locations...</p>
+            </div>
+          ) : libraryLocations && libraryLocations.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              {libraryLocations.map((libLoc) => {
+                const isAdded = locations.some(l => l.id === libLoc.id);
+                const imageUrl = libLoc.imageUrl;
+                return (
+                  <Card key={libLoc.id} className={`overflow-hidden bg-white/[0.02] border-white/[0.06] hover:border-cyan-500/30 transition-all cursor-pointer ${isAdded ? 'opacity-50' : ''}`} onClick={() => !isAdded && handleAddFromLocationLibrary(libLoc)}>
+                    <CardContent className="p-0">
+                      <div className="aspect-video bg-muted flex items-center justify-center relative">
+                        {imageUrl ? (
+                          <img src={imageUrl} alt={libLoc.name} className="h-full w-full object-cover" />
                         ) : (
-                          <>
-                            <Plus className="mr-2 h-3 w-3" />
-                            Add Location
-                          </>
+                          <MapPin className="h-16 w-16 text-muted-foreground" />
                         )}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                        {isAdded && (
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                            <Check className="h-8 w-8 text-white" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold text-sm text-white truncate">{libLoc.name}</h4>
+                            {libLoc.description && (
+                              <p className="text-xs text-white/60 line-clamp-2 mt-1">
+                                {libLoc.description}
+                              </p>
+                            )}
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddFromLocationLibrary(libLoc);
+                            }}
+                            disabled={isAdded}
+                            className={isAdded ? "w-full" : "text-white hover:opacity-90 relative overflow-hidden"}
+                            style={!isAdded ? {
+                              background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                            } : undefined}
+                          >
+                            {isAdded ? (
+                              <>
+                                <Check className="mr-2 h-3 w-3" />
+                                Added
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="mr-2 h-3 w-3" />
+                                Add Location
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12">
+              <MapPin className="h-12 w-12 text-muted-foreground mb-3" />
+              <p className="text-sm text-muted-foreground text-center">
+                No locations in your library yet
+              </p>
+              <p className="text-xs text-muted-foreground text-center mt-1">
+                Create locations to reuse them across projects
+              </p>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -91,18 +91,25 @@ REFERENCE TAGGING SYSTEM
 
 You MUST use a consistent tagging system for characters and locations in BOTH narration text and action descriptions:
 
-• Characters: Use format @{CharacterName} (e.g., @The Wolf, @Sarah)
-• Locations: Use format @{LocationName} (e.g., @Dark Wood, @Ancient Temple)
+CRITICAL RULES:
+• If characters are provided in the list: Use @{CharacterName} format (e.g., @Little Red Riding Hood, @The Wolf)
+• If NO characters are provided: Use descriptive text instead of character names (e.g., "young girl wearing a vibrant red cloak" instead of "Little Red Riding Hood")
+• If locations are provided in the list: Use @{LocationName} format (e.g., @Dark Wood, @Ancient Temple)
+• If NO locations are provided: Use descriptive text instead of location names (e.g., "dense forest with tall trees" instead of "Dark Wood")
 
-Examples:
+Examples WITH characters/locations provided:
 - Narration: "As @The Wolf walks through @Dark Wood, the morning light reveals..."
-- Action: "@Sarah enters @Ancient Temple and approaches the window"
+- Action: "@Little Red Riding Hood enters @Ancient Temple and approaches the window"
+
+Examples WITHOUT characters/locations provided:
+- Narration: "As a large gray wolf walks through a dense forest, the morning light reveals..."
+- Action: "A young girl wearing a vibrant red cloak enters an ancient stone temple and approaches the window"
 
 These tags will be provided in the user prompt. You must:
-• Map script characters to the provided @{name} tags using their actual names
-• Map script locations to the provided @{name} tags using their actual names
-• Use these tags in both "narrationText" and "actionDescription" fields
-• If a character or location appears but isn't in the provided list, use a descriptive name (but prefer using provided tags)
+• ONLY use @{CharacterName} tags if characters are provided in the list - otherwise use descriptive text
+• ONLY use @{LocationName} tags if locations are provided in the list - otherwise use descriptive text
+• Use these tags in both "narrationText" and "actionDescription" fields when available
+• When characters/locations are NOT provided, describe them visually instead of using names
 
 ═══════════════════════════════════════════════════════════════════════════════
 SHOT TYPES AND CAMERA MOVEMENTS
@@ -192,10 +199,10 @@ For each shot, provide:
 2. Duration (in seconds, must sum to ~${sceneDuration}s)
 3. Shot type (Wide Shot, Medium Shot, Close-Up, etc.)
 4. Camera movement (Static, Pan, Zoom, Dolly, etc.)
-5. Narration text (the voiceover text for this shot, with @tags)
-6. Action description (visual action/what happens, with @tags)
-7. Characters (array of @{CharacterName} tags or names)
-8. Location (@{LocationName} tag or descriptive name)
+5. Narration text (use @tags ONLY if characters/locations provided, otherwise use descriptive text)
+6. Action description (use @tags ONLY if characters/locations provided, otherwise use descriptive text)
+7. Characters (array of @{CharacterName} tags if provided, or empty array [] if not - do NOT create character names)
+8. Location (@{LocationName} tag if provided, or empty string "" if not - do NOT create location names)
 ${narrativeMode === "auto" ? '9. Frame mode ("image-reference" or "start-end") - REQUIRED in auto mode' : ''}
 
 Be precise, cinematic, and ensure narrative flow between shots.`;
@@ -275,13 +282,13 @@ ${narrativeMode === "auto" ? `⚠️ AUTO MODE: You must decide the frame mode (
 AVAILABLE CHARACTERS
 ═══════════════════════════════════════════════════════════════════════════════
 
-${input.characters.length > 0 ? characterList : 'No characters defined yet. Use descriptive names from the script.'}
+${input.characters.length > 0 ? characterList : '⚠️ NO CHARACTERS DEFINED: Use descriptive text instead of character names (e.g., "young girl wearing a vibrant red cloak" instead of "Little Red Riding Hood"). Do NOT create or use character names.'}
 
 ═══════════════════════════════════════════════════════════════════════════════
 AVAILABLE LOCATIONS
 ═══════════════════════════════════════════════════════════════════════════════
 
-${input.locations.length > 0 ? locationList : 'No locations defined yet. Use descriptive names from the script.'}
+${input.locations.length > 0 ? locationList : '⚠️ NO LOCATIONS DEFINED: Use descriptive text instead of location names (e.g., "dense forest with tall trees" instead of "Dark Wood"). Do NOT create or use location names.'}
 
 ═══════════════════════════════════════════════════════════════════════════════
 INSTRUCTIONS
@@ -294,13 +301,26 @@ INSTRUCTIONS
    - Create a clear action description of what visually happens
    - Assign appropriate shot type and camera movement
    - Estimate duration (sum must equal ~${input.scene.duration || 0} seconds)
-   - Identify characters present (use @{CharacterName} tags if available)
-   - Identify location (use @{LocationName} tag if available)
-   - Use @tags in BOTH narrationText and actionDescription fields
+   - Identify characters present:
+     * If characters are provided in the list: use @{CharacterName} tags (e.g., @Little Red Riding Hood)
+     * If NO characters provided: use descriptive text (e.g., "young girl wearing a vibrant red cloak") - do NOT use character names
+   - Identify location:
+     * If locations are provided in the list: use @{LocationName} tag (e.g., @Dark Wood)
+     * If NO locations provided: use descriptive text (e.g., "dense forest with tall trees") - do NOT use location names
+   - Use @tags ONLY when characters/locations are provided in the list
+   - When characters/locations are NOT provided, use visual descriptions instead of names in narrationText and actionDescription
    ${narrativeMode === "auto" ? `- Decide frame mode: "image-reference" for simple/static shots, "start-end" for complex/moving shots` : ''}
 4. Ensure shots flow naturally and maintain narrative coherence
 5. Vary shot types and camera movements for visual interest
 6. Match the genre and tone in your shot choices
+7. CRITICAL: If the AVAILABLE CHARACTERS section says "NO CHARACTERS DEFINED", you MUST:
+   - Use descriptive text in narrationText and actionDescription (e.g., "young girl", "a woman", "the protagonist")
+   - Do NOT use character names like "Little Red Riding Hood", "Sarah", etc.
+   - Return empty array [] for the characters field
+8. CRITICAL: If the AVAILABLE LOCATIONS section says "NO LOCATIONS DEFINED", you MUST:
+   - Use descriptive text in narrationText and actionDescription (e.g., "dense forest", "ancient temple", "city street")
+   - Do NOT use location names like "Dark Wood", "Ancient Temple", etc.
+   - Return empty string "" for the location field
 ${(narrativeMode === "start-end" || narrativeMode === "auto") ? `
 7. After composing shots, analyze continuity and propose continuity groups:
    - Identify shots that should connect seamlessly

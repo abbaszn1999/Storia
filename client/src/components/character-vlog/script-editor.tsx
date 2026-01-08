@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
 import { VIDEO_MODELS, getDefaultVideoModel } from "@/constants/video-models";
 
 interface CharacterVlogScriptEditorProps {
+  videoId?: string;
+  workspaceId?: string;
   initialScript?: string;
   scriptModel?: string;
   narrationStyle?: "third-person" | "first-person";
@@ -24,6 +26,15 @@ interface CharacterVlogScriptEditorProps {
   shotsPerScene?: number | 'auto';
   characterPersonality?: string;
   videoModel?: string;
+  aspectRatio?: string;
+  duration?: string;
+  genres?: string[];
+  tones?: string[];
+  language?: string;
+  voiceActorId?: string | null;
+  voiceOverEnabled?: boolean;
+  userPrompt?: string;
+  referenceMode?: string;
   onScriptChange: (script: string) => void;
   onScriptModelChange?: (model: string) => void;
   onNarrationStyleChange?: (style: "third-person" | "first-person") => void;
@@ -32,6 +43,11 @@ interface CharacterVlogScriptEditorProps {
   onShotsPerSceneChange?: (shots: number | 'auto') => void;
   onCharacterPersonalityChange?: (personality: string) => void;
   onVideoModelChange?: (model: string) => void;
+  onUserPromptChange?: (prompt: string) => void;
+  onDurationChange?: (duration: string) => void;
+  onGenresChange?: (genres: string[]) => void;
+  onTonesChange?: (tones: string[]) => void;
+  onLanguageChange?: (language: string) => void;
   onNext: () => void;
 }
 
@@ -99,6 +115,8 @@ const PERSONALITIES = [
 ];
 
 export function CharacterVlogScriptEditor({ 
+  videoId,
+  workspaceId,
   initialScript = "", 
   scriptModel = "gpt-4o", 
   narrationStyle = "first-person",
@@ -107,6 +125,15 @@ export function CharacterVlogScriptEditor({
   shotsPerScene = 'auto',
   characterPersonality = "energetic",
   videoModel,
+  aspectRatio = "9:16",
+  duration = "60",
+  genres = [],
+  tones = [],
+  language = "English",
+  voiceActorId = null,
+  voiceOverEnabled = true,
+  userPrompt: initialUserPrompt = "",
+  referenceMode,
   onScriptChange, 
   onScriptModelChange, 
   onNarrationStyleChange,
@@ -115,18 +142,23 @@ export function CharacterVlogScriptEditor({
   onShotsPerSceneChange,
   onCharacterPersonalityChange,
   onVideoModelChange,
+  onUserPromptChange,
+  onDurationChange,
+  onGenresChange,
+  onTonesChange,
+  onLanguageChange,
   onNext 
 }: CharacterVlogScriptEditorProps) {
-  const [storyIdea, setStoryIdea] = useState("");
+  const [storyIdea, setStoryIdea] = useState(initialUserPrompt);
   const [generatedScript, setGeneratedScript] = useState(initialScript);
   const [hasGeneratedOnce, setHasGeneratedOnce] = useState(!!initialScript);
-  const [duration, setDuration] = useState("60");
+  const [durationValue, setDuration] = useState(duration);
   const [selectedModel, setSelectedModel] = useState(scriptModel);
   const [selectedNarrationStyle, setSelectedNarrationStyle] = useState(narrationStyle);
-  const [selectedGenres, setSelectedGenres] = useState<string[]>(["Lifestyle"]);
-  const [selectedTones, setSelectedTones] = useState<string[]>(["Energetic"]);
-  const [language, setLanguage] = useState("English");
-  const [voiceOverEnabled, setVoiceOverEnabled] = useState(true);
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(genres.length > 0 ? genres : ["Lifestyle"]);
+  const [selectedTones, setSelectedTones] = useState<string[]>(tones.length > 0 ? tones : ["Energetic"]);
+  const [languageValue, setLanguage] = useState(language);
+  const [voiceOverEnabledState, setVoiceOverEnabled] = useState(voiceOverEnabled);
   const [selectedTheme, setSelectedTheme] = useState(theme);
   const [selectedNumberOfScenes, setSelectedNumberOfScenes] = useState<number | 'auto'>(numberOfScenes);
   const [selectedShotsPerScene, setSelectedShotsPerScene] = useState<number | 'auto'>(shotsPerScene);
@@ -138,33 +170,121 @@ export function CharacterVlogScriptEditor({
 
   const expandScriptMutation = useMutation({
     mutationFn: async (userIdea: string) => {
-      const res = await apiRequest('POST', '/api/narrative/script/generate', {
-        duration: parseInt(duration),
-        genres: selectedGenres,
-        tones: selectedTones,
-        language,
-        model: selectedModel,
-        userPrompt: userIdea,
-        mode: 'expand',
-        narrationStyle: selectedNarrationStyle,
-        characterPersonality: selectedPersonality,
-        theme: selectedTheme,
+      if (!videoId) {
+        throw new Error('Video ID is required');
+      }
+      
+      const response = await fetch('/api/character-vlog/script/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          videoId,
+          // Reference mode
+          referenceMode,
+          // Script generation settings
+          scriptModel: selectedModel,
+          narrationStyle: selectedNarrationStyle,
+          theme: selectedTheme,
+          numberOfScenes: selectedNumberOfScenes,
+          shotsPerScene: selectedShotsPerScene,
+          characterPersonality: selectedPersonality,
+          videoModel: selectedVideoModel,
+          aspectRatio,
+          duration: durationValue,
+          genres: selectedGenres,
+          tones: selectedTones,
+          language,
+          voiceActorId,
+          voiceOverEnabled: voiceOverEnabledState,
+          // User's original prompt
+          userPrompt: userIdea,
+        }),
       });
-      return await res.json();
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to generate script' }));
+        throw new Error(error.error || 'Failed to generate script');
+      }
+
+      return await response.json();
     },
-    onSuccess: (data: { script: string }) => {
+    onSuccess: (data: { script: string; cost?: number }) => {
       setGeneratedScript(data.script);
       setHasGeneratedOnce(true);
       onScriptChange(data.script);
       toast({
         title: "Script Generated",
-        description: "Your vlog script has been created.",
+        description: data.cost ? `Your vlog script has been created. (Cost: $${data.cost.toFixed(4)})` : "Your vlog script has been created.",
       });
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast({
         title: "Generation Failed",
-        description: "Failed to generate script. Please try again.",
+        description: error.message || "Failed to generate script. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const continueMutation = useMutation({
+    mutationFn: async () => {
+      if (!videoId) {
+        throw new Error('Video ID is required');
+      }
+
+      const response = await fetch(`/api/character-vlog/videos/${videoId}/step/1/continue`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          // Reference mode
+          referenceMode,
+          // Script generation settings
+          scriptModel: selectedModel,
+          narrationStyle: selectedNarrationStyle,
+          theme: selectedTheme,
+          numberOfScenes: selectedNumberOfScenes,
+          shotsPerScene: selectedShotsPerScene,
+          characterPersonality: selectedPersonality,
+          videoModel: selectedVideoModel,
+          aspectRatio,
+          duration: durationValue,
+          genres: selectedGenres,
+          tones: selectedTones,
+          language,
+          voiceActorId,
+          voiceOverEnabled: voiceOverEnabledState,
+          // Script content
+          userPrompt: storyIdea,
+          script: generatedScript,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to save script' }));
+        throw new Error(error.error || 'Failed to save script');
+      }
+
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Script Saved",
+        description: "Your script has been saved. Moving to the next step.",
+      });
+      onNext();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Failed to save script. Please try again.",
         variant: "destructive",
       });
     },
@@ -177,8 +297,9 @@ export function CharacterVlogScriptEditor({
 
   const toggleGenre = (genre: string) => {
     setSelectedGenres(prev => {
+      let updated;
       if (prev.includes(genre)) {
-        return prev.filter(g => g !== genre);
+        updated = prev.filter(g => g !== genre);
       } else if (prev.length >= 3) {
         toast({
           title: "Maximum Reached",
@@ -187,15 +308,18 @@ export function CharacterVlogScriptEditor({
         });
         return prev;
       } else {
-        return [...prev, genre];
+        updated = [...prev, genre];
       }
+      onGenresChange?.(updated);
+      return updated;
     });
   };
 
   const toggleTone = (tone: string) => {
     setSelectedTones(prev => {
+      let updated;
       if (prev.includes(tone)) {
-        return prev.filter(t => t !== tone);
+        updated = prev.filter(t => t !== tone);
       } else if (prev.length >= 3) {
         toast({
           title: "Maximum Reached",
@@ -204,8 +328,10 @@ export function CharacterVlogScriptEditor({
         });
         return prev;
       } else {
-        return [...prev, tone];
+        updated = [...prev, tone];
       }
+      onTonesChange?.(updated);
+      return updated;
     });
   };
 
@@ -218,8 +344,17 @@ export function CharacterVlogScriptEditor({
       });
       return;
     }
+    if (!videoId) {
+      toast({
+        title: "Video ID Required",
+        description: "Video ID is missing. Please refresh the page.",
+        variant: "destructive",
+      });
+      return;
+    }
     expandScriptMutation.mutate(storyIdea);
   };
+
 
   const handleThemeChange = (value: string) => {
     setSelectedTheme(value);
@@ -375,7 +510,7 @@ export function CharacterVlogScriptEditor({
                         onClick={() => setVoiceOverEnabled(true)}
                         className={cn(
                           "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
-                          voiceOverEnabled
+                          voiceOverEnabledState
                             ? "bg-gradient-to-r from-[#FF4081] to-[#FF6B4A] text-white shadow-lg"
                             : "text-white/50 hover:text-white/70"
                         )}
@@ -386,7 +521,7 @@ export function CharacterVlogScriptEditor({
                         onClick={() => setVoiceOverEnabled(false)}
                         className={cn(
                           "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
-                          !voiceOverEnabled
+                          !voiceOverEnabledState
                             ? "bg-[#1a1a1a] text-white shadow-lg"
                             : "text-white/50 hover:text-white/70"
                         )}
@@ -397,12 +532,15 @@ export function CharacterVlogScriptEditor({
                   </div>
 
                   {/* Language Dropdown - Only shown when Voice Over is On */}
-                  {voiceOverEnabled && (
+                  {voiceOverEnabledState && (
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-white/70">Language</Label>
                       <Select 
-                        value={language} 
-                        onValueChange={setLanguage}
+                        value={languageValue} 
+                        onValueChange={(value) => {
+                          setLanguage(value);
+                          onLanguageChange?.(value);
+                      }}
                       >
                         <SelectTrigger className="h-9 bg-[#0f0f0f] border-white/10 text-white">
                           <SelectValue />
@@ -432,7 +570,10 @@ export function CharacterVlogScriptEditor({
                   <Label className="text-sm font-medium text-white/70">Target Duration</Label>
                   <Select 
                     value={duration} 
-                    onValueChange={setDuration}
+                    onValueChange={(value) => {
+                      setDuration(value);
+                      onDurationChange?.(value);
+                    }}
                   >
                     <SelectTrigger className="h-9 bg-[#0f0f0f] border-white/10 text-white">
                       <SelectValue />
@@ -732,7 +873,10 @@ export function CharacterVlogScriptEditor({
                 <Textarea
                   placeholder="Describe your vlog concept... AI will expand it into a full script."
                   value={storyIdea}
-                  onChange={(e) => setStoryIdea(e.target.value)}
+                  onChange={(e) => {
+                    setStoryIdea(e.target.value);
+                    onUserPromptChange?.(e.target.value);
+                  }}
                   className={cn(
                     "min-h-[120px] resize-none bg-[#0f0f0f] border-white/10 text-white",
                     "focus:outline-none focus:border-[#FF4081]/70 focus:ring-1 focus:ring-[#FF6B4A]/50 transition-all",

@@ -19,6 +19,22 @@ OUTPUT MUST BE STRICT JSON ONLY (no markdown, no commentary).
 
 
 ========================
+REASONING PROCESS
+========================
+
+Follow these steps when generating prompts for a shot:
+
+1. **Analyze** the shot data to understand composition, action, characters, and location requirements
+2. **Resolve** @{CharacterName} and @{LocationName} tags to canonical references and anchors
+3. **Determine** frame requirements based on narrative_mode, shot.frameMode, and continuity group position
+4. **Extract** visual elements from shotType, cameraMovement, and actionDescription
+5. **Synthesize** character anchors, location anchors, and style_anchor into cohesive visual description
+6. **Craft** image prompt(s) following the 7-layer anatomy (subject → action → composition → environment → lighting → style → consistency)
+7. **Generate** video prompt with motion description, camera movement translation, and temporal cues
+8. **Validate** that all prompts are complete, specific, model-aware, and JSON structure is correct
+
+
+========================
 1) INPUTS (ALWAYS PRESENT — UI VALIDATED)
 ========================
 
@@ -200,7 +216,32 @@ If danger exists, keep it non-graphic.
 
 
 ========================
-7) OUTPUT FORMAT (STRICT JSON ONLY)
+7) OUTPUT VALIDATION CHECKLIST
+========================
+
+Before outputting JSON, verify:
+- [ ] All @{CharacterName} and @{LocationName} tags are resolved to anchors (no @{...} tags in final prompts)
+- [ ] Character anchors are included verbatim for all characters in the shot
+- [ ] Location anchor is included verbatim for the shot location
+- [ ] Frame mode logic is correct:
+  - [ ] image-reference mode: only imagePrompt is filled, startFramePrompt and endFramePrompt are empty
+  - [ ] start-end mode, not in group: both startFramePrompt and endFramePrompt are filled, imagePrompt is empty
+  - [ ] start-end mode, first in group: both startFramePrompt and endFramePrompt are filled
+  - [ ] start-end mode, not first in group: only endFramePrompt is filled, startFramePrompt is empty
+- [ ] Image prompt(s) include all 7 layers: subject, action, composition, environment, lighting, style, consistency
+- [ ] Video prompt includes: subject motion, camera motion (translated from cameraMovement), scene motion, style consistency, temporal phrasing
+- [ ] Prompts are model-aware (formatted appropriately for image_model and video_model)
+- [ ] If in continuity group, consistency cues are included ("same outfit, same lighting, consistent facial features")
+- [ ] Camera movement is properly translated using the provided translations
+- [ ] All required JSON keys are present: scene_id, shotNumber, finalFrameMode, continuity, imagePrompt, startFramePrompt, endFramePrompt, videoPrompt, negativePrompt
+- [ ] finalFrameMode matches the determined mode (image-reference or start-end)
+- [ ] JSON is valid (no trailing commas, proper escaping, valid syntax)
+- [ ] Empty strings are used for non-applicable fields (not null or missing)
+- [ ] Prompts are specific and detailed (not generic or vague)
+
+
+========================
+8) OUTPUT FORMAT (STRICT JSON ONLY)
 ========================
 
 You MUST output ONLY this JSON object with exactly these keys:

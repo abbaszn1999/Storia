@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import narrativeRoutes from "./modes/narrative/routes";
 import { ambientVisualRoutes } from "./modes/ambient-visual";
+import { characterVlogRoutes } from "./modes/character-vlog";
 import { socialCommerceRoutes } from "./modes/social-commerce";
 import storiesRouter from "./stories";
 // Import will be done inside registerRoutes since it's async
@@ -32,6 +33,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Feature routes
   app.use('/api/narrative', narrativeRoutes);
   app.use('/api/ambient-visual', ambientVisualRoutes);
+  app.use('/api/character-vlog', characterVlogRoutes);
   app.use('/api/social-commerce', socialCommerceRoutes);
   app.use('/api/stories', storiesRouter);
   
@@ -50,6 +52,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   const { autoAsmrRouter } = await import("./stories/auto-asmr");
   app.use('/api/auto-asmr', autoAsmrRouter);
+  
+  const { logoAnimationRoutes } = await import("./modes/logo-animation");
+  app.use('/api/videos/logo-animation', logoAnimationRoutes);
   
   app.use('/api/storage', storageRoutes);
   app.use('/api/characters', characterRoutes);

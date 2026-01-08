@@ -372,6 +372,55 @@ const runwareImageModels: AiModelConfig[] = [
     },
   },
   // ─────────────────────────────────────────────────────────────────────────────
+  // Google Imagen (AIR: google:1@1, google:2@2)
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    name: "google-imagen-3.0",
+    provider: "runware",
+    metadata: {
+      label: "Google Imagen 3.0",
+      description: "High-quality images with advanced prompt understanding and photorealistic output",
+      supports: ["image-generation", "image-to-image"],
+      defaultResolution: "1024x1024",
+    },
+  },
+  {
+    name: "google-imagen-4.0-ultra",
+    provider: "runware",
+    metadata: {
+      label: "Google Imagen 4.0 Ultra",
+      description: "Most advanced Google image model with superior quality and detail",
+      supports: ["image-generation", "image-to-image"],
+      defaultResolution: "1024x1024",
+    },
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Midjourney (AIR: midjourney:3@1)
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    name: "midjourney-v7",
+    provider: "runware",
+    metadata: {
+      label: "Midjourney V7",
+      description: "Cinematic style with artistic and photorealistic capabilities. Requires numberResults to be multiple of 4",
+      supports: ["image-generation"],
+      defaultResolution: "1024x1024",
+    },
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Riverflow (Sourceful) - AIR: sourceful:2@3
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    name: "riverflow-2-max",
+    provider: "runware",
+    metadata: {
+      label: "Riverflow 2 Max",
+      description: "Maximum detail with high-quality output. Professional-grade image generation",
+      supports: ["image-generation", "image-to-image"],
+      defaultResolution: "1024x1024",
+    },
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
   // FLUX.2 Series (Black Forest Labs) - AIR: runware:400@1, bfl:5@1, bfl:6@1, bfl:7@1
   // ─────────────────────────────────────────────────────────────────────────────
   {
@@ -759,6 +808,16 @@ export const runwareModelIdMap: Record<string, string> = {
   // Seedream / ByteDance (AIR: bytedance:5@0, bytedance:seedream@4.5)
   "seedream-4.0": "bytedance:5@0",
   "seedream-4.5": "bytedance:seedream@4.5",
+
+  // Google Imagen (AIR: google:1@1, google:2@2)
+  "google-imagen-3.0": "google:1@1",
+  "google-imagen-4.0-ultra": "google:2@2",
+
+  // Midjourney (AIR: midjourney:3@1)
+  "midjourney-v7": "midjourney:3@1",
+
+  // Riverflow (Sourceful) - AIR: sourceful:2@3
+  "riverflow-2-max": "sourceful:2@3",
 
   // FLUX.2 Series (AIR: runware:400@1, bfl:5@1, bfl:6@1, bfl:7@1)
   "flux-2-dev": "runware:400@1",

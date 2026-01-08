@@ -1,5 +1,6 @@
 import { Video, MessageSquare, Sparkles, Mic, ShoppingBag, Clapperboard, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 
 const modes = [
   {
@@ -8,6 +9,7 @@ const modes = [
     description: "Create story-driven videos from script to storyboard",
     icon: Video,
     available: true,
+    iconColor: "text-blue-500",
   },
   {
     id: "vlog",
@@ -15,6 +17,7 @@ const modes = [
     description: "Create story-driven videos starring a single character",
     icon: MessageSquare,
     available: true,
+    iconColor: "text-purple-500",
   },
   {
     id: "ambient",
@@ -22,6 +25,7 @@ const modes = [
     description: "Mood-driven visual storytelling",
     icon: Sparkles,
     available: true,
+    iconColor: "text-indigo-500",
   },
   {
     id: "commerce",
@@ -29,6 +33,7 @@ const modes = [
     description: "Product showcase and promotional videos",
     icon: ShoppingBag,
     available: true,
+    iconColor: "text-orange-500",
   },
   {
     id: "logo",
@@ -36,6 +41,7 @@ const modes = [
     description: "Brand storytelling through motion",
     icon: Clapperboard,
     available: true,
+    iconColor: "text-violet-500",
   },
   {
     id: "podcast",
@@ -43,6 +49,7 @@ const modes = [
     description: "Conversation-style content creation",
     icon: Mic,
     available: false,
+    iconColor: "text-gray-400",
   },
 ];
 
@@ -53,64 +60,95 @@ interface ModeSelectorProps {
 
 export function ModeSelector({ onSelect, selectedMode }: ModeSelectorProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-      {modes.map((mode) => {
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {modes.map((mode, index) => {
         const isSelected = selectedMode === mode.id;
+        const Icon = mode.icon;
         
         return (
-          <div
+          <motion.div
             key={mode.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05, duration: 0.5 }}
+            whileHover={{ y: -4, transition: { duration: 0.2 } }}
             className={cn(
-              "group relative cursor-pointer rounded-xl border p-4 transition-all",
-              mode.available
-                ? isSelected
-                  ? "border-primary bg-primary/10"
-                  : "border-white/10 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/20"
-                : "opacity-40 cursor-not-allowed border-white/5 bg-white/[0.01]"
+              "group relative cursor-pointer rounded-2xl overflow-hidden",
+              "bg-card backdrop-blur-xl",
+              "border-0",
+              "transition-all duration-300",
+              !mode.available && "opacity-40 cursor-not-allowed"
             )}
             onClick={() => mode.available && onSelect(mode.id)}
             data-testid={`card-mode-${mode.id}`}
           >
-            {/* Selection indicator */}
+            {/* Hover Glow */}
             {isSelected && (
-              <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                <Check className="w-3 h-3 text-white" />
-              </div>
+              <div className="absolute -inset-0.5 rounded-2xl bg-primary/20 blur-sm" />
             )}
             
-            {/* Icon and Title Row */}
-            <div className="flex items-center gap-3 mb-2">
-              <div className={cn(
-                "p-2.5 rounded-xl transition-colors",
-                mode.available
-                  ? isSelected
-                    ? "bg-primary text-white"
-                    : "bg-primary/20 text-primary group-hover:bg-primary/30"
-                  : "bg-white/5 text-white/30"
-              )}>
-                <mode.icon className="h-5 w-5" />
-              </div>
-              <div>
+            {/* Card Header with Icon */}
+            <div className={cn(
+              "relative h-32 flex items-center justify-center overflow-hidden",
+              "bg-muted/50"
+            )}>
+              {/* Floating Icon */}
+              <motion.div 
+                className={cn(
+                  "relative z-10 w-16 h-16 rounded-2xl",
+                  "bg-background",
+                  "flex items-center justify-center",
+                  "shadow-md border border-border/50"
+                )}
+                animate={isSelected ? { 
+                  y: [-2, 2, -2],
+                  rotate: [0, 2, -2, 0]
+                } : {}}
+                transition={{ 
+                  duration: 2, 
+                  repeat: Infinity, 
+                  ease: "easeInOut" 
+                }}
+              >
+                <Icon className={cn("h-8 w-8", mode.iconColor)} />
+              </motion.div>
+
+              {/* Selection indicator */}
+              {isSelected && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="absolute top-3 right-3 w-6 h-6 rounded-full bg-primary flex items-center justify-center shadow-lg"
+                >
+                  <Check className="w-4 h-4 text-white" />
+                </motion.div>
+              )}
+            </div>
+
+            {/* Card Content */}
+            <div className="p-5 pt-4">
+              {/* Title */}
+              <div className="flex items-start justify-between gap-3 mb-3">
                 <h3 className={cn(
-                  "font-semibold transition-colors",
-                  isSelected ? "text-white" : "text-white/90"
+                  "text-lg font-bold transition-colors",
+                  isSelected ? "text-foreground" : "text-foreground"
                 )}>
                   {mode.title}
                 </h3>
                 {!mode.available && (
-                  <span className="text-xs text-white/40">Coming soon</span>
+                  <span className="text-xs text-muted-foreground shrink-0">Coming soon</span>
                 )}
               </div>
+              
+              {/* Description */}
+              <p className={cn(
+                "text-sm leading-relaxed",
+                "text-muted-foreground"
+              )}>
+                {mode.description}
+              </p>
             </div>
-            
-            {/* Description */}
-            <p className={cn(
-              "text-sm leading-relaxed",
-              isSelected ? "text-white/70" : "text-white/50"
-            )}>
-              {mode.description}
-            </p>
-          </div>
+          </motion.div>
         );
       })}
     </div>

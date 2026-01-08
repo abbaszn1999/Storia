@@ -72,6 +72,9 @@ interface Shot {
   soundEffects?: string | null;
   transition?: string | null;
   currentVersionId?: string | null;
+  characters?: string[];  // Array of @{CharacterName} tags
+  location?: string;  // @{LocationName} tag
+  frameMode?: "image-reference" | "start-end";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -442,26 +445,49 @@ export async function composeShots(
 
     // Convert to Shot objects
     const now = new Date();
-    const shots: Shot[] = aiShots.map((shot, index) => ({
-      id: randomUUID(),
-      sceneId: input.scene.id,
-      shotNumber: index + 1, // Ensure sequential numbering
-      shotType: shot.shotType || "Medium Shot",
-      cameraMovement: shot.cameraMovement || "static",
-      duration: Math.max(
-        SHOT_LIMITS.DURATION_MIN,
-        Math.min(SHOT_LIMITS.DURATION_MAX, shot.duration)
-      ),
-      description: `${shot.actionDescription}\n\nNarration: ${shot.narrationText}`, // Combine action and narration in description
-      videoModel: null,
-      imageModel: null,
-      soundEffects: null,
-      transition: null,
-      currentVersionId: null,
-      frameMode: input.narrativeMode === "auto" ? (shot.frameMode || "image-reference") : undefined, // Only set in auto mode
-      createdAt: now,
-      updatedAt: now,
-    }));
+    const shots: Shot[] = aiShots.map((shot, index) => {
+      // Ensure characters are properly tagged with @{Name} format
+      const taggedCharacters = shot.characters
+        ? shot.characters.map((char: string) => {
+            // If already tagged, return as is
+            if (char.startsWith('@')) {
+              return char;
+            }
+            // If plain name, tag it with @{Name} format
+            return `@{${char}}`;
+          })
+        : [];
+      
+      // Ensure location is properly tagged
+      let taggedLocation = shot.location || '';
+      if (taggedLocation && !taggedLocation.startsWith('@')) {
+        taggedLocation = `@{${taggedLocation}}`;
+      }
+      
+      return {
+        id: randomUUID(),
+        sceneId: input.scene.id,
+        shotNumber: index + 1, // Ensure sequential numbering
+        shotType: shot.shotType || "Medium Shot",
+        cameraMovement: shot.cameraMovement || "static",
+        duration: Math.max(
+          SHOT_LIMITS.DURATION_MIN,
+          Math.min(SHOT_LIMITS.DURATION_MAX, shot.duration)
+        ),
+        description: `${shot.actionDescription}\n\nNarration: ${shot.narrationText}`, // Combine action and narration in description
+        videoModel: null,
+        imageModel: null,
+        soundEffects: null,
+        transition: null,
+        currentVersionId: null,
+        frameMode: input.narrativeMode === "auto" ? (shot.frameMode || "image-reference") : undefined, // Only set in auto mode
+        // Store characters and location (will be stored in step3Data)
+        characters: taggedCharacters,
+        location: taggedLocation,
+        createdAt: now,
+        updatedAt: now,
+      };
+    });
 
     // Calculate actual total duration
     const totalDuration = shots.reduce((sum, shot) => sum + shot.duration, 0);

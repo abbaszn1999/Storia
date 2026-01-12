@@ -258,32 +258,40 @@ export function WorkspaceSwitcher() {
       </Popover>
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className={cn(
+          "sm:max-w-[425px]",
+          "bg-popover backdrop-blur-xl",
+          "border-input"
+        )}>
           <DialogHeader>
-            <DialogTitle>Create Workspace</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-foreground">Create Workspace</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
               Create a new workspace to organize your projects.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="workspace-name">Name</Label>
+              <Label htmlFor="workspace-name" className="text-foreground">Name</Label>
               <Input
                 id="workspace-name"
                 placeholder="My Workspace"
                 value={newWorkspaceName}
                 onChange={(e) => setNewWorkspaceName(e.target.value)}
+                className="bg-background border-input text-foreground placeholder:text-muted-foreground"
                 data-testid="input-workspace-name"
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="workspace-description">Description (optional)</Label>
+              <Label htmlFor="workspace-description" className="text-foreground">Description (optional)</Label>
               <Textarea
                 id="workspace-description"
                 placeholder="A brief description of this workspace..."
                 value={newWorkspaceDescription}
                 onChange={(e) => setNewWorkspaceDescription(e.target.value)}
-                className="resize-none"
+                className={cn(
+                  "resize-none",
+                  "bg-background border-input text-foreground placeholder:text-muted-foreground"
+                )}
                 rows={3}
                 data-testid="input-workspace-description"
               />
@@ -293,6 +301,7 @@ export function WorkspaceSwitcher() {
             <Button
               variant="outline"
               onClick={() => setCreateDialogOpen(false)}
+              className="border-input"
               data-testid="button-cancel-create-workspace"
             >
               Cancel

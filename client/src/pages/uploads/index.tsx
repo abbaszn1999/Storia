@@ -866,29 +866,29 @@ export default function Uploads() {
       <Dialog open={isEditDialogOpen} onOpenChange={handleCloseEditDialog}>
         <DialogContent className={cn(
           "max-w-2xl max-h-[90vh] overflow-y-auto",
-          "bg-[#111111]/95 backdrop-blur-2xl",
-          "border border-white/[0.1]",
-          "shadow-2xl shadow-black/50"
+          "bg-popover backdrop-blur-xl",
+          "border border-input",
+          "shadow-2xl"
         )}>
-          <DialogHeader className="border-b border-white/[0.06] pb-4">
+          <DialogHeader className="border-b border-input pb-4">
             <DialogTitle className={cn(
               "text-2xl font-bold",
-              "bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent"
+              "text-foreground"
             )}>
               Edit File Details
             </DialogTitle>
-            <DialogDescription className="text-white/50">
+            <DialogDescription className="text-muted-foreground">
               Update the display name and description for this file.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
             {editingUpload && (
               <div className={cn(
-                "border border-white/[0.1] rounded-lg p-4",
-                "bg-white/[0.02]"
+                "border border-input rounded-lg p-4",
+                "bg-muted/50"
               )}>
                 <div className="flex items-start gap-3">
-                  <div className="w-20 h-20 rounded bg-white/[0.05] flex items-center justify-center overflow-hidden flex-shrink-0 border border-white/[0.1]">
+                  <div className="w-20 h-20 rounded bg-muted flex items-center justify-center overflow-hidden flex-shrink-0 border border-input">
                     {getFileTypeCategory(editingUpload.fileType) === "image" ? (
                       <img
                         src={editingUpload.storageUrl}
@@ -900,8 +900,8 @@ export default function Uploads() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate text-white/80">{editingUpload.fileName}</p>
-                    <p className="text-xs text-white/40">
+                    <p className="font-medium text-sm truncate text-foreground">{editingUpload.fileName}</p>
+                    <p className="text-xs text-muted-foreground">
                       {formatFileSize(editingUpload.fileSize)} • {editingUpload.fileType}
                     </p>
                   </div>
@@ -910,23 +910,23 @@ export default function Uploads() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="edit-name" className="text-white/80">Display Name</Label>
+              <Label htmlFor="edit-name" className="text-foreground">Display Name</Label>
               <Input
                 id="edit-name"
                 placeholder="Enter a display name..."
                 value={editForm.name}
                 onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                 className={cn(
-                  "bg-white/[0.05] border-white/[0.1]",
-                  "text-white placeholder:text-white/40",
-                  "focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  "bg-background border-input",
+                  "text-foreground placeholder:text-muted-foreground",
+                  "focus:border-primary focus:ring-2 focus:ring-primary/20"
                 )}
                 data-testid="input-edit-name"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-description" className="text-white/80">Description (optional)</Label>
+              <Label htmlFor="edit-description" className="text-foreground">Description (optional)</Label>
               <Textarea
                 id="edit-description"
                 placeholder="Add a description..."
@@ -934,9 +934,9 @@ export default function Uploads() {
                 onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                 rows={2}
                 className={cn(
-                  "bg-white/[0.05] border-white/[0.1]",
-                  "text-white placeholder:text-white/40",
-                  "focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  "bg-background border-input",
+                  "text-foreground placeholder:text-muted-foreground",
+                  "focus:border-primary focus:ring-2 focus:ring-primary/20"
                 )}
                 data-testid="input-edit-description"
               />

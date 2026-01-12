@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { User, Lock, Trash2, AlertTriangle, Shield, Eye, EyeOff, Loader2, Mail } from "lucide-react";
+import { User, Lock, Trash2, AlertTriangle, Shield, Eye, EyeOff, Loader2, Mail, Pencil, Camera } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SiGoogle } from "react-icons/si";
+import { cn } from "@/lib/utils";
 
 interface UserProfile {
   id: string;
@@ -241,158 +242,201 @@ export default function Profile() {
   const isGoogleOnlyAccount = profile.googleId && !profile.hasPassword;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Account Settings</h1>
-        <p className="text-muted-foreground">
-          Manage your account information and security settings
-        </p>
-      </div>
+    <div className="px-4 py-8 space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-4xl font-bold mb-2 text-foreground">Account Settings</h1>
+          <p className="text-muted-foreground text-lg">
+            Manage your account information and security settings
+          </p>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16">
-              <AvatarImage src={profile.profileImageUrl || undefined} alt={displayName} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-lg">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <h2 className="text-xl font-semibold" data-testid="text-display-name">{displayName}</h2>
-              <p className="text-sm text-muted-foreground" data-testid="text-email">{profile.email}</p>
-              <div className="flex items-center gap-2 mt-1">
-                {profile.emailVerified && (
-                  <Badge variant="secondary" className="text-xs">Verified</Badge>
-                )}
-                {profile.googleId && (
-                  <Badge variant="outline" className="text-xs flex items-center gap-1">
-                    <SiGoogle className="h-3 w-3" />
-                    Google
-                  </Badge>
-                )}
+        {/* Profile Summary Card */}
+        <Card className="bg-background/70 backdrop-blur-xl border-input">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-6">
+              <div className="relative group">
+                <Avatar className="h-20 w-20 ring-4 ring-background shadow-lg">
+                  <AvatarImage src={profile.profileImageUrl || undefined} alt={displayName} />
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-violet-500 text-primary-foreground text-2xl font-bold">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="absolute bottom-0 right-0 h-7 w-7 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => {
+                    toast({
+                      title: "Coming soon",
+                      description: "Profile picture upload will be available soon.",
+                    });
+                  }}
+                >
+                  <Camera className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold mb-1" data-testid="text-display-name">{displayName}</h2>
+                <p className="text-muted-foreground mb-3" data-testid="text-email">{profile.email}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {profile.emailVerified && (
+                    <Badge variant="secondary" className="text-xs bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
+                      Verified
+                    </Badge>
+                  )}
+                  {profile.googleId && (
+                    <Badge variant="outline" className="text-xs flex items-center gap-1.5">
+                      <SiGoogle className="h-3 w-3" />
+                      Google Account
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <div className="border-b bg-background/80 backdrop-blur-xl">
+            <TabsList className="bg-transparent h-auto p-0 w-full justify-start gap-1">
+              <TabsTrigger 
+                value="personal" 
+                className="gap-2 px-6 py-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-lg" 
+                data-testid="tab-personal"
+              >
+                <User className="h-4 w-4" />
+                Personal Info
+              </TabsTrigger>
+              <TabsTrigger 
+                value="security" 
+                className="gap-2 px-6 py-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-lg" 
+                data-testid="tab-security"
+              >
+                <Lock className="h-4 w-4" />
+                Security
+              </TabsTrigger>
+              <TabsTrigger 
+                value="account" 
+                className="gap-2 px-6 py-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-lg" 
+                data-testid="tab-account"
+              >
+                <Shield className="h-4 w-4" />
+                Account
+              </TabsTrigger>
+            </TabsList>
           </div>
-        </CardHeader>
-      </Card>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full">
-          <TabsTrigger value="personal" className="flex-1 gap-2" data-testid="tab-personal">
-            <User className="h-4 w-4" />
-            Personal Info
-          </TabsTrigger>
-          <TabsTrigger value="security" className="flex-1 gap-2" data-testid="tab-security">
-            <Lock className="h-4 w-4" />
-            Security
-          </TabsTrigger>
-          <TabsTrigger value="account" className="flex-1 gap-2" data-testid="tab-account">
-            <Shield className="h-4 w-4" />
-            Account
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="personal" className="mt-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Personal Information</CardTitle>
-                  <CardDescription>Update your name and profile details</CardDescription>
-                </div>
-                {!isEditing ? (
-                  <Button variant="outline" size="sm" onClick={handleEditStart} data-testid="button-edit-profile">
-                    Edit
-                  </Button>
-                ) : (
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={handleEditCancel} data-testid="button-cancel-edit">
-                      Cancel
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      onClick={handleSaveProfile}
-                      disabled={updateProfileMutation.isPending}
-                      data-testid="button-save-profile"
-                    >
-                      {updateProfileMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                      Save
-                    </Button>
+          <TabsContent value="personal" className="mt-0">
+            <Card className="bg-background/70 backdrop-blur-xl border-input">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xl mb-1">Personal Information</CardTitle>
+                    <CardDescription>Update your name and profile details</CardDescription>
                   </div>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  {isEditing ? (
-                    <Input
-                      id="firstName"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      placeholder="Enter your first name"
-                      data-testid="input-first-name"
-                    />
+                  {!isEditing ? (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleEditStart} 
+                      data-testid="button-edit-profile"
+                      className="gap-2"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Edit
+                    </Button>
                   ) : (
-                    <p className="text-sm py-2" data-testid="text-first-name">
-                      {profile.firstName || <span className="text-muted-foreground">Not set</span>}
-                    </p>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={handleEditCancel} data-testid="button-cancel-edit">
+                        Cancel
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        onClick={handleSaveProfile}
+                        disabled={updateProfileMutation.isPending}
+                        data-testid="button-save-profile"
+                        className="gap-2"
+                      >
+                        {updateProfileMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                        Save Changes
+                      </Button>
+                    </div>
                   )}
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  {isEditing ? (
-                    <Input
-                      id="lastName"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      placeholder="Enter your last name"
-                      data-testid="input-last-name"
-                    />
-                  ) : (
-                    <p className="text-sm py-2" data-testid="text-last-name">
-                      {profile.lastName || <span className="text-muted-foreground">Not set</span>}
-                    </p>
-                  )}
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName" className="text-sm font-medium text-muted-foreground">First Name</Label>
+                    {isEditing ? (
+                      <Input
+                        id="firstName"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        placeholder="Enter your first name"
+                        className="h-11"
+                        data-testid="input-first-name"
+                      />
+                    ) : (
+                      <p className="text-base font-medium py-2.5" data-testid="text-first-name">
+                        {profile.firstName || <span className="text-muted-foreground font-normal">Not set</span>}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName" className="text-sm font-medium text-muted-foreground">Last Name</Label>
+                    {isEditing ? (
+                      <Input
+                        id="lastName"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        placeholder="Enter your last name"
+                        className="h-11"
+                        data-testid="input-last-name"
+                      />
+                    ) : (
+                      <p className="text-base font-medium py-2.5" data-testid="text-last-name">
+                        {profile.lastName || <span className="text-muted-foreground font-normal">Not set</span>}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              <Separator />
+                <Separator />
 
-              <div className="grid gap-2">
-                <Label>Email Address</Label>
-                <p className="text-sm text-muted-foreground py-2">
-                  {profile.email}
-                  <span className="ml-2 text-xs">(Cannot be changed)</span>
-                </p>
-              </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Email Address</Label>
+                  <p className="text-base font-medium py-2.5">
+                    {profile.email}
+                    <span className="ml-2 text-sm text-muted-foreground font-normal">(Cannot be changed)</span>
+                  </p>
+                </div>
 
-              <div className="grid gap-2">
-                <Label>Account Created</Label>
-                <p className="text-sm text-muted-foreground py-2">
-                  {new Date(profile.createdAt).toLocaleDateString("en-US", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Account Created</Label>
+                  <p className="text-base font-medium py-2.5">
+                    {new Date(profile.createdAt).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="security" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Change Password</CardTitle>
-              <CardDescription>
-                {isGoogleOnlyAccount
-                  ? "You signed up with Google and don't have a password set."
-                  : "Update your password to keep your account secure"}
-              </CardDescription>
-            </CardHeader>
+          <TabsContent value="security" className="mt-0">
+            <Card className="bg-background/70 backdrop-blur-xl border-input">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-xl mb-1">Change Password</CardTitle>
+                <CardDescription>
+                  {isGoogleOnlyAccount
+                    ? "You signed up with Google and don't have a password set."
+                    : "Update your password to keep your account secure"}
+                </CardDescription>
+              </CardHeader>
             <CardContent>
               {isGoogleOnlyAccount ? (
                 <div className="flex items-center gap-3 p-4 bg-muted rounded-lg">
@@ -492,17 +536,17 @@ export default function Profile() {
             </CardContent>
           </Card>
 
-          {profile.hasPassword && (
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Mail className="h-5 w-5" />
-                  Reset Password by Email
-                </CardTitle>
-                <CardDescription>
-                  Forgot your current password? We'll send a reset code to your email.
-                </CardDescription>
-              </CardHeader>
+            {profile.hasPassword && (
+              <Card className="mt-6 bg-background/70 backdrop-blur-xl border-input">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2 text-xl mb-1">
+                    <Mail className="h-5 w-5" />
+                    Reset Password by Email
+                  </CardTitle>
+                  <CardDescription>
+                    Forgot your current password? We'll send a reset code to your email.
+                  </CardDescription>
+                </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
                   <div className="flex-1">
@@ -529,17 +573,17 @@ export default function Profile() {
           )}
         </TabsContent>
 
-        <TabsContent value="account" className="mt-6">
-          <Card className="border-destructive/50">
-            <CardHeader>
-              <CardTitle className="text-destructive flex items-center gap-2">
-                <Trash2 className="h-5 w-5" />
-                Delete Account
-              </CardTitle>
-              <CardDescription>
-                Permanently delete your account and all associated data
-              </CardDescription>
-            </CardHeader>
+          <TabsContent value="account" className="mt-0">
+            <Card className="bg-background/70 backdrop-blur-xl border-destructive/50">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-destructive flex items-center gap-2 text-xl mb-1">
+                  <Trash2 className="h-5 w-5" />
+                  Delete Account
+                </CardTitle>
+                <CardDescription>
+                  Permanently delete your account and all associated data
+                </CardDescription>
+              </CardHeader>
             <CardContent>
               <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 space-y-3">
                 <div className="flex items-start gap-3">
@@ -568,10 +612,10 @@ export default function Profile() {
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete My Account
               </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              </CardFooter>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>

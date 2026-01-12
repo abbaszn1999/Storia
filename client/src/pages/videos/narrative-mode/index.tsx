@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { NarrativeWorkflow } from "@/components/narrative-workflow";
@@ -43,6 +43,9 @@ export default function NarrativeMode() {
   const [showModeSelector, setShowModeSelector] = useState(isNewVideo);
   const [creatingMode, setCreatingMode] = useState<"image-reference" | "start-end" | "auto" | null>(null);
   
+  // Track if initial restoration has been done to prevent re-running on every refetch
+  const hasRestoredRef = useRef(false);
+  
   const [activeStep, setActiveStep] = useState<NarrativeStepId>("script");
   const [completedSteps, setCompletedSteps] = useState<NarrativeStepId[]>([]);
   const [direction, setDirection] = useState(1);
@@ -69,9 +72,12 @@ export default function NarrativeMode() {
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
   const [continuityLocked, setContinuityLocked] = useState(false);
   const [continuityGroups, setContinuityGroups] = useState<{ [sceneId: string]: any[] }>({});
+  // Image and video models (stored in step1Data, not worldSettings)
+  const [imageModel, setImageModel] = useState<string | undefined>(undefined);
+  const [videoModel, setVideoModel] = useState<string | undefined>(undefined);
+  
   const [worldSettings, setWorldSettings] = useState<{ 
     artStyle: string; 
-    imageModel?: string;
     worldDescription?: string;
     locations?: Array<{ id: string; name: string; description: string; details?: string; imageUrl?: string | null }>;
     imageInstructions?: string;
@@ -79,7 +85,6 @@ export default function NarrativeMode() {
     cinematicInspiration?: string;
   }>({
     artStyle: "none",
-    imageModel: "flux-2-dev",
     worldDescription: "",
     locations: [],
     imageInstructions: "",
@@ -87,17 +92,22 @@ export default function NarrativeMode() {
     cinematicInspiration: "",
   });
 
-  // Restore state from existing video
+  // Restore state from existing video - ONLY run once on initial load
   useEffect(() => {
     if (existingVideo) {
+      // Skip navigation restoration if already restored (prevents refetch from navigating away)
+      const isInitialRestore = !hasRestoredRef.current;
+      
       console.log('[NarrativePage] Restoring from existingVideo:', {
         id: existingVideo.id,
         title: existingVideo.title,
         narrativeMode: existingVideo.narrativeMode,
         currentStep: existingVideo.currentStep,
         step1Data: existingVideo.step1Data,
+        isInitialRestore,
       });
       
+      // Always update title and data (safe to update on refetch)
       setVideoTitle(existingVideo.title);
       
       // Restore step1 data (narrativeMode is stored inside step1Data)
@@ -114,6 +124,8 @@ export default function NarrativeMode() {
           tones?: string[];
           language?: string;
           userIdea?: string;
+          imageModel?: string;
+          videoModel?: string;
         };
         
         // Restore narrative mode from step1Data (primary location) or top-level (fallback)
@@ -136,6 +148,16 @@ export default function NarrativeMode() {
         if (step1.tones && step1.tones.length > 0) setTones(step1.tones);
         if (step1.language) setLanguage(step1.language);
         if (step1.userIdea) setUserIdea(step1.userIdea);
+        
+        // Restore imageModel and videoModel from step1Data
+        if (step1.imageModel) setImageModel(step1.imageModel);
+        if (step1.videoModel) setVideoModel(step1.videoModel);
+        
+        // Remove imageModel from worldSettings if it exists (migrated to step1Data)
+        setWorldSettings(prev => {
+          const { imageModel: _, ...rest } = prev;
+          return rest;
+        });
         
         console.log('[NarrativePage] Restored step1 data:', {
           hasScript: !!step1.script,
@@ -174,20 +196,29 @@ export default function NarrativeMode() {
       
       // Find the first uncompleted step and navigate there
       // This ensures the user continues from where they left off
-      const firstUncompletedStep = allSteps.find(step => !restoredCompletedSteps.includes(step));
-      
-      if (firstUncompletedStep) {
-        console.log('[NarrativePage] Navigating to first uncompleted step:', firstUncompletedStep);
-        setActiveStep(firstUncompletedStep);
-      } else if (existingVideo.currentStep !== null && existingVideo.currentStep !== undefined) {
-        // All steps completed - restore to the saved current step
-        const step = typeof existingVideo.currentStep === 'number' 
-          ? stepMap[existingVideo.currentStep] 
-          : existingVideo.currentStep as NarrativeStepId;
-        if (step) {
-          console.log('[NarrativePage] All steps completed, restoring to:', step);
-          setActiveStep(step);
+      // CRITICAL: Only navigate on INITIAL restore, not on refetches after saves
+      if (isInitialRestore) {
+        const firstUncompletedStep = allSteps.find(step => !restoredCompletedSteps.includes(step));
+        
+        if (firstUncompletedStep) {
+          console.log('[NarrativePage] Navigating to first uncompleted step:', firstUncompletedStep);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.tsx:181',message:'setActiveStep called (first uncompleted)',data:{to:firstUncompletedStep,source:'restoration',isInitialRestore},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'Z4'})}).catch(()=>{});
+          // #endregion
+          setActiveStep(firstUncompletedStep);
+        } else if (existingVideo.currentStep !== null && existingVideo.currentStep !== undefined) {
+          // All steps completed - restore to the saved current step
+          const step = typeof existingVideo.currentStep === 'number' 
+            ? stepMap[existingVideo.currentStep] 
+            : existingVideo.currentStep as NarrativeStepId;
+          if (step) {
+            console.log('[NarrativePage] All steps completed, restoring to:', step);
+            setActiveStep(step);
+          }
         }
+        
+        // Mark initial restoration as complete
+        hasRestoredRef.current = true;
       }
       
       // Restore step2 data (world settings, characters, locations)
@@ -297,12 +328,25 @@ export default function NarrativeMode() {
                   }
                   
                   // Check if there's already a version for this shot
+                  // First, try to find version by shot.currentVersionId if it exists
                   let version = shot.currentVersionId
                     ? restoredShotVersions[shot.id].find((v: ShotVersion) => v.id === shot.currentVersionId)
                     : null;
                   
+                  // If no version found by currentVersionId, use the latest existing version
+                  if (!version && restoredShotVersions[shot.id].length > 0) {
+                    // Use the latest version (highest versionNumber or most recent)
+                    version = restoredShotVersions[shot.id].reduce((latest, v) => {
+                      if (!latest) return v;
+                      return (v.versionNumber > latest.versionNumber || 
+                              (v.versionNumber === latest.versionNumber && 
+                               new Date(v.createdAt).getTime() > new Date(latest.createdAt).getTime()))
+                        ? v : latest;
+                    });
+                  }
+                  
                   if (!version) {
-                    // Create a new version with the prompts
+                    // Only create a new version if no versions exist at all
                     const newVersionId = `version-${shot.id}-${Date.now()}`;
                     version = {
                       id: newVersionId,
@@ -332,8 +376,29 @@ export default function NarrativeMode() {
                       shotsUpdated = true;
                     }
                   } else {
+                    // Ensure shot.currentVersionId points to the existing version
+                    if (!shot.currentVersionId || shot.currentVersionId !== version.id) {
+                      if (!updatedShots[sceneId]) {
+                        updatedShots[sceneId] = [...(currentShots[sceneId] || [])];
+                      }
+                      const shotIndex = updatedShots[sceneId].findIndex((s: Shot) => s.id === shot.id);
+                      if (shotIndex >= 0) {
+                        updatedShots[sceneId][shotIndex] = {
+                          ...updatedShots[sceneId][shotIndex],
+                          currentVersionId: version.id,
+                        };
+                        shotsUpdated = true;
+                      }
+                    }
                     // Update existing version with prompts (only if fields are empty)
+                    // CRITICAL: Don't overwrite user-edited prompts that are already saved in shotVersions
+                    // Only populate from step4.prompts if the version doesn't have that field set
                     const updatedVersion = { ...version };
+                    // Only update if the field is truly empty (null, undefined, or empty string)
+                    // This preserves user edits that were saved to the database
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.tsx:367',message:'Checking restoration imagePrompt',data:{shotId:shot.id,versionId:version.id,hasExistingPrompt:!!updatedVersion.imagePrompt,existingPrompt:updatedVersion.imagePrompt?.substring(0,40),newPrompt:promptData.imagePrompt?.substring(0,40)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'W'})}).catch(()=>{});
+                    // #endregion
                     if (!updatedVersion.imagePrompt && promptData.imagePrompt) {
                       updatedVersion.imagePrompt = promptData.imagePrompt;
                     }
@@ -350,10 +415,20 @@ export default function NarrativeMode() {
                       updatedVersion.negativePrompt = promptData.negativePrompt;
                     }
                     
-                    // Update the version in the array
-                    const versionIndex = restoredShotVersions[shot.id].findIndex((v: ShotVersion) => v.id === version!.id);
-                    if (versionIndex >= 0) {
-                      restoredShotVersions[shot.id][versionIndex] = updatedVersion;
+                    // Only update if something actually changed (to avoid unnecessary state updates)
+                    const hasChanges = 
+                      (updatedVersion.imagePrompt !== version.imagePrompt) ||
+                      (updatedVersion.startFramePrompt !== version.startFramePrompt) ||
+                      (updatedVersion.endFramePrompt !== version.endFramePrompt) ||
+                      (updatedVersion.videoPrompt !== version.videoPrompt) ||
+                      (updatedVersion.negativePrompt !== version.negativePrompt);
+                    
+                    if (hasChanges) {
+                      // Update the version in the array
+                      const versionIndex = restoredShotVersions[shot.id].findIndex((v: ShotVersion) => v.id === version!.id);
+                      if (versionIndex >= 0) {
+                        restoredShotVersions[shot.id][versionIndex] = updatedVersion;
+                      }
                     }
                   }
                 }
@@ -551,6 +626,9 @@ export default function NarrativeMode() {
   };
 
   const handleNext = async () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.tsx:594',message:'handleNext called',data:{activeStep,isGeneratingPrompts},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'Y'})}).catch(()=>{});
+    // #endregion
     const steps: NarrativeStepId[] = ["script", "world", "breakdown", "storyboard", "animatic", "export"];
     const currentIndex = steps.indexOf(activeStep);
     const nextIndex = currentIndex + 1;
@@ -870,6 +948,9 @@ export default function NarrativeMode() {
       // Update local state
       setCompletedSteps(newCompletedSteps);
       setDirection(1);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.tsx:923',message:'setActiveStep called (handleNext)',data:{from:activeStep,to:nextStep,source:'handleNext'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'Z5'})}).catch(()=>{});
+      // #endregion
       setActiveStep(nextStep);
       
       // Save to database
@@ -1019,6 +1100,8 @@ export default function NarrativeMode() {
         userIdea={userIdea}
         numberOfScenes={numberOfScenes}
         shotsPerScene={shotsPerScene}
+        imageModel={imageModel}
+        videoModel={videoModel}
         scenes={scenes}
         shots={shots}
         shotVersions={shotVersions}

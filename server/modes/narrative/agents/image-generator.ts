@@ -6,7 +6,7 @@
 // Uses reference images for visual consistency (characters, locations, style, previous frames)
 
 import { callAi } from "../../../ai/service";
-import { runwareModelIdMap } from "../../../ai/config";
+import { getRunwareModelId } from "../../../ai/config";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -23,7 +23,7 @@ export interface StoryboardImageInput {
   referenceImages: string[]; // Character + location + style refs + previous frame if in continuity group
   aspectRatio: string; // From step1Data (e.g., "16:9", "9:16", "1:1")
   imageModel: string; // From shot/scene settings (e.g., "flux-2-dev", "nano-banana")
-  frameType?: "start-only" | "start-and-end"; // For start-end mode
+  frameType?: "start-only" | "end-only" | "start-and-end"; // For start-end mode
 }
 
 export interface StoryboardImageOutput {
@@ -87,9 +87,14 @@ async function generateSingleImage(
   workspaceId?: string
 ): Promise<{ imageUrl: string; cost?: number }> {
   // Get Runware model ID from friendly name
-  const runwareModelId = runwareModelIdMap[model];
-  if (!runwareModelId) {
-    throw new Error(`No Runware mapping for model: ${model}`);
+  // Use getRunwareModelId() which handles mapping and fallback
+  const runwareModelId = getRunwareModelId(model);
+  
+  // Log model mapping for debugging
+  if (runwareModelId !== model) {
+    console.log(`[agent-4.2:storyboard-image] Model mapping: ${model} → ${runwareModelId}`);
+  } else {
+    console.warn(`[agent-4.2:storyboard-image] Model "${model}" not found in mapping, using as-is (may be AIR ID)`);
   }
 
   // Build the payload
@@ -246,7 +251,7 @@ export async function generateStoryboardImage(
       let totalCost = 0;
 
       // Generate start frame if needed
-      if (frameType === "start-and-end" && startFramePrompt && startFramePrompt.trim() !== "") {
+      if ((frameType === "start-and-end" || frameType === "start-only") && startFramePrompt && startFramePrompt.trim() !== "") {
         const startResult = await generateSingleImage(
           startFramePrompt,
           finalNegativePrompt,
@@ -262,7 +267,7 @@ export async function generateStoryboardImage(
       }
 
       // Generate end frame if needed
-      if (endFramePrompt && endFramePrompt.trim() !== "") {
+      if ((frameType === "start-and-end" || frameType === "end-only") && endFramePrompt && endFramePrompt.trim() !== "") {
         // For end frame, include start frame as reference if it exists (for continuity)
         const endReferenceImages = startFrameUrl
           ? [...referenceImages, startFrameUrl]

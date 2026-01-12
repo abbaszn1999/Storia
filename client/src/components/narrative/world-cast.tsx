@@ -244,7 +244,7 @@ interface WorldCastProps {
   characters: Character[];
   referenceImages: ReferenceImage[];
   artStyle?: string;
-  imageModel?: string;
+  imageModel?: string; // Still needed for character generation, but not stored in worldSettings
   worldDescription?: string;
   locations?: Location[];
   imageInstructions?: string;
@@ -255,7 +255,6 @@ interface WorldCastProps {
   onReferenceImagesChange: (images: ReferenceImage[]) => void;
   onWorldSettingsChange?: (settings: { 
     artStyle: string; 
-    imageModel: string;
     worldDescription: string;
     locations: Location[];
     imageInstructions: string;
@@ -282,22 +281,6 @@ const VIDEO_STYLES = [
   { id: "anime", name: "Anime", imageUrl: animeImg },
 ];
 
-const IMAGE_MODELS = [
-  { label: "FLUX.2 Dev", value: "flux-2-dev" },
-  { label: "FLUX.2 Pro", value: "flux-2-pro" },
-  { label: "FLUX.2 Flex", value: "flux-2-flex" },
-  { label: "Google Imagen 3.0", value: "imagen-3.0" },
-  { label: "Google Imagen 4.0 Ultra", value: "imagen-4-ultra" },
-  { label: "Google Imagen 4.0 Preview", value: "imagen-4.0-preview" },
-  { label: "Google Imagen 4.0 Fast", value: "imagen-4.0-fast" },
-  { label: "Nano Banana (Gemini Flash Image 2.5)", value: "nano-banana" },
-  { label: "Nano Banana 2 Pro (Gemini 3 Pro Image)", value: "nano-banana-2-pro" },
-  { label: "Midjourney V7", value: "midjourney-v7" },
-  { label: "Ideogram 3.0", value: "ideogram-3.0" },
-  { label: "GPT Image 1", value: "gpt-image-1" },
-  { label: "Seedream 4.0", value: "seedream-4.0" },
-  { label: "Seedream 4.5", value: "seedream-4.5" },
-];
 
 interface Location {
   id: string;
@@ -339,7 +322,7 @@ export function WorldCast({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [cinematicInspiration, setCinematicInspiration] = useState(initialCinematicInspiration);
   const [selectedArtStyle, setSelectedArtStyle] = useState(artStyle);
-  const [selectedImageModel, setSelectedImageModel] = useState(imageModel);
+  const [selectedImageModel] = useState(imageModel); // Read-only, used for character generation only
   const [selectedWorldDescription, setSelectedWorldDescription] = useState(worldDescription);
   const [locationsList, setLocationsList] = useState<Location[]>(locations);
 
@@ -347,10 +330,6 @@ export function WorldCast({
   useEffect(() => {
     setSelectedArtStyle(artStyle);
   }, [artStyle]);
-
-  useEffect(() => {
-    setSelectedImageModel(imageModel);
-  }, [imageModel]);
 
   useEffect(() => {
     setSelectedWorldDescription(worldDescription);
@@ -757,7 +736,6 @@ export function WorldCast({
       if (onWorldSettingsChange) {
         onWorldSettingsChange({ 
           artStyle: "none", 
-          imageModel: selectedImageModel,
           worldDescription: selectedWorldDescription,
           locations: locationsList,
           imageInstructions: selectedImageInstructions,
@@ -795,7 +773,6 @@ export function WorldCast({
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: styleId, 
-        imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
         locations: locationsList,
         imageInstructions: selectedImageInstructions,
@@ -805,27 +782,12 @@ export function WorldCast({
     }
   };
 
-  const handleImageModelChange = (model: string) => {
-    setSelectedImageModel(model);
-    if (onWorldSettingsChange) {
-      onWorldSettingsChange({ 
-        artStyle: selectedArtStyle, 
-        imageModel: model,
-        worldDescription: selectedWorldDescription,
-        locations: locationsList,
-        imageInstructions: selectedImageInstructions,
-        videoInstructions: selectedVideoInstructions,
-        cinematicInspiration: cinematicInspiration
-      });
-    }
-  };
 
   const handleCinematicInspirationChange = (inspiration: string) => {
     setCinematicInspiration(inspiration);
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: selectedArtStyle, 
-        imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
         locations: locationsList,
         imageInstructions: selectedImageInstructions,
@@ -840,7 +802,6 @@ export function WorldCast({
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: selectedArtStyle, 
-        imageModel: selectedImageModel,
         worldDescription: description,
         locations: locationsList,
         imageInstructions: selectedImageInstructions,
@@ -935,7 +896,6 @@ export function WorldCast({
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: selectedArtStyle, 
-        imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
         locations: updatedLocations,
         imageInstructions: selectedImageInstructions,
@@ -968,7 +928,6 @@ export function WorldCast({
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: selectedArtStyle, 
-        imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
         locations: updatedLocations,
         imageInstructions: selectedImageInstructions,
@@ -994,7 +953,6 @@ export function WorldCast({
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: selectedArtStyle, 
-        imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
         locations: updatedLocations,
         imageInstructions: selectedImageInstructions,
@@ -1010,7 +968,6 @@ export function WorldCast({
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: selectedArtStyle, 
-        imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
         locations: updatedLocations,
         imageInstructions: selectedImageInstructions,
@@ -1029,7 +986,6 @@ export function WorldCast({
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: selectedArtStyle, 
-        imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
         locations: locationsList,
         imageInstructions: instructions,
@@ -1044,7 +1000,6 @@ export function WorldCast({
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: selectedArtStyle, 
-        imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
         locations: locationsList,
         imageInstructions: selectedImageInstructions,
@@ -1075,26 +1030,6 @@ export function WorldCast({
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Image AI Model */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">IMAGE AI MODEL</Label>
-              <Select
-                value={selectedImageModel}
-                onValueChange={handleImageModelChange}
-              >
-                <SelectTrigger className="h-9" data-testid="select-image-model">
-                  <SelectValue placeholder="Select image model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {IMAGE_MODELS.map((model) => (
-                    <SelectItem key={model.value} value={model.value}>
-                      {model.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Cinematic Inspiration */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">CINEMATIC INSPIRATION</Label>

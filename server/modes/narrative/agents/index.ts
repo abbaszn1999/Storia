@@ -1059,8 +1059,23 @@ export class NarrativeAgents {
     return `[PLACEHOLDER] Image will be generated with Nano Banana/Gemini 2.5 Flash`;
   }
 
-  static async generateVideo(imageUrl: string, prompt: string): Promise<string> {
-    return `[PLACEHOLDER] Video will be generated from image`;
+  static async generateVideo(
+    imageUrl: string, 
+    prompt: string,
+    modelAirId?: string,
+    duration?: number,
+    userId?: string,
+    workspaceId?: string
+  ): Promise<string> {
+    // TODO: Implement actual video generation using Runware API with modelAirId
+    // For now, return placeholder
+    console.log('[narrative:agents] Video generation requested:', {
+      modelAirId,
+      duration,
+      hasImage: !!imageUrl,
+      promptLength: prompt.length,
+    });
+    return `[PLACEHOLDER] Video will be generated from image using model ${modelAirId}`;
   }
 
   /**

@@ -10,6 +10,7 @@ import { isAuthenticated, getCurrentUserId } from '../../../auth';
 import { bunnyStorage } from '../../../storage/bunny-storage';
 import { insertCharacterSchema, insertLocationSchema } from '@shared/schema';
 import { getRunwareImageModels, getRunwareVideoModels } from '../../../ai/config';
+import { VIDEO_MODEL_CONFIGS, getAvailableVideoModels } from '../../../ai/config/video-models';
 
 const router = Router();
 
@@ -128,6 +129,72 @@ function buildLocationImagePath(
   const workspace = clean(workspaceName);
   
   return `${userId}/${workspace}/Assets/Locations/${locationId}/${filename}`;
+}
+
+/**
+ * Build Bunny path for shot version images
+ */
+function buildShotImagePath(
+  userId: string,
+  workspaceName: string,
+  videoId: string,
+  shotId: string,
+  versionId: string,
+  imageType: "image" | "start" | "end",
+  mimeType: string
+): string {
+  // Extract extension from mime type
+  const extensionMap: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+  };
+  const extension = extensionMap[mimeType] || "png";
+  const filename = `${imageType}.${extension}`;
+  
+  // Clean workspace name for path safety
+  const clean = (str: string) => str.replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "_");
+  const workspace = clean(workspaceName);
+  
+  return `${userId}/${workspace}/Videos/${videoId}/Shots/${shotId}/Versions/${versionId}/${filename}`;
+}
+
+/**
+ * Download image from URL and upload to Bunny CDN
+ */
+async function downloadAndUploadToBunny(
+  imageUrl: string,
+  bunnyPath: string
+): Promise<string> {
+  try {
+    // Download image from URL
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download image: ${response.status} ${response.statusText}`);
+    }
+    
+    // Get content type from response headers
+    const contentType = response.headers.get('content-type') || 'image/png';
+    
+    // Get image buffer
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    // Upload to Bunny CDN
+    const cdnUrl = await bunnyStorage.uploadFile(bunnyPath, buffer, contentType);
+    
+    console.log('[narrative:routes] Image uploaded to Bunny CDN:', {
+      originalUrl: imageUrl.substring(0, 50) + '...',
+      bunnyPath,
+      cdnUrl: cdnUrl.substring(0, 50) + '...',
+    });
+    
+    return cdnUrl;
+  } catch (error) {
+    console.error('[narrative:routes] Failed to download and upload image:', error);
+    throw error;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1534,28 +1601,39 @@ router.get('/models', isAuthenticated, async (req: Request, res: Response) => {
       },
     ];
 
-    // Get video models from config (or create comprehensive list if needed)
-    let videoModels;
+    // Get video models from VIDEO_MODEL_CONFIGS (all models from video-models.ts)
+    let allVideoModels;
     try {
-      videoModels = getRunwareVideoModels();
+      allVideoModels = getAvailableVideoModels();
+      console.log('[narrative:routes] Fetched video models from video-models.ts:', {
+        count: allVideoModels.length,
+        modelIds: allVideoModels.map(m => m.id),
+      });
     } catch (error) {
-      console.warn('[narrative:routes] Failed to get video models from config, using fallback');
-      videoModels = [];
+      console.error('[narrative:routes] Error fetching video models:', error);
+      throw error;
     }
+    
+    const videoModels = allVideoModels.map((model) => ({
+      name: model.id, // Use model.id as the name (e.g., "seedance-1.0-pro")
+      label: model.label, // Use model.label for display (e.g., "Seedance 1.0 Pro")
+      description: model.technicalSpecs 
+        ? `${model.hasAudio ? '✅ Native audio. ' : ''}${model.frameImageSupport?.first ? '✅ First frame. ' : ''}${model.frameImageSupport?.last ? '✅ Last frame. ' : ''}Durations: ${model.durations.join(', ')}s. ${model.resolutions.join(', ')}. ${model.aspectRatios.join(', ')}`
+        : model.label,
+      durations: model.durations, // Include durations array for client-side use
+    }));
 
     console.log('[narrative:routes] Returning models:', {
       imageCount: allImageModels.length,
       videoCount: videoModels.length,
       imageModelNames: allImageModels.map(m => m.name),
+      videoModelNames: videoModels.map(m => m.name),
+      videoModelLabels: videoModels.map(m => m.label),
     });
 
     res.json({
       imageModels: allImageModels,
-      videoModels: videoModels.map((model: any) => ({
-        name: model.name,
-        label: model.metadata?.label || model.name,
-        description: model.metadata?.description || '',
-      })),
+      videoModels,
     });
   } catch (error) {
     console.error('[narrative:routes] Models fetch error:', error);
@@ -1889,7 +1967,7 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { shotId, videoId, versionId } = req.body;
+    const { shotId, videoId, versionId, imagePrompt, videoPrompt, startFramePrompt, endFramePrompt, negativePrompt, frame } = req.body;
     const workspaceId = req.headers["x-workspace-id"] as string | undefined;
 
     if (!shotId || !videoId) {
@@ -1902,6 +1980,8 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       versionId,
       userId,
       workspaceId,
+      hasImagePrompt: !!imagePrompt,
+      hasVideoPrompt: !!videoPrompt,
     });
 
     // Fetch video from database
@@ -1914,7 +1994,28 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
     const step1Data = (video.step1Data as Record<string, any>) || {};
     const step2Data = (video.step2Data as Record<string, any>) || {};
     const step3Data = (video.step3Data as Record<string, any>) || {};
-    const step4Data = (video.step4Data as Record<string, any>) || {};
+    let step4Data = (video.step4Data as Record<string, any>) || {};
+
+    // If prompts are provided in request body, update step4Data.prompts FIRST
+    if (imagePrompt !== undefined || videoPrompt !== undefined || startFramePrompt !== undefined || endFramePrompt !== undefined || negativePrompt !== undefined) {
+      const prompts = step4Data.prompts || {};
+      const shotPrompts = prompts[shotId] || {};
+      prompts[shotId] = {
+        ...shotPrompts,
+        ...(imagePrompt !== undefined && { imagePrompt }),
+        ...(videoPrompt !== undefined && { videoPrompt }),
+        ...(startFramePrompt !== undefined && { startFramePrompt }),
+        ...(endFramePrompt !== undefined && { endFramePrompt }),
+        ...(negativePrompt !== undefined && { negativePrompt }),
+      };
+      step4Data = {
+        ...step4Data,
+        prompts,
+      };
+      
+      // Save updated prompts to database before generating
+      await storage.updateVideo(videoId, { step4Data });
+    }
 
     // Get aspect ratio from step1Data
     const aspectRatio = step1Data.aspectRatio || '16:9';
@@ -1922,7 +2023,7 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
     // Get narrative mode
     const narrativeMode = step1Data.narrativeMode || 'image-reference';
 
-    // Get prompts for this shot from step4Data
+    // Get prompts for this shot from step4Data (now updated if provided in request)
     const shotPrompts = step4Data.prompts?.[shotId];
     if (!shotPrompts) {
       return res.status(400).json({ error: 'Prompts not found for this shot. Please generate prompts first.' });
@@ -1944,6 +2045,15 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
 
     // Get image model (shot-level or scene-level)
     const imageModel = foundShot.imageModel || foundScene.imageModel || 'nano-banana';
+    
+    // Log model selection for debugging
+    console.log('[narrative:routes] Image model selection:', {
+      shotId,
+      shotImageModel: foundShot.imageModel || null,
+      sceneImageModel: foundScene.imageModel || null,
+      selectedModel: imageModel,
+      fallbackUsed: !foundShot.imageModel && !foundScene.imageModel,
+    });
 
     // Collect reference images
     const referenceImages: string[] = [];
@@ -2026,9 +2136,18 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       }
     }
 
-    // Determine frame type based on continuity groups
-    let frameType: "start-only" | "start-and-end" | undefined = undefined;
-    if (narrativeMode === 'start-end' || narrativeMode === 'auto') {
+    // Determine frame type based on user request or continuity groups
+    let frameType: "start-only" | "end-only" | "start-and-end" | undefined = undefined;
+    
+    // If user explicitly requested a specific frame, use that
+    if (frame === 'start' || frame === 'end') {
+      if (frame === 'start') {
+        frameType = "start-only";
+      } else if (frame === 'end') {
+        frameType = "end-only";
+      }
+    } else if (narrativeMode === 'start-end' || narrativeMode === 'auto') {
+      // Otherwise, use continuity group logic (backward compatible)
       for (const group of sceneContinuityGroups) {
         if (group.shotIds && group.shotIds.includes(shotId)) {
           const shotIndex = group.shotIds.indexOf(shotId);
@@ -2078,7 +2197,21 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       });
     }
 
-    // Create or update shot version
+    // Get workspace for Bunny path
+    let workspaceName = 'default';
+    if (workspaceId) {
+      try {
+        const workspaces = await storage.getWorkspacesByUserId(userId);
+        const workspace = workspaces.find(w => w.id === workspaceId);
+        if (workspace) {
+          workspaceName = workspace.name;
+        }
+      } catch (error) {
+        console.warn('[narrative:routes] Failed to get workspace, using default name:', error);
+      }
+    }
+
+    // Create or update shot version (we need versionId to build Bunny paths)
     const shotVersions = step4Data.shotVersions || {};
     const existingVersions = shotVersions[shotId] || [];
     
@@ -2093,16 +2226,26 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       const existingVersion = existingVersions[versionIndex];
       versionNumber = existingVersion.versionNumber;
       
+      // Only update frame URLs that were actually generated
+      // Preserve existing URLs for frames that weren't generated
+      const updatedStartFrameUrl = result.startFrameUrl !== null && result.startFrameUrl !== undefined
+        ? result.startFrameUrl
+        : existingVersion.startFrameUrl;
+      
+      const updatedEndFrameUrl = result.endFrameUrl !== null && result.endFrameUrl !== undefined
+        ? result.endFrameUrl
+        : existingVersion.endFrameUrl;
+      
       newVersion = {
         ...existingVersion,
-        imageUrl: result.imageUrl,
-        startFrameUrl: result.startFrameUrl,
-        endFrameUrl: result.endFrameUrl,
-        imagePrompt: shotPrompts.imagePrompt,
-        startFramePrompt: shotPrompts.startFramePrompt,
-        endFramePrompt: shotPrompts.endFramePrompt,
-        videoPrompt: shotPrompts.videoPrompt,
-        negativePrompt: shotPrompts.negativePrompt,
+        imageUrl: result.imageUrl || existingVersion.imageUrl,
+        startFrameUrl: updatedStartFrameUrl,
+        endFrameUrl: updatedEndFrameUrl,
+        imagePrompt: shotPrompts.imagePrompt !== undefined ? shotPrompts.imagePrompt : existingVersion.imagePrompt,
+        startFramePrompt: shotPrompts.startFramePrompt !== undefined ? shotPrompts.startFramePrompt : existingVersion.startFramePrompt,
+        endFramePrompt: shotPrompts.endFramePrompt !== undefined ? shotPrompts.endFramePrompt : existingVersion.endFramePrompt,
+        videoPrompt: shotPrompts.videoPrompt !== undefined ? shotPrompts.videoPrompt : existingVersion.videoPrompt,
+        negativePrompt: shotPrompts.negativePrompt !== undefined ? shotPrompts.negativePrompt : existingVersion.negativePrompt,
       };
       
       existingVersions[versionIndex] = newVersion;
@@ -2129,6 +2272,96 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       existingVersions.push(newVersion);
     }
 
+    // Download images from Runware and upload to Bunny CDN
+    let finalImageUrl = result.imageUrl;
+    // For existing versions, preserve existing frame URLs if new ones weren't generated
+    let finalStartFrameUrl: string | null = result.startFrameUrl;
+    let finalEndFrameUrl: string | null = result.endFrameUrl;
+    
+    // Get existing version if updating
+    const existingVersion = versionId ? existingVersions.find((v: any) => v.id === versionId) : null;
+    
+    // Preserve existing URLs if new ones weren't generated
+    if (existingVersion) {
+      if (result.startFrameUrl === null || result.startFrameUrl === undefined) {
+        finalStartFrameUrl = existingVersion.startFrameUrl || null;
+      }
+      if (result.endFrameUrl === null || result.endFrameUrl === undefined) {
+        finalEndFrameUrl = existingVersion.endFrameUrl || null;
+      }
+    }
+
+    try {
+      // Upload single image (image-reference mode)
+      if (result.imageUrl) {
+        const bunnyPath = buildShotImagePath(
+          userId,
+          workspaceName,
+          videoId,
+          shotId,
+          newVersionId,
+          "image",
+          "image/png" // Default, will be determined from response
+        );
+        finalImageUrl = await downloadAndUploadToBunny(result.imageUrl, bunnyPath);
+      }
+
+      // Upload start frame (start-end mode)
+      if (result.startFrameUrl) {
+        const bunnyPath = buildShotImagePath(
+          userId,
+          workspaceName,
+          videoId,
+          shotId,
+          newVersionId,
+          "start",
+          "image/png"
+        );
+        finalStartFrameUrl = await downloadAndUploadToBunny(result.startFrameUrl, bunnyPath);
+      }
+
+      // Upload end frame (start-end mode)
+      if (result.endFrameUrl) {
+        const bunnyPath = buildShotImagePath(
+          userId,
+          workspaceName,
+          videoId,
+          shotId,
+          newVersionId,
+          "end",
+          "image/png"
+        );
+        finalEndFrameUrl = await downloadAndUploadToBunny(result.endFrameUrl, bunnyPath);
+      }
+
+      // Update version with Bunny CDN URLs
+      // For existing versions, only update URLs that were actually generated
+      newVersion.imageUrl = finalImageUrl || newVersion.imageUrl;
+      if (versionId && existingVersions.find((v: any) => v.id === versionId)) {
+        // Only update if a new URL was generated
+        if (finalStartFrameUrl !== null && finalStartFrameUrl !== undefined) {
+          newVersion.startFrameUrl = finalStartFrameUrl;
+        }
+        if (finalEndFrameUrl !== null && finalEndFrameUrl !== undefined) {
+          newVersion.endFrameUrl = finalEndFrameUrl;
+        }
+      } else {
+        // For new versions, set all URLs
+        newVersion.startFrameUrl = finalStartFrameUrl;
+        newVersion.endFrameUrl = finalEndFrameUrl;
+      }
+
+      // Update the version in the array
+      const versionIndex = existingVersions.findIndex((v: any) => v.id === newVersionId);
+      if (versionIndex >= 0) {
+        existingVersions[versionIndex] = newVersion;
+      }
+    } catch (error) {
+      console.error('[narrative:routes] Failed to upload images to Bunny CDN:', error);
+      // Continue with Runware URLs if Bunny upload fails (graceful degradation)
+      console.warn('[narrative:routes] Using Runware URLs as fallback');
+    }
+
     // Update shotVersions in step4Data
     shotVersions[shotId] = existingVersions;
     const updatedStep4Data = {
@@ -2142,21 +2375,195 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
     console.log('[narrative:routes] Storyboard image generated successfully:', {
       shotId,
       versionId: newVersion.id,
-      hasImageUrl: !!result.imageUrl,
-      hasStartFrame: !!result.startFrameUrl,
-      hasEndFrame: !!result.endFrameUrl,
+      hasImageUrl: !!finalImageUrl,
+      hasStartFrame: !!finalStartFrameUrl,
+      hasEndFrame: !!finalEndFrameUrl,
       cost: result.cost,
+      uploadedToBunny: true,
     });
 
     res.json({
-      ...result,
+      imageUrl: finalImageUrl,
+      startFrameUrl: finalStartFrameUrl,
+      endFrameUrl: finalEndFrameUrl,
       shotVersionId: newVersion.id,
       version: newVersion,
+      cost: result.cost,
     });
   } catch (error) {
     console.error('[narrative:routes] Storyboard image generation error:', error);
     res.status(500).json({ 
       error: 'Failed to generate storyboard image',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * PATCH /api/narrative/shots/:shotId/versions/:versionId
+ * Update shot version prompts (imagePrompt, videoPrompt, etc.)
+ */
+router.patch('/shots/:shotId/versions/:versionId', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2317',message:'Route hit',data:{method:req.method,path:req.path,params:req.params,query:req.query},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { shotId, versionId } = req.params;
+    const { imagePrompt, videoPrompt, startFramePrompt, endFramePrompt, negativePrompt } = req.body;
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2324',message:'Parsed params',data:{shotId,versionId,versionIdLength:versionId?.length,versionIdType:typeof versionId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2328',message:'Request body prompts',data:{hasImagePrompt:!!imagePrompt,imagePromptPreview:imagePrompt?.substring?.(0,80),hasVideoPrompt:!!videoPrompt,reqBodyKeys:Object.keys(req.body)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'Z9'})}).catch(()=>{});
+    // #endregion
+
+    if (!shotId || !versionId) {
+      return res.status(400).json({ error: 'shotId and versionId are required' });
+    }
+
+    console.log('[narrative:routes] Updating shot version prompts:', {
+      shotId,
+      versionId,
+      hasImagePrompt: !!imagePrompt,
+      hasVideoPrompt: !!videoPrompt,
+      hasStartFramePrompt: !!startFramePrompt,
+      hasEndFramePrompt: !!endFramePrompt,
+      hasNegativePrompt: !!negativePrompt,
+    });
+
+    // Get videoId from request body or find it from shot
+    const { videoId } = req.body;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2349',message:'Checking videoId',data:{hasVideoId:!!videoId,videoId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
+    if (!videoId) {
+      return res.status(400).json({ error: 'videoId is required' });
+    }
+
+    // Fetch video from database
+    const video = await storage.getVideo(videoId);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2356',message:'Video fetched',data:{hasVideo:!!video,hasStep4Data:!!video?.step4Data},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+    // #endregion
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Get step4Data
+    const step4Data = (video.step4Data as Record<string, any>) || {};
+    const shotVersions = step4Data.shotVersions || {};
+    const existingVersions = shotVersions[shotId] || [];
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2363',message:'Checking versions',data:{versionsCount:existingVersions.length,versionIds:existingVersions.map((v:any)=>v.id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+    // #endregion
+
+    // Find the version to update
+    const versionIndex = existingVersions.findIndex((v: any) => v.id === versionId);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2366',message:'Version search result',data:{versionIndex,searchingFor:versionId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+    // #endregion
+    if (versionIndex === -1) {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+
+    // Update the version with new prompt values
+    const existingVersion = existingVersions[versionIndex];
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2386',message:'Before update',data:{existingImagePrompt:existingVersion?.imagePrompt?.substring?.(0,50),newImagePrompt:imagePrompt?.substring?.(0,80),imagePromptUndefined:imagePrompt===undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ZA'})}).catch(()=>{});
+    // #endregion
+    const updatedVersion = {
+      ...existingVersion,
+      ...(imagePrompt !== undefined && { imagePrompt }),
+      ...(videoPrompt !== undefined && { videoPrompt }),
+      ...(startFramePrompt !== undefined && { startFramePrompt }),
+      ...(endFramePrompt !== undefined && { endFramePrompt }),
+      ...(negativePrompt !== undefined && { negativePrompt }),
+    };
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2396',message:'After update',data:{updatedImagePrompt:updatedVersion?.imagePrompt?.substring?.(0,80)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ZB'})}).catch(()=>{});
+    // #endregion
+
+    existingVersions[versionIndex] = updatedVersion;
+    shotVersions[shotId] = existingVersions;
+    
+    // #region agent log
+    const promptCheck1 = updatedVersion.imagePrompt;
+    const promptCheck2 = existingVersions[versionIndex]?.imagePrompt;
+    const promptCheck3 = shotVersions[shotId]?.[versionIndex]?.imagePrompt;
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2405',message:'After array assignment',data:{promptCheck1:promptCheck1?.substring?.(0,80),promptCheck2:promptCheck2?.substring?.(0,80),promptCheck3:promptCheck3?.substring?.(0,80),areEqual:promptCheck1===promptCheck2&&promptCheck2===promptCheck3},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ZC'})}).catch(()=>{});
+    // #endregion
+
+    // CRITICAL: Also update step4Data.prompts[shotId] because generate-image endpoint reads from there
+    const prompts = step4Data.prompts || {};
+    const shotPrompts = prompts[shotId] || {};
+    const updatedShotPrompts = {
+      ...shotPrompts,
+      ...(imagePrompt !== undefined && { imagePrompt }),
+      ...(videoPrompt !== undefined && { videoPrompt }),
+      ...(startFramePrompt !== undefined && { startFramePrompt }),
+      ...(endFramePrompt !== undefined && { endFramePrompt }),
+      ...(negativePrompt !== undefined && { negativePrompt }),
+    };
+    prompts[shotId] = updatedShotPrompts;
+
+    // Update step4Data
+    const updatedStep4Data = {
+      ...step4Data,
+      shotVersions,
+      prompts,
+    };
+    
+    // #region agent log
+    const finalPrompt = updatedStep4Data?.shotVersions?.[shotId]?.[versionIndex]?.imagePrompt;
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2415',message:'After step4Data spread',data:{finalPrompt:finalPrompt?.substring?.(0,80),updatedVersionPrompt:updatedVersion.imagePrompt?.substring?.(0,80)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ZD'})}).catch(()=>{});
+    // #endregion
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2385',message:'About to save to database',data:{videoId,hasUpdatedStep4Data:!!updatedStep4Data,shotVersionsKeys:Object.keys(shotVersions),versionId,updatedVersionImagePrompt:updatedVersion.imagePrompt?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+    // #endregion
+
+    // Save to database
+    await storage.updateVideo(videoId, { step4Data: updatedStep4Data });
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2392',message:'Database save completed',data:{videoId,shotId,versionId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
+    // #endregion
+
+    // Verify the save by reading back from database
+    const savedVideo = await storage.getVideo(videoId);
+    const savedStep4Data = savedVideo?.step4Data as Record<string, any> | undefined;
+    const savedShotVersions = savedStep4Data?.shotVersions || {};
+    const savedVersions = savedShotVersions[shotId] || [];
+    const savedVersion = savedVersions.find((v: any) => v.id === versionId);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2400',message:'Verifying database save',data:{hasSavedVideo:!!savedVideo,hasSavedStep4Data:!!savedStep4Data,hasSavedShotVersions:!!savedShotVersions[shotId],savedVersionsCount:savedVersions.length,hasSavedVersion:!!savedVersion,savedVersionImagePrompt:savedVersion?.imagePrompt?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'T'})}).catch(()=>{});
+    // #endregion
+
+    console.log('[narrative:routes] Shot version prompts updated successfully:', {
+      shotId,
+      versionId,
+    });
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2399',message:'About to send response',data:{success:true,versionId:updatedVersion.id,imagePrompt:updatedVersion.imagePrompt?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+    // #endregion
+    res.json({
+      success: true,
+      version: updatedVersion,
+    });
+  } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2404',message:'Error caught',data:{errorMessage:error instanceof Error ? error.message : String(error),errorStack:error instanceof Error ? error.stack : undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
+    // #endregion
+    console.error('[narrative:routes] Shot version update error:', error);
+    res.status(500).json({ 
+      error: 'Failed to update shot version',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
@@ -2199,8 +2606,13 @@ router.post('/shot/generate-image', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/shot/generate-video', async (req: Request, res: Response) => {
+router.post('/shot/generate-video', isAuthenticated, async (req: Request, res: Response) => {
   try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const {
       imageUrl,
       shotDescription,
@@ -2208,7 +2620,15 @@ router.post('/shot/generate-video', async (req: Request, res: Response) => {
       action,
       duration,
       pacing,
+      videoModel, // Model ID from video-models.ts (e.g., "seedance-1.0-pro")
     } = req.body;
+    const workspaceId = req.headers["x-workspace-id"] as string | undefined;
+
+    // Get model AIR ID from video model config
+    const modelConfig = VIDEO_MODEL_CONFIGS[videoModel || 'seedance-1.0-pro'];
+    if (!modelConfig || !modelConfig.modelAirId) {
+      return res.status(400).json({ error: `Invalid video model: ${videoModel}` });
+    }
 
     const videoPrompt = await NarrativeAgents.generateVideoPrompt({
       shotDescription,
@@ -2218,14 +2638,21 @@ router.post('/shot/generate-video', async (req: Request, res: Response) => {
       pacing,
     });
 
-    const videoUrl = await NarrativeAgents.generateVideo(imageUrl, videoPrompt);
+    const videoUrl = await NarrativeAgents.generateVideo(
+      imageUrl, 
+      videoPrompt,
+      modelConfig.modelAirId, // Pass model AIR ID to agent
+      duration,
+      userId,
+      workspaceId
+    );
 
     res.json({ 
       videoUrl,
       prompt: videoPrompt,
     });
   } catch (error) {
-    console.error('Shot video generation error:', error);
+    console.error('[narrative:routes] Shot video generation error:', error);
     res.status(500).json({ error: 'Failed to generate shot video' });
   }
 });

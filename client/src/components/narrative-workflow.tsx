@@ -28,6 +28,8 @@ interface NarrativeWorkflowProps {
   userIdea: string;
   numberOfScenes?: number | 'auto';
   shotsPerScene?: number | 'auto';
+  imageModel?: string;
+  videoModel?: string;
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
@@ -37,7 +39,6 @@ interface NarrativeWorkflowProps {
   continuityGroups: { [sceneId: string]: any[] };
   worldSettings: { 
     artStyle: string; 
-    imageModel?: string;
     worldDescription?: string;
     locations?: Array<{ id: string; name: string; description: string; details?: string; imageUrl?: string | null }>;
     imageInstructions?: string;
@@ -60,7 +61,6 @@ interface NarrativeWorkflowProps {
   onContinuityGroupsChange: (groups: { [sceneId: string]: any[] }) => void;
   onWorldSettingsChange: (settings: { 
     artStyle: string; 
-    imageModel: string;
     worldDescription: string;
     locations: Array<{ id: string; name: string; description: string; details?: string; imageUrl?: string | null }>;
     imageInstructions: string;
@@ -88,6 +88,8 @@ export function NarrativeWorkflow({
   userIdea,
   numberOfScenes,
   shotsPerScene,
+  imageModel,
+  videoModel,
   scenes,
   shots,
   shotVersions,
@@ -187,13 +189,72 @@ export function NarrativeWorkflow({
     console.log("Export data:", data);
   };
 
-  const handleGenerateShot = async (shotId: string) => {
+  const handleGenerateShot = async (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => {
     try {
-      const response = await apiRequest('POST', '/api/narrative/shots/generate-image', {
+      // Find shot and version to save prompts first
+      const allShots = Object.values(shots).flat();
+      const shot = allShots.find(s => s.id === shotId);
+      const currentVersions = shotVersions[shotId] || [];
+      const currentVersion = currentVersions.find(v => v.id === shot?.currentVersionId) || currentVersions[currentVersions.length - 1];
+      
+      // Save prompts to database FIRST before generating
+      // If version exists, update it. Otherwise, prompts will be saved when version is created by generate-image
+      if (prompts && (prompts.imagePrompt !== undefined || prompts.videoPrompt !== undefined)) {
+        if (currentVersion) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'narrative-workflow.tsx:generate',message:'Saving prompts before generate (has version)',data:{shotId,versionId:currentVersion.id,imagePromptPreview:prompts.imagePrompt?.substring(0,50),videoPromptPreview:prompts.videoPrompt?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'SAVE_BEFORE_GEN'})}).catch(()=>{});
+          // #endregion
+          
+          const saveResponse = await fetch(`/api/narrative/shots/${shotId}/versions/${currentVersion.id}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-workspace-id': workspaceId,
+            },
+            body: JSON.stringify({
+              videoId,
+              ...(prompts.imagePrompt !== undefined && { imagePrompt: prompts.imagePrompt }),
+              ...(prompts.videoPrompt !== undefined && { videoPrompt: prompts.videoPrompt }),
+            }),
+            credentials: 'include',
+          });
+          
+          if (!saveResponse.ok) {
+            console.error('Failed to save prompts before generating');
+          }
+        } else {
+          // No version yet - pass prompts to generate-image endpoint which will save them
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'narrative-workflow.tsx:generate',message:'No version yet, will pass prompts to generate-image',data:{shotId,imagePromptPreview:prompts.imagePrompt?.substring(0,50),videoPromptPreview:prompts.videoPrompt?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'SAVE_BEFORE_GEN_NO_VERSION'})}).catch(()=>{});
+          // #endregion
+        }
+      }
+      
+      // Pass prompts to generate-image if no version exists (it will save them)
+      const requestBody: any = {
         shotId,
         videoId,
-      }, {
-        'x-workspace-id': workspaceId,
+      };
+      
+      // Pass frame parameter if provided (for start-end mode)
+      if (frame) {
+        requestBody.frame = frame;
+      }
+      
+      // If no version exists, pass prompts so generate-image can save them
+      if (prompts && !currentVersion && (prompts.imagePrompt !== undefined || prompts.videoPrompt !== undefined)) {
+        if (prompts.imagePrompt !== undefined) requestBody.imagePrompt = prompts.imagePrompt;
+        if (prompts.videoPrompt !== undefined) requestBody.videoPrompt = prompts.videoPrompt;
+      }
+      
+      const response = await fetch('/api/narrative/shots/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-workspace-id': workspaceId,
+        },
+        body: JSON.stringify(requestBody),
+        credentials: 'include',
       });
       
       const data = await response.json();
@@ -209,16 +270,14 @@ export function NarrativeWorkflow({
       
       // Update shotVersions with the new version
       if (data.version) {
-        const currentVersions = shotVersions[shotId] || [];
-        const updatedVersions = [...currentVersions, data.version];
+        const newVersions = shotVersions[shotId] || [];
+        const updatedVersions = [...newVersions, data.version];
         onShotVersionsChange({
           ...shotVersions,
           [shotId]: updatedVersions,
         });
         
         // Update shot's currentVersionId
-        const allShots = Object.values(shots).flat();
-        const shot = allShots.find(s => s.id === shotId);
         if (shot) {
           handleUpdateShot(shotId, { currentVersionId: data.version.id });
         }
@@ -238,7 +297,7 @@ export function NarrativeWorkflow({
     }
   };
 
-  const handleRegenerateShot = async (shotId: string) => {
+  const handleRegenerateShot = async (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => {
     // Get current version ID if exists
     const allShots = Object.values(shots).flat();
     const shot = allShots.find(s => s.id === shotId);
@@ -246,12 +305,44 @@ export function NarrativeWorkflow({
     const versionId = shot?.currentVersionId || currentVersions[currentVersions.length - 1]?.id;
     
     try {
-      const response = await apiRequest('POST', '/api/narrative/shots/generate-image', {
-        shotId,
-        videoId,
-        versionId, // Pass versionId to update existing version
-      }, {
-        'x-workspace-id': workspaceId,
+      // Save prompts to database FIRST before regenerating
+      if (prompts && versionId && (prompts.imagePrompt !== undefined || prompts.videoPrompt !== undefined)) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'narrative-workflow.tsx:regenerate',message:'Saving prompts before regenerate',data:{shotId,versionId,imagePromptPreview:prompts.imagePrompt?.substring(0,50),videoPromptPreview:prompts.videoPrompt?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'SAVE_BEFORE_REGEN'})}).catch(()=>{});
+        // #endregion
+        
+        const saveResponse = await fetch(`/api/narrative/shots/${shotId}/versions/${versionId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-workspace-id': workspaceId,
+          },
+          body: JSON.stringify({
+            videoId,
+            ...(prompts.imagePrompt !== undefined && { imagePrompt: prompts.imagePrompt }),
+            ...(prompts.videoPrompt !== undefined && { videoPrompt: prompts.videoPrompt }),
+          }),
+          credentials: 'include',
+        });
+        
+        if (!saveResponse.ok) {
+          console.error('Failed to save prompts before regenerating');
+        }
+      }
+      
+      const response = await fetch('/api/narrative/shots/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-workspace-id': workspaceId,
+        },
+        body: JSON.stringify({
+          shotId,
+          videoId,
+          versionId, // Pass versionId to update existing version
+          ...(frame && { frame }), // Pass frame parameter if provided (for start-end mode)
+        }),
+        credentials: 'include',
       });
       
       const data = await response.json();
@@ -304,6 +395,7 @@ export function NarrativeWorkflow({
   };
 
   const handleUpdateShotVersion = (shotId: string, versionId: string, updates: Partial<ShotVersion>) => {
+    // Update local state only - API save happens on Generate/Regenerate button click
     onShotVersionsChange(
       Object.fromEntries(
         Object.entries(shotVersions).map(([sid, versions]) => [
@@ -558,6 +650,8 @@ export function NarrativeWorkflow({
           initialUserIdea={userIdea}
           initialNumberOfScenes={numberOfScenes}
           initialShotsPerScene={shotsPerScene}
+          initialImageModel={imageModel}
+          initialVideoModel={videoModel}
           onScriptChange={onScriptChange}
           onAspectRatioChange={onAspectRatioChange}
           onScriptModelChange={onScriptModelChange}
@@ -615,7 +709,7 @@ export function NarrativeWorkflow({
           characters={characters}
           referenceImages={referenceImages}
           artStyle={worldSettings.artStyle}
-          imageModel={worldSettings.imageModel}
+          imageModel={imageModel} // Pass from step1Data, not worldSettings
           worldDescription={worldSettings.worldDescription}
           locations={worldSettings.locations}
           imageInstructions={worldSettings.imageInstructions}

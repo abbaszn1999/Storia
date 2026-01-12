@@ -8,11 +8,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Sparkles, Film, Globe, Clock, Palette, MessageSquare, FileText, Wand2, RectangleHorizontal, RectangleVertical, Square, Grid3x3, ChevronDown } from "lucide-react";
+import { Loader2, Sparkles, Film, Globe, Clock, Palette, MessageSquare, FileText, Wand2, RectangleHorizontal, RectangleVertical, Square, Grid3x3, ChevronDown, ImageIcon, Video } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { IMAGE_MODELS, getImageModelConfig } from "@/constants/image-models";
+import { VIDEO_MODELS, getVideoModelConfig, getDefaultVideoModel, getAvailableVideoModels, isModelCompatible } from "@/constants/video-models";
 
 interface ScriptEditorProps {
   videoId?: string;
@@ -29,12 +31,16 @@ interface ScriptEditorProps {
   initialUserIdea?: string;
   initialNumberOfScenes?: number | 'auto';
   initialShotsPerScene?: number | 'auto';
+  initialImageModel?: string;
+  initialVideoModel?: string;
   onScriptChange: (script: string) => void;
   onAspectRatioChange?: (aspectRatio: string) => void;
   onScriptModelChange?: (model: string) => void;
   onNarrationStyleChange?: (style: "third-person" | "first-person") => void;
   onNumberOfScenesChange?: (scenes: number | 'auto') => void;
   onShotsPerSceneChange?: (shots: number | 'auto') => void;
+  onImageModelChange?: (model: string) => void;
+  onVideoModelChange?: (model: string) => void;
   onValidationChange?: (canContinue: boolean) => void;  // Called when validation state changes
   onNext: () => void;
 }
@@ -80,11 +86,34 @@ const LANGUAGES = [
   "Portuguese", "Japanese", "Korean", "Chinese", "Arabic"
 ];
 
-const ASPECT_RATIOS = [
-  { id: "16:9", label: "16:9", description: "YouTube", icon: RectangleHorizontal },
+// All possible aspect ratios with metadata for UI display (matching ambient visual mode)
+const ALL_ASPECT_RATIOS = [
+  { id: "16:9", label: "16:9", description: "YouTube, Landscape", icon: RectangleHorizontal },
   { id: "9:16", label: "9:16", description: "TikTok, Reels", icon: RectangleVertical },
-  { id: "1:1", label: "1:1", description: "Instagram", icon: Square },
+  { id: "1:1", label: "1:1", description: "Instagram Square", icon: Square },
+  { id: "4:3", label: "4:3", description: "Classic TV", icon: RectangleHorizontal },
+  { id: "3:4", label: "3:4", description: "Portrait Classic", icon: RectangleVertical },
+  { id: "21:9", label: "21:9", description: "Ultra-Wide Cinema", icon: RectangleHorizontal },
+  { id: "9:21", label: "9:21", description: "Ultra-Tall", icon: RectangleVertical },
 ];
+
+// Compatibility function for aspect ratios (matching ambient visual mode pattern)
+// Narrative mode always uses video-animation (generates videos from images)
+const getCompatibleAspectRatios = (
+  imageModel: string,
+  videoModel: string
+): string[] => {
+  const imageConfig = IMAGE_MODELS.find(m => m.value === imageModel);
+  const videoConfig = getVideoModelConfig(videoModel);
+  
+  // Video Animation mode: intersection of both
+  const imageRatios = new Set(imageConfig?.aspectRatios || []);
+  const videoRatios = videoConfig?.aspectRatios || [];
+  
+  // Return intersection - only ratios supported by BOTH models
+  // If no intersection, return empty array (UI will show error message)
+  return videoRatios.filter(r => imageRatios.has(r));
+};
 
 export function ScriptEditor({ 
   videoId,
@@ -100,12 +129,16 @@ export function ScriptEditor({
   initialUserIdea = "",
   initialNumberOfScenes = 'auto',
   initialShotsPerScene = 'auto',
+  initialImageModel,
+  initialVideoModel,
   onScriptChange, 
   onAspectRatioChange, 
   onScriptModelChange, 
   onNarrationStyleChange,
   onNumberOfScenesChange,
   onShotsPerSceneChange,
+  onImageModelChange,
+  onVideoModelChange,
   onValidationChange,
   onNext 
 }: ScriptEditorProps) {
@@ -122,7 +155,12 @@ export function ScriptEditor({
   const [selectedNumberOfScenes, setSelectedNumberOfScenes] = useState<number | 'auto'>(initialNumberOfScenes);
   const [selectedShotsPerScene, setSelectedShotsPerScene] = useState<number | 'auto'>(initialShotsPerScene);
   const [advancedSettingsOpen, setAdvancedSettingsOpen] = useState(false);
+  const [imageModel, setImageModel] = useState(initialImageModel || "nano-banana");
+  const [videoModel, setVideoModel] = useState(initialVideoModel || getDefaultVideoModel().value);
   const { toast } = useToast();
+
+  // Get available video models (filtered for narrative mode compatibility)
+  const availableVideoModels = getAvailableVideoModels('image-reference'); // Narrative mode uses image-reference
 
   // Track settings when script was created - to detect if settings changed after
   const [scriptSettingsSnapshot, setScriptSettingsSnapshot] = useState<{
@@ -204,6 +242,18 @@ export function ScriptEditor({
       setSelectedShotsPerScene(initialShotsPerScene);
     }
   }, [initialShotsPerScene]);
+
+  useEffect(() => {
+    if (initialImageModel && initialImageModel !== imageModel) {
+      setImageModel(initialImageModel);
+    }
+  }, [initialImageModel]);
+
+  useEffect(() => {
+    if (initialVideoModel && initialVideoModel !== videoModel) {
+      setVideoModel(initialVideoModel);
+    }
+  }, [initialVideoModel]);
 
   const accentClasses = "from-purple-500 to-pink-500";
 
@@ -415,6 +465,20 @@ export function ScriptEditor({
     return () => clearTimeout(timeoutId);
   }, [selectedGenres, selectedTones, duration, language, selectedNumberOfScenes, selectedShotsPerScene, videoId]);
 
+  // Save imageModel and videoModel when they change (debounced)
+  useEffect(() => {
+    if (!videoId || videoId === 'new') return;
+    
+    const timeoutId = setTimeout(() => {
+      saveStep1Data({
+        imageModel,
+        videoModel,
+      });
+    }, 500); // Debounce for 500ms
+
+    return () => clearTimeout(timeoutId);
+  }, [imageModel, videoModel, videoId]);
+
   return (
     <div className="flex w-full gap-0 overflow-hidden">
       {/* LEFT COLUMN: SETTINGS (35% width) */}
@@ -493,43 +557,272 @@ export function ScriptEditor({
               </CardContent>
             </Card>
 
-            {/* Aspect Ratio */}
+            {/* Image AI Model */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <ImageIcon className="w-5 h-5 text-purple-400" />
+                  <Label className="text-lg font-semibold text-white">IMAGE AI MODEL</Label>
+                </div>
+                <p className="text-sm text-white/50">AI model used to generate storyboard images</p>
+                <Select 
+                  value={imageModel} 
+                  onValueChange={(value) => {
+                    setImageModel(value);
+                    onImageModelChange?.(value);
+                    // Check if current aspect ratio is compatible with new model combination
+                    const compatibleRatios = getCompatibleAspectRatios(value, videoModel);
+                    if (compatibleRatios.length > 0 && !compatibleRatios.includes(selectedAspectRatio)) {
+                      // Auto-adjust to first compatible ratio
+                      const newRatio = compatibleRatios[0];
+                      setSelectedAspectRatio(newRatio);
+                      onAspectRatioChange?.(newRatio);
+                      if (videoId && videoId !== 'new') {
+                        saveStep1Data({ aspectRatio: newRatio });
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-auto min-h-[48px] py-2.5 bg-white/5 border-white/10 text-white">
+                    <SelectValue placeholder="Select image model">
+                      {(() => {
+                        const model = IMAGE_MODELS.find(m => m.value === imageModel);
+                        if (!model) return "Select image model";
+                        return (
+                          <div className="flex items-center gap-2 w-full">
+                            <div className="flex-1 text-left">
+                              <div className="text-sm font-medium text-white">{model.label}</div>
+                              <div className="text-xs text-white/50">{model.provider}</div>
+                            </div>
+                            {model.default && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 border-purple-500/50 text-purple-300 flex-shrink-0">
+                                Default
+                              </Badge>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[400px] bg-[#0a0a0a] border-white/10">
+                    {IMAGE_MODELS.map((model) => (
+                      <SelectItem 
+                        key={model.value} 
+                        value={model.value}
+                        className="py-3 focus:bg-purple-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-purple-500/30 data-[state=checked]:to-pink-500/30 data-[state=checked]:text-white"
+                      >
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{model.label}</span>
+                            {model.default && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-500/20 border-purple-500/50 text-purple-300">
+                                Default
+                              </Badge>
+                            )}
+                            {model.badge && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-white/10 border-white/20 text-white/70">
+                                {model.badge}
+                              </Badge>
+                            )}
+                          </div>
+                          <span className="text-xs text-white/50">{model.provider}</span>
+                          <span className="text-xs text-white/40">{model.description}</span>
+                          <span className="text-[10px] text-white/40 mt-1">
+                            {model.aspectRatios.length} ratios • {model.resolutions.join(", ")}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+
+            {/* Video AI Model */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Video className="w-5 h-5 text-purple-400" />
+                  <Label className="text-lg font-semibold text-white">VIDEO AI MODEL</Label>
+                </div>
+                <p className="text-sm text-white/50">AI model used to generate videos from images</p>
+                <Select 
+                  value={videoModel} 
+                  onValueChange={(value) => {
+                    setVideoModel(value);
+                    onVideoModelChange?.(value);
+                    // Check if current aspect ratio is compatible with new model combination
+                    const compatibleRatios = getCompatibleAspectRatios(imageModel, value);
+                    if (compatibleRatios.length > 0 && !compatibleRatios.includes(selectedAspectRatio)) {
+                      // Auto-adjust to first compatible ratio
+                      const newRatio = compatibleRatios[0];
+                      setSelectedAspectRatio(newRatio);
+                      onAspectRatioChange?.(newRatio);
+                      if (videoId && videoId !== 'new') {
+                        saveStep1Data({ aspectRatio: newRatio });
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-auto min-h-[48px] py-2.5 bg-white/5 border-white/10 text-white">
+                    <SelectValue placeholder="Select video model">
+                      {(() => {
+                        const model = getVideoModelConfig(videoModel);
+                        if (!model) return "Select video model";
+                        return (
+                          <div className="flex items-center gap-2 w-full">
+                            <div className="flex-1 text-left">
+                              <div className="text-sm font-medium text-white">{model.label}</div>
+                              <div className="text-xs text-white/50">{model.provider}</div>
+                            </div>
+                            {model.default && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 border-purple-500/50 text-purple-300 flex-shrink-0">
+                                Default
+                              </Badge>
+                            )}
+                            {model.hasAudio && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 border-purple-500/50 text-purple-300 flex-shrink-0">
+                                🎵 Audio
+                              </Badge>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[400px] bg-[#0a0a0a] border-white/10">
+                    {availableVideoModels.map((model) => (
+                      <SelectItem 
+                        key={model.value} 
+                        value={model.value}
+                        className="py-3 focus:bg-purple-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-purple-500/30 data-[state=checked]:to-pink-500/30 data-[state=checked]:text-white"
+                      >
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium">{model.label}</span>
+                            {model.default && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-500/20 border-purple-500/50 text-purple-300">
+                                Default
+                              </Badge>
+                            )}
+                            {model.hasAudio && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-500/20 border-purple-500/50 text-purple-300">
+                                🎵 Audio
+                              </Badge>
+                            )}
+                            {model.badge && !model.default && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-white/10 border-white/20 text-white/70">
+                                {model.badge}
+                              </Badge>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-white/50 mt-0.5">
+                            {model.provider}
+                          </span>
+                          <span className="text-xs text-white/40 mt-1">
+                            {model.description}
+                          </span>
+                          <span className="text-[10px] text-white/40 mt-1">
+                            {model.durations.join(', ')}s • {model.resolutions.join(', ')}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+
+            {/* Aspect Ratio - After Image and Video Models (filtered by compatibility) */}
             <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Film className="w-5 h-5 text-purple-400" />
                   <Label className="text-lg font-semibold text-white">Aspect Ratio</Label>
                 </div>
-                <p className="text-sm text-white/50">Choose dimensions for your video</p>
+                <p className="text-sm text-white/50">
+                  Showing ratios supported by both image and video models
+                </p>
                 <div className="grid grid-cols-3 gap-3">
-                  {ASPECT_RATIOS.map((ratio) => {
-                    const Icon = ratio.icon;
-                    return (
-                      <button
-                        key={ratio.id}
-                        onClick={async () => {
-                          setSelectedAspectRatio(ratio.id);
-                          onAspectRatioChange?.(ratio.id);
-                          // Save to database
-                          if (videoId && videoId !== 'new') {
-                            await saveStep1Data({ aspectRatio: ratio.id });
-                          }
-                        }}
-                        className={cn(
-                          "p-4 rounded-lg border transition-all hover-elevate text-center",
-                          selectedAspectRatio === ratio.id
-                            ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
-                            : "bg-white/5 border-white/10 hover:bg-white/10"
-                        )}
-                        data-testid={`button-aspect-ratio-${ratio.id}`}
-                      >
-                        <Icon className="h-5 w-5 mx-auto mb-2 text-white" />
-                        <div className="font-semibold text-sm text-white">{ratio.label}</div>
-                        <div className="text-xs text-white/40">{ratio.description}</div>
-                      </button>
+                  {(() => {
+                    // Get compatible aspect ratios based on selected models
+                    const compatibleRatios = getCompatibleAspectRatios(imageModel, videoModel);
+                    
+                    // Filter ALL_ASPECT_RATIOS to only show compatible ones
+                    const ratiosToShow = ALL_ASPECT_RATIOS.filter(ratio => 
+                      compatibleRatios.includes(ratio.id)
                     );
-                  })}
+                    
+                    // If no ratios found (models are incompatible), show error message
+                    if (ratiosToShow.length === 0) {
+                      const imageModelName = IMAGE_MODELS.find(m => m.value === imageModel)?.label || 'image model';
+                      const videoModelName = getVideoModelConfig(videoModel)?.label || 'video model';
+                      
+                      return (
+                        <div className="col-span-3">
+                          <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
+                            <div className="flex items-start gap-3">
+                              <div className="text-red-400 mt-0.5">⚠️</div>
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold text-red-300 mb-1">
+                                  Models Not Compatible
+                                </p>
+                                <p className="text-xs text-red-200/80">
+                                  <span className="font-medium">{imageModelName}</span> and <span className="font-medium">{videoModelName}</span> do not share any compatible aspect ratios. 
+                                  Please select different models to continue.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    return ratiosToShow.map((ratio) => {
+                      const Icon = ratio.icon;
+                      return (
+                        <button
+                          key={ratio.id}
+                          onClick={async () => {
+                            setSelectedAspectRatio(ratio.id);
+                            onAspectRatioChange?.(ratio.id);
+                            // Save to database
+                            if (videoId && videoId !== 'new') {
+                              await saveStep1Data({ aspectRatio: ratio.id });
+                            }
+                          }}
+                          className={cn(
+                            "p-4 rounded-lg border transition-all hover-elevate text-left",
+                            selectedAspectRatio === ratio.id
+                              ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20")
+                              : "bg-white/5 border-white/10 hover:bg-white/10"
+                          )}
+                          data-testid={`button-aspect-ratio-${ratio.id}`}
+                        >
+                          <div className="flex items-center gap-3 mb-2">
+                            <Icon className="h-5 w-5 text-white" />
+                            <span className="font-semibold text-white">{ratio.label}</span>
+                          </div>
+                          <div className="text-xs text-white/40">{ratio.description}</div>
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
+                {(() => {
+                  const compatibleRatios = getCompatibleAspectRatios(imageModel, videoModel);
+                  
+                  // Only show info message if there are compatible ratios
+                  if (compatibleRatios.length > 0) {
+                    return (
+                      <p className="text-xs text-amber-400/70 flex items-center gap-1.5">
+                        <span className="text-amber-400">ℹ</span>
+                        Only showing ratios supported by both {IMAGE_MODELS.find(m => m.value === imageModel)?.label || 'image model'} and {getVideoModelConfig(videoModel)?.label || 'video model'}
+                      </p>
+                    );
+                  }
+                  return null;
+                })()}
               </CardContent>
             </Card>
 

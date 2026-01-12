@@ -105,14 +105,14 @@ const getDifficultyColor = (difficulty: string) => {
 export function Step2StoryTemplate({ storyTemplate, onStoryTemplateChange }: Step2StoryTemplateProps) {
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-display font-bold">Choose Story Template</h2>
-        <p className="text-muted-foreground mt-2">
+      <div className="text-center space-y-3">
+        <h2 className="text-3xl font-display font-bold text-foreground">Choose Story Template</h2>
+        <p className="text-lg text-muted-foreground">
           Select a proven structure to guide your video creation
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {storyTemplates.map((template) => {
           const isSelected = storyTemplate === template.id;
           const TemplateIcon = template.icon;
@@ -120,67 +120,72 @@ export function Step2StoryTemplate({ storyTemplate, onStoryTemplateChange }: Ste
           return (
             <Card
               key={template.id}
-              className={`relative cursor-pointer transition-all ${
+              className={`relative cursor-pointer transition-all h-full ${
                 isSelected
-                  ? "border-primary ring-2 ring-primary/20 bg-primary/5"
-                  : "hover:border-primary/50 hover:bg-muted/50"
+                  ? "border-primary ring-2 ring-primary/20 bg-primary/5 shadow-lg scale-[1.02]"
+                  : "hover:border-primary/50 hover:bg-muted/50 hover:shadow-md"
               }`}
               onClick={() => onStoryTemplateChange(template.id)}
               data-testid={`card-story-template-${template.id}`}
             >
               {isSelected && (
-                <div className="absolute top-4 right-4">
-                  <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
+                <div className="absolute top-4 right-4 z-10">
+                  <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center shadow-lg">
                     <Check className="h-4 w-4 text-primary-foreground" />
                   </div>
                 </div>
               )}
 
-              <CardContent className="p-5">
-                <div className="flex items-start gap-4">
-                  <div className={`p-3 rounded-xl bg-gradient-to-br ${template.iconColor}`}>
-                    <TemplateIcon className="h-6 w-6 text-white" />
+              <CardContent className="p-6">
+                <div className="flex flex-col space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className={`p-3 rounded-xl bg-gradient-to-br ${template.iconColor} flex-shrink-0`}>
+                      <TemplateIcon className="h-7 w-7 text-white" />
+                    </div>
+                    {template.popular && (
+                      <Badge variant="secondary" className="text-[10px] px-2 py-0.5">Popular</Badge>
+                    )}
                   </div>
 
-                  <div className="flex-1 min-w-0 pr-6">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold">{template.name}</h3>
-                      {template.popular && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5">Popular</Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-3">
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold">{template.name}</h3>
+                    <p className="text-sm text-muted-foreground line-clamp-2">
                       {template.description}
                     </p>
+                  </div>
 
-                    <div className="flex items-center gap-2 mb-3">
-                      <Badge variant="outline" className="text-xs">
-                        {template.estimatedDuration}
-                      </Badge>
-                      <Badge variant="outline" className={`text-xs ${getDifficultyColor(template.difficulty)}`}>
-                        {template.difficulty}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs capitalize">
-                        {template.category}
-                      </Badge>
-                    </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {template.estimatedDuration}
+                    </Badge>
+                    <Badge variant="outline" className={`text-xs ${getDifficultyColor(template.difficulty)}`}>
+                      {template.difficulty}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs capitalize">
+                      {template.category}
+                    </Badge>
+                  </div>
 
-                    {template.structure && (
-                      <div className="flex flex-wrap gap-1">
+                  {template.structure && (
+                    <div className="pt-2 border-t border-border/50">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Structure:</p>
+                      <div className="flex flex-wrap gap-1.5">
                         {template.structure.map((step, index) => (
                           <span key={step} className="text-xs text-muted-foreground">
-                            {step}{index < template.structure!.length - 1 && " →"}
+                            {step}{index < template.structure!.length - 1 && <span className="mx-1">→</span>}
                           </span>
                         ))}
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    {template.type === "direct" && (
+                  {template.type === "direct" && (
+                    <div className="pt-2 border-t border-border/50">
                       <p className="text-xs text-muted-foreground italic">
-                        Prompt-based generation • No script required
+                        Prompt-based • No script required
                       </p>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -189,10 +194,10 @@ export function Step2StoryTemplate({ storyTemplate, onStoryTemplateChange }: Ste
       </div>
 
       {storyTemplate && (
-        <div className="p-4 rounded-lg bg-muted/50 border">
+        <div className="p-5 rounded-lg bg-muted/50 border border-primary/20">
           <p className="text-sm">
-            <span className="font-medium">Selected: </span>
-            {storyTemplates.find(t => t.id === storyTemplate)?.name}
+            <span className="font-semibold text-foreground">Selected: </span>
+            <span className="text-foreground">{storyTemplates.find(t => t.id === storyTemplate)?.name}</span>
             {storyTemplates.find(t => t.id === storyTemplate)?.type === "direct" && (
               <span className="text-muted-foreground ml-2">• Single-page prompt workflow</span>
             )}

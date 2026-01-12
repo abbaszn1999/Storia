@@ -296,20 +296,20 @@ export function AudioStep({
                   <Mic className="w-5 h-5 text-purple-400" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">Voice Selection</h3>
-                  <p className="text-sm text-white/60">Choose a voice for your narration</p>
+                  <h3 className="text-lg font-semibold text-foreground">Voice Selection</h3>
+                  <p className="text-sm text-muted-foreground">Choose a voice for your narration</p>
                 </div>
               </div>
 
               {/* Language Tabs */}
-              <div className="flex gap-2 bg-white/5 rounded-lg p-1">
+              <div className="flex gap-2 bg-muted/50 dark:bg-white/5 rounded-lg p-1">
                 <button
                   onClick={() => setActiveTab('ar')}
                   className={cn(
                     "px-4 py-2 rounded-md text-sm font-medium transition-all",
                     activeTab === 'ar'
-                      ? "bg-white/10 text-white"
-                      : "text-white/60 hover:text-white/80"
+                      ? "bg-muted dark:bg-white/10 text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   العربية
@@ -319,8 +319,8 @@ export function AudioStep({
                   className={cn(
                     "px-4 py-2 rounded-md text-sm font-medium transition-all",
                     activeTab === 'en'
-                      ? "bg-white/10 text-white"
-                      : "text-white/60 hover:text-white/80"
+                      ? "bg-muted dark:bg-white/10 text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   English
@@ -347,7 +347,7 @@ export function AudioStep({
                         "border backdrop-blur-sm",
                         isSelected
                           ? "border-purple-500/60 bg-gradient-to-br from-purple-500/20 to-pink-500/20 shadow-lg shadow-purple-500/20"
-                          : "border-white/10 bg-white/[0.03] hover:border-purple-500/30 hover:bg-white/[0.06]"
+                          : "border-[#e5e7eb] dark:border-border bg-muted/50 dark:bg-white/[0.03] hover:border-purple-500/30 hover:bg-muted dark:hover:bg-white/[0.06]"
                       )}
                       onClick={() => onVoiceChange(voice.id)}
                     >
@@ -379,11 +379,11 @@ export function AudioStep({
                           <div className="flex-1 min-w-0">
                             <h4 className={cn(
                               "font-semibold text-sm mb-0.5 truncate",
-                              isSelected ? "text-white" : "text-white/90"
+                              isSelected ? "text-foreground" : "text-foreground/90"
                             )}>
                               {voice.name}
                             </h4>
-                            <p className="text-xs text-white/50 line-clamp-1 capitalize">
+                            <p className="text-xs text-muted-foreground line-clamp-1 capitalize">
                               {voice.age === 'middle-aged' ? 'Middle-aged' : voice.age}
                             </p>
                           </div>
@@ -399,11 +399,11 @@ export function AudioStep({
                         className={cn(
                           "w-full py-2 px-3 transition-all",
                           "flex items-center justify-center gap-1.5",
-                          "border-t border-white/5",
+                          "border-t border-[#e5e7eb] dark:border-border",
                           "text-xs font-medium",
                           isPlaying
                             ? "bg-gradient-to-r from-purple-500/80 to-pink-500/80 text-white"
-                            : "bg-white/[0.02] hover:bg-white/5 text-white/50 hover:text-white/70"
+                            : "bg-muted/30 dark:bg-white/[0.02] hover:bg-muted/50 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground"
                         )}
                       >
                         {isPlaying ? (
@@ -425,21 +425,21 @@ export function AudioStep({
             </div>
 
             {/* Voiceover Summary - Compact */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-white/[0.03] border border-white/5">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 dark:bg-white/[0.03] border border-[#e5e7eb] dark:border-border">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
                   <AudioWaveform className="w-4 h-4 text-purple-400" />
                 </div>
                 <div>
-                  <p className="text-xs text-white/40">Total Narration</p>
-                  <p className="text-sm font-medium text-white">
+                  <p className="text-xs text-muted-foreground">Total Narration</p>
+                  <p className="text-sm font-medium text-foreground">
                     {wordCount} words • ~{Math.ceil(wordCount / 150)} min
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-white/5">
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-muted/50 dark:bg-white/5">
                 <Mic className="w-3.5 h-3.5 text-purple-400" />
-                <span className="text-xs text-white/60">
+                <span className="text-xs text-muted-foreground">
                   {scenes.length} {scenes.length === 1 ? 'scene' : 'scenes'}
                 </span>
               </div>
@@ -457,8 +457,8 @@ export function AudioStep({
                   <AudioWaveform className="w-4 h-4 text-purple-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm text-white/70">
-                    <span className="text-purple-300 font-medium">🎙️ Voiceover auto-generated</span>
+                  <p className="text-sm text-foreground/80">
+                    <span className="text-purple-600 dark:text-purple-300 font-medium">🎙️ Voiceover auto-generated</span>
                     {' '}when you click "Continue to Export"
                   </p>
                 </div>
@@ -481,8 +481,8 @@ export function AudioStep({
                 <Music className="w-5 h-5 text-blue-400" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white">Background Music</h3>
-                <p className="text-sm text-white/60">AI-generated music to enhance your video</p>
+                <h3 className="text-lg font-semibold text-foreground">Background Music</h3>
+                <p className="text-sm text-muted-foreground">AI-generated music to enhance your video</p>
               </div>
             </div>
             {/* AI Badge */}
@@ -509,7 +509,7 @@ export function AudioStep({
                     "border backdrop-blur-sm",
                     isSelected
                       ? `border-blue-500/50 bg-gradient-to-br ${style.gradient} shadow-lg shadow-blue-500/10`
-                      : "border-white/10 bg-white/[0.03] hover:border-blue-500/30 hover:bg-white/[0.06]"
+                      : "border-[#e5e7eb] dark:border-border bg-muted/50 dark:bg-white/[0.03] hover:border-blue-500/30 hover:bg-muted dark:hover:bg-white/[0.06]"
                   )}
                 >
                   {/* Selected Indicator */}
@@ -534,8 +534,8 @@ export function AudioStep({
                       {style.icon}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm text-white truncate">{style.name}</div>
-                      <div className="text-xs text-white/50 truncate">{style.desc}</div>
+                      <div className="font-medium text-sm text-foreground truncate">{style.name}</div>
+                      <div className="text-xs text-muted-foreground truncate">{style.desc}</div>
                     </div>
                   </div>
                 </motion.button>
@@ -544,11 +544,11 @@ export function AudioStep({
           </div>
 
           {/* Custom Music Upload Section */}
-          <div className="pt-4 border-t border-white/10">
+          <div className="pt-4 border-t border-[#e5e7eb] dark:border-border">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Upload className="w-4 h-4 text-purple-400" />
-                <span className="text-sm font-medium text-white">Or Upload Your Own</span>
+                <span className="text-sm font-medium text-foreground">Or Upload Your Own</span>
               </div>
               {customMusicUrl && (
                 <span className="text-xs text-green-400 font-medium">Active</span>
@@ -592,9 +592,9 @@ export function AudioStep({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <Volume2 className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                        <p className="text-sm text-white font-medium truncate">Custom Music</p>
+                        <p className="text-sm text-foreground font-medium truncate">Custom Music</p>
                       </div>
-                      <p className="text-xs text-white/50 mt-0.5">
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         Duration: {formatDuration(customMusicDuration)}
                         {customMusicDuration > 0 && customMusicDuration < duration && (
                           <span className="text-amber-400 ml-2">
@@ -642,7 +642,7 @@ export function AudioStep({
                   "relative border-2 border-dashed rounded-xl p-5 text-center transition-all cursor-pointer",
                   isUploadingMusic 
                     ? "border-purple-400/50 bg-purple-500/10" 
-                    : "border-white/10 hover:border-purple-400/30 hover:bg-purple-500/5"
+                    : "border-[#e5e7eb] dark:border-border hover:border-purple-400/30 hover:bg-purple-500/5"
                 )}
                 onClick={() => !isUploadingMusic && musicInputRef.current?.click()}
               >
@@ -661,7 +661,7 @@ export function AudioStep({
                 {isUploadingMusic ? (
                   <div className="flex flex-col items-center gap-2">
                     <RefreshCw className="w-8 h-8 text-purple-400 animate-spin" />
-                    <span className="text-sm text-white/60">Uploading music...</span>
+                    <span className="text-sm text-muted-foreground">Uploading music...</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-4">
@@ -669,8 +669,8 @@ export function AudioStep({
                       <Music className="w-6 h-6 text-purple-400" />
                     </div>
                     <div className="text-left">
-                      <p className="text-sm text-white/80 font-medium">Upload custom music</p>
-                      <p className="text-xs text-white/40 mt-0.5">MP3, WAV, M4A, OGG • Max 5 min</p>
+                      <p className="text-sm text-foreground/90 font-medium">Upload custom music</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">MP3, WAV, M4A, OGG • Max 5 min</p>
                     </div>
                   </div>
                 )}
@@ -678,7 +678,7 @@ export function AudioStep({
             )}
 
             {/* Info note */}
-            <p className="text-xs text-white/40 mt-3 text-center">
+            <p className="text-xs text-muted-foreground mt-3 text-center">
               {customMusicUrl 
                 ? "✓ Custom music will be used. Music will be trimmed to match video length."
                 : musicStyle !== 'none' 
@@ -700,8 +700,8 @@ export function AudioStep({
                   <Sparkles className="w-4 h-4 text-blue-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm text-white/70">
-                    <span className="text-blue-300 font-medium">AI music will be generated</span>
+                  <p className="text-sm text-foreground/80">
+                    <span className="text-blue-600 dark:text-blue-300 font-medium">AI music will be generated</span>
                     {' '}during export to match your video duration
                   </p>
                 </div>
@@ -711,11 +711,11 @@ export function AudioStep({
 
           {/* Volume Controls - Now in Export Step for real-time adjustment */}
           {voiceoverEnabled && musicStyle !== 'none' && (
-            <div className="pt-4 border-t border-white/10">
+            <div className="pt-4 border-t border-[#e5e7eb] dark:border-border">
               <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
                 <Volume2 className="w-4 h-4 text-blue-400 flex-shrink-0" />
-                <p className="text-xs text-white/70">
-                  <span className="text-blue-300 font-medium">Volume controls</span>
+                <p className="text-xs text-foreground/80">
+                  <span className="text-blue-600 dark:text-blue-300 font-medium">Volume controls</span>
                   {' '}will be available in the Export step for real-time adjustment
                 </p>
               </div>

@@ -42,12 +42,12 @@ export function ControlPanel({ state, actions }: ControlPanelProps) {
   return (
     <div className={cn(
       "w-[40%] min-w-[400px] max-w-[600px] flex-shrink-0 h-full",
-      "bg-black/40 backdrop-blur-xl",
-      "border-r border-white/[0.06]",
+      "bg-card/80 dark:bg-black/40 backdrop-blur-xl",
+      "border-r border-[#e5e7eb] dark:border-border",
       "flex flex-col"
     )}>
       {/* Header */}
-      <div className="flex-shrink-0 p-4 border-b border-white/[0.06]">
+      <div className="flex-shrink-0 p-4 border-b border-[#e5e7eb] dark:border-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button
@@ -80,7 +80,7 @@ export function ControlPanel({ state, actions }: ControlPanelProps) {
               value={state.title}
               onChange={(e) => actions.setTitle(e.target.value)}
               placeholder="Enter project name..."
-              className="h-9 bg-white/5 border-white/10 focus:border-primary/50"
+              className="h-9 bg-muted/50 dark:bg-white/5 border-[#e5e7eb] dark:border-border focus:border-primary/50"
             />
           </div>
 
@@ -140,18 +140,18 @@ export function ControlPanel({ state, actions }: ControlPanelProps) {
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="relative group rounded-lg overflow-hidden border border-white/10"
+                className="relative group rounded-lg overflow-hidden border border-[#e5e7eb] dark:border-border"
               >
                 <img
                   src={state.referenceImage}
                   alt="Reference"
                   className="w-full h-32 object-cover"
                 />
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                <div className="absolute inset-0 bg-background/80 dark:bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-8 px-3 text-xs bg-white/10"
+                    className="h-8 px-3 text-xs bg-muted/50 dark:bg-white/10"
                     onClick={actions.generateImage}
                     disabled={state.isGeneratingImage || !state.visualPrompt.trim()}
                   >
@@ -207,7 +207,7 @@ export function ControlPanel({ state, actions }: ControlPanelProps) {
                   variant="outline"
                   size="sm"
                   onClick={() => fileInputRef.current?.click()}
-                  className="h-10 px-3 border-white/10 hover:border-white/20"
+                  className="h-10 px-3 border-[#e5e7eb] dark:border-border hover:border-primary"
                 >
                   <Upload className="h-4 w-4" />
                 </Button>
@@ -222,7 +222,7 @@ export function ControlPanel({ state, actions }: ControlPanelProps) {
           </div>
 
           {/* Divider */}
-          <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          <div className="h-px bg-gradient-to-r from-transparent via-[#e5e7eb] dark:via-border to-transparent" />
 
           {/* Settings Panel */}
           <SettingsPanel
@@ -258,7 +258,7 @@ export function ControlPanel({ state, actions }: ControlPanelProps) {
       </ScrollArea>
 
       {/* Footer - Generate Button */}
-      <div className="flex-shrink-0 p-4 border-t border-white/[0.06]">
+      <div className="flex-shrink-0 p-4 border-t border-[#e5e7eb] dark:border-border">
         {/* Error Display */}
         {state.error && (
           <motion.div

@@ -39,15 +39,12 @@ export function AuroraBackground({
 
       const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
       
-      // Add color stops based on theme
-      const isDark = document.documentElement.classList.contains("dark");
-      const stops = isDark 
-        ? colorStops 
-        : [
-            "rgba(139, 92, 246, 0.15)", // Light purple
-            "rgba(236, 72, 153, 0.1)", // Light pink
-            "rgba(139, 92, 246, 0.15)", // Light purple
-          ];
+      // Use same colors for both light and dark mode
+      const stops = [
+        "rgba(139, 92, 246, 0.15)", // Light purple
+        "rgba(236, 72, 153, 0.1)", // Light pink
+        "rgba(139, 92, 246, 0.15)", // Light purple
+      ];
 
       stops.forEach((color, index) => {
         const offset = index / (stops.length - 1);
@@ -60,7 +57,8 @@ export function AuroraBackground({
       const wave3 = Math.sin(time * 1.3) * amplitude * 40;
 
       ctx.fillStyle = gradient;
-      ctx.globalAlpha = isDark ? blend : blend * 0.6; // Lighter in light mode
+      // Slightly stronger alpha so the aurora shows through cards in dark mode too
+      ctx.globalAlpha = blend; // use provided blend directly
       
       // Draw multiple overlapping waves for aurora effect
       for (let i = 0; i < 3; i++) {
@@ -100,8 +98,9 @@ export function AuroraBackground({
       ref={canvasRef}
       className={`fixed inset-0 pointer-events-none -z-10 ${className}`}
       style={{ 
-        mixBlendMode: "multiply",
-        opacity: 0.6
+        // Use a blend mode that remains visible on dark backgrounds
+        mixBlendMode: "screen",
+        opacity: 0.75,
       }}
     />
   );

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 export default function Settings() {
   const [settings, setSettings] = useState({
@@ -42,43 +43,62 @@ export default function Settings() {
   });
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="px-4 py-8 space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold mb-2">Settings</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-4xl font-bold mb-2 text-foreground">Settings</h1>
+        <p className="text-muted-foreground text-lg">
           Manage your account preferences and integrations
         </p>
       </div>
 
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="general" data-testid="tab-general">
-            <Globe className="h-4 w-4 mr-2" />
-            General
-          </TabsTrigger>
-          <TabsTrigger value="notifications" data-testid="tab-notifications">
-            <Bell className="h-6 w-4 mr-2" />
-            Notifications
-          </TabsTrigger>
-          <TabsTrigger value="integrations" data-testid="tab-integrations">
-            <Plug className="h-4 w-4 mr-2" />
-            Integrations
-          </TabsTrigger>
-          <TabsTrigger value="advanced" data-testid="tab-advanced">
-            <Shield className="h-4 w-4 mr-2" />
-            Advanced
-          </TabsTrigger>
-        </TabsList>
+        <div className="border-b bg-background/80 backdrop-blur-xl">
+          <TabsList className="bg-transparent h-auto p-0 w-full justify-start gap-1">
+            <TabsTrigger 
+              value="general" 
+              className="gap-2 px-6 py-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-lg" 
+              data-testid="tab-general"
+            >
+              <Globe className="h-4 w-4" />
+              General
+            </TabsTrigger>
+            <TabsTrigger 
+              value="notifications" 
+              className="gap-2 px-6 py-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-lg" 
+              data-testid="tab-notifications"
+            >
+              <Bell className="h-4 w-4" />
+              Notifications
+            </TabsTrigger>
+            <TabsTrigger 
+              value="integrations" 
+              className="gap-2 px-6 py-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-lg" 
+              data-testid="tab-integrations"
+            >
+              <Plug className="h-4 w-4" />
+              Integrations
+            </TabsTrigger>
+            <TabsTrigger 
+              value="advanced" 
+              className="gap-2 px-6 py-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-lg" 
+              data-testid="tab-advanced"
+            >
+              <Shield className="h-4 w-4" />
+              Advanced
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="general" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>General Settings</CardTitle>
+        <TabsContent value="general" className="mt-0">
+          <Card className="bg-background/70 backdrop-blur-xl border-input">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl mb-1">General Settings</CardTitle>
               <CardDescription>Configure your basic preferences</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid gap-3">
-                <Label htmlFor="language">Language</Label>
+              <div className="space-y-2">
+                <Label htmlFor="language" className="text-sm font-medium text-muted-foreground">Language</Label>
                 <Select
                   value={settings.general.language}
                   onValueChange={(value) =>
@@ -101,8 +121,8 @@ export default function Settings() {
                 </Select>
               </div>
 
-              <div className="grid gap-3">
-                <Label htmlFor="timezone">Timezone</Label>
+              <div className="space-y-2">
+                <Label htmlFor="timezone" className="text-sm font-medium text-muted-foreground">Timezone</Label>
                 <Select
                   value={settings.general.timezone}
                   onValueChange={(value) =>
@@ -126,8 +146,8 @@ export default function Settings() {
                 </Select>
               </div>
 
-              <div className="grid gap-3">
-                <Label htmlFor="video-quality">Default Video Quality</Label>
+              <div className="space-y-2">
+                <Label htmlFor="video-quality" className="text-sm font-medium text-muted-foreground">Default Video Quality</Label>
                 <Select
                   value={settings.general.defaultVideoQuality}
                   onValueChange={(value) =>
@@ -153,7 +173,7 @@ export default function Settings() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="auto-save">Auto-save</Label>
+                  <Label htmlFor="auto-save" className="text-sm font-medium">Auto-save</Label>
                   <p className="text-sm text-muted-foreground">
                     Automatically save your work every 30 seconds
                   </p>
@@ -174,16 +194,16 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="notifications" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
+        <TabsContent value="notifications" className="mt-0">
+          <Card className="bg-background/70 backdrop-blur-xl border-input">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl mb-1">Notification Preferences</CardTitle>
               <CardDescription>Choose what updates you want to receive</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="email-updates">Email Updates</Label>
+                  <Label htmlFor="email-updates" className="text-sm font-medium">Email Updates</Label>
                   <p className="text-sm text-muted-foreground">
                     Receive email notifications for important updates
                   </p>
@@ -205,7 +225,7 @@ export default function Settings() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="video-complete">Video Processing Complete</Label>
+                  <Label htmlFor="video-complete" className="text-sm font-medium">Video Processing Complete</Label>
                   <p className="text-sm text-muted-foreground">
                     Get notified when your videos finish processing
                   </p>
@@ -227,7 +247,7 @@ export default function Settings() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="weekly-digest">Weekly Digest</Label>
+                  <Label htmlFor="weekly-digest" className="text-sm font-medium">Weekly Digest</Label>
                   <p className="text-sm text-muted-foreground">
                     Receive a weekly summary of your activity
                   </p>
@@ -249,7 +269,7 @@ export default function Settings() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="marketing-emails">Marketing Emails</Label>
+                  <Label htmlFor="marketing-emails" className="text-sm font-medium">Marketing Emails</Label>
                   <p className="text-sm text-muted-foreground">
                     Receive news, tips, and promotional content
                   </p>
@@ -270,20 +290,20 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="integrations" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Publishing Integrations</CardTitle>
+        <TabsContent value="integrations" className="mt-0">
+          <Card className="bg-background/70 backdrop-blur-xl border-input">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl mb-1">Publishing Integrations</CardTitle>
               <CardDescription>Connect your social media accounts for seamless publishing</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between p-4 rounded-lg border">
+              <div className="flex items-center justify-between p-4 rounded-lg border border-input bg-muted/30">
                 <div className="flex items-center gap-4">
                   <div className="h-12 w-12 rounded-lg bg-red-500/10 flex items-center justify-center">
-                    <span className="text-2xl">YT</span>
+                    <span className="text-2xl font-bold text-red-600 dark:text-red-400">YT</span>
                   </div>
                   <div>
-                    <p className="font-medium">YouTube</p>
+                    <p className="font-medium text-base">YouTube</p>
                     <p className="text-sm text-muted-foreground">
                       {settings.integrations.youtube ? "Connected" : "Not connected"}
                     </p>
@@ -303,13 +323,13 @@ export default function Settings() {
                 </Button>
               </div>
 
-              <div className="flex items-center justify-between p-4 rounded-lg border">
+              <div className="flex items-center justify-between p-4 rounded-lg border border-input bg-muted/30">
                 <div className="flex items-center gap-4">
                   <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <span className="text-2xl">TT</span>
+                    <span className="text-2xl font-bold text-primary">TT</span>
                   </div>
                   <div>
-                    <p className="font-medium">TikTok</p>
+                    <p className="font-medium text-base">TikTok</p>
                     <p className="text-sm text-muted-foreground">
                       {settings.integrations.tiktok ? "Connected" : "Not connected"}
                     </p>
@@ -329,13 +349,13 @@ export default function Settings() {
                 </Button>
               </div>
 
-              <div className="flex items-center justify-between p-4 rounded-lg border">
+              <div className="flex items-center justify-between p-4 rounded-lg border border-input bg-muted/30">
                 <div className="flex items-center gap-4">
                   <div className="h-12 w-12 rounded-lg bg-pink-500/10 flex items-center justify-center">
-                    <span className="text-2xl">IG</span>
+                    <span className="text-2xl font-bold text-pink-600 dark:text-pink-400">IG</span>
                   </div>
                   <div>
-                    <p className="font-medium">Instagram</p>
+                    <p className="font-medium text-base">Instagram</p>
                     <p className="text-sm text-muted-foreground">
                       {settings.integrations.instagram ? "Connected" : "Not connected"}
                     </p>
@@ -358,16 +378,16 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="advanced" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Advanced Settings</CardTitle>
+        <TabsContent value="advanced" className="mt-0 space-y-6">
+          <Card className="bg-background/70 backdrop-blur-xl border-input">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl mb-1">Advanced Settings</CardTitle>
               <CardDescription>Configure advanced features and developer options</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="api-access">API Access</Label>
+                  <Label htmlFor="api-access" className="text-sm font-medium">API Access</Label>
                   <p className="text-sm text-muted-foreground">
                     Enable programmatic access to your account
                   </p>
@@ -406,7 +426,7 @@ export default function Settings() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="webhooks">Webhooks</Label>
+                  <Label htmlFor="webhooks" className="text-sm font-medium">Webhooks</Label>
                   <p className="text-sm text-muted-foreground">
                     Receive real-time event notifications
                   </p>
@@ -428,7 +448,7 @@ export default function Settings() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="data-export">Data Export</Label>
+                  <Label htmlFor="data-export" className="text-sm font-medium">Data Export</Label>
                   <p className="text-sm text-muted-foreground">
                     Allow exporting your data in JSON format
                   </p>
@@ -456,9 +476,9 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-          <Card className="border-destructive/50">
-            <CardHeader>
-              <CardTitle className="text-destructive">Danger Zone</CardTitle>
+          <Card className="bg-background/70 backdrop-blur-xl border-destructive/50">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-destructive text-xl mb-1">Danger Zone</CardTitle>
               <CardDescription>Irreversible actions for your account</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

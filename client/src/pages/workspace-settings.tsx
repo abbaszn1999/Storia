@@ -15,6 +15,7 @@ import { lateApi } from "@/lib/api/late";
 import type { WorkspaceIntegration, Workspace } from "@shared/schema";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { cn } from "@/lib/utils";
 
 const PLATFORMS = [
   { 
@@ -301,52 +302,70 @@ export default function WorkspaceSettings() {
   );
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="px-4 py-8 space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Workspace Settings</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-4xl font-bold mb-2 text-foreground">Workspace Settings</h1>
+        <p className="text-muted-foreground text-lg">
           Manage your workspace preferences and integrations
         </p>
       </div>
 
-      <Tabs defaultValue="integrations" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="integrations" data-testid="tab-integrations">
-            Integrations
-          </TabsTrigger>
-          <TabsTrigger value="general" data-testid="tab-general">
-            General
-          </TabsTrigger>
-          <TabsTrigger value="team" data-testid="tab-team" disabled>
-            Team
-          </TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="integrations" className="space-y-6">
+        <div className="border-b bg-background/80 backdrop-blur-xl">
+          <TabsList className="bg-transparent h-auto p-0 w-full justify-start gap-1">
+            <TabsTrigger 
+              value="integrations" 
+              className="gap-2 px-6 py-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-lg" 
+              data-testid="tab-integrations"
+            >
+              Integrations
+            </TabsTrigger>
+            <TabsTrigger 
+              value="general" 
+              className="gap-2 px-6 py-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-lg" 
+              data-testid="tab-general"
+            >
+              General
+            </TabsTrigger>
+            <TabsTrigger 
+              value="team" 
+              className="gap-2 px-6 py-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-lg" 
+              data-testid="tab-team" 
+              disabled
+            >
+              Team
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="general" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Workspace Information</CardTitle>
+        <TabsContent value="general" className="mt-0">
+          <Card className="bg-background/70 backdrop-blur-xl border-input">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl mb-1">Workspace Information</CardTitle>
               <CardDescription>
                 Update your workspace name and description
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="workspace-name">Workspace Name</Label>
+                <Label htmlFor="workspace-name" className="text-sm font-medium text-muted-foreground">Workspace Name</Label>
                 <Input
                   id="workspace-name"
                   value={workspaceName}
                   onChange={(e) => setWorkspaceName(e.target.value)}
+                  className="h-11"
                   data-testid="input-workspace-name"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="workspace-description">Description</Label>
+                <Label htmlFor="workspace-description" className="text-sm font-medium text-muted-foreground">Description</Label>
                 <Textarea
                   id="workspace-description"
                   value={workspaceDescription}
                   onChange={(e) => setWorkspaceDescription(e.target.value)}
                   placeholder="Add a description for this workspace..."
+                  rows={4}
                   data-testid="textarea-workspace-description"
                 />
               </div>
@@ -354,9 +373,10 @@ export default function WorkspaceSettings() {
                 onClick={handleSaveWorkspaceSettings}
                 disabled={isSaving}
                 data-testid="button-save-workspace"
+                className="gap-2"
               >
                 {isSaving && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 )}
                 Save Changes
               </Button>
@@ -364,17 +384,17 @@ export default function WorkspaceSettings() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="integrations" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Social Media Integrations</CardTitle>
+        <TabsContent value="integrations" className="mt-0">
+          <Card className="bg-background/70 backdrop-blur-xl border-input">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl mb-1">Social Media Integrations</CardTitle>
               <CardDescription>
                 Connect your social media accounts to publish content directly from Storia
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {integrationsLoading ? (
-                <div className="flex items-center justify-center p-8">
+                <div className="flex items-center justify-center p-12">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
               ) : (
@@ -386,18 +406,22 @@ export default function WorkspaceSettings() {
                   return (
                     <div
                       key={platform.id}
-                      className="flex items-start justify-between p-4 border rounded-lg hover-elevate"
+                      className={cn(
+                        "flex items-start justify-between p-5 rounded-lg border transition-all",
+                        "bg-muted/30 border-input hover:bg-muted/50 hover:shadow-sm",
+                        isConnected && "border-primary/30 bg-primary/5"
+                      )}
                       data-testid={`platform-${platform.id}`}
                     >
                       <div className="flex gap-4 flex-1">
-                        <div className={`mt-1 ${platform.color}`}>
-                          <Icon className="w-6 h-6" />
+                        <div className={cn("mt-1", platform.color)}>
+                          <Icon className="w-7 h-7" />
                         </div>
-                        <div className="flex-1 space-y-1">
+                        <div className="flex-1 space-y-2">
                           <div className="flex items-center gap-2">
-                            <h3 className="font-semibold">{platform.name}</h3>
+                            <h3 className="font-semibold text-base">{platform.name}</h3>
                             {isConnected && (
-                              <Badge variant="default" className="gap-1">
+                              <Badge variant="default" className="gap-1.5 bg-primary text-primary-foreground">
                                 <Check className="w-3 h-3" />
                                 Connected
                               </Badge>
@@ -407,47 +431,49 @@ export default function WorkspaceSettings() {
                             {platform.description}
                           </p>
                           {isConnected && integration && (
-                            <div className="flex items-center gap-2 mt-2">
+                            <div className="flex items-center gap-2 mt-3">
                               {integration.platformProfileImage ? (
                                 <img
                                   src={integration.platformProfileImage}
                                   alt={integration.platformUsername || "Profile"}
-                                  className="w-6 h-6 rounded-full"
+                                  className="w-7 h-7 rounded-full border-2 border-background"
                                 />
                               ) : (
-                                <div className="w-6 h-6 rounded-full bg-muted" />
+                                <div className="w-7 h-7 rounded-full bg-muted border-2 border-background" />
                               )}
-                              <span className="text-sm">
+                              <span className="text-sm font-medium">
                                 {integration.platformUsername ? `@${integration.platformUsername}` : "Connected"}
                               </span>
                             </div>
                           )}
                         </div>
                       </div>
-                      <div className="flex flex-col gap-2">
+                      <div className="flex items-center">
                         {isConnected && integration ? (
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleDisconnect(integration)}
                             disabled={deletingIntegrationId === integration.id}
+                            className="gap-2"
                             data-testid={`button-remove-${platform.id}`}
                           >
                             {deletingIntegrationId === integration.id && (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              <Loader2 className="h-4 w-4 animate-spin" />
                             )}
                             Disconnect
                           </Button>
                         ) : (
                           <Button
-                            variant="outline"
+                            variant="default"
                             size="sm"
                             onClick={() => handleConnect(platform.id)}
                             disabled={connectingPlatform === platform.id}
+                            className="gap-2"
                             data-testid={`button-connect-${platform.id}`}
                           >
-                            {connectingPlatform === platform.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {connectingPlatform !== platform.id && <Link2 className="mr-2 h-4 w-4" />}
+                            {connectingPlatform === platform.id && <Loader2 className="h-4 w-4 animate-spin" />}
+                            {connectingPlatform !== platform.id && <Link2 className="h-4 w-4" />}
                             Connect
                           </Button>
                         )}
@@ -460,10 +486,10 @@ export default function WorkspaceSettings() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="team">
-          <Card>
-            <CardHeader>
-              <CardTitle>Team Management</CardTitle>
+        <TabsContent value="team" className="mt-0">
+          <Card className="bg-background/70 backdrop-blur-xl border-input">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl mb-1">Team Management</CardTitle>
               <CardDescription>
                 Manage team members and permissions (coming soon)
               </CardDescription>

@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { Plus, Search, Image, Video, Upload as UploadIcon, X, Loader2, Trash2, Pencil } from "lucide-react";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { Plus, Search, Image, Video, Upload as UploadIcon, X, Loader2, Trash2, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -15,6 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+} from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useWorkspace } from "@/contexts/workspace-context";
@@ -69,9 +76,12 @@ function formatDate(date: Date): string {
   return uploadDate.toLocaleDateString();
 }
 
+const ITEMS_PER_PAGE = 12;
+
 export default function Uploads() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<"all" | "image" | "video">("all");
+  const [currentPage, setCurrentPage] = useState(1);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingUpload, setEditingUpload] = useState<UploadResponse | null>(null);
@@ -169,14 +179,139 @@ export default function Uploads() {
     },
   });
 
-  const filteredUploads = uploads.filter((file) => {
-    const matchesSearch =
-      file.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      file.fileName.toLowerCase().includes(searchQuery.toLowerCase());
-    const fileCategory = getFileTypeCategory(file.fileType);
-    const matchesType = filterType === "all" || fileCategory === filterType;
-    return matchesSearch && matchesType;
-  });
+  // Filter by search and tab
+  const filteredUploads = useMemo(() => {
+    return uploads.filter((file) => {
+      const matchesSearch =
+        file.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        file.fileName.toLowerCase().includes(searchQuery.toLowerCase());
+      const fileCategory = getFileTypeCategory(file.fileType);
+      const matchesType = activeTab === "all" || fileCategory === activeTab;
+      return matchesSearch && matchesType;
+    });
+  }, [uploads, searchQuery, activeTab]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredUploads.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedUploads = filteredUploads.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters or tab changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, activeTab]);
+
+  // Reset to page 1 if current page exceeds total pages
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
+
+  // Count images and videos for tabs
+  const imagesCount = useMemo(() => filteredUploads.filter(file => getFileTypeCategory(file.fileType) === "image").length, [filteredUploads]);
+  const videosCount = useMemo(() => filteredUploads.filter(file => getFileTypeCategory(file.fileType) === "video").length, [filteredUploads]);
+
+  // Pagination component helper
+  const renderPagination = () => {
+    if (filteredUploads.length <= ITEMS_PER_PAGE) return null;
+    
+    const itemsTotalPages = Math.ceil(filteredUploads.length / ITEMS_PER_PAGE);
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(itemsTotalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage < maxVisiblePages - 1) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    return (
+      <Pagination className="mt-8">
+        <PaginationContent>
+          <PaginationItem>
+            <Button
+              variant="ghost"
+              size="default"
+              onClick={() => {
+                if (currentPage > 1) setCurrentPage(currentPage - 1);
+              }}
+              disabled={currentPage === 1}
+              className="gap-1 pl-2.5"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span>Previous</span>
+            </Button>
+          </PaginationItem>
+          
+          {startPage > 1 && (
+            <>
+              <PaginationItem>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCurrentPage(1)}
+                >
+                  1
+                </Button>
+              </PaginationItem>
+              {startPage > 2 && (
+                <PaginationItem>
+                  <PaginationEllipsis />
+                </PaginationItem>
+              )}
+            </>
+          )}
+
+          {Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i).map((page) => (
+            <PaginationItem key={page}>
+              <Button
+                variant={currentPage === page ? "outline" : "ghost"}
+                size="icon"
+                onClick={() => setCurrentPage(page)}
+              >
+                {page}
+              </Button>
+            </PaginationItem>
+          ))}
+
+          {endPage < itemsTotalPages && (
+            <>
+              {endPage < itemsTotalPages - 1 && (
+                <PaginationItem>
+                  <PaginationEllipsis />
+                </PaginationItem>
+              )}
+              <PaginationItem>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCurrentPage(itemsTotalPages)}
+                >
+                  {itemsTotalPages}
+                </Button>
+              </PaginationItem>
+            </>
+          )}
+
+          <PaginationItem>
+            <Button
+              variant="ghost"
+              size="default"
+              onClick={() => {
+                if (currentPage < itemsTotalPages) setCurrentPage(currentPage + 1);
+              }}
+              disabled={currentPage === itemsTotalPages}
+              className="gap-1 pr-2.5"
+            >
+              <span>Next</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    );
+  };
 
   const handleFileSelect = useCallback((file: File) => {
     // Validate file type
@@ -305,48 +440,52 @@ export default function Uploads() {
         {/* Header Section */}
         <div className="border-b bg-background/80 backdrop-blur-xl">
           <div className="px-4 py-5">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              {/* Search Input */}
-              <div className="relative flex-1 min-w-[200px] max-w-[300px]">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search files..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className={cn(
-                    "pl-11 h-10 rounded-xl",
-                    "bg-background border-border",
-                    "text-foreground placeholder:text-muted-foreground",
-                    "focus:border-primary focus:ring-2 focus:ring-primary/20",
-                    "transition-all duration-200"
-                  )}
-                  data-testid="input-search"
-                />
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              {/* Tabs on the left */}
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+                <TabsList>
+                  <TabsTrigger value="all" data-testid="tab-all">
+                    All ({filteredUploads.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="image" data-testid="tab-images">
+                    Images ({imagesCount})
+                  </TabsTrigger>
+                  <TabsTrigger value="video" data-testid="tab-videos">
+                    Videos ({videosCount})
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              {/* Search and Upload on the right */}
+              <div className="flex items-center gap-3">
+                {/* Search Input */}
+                <div className="relative w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search files..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className={cn(
+                      "pl-10 h-10 rounded-xl",
+                      "bg-background border-border",
+                      "text-foreground placeholder:text-muted-foreground",
+                      "focus:border-primary focus:ring-2 focus:ring-primary/20",
+                      "transition-all duration-200"
+                    )}
+                    data-testid="input-search"
+                  />
+                </div>
+
+                {/* Upload Files Button */}
+                <Button
+                  className="gap-2"
+                  onClick={() => setIsUploadDialogOpen(true)}
+                  data-testid="button-upload-file"
+                >
+                  <UploadIcon className="h-4 w-4" />
+                  Upload Files
+                </Button>
               </div>
-
-              {/* Filter Select */}
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className={cn(
-                  "w-40 h-10 rounded-xl"
-                )} data-testid="select-file-type">
-                  <SelectValue placeholder="All types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All types</SelectItem>
-                  <SelectItem value="image">Images</SelectItem>
-                  <SelectItem value="video">Videos</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* Upload Files Button */}
-              <Button
-                className="gap-2"
-                onClick={() => setIsUploadDialogOpen(true)}
-                data-testid="button-upload-file"
-              >
-                <UploadIcon className="h-4 w-4" />
-                Upload Files
-              </Button>
             </div>
           </div>
         </div>
@@ -377,13 +516,14 @@ export default function Uploads() {
                 </p>
               </motion.div>
             ) : (
-              <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-              >
-                {filteredUploads.map((file) => {
+              <>
+                <motion.div
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                >
+                  {paginatedUploads.map((file) => {
                   const fileCategory = getFileTypeCategory(file.fileType);
                   const Icon = FILE_TYPE_ICONS[fileCategory];
                   const colorClass = FILE_TYPE_COLORS[fileCategory];
@@ -498,7 +638,9 @@ export default function Uploads() {
                     </motion.div>
                   );
                 })}
-              </motion.div>
+                </motion.div>
+                {renderPagination()}
+              </>
             )}
           </AnimatePresence>
         </>
@@ -724,29 +866,29 @@ export default function Uploads() {
       <Dialog open={isEditDialogOpen} onOpenChange={handleCloseEditDialog}>
         <DialogContent className={cn(
           "max-w-2xl max-h-[90vh] overflow-y-auto",
-          "bg-[#111111]/95 backdrop-blur-2xl",
-          "border border-white/[0.1]",
-          "shadow-2xl shadow-black/50"
+          "bg-popover backdrop-blur-xl",
+          "border border-input",
+          "shadow-2xl"
         )}>
-          <DialogHeader className="border-b border-white/[0.06] pb-4">
+          <DialogHeader className="border-b border-input pb-4">
             <DialogTitle className={cn(
               "text-2xl font-bold",
-              "bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent"
+              "text-foreground"
             )}>
               Edit File Details
             </DialogTitle>
-            <DialogDescription className="text-white/50">
+            <DialogDescription className="text-muted-foreground">
               Update the display name and description for this file.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
             {editingUpload && (
               <div className={cn(
-                "border border-white/[0.1] rounded-lg p-4",
-                "bg-white/[0.02]"
+                "border border-input rounded-lg p-4",
+                "bg-muted/50"
               )}>
                 <div className="flex items-start gap-3">
-                  <div className="w-20 h-20 rounded bg-white/[0.05] flex items-center justify-center overflow-hidden flex-shrink-0 border border-white/[0.1]">
+                  <div className="w-20 h-20 rounded bg-muted flex items-center justify-center overflow-hidden flex-shrink-0 border border-input">
                     {getFileTypeCategory(editingUpload.fileType) === "image" ? (
                       <img
                         src={editingUpload.storageUrl}
@@ -758,8 +900,8 @@ export default function Uploads() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate text-white/80">{editingUpload.fileName}</p>
-                    <p className="text-xs text-white/40">
+                    <p className="font-medium text-sm truncate text-foreground">{editingUpload.fileName}</p>
+                    <p className="text-xs text-muted-foreground">
                       {formatFileSize(editingUpload.fileSize)} • {editingUpload.fileType}
                     </p>
                   </div>
@@ -768,23 +910,23 @@ export default function Uploads() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="edit-name" className="text-white/80">Display Name</Label>
+              <Label htmlFor="edit-name" className="text-foreground">Display Name</Label>
               <Input
                 id="edit-name"
                 placeholder="Enter a display name..."
                 value={editForm.name}
                 onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                 className={cn(
-                  "bg-white/[0.05] border-white/[0.1]",
-                  "text-white placeholder:text-white/40",
-                  "focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  "bg-background border-input",
+                  "text-foreground placeholder:text-muted-foreground",
+                  "focus:border-primary focus:ring-2 focus:ring-primary/20"
                 )}
                 data-testid="input-edit-name"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-description" className="text-white/80">Description (optional)</Label>
+              <Label htmlFor="edit-description" className="text-foreground">Description (optional)</Label>
               <Textarea
                 id="edit-description"
                 placeholder="Add a description..."
@@ -792,9 +934,9 @@ export default function Uploads() {
                 onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                 rows={2}
                 className={cn(
-                  "bg-white/[0.05] border-white/[0.1]",
-                  "text-white placeholder:text-white/40",
-                  "focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  "bg-background border-input",
+                  "text-foreground placeholder:text-muted-foreground",
+                  "focus:border-primary focus:ring-2 focus:ring-primary/20"
                 )}
                 data-testid="input-edit-description"
               />

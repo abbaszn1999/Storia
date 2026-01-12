@@ -456,7 +456,7 @@ export function CharacterVlogSceneBreakdown({
 
   // Determine reference mode capabilities
   const canChangeFrameType = referenceMode === "AI"; // Only AI mode allows frame type changes
-  const showContinuityButton = referenceMode === "2F" || referenceMode === "AI"; // 2F and AI modes have continuity
+  const showContinuityButton = false; // Agent automatically determines continuity in 2F and AI modes
   // Calculate defaultFrameType based on referenceMode
   // If referenceMode is null, try to infer from saved shots, otherwise default to "start-end"
   const defaultFrameType = referenceMode === "1F" 
@@ -508,7 +508,7 @@ export function CharacterVlogSceneBreakdown({
         firstShotSample: vlogScenes[0]?.shots[0],
       });
     }
-  }, [propScenes, propShots, defaultFrameType, sceneManifest.scenes.length]);
+  }, [propScenes, propShots, sceneManifest.scenes.length]);
 
   // Auto-generate breakdown ONLY if no scenes exist in props AND no scenes in manifest
   useEffect(() => {
@@ -614,7 +614,14 @@ export function CharacterVlogSceneBreakdown({
         })),
       }));
 
-      setSceneManifest({ scenes: vlogScenes, continuityLinksEstablished: false });
+      // In 2F and AI modes, continuity is automatically determined by the agent
+      // - 2F: All shots are 2F, agent analyzes continuity between consecutive shots
+      // - AI: Agent determines shot types (1F/2F), then analyzes continuity based on rules
+      //   (1F can't start groups, but can be second in group if previous is 2F)
+      const continuityEstablished = (referenceMode === "2F" || referenceMode === "AI") 
+        ? true 
+        : sceneManifest.continuityLinksEstablished;
+      setSceneManifest({ scenes: vlogScenes, continuityLinksEstablished: continuityEstablished });
       setExpandedScenes(new Set(vlogScenes.map(s => s.id)));
 
       // Update parent component with scenes and shots
@@ -705,7 +712,7 @@ export function CharacterVlogSceneBreakdown({
           id: shot.id,
           sceneId: shot.sceneId,
           shotNumber: shotIdx + 1,
-          shotType: shot.cameraShot || 'Medium Shot',
+          shotType: shot.shotType || defaultFrameType, // ✅ FIX: Use frame type (image-ref/start-end), not camera shot
           description: shot.description,
           dialogue: '',
           cameraShot: shot.cameraShot || 'Medium Shot',
@@ -833,15 +840,26 @@ export function CharacterVlogSceneBreakdown({
     const shotNum = scene.shots.length + 1;
     const sceneNum = parseInt(sceneId.split('-')[1]) || 1;
     
+    const newShotType = canChangeFrameType ? (data.shotType || defaultFrameType) : defaultFrameType;
+    const prevShot = scene.shots.length > 0 ? scene.shots[scene.shots.length - 1] : null;
+    
+    // Link rules:
+    // - 2F shots: can be linked if there's a previous shot
+    // - 1F shots: can ONLY be linked if previous shot is 2F (1F can be second in group, not first)
+    const shouldLink = scene.shots.length > 0 && (
+      newShotType === 'start-end' || 
+      (newShotType === 'image-ref' && prevShot?.shotType === 'start-end')
+    );
+    
     const newShot: VlogShot = {
       id: `${sceneId}-shot${shotNum}-${Date.now()}`,
       sceneId,
       name: data.name || `Shot ${sceneNum}.${shotNum}: New`,
       description: data.description || '',
-      shotType: canChangeFrameType ? (data.shotType || defaultFrameType) : defaultFrameType,
+      shotType: newShotType,
       cameraShot: data.cameraShot || 'Medium Shot',
       referenceTags: ['@Character'],
-      isLinkedToPrevious: scene.shots.length > 0,
+      isLinkedToPrevious: shouldLink,
     };
     
     const updatedScenes = sceneManifest.scenes.map(s => {
@@ -890,6 +908,13 @@ export function CharacterVlogSceneBreakdown({
     if (shotIndex <= 0) return;
     
     const currentShot = scene.shots[shotIndex];
+    const prevShot = scene.shots[shotIndex - 1];
+    
+    // 1F shots can only be linked if previous shot is 2F (1F can be second in group, not first)
+    if (currentShot.shotType === 'image-ref' && prevShot?.shotType !== 'start-end') {
+      return; // Prevent linking 1F to 1F or if no previous shot
+    }
+    
     updateShot(sceneId, shotId, { isLinkedToPrevious: !currentShot.isLinkedToPrevious });
   };
 
@@ -958,14 +983,13 @@ export function CharacterVlogSceneBreakdown({
           
           const prevShot = scene.shots[idx - 1];
           
-          // Simple heuristic: suggest linking if:
-          // 1. Both shots are 2F (start-end)
-          // 2. They share similar reference tags
-          // 3. They're in the same scene
+          // Link rules:
+          // - 2F shots: can link to previous 2F shot if they share similar reference tags
+          // - 1F shots: can ONLY link if previous shot is 2F (1F can be second in group, not first)
           const shouldLink = 
-            prevShot.shotType === 'start-end' && 
-            shot.shotType === 'start-end' &&
-            prevShot.referenceTags.some(tag => shot.referenceTags.includes(tag));
+            prevShot.shotType === 'start-end' && // Previous must be 2F
+            (shot.shotType === 'start-end' || shot.shotType === 'image-ref') && // Current can be 2F or 1F
+            prevShot.referenceTags.some(tag => shot.referenceTags.includes(tag)); // Share similar tags
           
           suggestions.push({
             sceneId: scene.id,
@@ -1008,7 +1032,12 @@ export function CharacterVlogSceneBreakdown({
   // Validation
   const hasScenes = sceneManifest.scenes.length >= 1;
   const hasShots = sceneManifest.scenes.every(scene => scene.shots.length > 0);
-  const hasContinuity = sceneManifest.continuityLinksEstablished;
+  // In 2F and AI modes, agent automatically determines continuity during shot generation
+  // - 2F: All shots are 2F, continuity analysis applies
+  // - AI: Mixed 1F/2F shots, continuity rules apply (1F can't start groups, can be second if previous is 2F)
+  const hasContinuity = (referenceMode === "2F" || referenceMode === "AI")
+    ? true // Agent automatically determines continuity based on rules in shot-generator-prompts.ts
+    : sceneManifest.continuityLinksEstablished;
   const isValid = hasScenes && hasShots && hasContinuity;
 
   const hasBreakdown = sceneManifest.scenes.length > 0;
@@ -1086,32 +1115,6 @@ export function CharacterVlogSceneBreakdown({
                 <Lock className="w-3 h-3 mr-1" />
                 Continuity Locked
               </Badge>
-            )}
-            {showContinuityButton && !hasContinuity && (
-              <Button
-                size="sm"
-                onClick={analyzeContinuity}
-                disabled={isAnalyzingContinuity}
-                className="h-7 text-xs bg-gradient-to-r from-[#FF4081] to-[#FF6B4A] text-white border-0 hover:opacity-90"
-              >
-                {isAnalyzingContinuity ? (
-                  <>
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      className="w-3 h-3 mr-1"
-                    >
-                      <Zap className="w-3 h-3" />
-                    </motion.div>
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <Link2 className="w-3 h-3 mr-1" />
-                    Check Continuity
-                  </>
-                )}
-              </Button>
             )}
             <Button
               size="sm"
@@ -1205,7 +1208,7 @@ export function CharacterVlogSceneBreakdown({
                           return (
                             <div key={shot.id}>
                               {/* CONNECTION STATUS INDICATOR - Only show for 2F and AI modes */}
-                              {showContinuityButton && shot.isLinkedToPrevious && prevShot && (
+                              {(referenceMode === "2F" || referenceMode === "AI") && shot.isLinkedToPrevious && prevShot && (
                                 <motion.div
                                   initial={{ opacity: 0, scaleY: 0 }}
                                   animate={{ opacity: 1, scaleY: 1 }}
@@ -1214,7 +1217,7 @@ export function CharacterVlogSceneBreakdown({
                                   <div className="flex-1 h-px bg-gradient-to-r from-green-500/50 to-emerald-500/50" />
                                   <Badge className="text-[9px] bg-green-500/20 border-green-500/40 text-green-300 px-2 py-0.5">
                                     <Lock className="w-2.5 h-2.5 mr-1" />
-                                    Linked: {prevShot.name.split(':')[1]?.trim() || 'Prev'} End → Start
+                                    Linked: {prevShot.name?.split(':')[1]?.trim() || 'Prev'} End → Start
                                   </Badge>
                                   <div className="flex-1 h-px bg-gradient-to-r from-emerald-500/50 to-green-500/50" />
                                 </motion.div>
@@ -1371,33 +1374,39 @@ export function CharacterVlogSceneBreakdown({
                                     />
                                   </div>
 
-                                  {/* Link Toggle (only for non-first shots and only in 2F/AI modes) */}
-                                  {showContinuityButton && shotIdx > 0 && (
-                                    <div className="flex items-center justify-end gap-3">
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className={cn(
-                                          "h-6 text-[10px] px-2",
-                                          shot.isLinkedToPrevious 
-                                            ? "text-green-400 hover:text-green-300 hover:bg-green-500/10" 
-                                            : "text-white/40 hover:text-white hover:bg-white/10"
-                                        )}
-                                        onClick={() => handleToggleLink(scene.id, shot.id)}
-                                      >
-                                        {shot.isLinkedToPrevious ? (
-                                          <>
-                                            <Link2 className="w-3 h-3 mr-1" />
-                                            Linked
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Unlink className="w-3 h-3 mr-1" />
-                                            Unlinked
-                                          </>
-                                        )}
-                                      </Button>
-                                    </div>
+                                  {/* Link Toggle Rules:
+                                      - 2F shots: can be linked if not first shot
+                                      - 1F shots: can ONLY be linked if previous shot is 2F (1F can be second in group, but not first)
+                                  */}
+                                  {(referenceMode === "2F" || referenceMode === "AI") && shotIdx > 0 && (
+                                    // Show for 2F shots OR for 1F shots where previous shot is 2F
+                                    (shot.shotType === 'start-end' || (shot.shotType === 'image-ref' && prevShot?.shotType === 'start-end')) && (
+                                      <div className="flex items-center justify-end gap-3">
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className={cn(
+                                            "h-6 text-[10px] px-2",
+                                            shot.isLinkedToPrevious 
+                                              ? "text-green-400 hover:text-green-300 hover:bg-green-500/10" 
+                                              : "text-white/40 hover:text-white hover:bg-white/10"
+                                          )}
+                                          onClick={() => handleToggleLink(scene.id, shot.id)}
+                                        >
+                                          {shot.isLinkedToPrevious ? (
+                                            <>
+                                              <Link2 className="w-3 h-3 mr-1" />
+                                              Linked
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Unlink className="w-3 h-3 mr-1" />
+                                              Unlinked
+                                            </>
+                                          )}
+                                        </Button>
+                                      </div>
+                                    )
                                   )}
                                 </CardContent>
                               </Card>

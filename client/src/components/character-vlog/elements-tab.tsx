@@ -44,16 +44,12 @@ interface ElementsTabProps {
   locations?: Location[];
   referenceImages: ReferenceImage[];
   artStyle?: string;
-  imageModel?: string;
   worldDescription?: string;
-  aspectRatio?: string;
   onCharactersChange: (characters: Character[]) => void;
   onLocationsChange?: (locations: Location[]) => void;
   onReferenceImagesChange: (images: ReferenceImage[]) => void;
-  onAspectRatioChange?: (aspectRatio: string) => void;
   onWorldSettingsChange?: (settings: { 
     artStyle: string; 
-    imageModel: string;
     worldDescription: string;
   }) => void;
   onNext: () => void;
@@ -138,13 +134,10 @@ export function ElementsTab({
   locations = [],
   referenceImages,
   artStyle = "none",
-  imageModel = "Flux",
   worldDescription = "",
-  aspectRatio = "9:16",
   onCharactersChange,
   onLocationsChange,
   onReferenceImagesChange,
-  onAspectRatioChange,
   onWorldSettingsChange,
   onNext,
   mainCharacter,
@@ -177,8 +170,6 @@ export function ElementsTab({
   const [generatedCharacterImage, setGeneratedCharacterImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedArtStyle, setSelectedArtStyle] = useState(artStyle);
-  const [selectedImageModel, setSelectedImageModel] = useState(imageModel);
-  const [selectedAspectRatio, setSelectedAspectRatio] = useState(aspectRatio);
   const [selectedWorldDescription, setSelectedWorldDescription] = useState(worldDescription);
   const { toast } = useToast();
 
@@ -642,7 +633,6 @@ export function ElementsTab({
         hasDescription: !!newLocation.description,
         hasDetails: !!newLocation.details,
         artStyle: selectedArtStyle,
-        imageModel: selectedImageModel,
         hasWorldDescription: !!selectedWorldDescription,
         hasStyleReference: !!styleReferenceImage,
         referenceImageCount: referenceImages?.length || 0,
@@ -1092,7 +1082,6 @@ export function ElementsTab({
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: styleId, 
-        imageModel: selectedImageModel,
         worldDescription: selectedWorldDescription,
       });
     }
@@ -1109,41 +1098,6 @@ export function ElementsTab({
         credentials: 'include',
         body: JSON.stringify({
           artStyle: styleId === 'none' ? undefined : styleId,
-          imageModel: selectedImageModel,
-          worldDescription: selectedWorldDescription,
-          styleReferenceImageUrl: styleRefImageUrl,
-        }),
-      });
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-    }
-  };
-
-  const handleImageModelChange = async (model: string) => {
-    setSelectedImageModel(model);
-    
-    // Update local state callback
-    if (onWorldSettingsChange) {
-      onWorldSettingsChange({ 
-        artStyle: selectedArtStyle, 
-        imageModel: model,
-        worldDescription: selectedWorldDescription,
-      });
-    }
-
-    // Auto-save to backend
-    try {
-      const styleRefImageUrl = styleRefs.length > 0 ? styleRefs[0].imageUrl : undefined;
-      await fetch(`/api/character-vlog/videos/${videoId}/step/2/settings`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          artStyle: selectedArtStyle === 'none' ? undefined : selectedArtStyle,
-          imageModel: model,
           worldDescription: selectedWorldDescription,
           styleReferenceImageUrl: styleRefImageUrl,
         }),
@@ -1160,7 +1114,6 @@ export function ElementsTab({
     if (onWorldSettingsChange) {
       onWorldSettingsChange({ 
         artStyle: selectedArtStyle, 
-        imageModel: selectedImageModel,
         worldDescription: description,
       });
     }
@@ -1177,7 +1130,6 @@ export function ElementsTab({
         credentials: 'include',
         body: JSON.stringify({
           artStyle: selectedArtStyle === 'none' ? undefined : selectedArtStyle,
-          imageModel: selectedImageModel,
           worldDescription: description,
           styleReferenceImageUrl: styleRefImageUrl,
         }),
@@ -1248,7 +1200,6 @@ export function ElementsTab({
           credentials: 'include',
           body: JSON.stringify({
             artStyle: 'custom_image',
-            imageModel: selectedImageModel,
             worldDescription: selectedWorldDescription,
             styleReferenceImageUrl: cdnUrl,
           }),
@@ -1586,7 +1537,6 @@ export function ElementsTab({
         hasAppearance: !!newCharacter.appearance,
         hasPersonality: !!newCharacter.personality,
         artStyle: selectedArtStyle,
-        imageModel: selectedImageModel,
         hasWorldDescription: !!selectedWorldDescription,
         hasStyleReference: !!styleReferenceImage,
         referenceImageCount: referenceImages?.length || 0,
@@ -1655,59 +1605,6 @@ export function ElementsTab({
       >
         <ScrollArea className="flex-1 h-full">
           <div className="p-6 space-y-6 pb-4">
-            {/* Image Model */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6 space-y-3">
-                <Label className="text-base font-semibold text-white">Image Model</Label>
-                <Select value={selectedImageModel} onValueChange={handleImageModelChange}>
-                  <SelectTrigger className="h-10 bg-white/5 border-white/10 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#0a0a0a] border-white/10">
-                    {IMAGE_MODELS.map((model) => (
-                      <SelectItem key={model} value={model} className="focus:bg-[#FF4081]/20 focus:text-white">
-                        {model}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
-
-            {/* Aspect Ratio */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6 space-y-3">
-                <Label className="text-base font-semibold text-white">Aspect Ratio</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {ASPECT_RATIOS.map((ratio) => {
-                    const Icon = ratio.icon;
-                    return (
-                      <button
-                        key={ratio.id}
-                        onClick={() => {
-                          setSelectedAspectRatio(ratio.id);
-                          onAspectRatioChange?.(ratio.id);
-                        }}
-                        className={cn(
-                          "p-3 rounded-lg border transition-all text-center relative overflow-hidden",
-                          selectedAspectRatio === ratio.id
-                            ? "border-white/20"
-                            : "bg-white/5 border-white/10 hover:bg-white/10"
-                        )}
-                        style={selectedAspectRatio === ratio.id ? {
-                          background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
-                        } : undefined}
-                      >
-                        <Icon className="h-4 w-4 mx-auto mb-1 text-white" />
-                        <div className="font-semibold text-xs text-white">{ratio.label}</div>
-                        <div className="text-[9px] text-white/40">{ratio.description}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Style */}
             <Card className="bg-[#252525] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
@@ -2518,33 +2415,46 @@ export function ElementsTab({
             </div>
           ) : (
             <div className="space-y-4 mt-4">
-              {locationRecommendations.map((location, index) => (
-                <Card key={index} className="overflow-hidden bg-[#252525] border-white/[0.06]">
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 space-y-2">
-                        <h4 className="font-semibold text-lg text-white">{location.name}</h4>
-                        <p className="text-sm text-white/70">{location.description}</p>
-                        <div className="pt-2">
-                          <Label className="text-xs font-medium text-white/50 uppercase tracking-wider">Visual Details</Label>
-                          <p className="text-sm mt-1 text-white/80">{location.visualDetails}</p>
+              {locationRecommendations.map((location, index) => {
+                const isAdded = locations.some(l => l.name === location.name);
+                return (
+                  <Card key={index} className="overflow-hidden bg-[#252525] border-white/[0.06]">
+                    <CardContent className="p-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 space-y-2">
+                          <h4 className="font-semibold text-lg text-white">{location.name}</h4>
+                          <p className="text-sm text-white/70">{location.description}</p>
+                          <div className="pt-2">
+                            <Label className="text-xs font-medium text-white/50 uppercase tracking-wider">Visual Details</Label>
+                            <p className="text-sm mt-1 text-white/80">{location.visualDetails}</p>
+                          </div>
                         </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleAddRecommendedLocation(location)}
+                          disabled={isAdded}
+                          className={isAdded ? "" : "text-white hover:opacity-90 relative overflow-hidden"}
+                          style={!isAdded ? {
+                            background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                          } : undefined}
+                        >
+                          {isAdded ? (
+                            <>
+                              <Check className="mr-2 h-3 w-3" />
+                              Location Added
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="mr-2 h-3 w-3" />
+                              Add Location
+                            </>
+                          )}
+                        </Button>
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={() => handleAddRecommendedLocation(location)}
-                        className="text-white hover:opacity-90 relative overflow-hidden"
-                        style={{
-                          background: `linear-gradient(to right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
-                        }}
-                      >
-                        <Plus className="mr-2 h-3 w-3" />
-                        Add Location
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </DialogContent>

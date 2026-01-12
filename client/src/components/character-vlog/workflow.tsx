@@ -19,6 +19,7 @@ interface CharacterVlogWorkflowProps {
   aspectRatio: string;
   scriptModel: string;
   videoModel: string;
+  imageModel: string;
   narrationStyle: "third-person" | "first-person";
   voiceActorId: string | null;
   voiceOverEnabled: boolean;
@@ -47,6 +48,7 @@ interface CharacterVlogWorkflowProps {
   onAspectRatioChange: (aspectRatio: string) => void;
   onScriptModelChange: (model: string) => void;
   onVideoModelChange: (model: string) => void;
+  onImageModelChange: (model: string) => void;
   onNarrationStyleChange: (style: "third-person" | "first-person") => void;
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
@@ -89,6 +91,7 @@ export function CharacterVlogWorkflow({
   aspectRatio,
   scriptModel,
   videoModel,
+  imageModel,
   narrationStyle,
   voiceActorId,
   voiceOverEnabled,
@@ -110,6 +113,7 @@ export function CharacterVlogWorkflow({
   onAspectRatioChange,
   onScriptModelChange,
   onVideoModelChange,
+  onImageModelChange,
   onNarrationStyleChange,
   onVoiceActorChange,
   onVoiceOverToggle,
@@ -453,6 +457,7 @@ export function CharacterVlogWorkflow({
           initialScript={script}
           scriptModel={scriptModel}
           videoModel={videoModel}
+          imageModel={imageModel}
           narrationStyle={narrationStyle}
           theme={theme}
           numberOfScenes={numberOfScenes}
@@ -463,6 +468,8 @@ export function CharacterVlogWorkflow({
           onScriptChange={onScriptChange}
           onScriptModelChange={onScriptModelChange}
           onVideoModelChange={onVideoModelChange}
+          onImageModelChange={onImageModelChange}
+          onAspectRatioChange={onAspectRatioChange}
           onNarrationStyleChange={onNarrationStyleChange}
           onThemeChange={onThemeChange}
           onNumberOfScenesChange={onNumberOfScenesChange}
@@ -586,13 +593,10 @@ export function CharacterVlogWorkflow({
           locations={locations}
           referenceImages={referenceImages}
           artStyle={worldSettings.artStyle}
-          imageModel={worldSettings.imageModel}
           worldDescription={worldSettings.worldDescription}
-          aspectRatio={aspectRatio}
           onCharactersChange={onCharactersChange}
           onLocationsChange={onLocationsChange}
           onReferenceImagesChange={onReferenceImagesChange}
-          onAspectRatioChange={onAspectRatioChange}
           onWorldSettingsChange={(settings) => onWorldSettingsChange({
             ...settings,
             locations: worldSettings.locations || [],

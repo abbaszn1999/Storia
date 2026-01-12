@@ -96,6 +96,10 @@ const STORY_ICONS: Record<string, typeof Lightbulb> = {
   'auto-asmr': Music,
 };
 
+// Glassmorphism card style to keep aurora visible in both themes
+const GLASS_CARD =
+  "bg-white/80 dark:bg-white/5 border border-white/30 dark:border-white/10 backdrop-blur-xl shadow-lg";
+
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { currentWorkspace } = useWorkspace();
@@ -198,7 +202,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-background">
+    <div className="relative min-h-screen overflow-hidden">
       {/* Enhanced Aurora Background */}
       <AuroraBackground 
         colorStops={[
@@ -328,7 +332,7 @@ export default function Dashboard() {
                   className="h-full"
                 >
                   <Card 
-                    className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group bg-background/70 backdrop-blur-sm h-full flex flex-col"
+                    className={`${GLASS_CARD} hover:shadow-xl transition-all duration-300 cursor-pointer group h-full flex flex-col`}
                     onClick={() => handleCreateVideo(mode.id)}
                   >
                     <CardContent className="p-5 flex flex-col flex-1">
@@ -394,7 +398,7 @@ export default function Dashboard() {
                   className="h-full"
                 >
                   <Card 
-                    className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group bg-background/70 backdrop-blur-sm h-full flex flex-col"
+                    className={`${GLASS_CARD} hover:shadow-xl transition-all duration-300 cursor-pointer group h-full flex flex-col`}
                     onClick={() => handleCreateStory(template.id)}
                   >
                     <CardContent className="p-4 flex flex-col flex-1">
@@ -449,7 +453,7 @@ export default function Dashboard() {
                   Loading projects...
                 </div>
               ) : recentProjects.length === 0 ? (
-                <Card className="border bg-background/70 backdrop-blur-sm">
+                <Card className={GLASS_CARD}>
                   <CardContent className="p-8 text-center">
                     <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <p className="text-muted-foreground mb-4">No projects yet</p>
@@ -468,7 +472,7 @@ export default function Dashboard() {
                     transition={{ delay: 0.9 + index * 0.05, duration: 0.5 }}
                   >
                     <Card 
-                      className="border shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer group bg-background/70 backdrop-blur-sm"
+                      className={`${GLASS_CARD} hover:shadow-lg transition-all duration-300 cursor-pointer group`}
                       onClick={() => handleViewProject(project)}
                     >
                       <CardContent className="p-4">
@@ -529,7 +533,7 @@ export default function Dashboard() {
           >
             {/* Production Campaigns */}
             {stats.activeCampaigns > 0 && (
-              <Card className="border bg-background/70 backdrop-blur-sm">
+              <Card className={GLASS_CARD}>
                 <CardContent className="p-5">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
@@ -552,7 +556,7 @@ export default function Dashboard() {
             )}
 
             {/* Assets Quick Links */}
-            <Card className="border bg-background/70 backdrop-blur-sm">
+            <Card className={GLASS_CARD}>
               <CardContent className="p-5">
                 <h3 className="font-semibold text-foreground mb-4">Assets Library</h3>
                 <div className="space-y-2">
@@ -581,7 +585,7 @@ export default function Dashboard() {
             </Card>
 
             {/* Stats Card */}
-            <Card className="border bg-background/70 backdrop-blur-sm">
+            <Card className={GLASS_CARD}>
               <CardContent className="p-5">
                 <h3 className="font-semibold text-foreground mb-4">This Month</h3>
                 <div className="space-y-3">

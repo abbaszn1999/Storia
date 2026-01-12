@@ -42,8 +42,8 @@ export function ImageModelSelector({ value, onChange, selectedModelInfo }: Image
         <SelectTrigger 
           className={cn(
             "w-full h-auto py-2.5 px-3",
-            "bg-white/[0.03] border-[#e5e7eb] dark:border-border",
-            "hover:bg-white/[0.05] hover:border-[#e5e7eb] dark:hover:border-border",
+            "bg-muted/50 dark:bg-white/[0.03] border-[#e5e7eb] dark:border-border",
+            "hover:bg-muted dark:hover:bg-white/[0.05] hover:border-[#e5e7eb] dark:hover:border-border",
             "focus:ring-1 focus:ring-primary/40",
             "transition-all duration-200"
           )}
@@ -73,7 +73,7 @@ export function ImageModelSelector({ value, onChange, selectedModelInfo }: Image
             {selectedModelInfo.badge && (
               <div className={cn(
                 "flex-shrink-0 px-1.5 py-0.5 rounded",
-                "bg-primary/20 border border-[#e5e7eb]",
+                "bg-primary/20 border border-[#e5e7eb] dark:border-border",
                 "flex items-center gap-1"
               )}>
                 <Sparkles className="h-2.5 w-2.5 text-primary" />
@@ -83,14 +83,14 @@ export function ImageModelSelector({ value, onChange, selectedModelInfo }: Image
           </div>
         </SelectTrigger>
 
-        <SelectContent className="bg-[#1a1a1a] border-border max-h-[400px]">
+        <SelectContent className="bg-popover dark:bg-[#1a1a1a] border-[#e5e7eb] dark:border-border max-h-[400px]">
           {IMAGE_MODELS.map((model) => (
             <SelectItem
               key={model.value}
               value={model.value}
               className={cn(
                 "py-3 px-3 cursor-pointer",
-                "focus:bg-white/[0.06]",
+                "focus:bg-muted/50 dark:focus:bg-white/[0.06]",
                 "data-[state=checked]:bg-primary/10"
               )}
             >
@@ -101,7 +101,7 @@ export function ImageModelSelector({ value, onChange, selectedModelInfo }: Image
                   "bg-gradient-to-br",
                   model.value === value 
                     ? "from-primary/30 to-purple-500/30 border-primary" 
-                    : "from-white/5 to-white/10 border-[#e5e7eb]",
+                    : "from-muted/30 to-muted/50 dark:from-white/5 dark:to-white/10 border-[#e5e7eb] dark:border-border",
                   "flex items-center justify-center",
                   "border"
                 )}>
@@ -123,7 +123,7 @@ export function ImageModelSelector({ value, onChange, selectedModelInfo }: Image
                       </span>
                     )}
                     {model.badge && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-muted-foreground">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 dark:bg-white/10 text-muted-foreground">
                         {model.badge}
                       </span>
                     )}

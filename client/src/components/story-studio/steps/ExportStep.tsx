@@ -1117,7 +1117,7 @@ export function ExportStep({
       <div className={cn(
         "w-[40%] min-w-[400px] max-w-[600px] flex-shrink-0 h-full",
         "bg-card/80 dark:bg-black/40 backdrop-blur-xl",
-        "border-r border-border dark:border-white/[0.06]",
+        "border-r border-[#e5e7eb] dark:border-border",
         "flex flex-col overflow-hidden"
       )}>
         <ScrollArea className="flex-1 h-full">
@@ -1161,7 +1161,7 @@ export function ExportStep({
                         <span className="text-xs font-medium text-green-300">Ready</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 dark:bg-white/10 border border-border/50 dark:border-white/20">
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 dark:bg-white/10 border border-[#e5e7eb] dark:border-border">
                         <Clock className="w-3.5 h-3.5 text-muted-foreground" />
                         <span className="text-xs font-medium text-muted-foreground">Pending</span>
                       </div>
@@ -1183,15 +1183,15 @@ export function ExportStep({
                           transition={{ duration: scenes.length * 5, ease: "linear" }}
                         />
                       </div>
-                      <p className="text-xs text-white/40 text-center">
+                      <p className="text-xs text-muted-foreground text-center">
                         Creating audio for {scenes.length} scene{scenes.length > 1 ? 's' : ''}...
                       </p>
                     </motion.div>
                   )}
            {/* Info ext */}
-                  <div className="flex items-center gap-2 p-2 rounded-lg bg-white/[0.03]">
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 dark:bg-white/[0.03]">
                     <Volume2 className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                    <p className="text-xs text-white/50">
+                    <p className="text-xs text-muted-foreground">
                       {isGeneratingVoiceover 
                         ? "Please wait, do not navigate away..."
                         : voiceoverGenerated || allScenesHaveAudio
@@ -1213,13 +1213,13 @@ export function ExportStep({
               </div>
               <div>
                 <h3 className="font-semibold">Video Summary</h3>
-                <p className="text-xs text-white/50">Ready to export</p>
+                <p className="text-xs text-muted-foreground">Ready to export</p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
                       {/* Scenes Count */}
-              <div className="p-3 rounded-xl bg-muted/50 dark:bg-white/5 border border-border/50 dark:border-white/10">
+              <div className="p-3 rounded-xl bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border">
                 <div className="flex items-center gap-2 mb-1">
                   <Layers className="w-3 h-3 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground">Scenes</span>
@@ -1228,19 +1228,19 @@ export function ExportStep({
               </div>
                       
                       {/* Duration */}
-              <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+              <div className="p-3 rounded-xl bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border">
                 <div className="flex items-center gap-2 mb-1">
-                  <Clock className="w-3 h-3 text-white/40" />
-                  <span className="text-xs text-white/40">Duration</span>
+                  <Clock className="w-3 h-3 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Duration</span>
                 </div>
                 <p className="text-lg font-semibold">{totalDuration}s</p>
               </div>
                       
                       {/* Image Model */}
-              <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+              <div className="p-3 rounded-xl bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border">
                 <div className="flex items-center gap-2 mb-1">
-                          <Image className="w-3 h-3 text-white/40" />
-                          <span className="text-xs text-white/40">Image Model</span>
+                          <Image className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">Image Model</span>
                 </div>
                         <p className="text-sm font-semibold truncate" title={imageModel}>
                           {imageModel || 'Default'}
@@ -1248,15 +1248,15 @@ export function ExportStep({
               </div>
                       
                       {/* Voice Over Status */}
-              <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+              <div className="p-3 rounded-xl bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border">
                 <div className="flex items-center gap-2 mb-1">
-                          <Mic className="w-3 h-3 text-white/40" />
-                          <span className="text-xs text-white/40">Voice Over</span>
+                          <Mic className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">Voice Over</span>
                 </div>
                         <div className="flex items-center gap-2">
                           <div className={cn(
                             "w-2 h-2 rounded-full",
-                            voiceoverEnabled ? "bg-green-400" : "bg-white/30"
+                            voiceoverEnabled ? "bg-green-400" : "bg-muted-foreground/30"
                           )} />
                           <p className={cn(
                             "text-sm font-semibold",
@@ -1280,19 +1280,19 @@ export function ExportStep({
 
                     <div className="grid grid-cols-2 gap-3">
                       {/* Quality */}
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                      <div className="p-3 rounded-xl bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border">
                         <div className="flex items-center gap-2 mb-1">
-                          <Monitor className="w-3 h-3 text-white/40" />
-                          <span className="text-xs text-white/40">Quality</span>
+                          <Monitor className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">Quality</span>
                   </div>
                         <p className="text-sm font-semibold text-foreground">1080p Full HD</p>
                   </div>
                       
                       {/* Format */}
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                      <div className="p-3 rounded-xl bg-muted/50 dark:bg-white/5 border border-[#e5e7eb] dark:border-border">
                         <div className="flex items-center gap-2 mb-1">
-                          <Film className="w-3 h-3 text-white/40" />
-                          <span className="text-xs text-white/40">Format</span>
+                          <Film className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">Format</span>
                         </div>
                         <p className="text-sm font-semibold text-foreground">MP4</p>
                       </div>
@@ -1355,20 +1355,20 @@ export function ExportStep({
                           <div key={platform.id} className={cn(
                             "overflow-hidden rounded-xl border transition-all duration-200",
                             isDisabled
-                              ? "border-white/5 opacity-60"
+                              ? "border-[#e5e7eb] dark:border-border opacity-60"
                               : isSelected 
                                 ? "border-purple-500/40 bg-purple-500/5" 
-                                : "border-white/10 hover:border-white/20"
+                                : "border-[#e5e7eb] dark:border-border hover:border-purple-500/40"
                           )}>
                             {/* Platform Header Row */}
                             <div className={cn(
                               "w-full p-3 flex items-center gap-3",
                               "transition-all duration-200",
                               isDisabled
-                                ? "bg-white/[0.01] cursor-not-allowed"
+                                ? "bg-muted/30 dark:bg-white/[0.01] cursor-not-allowed"
                                 : isExpanded
-                                  ? "bg-white/10"
-                                  : "bg-white/[0.03]"
+                                  ? "bg-muted dark:bg-white/10"
+                                  : "bg-muted/50 dark:bg-white/[0.03]"
                             )}>
                               {/* Checkbox or Lock Icon */}
                               {platformConnected ? (
@@ -1378,17 +1378,17 @@ export function ExportStep({
                     className={cn(
                                     "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all",
                                     isDisabled
-                                      ? "border-white/10 cursor-not-allowed"
+                                      ? "border-[#e5e7eb] dark:border-border cursor-not-allowed"
                                       : isSelected
                                         ? "bg-purple-500 border-purple-500"
-                                        : "border-white/30 hover:border-white/50"
+                                        : "border-[#e5e7eb] dark:border-border hover:border-purple-500"
                                   )}
                                 >
                                   {isSelected && !isDisabled && <Check className="w-3 h-3 text-white" />}
                                 </button>
                               ) : (
                                 <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                                  <Lock className="w-4 h-4 text-white/30" />
+                                  <Lock className="w-4 h-4 text-muted-foreground" />
                                 </div>
                               )}
 
@@ -1406,7 +1406,7 @@ export function ExportStep({
                                 <div className="flex items-center gap-2">
                                   <span className={cn(
                                     "text-sm font-medium",
-                                    isDisabled ? "text-white/40" : "text-white"
+                                    isDisabled ? "text-muted-foreground" : "text-foreground"
                                   )}>
                                     {platform.name}
                                   </span>
@@ -1464,13 +1464,13 @@ export function ExportStep({
                               {platformConnected && compatibility.compatible && (
                                 <button
                                   onClick={() => handlePlatformExpand(platform.id)}
-                                  className="p-1 hover:bg-white/10 rounded transition-colors"
+                                  className="p-1 hover:bg-muted/50 dark:hover:bg-white/10 rounded transition-colors"
                                 >
                                   <motion.div
                                     animate={{ rotate: isExpanded ? 180 : 0 }}
                                     transition={{ duration: 0.2 }}
                                   >
-                                    <ChevronDown className="w-4 h-4 text-white/40" />
+                                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
                                   </motion.div>
                                 </button>
                               )}
@@ -1486,7 +1486,7 @@ export function ExportStep({
                                   transition={{ duration: 0.2 }}
                                   className="overflow-hidden"
                                 >
-                                  <div className="p-4 pt-3 space-y-3 bg-white/[0.02] border-t border-white/[0.06]">
+                                  <div className="p-4 pt-3 space-y-3 bg-muted/30 dark:bg-white/[0.02] border-t border-[#e5e7eb] dark:border-border">
                                     {/* YouTube Shorts/Video: Title + Description */}
                                     {platform.id.startsWith('youtube') && (
                                       <>
@@ -1496,9 +1496,9 @@ export function ExportStep({
                                             onChange={(e) => handleMetadataChange(platform.id, 'title', e.target.value)}
                                             placeholder="Video title"
                                             className={cn(
-                                              "bg-black/40 border-white/10 text-white text-sm",
-                                              "placeholder:text-white/30",
-                                              "focus:border-white/20 focus:ring-0"
+                                              "bg-muted/50 dark:bg-black/40 border-[#e5e7eb] dark:border-border text-foreground text-sm",
+                                              "placeholder:text-muted-foreground/50 dark:placeholder:text-white/30",
+                                              "focus:border-primary focus:ring-0"
                                             )}
                                           />
               </div>
@@ -1509,9 +1509,9 @@ export function ExportStep({
                                             placeholder="Description"
                                             rows={3}
                                             className={cn(
-                                              "bg-black/40 border-white/10 text-white text-sm resize-none",
-                                              "placeholder:text-white/30",
-                                              "focus:border-white/20 focus:ring-0"
+                                              "bg-muted/50 dark:bg-black/40 border-[#e5e7eb] dark:border-border text-foreground text-sm resize-none",
+                                              "placeholder:text-muted-foreground/50 dark:placeholder:text-white/30",
+                                              "focus:border-primary focus:ring-0"
                                             )}
                                           />
                                         </div>
@@ -1522,8 +1522,8 @@ export function ExportStep({
                                     {!platform.id.startsWith('youtube') && (
                                       <div className="space-y-2">
                                         <div className="flex items-center gap-2 mb-2">
-                                          <Icon className="w-3.5 h-3.5 text-white/40" />
-                                          <span className="text-xs text-white/50">Social Caption</span>
+                                          <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+                                          <span className="text-xs text-muted-foreground">Social Caption</span>
                                         </div>
                                         <Textarea
                                           value={metadata?.caption || ''}
@@ -1531,9 +1531,9 @@ export function ExportStep({
                                           placeholder="Write a caption..."
                                           rows={3}
                     className={cn(
-                                            "bg-black/40 border-white/10 text-white text-sm resize-none",
-                                            "placeholder:text-white/30",
-                                            "focus:border-white/20 focus:ring-0"
+                                            "bg-muted/50 dark:bg-black/40 border-[#e5e7eb] dark:border-border text-foreground text-sm resize-none",
+                                            "placeholder:text-muted-foreground/50 dark:placeholder:text-white/30",
+                                            "focus:border-primary focus:ring-0"
                                           )}
                                         />
               </div>
@@ -1566,7 +1566,7 @@ export function ExportStep({
                                 "border transition-all duration-200",
                                 scheduleMode === 'now'
                                   ? "bg-gradient-to-r from-purple-600/30 to-pink-600/30 border-purple-500/50 text-white"
-                                  : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/80"
+                                  : "bg-muted/50 dark:bg-white/5 border-[#e5e7eb] dark:border-border text-muted-foreground hover:bg-muted dark:hover:bg-white/10 hover:text-foreground"
                               )}
                             >
                               <Zap className="w-4 h-4" />
@@ -1579,7 +1579,7 @@ export function ExportStep({
                                 "border transition-all duration-200",
                                 scheduleMode === 'scheduled'
                                   ? "bg-gradient-to-r from-blue-600/30 to-cyan-600/30 border-blue-500/50 text-white"
-                                  : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/80"
+                                  : "bg-muted/50 dark:bg-white/5 border-[#e5e7eb] dark:border-border text-muted-foreground hover:bg-muted dark:hover:bg-white/10 hover:text-foreground"
                               )}
                             >
                               <Calendar className="w-4 h-4" />
@@ -1609,8 +1609,8 @@ export function ExportStep({
                                     min={new Date().toISOString().slice(0, 16)}
                                     className={cn(
                                       "w-full px-4 py-3 rounded-xl",
-                                      "bg-white/10 border border-white/20",
-                                      "text-white placeholder:text-white/40",
+                                      "bg-muted/50 dark:bg-white/10 border border-[#e5e7eb] dark:border-border",
+                                      "text-foreground placeholder:text-muted-foreground/50 dark:placeholder:text-white/40",
                                       "focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50",
                                       "transition-all duration-200",
                                       "[color-scheme:dark]"
@@ -1769,10 +1769,10 @@ export function ExportStep({
 
                 {/* Status */}
                 <div>
-                  <h3 className="text-2xl font-bold text-white mb-2">
+                  <h3 className="text-2xl font-bold text-foreground mb-2">
                     Exporting Video...
                   </h3>
-                  <p className="text-white/60">
+                  <p className="text-muted-foreground">
                     Creating your masterpiece
                   </p>
                 </div>
@@ -1794,13 +1794,13 @@ export function ExportStep({
                         <RefreshCw className="w-5 h-5 text-orange-400 animate-spin flex-shrink-0" />
                       )}
                       {step.status === 'pending' && (
-                        <Clock className="w-5 h-5 text-white/30 flex-shrink-0" />
+                        <Clock className="w-5 h-5 text-muted-foreground/50 flex-shrink-0" />
                       )}
                       <span className={cn(
                         "text-sm",
-                        step.status === 'complete' && "text-white/70",
-                        step.status === 'active' && "text-white font-medium",
-                        step.status === 'pending' && "text-white/40"
+                        step.status === 'complete' && "text-foreground/80",
+                        step.status === 'active' && "text-foreground font-medium",
+                        step.status === 'pending' && "text-muted-foreground"
                       )}>
                         {step.text}
                       </span>
@@ -1812,13 +1812,13 @@ export function ExportStep({
                 <div className="space-y-2">
                   <Progress value={exportProgress} className="h-2" />
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-white/40">
+                    <span className="text-muted-foreground">
                       {exportProgress}% complete
                     </span>
                     <motion.span
                       animate={{ opacity: [0.4, 1, 0.4] }}
                       transition={{ duration: 1.5, repeat: Infinity }}
-                      className="text-white/60"
+                      className="text-muted-foreground/80"
                     >
                       Please wait...
                     </motion.span>
@@ -1832,15 +1832,15 @@ export function ExportStep({
           {!isExporting && exportedVideoUrl && (
             <div className="flex-1 flex flex-col overflow-auto">
               {/* Success Header - Preview Ready */}
-              <div className="flex items-center gap-3 p-4 border-b border-white/10 shrink-0">
+              <div className="flex items-center gap-3 p-4 border-b border-[#e5e7eb] dark:border-border shrink-0">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
                   <CheckCircle2 className="w-5 h-5 text-white" />
                     </div>
                     <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-white">
+                  <h3 className="text-lg font-semibold text-foreground">
                     Preview Ready
                   </h3>
-                  <p className="text-sm text-white/60">
+                  <p className="text-sm text-muted-foreground">
                     Adjust settings below, then click "Export Video" to download
                       </p>
                     </div>
@@ -1921,9 +1921,9 @@ export function ExportStep({
 
               {/* Volume Controls - Only when both voiceover AND music */}
               {showVolumeControls && (
-                <div className="px-4 py-3 border-t border-white/10 space-y-4 shrink-0">
+                <div className="px-4 py-3 border-t border-[#e5e7eb] dark:border-border space-y-4 shrink-0">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium text-white/80 flex items-center gap-2">
+                    <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
                       <Volume2 className="w-4 h-4" />
                       Audio Mix
                     </h4>
@@ -1935,11 +1935,11 @@ export function ExportStep({
                   {/* Voice Volume Slider */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs text-white/60 flex items-center gap-1.5">
+                      <label className="text-xs text-muted-foreground flex items-center gap-1.5">
                         <Mic className="w-3.5 h-3.5" />
                         Voice
                       </label>
-                      <span className="text-xs text-white/60 font-mono">{localVoiceVolume}%</span>
+                      <span className="text-xs text-muted-foreground font-mono">{localVoiceVolume}%</span>
                     </div>
                     <Slider
                       value={[localVoiceVolume]}
@@ -1954,11 +1954,11 @@ export function ExportStep({
                   {/* Music Volume Slider */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs text-white/60 flex items-center gap-1.5">
+                      <label className="text-xs text-muted-foreground flex items-center gap-1.5">
                         <Music className="w-3.5 h-3.5" />
                         Music
                       </label>
-                      <span className="text-xs text-white/60 font-mono">{localMusicVolume}%</span>
+                      <span className="text-xs text-muted-foreground font-mono">{localMusicVolume}%</span>
                     </div>
                     <Slider
                       value={[localMusicVolume]}
@@ -1987,10 +1987,10 @@ export function ExportStep({
                   <Film className="w-8 h-8 text-white" />
               </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white mb-1">
+                  <h3 className="text-lg font-semibold text-foreground mb-1">
                     Preparing Export
                   </h3>
-                  <p className="text-sm text-white/60">
+                  <p className="text-sm text-muted-foreground">
                     Your video will appear here shortly
                   </p>
               </div>

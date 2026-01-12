@@ -127,9 +127,8 @@ export function BeatDetailsPanel({
   }
 
   const isLocked = status === 'locked';
-  const isHeroImage = beat.input_image_type === 'hero';
-  const isPreviousFrame = beat.input_image_type === 'previous_frame';
-  const inputImageUrl = isHeroImage ? heroImageUrl : lastFrameUrl;
+  // All beats now use the same reference image (hero or composite)
+  const inputImageUrl = heroImageUrl;
 
   // Video Player Component
   const VideoPlayer = () => {
@@ -144,7 +143,7 @@ export function BeatDetailsPanel({
             <div className="text-center space-y-2">
               <p className="text-lg font-bold text-foreground">Generating Video</p>
               <p className="text-sm text-muted-foreground">
-                Creating your {beat?.total_duration || 8}-second beat with Sora
+                Creating your {beat?.total_duration || 12}-second beat with Sora
               </p>
               <div className="flex items-center gap-2 justify-center mt-4">
                 <div className="h-2 w-2 rounded-full bg-primary animate-bounce [animation-delay:0ms]" />
@@ -257,12 +256,6 @@ export function BeatDetailsPanel({
                           <Clock className="h-4 w-4" />
                           <span>{beat.total_duration}s</span>
                         </div>
-                        {beat.isConnectedToPrevious && (
-                          <div className="flex items-center gap-1.5 text-sm font-semibold text-primary">
-                            <Link2 className="h-4 w-4" />
-                            <span>Connected</span>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -756,42 +749,6 @@ export function BeatDetailsPanel({
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
             >
-              <Card className="border-2 border-border/60 bg-gradient-to-br from-card via-card/95 to-card/90 shadow-xl">
-                <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-500/10 shadow-md">
-                        <Film className="h-5 w-5 text-blue-500" />
-                      </div>
-                      <CardTitle className="text-lg font-bold">Shots in Beat</CardTitle>
-                    </div>
-                    <Badge variant="secondary" className="font-bold text-sm px-3 py-1">
-                      {beat.shots_in_beat.length}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {beat.shots_in_beat.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-3">
-                      {beat.shots_in_beat.map((shotId) => (
-                        <div
-                          key={shotId}
-                          className="group flex items-center gap-3 rounded-xl border-2 border-border/50 bg-muted/30 p-4 transition-all hover:border-primary/30 hover:bg-muted/50 hover:shadow-md"
-                        >
-                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                            <Film className="h-5 w-5 text-primary" />
-                          </div>
-                          <span className="font-mono text-sm font-bold truncate">{shotId}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex h-48 items-center justify-center rounded-xl border-2 border-dashed border-border/50 bg-muted/20">
-                      <p className="text-sm text-muted-foreground">No shots in this beat</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
             </motion.div>
           </TabsContent>
         </Tabs>

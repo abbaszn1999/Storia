@@ -21,21 +21,7 @@ export function BeatList({
     const state = generationState[beat.beatId];
     if (state) return state.status;
     
-    // Check if locked
-    if (beat.isConnectedToPrevious) {
-      const previousBeat = beats.find((b, index) => {
-        const currentIndex = beats.indexOf(beat);
-        return index === currentIndex - 1;
-      });
-      
-      if (previousBeat) {
-        const previousStatus = generationState[previousBeat.beatId]?.status;
-        if (previousStatus !== 'completed') {
-          return 'locked';
-        }
-      }
-    }
-    
+    // All beats are now independent - no connection logic needed
     return 'pending';
   };
 
@@ -50,7 +36,7 @@ export function BeatList({
           <div>
             <h2 className="text-base font-bold text-foreground">Video Beats</h2>
             <p className="text-xs text-muted-foreground font-medium mt-0.5">
-              {beats.length} beat{beats.length !== 1 ? 's' : ''} • {beats[0]?.total_duration || 8}s each
+              {beats.length} beat{beats.length !== 1 ? 's' : ''} • {beats[0]?.total_duration || 12}s each
             </p>
           </div>
         </div>
@@ -73,15 +59,6 @@ export function BeatList({
                   isSelected={isSelected}
                   onClick={() => onBeatSelect(beat.beatId)}
                 />
-                {previousBeat && beat.isConnectedToPrevious && (
-                  <ConnectionLine
-                    fromBeatId={previousBeat.beatId}
-                    toBeatId={beat.beatId}
-                    isConnected={beat.isConnectedToPrevious}
-                    fromStatus={previousStatus || 'pending'}
-                    toStatus={status}
-                  />
-                )}
               </div>
             );
           })}

@@ -100,9 +100,6 @@ export function BeatCard({ beat, status, isSelected, onClick }: BeatCardProps) {
               <h3 className="font-bold text-base text-foreground truncate">
                 {beat.beatName}
               </h3>
-              {beat.isConnectedToPrevious && (
-                <Link2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              )}
             </div>
             
             <div className="flex items-center gap-3 mb-3">

@@ -195,7 +195,7 @@ Return a JSON object with this structure:
 {
   "beat_scripts": [
     {
-      "beatId": "beat1" | "beat2" | "beat3" | "beat4",
+      "beatId": "beat1" | "beat2" | "beat3",
       "voiceoverScript": {
         "enabled": boolean,
         "language": "ar" | "en",
@@ -425,7 +425,7 @@ export const VOICEOVER_SCRIPT_SCHEMA = {
         properties: {
           beatId: {
             type: 'string' as const,
-            enum: ['beat1', 'beat2', 'beat3', 'beat4'] as const,
+            enum: ['beat1', 'beat2', 'beat3'] as const,
             description: 'Beat identifier',
           },
           voiceoverScript: {

@@ -9,12 +9,11 @@
  * INPUT:
  * - Creative spark from Agent 3.0
  * - Campaign context and user beats from Tab 3
- * - Duration (8, 16, 24, or 32 seconds)
+ * - Duration (12, 24, or 36 seconds)
  * 
  * OUTPUT:
- * - visual_beats: Array of beats (N = duration/8), each with beatId, beatName, 
- *   beatDescription, duration (8s), and isConnectedToPrevious
- * - connection_strategy: Overall connection strategy across beats
+ * - visual_beats: Array of beats (N = duration/12), each with beatId, beatName, 
+ *   beatDescription, duration (12s)
  */
 
 import { callTextModel } from '../../../../ai/service';
@@ -49,7 +48,6 @@ export interface NarrativeInput {
     beat1: string;
     beat2: string;
     beat3: string;
-    beat4?: string; // Optional, only used for 32s duration
   };
   // Removed: pacing_profile (no longer from Agent 1.1)
   duration: number;
@@ -57,6 +55,16 @@ export interface NarrativeInput {
   productDescription?: string;
   visualIntensity?: number;
   productionLevel?: 'raw' | 'casual' | 'balanced' | 'cinematic' | 'ultra';
+  // NEW: Image context
+  imageMode?: 'hero' | 'composite';
+  compositeElements?: {
+    hasHeroProduct: boolean;
+    hasProductAngles: boolean;
+    hasDecorativeElements: boolean;
+    elementDescriptions?: string[]; // Optional descriptions
+  };
+  // NEW: Pacing
+  pacingOverride?: number; // 0-100
 }
 
 /**
@@ -67,7 +75,7 @@ export async function createNarrative(
   userId: string,
   workspaceId: string
 ): Promise<NarrativeOutput> {
-  const beatCount = input.duration / 8;
+  const beatCount = input.duration / 12;
   console.log('[social-commerce:agent-3.2] Creating visual beats:', {
     objective: input.campaignObjective,
     // Removed: pacing_profile
@@ -127,16 +135,37 @@ export async function createNarrative(
       const rawOutput = response.output.trim();
       const parsed = JSON.parse(rawOutput);
 
+      // Validate beat count matches expected count based on duration
+      const expectedBeatCount = input.duration / 12;
+      const actualBeatCount = parsed.visual_beats?.length || 0;
+      
+      if (actualBeatCount !== expectedBeatCount) {
+        throw new Error(
+          `Beat count mismatch: expected ${expectedBeatCount} beat(s) for ${input.duration}s duration, but got ${actualBeatCount} beat(s)`
+        );
+      }
+
+      // Validate all beat IDs are valid and sequential
+      const validBeatIds = ['beat1', 'beat2', 'beat3'] as const;
+      for (let i = 0; i < actualBeatCount; i++) {
+        const expectedBeatId = validBeatIds[i];
+        const actualBeat = parsed.visual_beats[i];
+        if (!actualBeat || actualBeat.beatId !== expectedBeatId) {
+          throw new Error(
+            `Invalid beat ID at index ${i}: expected ${expectedBeatId}, got ${actualBeat?.beatId || 'undefined'}`
+          );
+        }
+      }
+
       const output: NarrativeOutput = {
         visual_beats: parsed.visual_beats,
-        connection_strategy: parsed.connection_strategy,
         cost: response.usage?.totalCostUsd,
       };
 
       console.log('[social-commerce:agent-3.2] Visual beats created:', {
         beatCount: output.visual_beats.length,
-        connectionStrategy: output.connection_strategy,
-        beats: output.visual_beats.map(b => ({ id: b.beatId, name: b.beatName, connected: b.isConnectedToPrevious })),
+        expectedBeatCount,
+        beats: output.visual_beats.map(b => ({ id: b.beatId, name: b.beatName })),
         cost: output.cost,
       });
 

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,10 +39,18 @@ import {
   Eye,
   X,
   Loader2,
+  Sparkles,
+  AlertTriangle,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SORA MODEL CONFIGURATIONS
@@ -83,8 +91,8 @@ const ASPECT_RATIO_CONFIGS = {
   "4:7": { label: "4:7", description: "Tall Portrait", icon: RectangleVertical },
 };
 
-// Duration options (Sora only - beat-based chunking: each duration = N beats × 8s)
-const DURATION_OPTIONS = [8, 16, 24, 32];
+// Duration options (Sora only - beat-based chunking: each duration = N beats × 12s)
+const DURATION_OPTIONS = [12, 24, 36];
 
 // Resolution dimensions mapping
 const RESOLUTION_DIMENSIONS: Record<string, Record<string, { width: number; height: number }>> = {
@@ -153,12 +161,6 @@ const PRODUCTION_LEVELS = [
 // COMPONENT INTERFACE
 // ═══════════════════════════════════════════════════════════════════════════
 
-interface DialogueEntry {
-  id: string;
-  character?: string;
-  line: string;
-}
-
 interface ProductSetupTabProps {
   // Video model (Sora only)
   videoModel: string;
@@ -171,7 +173,7 @@ interface ProductSetupTabProps {
   language?: 'ar' | 'en';
   audioVolume?: 'low' | 'medium' | 'high';
   speechTempo?: 'auto' | 'slow' | 'normal' | 'fast' | 'ultra-fast';
-  dialogue?: DialogueEntry[];
+  voiceoverScript?: string;
   customVoiceoverInstructions?: string;
   
   soundEffectsEnabled?: boolean;
@@ -204,12 +206,44 @@ interface ProductSetupTabProps {
   
   // Product images
   productImages?: {
-    heroProfile: string | null;
-    macroDetail?: string | null;
-    materialReference?: string | null;
+    mode?: 'manual' | 'ai_generated';
+    // Manual mode
+    heroProfile?: string | null;
+    productAngles?: Array<{ id: string; url: string; uploadedAt: number }>;
+    elements?: Array<{ id: string; url: string; uploadedAt: number; description?: string }>;
+    // AI mode
+    aiModeImages?: Array<{ id: string; url: string; uploadedAt: number }>;
+    // Shared
+    compositeImage?: { 
+      url: string; 
+      generatedAt: number; 
+      mode: 'manual' | 'ai_generated'; 
+      sourceImages: string[];
+      isApplied?: boolean;
+      prompt?: string;
+    };
+    aiContext?: { description?: string; generatedAt?: number };
   };
-  onProductImageUpload?: (key: 'heroProfile' | 'macroDetail' | 'materialReference', file: File) => Promise<void>;
-  onProductImageDelete?: (key: 'heroProfile' | 'macroDetail' | 'materialReference') => Promise<void>;
+  onProductImageUpload?: (type: 'hero' | 'angle' | 'element' | 'ai_mode', file: File, description?: string, existingId?: string) => Promise<void>;
+  onProductImageDelete?: (type: 'hero' | 'angle' | 'element' | 'ai_mode', id?: string) => Promise<void>;
+  onCompositeGenerate?: (mode: 'manual' | 'ai_generated', context?: string) => Promise<string>;
+  onGeneratePrompt?: (context?: string) => Promise<void>;
+  onGenerateImage?: (prompt: string, layoutDescription: string, styleGuidance: string, sourceImages: string[], context?: string) => Promise<string>;
+  onModeChange?: (mode: 'manual' | 'ai_generated') => void;
+  onModeSwitchWithCleanup?: (newMode: 'manual' | 'ai_generated') => Promise<void>;
+  onApplyComposite?: () => Promise<void>;
+  onRemoveAppliedComposite?: () => void;
+  // Prompt preview dialog state (controlled by parent)
+  isPromptPreviewOpen?: boolean;
+  previewPrompt?: string;
+  previewMetadata?: {
+    layoutDescription: string;
+    styleGuidance: string;
+    sourceImages: string[];
+  } | null;
+  editedPrompt?: string;
+  onPromptPreviewOpenChange?: (open: boolean) => void;
+  onEditedPromptChange?: (prompt: string) => void;
   
   // Handlers
   onVideoModelChange: (model: string) => void;
@@ -220,9 +254,7 @@ interface ProductSetupTabProps {
   onLanguageChange: (lang: 'ar' | 'en') => void;
   onAudioVolumeChange?: (volume: 'low' | 'medium' | 'high') => void;
   onSpeechTempoChange?: (tempo: 'auto' | 'slow' | 'normal' | 'fast' | 'ultra-fast') => void;
-  onDialogueAdd?: () => void;
-  onDialogueChange?: (id: string, entry: Partial<DialogueEntry>) => void;
-  onDialogueRemove?: (id: string) => void;
+  onVoiceoverScriptChange?: (script: string) => void;
   onCustomVoiceoverInstructionsChange?: (instructions: string) => void;
   onSoundEffectsToggle?: (enabled: boolean) => void;
   onSoundEffectsPresetChange?: (preset: string) => void;
@@ -282,7 +314,7 @@ export function ProductSetupTab({
   language,
   audioVolume = 'medium',
   speechTempo = 'auto',
-  dialogue = [],
+  voiceoverScript = '',
   customVoiceoverInstructions = '',
   soundEffectsEnabled = false,
   soundEffectsPreset = '',
@@ -306,9 +338,7 @@ export function ProductSetupTab({
   onLanguageChange,
   onAudioVolumeChange,
   onSpeechTempoChange,
-  onDialogueAdd,
-  onDialogueChange,
-  onDialogueRemove,
+  onVoiceoverScriptChange,
   onCustomVoiceoverInstructionsChange,
   onSoundEffectsToggle,
   onSoundEffectsPresetChange,
@@ -331,10 +361,53 @@ export function ProductSetupTab({
   productImages,
   onProductImageUpload,
   onProductImageDelete,
+  onCompositeGenerate,
+  onGeneratePrompt,
+  onGenerateImage,
+  onModeChange,
+  onModeSwitchWithCleanup,
+  onApplyComposite,
+  onRemoveAppliedComposite,
+  isPromptPreviewOpen = false,
+  previewPrompt = '',
+  previewMetadata = null,
+  editedPrompt = '',
+  onPromptPreviewOpenChange,
+  onEditedPromptChange,
 }: ProductSetupTabProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const angleInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const elementInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const multiImageInputRef = useRef<HTMLInputElement>(null);
+  
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadingType, setUploadingType] = useState<'hero' | 'angle' | 'element' | null>(null);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [isGeneratingComposite, setIsGeneratingComposite] = useState(false);
+  const [aiContext, setAiContext] = useState(productImages?.aiContext?.description || '');
   const [isAudioPanelOpen, setIsAudioPanelOpen] = useState(true);
+  const [isCompositeModalOpen, setIsCompositeModalOpen] = useState(false);
+  
+  // Mode switch confirmation dialog state
+  const [showModeSwitchDialog, setShowModeSwitchDialog] = useState(false);
+  const [pendingMode, setPendingMode] = useState<'manual' | 'ai_generated' | null>(null);
+  
+  // Use local state for immediate tab switching, sync with props
+  const [localMode, setLocalMode] = useState<'manual' | 'ai_generated'>(
+    productImages?.mode || 'manual'
+  );
+  
+  // Sync local state when props change
+  useEffect(() => {
+    if (productImages?.mode) {
+      setLocalMode(productImages.mode);
+    }
+  }, [productImages?.mode]);
+  
+  const currentMode = localMode;
+  
+  // Generate unique IDs for angles and elements
+  const generateId = () => `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
   // Validation states
   const isEngineReady = videoModel && (videoModel === 'sora-2' || videoModel === 'sora-2-pro');
@@ -433,83 +506,1187 @@ export function ProductSetupTab({
             </Card>
 
             {/* ═══════════════════════════════════════════════════════════════ */}
-            {/* PRODUCT IMAGE UPLOAD CARD */}
+            {/* PRODUCT REFERENCE IMAGE UPLOAD CARD */}
             {/* ═══════════════════════════════════════════════════════════════ */}
             <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-5 space-y-4">
                 <SectionHeader
                   icon={Eye}
-                  title="Product Image"
-                  description="Upload hero profile image for AI reference"
+                  title="Product Reference Image"
+                  description="Upload images for Sora video generation"
                   iconColor="text-purple-400"
                 />
 
-                <div
-                  onClick={() => !productImages?.heroProfile && !isUploading && fileInputRef.current?.click()}
-                  className={cn(
-                    "relative aspect-square max-w-[200px] rounded-lg border-2 border-dashed cursor-pointer transition-all overflow-hidden group",
-                    productImages?.heroProfile 
-                      ? "border-purple-500/30 bg-white/[0.02]" 
-                      : "border-white/10 bg-white/[0.02] hover:border-purple-500/30"
-                  )}
+                {/* Face Detection Warning */}
+                <Alert variant="destructive" className="bg-orange-500/10 border-orange-500/30">
+                  <AlertTriangle className="h-4 w-4 text-orange-400" />
+                  <AlertTitle className="text-orange-400">Important Notice</AlertTitle>
+                  <AlertDescription className="text-orange-300/80">
+                    Human faces are rejected by Sora. Please ensure uploaded images do not contain human faces.
+                  </AlertDescription>
+                </Alert>
+
+                {/* Tabbed Interface */}
+                <Tabs 
+                  value={currentMode} 
+                  onValueChange={(value) => {
+                    const newMode = value as 'manual' | 'ai_generated';
+                    
+                    // Check if there's an existing composite that would be lost
+                    if (productImages?.compositeImage && productImages.compositeImage.mode !== newMode) {
+                      // Show confirmation dialog
+                      setPendingMode(newMode);
+                      setShowModeSwitchDialog(true);
+                    } else {
+                      // No composite or same mode, switch immediately
+                      setLocalMode(newMode);
+                      onModeChange?.(newMode);
+                    }
+                  }}
+                  className="w-full"
                 >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file || !onProductImageUpload) return;
-                      
-                      setIsUploading(true);
-                      try {
-                        await onProductImageUpload('heroProfile', file);
-                      } catch (error) {
-                        console.error('Upload failed:', error);
-                      } finally {
-                        setIsUploading(false);
-                        if (fileInputRef.current) {
-                          fileInputRef.current.value = '';
-                        }
-                      }
-                    }}
-                  />
-                  
-                  {isUploading ? (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
-                    </div>
-                  ) : productImages?.heroProfile ? (
-                    <>
-                      <img 
-                        src={productImages.heroProfile} 
-                        alt="Hero Profile"
-                        className="absolute inset-0 w-full h-full object-cover"
-                      />
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onProductImageDelete) {
-                            onProductImageDelete('heroProfile');
-                          }
-                        }}
-                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600/80"
-                        title="Delete image"
+                  <TabsList className="grid w-full grid-cols-2 bg-white/5 border border-white/10">
+                    <TabsTrigger 
+                      value="manual" 
+                      className="data-[state=active]:bg-purple-500/20 data-[state=active]:text-purple-300"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Manual Upload
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="ai_generated"
+                      className="data-[state=active]:bg-purple-500/20 data-[state=active]:text-purple-300"
+                    >
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      AI Generate
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* Manual Upload Tab */}
+                  <TabsContent value="manual" className="space-y-4 mt-4">
+                    {/* Required: Hero Product Image */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-white/70 font-medium">
+                        Hero Product Image <span className="text-red-400">*</span>
+                      </Label>
+                      <div
+                        onClick={() => !productImages?.heroProfile && !isUploading && fileInputRef.current?.click()}
+                        className={cn(
+                          "relative aspect-square max-w-[200px] rounded-lg border-2 border-dashed cursor-pointer transition-all overflow-hidden group",
+                          productImages?.heroProfile 
+                            ? "border-purple-500/30 bg-white/[0.02]" 
+                            : "border-white/10 bg-white/[0.02] hover:border-purple-500/30"
+                        )}
                       >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </>
-                  ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6">
-                      <Upload className="w-8 h-8 text-white/40" />
-                      <div className="text-center">
-                        <p className="text-sm font-medium text-white/70">Click to upload</p>
-                        <p className="text-xs text-white/40 mt-1">Hero profile image</p>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file || !onProductImageUpload) return;
+                            
+                            setIsUploading(true);
+                            setUploadingType('hero');
+                            try {
+                              await onProductImageUpload('hero', file);
+                            } catch (error) {
+                              console.error('Upload failed:', error);
+                            } finally {
+                              setIsUploading(false);
+                              setUploadingType(null);
+                              if (fileInputRef.current) {
+                                fileInputRef.current.value = '';
+                              }
+                            }
+                          }}
+                        />
+                        
+                        {isUploading && uploadingType === 'hero' ? (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+                          </div>
+                        ) : productImages?.heroProfile ? (
+                          <>
+                            <img 
+                              src={productImages.heroProfile} 
+                              alt="Hero Profile"
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onProductImageDelete) {
+                                  onProductImageDelete('hero');
+                                }
+                              }}
+                              className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600/80"
+                              title="Delete image"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6">
+                            <Upload className="w-8 h-8 text-white/40" />
+                            <div className="text-center">
+                              <p className="text-sm font-medium text-white/70">Click to upload</p>
+                              <p className="text-xs text-white/40 mt-1">Hero profile image</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  )}
-                </div>
+
+                    {/* Optional: Product Angles (up to 2) - Hide when composite is applied */}
+                    {!productImages?.compositeImage?.isApplied && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-white/70 font-medium">
+                        Product Angles <span className="text-white/40">(Optional, up to 2)</span>
+                      </Label>
+                      <div className="flex flex-wrap gap-2">
+                        {productImages?.productAngles?.map((angle, index) => (
+                          <div
+                            key={angle.id}
+                            onClick={() => {
+                              const input = document.createElement('input');
+                              input.type = 'file';
+                              input.accept = 'image/*';
+                              input.onchange = async (e) => {
+                                const file = (e.target as HTMLInputElement).files?.[0];
+                                if (!file || !onProductImageUpload) return;
+                                
+                                setIsUploading(true);
+                                setUploadingType('angle');
+                                setUploadingId(angle.id);
+                                try {
+                                  await onProductImageUpload('angle', file, undefined, angle.id);
+                                } catch (error) {
+                                  console.error('Upload failed:', error);
+                                } finally {
+                                  setIsUploading(false);
+                                  setUploadingType(null);
+                                  setUploadingId(null);
+                                }
+                              };
+                              input.click();
+                            }}
+                            className="relative aspect-square w-[200px] max-w-[200px] rounded-lg border-2 border-white/10 bg-white/[0.02] overflow-hidden group cursor-pointer hover:border-purple-500/30 transition-all"
+                          >
+                            {isUploading && uploadingType === 'angle' && uploadingId === angle.id ? (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                                <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+                              </div>
+                            ) : (
+                              <>
+                                <img 
+                                  src={angle.url} 
+                                  alt={`Product angle ${index + 1}`}
+                                  className="absolute inset-0 w-full h-full object-cover"
+                                  onError={(e) => {
+                                    console.error('Image failed to load:', angle.url);
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onProductImageDelete) {
+                                      onProductImageDelete('angle', angle.id);
+                                    }
+                                  }}
+                                  className="absolute top-2 right-2 p-1.5 rounded-full bg-red-600/80 text-white opacity-100 hover:bg-red-600 transition-opacity z-10"
+                                  title="Delete image"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                              </>
+                            )}
+                          </div>
+                        ))}
+                        {(!productImages?.productAngles || productImages.productAngles.length < 2) && (
+                          <div
+                            onClick={() => {
+                              const id = generateId();
+                              const input = document.createElement('input');
+                              input.type = 'file';
+                              input.accept = 'image/*';
+                              input.onchange = async (e) => {
+                                const file = (e.target as HTMLInputElement).files?.[0];
+                                if (!file || !onProductImageUpload) return;
+                                
+                                setIsUploading(true);
+                                setUploadingType('angle');
+                                try {
+                                  await onProductImageUpload('angle', file);
+                                } catch (error) {
+                                  console.error('Upload failed:', error);
+                                } finally {
+                                  setIsUploading(false);
+                                  setUploadingType(null);
+                                }
+                              };
+                              input.click();
+                            }}
+                            className={cn(
+                              "relative aspect-square w-[200px] max-w-[200px] rounded-lg border-2 border-dashed cursor-pointer transition-all overflow-hidden flex items-center justify-center",
+                              "border-white/10 bg-white/[0.02] hover:border-purple-500/30"
+                            )}
+                          >
+                            {isUploading && uploadingType === 'angle' && !uploadingId ? (
+                              <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+                            ) : (
+                              <Plus className="w-8 h-8 text-white/40" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    )}
+
+                    {/* Optional: Elements (up to 3) - Hide when composite is applied */}
+                    {!productImages?.compositeImage?.isApplied && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-white/70 font-medium">
+                        Elements <span className="text-white/40">(Optional, up to 3)</span>
+                      </Label>
+                      <div className="flex flex-wrap gap-2">
+                        {productImages?.elements?.map((element, index) => (
+                          <div
+                            key={element.id}
+                            onClick={() => {
+                              const input = document.createElement('input');
+                              input.type = 'file';
+                              input.accept = 'image/*';
+                              input.onchange = async (e) => {
+                                const file = (e.target as HTMLInputElement).files?.[0];
+                                if (!file || !onProductImageUpload) return;
+                                
+                                setIsUploading(true);
+                                setUploadingType('element');
+                                setUploadingId(element.id);
+                                try {
+                                  await onProductImageUpload('element', file, element.description, element.id);
+                                } catch (error) {
+                                  console.error('Upload failed:', error);
+                                } finally {
+                                  setIsUploading(false);
+                                  setUploadingType(null);
+                                  setUploadingId(null);
+                                }
+                              };
+                              input.click();
+                            }}
+                            className="relative aspect-square w-[200px] max-w-[200px] rounded-lg border-2 border-white/10 bg-white/[0.02] overflow-hidden group cursor-pointer hover:border-purple-500/30 transition-all"
+                          >
+                            {isUploading && uploadingType === 'element' && uploadingId === element.id ? (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                                <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+                              </div>
+                            ) : (
+                              <>
+                                <img 
+                                  src={element.url} 
+                                  alt={`Element ${index + 1}`}
+                                  className="absolute inset-0 w-full h-full object-cover"
+                                  onError={(e) => {
+                                    console.error('Image failed to load:', element.url);
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onProductImageDelete) {
+                                      onProductImageDelete('element', element.id);
+                                    }
+                                  }}
+                                  className="absolute top-2 right-2 p-1.5 rounded-full bg-red-600/80 text-white opacity-100 hover:bg-red-600 transition-opacity z-10"
+                                  title="Delete image"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                              </>
+                            )}
+                          </div>
+                        ))}
+                        {(!productImages?.elements || productImages.elements.length < 3) && (
+                          <div
+                            onClick={() => {
+                              const input = document.createElement('input');
+                              input.type = 'file';
+                              input.accept = 'image/*';
+                              input.onchange = async (e) => {
+                                const file = (e.target as HTMLInputElement).files?.[0];
+                                if (!file || !onProductImageUpload) return;
+                                
+                                setIsUploading(true);
+                                setUploadingType('element');
+                                try {
+                                  await onProductImageUpload('element', file);
+                                } catch (error) {
+                                  console.error('Upload failed:', error);
+                                } finally {
+                                  setIsUploading(false);
+                                  setUploadingType(null);
+                                }
+                              };
+                              input.click();
+                            }}
+                            className={cn(
+                              "relative aspect-square w-[200px] max-w-[200px] rounded-lg border-2 border-dashed cursor-pointer transition-all overflow-hidden flex items-center justify-center",
+                              "border-white/10 bg-white/[0.02] hover:border-purple-500/30"
+                            )}
+                          >
+                            {isUploading && uploadingType === 'element' && !uploadingId ? (
+                              <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+                            ) : (
+                              <Plus className="w-8 h-8 text-white/40" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    )}
+
+                    {/* Generate Composite Button (Manual Mode) - Show when no composite exists */}
+                    {productImages?.heroProfile && 
+                     !productImages?.compositeImage && (
+                      <div className="space-y-2 pt-2 border-t border-white/10">
+                        <Label className="text-xs text-white/70 font-medium">
+                          Composite Image
+                        </Label>
+                        <p className="text-[10px] text-white/40 mb-2">
+                          Combine all uploaded images into a single reference image for Sora
+                        </p>
+                        <Button
+                          type="button"
+                          onClick={async () => {
+                            console.log('[Product Setup] Generate Composite clicked', {
+                              hasHandler: !!onCompositeGenerate,
+                              hasHero: !!productImages?.heroProfile,
+                            });
+                            if (onCompositeGenerate) {
+                              setIsGeneratingComposite(true);
+                              try {
+                                await onCompositeGenerate('manual');
+                                // Success toast will be handled by parent component
+                              } catch (error) {
+                                console.error('Composite generation failed:', error);
+                                // Error toast will be handled by parent component
+                              } finally {
+                                setIsGeneratingComposite(false);
+                              }
+                            } else {
+                              console.error('[Product Setup] onCompositeGenerate handler is not provided');
+                            }
+                          }}
+                          disabled={isGeneratingComposite || !productImages?.heroProfile}
+                          className="w-full h-10 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-300 hover:from-purple-500/30 hover:to-pink-500/30"
+                        >
+                          {isGeneratingComposite ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Generating Composite...
+                            </>
+                          ) : (
+                            <>
+                              <ImageIcon className="w-4 h-4 mr-2" />
+                              Generate Composite Image
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Composite Preview (Manual Mode) - Show when composite exists but not applied */}
+                    {productImages?.compositeImage && 
+                     productImages.compositeImage.mode === 'manual' && 
+                     !productImages.compositeImage.isApplied && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="space-y-3 pt-4 border-t border-white/10"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label className="text-sm text-white font-medium">Composite Preview</Label>
+                            <p className="text-xs text-white/50 mt-0.5">
+                              {productImages.compositeImage.sourceImages.length} image{productImages.compositeImage.sourceImages.length !== 1 ? 's' : ''} combined
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-xs border-purple-500/30 text-purple-300">
+                            Ready to Apply
+                          </Badge>
+                        </div>
+
+                        {/* Source Images Grid */}
+                        {productImages.compositeImage.sourceImages.length > 1 && (
+                          <div className="space-y-2">
+                            <Label className="text-xs text-white/60 font-medium">Source Images</Label>
+                            <div className="grid grid-cols-4 gap-2">
+                              {productImages.compositeImage.sourceImages.slice(0, 4).map((url, idx) => (
+                                <div
+                                  key={idx}
+                                  className="relative aspect-square rounded-md border border-white/10 bg-white/[0.02] overflow-hidden"
+                                >
+                                  <img
+                                    src={url}
+                                    alt={`Source ${idx + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  {idx === 3 && productImages.compositeImage.sourceImages.length > 4 && (
+                                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                      <span className="text-xs text-white">+{productImages.compositeImage.sourceImages.length - 4}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Composite Image Display */}
+                        <Card className="border-white/10 bg-gradient-to-br from-white/[0.03] to-white/[0.01] overflow-hidden">
+                          <CardContent className="p-0">
+                            <div 
+                              className="relative aspect-video bg-gradient-to-br from-white/[0.05] to-transparent cursor-zoom-in group"
+                              onClick={() => setIsCompositeModalOpen(true)}
+                            >
+                              <img 
+                                src={productImages.compositeImage.url} 
+                                alt="Composite Reference"
+                                className="w-full h-full object-contain p-4 transition-transform group-hover:scale-105"
+                              />
+                              {/* Overlay gradient for better button visibility */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+                              {/* Click hint */}
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Badge variant="secondary" className="text-xs bg-black/50 text-white/80">
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  Click to enlarge
+                                </Badge>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              if (onCompositeGenerate) {
+                                setIsGeneratingComposite(true);
+                                try {
+                                  await onCompositeGenerate('manual');
+                                } finally {
+                                  setIsGeneratingComposite(false);
+                                }
+                              }
+                            }}
+                            disabled={isGeneratingComposite}
+                            className="flex-1 h-9 border-white/20 hover:bg-white/10"
+                          >
+                            {isGeneratingComposite ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Regenerating...
+                              </>
+                            ) : (
+                              <>
+                                <ImageIcon className="w-4 h-4 mr-2" />
+                                Regenerate
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={async () => {
+                              if (onApplyComposite) {
+                                await onApplyComposite();
+                              }
+                            }}
+                            className="flex-1 h-9 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium shadow-lg shadow-purple-500/20"
+                          >
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                            Apply Composite
+                          </Button>
+                        </div>
+
+                        <p className="text-xs text-white/50 text-center">
+                          This composite will be used as the reference image for Sora video generation
+                        </p>
+
+                        {/* Full-screen Modal View */}
+                        <Dialog open={isCompositeModalOpen} onOpenChange={setIsCompositeModalOpen}>
+                          <DialogContent className="max-w-6xl p-0 bg-black/95 border-white/10">
+                            <div className="relative">
+                              <img 
+                                src={productImages.compositeImage.url} 
+                                alt="Composite Reference - Full View"
+                                className="w-full h-auto"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white"
+                                onClick={() => setIsCompositeModalOpen(false)}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </motion.div>
+                    )}
+
+                    {/* Applied Composite (Manual Mode) - Show when composite is applied */}
+                    {productImages?.compositeImage && 
+                     productImages.compositeImage.mode === 'manual' && 
+                     productImages.compositeImage.isApplied && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="space-y-3 pt-4 border-t border-white/10"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label className="text-sm text-white font-medium">
+                              Applied Composite Image
+                            </Label>
+                            <p className="text-xs text-white/50 mt-0.5">
+                              {productImages.compositeImage.sourceImages.length} image{productImages.compositeImage.sourceImages.length !== 1 ? 's' : ''} combined
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-xs border-green-500/30 text-green-300">
+                            <CheckCircle2 className="w-3 h-3 mr-1" />
+                            Applied
+                          </Badge>
+                        </div>
+
+                        {/* Composite Image Display */}
+                        <Card className="border-white/10 bg-gradient-to-br from-white/[0.03] to-white/[0.01] overflow-hidden">
+                          <CardContent className="p-0">
+                            <div 
+                              className="relative aspect-video bg-gradient-to-br from-white/[0.05] to-transparent cursor-zoom-in group"
+                              onClick={() => setIsCompositeModalOpen(true)}
+                            >
+                              <img 
+                                src={productImages.compositeImage.url} 
+                                alt="Applied Composite Reference"
+                                className="w-full h-full object-contain p-4 transition-transform group-hover:scale-105"
+                              />
+                              {/* Overlay gradient */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+                              {/* Click hint */}
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Badge variant="secondary" className="text-xs bg-black/50 text-white/80">
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  Click to enlarge
+                                </Badge>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Action Button */}
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => {
+                            if (onRemoveAppliedComposite) {
+                              onRemoveAppliedComposite();
+                            }
+                          }}
+                          className="w-full h-9"
+                        >
+                          <X className="w-4 h-4 mr-2" />
+                          Remove Applied Composite
+                        </Button>
+
+                        <p className="text-xs text-white/50 text-center">
+                          This composite is currently being used as the reference image for Sora. Remove it to upload individual images again.
+                        </p>
+
+                        {/* Full-screen Modal View */}
+                        <Dialog open={isCompositeModalOpen} onOpenChange={setIsCompositeModalOpen}>
+                          <DialogContent className="max-w-6xl p-0 bg-black/95 border-white/10">
+                            <div className="relative">
+                              <img 
+                                src={productImages.compositeImage.url} 
+                                alt="Applied Composite Reference - Full View"
+                                className="w-full h-auto"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white"
+                                onClick={() => setIsCompositeModalOpen(false)}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </motion.div>
+                    )}
+                  </TabsContent>
+
+                  {/* AI Generate Tab */}
+                  <TabsContent value="ai_generated" className="space-y-4 mt-4">
+                    {/* Hide all upload/generation UI when composite is applied */}
+                    {!(productImages?.compositeImage?.isApplied && productImages?.compositeImage?.mode === 'ai_generated') && (
+                      <>
+                        {/* Multi-Image Upload Area */}
+                        <div className="space-y-2">
+                      <Label className="text-xs text-white/70 font-medium">
+                        Upload Images <span className="text-white/40">(Up to 6 images)</span>
+                      </Label>
+                      <div
+                        onClick={() => {
+                          const currentCount = productImages?.aiModeImages?.length || 0;
+                          if (currentCount >= 6) {
+                            toast({
+                              title: "Maximum images reached",
+                              description: "You can upload up to 6 images",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+                          multiImageInputRef.current?.click();
+                        }}
+                        className={cn(
+                          "relative min-h-[200px] rounded-lg border-2 border-dashed cursor-pointer transition-all overflow-hidden",
+                          "border-white/10 bg-white/[0.02] hover:border-purple-500/30",
+                          (productImages?.aiModeImages?.length || 0) >= 6 && "opacity-50 cursor-not-allowed"
+                        )}
+                      >
+                        <input
+                          ref={multiImageInputRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={async (e) => {
+                            const files = Array.from(e.target.files || []);
+                            if (!files.length || !onProductImageUpload) return;
+                            
+                            const currentCount = productImages?.aiModeImages?.length || 0;
+                            const remainingSlots = 6 - currentCount;
+                            const filesToUpload = files.slice(0, remainingSlots);
+                            
+                            if (files.length > remainingSlots) {
+                              toast({
+                                title: "Too many images",
+                                description: `You can only upload ${remainingSlots} more image${remainingSlots > 1 ? 's' : ''}. Only the first ${remainingSlots} will be uploaded.`,
+                                variant: "destructive",
+                              });
+                            }
+                            
+                            setIsUploading(true);
+                            try {
+                              // Upload files as AI mode images
+                              for (const file of filesToUpload) {
+                                await onProductImageUpload('ai_mode', file);
+                              }
+                            } catch (error) {
+                              console.error('Upload failed:', error);
+                              toast({
+                                title: "Upload failed",
+                                description: error instanceof Error ? error.message : "Failed to upload image",
+                                variant: "destructive",
+                              });
+                            } finally {
+                              setIsUploading(false);
+                              if (multiImageInputRef.current) {
+                                multiImageInputRef.current.value = '';
+                              }
+                            }
+                          }}
+                        />
+                        
+                        {isUploading ? (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+                          </div>
+                        ) : (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6">
+                            <Upload className="w-10 h-10 text-white/40" />
+                            <div className="text-center">
+                              <p className="text-sm font-medium text-white/70">Drag & drop or click to upload</p>
+                              <p className="text-xs text-white/40 mt-1">
+                                Up to 6 images ({(productImages?.aiModeImages?.length || 0)}/6 uploaded)
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Uploaded Images Horizontal Preview */}
+                    {productImages?.aiModeImages && productImages.aiModeImages.length > 0 && (
+                      <div className="space-y-2">
+                        <Label className="text-xs text-white/70 font-medium">
+                          Uploaded Images <span className="text-white/40">({productImages.aiModeImages.length}/6)</span>
+                        </Label>
+                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                          {productImages.aiModeImages.map((image, index) => (
+                            <div
+                              key={image.id}
+                              className="relative flex-shrink-0 aspect-square w-[200px] rounded-lg border border-white/10 bg-white/[0.02] overflow-hidden group"
+                            >
+                              <img 
+                                src={image.url} 
+                                alt={`Image ${index + 1}`}
+                                className="absolute inset-0 w-full h-full object-cover"
+                              />
+                              <button
+                                onClick={() => {
+                                  if (onProductImageDelete) {
+                                    onProductImageDelete('ai_mode', image.id);
+                                  }
+                                }}
+                                className="absolute top-1 right-1 p-1.5 rounded-full bg-red-600/80 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                              <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-2 py-1 text-center">
+                                Image {index + 1}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* AI Context Input */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-white/70 font-medium">
+                        AI Context <span className="text-white/40">(Optional)</span>
+                      </Label>
+                      <Textarea
+                        placeholder="Describe what you want in the composite image... e.g., 'Include product from different angles with luxury background elements'"
+                        value={aiContext}
+                        onChange={(e) => setAiContext(e.target.value)}
+                        className="min-h-[80px] resize-none bg-white/5 border-white/10 text-white placeholder:text-white/30 text-xs"
+                      />
+                      <p className="text-[10px] text-white/40">
+                        Help AI understand how to combine your images
+                      </p>
+                    </div>
+
+                        {/* Generate Composite Button */}
+                        <Button
+                          type="button"
+                          onClick={async () => {
+                            if (onGeneratePrompt) {
+                              setIsGeneratingComposite(true);
+                              try {
+                                await onGeneratePrompt(aiContext);
+                              } finally {
+                                setIsGeneratingComposite(false);
+                              }
+                            } else if (onCompositeGenerate) {
+                              // Fallback to old behavior if new handler not provided
+                              setIsGeneratingComposite(true);
+                              try {
+                                await onCompositeGenerate('ai_generated', aiContext);
+                              } finally {
+                                setIsGeneratingComposite(false);
+                              }
+                            }
+                          }}
+                          disabled={isGeneratingComposite || !productImages?.aiModeImages || productImages.aiModeImages.length === 0}
+                          className="w-full h-10 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-300 hover:from-purple-500/30 hover:to-pink-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isGeneratingComposite ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Generating Prompt...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-4 h-4 mr-2" />
+                              Generate Composite Image
+                            </>
+                          )}
+                        </Button>
+                      </>
+                    )}
+
+                    {/* Prompt Preview Dialog */}
+                    {isPromptPreviewOpen && previewMetadata && (
+                      <Dialog open={isPromptPreviewOpen} onOpenChange={(open) => {
+                        if (onPromptPreviewOpenChange) {
+                          onPromptPreviewOpenChange(open);
+                        }
+                      }}>
+                        <DialogContent className="max-w-5xl max-h-[90vh] bg-[#0a0a0a] border-white/10 shadow-2xl flex flex-col">
+                          <DialogHeader className="pb-4 border-b border-white/10">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500/20 via-purple-500/15 to-pink-500/10">
+                                  <Sparkles className="h-6 w-6 text-purple-400" />
+                                </div>
+                                <div>
+                                  <DialogTitle className="text-xl font-bold text-white">
+                                    Review & Edit Prompt
+                                  </DialogTitle>
+                                  <p className="text-xs text-white/50 mt-1">
+                                    {previewMetadata.sourceImages.length} image{previewMetadata.sourceImages.length !== 1 ? 's' : ''} • {editedPrompt.length.toLocaleString()} characters
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </DialogHeader>
+                          
+                          <div className="flex-1 overflow-y-auto pr-2 space-y-4 mt-4">
+                            {/* Layout Description */}
+                            <div className="space-y-2">
+                              <Label className="text-sm text-white/70 font-medium">Layout Description</Label>
+                              <div className="p-3 rounded-lg bg-white/5 border border-white/10">
+                                <p className="text-sm text-white/80">{previewMetadata.layoutDescription}</p>
+                              </div>
+                            </div>
+
+                            {/* Style Guidance */}
+                            <div className="space-y-2">
+                              <Label className="text-sm text-white/70 font-medium">Style Guidance</Label>
+                              <div className="p-3 rounded-lg bg-white/5 border border-white/10">
+                                <p className="text-sm text-white/80">{previewMetadata.styleGuidance}</p>
+                              </div>
+                            </div>
+
+                            {/* Editable Prompt */}
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-sm text-white/70 font-medium">Generated Prompt</Label>
+                                <Badge variant="outline" className="text-xs border-purple-500/30 text-purple-300">
+                                  Editable
+                                </Badge>
+                              </div>
+                              <Textarea
+                                value={editedPrompt}
+                                onChange={(e) => {
+                                  if (onEditedPromptChange) {
+                                    onEditedPromptChange(e.target.value);
+                                  }
+                                }}
+                                className="min-h-[300px] resize-none bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm font-mono"
+                                placeholder="Prompt will appear here..."
+                              />
+                              <p className="text-xs text-white/40">
+                                Edit the prompt to refine how the composite image will be generated
+                              </p>
+                            </div>
+                          </div>
+
+                          <DialogFooter className="mt-4 pt-4 border-t border-white/10">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                if (onPromptPreviewOpenChange) {
+                                  onPromptPreviewOpenChange(false);
+                                }
+                              }}
+                              className="border-white/20 hover:bg-white/10"
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={async () => {
+                                if (onGenerateImage && previewMetadata) {
+                                  setIsGeneratingComposite(true);
+                                  try {
+                                    await onGenerateImage(
+                                      editedPrompt || previewPrompt,
+                                      previewMetadata.layoutDescription,
+                                      previewMetadata.styleGuidance,
+                                      previewMetadata.sourceImages,
+                                      aiContext
+                                    );
+                                  } finally {
+                                    setIsGeneratingComposite(false);
+                                  }
+                                }
+                              }}
+                              disabled={isGeneratingComposite || !editedPrompt}
+                              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium shadow-lg shadow-purple-500/20"
+                            >
+                              {isGeneratingComposite ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Generating Image...
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="w-4 h-4 mr-2" />
+                                  Generate Image
+                                </>
+                              )}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+
+                    {/* Composite Preview (AI Mode) - Show when composite exists but not applied */}
+                    {productImages?.compositeImage && 
+                     productImages.compositeImage.mode === 'ai_generated' && 
+                     !productImages.compositeImage.isApplied && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="space-y-3 pt-4 border-t border-white/10"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label className="text-sm text-white font-medium">AI Generated Composite</Label>
+                            <p className="text-xs text-white/50 mt-0.5">
+                              {productImages.compositeImage.sourceImages.length} image{productImages.compositeImage.sourceImages.length !== 1 ? 's' : ''} combined
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-xs border-purple-500/30 text-purple-300">
+                            <Sparkles className="w-3 h-3 mr-1" />
+                            Ready to Apply
+                          </Badge>
+                        </div>
+
+                        {/* Source Images Grid */}
+                        {productImages.compositeImage.sourceImages.length > 1 && (
+                          <div className="space-y-2">
+                            <Label className="text-xs text-white/60 font-medium">Source Images</Label>
+                            <div className="grid grid-cols-4 gap-2">
+                              {productImages.compositeImage.sourceImages.slice(0, 4).map((url, idx) => (
+                                <div
+                                  key={idx}
+                                  className="relative aspect-square rounded-md border border-white/10 bg-white/[0.02] overflow-hidden"
+                                >
+                                  <img
+                                    src={url}
+                                    alt={`Source ${idx + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  {idx === 3 && productImages.compositeImage.sourceImages.length > 4 && (
+                                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                      <span className="text-xs text-white">+{productImages.compositeImage.sourceImages.length - 4}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Composite Image Display */}
+                        <Card className="border-white/10 bg-gradient-to-br from-white/[0.03] to-white/[0.01] overflow-hidden">
+                          <CardContent className="p-0">
+                            <div 
+                              className="relative aspect-video bg-gradient-to-br from-white/[0.05] to-transparent cursor-zoom-in group"
+                              onClick={() => setIsCompositeModalOpen(true)}
+                            >
+                              <img 
+                                src={productImages.compositeImage.url} 
+                                alt="AI Generated Composite"
+                                className="w-full h-full object-contain p-4 transition-transform group-hover:scale-105"
+                              />
+                              {/* Overlay gradient for better button visibility */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+                              {/* Click hint */}
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Badge variant="secondary" className="text-xs bg-black/50 text-white/80">
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  Click to enlarge
+                                </Badge>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              if (onCompositeGenerate) {
+                                setIsGeneratingComposite(true);
+                                try {
+                                  await onCompositeGenerate('ai_generated', aiContext);
+                                } finally {
+                                  setIsGeneratingComposite(false);
+                                }
+                              }
+                            }}
+                            disabled={isGeneratingComposite}
+                            className="flex-1 h-9 border-white/20 hover:bg-white/10"
+                          >
+                            {isGeneratingComposite ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Regenerating...
+                              </>
+                            ) : (
+                              <>
+                                <ImageIcon className="w-4 h-4 mr-2" />
+                                Regenerate
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={async () => {
+                              if (onApplyComposite) {
+                                await onApplyComposite();
+                              }
+                            }}
+                            className="flex-1 h-9 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium shadow-lg shadow-purple-500/20"
+                          >
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                            Apply Composite
+                          </Button>
+                        </div>
+
+                        <p className="text-xs text-white/50 text-center">
+                          This composite will be used as the reference image for Sora video generation
+                        </p>
+
+                        {/* Full-screen Modal View */}
+                        <Dialog open={isCompositeModalOpen} onOpenChange={setIsCompositeModalOpen}>
+                          <DialogContent className="max-w-6xl p-0 bg-black/95 border-white/10">
+                            <div className="relative">
+                              <img 
+                                src={productImages.compositeImage.url} 
+                                alt="AI Generated Composite - Full View"
+                                className="w-full h-auto"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white"
+                                onClick={() => setIsCompositeModalOpen(false)}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </motion.div>
+                    )}
+
+                    {/* Applied Composite (AI Mode) - Show when composite is applied */}
+                    {productImages?.compositeImage && 
+                     productImages.compositeImage.mode === 'ai_generated' && 
+                     productImages.compositeImage.isApplied && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="space-y-3 pt-4 border-t border-white/10"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label className="text-sm text-white font-medium">
+                              Applied AI Composite Image
+                            </Label>
+                            <p className="text-xs text-white/50 mt-0.5">
+                              {productImages.compositeImage.sourceImages.length} image{productImages.compositeImage.sourceImages.length !== 1 ? 's' : ''} combined
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-xs border-green-500/30 text-green-300">
+                            <CheckCircle2 className="w-3 h-3 mr-1" />
+                            Applied
+                          </Badge>
+                        </div>
+
+                        {/* Composite Image Display */}
+                        <Card className="border-white/10 bg-gradient-to-br from-white/[0.03] to-white/[0.01] overflow-hidden">
+                          <CardContent className="p-0">
+                            <div 
+                              className="relative aspect-video bg-gradient-to-br from-white/[0.05] to-transparent cursor-zoom-in group"
+                              onClick={() => setIsCompositeModalOpen(true)}
+                            >
+                              <img 
+                                src={productImages.compositeImage.url} 
+                                alt="Applied AI Composite Reference"
+                                className="w-full h-full object-contain p-4 transition-transform group-hover:scale-105"
+                              />
+                              {/* Overlay gradient */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+                              {/* Click hint */}
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Badge variant="secondary" className="text-xs bg-black/50 text-white/80">
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  Click to enlarge
+                                </Badge>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Action Button */}
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => {
+                            if (onRemoveAppliedComposite) {
+                              onRemoveAppliedComposite();
+                            }
+                          }}
+                          className="w-full h-9"
+                        >
+                          <X className="w-4 h-4 mr-2" />
+                          Remove Applied Composite
+                        </Button>
+
+                        <p className="text-xs text-white/50 text-center">
+                          This AI-generated composite is currently being used as the reference image for Sora. Remove it to upload individual images again.
+                        </p>
+
+                        {/* Full-screen Modal View */}
+                        <Dialog open={isCompositeModalOpen} onOpenChange={setIsCompositeModalOpen}>
+                          <DialogContent className="max-w-6xl p-0 bg-black/95 border-white/10">
+                            <div className="relative">
+                              <img 
+                                src={productImages.compositeImage.url} 
+                                alt="Applied AI Composite Reference - Full View"
+                                className="w-full h-auto"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white"
+                                onClick={() => setIsCompositeModalOpen(false)}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </motion.div>
+                    )}
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
 
@@ -654,9 +1831,9 @@ export function ProductSetupTab({
                   </div>
                 </div>
 
-                {/* Duration - Sora only [4, 8, 12] */}
+                {/* Duration - Sora only [12, 24, 36] */}
                 <div className="space-y-3 pt-2">
-                  <Label className="text-xs text-white/50">Duration (Sora supports 4, 8, or 12 seconds)</Label>
+                  <Label className="text-xs text-white/50">Duration (Sora supports 12 seconds per beat)</Label>
                   <div className="flex gap-2">
                     {DURATION_OPTIONS.map((dur) => (
                       <button
@@ -880,50 +2057,20 @@ Examples:
                             </Select>
                           </div>
 
-                          {onDialogueAdd && (
-                            <div className="space-y-3 pt-4 border-t border-white/10">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-xs uppercase tracking-wider font-semibold text-white/70">
-                                  Dialogue
-                                </Label>
-                                <button
-                                  onClick={onDialogueAdd}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors bg-emerald-500/10 hover:bg-emerald-500/20 rounded-md border border-emerald-500/20"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  Add Dialogue
-                                </button>
-                              </div>
-                              
-                              {dialogue.length === 0 ? (
-                                <p className="text-xs text-white/40 italic py-2">No dialogue added yet. Click "Add Dialogue" to create entries.</p>
-                              ) : (
-                                <div className="space-y-2">
-                                  {dialogue.map((entry) => (
-                                    <div key={entry.id} className="flex gap-2 items-start">
-                                      <Input
-                                        value={entry.character || ''}
-                                        onChange={(e) => onDialogueChange?.(entry.id, { character: e.target.value })}
-                                        placeholder="Character"
-                                        className="flex-1 h-9 bg-white/5 border-white/10 text-white text-xs placeholder:text-white/30"
-                                      />
-                                      <Input
-                                        value={entry.line}
-                                        onChange={(e) => onDialogueChange?.(entry.id, { line: e.target.value })}
-                                        placeholder="Line"
-                                        className="flex-[2] h-9 bg-white/5 border-white/10 text-white text-xs placeholder:text-white/30"
-                                      />
-                                      <button
-                                        onClick={() => onDialogueRemove?.(entry.id)}
-                                        className="p-2 text-white/40 hover:text-red-400 transition-colors rounded-md hover:bg-red-500/10"
-                                        title="Remove dialogue"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                          {voiceOverEnabled && (
+                            <div className="space-y-2 pt-4 border-t border-white/10">
+                              <Label className="text-xs text-white/50">
+                                Voiceover Script (Optional)
+                              </Label>
+                              <Textarea
+                                value={voiceoverScript || ''}
+                                onChange={(e) => onVoiceoverScriptChange?.(e.target.value)}
+                                placeholder="Write your voiceover script here, or leave empty for AI to generate..."
+                                className="min-h-[120px] resize-none bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm"
+                              />
+                              <p className="text-xs text-white/40 italic">
+                                Leave empty to let AI generate the script based on your visual beats.
+                              </p>
                             </div>
                           )}
 
@@ -1271,6 +2418,70 @@ Examples:
           </div>
         </div>
       </div>
+
+      {/* Mode Switch Confirmation Dialog */}
+      <Dialog open={showModeSwitchDialog} onOpenChange={setShowModeSwitchDialog}>
+        <DialogContent className="bg-[#0a0a0a] border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-orange-400" />
+              Switch Mode?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-white/80">
+              You have a composite image in <span className="font-semibold text-purple-300">
+                {productImages?.compositeImage?.mode === 'manual' ? 'Manual Upload' : 'AI Generate'}
+              </span> mode. Switching to <span className="font-semibold text-purple-300">
+                {pendingMode === 'manual' ? 'Manual Upload' : 'AI Generate'}
+              </span> will delete the current composite image.
+            </p>
+            <p className="text-xs text-white/50">
+              This action cannot be undone. The composite image will be permanently deleted from storage.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowModeSwitchDialog(false);
+                setPendingMode(null);
+              }}
+              className="border-white/20 hover:bg-white/10"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (pendingMode && onModeSwitchWithCleanup) {
+                  try {
+                    await onModeSwitchWithCleanup(pendingMode);
+                    setLocalMode(pendingMode);
+                    setShowModeSwitchDialog(false);
+                    setPendingMode(null);
+                  } catch (error) {
+                    console.error('Failed to switch mode:', error);
+                    toast({
+                      title: "Mode switch failed",
+                      description: error instanceof Error ? error.message : "Failed to switch mode",
+                      variant: "destructive",
+                    });
+                  }
+                } else if (pendingMode) {
+                  // Fallback if cleanup handler not provided
+                  setLocalMode(pendingMode);
+                  onModeChange?.(pendingMode);
+                  setShowModeSwitchDialog(false);
+                  setPendingMode(null);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete & Switch
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }

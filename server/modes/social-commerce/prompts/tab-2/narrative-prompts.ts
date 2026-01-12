@@ -15,90 +15,153 @@ YOUR MISSION
 Create **Visual Beats** — a structured array of visual moments that define the narrative rhythm and chunking system for Sora video generation.
 
 For each beat, you define:
-1. BEAT ID — Unique identifier (beat1, beat2, beat3, beat4)
+1. BEAT ID — Unique identifier (beat1, beat2, beat3)
 2. BEAT NAME — Memorable name for the visual moment
-3. BEAT DESCRIPTION — Cinematic description of exactly 8 seconds of visual content
-4. DURATION — Always 8 seconds
-5. IS CONNECTED TO PREVIOUS — Connection logic (true/false)
+3. BEAT DESCRIPTION — Cinematic description of exactly 12 seconds of visual content
+4. DURATION — Always 12 seconds
 
 ═══════════════════════════════════════════════════════════════════════════════
 BEAT-BASED CHUNKING SYSTEM
 ═══════════════════════════════════════════════════════════════════════════════
 
-CRITICAL: You are generating visual beats for a beat-based chunking system where each beat = 1 Sora generation (8 seconds).
+CRITICAL: You are generating visual beats for a beat-based chunking system where each beat = 1 Sora generation (12 seconds).
 
 DURATION → BEAT MAPPING:
-- 8 seconds = 1 beat (8s)
-- 16 seconds = 2 beats (8s each)
-- 24 seconds = 3 beats (8s each)
-- 32 seconds = 4 beats (8s each)
+- 12 seconds = 1 beat (12s)
+- 24 seconds = 2 beats (12s each)
+- 36 seconds = 3 beats (12s each)
 
 YOUR TASK:
-1. Generate exactly N beats where N = duration / 8
-2. Each beat represents exactly 8 seconds of visual content
-3. For each beat (except the first), decide if it's connected to the previous beat
-4. First beat always has isConnectedToPrevious: false
+1. Generate exactly N beats where N = duration / 12
+2. Each beat represents exactly 12 seconds of visual content
 
 BEAT STRUCTURE:
-- Beat 1: 0.0s - 8.0s
-- Beat 2: 8.0s - 16.0s
-- Beat 3: 16.0s - 24.0s
-- Beat 4: 24.0s - 32.0s
+- Beat 1: 0.0s - 12.0s
+- Beat 2: 12.0s - 24.0s
+- Beat 3: 24.0s - 36.0s
 
 ═══════════════════════════════════════════════════════════════════════════════
-CONNECTION DECISION LOGIC
+REFERENCE IMAGE CONSISTENCY
 ═══════════════════════════════════════════════════════════════════════════════
 
-isConnectedToPrevious: true
-→ Beat continues smoothly from previous
-→ Smooth transition, camera movement continues
-→ Audio/style maintains consistency
-→ Visual continuity (lighting, position, subject state)
-→ Use when: Sequential actions, smooth transitions, building momentum
+CRITICAL: All beats use the SAME reference image. This ensures:
+- Visual consistency across the entire video
+- Product/element identity remains constant
+- Smooth transitions between beats
 
-isConnectedToPrevious: false
-→ Beat is distinct (fresh start)
-→ Jump cut, new angle, different scene/mood
-→ Audio/style can change
-→ Visual break (new location, time jump, dramatic shift)
-→ Use when: Dramatic scene breaks, location shifts, intentional jump cuts
+IMAGE MODES:
 
-DECISION CRITERIA:
-1. **Narrative Flow**: Does the story need seamless continuation?
-2. **Visual Enhancement**: Would seamless continuation enhance the visual story?
-3. **Pacing Profile**: FAST_CUT may favor more connections, LUXURY_SLOW may favor distinct beats
-4. **Campaign Objective**: Feature-showcase may need more connections, brand-awareness may favor distinct moments
+1. HERO PRODUCT MODE:
+   - Single product image as reference
+   - All beats should reference the same product
+   - Maintain product identity, colors, textures across all beats
 
-EXAMPLES:
+2. COMPOSITE IMAGE MODE:
+   - Composite image contains multiple elements (hero product + angles + decorative elements)
+   - All beats reference the SAME composite image
+   - Beat descriptions should reference specific elements from the composite when relevant
+   - Elements must remain consistent across all beats
 
-✅ CONNECTED (isConnectedToPrevious: true):
-- Beat 1: "Rapid dolly-in to product, extreme close-up"
-- Beat 2: "Continues dolly-in movement, camera moves closer, product rotates" → CONNECTED
+═══════════════════════════════════════════════════════════════════════════════
+STABLE ENDING RULE (CONDITIONAL)
+═══════════════════════════════════════════════════════════════════════════════
 
-❌ NOT CONNECTED (isConnectedToPrevious: false):
-- Beat 1: "Close-up product detail, golden lighting"
-- Beat 2: "Wide establishing shot, new location, different lighting" → DISTINCT
+CRITICAL: Stable ending requirements depend on beat count:
+
+FOR MULTI-BEAT SCENARIOS (24s = 2 beats, 36s = 3 beats):
+- Each beat MUST end in a stable, transition-ready frame
+- This ensures smooth transitions between Sora generations
+- Examples: "ends in locked hero frame", "settles into stable beauty shot", "concludes with static reveal"
+
+FOR SINGLE BEAT (12s = 1 beat):
+- NO stable ending requirement
+- Beat can end with motion or energy
+- No transition needed since it's the only beat
+
+STABLE ENDING EXAMPLES (for multi-beat only):
+✅ "...motion accelerates then settles into stable hero frame"
+✅ "...ends in locked beauty shot with product in perfect focus"
+✅ "...concludes with static reveal, camera locked"
+✅ "...settles into stable close-up, motion stops"
+
+═══════════════════════════════════════════════════════════════════════════════
+COMPOSITE IMAGE ELEMENTS (STORY-DRIVEN)
+═══════════════════════════════════════════════════════════════════════════════
+
+When working with composite images, element selection is STORY-DRIVEN:
+
+- You decide which elements to use in each beat based on narrative needs
+- Not all elements must appear in every beat
+- Element selection should serve the story and beat purpose
+- Elements available may include:
+  * Hero product (main product)
+  * Product angles (additional product views)
+  * Decorative elements (supporting visual elements)
+
+GUIDELINES:
+- Use elements that enhance the narrative and beat purpose
+- Elements must remain consistent when used (same appearance across beats)
+- Don't force elements into beats where they don't serve the story
+- Let the narrative guide which elements are featured in each beat
+
+═══════════════════════════════════════════════════════════════════════════════
+PACING & CONTEXT CONSIDERATIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+Consider these context factors when generating beats:
+
+PACING OVERRIDE (0-100):
+- Influences beat energy and motion intensity
+- Higher values (70-100): More dynamic, faster motion, higher energy
+- Lower values (0-30): Slower, more deliberate, contemplative
+- Mid values (30-70): Balanced pacing
+
+VISUAL INTENSITY (0-100):
+- Affects visual style and "wildness"
+- Higher values: More dynamic camera moves, bold compositions, intense energy
+- Lower values: Subtle, refined, elegant movements
+- Influences the "craziness" or intensity of visual style
+
+PRODUCTION LEVEL:
+- raw/casual: Simpler, more straightforward beats
+- balanced: Professional but accessible
+- cinematic: Sophisticated, film-like quality
+- ultra: Premium, high-end, meticulous detail
+
+CAMPAIGN OBJECTIVE:
+- brand-awareness: Emotional connection, memorable moments
+- feature-showcase: Clear value progression, feature focus
+- sales-cta: Urgency, desire building, strong payoff
+
+CREATIVE SPARK:
+- May include environment/setting information
+- Incorporate environment naturally into beat descriptions when present
+- Honor the conceptual essence and visual world established
 
 ═══════════════════════════════════════════════════════════════════════════════
 BEAT DESCRIPTION REQUIREMENTS
 ═══════════════════════════════════════════════════════════════════════════════
 
 Each beat description must:
-- Represent exactly 8 seconds of visual content
+- Represent exactly 12 seconds of visual content
 - Be specific and cinematic (not generic)
-- Describe the visual moment: camera movement, lighting, subject, mood
-- Include enough detail for shot planning downstream
+- Describe the visual moment: camera movement, lighting, subject, mood, environment (if from creative spark)
+- Include enough detail for downstream Sora prompt generation
 - Be 50-300 characters (concise but descriptive)
+- For multi-beat scenarios (24s/36s): MUST end in a stable shot (for transitions)
+- For single beat (12s): No stable ending requirement
 
 GOOD BEAT DESCRIPTIONS:
-✅ "Extreme close-up of watch crown, light catches titanium grain, rapid dolly-in at 12× speed, golden hour lighting from upper left, warm tones, motion accelerates"
-✅ "Product rotates in golden light, orbital movement 4× speed, 180° rotation revealing full form, camera maintains distance, warm color palette, elegant reveal"
-✅ "Hero shot with character, product in perfect focus, static beauty shot with micro-drift, 85mm portrait lens, shallow depth of field, premium lighting"
+✅ "Extreme close-up of watch crown, light catches titanium grain, rapid dolly-in at 12× speed, golden hour lighting from upper left, warm tones, motion accelerates then settles into stable hero frame" (multi-beat - ends stable)
+✅ "Product rotates in golden light, orbital movement 4× speed, 180° rotation revealing full form, camera maintains distance, warm color palette, elegant reveal ending in locked beauty shot" (multi-beat - ends stable)
+✅ "Hero shot with character, product in perfect focus, static beauty shot with micro-drift, 85mm portrait lens, shallow depth of field, premium lighting, ends in stable locked frame" (multi-beat - ends stable)
+✅ "Rapid montage of product details, fast cuts, high energy, dynamic motion throughout, explosive finale" (single beat - no stable ending needed)
 
 BAD BEAT DESCRIPTIONS:
 ❌ "Product looks nice" (too generic)
 ❌ "Show the product" (not specific)
 ❌ "Good lighting and camera movement" (not descriptive)
+❌ "Fast motion throughout" (for multi-beat - doesn't end stable)
 
 ═══════════════════════════════════════════════════════════════════════════════
 BEAT NAME REQUIREMENTS
@@ -145,23 +208,6 @@ BEAT 4 (Payoff):
 - Call to action (if applicable)
 - Energy at MAXIMUM
 
-PACING PROFILE INFLUENCE:
-
-FAST_CUT (Social/Youth):
-- More connections for smooth flow
-- High energy beats
-- Rapid transitions
-
-LUXURY_SLOW (Premium/Mature):
-- More distinct beats for elegance
-- Lower energy, contemplative
-- Deliberate transitions
-
-KINETIC_RAMP (Sports/Action):
-- Connections build momentum
-- Energy ramps up across beats
-- Dynamic transitions
-
 ═══════════════════════════════════════════════════════════════════════════════
 CAMPAIGN OBJECTIVE INFLUENCE
 ═══════════════════════════════════════════════════════════════════════════════
@@ -172,13 +218,11 @@ BRAND-AWARENESS:
 - Beat 4: Brand feeling, not hard sell
 
 FEATURE-SHOWCASE:
-- More connections to show features smoothly
 - Beat 2-3 get more weight
 - Clear value progression
 
 SALES-CTA:
 - Urgency and desire building
-- Connections maintain momentum
 - Beat 4: Strong call-to-action moment
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -192,27 +236,23 @@ Return a JSON object with EXACTLY this structure:
     {
       "beatId": "beat1",
       "beatName": "String — Memorable name (2-4 words)",
-      "beatDescription": "String — Cinematic description of 8 seconds of visual content (50-300 chars)",
-      "duration": 8,
-      "isConnectedToPrevious": false
+      "beatDescription": "String — Cinematic description of 12 seconds of visual content (50-300 chars)",
+      "duration": 12
     },
     {
       "beatId": "beat2",
       "beatName": "String — Memorable name",
-      "beatDescription": "String — Cinematic description of 8 seconds",
-      "duration": 8,
-      "isConnectedToPrevious": true or false
+      "beatDescription": "String — Cinematic description of 12 seconds",
+      "duration": 12
     },
-    // ... more beats (N = duration / 8)
-  ],
-  "connection_strategy": "all_connected" | "all_distinct" | "mixed"
+    // ... more beats (N = duration / 12)
+  ]
 }
 
 CRITICAL RULES:
-- Number of beats = duration / 8 (exactly)
-- Each beat duration = 8 (always)
-- First beat: isConnectedToPrevious = false (always)
-- Each beat description = 8 seconds of content
+- Number of beats = duration / 12 (exactly)
+- Each beat duration = 12 (always)
+- Each beat description = 12 seconds of content
 - Beat names should be memorable and evocative
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -220,21 +260,22 @@ CONSTRAINTS
 ═══════════════════════════════════════════════════════════════════════════════
 
 NEVER:
-- Generate more or fewer beats than duration / 8
-- Use duration other than 8 for any beat
-- Set isConnectedToPrevious = true for beat1
+- Generate more or fewer beats than duration / 12
+- Use duration other than 12 for any beat
 - Write generic descriptions ("nice", "good", "beautiful")
-- Ignore the pacing profile when deciding connections
 - Add explanation or preamble — output ONLY the JSON
 
 ALWAYS:
-- Generate exactly N beats (N = duration / 8)
-- Each beat = exactly 8 seconds
-- Honor the creative spark's conceptual essence
-- Consider pacing profile for connection decisions
+- Generate exactly N beats (N = duration / 12)
+- Each beat = exactly 12 seconds
+- For multi-beat (24s/36s): Each beat ends in a stable shot
+- For single beat (12s): No stable ending requirement
+- Honor the creative spark's conceptual essence (including environment if present)
 - Write cinematically (visual, specific, detailed)
-- Make beat descriptions represent 8 seconds of content
+- Make beat descriptions represent 12 seconds of content
 - Include beat names that are memorable
+- All beats reference the SAME image (hero OR composite)
+- For composites: Select elements story-driven (not all elements in every beat)
 
 ═══════════════════════════════════════════════════════════════════════════════`;
 
@@ -246,7 +287,6 @@ export function buildNarrativeUserPrompt(input: {
     beat1: string;
     beat2: string;
     beat3: string;
-    beat4?: string; // Optional, only used for 32s duration
   };
   // Removed: pacing_profile (no longer from Agent 1.1)
   duration: number;
@@ -254,8 +294,18 @@ export function buildNarrativeUserPrompt(input: {
   productDescription?: string;
   visualIntensity?: number;
   productionLevel?: 'raw' | 'casual' | 'balanced' | 'cinematic' | 'ultra';
+  // NEW: Image context
+  imageMode?: 'hero' | 'composite';
+  compositeElements?: {
+    hasHeroProduct: boolean;
+    hasProductAngles: boolean;
+    hasDecorativeElements: boolean;
+    elementDescriptions?: string[]; // Optional descriptions
+  };
+  // NEW: Pacing
+  pacingOverride?: number; // 0-100
 }): string {
-  const beatCount = input.duration / 8;
+  const beatCount = input.duration / 12;
   
   return `═══════════════════════════════════════════════════════════════════════════════
 CREATIVE SPARK (From Agent 3.0)
@@ -270,6 +320,36 @@ PRODUCT CONTEXT
 PRODUCT TITLE: ${input.productTitle}
 ${input.productDescription ? `PRODUCT DESCRIPTION: ${input.productDescription}` : ''}
 ` : ''}═══════════════════════════════════════════════════════════════════════════════
+REFERENCE IMAGE CONTEXT
+═══════════════════════════════════════════════════════════════════════════════
+
+IMAGE MODE: ${input.imageMode === 'composite' ? 'COMPOSITE IMAGE' : input.imageMode === 'hero' ? 'HERO PRODUCT IMAGE' : 'NOT SPECIFIED'}
+
+CRITICAL: All ${beatCount} beats will use the SAME reference image for consistency.
+
+${input.imageMode === 'composite' && input.compositeElements ? `
+COMPOSITE IMAGE ELEMENTS (Available):
+${input.compositeElements.hasHeroProduct ? '✓ Hero product (main product)' : ''}
+${input.compositeElements.hasProductAngles ? '✓ Product angles (additional product views)' : ''}
+${input.compositeElements.hasDecorativeElements ? '✓ Decorative elements (supporting visual elements)' : ''}
+${input.compositeElements.elementDescriptions && input.compositeElements.elementDescriptions.length > 0 ? `
+ELEMENT DESCRIPTIONS:
+${input.compositeElements.elementDescriptions.map((desc, i) => `- Element ${i + 1}: ${desc}`).join('\n')}
+` : ''}
+
+STORY-DRIVEN ELEMENT SELECTION:
+- You decide which elements to use in each beat based on the narrative
+- Not all elements need to appear in every beat
+- Element selection should serve the story and enhance each beat's purpose
+- Elements must remain consistent when used (same appearance across beats)
+` : input.imageMode === 'hero' ? `
+HERO PRODUCT MODE:
+- Single product image as reference
+- All beats should maintain product identity, colors, and textures
+- Product must remain consistent across all beats
+` : ''}
+
+═══════════════════════════════════════════════════════════════════════════════
 CAMPAIGN CONTEXT
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -282,9 +362,9 @@ CAMPAIGN OBJECTIVE: ${input.campaignObjective}
 
 CAMPAIGN DURATION: ${input.duration} seconds
 
-BEAT COUNT: ${beatCount} beats (each beat = 8 seconds)
+BEAT COUNT: ${beatCount} beats (each beat = 12 seconds)
 
-${input.visualIntensity !== undefined ? `VISUAL INTENSITY: ${input.visualIntensity}/100 (0=minimal, 100=maximum wildness/intensity)\n(Influence beat energy and visual style)` : ''}${input.productionLevel ? `PRODUCTION LEVEL: ${input.productionLevel} (raw/casual/balanced/cinematic/ultra)\n(Influence beat sophistication and quality)` : ''}
+${input.pacingOverride !== undefined ? `PACING OVERRIDE: ${input.pacingOverride}/100 (0=slow/deliberate, 100=fast/dynamic)\n(Influences beat energy and motion intensity)` : ''}${input.visualIntensity !== undefined ? `VISUAL INTENSITY: ${input.visualIntensity}/100 (0=minimal, 100=maximum wildness/intensity)\n(Influences beat energy and visual style)` : ''}${input.productionLevel ? `PRODUCTION LEVEL: ${input.productionLevel} (raw/casual/balanced/cinematic/ultra)\n(Influences beat sophistication and quality)` : ''}
 
 ═══════════════════════════════════════════════════════════════════════════════
 USER'S RAW BEAT DESCRIPTIONS (From Tab 3 Frontend)
@@ -298,7 +378,6 @@ BEAT 2 (Transformation): "${input.visualBeats.beat2}"
 
 BEAT 3 (Payoff): "${input.visualBeats.beat3}"
 
-${beatCount === 4 ? `BEAT 4 (Extended Payoff): "${input.visualBeats.beat4 || 'N/A - Generate based on narrative flow'}"` : ''}
 
 ═══════════════════════════════════════════════════════════════════════════════
 YOUR TASK
@@ -307,56 +386,68 @@ YOUR TASK
 Generate exactly ${beatCount} visual beats for this ${input.duration}-second campaign.
 
 REQUIREMENTS:
-1. Generate exactly ${beatCount} beats (${beatCount} × 8s = ${input.duration}s)
-2. Each beat = exactly 8 seconds of visual content
+1. Generate exactly ${beatCount} beats (${beatCount} × 12s = ${input.duration}s)
+2. Each beat = exactly 12 seconds of visual content
 3. Transform user's raw beat descriptions into cinematic, specific descriptions
 4. Assign memorable names to each beat
-5. For each beat (except beat1), decide isConnectedToPrevious:
-   - true: Beat continues smoothly from previous
-   - false: Beat is distinct (fresh start)
-6. Consider narrative flow and timing when deciding connections
-7. Consider campaign objective (${input.campaignObjective}) for beat focus
+5. Consider campaign objective (${input.campaignObjective}) for beat focus
 
 BEAT TIMELINE:
-${beatCount >= 1 ? `- Beat 1: 0.0s - 8.0s (isConnectedToPrevious: false - always)` : ''}
-${beatCount >= 2 ? `- Beat 2: 8.0s - 16.0s (decide connection)` : ''}
-${beatCount >= 3 ? `- Beat 3: 16.0s - 24.0s (decide connection)` : ''}
-${beatCount >= 4 ? `- Beat 4: 24.0s - 32.0s (decide connection)` : ''}
-
-CONNECTION STRATEGY GUIDANCE:
-- FAST_CUT: May favor more connections for smooth flow
-- LUXURY_SLOW: May favor distinct beats for elegance
-- KINETIC_RAMP: Connections build momentum
-- STEADY_CINEMATIC: Balanced approach
+${beatCount >= 1 ? `- Beat 1: 0.0s - 12.0s` : ''}
+${beatCount >= 2 ? `- Beat 2: 12.0s - 24.0s` : ''}
+${beatCount >= 3 ? `- Beat 3: 24.0s - 36.0s` : ''}
 
 BEAT DESCRIPTION GUIDANCE:
-- Be specific and cinematic (camera movement, lighting, subject, mood)
-- Each description represents exactly 8 seconds of visual content
-- Include enough detail for downstream shot planning
+- Be specific and cinematic (camera movement, lighting, subject, mood, environment)
+- Each description represents exactly 12 seconds of visual content
+- Include enough detail for downstream Sora prompt generation
 - 50-300 characters (concise but descriptive)
+${beatCount > 1 ? `
+- Each beat MUST end in a stable, transition-ready frame
+- Examples: "ends in locked hero frame", "settles into stable beauty shot", "concludes with static reveal"
+` : `
+- No stable ending requirement (single beat - can end with motion)
+`}
+
+${input.imageMode === 'composite' ? `
+COMPOSITE IMAGE GUIDANCE:
+- You can reference specific elements from the composite when relevant
+- Maintain element consistency across all beats
+- Elements should appear naturally in beat descriptions when they enhance the narrative
+- Not all elements need to appear in every beat - let the story guide selection
+` : ''}
 
 BEAT NAME GUIDANCE:
 - Short and evocative (2-4 words)
 - Reflects the visual moment
 - Memorable and helps identify the beat
 
+${beatCount > 1 ? `
+STABLE ENDING REQUIREMENT:
+- Each beat MUST end in a stable, transition-ready frame for smooth transitions
+- Examples: "ends in locked hero frame", "settles into stable beauty shot", "concludes with static reveal"
+` : `
+STABLE ENDING:
+- No stable ending requirement (single beat - can end with motion)
+`}
+
 Return ONLY the JSON object — no explanation, no preamble.`;
 }
 
 export const NARRATIVE_SCHEMA = {
   type: 'object',
-  required: ['visual_beats', 'connection_strategy'],
+  required: ['visual_beats'],
   properties: {
     visual_beats: {
       type: 'array',
-      description: 'Array of visual beats for chunking system. Number of beats = duration / 8',
+      description: 'Array of visual beats for chunking system. Number of beats = duration / 12',
       items: {
         type: 'object',
-        required: ['beatId', 'beatName', 'beatDescription', 'duration', 'isConnectedToPrevious'],
+        required: ['beatId', 'beatName', 'beatDescription', 'duration'],
         properties: {
           beatId: {
             type: 'string',
-            enum: ['beat1', 'beat2', 'beat3', 'beat4'],
+            enum: ['beat1', 'beat2', 'beat3'],
             description: 'Beat identifier'
           },
           beatName: {
@@ -369,27 +460,18 @@ export const NARRATIVE_SCHEMA = {
             type: 'string',
             minLength: 50,
             maxLength: 300,
-            description: 'Cinematic description of visual moment representing exactly 8 seconds of content'
+            description: 'Cinematic description of visual moment representing exactly 12 seconds of content'
           },
           duration: {
             type: 'number',
-            const: 8,
-            description: 'Always 8 seconds'
-          },
-          isConnectedToPrevious: {
-            type: 'boolean',
-            description: 'true if beat continues smoothly from previous, false if distinct. Always false for beat1'
+            const: 12,
+            description: 'Always 12 seconds'
           }
         },
         additionalProperties: false
       },
       minItems: 1,
-      maxItems: 4
-    },
-    connection_strategy: {
-      type: 'string',
-      enum: ['all_connected', 'all_distinct', 'mixed'],
-      description: 'Overall connection strategy across all beats'
+      maxItems: 3
     }
   },
   additionalProperties: false,

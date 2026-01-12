@@ -21,7 +21,7 @@ export const SOCIAL_COMMERCE_CONFIG = {
   // Default settings
   defaults: {
     aspectRatio: '9:16' as const,
-    duration: 16 as const, // seconds - must match DurationOption type
+    duration: 12 as const, // seconds - must match DurationOption type
     pacingProfile: 'FAST_CUT' as const,
     videoModel: 'pixverse-v5.5',
   },
@@ -70,8 +70,8 @@ export const ASPECT_RATIOS = {
   '4:5': { width: 1080, height: 1350, label: 'Portrait (4:5)' },
 } as const;
 
-// Duration options in seconds (beat-based chunking: each duration = N beats × 8s)
-export const DURATION_OPTIONS = [8, 16, 24, 32] as const;
+// Duration options in seconds (beat-based chunking: each duration = N beats × 12s)
+export const DURATION_OPTIONS = [12, 24, 36] as const;
 
 export type AspectRatio = keyof typeof ASPECT_RATIOS;
 export type DurationOption = (typeof DURATION_OPTIONS)[number];

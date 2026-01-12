@@ -28,72 +28,82 @@ const contentTypes = [
 
 export function Step1TypeSelection({ value, onChange }: Step1TypeSelectionProps) {
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-display font-bold">Choose Content Type</h2>
-        <p className="text-muted-foreground mt-2">
-          Select the type of content you want to produce in this campaign
-        </p>
-      </div>
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-12rem)] py-12">
+      <div className="w-full max-w-4xl space-y-12">
+        <div className="text-center space-y-3">
+          <h2 className="text-4xl font-display font-bold text-foreground">Choose Content Type</h2>
+          <p className="text-lg text-muted-foreground">
+            Select the type of content you want to produce in this campaign
+          </p>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {contentTypes.map((type) => {
-          const isSelected = value === type.id;
-          const TypeIcon = type.icon;
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {contentTypes.map((type) => {
+            const isSelected = value === type.id;
+            const TypeIcon = type.icon;
 
-          return (
-            <Card
-              key={type.id}
-              className={`relative cursor-pointer transition-all ${
-                isSelected
-                  ? "border-primary ring-2 ring-primary/20 bg-primary/5"
-                  : type.available
-                  ? "hover:border-primary/50 hover:bg-muted/50"
-                  : "opacity-50 cursor-not-allowed"
-              }`}
-              onClick={() => type.available && onChange(type.id)}
-              data-testid={`card-type-${type.id}`}
-            >
-              {isSelected && (
-                <div className="absolute top-4 right-4">
-                  <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
-                    <Check className="h-4 w-4 text-primary-foreground" />
+            return (
+              <Card
+                key={type.id}
+                className={`relative cursor-pointer transition-all h-full ${
+                  isSelected
+                    ? "border-primary ring-2 ring-primary/20 bg-primary/5 shadow-lg scale-[1.02]"
+                    : type.available
+                    ? "hover:border-primary/50 hover:bg-muted/50 hover:shadow-md"
+                    : "opacity-50 cursor-not-allowed"
+                }`}
+                onClick={() => type.available && onChange(type.id)}
+                data-testid={`card-type-${type.id}`}
+              >
+                {isSelected && (
+                  <div className="absolute top-6 right-6 z-10">
+                    <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center shadow-lg">
+                      <Check className="h-5 w-5 text-primary-foreground" />
+                    </div>
                   </div>
-                </div>
-              )}
-              
-              <CardContent className="p-6">
-                <div className="flex items-start gap-4">
-                  <div className={`p-3 rounded-xl ${isSelected ? "bg-primary/10" : "bg-muted"}`}>
-                    <TypeIcon className={`h-8 w-8 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-lg font-semibold">{type.name}</h3>
-                      {!type.available && (
-                        <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
+                )}
+                
+                <CardContent className="p-8">
+                  <div className="flex flex-col items-center text-center space-y-6">
+                    <div className={`p-5 rounded-2xl transition-all ${
+                      isSelected ? "bg-primary/20 scale-110" : "bg-muted"
+                    }`}>
+                      <TypeIcon className={`h-12 w-12 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                    </div>
+                    
+                    <div className="w-full space-y-3">
+                      <div className="flex items-center justify-center gap-2">
+                        <h3 className="text-2xl font-bold">{type.name}</h3>
+                        {!type.available && (
+                          <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
+                        )}
+                      </div>
+                      <p className="text-base text-muted-foreground">
+                        {type.description}
+                      </p>
+                      
+                      {type.available && (
+                        <div className="flex flex-wrap gap-2 justify-center pt-2">
+                          {type.features.map((feature) => (
+                            <Badge 
+                              key={feature} 
+                              variant="outline" 
+                              className={`text-xs font-normal ${
+                                isSelected ? "border-primary/30 bg-primary/5" : ""
+                              }`}
+                            >
+                              {feature}
+                            </Badge>
+                          ))}
+                        </div>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      {type.description}
-                    </p>
-                    
-                    {type.available && (
-                      <div className="flex flex-wrap gap-2">
-                        {type.features.map((feature) => (
-                          <Badge key={feature} variant="outline" className="text-xs font-normal">
-                            {feature}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

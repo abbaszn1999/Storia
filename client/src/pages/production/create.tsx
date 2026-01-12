@@ -731,111 +731,116 @@ export default function ProductionCampaignCreate() {
   };
   const validStoryCount = getValidVideoCount();
 
+  // إخفاء الـ sidebar في الخطوة الأولى فقط
+  const showSidebar = currentStep > 1;
+
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
       <div className="flex flex-1 overflow-hidden">
-        <aside className="w-72 border-r bg-muted/30 flex flex-col">
-          <div className="p-6 border-b">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Sparkles className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h1 className="font-display font-bold text-lg">New Campaign</h1>
-                <p className="text-xs text-muted-foreground">AI Production Wizard</p>
+        {showSidebar && (
+          <aside className="w-72 border-r bg-muted/30 flex flex-col">
+            <div className="p-6 border-b">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Sparkles className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <h1 className="font-display font-bold text-lg">New Campaign</h1>
+                  <p className="text-xs text-muted-foreground">AI Production Wizard</p>
+                </div>
               </div>
             </div>
-          </div>
 
-          <ScrollArea className="flex-1">
-            <nav className="p-4 space-y-1">
-              {wizardSteps.map((step) => {
-                const isCompleted = currentStep > step.number;
-                const isCurrent = currentStep === step.number;
-                const summary = getStepSummary(step.number);
-                const StepIcon = step.icon;
+            <ScrollArea className="flex-1">
+              <nav className="p-4 space-y-1">
+                {wizardSteps.map((step) => {
+                  const isCompleted = currentStep > step.number;
+                  const isCurrent = currentStep === step.number;
+                  const summary = getStepSummary(step.number);
+                  const StepIcon = step.icon;
 
-                return (
-                  <button
-                    key={step.number}
-                    onClick={() => {
-                      if (isCompleted || isCurrent) {
-                        setCurrentStep(step.number);
-                      }
-                    }}
-                    disabled={!isCompleted && !isCurrent}
-                    className={`w-full flex items-start gap-3 p-3 rounded-lg text-left transition-all ${
-                      isCurrent
-                        ? "bg-primary/10 border border-primary/20"
-                        : isCompleted
-                        ? "hover:bg-muted cursor-pointer"
-                        : "opacity-50 cursor-not-allowed"
-                    }`}
-                    data-testid={`nav-step-${step.number}`}
-                  >
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                        isCompleted
-                          ? "bg-primary text-primary-foreground"
-                          : isCurrent
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted-foreground/20 text-muted-foreground"
+                  return (
+                    <button
+                      key={step.number}
+                      onClick={() => {
+                        if (isCompleted || isCurrent) {
+                          setCurrentStep(step.number);
+                        }
+                      }}
+                      disabled={!isCompleted && !isCurrent}
+                      className={`w-full flex items-start gap-3 p-3 rounded-lg text-left transition-all ${
+                        isCurrent
+                          ? "bg-primary/10 border border-primary/20"
+                          : isCompleted
+                          ? "hover:bg-muted cursor-pointer"
+                          : "opacity-50 cursor-not-allowed"
                       }`}
+                      data-testid={`nav-step-${step.number}`}
                     >
-                      {isCompleted ? (
-                        <Check className="h-4 w-4" />
-                      ) : (
-                        <StepIcon className="h-4 w-4" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-sm font-medium ${
-                            isCurrent ? "text-foreground" : isCompleted ? "text-foreground" : "text-muted-foreground"
-                          }`}
-                        >
-                          {step.title}
-                        </span>
-                        {isCurrent && (
-                          <ChevronRight className="h-3 w-3 text-primary" />
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                          isCompleted
+                            ? "bg-primary text-primary-foreground"
+                            : isCurrent
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted-foreground/20 text-muted-foreground"
+                        }`}
+                      >
+                        {isCompleted ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <StepIcon className="h-4 w-4" />
                         )}
                       </div>
-                      {summary && isCompleted ? (
-                        <Badge variant="secondary" className="mt-1 text-xs font-normal">
-                          {summary}
-                        </Badge>
-                      ) : (
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                          {step.description}
-                        </p>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </nav>
-          </ScrollArea>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-sm font-medium ${
+                              isCurrent ? "text-foreground" : isCompleted ? "text-foreground" : "text-muted-foreground"
+                            }`}
+                          >
+                            {step.title}
+                          </span>
+                          {isCurrent && (
+                            <ChevronRight className="h-3 w-3 text-primary" />
+                          )}
+                        </div>
+                        {summary && isCompleted ? (
+                          <Badge variant="secondary" className="mt-1 text-xs font-normal">
+                            {summary}
+                          </Badge>
+                        ) : (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {step.description}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </nav>
+            </ScrollArea>
 
-          <div className="p-4 border-t bg-muted/50">
-            <div className="text-xs text-muted-foreground space-y-1">
-              <div className="flex justify-between">
-                <span>Progress</span>
-                <span className="font-medium">{getStepIndex(currentStep) + 1} of {totalSteps}</span>
-              </div>
-              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all duration-300"
-                  style={{ width: `${((getStepIndex(currentStep) + 1) / totalSteps) * 100}%` }}
-                />
+            <div className="p-4 border-t bg-muted/50">
+              <div className="text-xs text-muted-foreground space-y-1">
+                <div className="flex justify-between">
+                  <span>Progress</span>
+                  <span className="font-medium">{getStepIndex(currentStep) + 1} of {totalSteps}</span>
+                </div>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-300"
+                    style={{ width: `${((getStepIndex(currentStep) + 1) / totalSteps) * 100}%` }}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        </aside>
+          </aside>
+        )}
 
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main className={`flex-1 flex flex-col overflow-hidden ${showSidebar ? '' : 'w-full'}`}>
           <ScrollArea className="flex-1">
-            <div className="p-8 max-w-4xl mx-auto">
+            <div className={`p-8 ${showSidebar ? 'max-w-4xl mx-auto' : 'max-w-6xl mx-auto'}`}>
               {renderStep()}
             </div>
           </ScrollArea>

@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Video, Zap, Search, Calendar, MoreVertical, Scissors, Edit, Copy, Trash2, Loader2, Play, Filter, ArrowUpDown, X } from "lucide-react";
+import { Video, Zap, Search, Calendar, MoreVertical, Scissors, Edit, Copy, Trash2, Loader2, Play, Filter, ArrowUpDown, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+} from "@/components/ui/pagination";
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -59,6 +65,8 @@ interface HistoryItem {
   aspectRatio?: string;
 }
 
+const ITEMS_PER_PAGE = 12;
+
 export default function History() {
   const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
@@ -66,11 +74,17 @@ export default function History() {
   const [selectedMode, setSelectedMode] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "name" | "duration">("newest");
   const [activeTab, setActiveTab] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
   const [previewStory, setPreviewStory] = useState<Story | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const { currentWorkspace, isLoading: isLoadingWorkspace } = useWorkspace();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // Reset to page 1 when filters or tab changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedMonth, selectedMode, sortBy, activeTab]);
 
   // Fetch stories from API
   const { data: storiesData = [], isLoading: isLoadingStories } = useQuery<Story[]>({
@@ -245,9 +259,122 @@ export default function History() {
     }
   }, [filteredByTab, sortBy]);
 
+  // Pagination calculations
+  const totalPages = Math.ceil(sortedItems.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedItems = sortedItems.slice(startIndex, endIndex);
+
+  // Reset to page 1 if current page exceeds total pages
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
+
   // Count videos and stories for tabs
   const videosCount = useMemo(() => filteredItems.filter(item => item.type === "video").length, [filteredItems]);
   const storiesCount = useMemo(() => filteredItems.filter(item => item.type === "story").length, [filteredItems]);
+
+  // Pagination component helper
+  const renderPagination = (totalItems: number) => {
+    if (totalItems <= ITEMS_PER_PAGE) return null;
+    
+    const itemsTotalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(itemsTotalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage < maxVisiblePages - 1) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    return (
+      <Pagination className="mt-8">
+        <PaginationContent>
+          <PaginationItem>
+            <Button
+              variant="ghost"
+              size="default"
+              onClick={() => {
+                if (currentPage > 1) setCurrentPage(currentPage - 1);
+              }}
+              disabled={currentPage === 1}
+              className="gap-1 pl-2.5"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span>Previous</span>
+            </Button>
+          </PaginationItem>
+          
+          {startPage > 1 && (
+            <>
+              <PaginationItem>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCurrentPage(1)}
+                >
+                  1
+                </Button>
+              </PaginationItem>
+              {startPage > 2 && (
+                <PaginationItem>
+                  <PaginationEllipsis />
+                </PaginationItem>
+              )}
+            </>
+          )}
+
+          {Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i).map((page) => (
+            <PaginationItem key={page}>
+              <Button
+                variant={currentPage === page ? "outline" : "ghost"}
+                size="icon"
+                onClick={() => setCurrentPage(page)}
+              >
+                {page}
+              </Button>
+            </PaginationItem>
+          ))}
+
+          {endPage < itemsTotalPages && (
+            <>
+              {endPage < itemsTotalPages - 1 && (
+                <PaginationItem>
+                  <PaginationEllipsis />
+                </PaginationItem>
+              )}
+              <PaginationItem>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCurrentPage(itemsTotalPages)}
+                >
+                  {itemsTotalPages}
+                </Button>
+              </PaginationItem>
+            </>
+          )}
+
+          <PaginationItem>
+            <Button
+              variant="ghost"
+              size="default"
+              onClick={() => {
+                if (currentPage < itemsTotalPages) setCurrentPage(currentPage + 1);
+              }}
+              disabled={currentPage === itemsTotalPages}
+              className="gap-1 pr-2.5"
+            >
+              <span>Next</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    );
+  };
 
   const HistoryItemCard = ({ item }: { item: HistoryItem }) => {
     const Icon = item.type === "video" ? Video : Zap;
@@ -502,11 +629,14 @@ export default function History() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {sortedItems.map((item) => (
-                <HistoryItemCard key={item.id} item={item} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {paginatedItems.map((item) => (
+                  <HistoryItemCard key={item.id} item={item} />
+                ))}
+              </div>
+              {renderPagination(sortedItems.length)}
+            </>
           )}
         </TabsContent>
 
@@ -522,11 +652,14 @@ export default function History() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {sortedItems.filter(item => item.type === "video").map((item) => (
-                <HistoryItemCard key={item.id} item={item} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {paginatedItems.map((item) => (
+                  <HistoryItemCard key={item.id} item={item} />
+                ))}
+              </div>
+              {renderPagination(sortedItems.length)}
+            </>
           )}
         </TabsContent>
 
@@ -542,11 +675,14 @@ export default function History() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {sortedItems.filter(item => item.type === "story").map((item) => (
-                <HistoryItemCard key={item.id} item={item} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {paginatedItems.map((item) => (
+                  <HistoryItemCard key={item.id} item={item} />
+                ))}
+              </div>
+              {renderPagination(sortedItems.length)}
+            </>
           )}
         </TabsContent>
       </Tabs>

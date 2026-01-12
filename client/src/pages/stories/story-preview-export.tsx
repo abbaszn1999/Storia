@@ -427,7 +427,7 @@ export default function StoryPreviewExport() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   return (
-    <PageTransition className="h-screen flex bg-[#0a0a0a]">
+    <PageTransition className="h-screen flex bg-background">
       {/* Background Effects */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[150px]" />
@@ -437,12 +437,12 @@ export default function StoryPreviewExport() {
       {/* Left Panel - Control Panel */}
       <div className={cn(
         "w-[40%] min-w-[400px] max-w-[550px] flex-shrink-0 h-full",
-        "bg-black/40 backdrop-blur-xl",
-        "border-r border-white/[0.06]",
+        "bg-card/80 dark:bg-black/40 backdrop-blur-xl",
+        "border-r border-[#e5e7eb] dark:border-border",
         "flex flex-col relative z-10"
       )}>
         {/* Header */}
-        <div className="flex-shrink-0 p-4 border-b border-white/[0.06]">
+        <div className="flex-shrink-0 p-4 border-b border-[#e5e7eb] dark:border-border">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -469,7 +469,7 @@ export default function StoryPreviewExport() {
             <StaggerItem>
               <div className={cn(
                 "p-4 rounded-xl",
-                "bg-white/[0.02] border border-white/[0.06]"
+                "bg-muted/50 dark:bg-white/[0.02] border border-[#e5e7eb] dark:border-border"
               )}>
                 <div className="flex items-center gap-2 mb-3">
                   <Video className="h-4 w-4 text-primary" />
@@ -510,10 +510,10 @@ export default function StoryPreviewExport() {
                   <Label className="text-sm font-medium">Export Resolution</Label>
                 </div>
                 <Select value={resolution} onValueChange={setResolution}>
-                  <SelectTrigger className="h-10 bg-white/[0.03] border-white/[0.08]">
+                  <SelectTrigger className="h-10 bg-muted/50 dark:bg-white/[0.03] border-[#e5e7eb] dark:border-border">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#1a1a1a] border-white/10">
+                  <SelectContent className="bg-popover dark:bg-[#1a1a1a] border-[#e5e7eb] dark:border-border">
                     {RESOLUTIONS.map(res => (
                       <SelectItem key={res.value} value={res.value}>
                         <div className="flex items-center justify-between w-full">
@@ -528,7 +528,7 @@ export default function StoryPreviewExport() {
             </StaggerItem>
 
             {/* Divider */}
-            <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+            <div className="h-px bg-gradient-to-r from-transparent via-[#e5e7eb] dark:via-border to-transparent" />
 
             {/* Platforms */}
             <StaggerItem>
@@ -554,10 +554,10 @@ export default function StoryPreviewExport() {
                           "flex items-center gap-2",
                           "border relative",
                           isDisabled
-                            ? "bg-white/[0.01] border-white/[0.04] opacity-60"
+                            ? "bg-muted/30 dark:bg-white/[0.01] border-[#e5e7eb] dark:border-border opacity-60"
                             : isSelected
-                              ? "bg-white/[0.08] border-primary/50"
-                              : "bg-white/[0.02] border-white/[0.06] hover:border-white/[0.12] cursor-pointer"
+                              ? "bg-primary/10 border-primary/50"
+                              : "bg-muted/50 dark:bg-white/[0.02] border-[#e5e7eb] dark:border-border hover:border-primary cursor-pointer"
                         )}
                         onClick={() => !isDisabled && handlePlatformToggle(platform.id)}
                       >
@@ -567,12 +567,12 @@ export default function StoryPreviewExport() {
                             "w-4 h-4 rounded border flex items-center justify-center flex-shrink-0",
                             isSelected
                               ? "bg-primary border-primary"
-                              : "border-white/30"
+                              : "border-[#e5e7eb] dark:border-border"
                           )}>
                             {isSelected && <Check className="w-3 h-3 text-white" />}
                           </div>
                         ) : (
-                          <Lock className="w-4 h-4 text-white/30 flex-shrink-0" />
+                          <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                         )}
                         
                         <div className={cn(
@@ -587,7 +587,7 @@ export default function StoryPreviewExport() {
                         <div className="flex-1 min-w-0">
                           <span className={cn(
                             "text-xs font-medium block",
-                            isDisabled && "text-white/50"
+                            isDisabled && "text-muted-foreground"
                           )}>
                             {platform.name}
                           </span>
@@ -643,8 +643,8 @@ export default function StoryPreviewExport() {
                 <RadioGroup value={publishType} onValueChange={(v: "instant" | "schedule") => setPublishType(v)}>
                   <div className={cn(
                     "flex items-center gap-3 p-3 rounded-xl cursor-pointer",
-                    "bg-white/[0.02] border border-white/[0.06]",
-                    publishType === "instant" && "border-primary/50 bg-white/[0.05]"
+                    "bg-muted/50 dark:bg-white/[0.02] border border-[#e5e7eb] dark:border-border",
+                    publishType === "instant" && "border-primary/50 bg-primary/5"
                   )}
                   onClick={() => setPublishType("instant")}
                   >
@@ -656,8 +656,8 @@ export default function StoryPreviewExport() {
                   </div>
                   <div className={cn(
                     "flex items-center gap-3 p-3 rounded-xl cursor-pointer",
-                    "bg-white/[0.02] border border-white/[0.06]",
-                    publishType === "schedule" && "border-primary/50 bg-white/[0.05]"
+                    "bg-muted/50 dark:bg-white/[0.02] border border-[#e5e7eb] dark:border-border",
+                    publishType === "schedule" && "border-primary/50 bg-primary/5"
                   )}
                   onClick={() => setPublishType("schedule")}
                   >
@@ -683,7 +683,7 @@ export default function StoryPreviewExport() {
                           type="date"
                           value={scheduleDate}
                           onChange={e => setScheduleDate(e.target.value)}
-                          className="h-9 bg-white/[0.03] border-white/[0.08]"
+                          className="h-9 bg-muted/50 dark:bg-white/[0.03] border-[#e5e7eb] dark:border-border"
                         />
                       </div>
                       <div className="space-y-1.5">
@@ -692,7 +692,7 @@ export default function StoryPreviewExport() {
                           type="time"
                           value={scheduleTime}
                           onChange={e => setScheduleTime(e.target.value)}
-                          className="h-9 bg-white/[0.03] border-white/[0.08]"
+                          className="h-9 bg-muted/50 dark:bg-white/[0.03] border-[#e5e7eb] dark:border-border"
                         />
                       </div>
                     </motion.div>
@@ -720,7 +720,7 @@ export default function StoryPreviewExport() {
                   {hasYouTube && (
                     <div className={cn(
                       "p-3 rounded-xl space-y-3",
-                      "bg-white/[0.02] border border-white/[0.06]"
+                      "bg-muted/50 dark:bg-white/[0.02] border border-[#e5e7eb] dark:border-border"
                     )}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -746,13 +746,13 @@ export default function StoryPreviewExport() {
                         placeholder="Video title"
                         value={youtubeTitle}
                         onChange={e => setYoutubeTitle(e.target.value)}
-                        className="h-9 bg-white/[0.03] border-white/[0.08] text-sm"
+                        className="h-9 bg-muted/50 dark:bg-white/[0.03] border-[#e5e7eb] dark:border-border text-sm"
                       />
                       <Textarea
                         placeholder="Description"
                         value={youtubeDescription}
                         onChange={e => setYoutubeDescription(e.target.value)}
-                        className="min-h-[80px] bg-white/[0.03] border-white/[0.08] text-sm resize-none"
+                        className="min-h-[80px] bg-muted/50 dark:bg-white/[0.03] border-[#e5e7eb] dark:border-border text-sm resize-none"
                       />
                     </div>
                   )}
@@ -760,23 +760,23 @@ export default function StoryPreviewExport() {
                   {hasSocialPlatforms && (
                     <div className={cn(
                       "p-3 rounded-xl space-y-3",
-                      "bg-white/[0.02] border border-white/[0.06]"
+                      "bg-muted/50 dark:bg-white/[0.02] border border-[#e5e7eb] dark:border-border"
                     )}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className="flex -space-x-1">
                             {selectedPlatforms.includes("tiktok") && (
-                              <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center ring-2 ring-[#0a0a0a]">
+                              <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center ring-2 ring-background">
                                 <SiTiktok className="w-2.5 h-2.5 text-white" />
                               </div>
                             )}
                             {selectedPlatforms.includes("instagram") && (
-                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center ring-2 ring-[#0a0a0a]">
+                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center ring-2 ring-background">
                                 <SiInstagram className="w-2.5 h-2.5 text-white" />
                               </div>
                             )}
                             {selectedPlatforms.includes("facebook") && (
-                              <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center ring-2 ring-[#0a0a0a]">
+                              <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center ring-2 ring-background">
                                 <SiFacebook className="w-2.5 h-2.5 text-white" />
                               </div>
                             )}
@@ -802,7 +802,7 @@ export default function StoryPreviewExport() {
                         placeholder="Write a caption..."
                         value={socialCaption}
                         onChange={e => setSocialCaption(e.target.value)}
-                        className="min-h-[100px] bg-white/[0.03] border-white/[0.08] text-sm resize-none"
+                        className="min-h-[100px] bg-muted/50 dark:bg-white/[0.03] border-[#e5e7eb] dark:border-border text-sm resize-none"
                       />
                     </div>
                   )}
@@ -813,7 +813,7 @@ export default function StoryPreviewExport() {
         </ScrollArea>
 
         {/* Footer - Publish/Export Buttons */}
-        <div className="flex-shrink-0 p-4 border-t border-white/[0.06] space-y-3">
+        <div className="flex-shrink-0 p-4 border-t border-[#e5e7eb] dark:border-border space-y-3">
           {/* Validation Warning */}
           {selectedPlatforms.length > 0 && !canPublish && (
             <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
@@ -862,7 +862,7 @@ export default function StoryPreviewExport() {
             className={cn(
               "w-full h-12",
               selectedPlatforms.length > 0 
-                ? "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.08]"
+                ? "bg-muted/50 dark:bg-white/[0.03] border-[#e5e7eb] dark:border-border hover:bg-muted dark:hover:bg-white/[0.08]"
                 : "bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90 border-0 shadow-lg shadow-primary/25",
               "transition-all duration-300"
             )}
@@ -895,8 +895,8 @@ export default function StoryPreviewExport() {
             aspectRatio === "1:1" ? "aspect-square max-h-[500px]" :
             "aspect-video max-h-[450px]",
             "rounded-2xl overflow-hidden",
-            "bg-black/60",
-            "border border-white/[0.08]",
+            "bg-muted/50 dark:bg-black/60",
+            "border border-[#e5e7eb] dark:border-border",
             "shadow-2xl shadow-black/50"
           )}
         >
@@ -911,21 +911,21 @@ export default function StoryPreviewExport() {
 
           {/* Badges */}
           <div className="absolute top-3 left-3 flex gap-2">
-            <Badge className="bg-black/60 backdrop-blur-sm border-white/10 text-xs">
+            <Badge className="bg-popover dark:bg-black/60 backdrop-blur-sm border-[#e5e7eb] dark:border-border text-xs">
               {duration}s
             </Badge>
           </div>
           <div className="absolute top-3 right-3">
-            <Badge variant="outline" className="bg-black/60 backdrop-blur-sm border-white/10 text-xs">
+            <Badge variant="outline" className="bg-popover dark:bg-black/60 backdrop-blur-sm border-[#e5e7eb] dark:border-border text-xs">
               {aspectRatio}
             </Badge>
           </div>
 
           {/* Corner Decorations */}
-          <div className="absolute top-3 left-3 w-4 h-4 border-l-2 border-t-2 border-white/10 rounded-tl pointer-events-none" />
-          <div className="absolute top-3 right-3 w-4 h-4 border-r-2 border-t-2 border-white/10 rounded-tr pointer-events-none" />
-          <div className="absolute bottom-3 left-3 w-4 h-4 border-l-2 border-b-2 border-white/10 rounded-bl pointer-events-none" />
-          <div className="absolute bottom-3 right-3 w-4 h-4 border-r-2 border-b-2 border-white/10 rounded-br pointer-events-none" />
+          <div className="absolute top-3 left-3 w-4 h-4 border-l-2 border-t-2 border-[#e5e7eb] dark:border-border rounded-tl pointer-events-none" />
+          <div className="absolute top-3 right-3 w-4 h-4 border-r-2 border-t-2 border-[#e5e7eb] dark:border-border rounded-tr pointer-events-none" />
+          <div className="absolute bottom-3 left-3 w-4 h-4 border-l-2 border-b-2 border-[#e5e7eb] dark:border-border rounded-bl pointer-events-none" />
+          <div className="absolute bottom-3 right-3 w-4 h-4 border-r-2 border-b-2 border-[#e5e7eb] dark:border-border rounded-br pointer-events-none" />
         </motion.div>
 
         {/* Action Buttons */}
@@ -939,7 +939,7 @@ export default function StoryPreviewExport() {
             variant="outline"
             onClick={handleDownload}
             disabled={isDownloading}
-            className="gap-2 bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.08]"
+            className="gap-2 bg-muted/50 dark:bg-white/[0.03] border-[#e5e7eb] dark:border-border hover:bg-muted dark:hover:bg-white/[0.08]"
           >
             {isDownloading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -951,7 +951,7 @@ export default function StoryPreviewExport() {
           <Button
             variant="outline"
             onClick={handleCopyLink}
-            className="gap-2 bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.08]"
+            className="gap-2 bg-muted/50 dark:bg-white/[0.03] border-[#e5e7eb] dark:border-border hover:bg-muted dark:hover:bg-white/[0.08]"
           >
             {copied ? (
               <Check className="h-4 w-4 text-emerald-400" />
@@ -970,7 +970,7 @@ export default function StoryPreviewExport() {
             transition={{ delay: 0.6 }}
             className={cn(
               "mt-6 p-4 rounded-xl max-w-lg",
-              "bg-white/[0.02] border border-white/[0.06]"
+              "bg-muted/50 dark:bg-white/[0.02] border border-[#e5e7eb] dark:border-border"
             )}
           >
             <p className="text-xs text-muted-foreground mb-1">Generated from:</p>

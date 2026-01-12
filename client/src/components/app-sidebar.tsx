@@ -30,6 +30,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar"; 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher"; 
@@ -61,6 +62,7 @@ const productionNavItems = [
 export function AppSidebar() {
   const [location] = useLocation();
   const [isDark, setIsDark] = useState(false);
+  const { setOpen } = useSidebar();
 
   useEffect(() => {
     const checkTheme = () => {
@@ -187,7 +189,15 @@ export function AppSidebar() {
                               : "text-sidebar-foreground/70 hover:bg-sidebar-accent/80 hover:text-sidebar-foreground"
                           )}
                         >
-                          <Link href={item.url}>
+                          <Link 
+                            href={item.url}
+                            onClick={() => {
+                              // إغلاق الـ sidebar عند الضغط على New Campaign
+                              if (item.url === "/production/new") {
+                                setOpen(false);
+                              }
+                            }}
+                          >
                             <item.icon />
                             <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
                           </Link>

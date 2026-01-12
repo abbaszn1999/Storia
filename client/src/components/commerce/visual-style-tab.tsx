@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -138,8 +138,61 @@ export function VisualStyleTab({
     beatName: string;
     beatDescription: string;
     duration: number;
-    isConnectedToPrevious: boolean;
   }>>([]);
+
+  // ✨ NEW: Restore generatedBeatsData from video data when component mounts or visualBeats changes
+  useEffect(() => {
+    const restoreBeatsData = async () => {
+      // Restore if:
+      // 1. We have visualBeats but no generatedBeatsData (beats were restored from parent but generatedBeatsData wasn't)
+      // 2. OR required fields are filled (visualPreset, campaignSpark, campaignObjective) and beats exist in database
+      const hasVisualBeats = visualBeats?.beat1 || visualBeats?.beat2 || visualBeats?.beat3;
+      const hasRequiredFields = visualPreset && campaignSpark && campaignSpark.trim().length >= 10 && campaignObjective;
+      
+      if (generatedBeatsData.length === 0 && videoId && videoId !== 'new') {
+        // Try to restore if we have visualBeats OR if required fields are filled
+        if (hasVisualBeats || hasRequiredFields) {
+          try {
+            const response = await fetch(`/api/videos/${videoId}`, {
+              credentials: 'include',
+            });
+            if (response.ok) {
+              const video = await response.json();
+              // Check step2Data first (new structure), then step3Data (backward compatibility)
+              const step2Data = video.step2Data;
+              const step3Data = video.step3Data;
+              const narrative = step2Data?.narrative || step3Data?.narrative;
+              
+              if (narrative?.visual_beats && Array.isArray(narrative.visual_beats)) {
+                setGeneratedBeatsData(narrative.visual_beats);
+                setBeatsGenerated(true);
+                
+                // Also update visualBeats if they're empty but we have narrative beats
+                if (!hasVisualBeats) {
+                  const restoredBeats = {
+                    beat1: narrative.visual_beats.find((b: any) => b.beatId === 'beat1')?.beatDescription || '',
+                    beat2: narrative.visual_beats.find((b: any) => b.beatId === 'beat2')?.beatDescription || '',
+                    beat3: narrative.visual_beats.find((b: any) => b.beatId === 'beat3')?.beatDescription || '',
+                  };
+                  onVisualBeatsChange(restoredBeats);
+                }
+                
+                console.log('[VisualStyleTab] Restored generatedBeatsData from video:', {
+                  beatCount: narrative.visual_beats.length,
+                  hadVisualBeats: hasVisualBeats,
+                  hadRequiredFields: hasRequiredFields,
+                });
+              }
+            }
+          } catch (error) {
+            console.error('[VisualStyleTab] Failed to restore beats data:', error);
+          }
+        }
+      }
+    };
+
+    restoreBeatsData();
+  }, [videoId, visualBeats, generatedBeatsData.length, visualPreset, campaignSpark, campaignObjective, onVisualBeatsChange]);
 
   // Validation states
   const isStyleDefined = visualPreset !== "";
@@ -215,22 +268,19 @@ export function VisualStyleTab({
       setGeneratedBeatsData(visualBeats);
 
       // Extract beats from visual_beats array (new beat-based structure)
-      // Map beat1, beat2, beat3, beat4 from the array by beatId
+      // Map beat1, beat2, beat3 from the array by beatId
       // This is for backward compatibility with parent component's flat format
       const generatedBeats = {
         beat1: visualBeats.find(b => b.beatId === 'beat1')?.beatDescription || '',
         beat2: visualBeats.find(b => b.beatId === 'beat2')?.beatDescription || '',
         beat3: visualBeats.find(b => b.beatId === 'beat3')?.beatDescription || '',
-        beat4: visualBeats.find(b => b.beatId === 'beat4')?.beatDescription || '',
       };
 
       console.log('[VisualStyleTab] Setting generated beats:', {
         beat1Length: generatedBeats.beat1.length,
         beat2Length: generatedBeats.beat2.length,
         beat3Length: generatedBeats.beat3.length,
-        beat4Length: generatedBeats.beat4.length,
         totalBeats: visualBeats.length,
-        connectionStrategy: responseData.connection_strategy,
         beatNames: visualBeats.map(b => b.beatName),
       });
 
@@ -555,7 +605,7 @@ export function VisualStyleTab({
                   {generatedBeatsData.length > 0 ? (
                     <div className="space-y-3">
                       {generatedBeatsData.map((beat, index) => {
-                        const BEAT_DURATION = 8; // Each beat is 8 seconds
+                        const BEAT_DURATION = 12; // Each beat is 12 seconds
                         const startTime = index * BEAT_DURATION;
                         const endTime = (index + 1) * BEAT_DURATION;
                         const timeRange = `${startTime}-${endTime}s`;
@@ -579,9 +629,6 @@ export function VisualStyleTab({
                                 </div>
                                 <div>
                                   <p className="text-xs font-semibold text-white">{beat.beatName}</p>
-                                  <p className="text-[9px] text-white/40">
-                                    {beat.isConnectedToPrevious ? 'Connected to previous beat' : 'New start'}
-                                  </p>
                                 </div>
                               </div>
                               <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-purple-500/10 border-purple-500/30 text-purple-300">

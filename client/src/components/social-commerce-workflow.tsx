@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ProductSetupTab } from "@/components/commerce/product-setup-tab";
 import { HookFormatTab } from "@/components/commerce/hook-format-tab";
@@ -8,6 +8,7 @@ import { ProductScriptEditor } from "@/components/social-commerce/product-script
 import { ProductWorldCast } from "@/components/social-commerce/product-world-cast";
 import { ProductBreakdown } from "@/components/social-commerce/product-breakdown";
 import { BeatStoryboardTab } from "@/components/commerce/beat-storyboard-tab";
+import { VoiceoverTab } from "@/components/commerce/voiceover-tab";
 import { AnimaticPreview } from "@/components/narrative/animatic-preview";
 import { ExportSettings, type ExportData } from "@/components/narrative/export-settings";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -95,7 +96,7 @@ interface SocialCommerceWorkflowProps {
   // Audio Settings (Tab 1)
   audioVolume?: 'low' | 'medium' | 'high';
   speechTempo?: 'auto' | 'slow' | 'normal' | 'fast' | 'ultra-fast';
-  dialogue?: Array<{id: string; character?: string; line: string}>;
+  voiceoverScript?: string;
   customVoiceoverInstructions?: string;
   soundEffectsEnabled?: boolean;
   soundEffectsPreset?: string;
@@ -127,6 +128,11 @@ interface SocialCommerceWorkflowProps {
   // Creative Spark & Beats (Tab 2) props
   visualPreset: string;
   campaignSpark: string;
+  visualBeats: {
+    beat1: string;
+    beat2: string;
+    beat3: string;
+  };
   // Campaign Intelligence (Tab 1 & 3)
   targetAudience: string;
   campaignObjective: string;
@@ -224,9 +230,7 @@ interface SocialCommerceWorkflowProps {
   // Audio Handlers
   onAudioVolumeChange?: (volume: 'low' | 'medium' | 'high') => void;
   onSpeechTempoChange?: (tempo: 'auto' | 'slow' | 'normal' | 'fast' | 'ultra-fast') => void;
-  onDialogueAdd?: () => void;
-  onDialogueChange?: (id: string, entry: Partial<{character?: string; line: string}>) => void;
-  onDialogueRemove?: (id: string) => void;
+  onVoiceoverScriptChange?: (script: string) => void;
   onCustomVoiceoverInstructionsChange?: (instructions: string) => void;
   onSoundEffectsToggle?: (enabled: boolean) => void;
   onSoundEffectsPresetChange?: (preset: string) => void;
@@ -248,8 +252,25 @@ interface SocialCommerceWorkflowProps {
     macroDetail: string | null;
     materialReference: string | null;
   }) => void;
-  onProductImageUpload?: (key: 'heroProfile' | 'macroDetail' | 'materialReference', file: File) => Promise<void>;
-  onProductImageDelete?: (key: 'heroProfile' | 'macroDetail' | 'materialReference') => Promise<void>;
+  onProductImageUpload?: (type: 'hero' | 'angle' | 'element', file: File, description?: string, existingId?: string) => Promise<void>;
+  onProductImageDelete?: (type: 'hero' | 'angle' | 'element', id?: string) => Promise<void>;
+  onCompositeGenerate?: (mode: 'manual' | 'ai_generated', context?: string) => Promise<string>;
+  onGeneratePrompt?: (context?: string) => Promise<void>;
+  onGenerateImage?: (prompt: string, layoutDescription: string, styleGuidance: string, sourceImages: string[], context?: string) => Promise<string>;
+  onModeChange?: (mode: 'manual' | 'ai_generated') => void;
+  onApplyComposite?: () => Promise<void>;
+  onRemoveAppliedComposite?: () => void;
+  // Prompt preview dialog state
+  isPromptPreviewOpen?: boolean;
+  previewPrompt?: string;
+  previewMetadata?: {
+    layoutDescription: string;
+    styleGuidance: string;
+    sourceImages: string[];
+  } | null;
+  editedPrompt?: string;
+  onPromptPreviewOpenChange?: (open: boolean) => void;
+  onEditedPromptChange?: (prompt: string) => void;
   onMaterialPresetChange: (preset: string) => void;
   onObjectMassChange: (mass: number) => void;
   onSurfaceComplexityChange: (complexity: number) => void;
@@ -333,7 +354,7 @@ export function SocialCommerceWorkflow({
   motionPrompt,
   audioVolume,
   speechTempo,
-  dialogue,
+  voiceoverScript,
   customVoiceoverInstructions,
   soundEffectsEnabled,
   soundEffectsPreset,
@@ -395,9 +416,7 @@ export function SocialCommerceWorkflow({
   onMotionPromptChange,
   onAudioVolumeChange,
   onSpeechTempoChange,
-  onDialogueAdd,
-  onDialogueChange,
-  onDialogueRemove,
+  onVoiceoverScriptChange,
   onCustomVoiceoverInstructionsChange,
   onSoundEffectsToggle,
   onSoundEffectsPresetChange,
@@ -414,6 +433,12 @@ export function SocialCommerceWorkflow({
   onProductImagesChange,
   onProductImageUpload,
   onProductImageDelete,
+  onCompositeGenerate,
+  onGeneratePrompt,
+  onGenerateImage,
+  onModeChange,
+  onApplyComposite,
+  onRemoveAppliedComposite,
   onMaterialPresetChange,
   onObjectMassChange,
   onSurfaceComplexityChange,
@@ -424,6 +449,7 @@ export function SocialCommerceWorkflow({
   // Removed: onEnvironmentConceptChange, onCinematicLightingChange, onAtmosphericDensityChange (no longer used)
   onVisualPresetChange,
   onCampaignSparkChange,
+  onVisualBeatsChange,
   onTargetAudienceChange,
   onCampaignObjectiveChange,
   onCtaTextChange,
@@ -442,10 +468,32 @@ export function SocialCommerceWorkflow({
   // Step 5: Beat Prompts
   step3Data,
   isCreating,
+  // Prompt preview dialog state
+  isPromptPreviewOpen,
+  previewPrompt,
+  previewMetadata,
+  editedPrompt,
+  onPromptPreviewOpenChange,
+  onEditedPromptChange,
 }: SocialCommerceWorkflowProps) {
   const { toast } = useToast();
   
   const [voiceoverTextMap, setVoiceoverTextMap] = useState<{ [shotId: string]: string }>({});
+
+  // Debug: Log when voiceover step is active
+  useEffect(() => {
+    if (activeStep === "voiceover") {
+      console.log('[SocialCommerceWorkflow] Rendering voiceover step', {
+        activeStep,
+        isVoiceover: activeStep === "voiceover",
+        hasStep3Data: !!step3Data,
+        step3DataKeys: step3Data ? Object.keys(step3Data) : [],
+        hasBeatPrompts: !!step3Data?.beatPrompts,
+        hasVoiceoverScripts: !!step3Data?.voiceoverScripts,
+        voiceOverEnabled,
+      });
+    }
+  }, [activeStep, step3Data, voiceOverEnabled]);
   
   // Dialog state for manual scene/shot addition
   const [addSceneDialogOpen, setAddSceneDialogOpen] = useState(false);
@@ -1423,7 +1471,7 @@ export function SocialCommerceWorkflow({
           language={language}
           audioVolume={audioVolume}
           speechTempo={speechTempo}
-          dialogue={dialogue}
+          voiceoverScript={voiceoverScript}
           customVoiceoverInstructions={customVoiceoverInstructions}
           soundEffectsEnabled={soundEffectsEnabled}
           soundEffectsPreset={soundEffectsPreset}
@@ -1445,6 +1493,18 @@ export function SocialCommerceWorkflow({
           productImages={productImages}
           onProductImageUpload={onProductImageUpload}
           onProductImageDelete={onProductImageDelete}
+          onCompositeGenerate={onCompositeGenerate}
+          onGeneratePrompt={onGeneratePrompt}
+          onGenerateImage={onGenerateImage}
+          onModeChange={onModeChange}
+          onApplyComposite={onApplyComposite}
+          onRemoveAppliedComposite={onRemoveAppliedComposite}
+          isPromptPreviewOpen={isPromptPreviewOpen}
+          previewPrompt={previewPrompt}
+          previewMetadata={previewMetadata}
+          editedPrompt={editedPrompt}
+          onPromptPreviewOpenChange={onPromptPreviewOpenChange}
+          onEditedPromptChange={onEditedPromptChange}
           onVideoModelChange={onVideoModelChange}
           onVideoResolutionChange={onVideoResolutionChange}
           onAspectRatioChange={onAspectRatioChange}
@@ -1453,9 +1513,7 @@ export function SocialCommerceWorkflow({
           onLanguageChange={onLanguageChange}
           onAudioVolumeChange={onAudioVolumeChange}
           onSpeechTempoChange={onSpeechTempoChange}
-          onDialogueAdd={onDialogueAdd}
-          onDialogueChange={onDialogueChange}
-          onDialogueRemove={onDialogueRemove}
+          onVoiceoverScriptChange={onVoiceoverScriptChange}
           onCustomVoiceoverInstructionsChange={onCustomVoiceoverInstructionsChange}
           onSoundEffectsToggle={onSoundEffectsToggle}
           onSoundEffectsPresetChange={onSoundEffectsPresetChange}
@@ -1528,7 +1586,7 @@ export function SocialCommerceWorkflow({
           ctaText={ctaText}
           onVisualPresetChange={onVisualPresetChange}
           onCampaignSparkChange={onCampaignSparkChange}
-          onVisualBeatsChange={() => {}}
+          onVisualBeatsChange={onVisualBeatsChange}
           onCampaignObjectiveChange={onCampaignObjectiveChange}
           onCtaTextChange={onCtaTextChange}
           onNext={onNext}
@@ -1590,6 +1648,26 @@ export function SocialCommerceWorkflow({
           }}
           onNext={onNext}
         />
+      )}
+
+      {activeStep === "voiceover" && (
+        <VoiceoverTab
+            videoId={videoId}
+            beatPrompts={step3Data?.beatPrompts}
+            voiceoverScripts={step3Data?.voiceoverScripts}
+            beatVideos={step3Data?.beatVideos}
+            voiceOverEnabled={voiceOverEnabled}
+            language={language}
+            heroImageUrl={productImages?.heroProfile || undefined}
+            onUpdateVoiceoverScript={async (beatId, script) => {
+              // TODO: Save to step3Data or step4Data
+              console.log('[VoiceoverTab] Script updated for', beatId, script);
+            }}
+            onRecommendVoiceover={async (beatId) => {
+              // TODO: Call voiceover agent API
+              console.log('[VoiceoverTab] Recommend voiceover for', beatId);
+            }}
+          />
       )}
 
       {activeStep === "animatic" && (

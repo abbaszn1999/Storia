@@ -118,7 +118,7 @@ export function TimelineNavigation({
       <div className="h-8 bg-gradient-to-t from-background/80 dark:from-black/80 to-transparent pointer-events-none" />
       
       {/* Main Navigation Bar */}
-      <div className="bg-card/90 dark:bg-black/90 backdrop-blur-xl border-t border-border px-6 py-4">
+      <div className="bg-card/90 dark:bg-black/90 backdrop-blur-xl border-t border-[#e5e7eb] dark:border-border px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-6">
           {/* Back Button */}
           <Button
@@ -166,7 +166,7 @@ export function TimelineNavigation({
                           "border-2 transition-all duration-300",
                           status === 'active' && cn("border-transparent", accentClasses.bg),
                           status === 'completed' && cn(accentClasses.bg, "border-transparent"),
-                          status === 'upcoming' && "border-border bg-muted/50"
+                          status === 'upcoming' && "border-[#e5e7eb] dark:border-border bg-muted/50"
                         )}
                         animate={status === 'active' ? {
                           boxShadow: ['0 0 0 0 rgba(255,255,255,0)', '0 0 20px 4px rgba(255,255,255,0.1)', '0 0 0 0 rgba(255,255,255,0)']
@@ -229,7 +229,7 @@ export function TimelineNavigation({
 
                     {/* Connector Line */}
                     {index < steps.length - 1 && (
-                      <div className="w-12 h-0.5 mx-1 relative overflow-hidden rounded-full bg-border">
+                      <div className="w-12 h-0.5 mx-1 relative overflow-hidden rounded-full bg-[#e5e7eb] dark:bg-border">
                         <motion.div
                           className={cn("h-full rounded-full bg-gradient-to-r", accentClasses.gradient)}
                           initial={{ width: 0 }}

@@ -7,9 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
-  FileText, 
+  Mic, 
   Music, 
-  Link2, 
   CheckCircle2, 
   Loader2, 
   Lock, 
@@ -22,47 +21,51 @@ import {
   Copy,
   Check,
   RefreshCw,
-  Play
+  Wand2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { BeatPrompt } from "@/types/commerce";
 import type { BeatStatus } from "@/types/commerce";
 
-interface BeatCardStoryboardProps {
+interface BeatCardVoiceoverProps {
   beat: BeatPrompt;
   status: BeatStatus;
   heroImageUrl?: string;
   isSelected: boolean;
   onSelect: () => void;
   onGenerate?: () => void;
-  onPromptUpdate?: (beatId: string, newPrompt: string) => Promise<void>;
   videoUrl?: string;
   onRegenerate?: () => void;
+  voiceoverScript?: string;
+  onUpdateVoiceoverScript?: (beatId: string, script: string) => Promise<void>;
+  onRecommendVoiceover?: (beatId: string) => Promise<void>;
 }
 
-export function BeatCardStoryboard({
+export function BeatCardVoiceover({
   beat,
   status,
   heroImageUrl,
   isSelected,
   onSelect,
   onGenerate,
-  onPromptUpdate,
   videoUrl,
   onRegenerate,
-}: BeatCardStoryboardProps) {
-  const [activeTab, setActiveTab] = useState<"prompt" | "audio">("prompt");
-  const [promptModalOpen, setPromptModalOpen] = useState(false);
-  const [editedPrompt, setEditedPrompt] = useState(beat.sora_prompt.text);
+  voiceoverScript = '',
+  onUpdateVoiceoverScript,
+  onRecommendVoiceover,
+}: BeatCardVoiceoverProps) {
+  const [activeTab, setActiveTab] = useState<"voiceover" | "audio">("voiceover");
+  const [scriptModalOpen, setScriptModalOpen] = useState(false);
+  const [editedScript, setEditedScript] = useState(voiceoverScript);
   const [isSaving, setIsSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
-  // Update edited prompt when beat changes
+  // Update edited script when voiceoverScript prop changes
   useEffect(() => {
-    setEditedPrompt(beat.sora_prompt.text);
-  }, [beat.sora_prompt.text]);
+    setEditedScript(voiceoverScript);
+  }, [voiceoverScript]);
 
   const getStatusConfig = () => {
     switch (status) {
@@ -121,42 +124,42 @@ export function BeatCardStoryboard({
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(editedPrompt);
+      await navigator.clipboard.writeText(editedScript);
       setCopied(true);
       toast({
         title: "Copied",
-        description: "Prompt copied to clipboard",
+        description: "Voiceover script copied to clipboard",
       });
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to copy prompt",
+        description: "Failed to copy script",
         variant: "destructive",
       });
     }
   };
 
   const handleApply = async () => {
-    if (!onPromptUpdate) return;
+    if (!onUpdateVoiceoverScript) return;
     
-    if (editedPrompt.trim() === beat.sora_prompt.text.trim()) {
-      setPromptModalOpen(false);
+    if (editedScript.trim() === voiceoverScript.trim()) {
+      setScriptModalOpen(false);
       return;
     }
 
     setIsSaving(true);
     try {
-      await onPromptUpdate(beat.beatId, editedPrompt);
+      await onUpdateVoiceoverScript(beat.beatId, editedScript);
       toast({
-        title: "Prompt Updated",
-        description: "The prompt has been successfully updated",
+        title: "Script Updated",
+        description: "The voiceover script has been successfully updated",
       });
-      setPromptModalOpen(false);
+      setScriptModalOpen(false);
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update prompt",
+        description: error instanceof Error ? error.message : "Failed to update script",
         variant: "destructive",
       });
     } finally {
@@ -165,13 +168,33 @@ export function BeatCardStoryboard({
   };
 
   const handleCancel = () => {
-    setEditedPrompt(beat.sora_prompt.text);
-    setPromptModalOpen(false);
+    setEditedScript(voiceoverScript);
+    setScriptModalOpen(false);
   };
 
-  // Prompt summary (first 200-300 characters) - always use the actual beat prompt
-  const promptSummary = beat.sora_prompt.text.substring(0, 250);
-  const hasMorePrompt = beat.sora_prompt.text.length > 250;
+  const handleRecommend = async () => {
+    if (!onRecommendVoiceover) return;
+    
+    try {
+      await onRecommendVoiceover(beat.beatId);
+      toast({
+        title: "Recommendation Requested",
+        description: "AI is generating a voiceover script recommendation",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to generate recommendation",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Script summary (first 200-300 characters)
+  const scriptSummary = voiceoverScript.substring(0, 250);
+  const hasMoreScript = voiceoverScript.length > 250;
+  const scriptLines = voiceoverScript.split('\n').filter(line => line.trim().length > 0);
+  const scriptWords = voiceoverScript.split(' ').filter(w => w.length > 0);
 
   return (
     <>
@@ -280,14 +303,14 @@ export function BeatCardStoryboard({
           </div>
 
           {/* Tabs */}
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "prompt" | "audio")} className="w-full">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "voiceover" | "audio")} className="w-full">
             <TabsList className="grid w-full grid-cols-2 bg-white/5 p-1 rounded-lg">
               <TabsTrigger 
-                value="prompt" 
+                value="voiceover" 
                 className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500/30 data-[state=active]:to-teal-500/30 data-[state=active]:text-white text-xs"
               >
-                <FileText className="h-3 w-3 mr-1.5" />
-                Prompt
+                <Mic className="h-3 w-3 mr-1.5" />
+                Voiceover
               </TabsTrigger>
               <TabsTrigger 
                 value="audio" 
@@ -298,27 +321,56 @@ export function BeatCardStoryboard({
               </TabsTrigger>
             </TabsList>
 
-            {/* Prompt Tab */}
-            <TabsContent value="prompt" className="mt-3 space-y-2">
-              <div className="rounded-lg border border-white/10 bg-white/5 p-3 overflow-hidden">
-                <p className="text-xs text-white/70 leading-relaxed break-words overflow-wrap-anywhere">
-                  {promptSummary}
-                  {hasMorePrompt && '...'}
-                </p>
-              </div>
-              {hasMorePrompt && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setPromptModalOpen(true);
-                  }}
-                  className="w-full h-8 text-xs bg-white/5 border-white/10 hover:bg-cyan-500/20 hover:border-cyan-500/30"
-                >
-                  <ExternalLink className="h-3 w-3 mr-1.5" />
-                  View Full Prompt
-                </Button>
+            {/* Voiceover Script Tab */}
+            <TabsContent value="voiceover" className="mt-3 space-y-2">
+              {voiceoverScript ? (
+                <>
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-3 overflow-hidden">
+                    <p className="text-xs text-white/70 leading-relaxed break-words overflow-wrap-anywhere">
+                      {scriptSummary}
+                      {hasMoreScript && '...'}
+                    </p>
+                  </div>
+                  {hasMoreScript && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setScriptModalOpen(true);
+                      }}
+                      className="w-full h-8 text-xs bg-white/5 border-white/10 hover:bg-cyan-500/20 hover:border-cyan-500/30"
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1.5" />
+                      View Full Script
+                    </Button>
+                  )}
+                  <div className="flex items-center gap-2 text-[10px] text-white/50">
+                    <span>{scriptLines.length} lines</span>
+                    <span>•</span>
+                    <span>{scriptWords.length} words</span>
+                    <span>•</span>
+                    <span>{voiceoverScript.length} chars</span>
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-center space-y-2">
+                  <p className="text-xs text-white/50">No voiceover script available</p>
+                  {onRecommendVoiceover && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRecommend();
+                      }}
+                      className="h-8 text-xs bg-white/5 border-white/10 hover:bg-cyan-500/20 hover:border-cyan-500/30"
+                    >
+                      <Wand2 className="h-3 w-3 mr-1.5" />
+                      Recommend Script
+                    </Button>
+                  )}
+                </div>
               )}
             </TabsContent>
 
@@ -386,12 +438,12 @@ export function BeatCardStoryboard({
         </CardContent>
       </Card>
 
-      {/* Editable Full Prompt Modal */}
-      <Dialog open={promptModalOpen} onOpenChange={(open) => {
+      {/* Editable Full Script Modal */}
+      <Dialog open={scriptModalOpen} onOpenChange={(open) => {
         if (!open) {
           handleCancel();
         } else {
-          setPromptModalOpen(true);
+          setScriptModalOpen(true);
         }
       }}>
         <DialogContent className="max-w-5xl max-h-[90vh] bg-[#0a0a0a] border-white/10 shadow-2xl">
@@ -399,18 +451,29 @@ export function BeatCardStoryboard({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500/20 via-cyan-500/15 to-teal-500/10">
-                  <FileText className="h-6 w-6 text-cyan-400" />
+                  <Mic className="h-6 w-6 text-cyan-400" />
                 </div>
                 <div>
                   <DialogTitle className="text-xl font-bold text-white">
-                    Edit Sora Prompt
+                    Edit Voiceover Script
                   </DialogTitle>
                   <p className="text-xs text-white/50 mt-1">
-                    {beat.beatName} • {editedPrompt.length.toLocaleString()} characters
+                    {beat.beatName} • {editedScript.length.toLocaleString()} characters
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {onRecommendVoiceover && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRecommend}
+                    className="h-9 bg-white/5 border-white/10 hover:bg-cyan-500/20 hover:border-cyan-500/30"
+                  >
+                    <Wand2 className="mr-2 h-4 w-4" />
+                    Recommend
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -438,24 +501,24 @@ export function BeatCardStoryboard({
               <div className="space-y-3">
                 <div>
                   <label className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2 block">
-                    Prompt Text
+                    Voiceover Script
                   </label>
                   <Textarea
-                    value={editedPrompt}
-                    onChange={(e) => setEditedPrompt(e.target.value)}
+                    value={editedScript}
+                    onChange={(e) => setEditedScript(e.target.value)}
                     className="min-h-[500px] font-mono text-sm bg-white/[0.02] border-white/10 text-white/90 focus:border-cyan-500/50 focus:ring-cyan-500/20 resize-none"
-                    placeholder="Enter your Sora prompt here..."
+                    placeholder="Enter your voiceover script here..."
                   />
                 </div>
                 <div className="flex items-center justify-between rounded-lg bg-white/5 border border-white/10 px-4 py-2">
                   <div className="flex items-center gap-4 text-xs text-white/50">
-                    <span>{editedPrompt.length.toLocaleString()} characters</span>
+                    <span>{editedScript.length.toLocaleString()} characters</span>
                     <span>•</span>
-                    <span>{editedPrompt.split('\n').length} lines</span>
+                    <span>{editedScript.split('\n').filter(line => line.trim().length > 0).length} lines</span>
                     <span>•</span>
-                    <span>{editedPrompt.split(' ').filter(w => w.length > 0).length} words</span>
+                    <span>{editedScript.split(' ').filter(w => w.length > 0).length} words</span>
                   </div>
-                  {editedPrompt !== beat.sora_prompt.text && (
+                  {editedScript !== voiceoverScript && (
                     <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/30 text-xs">
                       Unsaved changes
                     </Badge>
@@ -476,64 +539,23 @@ export function BeatCardStoryboard({
                 <X className="mr-2 h-4 w-4" />
                 Cancel
               </Button>
-              <div className="flex items-center gap-2">
-                {/* Regenerate Button - Show when video exists */}
-                {status === 'completed' && videoUrl && onRegenerate && (
-                  <Button
-                    variant="outline"
-                    onClick={async (e) => {
-                      e.preventDefault();
-                      // First save the prompt if changed
-                      if (editedPrompt.trim() !== beat.sora_prompt.text.trim() && onPromptUpdate) {
-                        setIsSaving(true);
-                        try {
-                          await onPromptUpdate(beat.beatId, editedPrompt);
-                          toast({
-                            title: "Prompt Updated",
-                            description: "The prompt has been updated and will be used for regeneration",
-                          });
-                        } catch (error) {
-                          toast({
-                            title: "Error",
-                            description: error instanceof Error ? error.message : "Failed to update prompt",
-                            variant: "destructive",
-                          });
-                          setIsSaving(false);
-                          return;
-                        } finally {
-                          setIsSaving(false);
-                        }
-                      }
-                      // Close dialog and regenerate
-                      setPromptModalOpen(false);
-                      onRegenerate();
-                    }}
-                    disabled={isSaving}
-                    className="bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-amber-500/50 text-amber-300 hover:from-amber-500/30 hover:to-orange-500/30 hover:text-amber-200"
-                  >
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    {editedPrompt.trim() !== beat.sora_prompt.text.trim() ? 'Update & Regenerate' : 'Regenerate'}
-                  </Button>
+              <Button
+                onClick={handleApply}
+                disabled={isSaving || editedScript.trim() === voiceoverScript.trim()}
+                className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white shadow-lg"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Apply Changes
+                  </>
                 )}
-                {/* Apply Changes Button */}
-                <Button
-                  onClick={handleApply}
-                  disabled={isSaving || editedPrompt.trim() === beat.sora_prompt.text.trim()}
-                  className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white shadow-lg"
-                >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Apply Changes
-                    </>
-                  )}
-                </Button>
-              </div>
+              </Button>
             </div>
           </DialogFooter>
         </DialogContent>
@@ -541,4 +563,3 @@ export function BeatCardStoryboard({
     </>
   );
 }
-

@@ -25,7 +25,7 @@ export default function ASMRGenerator() {
     : "from-primary to-purple-500";
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden bg-[#0a0a0a]">
+    <div className="h-screen w-screen flex overflow-hidden bg-background">
       {/* Ambient Background Effect */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         {/* Gradient Orb */}
@@ -52,11 +52,11 @@ export default function ASMRGenerator() {
 
         {/* Grid Pattern Overlay */}
         <div 
-          className="absolute inset-0 opacity-[0.015]"
+          className="absolute inset-0 opacity-[0.05] dark:opacity-[0.015]"
           style={{
             backgroundImage: `
-              linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
+              linear-gradient(hsl(var(--border)) 1px, transparent 1px),
+              linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)
             `,
             backgroundSize: '60px 60px'
           }}
@@ -77,7 +77,7 @@ export default function ASMRGenerator() {
       {/* Right Panel - Viewport */}
       <div className="flex-1 relative flex flex-col">
         {/* Top Bar */}
-        <div className="flex-shrink-0 h-14 px-6 flex items-center justify-between border-b border-white/[0.04]">
+        <div className="flex-shrink-0 h-14 px-6 flex items-center justify-between border-b border-[#e5e7eb] dark:border-border">
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">Preview</span>
             {state.selectedCategory && (
@@ -88,11 +88,11 @@ export default function ASMRGenerator() {
                   "text-xs px-2 py-0.5 rounded-full",
                   "bg-gradient-to-r",
                   categoryColor,
-                  "bg-opacity-20"
+                  "bg-opacity-20",
+                  "border border-[#e5e7eb] dark:border-border"
                 )}
                 style={{ 
                   background: `linear-gradient(135deg, ${categoryColor.includes('orange') ? 'rgba(249,115,22,0.2)' : 'rgba(139,92,246,0.2)'}, transparent)`,
-                  border: '1px solid rgba(255,255,255,0.1)'
                 }}
               >
                 {state.selectedCategory.name}
@@ -124,7 +124,7 @@ export default function ASMRGenerator() {
         />
 
         {/* Bottom Bar - Tips */}
-        <div className="flex-shrink-0 h-12 px-6 flex items-center justify-center border-t border-white/[0.04]">
+        <div className="flex-shrink-0 h-12 px-6 flex items-center justify-center border-t border-[#e5e7eb] dark:border-border">
           <p className="text-xs text-muted-foreground/40 text-center">
             {state.isGenerating 
               ? "AI is crafting your ASMR video. This may take a few moments..."

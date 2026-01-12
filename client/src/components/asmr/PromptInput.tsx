@@ -97,11 +97,11 @@ export function PromptInput({
         className={cn(
           "relative rounded-xl overflow-hidden",
           "transition-all duration-300 ease-out",
-          "bg-white/[0.03]",
+          "bg-muted/50 dark:bg-white/[0.03]",
           "border",
           isFocused
             ? "border-primary/40 shadow-[0_0_20px_rgba(139,92,246,0.15)]"
-            : "border-white/[0.08] hover:border-white/[0.12]"
+            : "border-[#e5e7eb] dark:border-border hover:border-primary"
         )}
       >
         {/* Glow Effect when focused */}

@@ -29,6 +29,21 @@ export async function setupAuth(app: Express): Promise<void> {
     tableName: "sessions",
   });
 
+  // Handle session store errors gracefully
+  sessionStore.on('error', (error: Error) => {
+    console.error('[Session Store] Error:', error.message);
+    // Don't crash the app - sessions will fall back to memory if DB is unavailable
+  });
+
+  // Test database connection before setting up session store
+  try {
+    await pool.query('SELECT 1');
+    console.log('[Session Store] Database connection verified');
+  } catch (error) {
+    console.error('[Session Store] Database connection failed:', error instanceof Error ? error.message : 'Unknown error');
+    console.warn('[Session Store] Sessions may not persist if database is unavailable');
+  }
+
   app.use(
     session({
       store: sessionStore,

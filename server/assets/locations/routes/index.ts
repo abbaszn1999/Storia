@@ -280,7 +280,7 @@ router.post(
       }
 
       const { id } = req.params;
-      const { artStyleDescription, negativePrompt, referenceImages } = req.body;
+      const { artStyleDescription, negativePrompt, referenceImages, styleReferenceImage } = req.body;
 
       const location = await storage.getLocation(id);
       if (!location) {
@@ -310,6 +310,7 @@ router.post(
           model: "nano-banana", // Hard-coded for assets library
           negativePrompt,
           referenceImages,
+          styleReferenceImage,
         },
         userId,
         workspace.id

@@ -87,6 +87,7 @@ export default function CharacterVlogMode() {
         if (step1.language) setLanguage(step1.language);
         if (step1.aspectRatio) setAspectRatio(step1.aspectRatio);
         if (step1.videoModel) setVideoModel(step1.videoModel);
+        if (step1.imageModel) setImageModel(step1.imageModel);
         if (step1.voiceActorId !== undefined && step1.voiceActorId !== null) setVoiceActorId(step1.voiceActorId);
         if (step1.voiceOverEnabled !== undefined) setVoiceOverEnabled(step1.voiceOverEnabled);
         if (step1.numberOfScenes !== undefined) setNumberOfScenes(step1.numberOfScenes);
@@ -329,6 +330,7 @@ export default function CharacterVlogMode() {
   const [aspectRatio, setAspectRatio] = useState("9:16");
   const [scriptModel, setScriptModel] = useState("gpt-4o");
   const [videoModel, setVideoModel] = useState(getDefaultVideoModel().value);
+  const [imageModel, setImageModel] = useState("nano-banana");
   const [narrationStyle, setNarrationStyle] = useState<"third-person" | "first-person">("first-person");
   const [voiceActorId, setVoiceActorId] = useState<string | null>(null);
   const [voiceOverEnabled, setVoiceOverEnabled] = useState(true);
@@ -401,6 +403,7 @@ export default function CharacterVlogMode() {
             shotsPerScene,
             characterPersonality,
             videoModel,
+            imageModel,
             aspectRatio,
             duration,
             genres,
@@ -680,6 +683,7 @@ export default function CharacterVlogMode() {
               aspectRatio={aspectRatio}
               scriptModel={scriptModel}
               videoModel={videoModel}
+              imageModel={imageModel}
               narrationStyle={narrationStyle}
               voiceActorId={voiceActorId}
               voiceOverEnabled={voiceOverEnabled}
@@ -701,6 +705,7 @@ export default function CharacterVlogMode() {
               onAspectRatioChange={setAspectRatio}
               onScriptModelChange={setScriptModel}
               onVideoModelChange={setVideoModel}
+              onImageModelChange={setImageModel}
               onNarrationStyleChange={setNarrationStyle}
               onVoiceActorChange={setVoiceActorId}
               onVoiceOverToggle={setVoiceOverEnabled}

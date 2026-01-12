@@ -91,10 +91,10 @@ export function SettingsPanel({
           <div className="space-y-1.5">
             <Label className="text-[11px] text-muted-foreground">Aspect</Label>
             <Select value={aspectRatio} onValueChange={onAspectRatioChange}>
-              <SelectTrigger className="h-9 bg-white/[0.03] border-white/[0.08] text-xs">
+              <SelectTrigger className="h-9 bg-muted/50 dark:bg-white/[0.03] border-[#e5e7eb] dark:border-border text-xs">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-[#1a1a1a] border-white/10">
+              <SelectContent className="bg-popover dark:bg-[#1a1a1a] border-[#e5e7eb] dark:border-border">
                 {availableAspectRatios.map((ratio) => (
                   <SelectItem key={ratio.value} value={ratio.value}>
                     <span className="text-xs">{ratio.value}</span>
@@ -108,10 +108,10 @@ export function SettingsPanel({
           <div className="space-y-1.5">
             <Label className="text-[11px] text-muted-foreground">Quality</Label>
             <Select value={resolution} onValueChange={onResolutionChange}>
-              <SelectTrigger className="h-9 bg-white/[0.03] border-white/[0.08] text-xs">
+              <SelectTrigger className="h-9 bg-muted/50 dark:bg-white/[0.03] border-[#e5e7eb] dark:border-border text-xs">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-[#1a1a1a] border-white/10">
+              <SelectContent className="bg-popover dark:bg-[#1a1a1a] border-[#e5e7eb] dark:border-border">
                 {availableResolutions.map((res) => (
                   <SelectItem key={res.value} value={res.value}>
                     <span className="text-xs">{res.label}</span>
@@ -128,10 +128,10 @@ export function SettingsPanel({
               value={String(duration)} 
               onValueChange={(v) => onDurationChange(Number(v))}
             >
-              <SelectTrigger className="h-9 bg-white/[0.03] border-white/[0.08] text-xs">
+              <SelectTrigger className="h-9 bg-muted/50 dark:bg-white/[0.03] border-[#e5e7eb] dark:border-border text-xs">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-[#1a1a1a] border-white/10">
+              <SelectContent className="bg-popover dark:bg-[#1a1a1a] border-[#e5e7eb] dark:border-border">
                 {availableDurations.map((dur) => (
                   <SelectItem key={dur} value={String(dur)}>
                     <span className="text-xs">{dur}s</span>
@@ -145,7 +145,7 @@ export function SettingsPanel({
         {/* Loop Multiplier - Button Group */}
         <div className={cn(
           "flex items-center justify-between p-2 rounded-lg",
-          "bg-white/[0.02] border border-white/[0.06]"
+          "bg-muted/50 dark:bg-white/[0.02] border border-[#e5e7eb] dark:border-border"
         )}>
           <div className="flex items-center gap-2">
             <Repeat className="h-3.5 w-3.5 text-muted-foreground" />
@@ -161,7 +161,7 @@ export function SettingsPanel({
                   "px-2.5 py-1 text-[10px] font-medium rounded transition-all",
                   loopMultiplier === option.value
                     ? "bg-primary text-primary-foreground"
-                    : "bg-white/[0.05] text-muted-foreground hover:bg-white/[0.1] hover:text-foreground"
+                    : "bg-muted/50 dark:bg-white/[0.05] text-muted-foreground hover:bg-muted dark:hover:bg-white/[0.1] hover:text-foreground"
                 )}
               >
                 {option.label}

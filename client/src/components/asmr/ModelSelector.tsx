@@ -29,8 +29,8 @@ export function ModelSelector({ value, onChange, selectedModelInfo }: ModelSelec
         <SelectTrigger 
           className={cn(
             "w-full h-auto py-2.5 px-3",
-            "bg-white/[0.03] border-white/[0.08]",
-            "hover:bg-white/[0.05] hover:border-white/[0.12]",
+            "bg-muted/50 dark:bg-white/[0.03] border-[#e5e7eb] dark:border-border",
+            "hover:bg-muted dark:hover:bg-white/[0.05] hover:border-primary",
             "focus:ring-1 focus:ring-primary/40",
             "transition-all duration-200"
           )}
@@ -72,14 +72,14 @@ export function ModelSelector({ value, onChange, selectedModelInfo }: ModelSelec
           </div>
         </SelectTrigger>
 
-        <SelectContent className="bg-[#1a1a1a] border-white/10">
+        <SelectContent className="bg-popover dark:bg-[#1a1a1a] border-[#e5e7eb] dark:border-border">
           {VIDEO_MODELS.map((model) => (
             <SelectItem
               key={model.value}
               value={model.value}
               className={cn(
                 "py-3 px-3 cursor-pointer",
-                "focus:bg-white/[0.06]",
+                "focus:bg-muted/50 dark:focus:bg-white/[0.06]",
                 "data-[state=checked]:bg-primary/10"
               )}
             >
@@ -90,7 +90,7 @@ export function ModelSelector({ value, onChange, selectedModelInfo }: ModelSelec
                   "bg-gradient-to-br",
                   model.value === value 
                     ? "from-primary/30 to-purple-500/30 border-primary/30" 
-                    : "from-white/5 to-white/10 border-white/10",
+                    : "from-muted/30 to-muted/50 dark:from-white/5 dark:to-white/10 border-[#e5e7eb] dark:border-border",
                   "flex items-center justify-center",
                   "border"
                 )}>

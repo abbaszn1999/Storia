@@ -145,21 +145,21 @@ export function Viewport({
           "relative w-full max-w-2xl mx-auto",
           aspectClass,
           "rounded-2xl overflow-hidden",
-          "bg-black/40",
-          "border border-white/[0.06]",
+          "bg-muted/50 dark:bg-black/40",
+          "border border-[#e5e7eb] dark:border-border",
           "shadow-2xl shadow-black/50"
         )}
       >
         {/* Background Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-black via-black/95 to-black" />
+        <div className="absolute inset-0 bg-gradient-to-br from-background via-background/95 to-background" />
 
         {/* Animated Grid Pattern */}
         <div 
-          className="absolute inset-0 opacity-[0.02]"
+          className="absolute inset-0 opacity-[0.05] dark:opacity-[0.02]"
           style={{
             backgroundImage: `
-              linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
+              linear-gradient(hsl(var(--border)) 1px, transparent 1px),
+              linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)
             `,
             backgroundSize: '40px 40px'
           }}
@@ -214,15 +214,15 @@ export function Viewport({
                         }
                       }
                     }}
-                    className="h-9 w-9 bg-black/70 hover:bg-black/90 backdrop-blur-sm rounded-full border border-white/10"
+                    className="h-9 w-9 bg-popover dark:bg-black/70 hover:bg-muted dark:hover:bg-black/90 backdrop-blur-sm rounded-full border border-[#e5e7eb] dark:border-border"
                   >
                     {isAudioMuted ? (
-                      <VolumeX className="h-4 w-4 text-white/80" />
+                      <VolumeX className="h-4 w-4 text-foreground/80 dark:text-white/80" />
                     ) : (
-                      <Volume2 className="h-4 w-4 text-white/80" />
+                      <Volume2 className="h-4 w-4 text-foreground/80 dark:text-white/80" />
                     )}
                   </Button>
-                  <span className="text-[10px] text-white/70 bg-black/60 px-2 py-1 rounded-full backdrop-blur-sm">
+                  <span className="text-[10px] text-foreground/80 dark:text-white/70 bg-popover dark:bg-black/60 px-2 py-1 rounded-full backdrop-blur-sm">
                     🎵 ASMR Audio
                   </span>
                 </div>
@@ -251,7 +251,7 @@ export function Viewport({
               />
               
               {/* Dark Overlay */}
-              <div className="absolute inset-0 bg-black/40" />
+              <div className="absolute inset-0 bg-background/60 dark:bg-black/40" />
               
               {/* Generation Progress Overlay */}
               <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
@@ -300,7 +300,7 @@ export function Viewport({
                 </motion.p>
 
                 {/* Progress Bar */}
-                <div className="relative z-10 w-48 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div className="relative z-10 w-48 h-1.5 bg-muted/50 dark:bg-white/10 rounded-full overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${generationProgress}%` }}
@@ -407,13 +407,13 @@ export function Viewport({
               />
               
               {/* Image Badge */}
-              <div className="absolute top-4 left-4 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-white/10">
-                <span className="text-xs font-medium text-white/80">Reference Image</span>
+              <div className="absolute top-4 left-4 px-3 py-1.5 rounded-full bg-popover dark:bg-black/60 backdrop-blur-sm border border-[#e5e7eb] dark:border-border">
+                <span className="text-xs font-medium text-foreground/90 dark:text-white/80">Reference Image</span>
               </div>
               
               {/* Hint Text */}
               <div className="absolute bottom-4 inset-x-4 text-center">
-                <p className="text-xs text-white/60 bg-black/40 backdrop-blur-sm rounded-lg px-3 py-2 inline-block">
+                <p className="text-xs text-foreground/70 dark:text-white/60 bg-popover dark:bg-black/40 backdrop-blur-sm rounded-lg px-3 py-2 inline-block">
                   Click "Generate ASMR Video" to transform this image
                 </p>
               </div>
@@ -438,7 +438,7 @@ export function Viewport({
               <div className="relative z-10 mb-4">
                 <div className={cn(
                   "w-20 h-20 rounded-2xl",
-                  "bg-white/[0.03] border border-white/[0.06]",
+                  "bg-muted/50 dark:bg-white/[0.03] border border-[#e5e7eb] dark:border-border",
                   "flex items-center justify-center"
                 )}>
                   <Video className="h-10 w-10 text-muted-foreground/30" />
@@ -457,10 +457,10 @@ export function Viewport({
         </AnimatePresence>
 
         {/* Corner Decorations */}
-        <div className="absolute top-3 left-3 w-4 h-4 border-l-2 border-t-2 border-white/10 rounded-tl" />
-        <div className="absolute top-3 right-3 w-4 h-4 border-r-2 border-t-2 border-white/10 rounded-tr" />
-        <div className="absolute bottom-3 left-3 w-4 h-4 border-l-2 border-b-2 border-white/10 rounded-bl" />
-        <div className="absolute bottom-3 right-3 w-4 h-4 border-r-2 border-b-2 border-white/10 rounded-br" />
+        <div className="absolute top-3 left-3 w-4 h-4 border-l-2 border-t-2 border-[#e5e7eb] dark:border-border rounded-tl" />
+        <div className="absolute top-3 right-3 w-4 h-4 border-r-2 border-t-2 border-[#e5e7eb] dark:border-border rounded-tr" />
+        <div className="absolute bottom-3 left-3 w-4 h-4 border-l-2 border-b-2 border-[#e5e7eb] dark:border-border rounded-bl" />
+        <div className="absolute bottom-3 right-3 w-4 h-4 border-r-2 border-b-2 border-[#e5e7eb] dark:border-border rounded-br" />
       </motion.div>
 
       {/* Aspect Ratio Label */}

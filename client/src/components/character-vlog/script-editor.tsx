@@ -8,12 +8,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles, Globe, Clock, Palette, MessageSquare, FileText, Wand2, User, MapPin, LayoutGrid, Camera, Grid3x3, Building2, TreePine, Home, MonitorPlay, Wand, Cpu, Radio, Paintbrush, Mic, Film } from "lucide-react";
+import { Loader2, Sparkles, Globe, Clock, Palette, MessageSquare, FileText, Wand2, User, MapPin, LayoutGrid, Camera, Grid3x3, Building2, TreePine, Home, MonitorPlay, Wand, Cpu, Radio, Paintbrush, Mic, Film, RectangleHorizontal, RectangleVertical, Square } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { VIDEO_MODELS, getDefaultVideoModel } from "@/constants/video-models";
+import { VIDEO_MODELS, getDefaultVideoModel, getVideoModelConfig } from "@/constants/video-models";
+import { IMAGE_MODELS, type ImageModelConfig } from "@/constants/image-models";
 
 interface CharacterVlogScriptEditorProps {
   videoId?: string;
@@ -26,6 +27,7 @@ interface CharacterVlogScriptEditorProps {
   shotsPerScene?: number | 'auto';
   characterPersonality?: string;
   videoModel?: string;
+  imageModel?: string;
   aspectRatio?: string;
   duration?: string;
   genres?: string[];
@@ -43,6 +45,8 @@ interface CharacterVlogScriptEditorProps {
   onShotsPerSceneChange?: (shots: number | 'auto') => void;
   onCharacterPersonalityChange?: (personality: string) => void;
   onVideoModelChange?: (model: string) => void;
+  onImageModelChange?: (model: string) => void;
+  onAspectRatioChange?: (aspectRatio: string) => void;
   onUserPromptChange?: (prompt: string) => void;
   onDurationChange?: (duration: string) => void;
   onGenresChange?: (genres: string[]) => void;
@@ -114,6 +118,33 @@ const PERSONALITIES = [
   { value: "adventurous", label: "Adventurous", description: "Bold, daring, and exploratory" },
 ];
 
+const ALL_ASPECT_RATIOS = [
+  { value: "16:9", label: "16:9", description: "Landscape", icon: RectangleHorizontal },
+  { value: "9:16", label: "9:16", description: "Portrait", icon: RectangleVertical },
+  { value: "1:1", label: "1:1", description: "Square", icon: Square },
+  { value: "4:3", label: "4:3", description: "Standard", icon: RectangleHorizontal },
+  { value: "3:4", label: "3:4", description: "Portrait", icon: RectangleVertical },
+  { value: "21:9", label: "21:9", description: "Ultrawide", icon: RectangleHorizontal },
+];
+
+/**
+ * Get compatible aspect ratios based on selected image and video models
+ * Returns intersection of both models' supported aspect ratios
+ */
+const getCompatibleAspectRatios = (
+  imageModel: string,
+  videoModel: string
+): string[] => {
+  const imageConfig = IMAGE_MODELS.find(m => m.value === imageModel);
+  const videoConfig = getVideoModelConfig(videoModel);
+  
+  // Get intersection of both
+  const imageRatios = new Set(imageConfig?.aspectRatios || []);
+  const videoRatios = videoConfig?.aspectRatios || [];
+  
+  return videoRatios.filter(ratio => imageRatios.has(ratio));
+};
+
 export function CharacterVlogScriptEditor({ 
   videoId,
   workspaceId,
@@ -125,6 +156,7 @@ export function CharacterVlogScriptEditor({
   shotsPerScene = 'auto',
   characterPersonality = "energetic",
   videoModel,
+  imageModel = "nano-banana",
   aspectRatio = "9:16",
   duration = "60",
   genres = [],
@@ -142,6 +174,8 @@ export function CharacterVlogScriptEditor({
   onShotsPerSceneChange,
   onCharacterPersonalityChange,
   onVideoModelChange,
+  onImageModelChange,
+  onAspectRatioChange,
   onUserPromptChange,
   onDurationChange,
   onGenresChange,
@@ -164,6 +198,8 @@ export function CharacterVlogScriptEditor({
   const [selectedShotsPerScene, setSelectedShotsPerScene] = useState<number | 'auto'>(shotsPerScene);
   const [selectedPersonality, setSelectedPersonality] = useState(characterPersonality);
   const [selectedVideoModel, setSelectedVideoModel] = useState(videoModel || getDefaultVideoModel().value);
+  const [selectedImageModel, setSelectedImageModel] = useState(imageModel);
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState(aspectRatio);
   const { toast } = useToast();
 
   const accentClasses = "from-[#FF4081] via-[#FF5C8D] to-[#FF6B4A]"; // Gradient pink to orange from logo
@@ -193,7 +229,8 @@ export function CharacterVlogScriptEditor({
           shotsPerScene: selectedShotsPerScene,
           characterPersonality: selectedPersonality,
           videoModel: selectedVideoModel,
-          aspectRatio,
+          imageModel: selectedImageModel,
+          aspectRatio: selectedAspectRatio,
           duration: durationValue,
           genres: selectedGenres,
           tones: selectedTones,
@@ -254,7 +291,8 @@ export function CharacterVlogScriptEditor({
           shotsPerScene: selectedShotsPerScene,
           characterPersonality: selectedPersonality,
           videoModel: selectedVideoModel,
-          aspectRatio,
+          imageModel: selectedImageModel,
+          aspectRatio: selectedAspectRatio,
           duration: durationValue,
           genres: selectedGenres,
           tones: selectedTones,
@@ -369,6 +407,40 @@ export function CharacterVlogScriptEditor({
   const handleVideoModelChange = (value: string) => {
     setSelectedVideoModel(value);
     onVideoModelChange?.(value);
+    
+    // Check if current aspect ratio is compatible with new model
+    const compatibleRatios = getCompatibleAspectRatios(selectedImageModel, value);
+    if (compatibleRatios.length > 0 && !compatibleRatios.includes(selectedAspectRatio)) {
+      // Auto-adjust to first compatible ratio
+      setSelectedAspectRatio(compatibleRatios[0]);
+      onAspectRatioChange?.(compatibleRatios[0]);
+      toast({
+        title: "Aspect Ratio Adjusted",
+        description: `Changed to ${compatibleRatios[0]} (compatible with selected models)`,
+      });
+    }
+  };
+
+  const handleImageModelChange = (value: string) => {
+    setSelectedImageModel(value);
+    onImageModelChange?.(value);
+    
+    // Check if current aspect ratio is compatible with new model
+    const compatibleRatios = getCompatibleAspectRatios(value, selectedVideoModel);
+    if (compatibleRatios.length > 0 && !compatibleRatios.includes(selectedAspectRatio)) {
+      // Auto-adjust to first compatible ratio
+      setSelectedAspectRatio(compatibleRatios[0]);
+      onAspectRatioChange?.(compatibleRatios[0]);
+      toast({
+        title: "Aspect Ratio Adjusted",
+        description: `Changed to ${compatibleRatios[0]} (compatible with selected models)`,
+      });
+    }
+  };
+
+  const handleAspectRatioChange = (value: string) => {
+    setSelectedAspectRatio(value);
+    onAspectRatioChange?.(value);
   };
 
   const ideaCharCount = storyIdea.length;
@@ -569,7 +641,7 @@ export function CharacterVlogScriptEditor({
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-white/70">Target Duration</Label>
                   <Select 
-                    value={duration} 
+                    value={durationValue} 
                     onValueChange={(value) => {
                       setDuration(value);
                       onDurationChange?.(value);
@@ -675,6 +747,107 @@ export function CharacterVlogScriptEditor({
                         </div>
                       </div>
                     );
+                  })()}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Image Model */}
+            <Card className="bg-[#252525] border-white/[0.06]">
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="relative p-1 rounded-md">
+                    <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
+                    <Camera className="w-3.5 h-3.5 text-white relative z-10" />
+                  </div>
+                  <Label className="text-base font-semibold text-white">Image Model</Label>
+                  <span className="text-xs text-white/40">For generating keyframes</span>
+                </div>
+
+                <div className="space-y-2">
+                  <Select 
+                    value={selectedImageModel} 
+                    onValueChange={handleImageModelChange}
+                  >
+                    <SelectTrigger className="h-10 bg-[#0f0f0f] border-white/10 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#121212] border-white/10 max-h-[400px]">
+                      {IMAGE_MODELS.map((model) => (
+                        <SelectItem 
+                          key={model.value} 
+                          value={model.value}
+                          className="text-white focus:bg-[#FF4081]/20 focus:text-white py-3"
+                        >
+                          <div className="flex items-start justify-between w-full gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-white flex items-center gap-2">
+                                {model.label}
+                                {model.badge && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-white/20 text-white/70">
+                                    {model.badge}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-xs text-white/50 mt-0.5">
+                                {model.provider} • {model.description}
+                              </div>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Aspect Ratio */}
+            <Card className="bg-[#252525] border-white/[0.06]">
+              <CardContent className="p-5 space-y-3">
+                <Label className="text-base font-semibold text-white">Aspect Ratio</Label>
+                <p className="text-sm text-white/50">
+                  Showing ratios compatible with both image and video models
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {(() => {
+                    const compatibleRatios = getCompatibleAspectRatios(selectedImageModel, selectedVideoModel);
+                    const ratiosToShow = ALL_ASPECT_RATIOS.filter(ratio => 
+                      compatibleRatios.includes(ratio.value)
+                    );
+                    
+                    if (ratiosToShow.length === 0) {
+                      return (
+                        <div className="col-span-3 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+                          <p className="text-sm text-red-400">
+                            No compatible aspect ratios found for selected models.
+                          </p>
+                        </div>
+                      );
+                    }
+                    
+                    return ratiosToShow.map((ratio) => {
+                      const Icon = ratio.icon;
+                      return (
+                        <button
+                          key={ratio.value}
+                          onClick={() => handleAspectRatioChange(ratio.value)}
+                          className={cn(
+                            "p-3 rounded-lg border transition-all text-center relative overflow-hidden",
+                            selectedAspectRatio === ratio.value
+                              ? "border-white/20"
+                              : "bg-white/5 border-white/10 hover:bg-white/10"
+                          )}
+                          style={selectedAspectRatio === ratio.value ? {
+                            background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                          } : undefined}
+                        >
+                          <Icon className="h-4 w-4 mx-auto mb-1 text-white" />
+                          <div className="font-semibold text-xs text-white">{ratio.label}</div>
+                          <div className="text-[9px] text-white/40">{ratio.description}</div>
+                        </button>
+                      );
+                    });
                   })()}
                 </div>
               </CardContent>

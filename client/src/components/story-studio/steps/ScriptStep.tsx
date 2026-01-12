@@ -121,7 +121,7 @@ function GeneratingScenes({ accentColor }: { accentColor: string }) {
       <div className="text-center space-y-6">
         <div className={cn(
           "w-20 h-20 mx-auto rounded-full animate-spin",
-          "border-4 border-border/50 dark:border-white/10",
+          "border-4 border-[#e5e7eb] dark:border-border",
           "border-t-4",
           "bg-gradient-to-r",
           accentClasses
@@ -273,7 +273,7 @@ export function ScriptStep({
   return (
     <div className="h-full w-full overflow-hidden flex flex-col">
       {/* Header - Fixed */}
-      <div className="flex-shrink-0 px-8 py-6 border-b border-border">
+      <div className="flex-shrink-0 px-8 py-6 border-b border-[#e5e7eb] dark:border-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className={cn(
@@ -327,7 +327,7 @@ export function ScriptStep({
                   "px-3 py-2.5 flex items-center justify-between",
                   "bg-gradient-to-r",
                   accentClasses,
-                  "bg-opacity-10 border-b border-border/50 dark:border-white/10"
+                  "bg-opacity-10 border-b border-[#e5e7eb] dark:border-border"
                 )}>
                   <div className={cn(
                     "px-2.5 py-1 rounded-md text-xs font-bold",
@@ -350,7 +350,7 @@ export function ScriptStep({
                         <SelectTrigger className="w-14 h-6 bg-transparent border-none text-xs text-foreground p-1 gap-1">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-popover border-border">
+                        <SelectContent className="bg-popover border-[#e5e7eb] dark:border-border">
                           {supportedDurations.map((d) => (
                             <SelectItem 
                               key={d} 
@@ -386,7 +386,7 @@ export function ScriptStep({
                       value={scene.description || ''}
                       onChange={(e) => onSceneUpdate(scene.id, { description: e.target.value })}
                       className={cn(
-                        "min-h-[80px] bg-muted/50 dark:bg-white/5 border-border dark:border-white/10",
+                        "min-h-[80px] bg-muted/50 dark:bg-white/5 border-[#e5e7eb] dark:border-border",
                         "focus:border-blue-500/30 resize-none",
                         "text-sm leading-relaxed text-foreground",
                         "placeholder:text-muted-foreground/50 dark:placeholder:text-white/20"
@@ -417,7 +417,7 @@ export function ScriptStep({
                                 onSceneUpdate(scene.id, { soundDescription: e.target.value });
                               }}
                               className={cn(
-                                "min-h-[80px] bg-white/5 border-white/10",
+                                "min-h-[80px] bg-muted/50 dark:bg-white/5 border-[#e5e7eb] dark:border-border",
                                 "focus:border-emerald-500/30 resize-none",
                                 "text-sm leading-relaxed text-white/90",
                                 "placeholder:text-white/20"
@@ -459,7 +459,7 @@ export function ScriptStep({
                               onSceneUpdate(scene.id, { soundDescription: e.target.value });
                             }}
                             className={cn(
-                              "min-h-[80px] bg-muted/50 dark:bg-white/5 border-border dark:border-white/10",
+                              "min-h-[80px] bg-muted/50 dark:bg-white/5 border-[#e5e7eb] dark:border-border",
                               "focus:border-emerald-500/30 resize-none",
                               "text-sm leading-relaxed text-foreground",
                               "placeholder:text-muted-foreground/50 dark:placeholder:text-white/20"
@@ -488,7 +488,7 @@ export function ScriptStep({
                             value={scene.narration || ''}
                             onChange={(e) => onSceneUpdate(scene.id, { narration: e.target.value })}
                             className={cn(
-                              "min-h-[80px] bg-muted/50 dark:bg-white/5 border-border dark:border-white/10",
+                              "min-h-[80px] bg-muted/50 dark:bg-white/5 border-[#e5e7eb] dark:border-border",
                               "focus:border-purple-500/30 resize-none",
                               "text-sm leading-relaxed text-foreground",
                               "placeholder:text-muted-foreground/50 dark:placeholder:text-white/20"
@@ -540,7 +540,7 @@ export function ScriptStep({
             <button
               onClick={onSceneAdd}
               className={cn(
-                "w-full h-full rounded-xl border-2 border-dashed border-border",
+                "w-full h-full rounded-xl border-2 border-dashed border-[#e5e7eb] dark:border-border",
                 "bg-muted/30 dark:bg-white/[0.02] hover:bg-muted/50 dark:hover:bg-white/[0.05]",
                 "flex flex-col items-center justify-center gap-3",
                 "transition-all duration-200 group"
@@ -563,7 +563,7 @@ export function ScriptStep({
       </div>
 
       {/* Footer Stats - Fixed */}
-      <div className="flex-shrink-0 px-8 py-4 border-t border-border bg-muted/30 dark:bg-black/20">
+      <div className="flex-shrink-0 px-8 py-4 border-t border-[#e5e7eb] dark:border-border bg-muted/30 dark:bg-black/20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <p className="text-sm text-muted-foreground">

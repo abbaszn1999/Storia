@@ -109,11 +109,11 @@ export function CategorySelector({ selectedCategory, onSelect }: CategorySelecto
                   // Fallback to gradient if no image
                   <div className={cn(
                     "absolute inset-0 rounded-xl",
-                    "bg-white/[0.03] backdrop-blur-sm",
-                    "border border-white/[0.06]",
+                    "bg-muted/50 dark:bg-white/[0.03] backdrop-blur-sm",
+                    "border border-[#e5e7eb] dark:border-border",
                     "transition-all duration-300",
-                    isSelected && "bg-white/[0.08] border-white/[0.15]",
-                    !isSelected && "group-hover:bg-white/[0.06] group-hover:border-white/[0.1]"
+                    isSelected && "bg-primary/20 border-primary",
+                    !isSelected && "group-hover:bg-muted dark:group-hover:bg-white/[0.06] group-hover:border-primary"
                   )} />
                 )}
 
@@ -122,18 +122,18 @@ export function CategorySelector({ selectedCategory, onSelect }: CategorySelecto
                   {/* Icon Container (Small & Floating) */}
                   <div className={cn(
                     "mb-auto mt-1 p-1.5 rounded-full backdrop-blur-md",
-                    "bg-white/10 border border-white/20",
+                    "bg-muted/50 dark:bg-white/10 border border-[#e5e7eb] dark:border-border",
                     "transition-transform duration-300",
                     "group-hover:scale-110",
                     isSelected && "bg-primary text-white border-primary"
                   )}>
-                    <Icon className="h-4 w-4 text-white" />
+                    <Icon className="h-4 w-4 text-foreground dark:text-white" />
                   </div>
 
                   {/* Text */}
                   <div className="space-y-0 w-full">
                     <h4 className={cn(
-                      "text-[11px] font-semibold truncate text-center text-white",
+                      "text-[11px] font-semibold truncate text-center text-foreground dark:text-white",
                       "drop-shadow-md"
                     )}>
                       {category.name.split(' ')[0]}

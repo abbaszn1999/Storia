@@ -15,15 +15,12 @@ export interface BeatGenerationState {
 }
 
 export interface BeatPrompt {
-  beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4';
+  beatId: 'beat1' | 'beat2' | 'beat3';
   beatName: string;
-  isConnectedToPrevious: boolean;
   sora_prompt: {
     text: string;
   };
-  input_image_type: 'hero' | 'previous_frame';
-  shots_in_beat: string[];
-  total_duration: 8;
+  total_duration: 12;
   audio_guidance?: {
     // Note: voiceover removed, handled by Agent 5.2 separately
     sound_effects?: {
@@ -65,7 +62,7 @@ export interface VoiceoverScript {
 
 export interface VoiceoverScriptOutput {
   beat_scripts: Array<{
-    beatId: 'beat1' | 'beat2' | 'beat3' | 'beat4';
+    beatId: 'beat1' | 'beat2' | 'beat3';
     voiceoverScript: VoiceoverScript;
   }>;
   fullScript?: {

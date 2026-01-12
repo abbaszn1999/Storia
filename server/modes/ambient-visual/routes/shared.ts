@@ -26,6 +26,39 @@ export const upload = multer({
   },
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUDIO FILE UPLOAD (for custom background music)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Configure multer for audio file uploads
+export const audioUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB max for audio files
+  },
+  fileFilter: (_req, file, cb) => {
+    // Allow audio files: MP3, WAV, M4A, OGG
+    const allowedMimeTypes = [
+      'audio/mpeg',
+      'audio/mp3',
+      'audio/wav',
+      'audio/x-wav',
+      'audio/m4a',
+      'audio/x-m4a',
+      'audio/ogg',
+      'audio/aac',
+    ];
+    const allowedExtensions = /\.(mp3|wav|m4a|ogg|aac)$/i;
+    
+    if (allowedMimeTypes.some(type => file.mimetype.includes(type.split('/')[1])) || 
+        allowedExtensions.test(file.originalname)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only audio files are allowed (MP3, WAV, M4A, OGG)'));
+    }
+  },
+});
+
 // In-memory storage for temporary uploads
 export interface TempUpload {
   buffer: Buffer;

@@ -11,6 +11,9 @@ export type TextOverlayStyle = 'modern' | 'cinematic' | 'bold';
 // Language options
 export type Language = 'ar' | 'en';
 
+// Background music style options
+export type MusicStyle = 'cinematic' | 'upbeat' | 'calm' | 'corporate' | 'electronic' | 'emotional' | 'inspiring';
+
 // Step 1: Atmosphere data - All settings from the Atmosphere phase
 export interface Step1Data {
   // Animation Mode (from onboarding)
@@ -54,6 +57,9 @@ export interface Step1Data {
   segmentLoopCount: 'auto' | number;
   shotLoopEnabled: boolean;
   shotLoopCount: 'auto' | number;
+  
+  // Background Music toggle (music style/url is in Step2Data)
+  backgroundMusicEnabled: boolean;
   
   // Voiceover
   voiceoverEnabled: boolean;
@@ -109,6 +115,11 @@ export interface Step2Data {
   visualRhythm: string;
   referenceImages: string[];
   imageCustomInstructions?: string;
+  // Background Music (shown in Visual World when enabled in Step 1)
+  musicStyle?: MusicStyle;
+  customMusicUrl?: string;
+  customMusicDuration?: number;
+  hasCustomMusic?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -173,8 +184,7 @@ export interface ShotVersion {
   videoUrl?: string | null;
   videoDuration?: number | null;
   
-  // Sound Effect (from Agent 5.4: Sound Effect Generator)
-  videoWithAudioUrl?: string | null;  // Video URL with embedded sound effects
+  // Sound Effect Prompt (from Agent 5.3: Sound Effect Prompt Generator)
   soundEffectPrompt?: string | null;  // Prompt used for sound effect generation
   
   // Status tracking
@@ -580,15 +590,167 @@ export interface Step5Data {
   voiceoverDuration?: number;     // Audio duration in seconds
   voiceoverStatus?: VoiceoverStatus;
   
+  // Background Music data (from Agent 5.4)
+  generatedMusicUrl?: string;     // CDN URL of AI-generated music
+  generatedMusicDuration?: number; // Music duration in seconds
+  generatedMusicStyle?: MusicStyle; // Style used for generation
+  
   // Loop settings (initialized from Step1Data on step 4->5 transition)
   scenesWithLoops?: Scene[];              // Scenes with initialized loopCount
   shotsWithLoops?: Record<string, Shot[]>; // Shots keyed by sceneId with loopCount
   loopSettingsLocked?: boolean;           // User can lock to prevent accidental changes
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 6: PREVIEW PHASE - SHOTSTACK INTEGRATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Timeline scene for Step 6 preview
+ * Contains scene data with order information for timeline display
+ */
+export interface TimelineSceneItem {
+  id: string;
+  sceneNumber: number;
+  title: string;
+  description?: string | null;
+  duration?: number | null;
+  loopCount?: number | null;
+  order: number;  // For reordering in timeline
+}
+
+/**
+ * Timeline shot for Step 6 preview
+ * Contains shot data with order and timing information
+ */
+export interface TimelineShotItem {
+  id: string;
+  sceneId: string;
+  shotNumber: number;
+  duration: number;
+  loopCount?: number | null;
+  transition?: string | null;
+  videoUrl?: string | null;
+  order: number;  // For reordering within scene
+}
+
+/**
+ * Audio track item for timeline
+ */
+export interface AudioTrackItem {
+  id: string;
+  shotId?: string;         // For SFX linked to specific shot
+  src: string;
+  start: number;           // Start time in seconds
+  duration: number;        // Duration in seconds
+  volume: number;          // 0-1
+  fadeIn?: boolean;
+  fadeOut?: boolean;
+  order: number;           // For reordering
+}
+
+/**
+ * Volume settings for all audio tracks
+ */
+export interface VolumeSettings {
+  master: number;          // 0-1, applied to all tracks
+  sfx: number;             // 0-1, sound effects volume
+  voiceover: number;       // 0-1, narration volume
+  music: number;           // 0-1, background music volume
+}
+
+/**
+ * Render status for Shotstack renders
+ */
+export type PreviewRenderStatus = 'idle' | 'queued' | 'rendering' | 'done' | 'failed';
+
+/**
+ * Preview render state
+ */
+export interface PreviewRenderState {
+  id: string;
+  status: PreviewRenderStatus;
+  url?: string;
+  progress?: number;       // 0-100
+  error?: string;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+/**
+ * Step 6 Data - Preview Phase with Shotstack Integration
+ * 
+ * Contains:
+ * - Timeline state with scenes, shots, and audio tracks
+ * - Volume settings for audio mixing
+ * - Preview and final render states
+ */
 export interface Step6Data {
+  // Timeline state (initialized from Step 5 data)
+  timeline?: {
+    scenes: TimelineSceneItem[];
+    shots: Record<string, TimelineShotItem[]>;  // Keyed by sceneId
+    audioTracks: {
+      sfx: AudioTrackItem[];                     // Sound effects per shot
+      voiceover?: AudioTrackItem;                // Global voiceover track
+      music?: AudioTrackItem;                    // Background music track
+    };
+  };
+  
+  // Volume settings
+  volumes?: VolumeSettings;
+  
+  // Preview render state (lower quality, faster)
+  previewRender?: PreviewRenderState;
+  
+  // Final render state (full quality)
+  finalRender?: PreviewRenderState;
+  
+  // Legacy fields (for backwards compatibility during migration)
   exportQuality?: string;
   fileFormat?: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 7 DATA - EXPORT PHASE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Step 7 Data - Export Phase
+ * 
+ * Contains:
+ * - Render state and progress tracking
+ * - Final export URLs (video and thumbnail)
+ * - Export metadata (resolution, format, duration)
+ */
+export interface Step7Data {
+  // Render identification
+  renderId?: string;                 // Shotstack render ID
+  
+  // Render status tracking
+  // 'uploading' prevents multiple Bunny uploads while large file upload is in progress
+  renderStatus: 'pending' | 'queued' | 'fetching' | 'rendering' | 'saving' | 'uploading' | 'done' | 'failed';
+  renderProgress: number;            // 0-100 percentage
+  
+  // Final export URLs (after Bunny CDN upload)
+  exportUrl?: string;                // Final video URL on Bunny CDN
+  thumbnailUrl?: string;             // Thumbnail URL on Bunny CDN
+  
+  // Export settings
+  resolution: string;                // '720p' | '1080p' | '4k'
+  format: string;                    // 'mp4'
+  
+  // Video metadata
+  duration: number;                  // Total duration in seconds
+  aspectRatio?: string;              // '16:9', '9:16', etc.
+  sceneCount?: number;               // Number of scenes
+  
+  // Timestamps
+  startedAt?: string;                // ISO timestamp when render started
+  completedAt?: string;              // ISO timestamp when render completed
+  
+  // Error handling
+  error?: string;                    // Error message if failed
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -694,9 +856,9 @@ export interface SoundEffectGeneratorInput {
 }
 
 export interface SoundEffectGeneratorOutput {
-  videoWithAudioUrl: string;       // CDN URL of video with embedded audio
+  audioUrl: string;                // CDN URL of extracted audio (MP3)
   originalMMAudioUrl: string;      // Original MMAudio URL (expires in 24h)
-  fileSize: number;                // File size in bytes
+  fileSize: number;                // Audio file size in bytes
   cost?: number;
 }
 
@@ -730,6 +892,53 @@ export interface VoiceoverAudioGeneratorInput {
 export interface VoiceoverAudioGeneratorOutput {
   audioUrl: string;                // CDN URL of generated audio
   duration: number;                // Actual audio duration in seconds
+  cost?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BACKGROUND MUSIC GENERATOR - AI INPUT/OUTPUT (Agent 5.4)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for background music generation (Agent 5.4)
+ * Generates AI background music using ElevenLabs Music API
+ */
+export interface BackgroundMusicGeneratorInput {
+  // Music style (from Step2Data)
+  musicStyle: MusicStyle;
+  
+  // Atmosphere context (from Step1Data)
+  mood: string;
+  theme: string;
+  timeContext?: string;
+  season?: string;
+  moodDescription?: string;
+  
+  // Duration (calculated from scenes/shots with loops)
+  totalDuration: number;           // Total video duration in seconds
+  
+  // Scene context (for musical narrative)
+  scenes?: Array<{
+    sceneNumber: number;
+    title: string;
+    description?: string | null;
+  }>;
+  
+  // Video context (for CDN path)
+  videoId: string;
+  videoTitle: string;
+  videoCreatedAt?: Date | string;  // Video creation date for path
+  
+  // User context (for CDN path)
+  userId: string;
+  workspaceId: string;
+  workspaceName: string;
+}
+
+export interface BackgroundMusicGeneratorOutput {
+  musicUrl: string;                // CDN URL of generated music
+  duration: number;                // Actual music duration in seconds
+  style: MusicStyle;               // Style used for generation
   cost?: number;
 }
 

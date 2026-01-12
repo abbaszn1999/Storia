@@ -4,7 +4,7 @@ import { VisualWorldTab, type TempReferenceImage } from "./visual-world-tab";
 import { FlowDesignTab } from "./flow-design-tab";
 import { StoryboardEditor } from "./storyboard-editor";
 import { SoundscapeTab } from "./soundscape-tab";
-import { PreviewTab } from "./preview-tab";
+import { PreviewTab, type PreviewTabRef } from "./preview-tab";
 import { ExportTab } from "./export-tab";
 import { getDefaultVideoModel } from "@/constants/video-models";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +15,7 @@ import type { Scene, Shot, ShotVersion, ContinuityGroup, ReferenceImage } from "
 export interface AmbientVisualWorkflowRef {
   saveCurrentStep: () => Promise<boolean>;
   goToNextStep: () => Promise<void>;
+  getCurrentVolumes: () => Promise<{ master: number; sfx: number; voiceover: number; music: number } | null>;
   isSaving: boolean;
   canContinue: boolean;  // Whether current step has valid data to continue
 }
@@ -52,6 +53,10 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
 }, ref) => {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Ref to PreviewTab for getting volumes
+  const previewTabRef = useRef<PreviewTabRef>(null);
+  
   // Track the videoId that was used to initialize, to detect when we need to re-initialize
   const [initializedForVideoId, setInitializedForVideoId] = useState<string | null>(null);
   const [step2Initialized, setStep2Initialized] = useState(false);
@@ -91,6 +96,11 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   const [imageModel, setImageModel] = useState("nano-banana");
   const [imageResolution, setImageResolution] = useState("auto");
   const [aspectRatio, setAspectRatio] = useState("16:9");
+  const [backgroundMusicEnabled, setBackgroundMusicEnabled] = useState(false);
+  const [musicStyle, setMusicStyle] = useState<'cinematic' | 'upbeat' | 'calm' | 'corporate' | 'electronic' | 'emotional' | 'inspiring'>('cinematic');
+  const [customMusicUrl, setCustomMusicUrl] = useState<string>('');
+  const [customMusicDuration, setCustomMusicDuration] = useState<number>(0);
+  const [hasCustomMusic, setHasCustomMusic] = useState(false);
   const [voiceoverEnabled, setVoiceoverEnabled] = useState(false);
   const [voiceoverStory, setVoiceoverStory] = useState("");
   const [voiceId, setVoiceId] = useState("");
@@ -157,6 +167,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   // Step 5 Soundscape State
   const [loopSettingsLocked, setLoopSettingsLocked] = useState(false);
   const [step5Initialized, setStep5Initialized] = useState(false);
+  const step5DataAppliedRef = useRef<boolean>(false);
   
   // Debounce timer ref for auto-saving step4 settings
   const step4SettingsSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -237,6 +248,9 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     if (data.shotLoopEnabled !== undefined) setShotLoopEnabled(data.shotLoopEnabled as boolean);
     if (data.shotLoopCount !== undefined) setShotLoopCount(data.shotLoopCount as 'auto' | number);
     
+    // Restore Background Music toggle (music style/url is in step2Data)
+    if (data.backgroundMusicEnabled !== undefined) setBackgroundMusicEnabled(data.backgroundMusicEnabled as boolean);
+    
     // Restore Voiceover settings
     if (data.voiceoverEnabled !== undefined) setVoiceoverEnabled(data.voiceoverEnabled as boolean);
     if (data.voiceoverStory) setVoiceoverStory(data.voiceoverStory as string);
@@ -300,6 +314,12 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     
     if (data.imageCustomInstructions) setImageCustomInstructions(data.imageCustomInstructions as string);
     
+    // Restore Background Music settings (stored in step2Data)
+    if (data.musicStyle) setMusicStyle(data.musicStyle as 'cinematic' | 'upbeat' | 'calm' | 'corporate' | 'electronic' | 'emotional' | 'inspiring');
+    if (data.customMusicUrl) setCustomMusicUrl(data.customMusicUrl as string);
+    if (data.customMusicDuration !== undefined) setCustomMusicDuration(data.customMusicDuration as number);
+    if (data.hasCustomMusic !== undefined) setHasCustomMusic(data.hasCustomMusic as boolean);
+    
     setStep2Initialized(true);
     console.log('[AmbientWorkflow] Step2 data restored successfully');
   }, [initialStep2Data, videoId, initializedForVideoId, step2Initialized]);
@@ -335,45 +355,115 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     });
     
     // Restore scenes - prefer step4Data (has model settings), fallback to step3Data
+    // IMPORTANT: Preserve loopCount from step5Data if it exists (step5Data is restored later)
     if (hasStep4Scenes) {
-      const restoredScenes = (step4Data.scenes as Scene[]).map(scene => ({
-        ...scene,
-        createdAt: scene.createdAt ? new Date(scene.createdAt) : new Date(),
-      }));
-      setScenes(restoredScenes);
-      console.log('[AmbientWorkflow] Restored scenes from step4Data (with models):', restoredScenes.length);
+      setScenes(prev => {
+        const step4Scenes = (step4Data.scenes as Scene[]).map(scene => ({
+          ...scene,
+          createdAt: scene.createdAt ? new Date(scene.createdAt) : new Date(),
+        }));
+        // Preserve loopCount from existing scenes (from step5Data if already restored)
+        const sceneMap = new Map(prev.map(s => [s.id, s]));
+        const restoredScenes = step4Scenes.map(scene => {
+          const existingScene = sceneMap.get(scene.id);
+          return {
+            ...scene,
+            // Preserve loopCount if it exists in current state (from step5Data)
+            loopCount: existingScene?.loopCount ?? scene.loopCount,
+          };
+        });
+        console.log('[AmbientWorkflow] Restored scenes from step4Data (with models), preserving loopCount:', 
+          restoredScenes.map(s => ({ id: s.id, loopCount: s.loopCount }))
+        );
+        return restoredScenes;
+      });
     } else if (data.scenes && Array.isArray(data.scenes)) {
-      const restoredScenes = (data.scenes as Scene[]).map(scene => ({
-        ...scene,
-        createdAt: scene.createdAt ? new Date(scene.createdAt) : new Date(),
-      }));
-      setScenes(restoredScenes);
-      console.log('[AmbientWorkflow] Restored scenes from step3Data (fallback):', restoredScenes.length);
+      setScenes(prev => {
+        const step3Scenes = (data.scenes as Scene[]).map(scene => ({
+          ...scene,
+          createdAt: scene.createdAt ? new Date(scene.createdAt) : new Date(),
+        }));
+        // Preserve loopCount from existing scenes (from step5Data if already restored)
+        const sceneMap = new Map(prev.map(s => [s.id, s]));
+        const restoredScenes = step3Scenes.map(scene => {
+          const existingScene = sceneMap.get(scene.id);
+          return {
+            ...scene,
+            // Preserve loopCount if it exists in current state (from step5Data)
+            loopCount: existingScene?.loopCount ?? scene.loopCount,
+          };
+        });
+        console.log('[AmbientWorkflow] Restored scenes from step3Data (fallback), preserving loopCount:', 
+          restoredScenes.map(s => ({ id: s.id, loopCount: s.loopCount }))
+        );
+        return restoredScenes;
+      });
     }
     
     // Restore shots - prefer step4Data (has model settings), fallback to step3Data
+    // IMPORTANT: Preserve loopCount from step5Data if it exists (step5Data is restored later)
     if (hasStep4Shots) {
-      const restoredShots: { [sceneId: string]: Shot[] } = {};
-      Object.entries(step4Data.shots as Record<string, Shot[]>).forEach(([sceneId, sceneShots]) => {
-        restoredShots[sceneId] = sceneShots.map(shot => ({
-          ...shot,
-          createdAt: shot.createdAt ? new Date(shot.createdAt) : new Date(),
-          updatedAt: shot.updatedAt ? new Date(shot.updatedAt) : new Date(),
-        }));
+      setShots(prev => {
+        const restoredShots: { [sceneId: string]: Shot[] } = {};
+        Object.entries(step4Data.shots as Record<string, Shot[]>).forEach(([sceneId, sceneShots]) => {
+          // CRITICAL: Strip audio fields from step4Data - they don't belong there
+          // Only preserve audio from existing state (which comes from step5Data)
+          const existingShots = prev[sceneId] || [];
+          const shotMap = new Map(existingShots.map(s => [s.id, s]));
+          restoredShots[sceneId] = sceneShots.map(shot => {
+            const existingShot = shotMap.get(shot.id);
+            const { soundEffectUrl, soundEffectDescription, ...shotWithoutAudio } = shot;
+            return {
+              ...shotWithoutAudio,
+              createdAt: shot.createdAt ? new Date(shot.createdAt) : new Date(),
+              updatedAt: shot.updatedAt ? new Date(shot.updatedAt) : new Date(),
+              // Preserve loopCount from existing state (from step5Data if already restored)
+              loopCount: existingShot?.loopCount ?? shot.loopCount,
+              // Only preserve audio from existing state (step5Data), never from step4Data
+              soundEffectDescription: existingShot?.soundEffectDescription,
+              soundEffectUrl: existingShot?.soundEffectUrl,
+            };
+          });
+        });
+        console.log('[AmbientWorkflow] Loaded shots from step4Data (stripped audio fields):', 
+          Object.entries(restoredShots).map(([sceneId, shots]) => ({
+            sceneId,
+            shots: shots.map(s => ({ id: s.id, loopCount: s.loopCount })),
+          }))
+        );
+        return restoredShots;
       });
-      setShots(restoredShots);
-      console.log('[AmbientWorkflow] Restored shots from step4Data (with models):', Object.values(restoredShots).flat().length);
     } else if (data.shots && typeof data.shots === 'object') {
-      const restoredShots: { [sceneId: string]: Shot[] } = {};
-      Object.entries(data.shots as Record<string, Shot[]>).forEach(([sceneId, sceneShots]) => {
-        restoredShots[sceneId] = sceneShots.map(shot => ({
-          ...shot,
-          createdAt: shot.createdAt ? new Date(shot.createdAt) : new Date(),
-          updatedAt: shot.updatedAt ? new Date(shot.updatedAt) : new Date(),
-        }));
+      setShots(prev => {
+        const restoredShots: { [sceneId: string]: Shot[] } = {};
+        Object.entries(data.shots as Record<string, Shot[]>).forEach(([sceneId, sceneShots]) => {
+          // CRITICAL: Strip audio fields from step3Data - they don't belong there
+          // Only preserve audio from existing state (which comes from step5Data)
+          const existingShots = prev[sceneId] || [];
+          const shotMap = new Map(existingShots.map(s => [s.id, s]));
+          restoredShots[sceneId] = sceneShots.map(shot => {
+            const existingShot = shotMap.get(shot.id);
+            const { soundEffectUrl, soundEffectDescription, ...shotWithoutAudio } = shot;
+            return {
+              ...shotWithoutAudio,
+              createdAt: shot.createdAt ? new Date(shot.createdAt) : new Date(),
+              updatedAt: shot.updatedAt ? new Date(shot.updatedAt) : new Date(),
+              // Preserve loopCount from existing state (from step5Data if already restored)
+              loopCount: existingShot?.loopCount ?? shot.loopCount,
+              // Only preserve audio from existing state (step5Data), never from step3Data
+              soundEffectDescription: existingShot?.soundEffectDescription,
+              soundEffectUrl: existingShot?.soundEffectUrl,
+            };
+          });
+        });
+        console.log('[AmbientWorkflow] Loaded shots from step3Data (stripped audio fields):', 
+          Object.entries(restoredShots).map(([sceneId, shots]) => ({
+            sceneId,
+            shots: shots.map(s => ({ id: s.id, loopCount: s.loopCount })),
+          }))
+        );
+        return restoredShots;
       });
-      setShots(restoredShots);
-      console.log('[AmbientWorkflow] Restored shots from step3Data (fallback):', Object.values(restoredShots).flat().length);
     }
     
     // Restore continuity groups (always from step3Data)
@@ -484,25 +574,95 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   }, [initialStep4Data, videoId, initializedForVideoId, step3Initialized, step4Initialized]);
 
   // Restore Step 5 (Soundscape) data - loop counts, lock state
+  // This MUST run after step4 is initialized
   useEffect(() => {
-    if (!initialStep5Data || !videoId) return;
-    if (initializedForVideoId !== videoId) return;
-    if (step5Initialized) return;
+    console.log('[AmbientWorkflow] Step5 restoration useEffect triggered:', {
+      hasInitialStep5Data: !!initialStep5Data,
+      videoId,
+      initializedForVideoId,
+      step4Initialized,
+      step5DataApplied: step5DataAppliedRef.current,
+    });
+    
+    if (!initialStep5Data || !videoId) {
+      console.log('[AmbientWorkflow] Step5 restoration skipped: missing initialStep5Data or videoId');
+      return;
+    }
+    if (initializedForVideoId !== videoId) {
+      console.log('[AmbientWorkflow] Step5 restoration skipped: videoId mismatch');
+      return;
+    }
     if (!step4Initialized) {
       console.log('[AmbientWorkflow] Waiting for step4 to initialize before step5');
       return;
     }
     
+    // Check if we already have the correct loop counts applied
+    // If scenes/shots already have loopCount values that match step5Data, skip restoration
     const data = initialStep5Data as {
       scenesWithLoops?: Scene[];
       shotsWithLoops?: Record<string, Shot[]>;
       loopSettingsLocked?: boolean;
     };
+    
+    // Skip if already applied AND data matches (to avoid unnecessary re-applications)
+    if (step5DataAppliedRef.current) {
+      // Check if current state matches step5Data - if so, skip
+      const scenesMatch = !data.scenesWithLoops || scenes.every(scene => {
+        const step5Scene = data.scenesWithLoops!.find(s => s.id === scene.id);
+        return !step5Scene || scene.loopCount === step5Scene.loopCount;
+      });
+      const shotsMatch = !data.shotsWithLoops || Object.entries(shots).every(([sceneId, sceneShots]) => {
+        const step5Shots = data.shotsWithLoops![sceneId];
+        if (!step5Shots) return true;
+        return sceneShots.every(shot => {
+          const step5Shot = step5Shots.find(s => s.id === shot.id);
+          return !step5Shot || shot.loopCount === step5Shot.loopCount;
+        });
+      });
+      
+      if (scenesMatch && shotsMatch) {
+        console.log('[AmbientWorkflow] Step5 restoration skipped: data already matches step5Data');
+        return;
+      } else {
+        console.log('[AmbientWorkflow] Step5 restoration needed: data mismatch detected', {
+          scenesMatch,
+          shotsMatch,
+        });
+        // Reset the flag so we can re-apply
+        step5DataAppliedRef.current = false;
+      }
+    }
 
     console.log('[AmbientWorkflow] Step5 restore check:', {
+      hasInitialStep5Data: !!initialStep5Data,
       hasScenesWithLoops: !!data.scenesWithLoops,
+      scenesWithLoopsCount: data.scenesWithLoops?.length,
+      sceneLoopCounts: data.scenesWithLoops?.map(s => ({ 
+        id: s.id, 
+        sceneNumber: s.sceneNumber,
+        loopCount: s.loopCount,
+        loopCountType: typeof s.loopCount,
+      })),
       hasShotsWithLoops: !!data.shotsWithLoops,
+      shotsWithLoopsScenes: data.shotsWithLoops ? Object.keys(data.shotsWithLoops) : [],
+      shotLoopCounts: data.shotsWithLoops ? Object.entries(data.shotsWithLoops).map(([sceneId, shots]) => ({
+        sceneId,
+        shots: shots.map(s => ({ 
+          id: s.id, 
+          shotNumber: s.shotNumber,
+          loopCount: s.loopCount,
+          loopCountType: typeof s.loopCount,
+        })),
+      })) : [],
       loopSettingsLocked: data.loopSettingsLocked,
+      currentScenesCount: scenes.length,
+      currentShotsCount: Object.keys(shots).length,
+      currentSceneLoopCounts: scenes.map(s => ({ id: s.id, loopCount: s.loopCount })),
+      currentShotLoopCounts: Object.entries(shots).map(([sceneId, sceneShots]) => ({
+        sceneId,
+        shots: sceneShots.map(s => ({ id: s.id, loopCount: s.loopCount })),
+      })),
     });
 
     // Restore loop settings lock state
@@ -510,58 +670,112 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
       setLoopSettingsLocked(data.loopSettingsLocked);
     }
 
-    // Merge loop counts from step5Data into existing scenes/shots
-    // If loopCount is missing (old data), default to 1 (no looping)
+    // Apply loop counts from step5Data directly to scenes/shots
+    // This MUST happen after step4 is initialized to ensure scenes/shots exist
     if (data.scenesWithLoops && data.scenesWithLoops.length > 0) {
       setScenes(prev => {
-        // Create a map of loop counts from step5Data
-        const loopCountMap = new Map(
-          data.scenesWithLoops!.map(s => [s.id, s.loopCount])
+        // Create a map of ALL scene data from step5Data (not just loopCount)
+        const step5SceneMap = new Map(
+          data.scenesWithLoops!.map(s => [s.id, s])
         );
-        // Merge with existing scenes, defaulting to 1 if missing
-        return prev.map(scene => ({
-          ...scene,
-          loopCount: loopCountMap.get(scene.id) ?? scene.loopCount ?? 1,
-        }));
+        console.log('[AmbientWorkflow] Applying step5Data loop counts to scenes:', {
+          step5ScenesCount: data.scenesWithLoops!.length,
+          currentScenesCount: prev.length,
+          step5SceneIds: Array.from(step5SceneMap.keys()),
+          currentSceneIds: prev.map(s => s.id),
+        });
+        // Apply step5Data loop counts directly, preserving other scene fields
+        const updated = prev.map(scene => {
+          const step5Scene = step5SceneMap.get(scene.id);
+          if (step5Scene && typeof step5Scene.loopCount === 'number') {
+            console.log(`[AmbientWorkflow] Applying loopCount ${step5Scene.loopCount} to scene ${scene.sceneNumber} (${scene.id})`);
+            return {
+              ...scene,
+              loopCount: step5Scene.loopCount,
+            };
+          } else {
+            console.warn(`[AmbientWorkflow] Scene ${scene.sceneNumber} (${scene.id}) not found in step5Data or has invalid loopCount`);
+          }
+          return scene;
+        });
+        console.log('[AmbientWorkflow] Scene loop counts after restoration:', 
+          updated.map(s => ({ 
+            id: s.id, 
+            sceneNumber: s.sceneNumber,
+            loopCount: s.loopCount,
+            loopCountType: typeof s.loopCount,
+          }))
+        );
+        return updated;
       });
-      console.log('[AmbientWorkflow] Restored scene loop counts:', data.scenesWithLoops.length);
+    } else {
+      console.warn('[AmbientWorkflow] No scenesWithLoops in step5Data to restore');
     }
 
     if (data.shotsWithLoops && Object.keys(data.shotsWithLoops).length > 0) {
       setShots(prev => {
         const newShots = { ...prev };
-        // For each scene's shots, merge ALL fields from step5Data (loopCount, soundEffectDescription, etc.)
+        console.log('[AmbientWorkflow] Applying step5Data loop counts to shots:', {
+          step5ShotsScenes: Object.keys(data.shotsWithLoops!),
+          currentShotsScenes: Object.keys(prev),
+          step5ShotsCount: Object.values(data.shotsWithLoops!).flat().length,
+          currentShotsCount: Object.values(prev).flat().length,
+        });
+        // Apply step5Data loop counts and soundscape data directly
         for (const sceneId of Object.keys(data.shotsWithLoops!)) {
           const step5Shots = data.shotsWithLoops![sceneId] || [];
-          // Create a map of all shot data from step5Data
+          // Create a map of shot data from step5Data
           const step5ShotMap = new Map(
             step5Shots.map(s => [s.id, s])
           );
           if (newShots[sceneId]) {
             newShots[sceneId] = newShots[sceneId].map(shot => {
               const step5Shot = step5ShotMap.get(shot.id);
-              if (step5Shot) {
-                // Merge all fields from step5Data shot (loopCount, soundEffectDescription, soundEffectUrl, etc.)
-                // but preserve fields that exist in the current shot that aren't in step5Data
+              if (step5Shot && typeof step5Shot.loopCount === 'number') {
+                console.log(`[AmbientWorkflow] Applying loopCount ${step5Shot.loopCount} to shot ${shot.shotNumber} (${shot.id}) in scene ${sceneId}`);
+                // Apply step5Data values directly, preserving other shot fields
                 return {
-              ...shot,
-                  loopCount: step5Shot.loopCount ?? shot.loopCount ?? 1,
-                  soundEffectDescription: step5Shot.soundEffectDescription ?? shot.soundEffectDescription,
-                  soundEffectUrl: step5Shot.soundEffectUrl ?? shot.soundEffectUrl,
+                  ...shot,
+                  loopCount: step5Shot.loopCount,
+                  soundEffectDescription: step5Shot.soundEffectDescription !== undefined 
+                    ? step5Shot.soundEffectDescription 
+                    : shot.soundEffectDescription,
+                  soundEffectUrl: step5Shot.soundEffectUrl !== undefined 
+                    ? step5Shot.soundEffectUrl 
+                    : shot.soundEffectUrl,
                 };
+              } else {
+                console.warn(`[AmbientWorkflow] Shot ${shot.shotNumber} (${shot.id}) in scene ${sceneId} not found in step5Data or has invalid loopCount`);
               }
               return shot;
             });
+            console.log('[AmbientWorkflow] Scene', sceneId, 'shot loop counts after restoration:', 
+              newShots[sceneId].map(s => ({ 
+                id: s.id, 
+                shotNumber: s.shotNumber,
+                loopCount: s.loopCount,
+                loopCountType: typeof s.loopCount,
+              }))
+            );
+          } else {
+            console.warn('[AmbientWorkflow] Scene', sceneId, 'not found in current shots state');
           }
         }
         return newShots;
       });
-      console.log('[AmbientWorkflow] Restored shot data from step5:', Object.keys(data.shotsWithLoops).length, 'scenes');
+    } else {
+      console.warn('[AmbientWorkflow] No shotsWithLoops in step5Data to restore');
     }
 
+    step5DataAppliedRef.current = true;
     setStep5Initialized(true);
     console.log('[AmbientWorkflow] Step5 data restored successfully');
-  }, [initialStep5Data, videoId, initializedForVideoId, step4Initialized, step5Initialized]);
+  }, [initialStep5Data, videoId, initializedForVideoId, step4Initialized]);
+  
+  // NOTE: Removed the useEffect that re-applied step5Data on scenes/shots changes
+  // This was causing loop counts to revert immediately when users tried to edit them
+  // Loop counts should only be restored when opening step 5 (first useEffect above), not on every state change
+  // Users can freely edit loop counts before locking, and they will be saved when lock is pressed
 
   // Note: Prompt generation for Phase 4 is now handled directly in goToNextStep
   // when transitioning from Step 3 to Step 4. The loading screen shows during
@@ -622,6 +836,8 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
           segmentLoopCount,
           shotLoopEnabled,
           shotLoopCount,
+          // Background Music toggle (music style/url is in step2Data)
+          backgroundMusicEnabled,
           // Voiceover settings
           voiceoverEnabled,
           voiceoverStory,
@@ -688,6 +904,11 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
           existingReferenceUrls, // Already saved CDN URLs
           referenceTempIds, // New temp IDs - backend will upload to Bunny
           imageCustomInstructions,
+          // Background Music settings
+          musicStyle,
+          customMusicUrl,
+          customMusicDuration,
+          hasCustomMusic,
         }),
       });
 
@@ -920,6 +1141,13 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     },
     goToNextStep: async () => {
       await goToNextStep();
+    },
+    getCurrentVolumes: async () => {
+      // Get volumes from PreviewTab ref
+      if (previewTabRef.current?.getCurrentVolumes) {
+        return previewTabRef.current.getCurrentVolumes();
+      }
+      return null;
     },
     isSaving: isSaving || isGeneratingPrompts,
     canContinue,
@@ -1177,9 +1405,81 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
         }
 
         const updated = await response.json();
-        console.log('[AmbientWorkflow] Step 4 completed, moving to step 5:', updated);
+        const step5Data = updated.step5Data as {
+          scenesWithLoops?: Scene[];
+          shotsWithLoops?: Record<string, Shot[]>;
+          loopSettingsLocked?: boolean;
+        } | undefined;
+        
+        console.log('[AmbientWorkflow] Step 4 completed, moving to step 5:', {
+          videoId: updated.id,
+          step5Data: step5Data,
+          scenesWithLoops: step5Data?.scenesWithLoops?.length,
+          shotsWithLoops: step5Data?.shotsWithLoops ? Object.keys(step5Data.shotsWithLoops).length : 0,
+          sampleSceneLoop: step5Data?.scenesWithLoops?.[0]?.loopCount,
+          sampleShotLoop: step5Data?.shotsWithLoops ? Object.values(step5Data.shotsWithLoops)[0]?.[0]?.loopCount : undefined,
+        });
+
+        // CRITICAL: Apply loop counts directly from the API response
+        // This ensures we use the freshly initialized data from the backend
+        // instead of waiting for refetch and restoration
+        if (step5Data?.scenesWithLoops && step5Data.scenesWithLoops.length > 0) {
+          console.log('[AmbientWorkflow] Applying loop counts directly from API response (scenes):', 
+            step5Data.scenesWithLoops.map(s => ({ id: s.id, loopCount: s.loopCount }))
+          );
+          setScenes(prev => {
+            const step5SceneMap = new Map(step5Data.scenesWithLoops!.map(s => [s.id, s]));
+            return prev.map(scene => {
+              const step5Scene = step5SceneMap.get(scene.id);
+              if (step5Scene && typeof step5Scene.loopCount === 'number') {
+                return { ...scene, loopCount: step5Scene.loopCount };
+              }
+              return scene;
+            });
+          });
+        }
+
+        if (step5Data?.shotsWithLoops && Object.keys(step5Data.shotsWithLoops).length > 0) {
+          console.log('[AmbientWorkflow] Applying loop counts directly from API response (shots):', 
+            Object.entries(step5Data.shotsWithLoops).map(([sceneId, shots]) => ({
+              sceneId,
+              shots: shots.map(s => ({ id: s.id, loopCount: s.loopCount })),
+            }))
+          );
+          setShots(prev => {
+            const newShots = { ...prev };
+            for (const sceneId of Object.keys(step5Data.shotsWithLoops!)) {
+              const step5Shots = step5Data.shotsWithLoops![sceneId] || [];
+              const step5ShotMap = new Map(step5Shots.map(s => [s.id, s]));
+              if (newShots[sceneId]) {
+                newShots[sceneId] = newShots[sceneId].map(shot => {
+                  const step5Shot = step5ShotMap.get(shot.id);
+                  if (step5Shot && typeof step5Shot.loopCount === 'number') {
+                    return {
+                      ...shot,
+                      loopCount: step5Shot.loopCount,
+                      soundEffectDescription: step5Shot.soundEffectDescription,
+                      soundEffectUrl: step5Shot.soundEffectUrl,
+                    };
+                  }
+                  return shot;
+                });
+              }
+            }
+            return newShots;
+          });
+        }
+
+        if (step5Data?.loopSettingsLocked !== undefined) {
+          setLoopSettingsLocked(step5Data.loopSettingsLocked);
+        }
+
+        // Reset the applied flag so restoration can run again if needed (e.g., after page refresh)
+        // But mark it as applied now since we just applied the data directly
+        step5DataAppliedRef.current = true;
 
         // Update local state - this will trigger onStepChange which updates the page component
+        // NOTE: The parent component should refetch video data after this to get updated step5Data
         onStepChange(5);
       } catch (error) {
         console.error('[AmbientWorkflow] Failed to continue from step 4:', error);
@@ -1189,6 +1489,54 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
           variant: "destructive",
         });
         throw error; // Re-throw so the page component knows it failed
+      } finally {
+        setIsSaving(false);
+        onSaveStateChange?.(false);
+      }
+    } else if (activeStep === 5) {
+      // STEP 5 -> STEP 6 TRANSITION (Soundscape -> Preview)
+      // Initialize Step6Data with timeline from scenes/shots/audio
+      if (!videoId || videoId === 'new') {
+        toast({
+          title: "Error",
+          description: "Cannot continue - no video ID available.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        setIsSaving(true);
+        onSaveStateChange?.(true);
+        
+        // First save any pending step5 data
+        await saveStep5SettingsImmediate(scenes, shots, loopSettingsLocked);
+        
+        // Then call the transition endpoint
+        const response = await fetch(`/api/ambient-visual/videos/${videoId}/step/5/continue-to-6`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to continue to Preview');
+        }
+
+        const updated = await response.json();
+        console.log('[AmbientWorkflow] Step 5 completed, moving to step 6:', updated);
+
+        // Navigate to step 6
+        onStepChange(6);
+      } catch (error) {
+        console.error('[AmbientWorkflow] Failed to continue from step 5:', error);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to continue. Please try again.",
+          variant: "destructive",
+        });
+        throw error;
       } finally {
         setIsSaving(false);
         onSaveStateChange?.(false);
@@ -1435,9 +1783,18 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     // Debounce for 2 seconds
     step4SettingsSaveTimerRef.current = setTimeout(async () => {
       try {
+        // CRITICAL: Strip audio fields before saving to step4Data
+        // Audio fields belong ONLY in step5Data, never in step4Data
+        const cleanedShots = Object.fromEntries(
+          Object.entries(shotsToSave).map(([sceneId, sceneShots]) => [
+            sceneId,
+            sceneShots.map(({ soundEffectUrl, soundEffectDescription, ...shot }) => shot)
+          ])
+        );
+
         console.log('[AmbientWorkflow] Auto-saving step4 settings:', {
           scenesCount: scenesToSave.length,
-          shotsCount: Object.keys(shotsToSave).length,
+          shotsCount: Object.keys(cleanedShots).length,
         });
         
         const response = await fetch(`/api/ambient-visual/videos/${videoId}/step4/settings`, {
@@ -1446,7 +1803,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
           credentials: 'include',
           body: JSON.stringify({ 
             scenes: scenesToSave, 
-            shots: shotsToSave 
+            shots: cleanedShots 
           }),
         });
         
@@ -1472,32 +1829,32 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
       return;
     }
     
-    try {
+      try {
       console.log('[AmbientWorkflow] Immediately saving step5 settings:', {
-        scenesCount: scenesToSave.length,
-        shotsCount: Object.keys(shotsToSave).length,
-        locked,
-      });
-      
-      const response = await fetch(`/api/ambient-visual/videos/${videoId}/step5/settings`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ 
-          scenesWithLoops: scenesToSave, 
-          shotsWithLoops: shotsToSave,
-          loopSettingsLocked: locked,
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to save Step 5 settings');
-      }
-      
+          scenesCount: scenesToSave.length,
+          shotsCount: Object.keys(shotsToSave).length,
+          locked,
+        });
+        
+        const response = await fetch(`/api/ambient-visual/videos/${videoId}/step5/settings`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ 
+            scenesWithLoops: scenesToSave, 
+            shotsWithLoops: shotsToSave,
+            loopSettingsLocked: locked,
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to save Step 5 settings');
+        }
+        
       console.log('[AmbientWorkflow] Step5 settings saved immediately');
-    } catch (error) {
+      } catch (error) {
       console.error('[AmbientWorkflow] Step5 immediate save error:', error);
-    }
+      }
   }, [videoId]);
 
   // Debounced save for step5 settings (loop counts, lock state, soundscape data)
@@ -1586,9 +1943,8 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
       if (updates.imageModel !== undefined || updates.videoModel !== undefined) {
         debouncedSaveStep4Settings(scenes, newShots);
       }
-      // ALWAYS save loop/soundscape changes to step5Data (regardless of activeStep)
+      // Save soundscape changes (but NOT loopCount - that's saved on lock)
       if (
-        updates.loopCount !== undefined || 
         updates.soundEffectDescription !== undefined ||
         updates.soundEffectUrl !== undefined
       ) {
@@ -1622,16 +1978,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
       if (updates.imageModel !== undefined || updates.videoModel !== undefined) {
         debouncedSaveStep4Settings(newScenes, shots);
       }
-      // ALWAYS save loop changes to step5Data (regardless of activeStep)
-      if (updates.loopCount !== undefined) {
-        // Use latest state from setState callback to avoid closure issues
-        // Also update ref immediately so it's available for other saves
-        scenesRef.current = newScenes;
-        setShots(currentShots => {
-          debouncedSaveStep5Settings(newScenes, currentShots, loopSettingsLockedRef.current);
-          return currentShots;
-        });
-      }
+      // Loop count changes are NOT autosaved - they're saved when lock button is clicked
       return newScenes;
     });
   };
@@ -2058,6 +2405,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
             imageModel={imageModel}
             imageResolution={imageResolution}
             aspectRatio={aspectRatio}
+            backgroundMusicEnabled={backgroundMusicEnabled}
             voiceoverEnabled={voiceoverEnabled}
             voiceoverStory={voiceoverStory}
             voiceId={voiceId}
@@ -2093,6 +2441,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
             onImageModelChange={setImageModel}
             onImageResolutionChange={setImageResolution}
             onAspectRatioChange={setAspectRatio}
+            onBackgroundMusicChange={setBackgroundMusicEnabled}
             onVoiceoverChange={setVoiceoverEnabled}
             onVoiceoverStoryChange={setVoiceoverStory}
             onVoiceIdChange={setVoiceId}
@@ -2127,12 +2476,28 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
             visualRhythm={visualRhythm}
             referenceImages={referenceImages}
             imageCustomInstructions={imageCustomInstructions}
+            videoId={videoId}
+            backgroundMusicEnabled={backgroundMusicEnabled}
+            musicStyle={musicStyle}
+            customMusicUrl={customMusicUrl}
+            customMusicDuration={customMusicDuration}
+            hasCustomMusic={hasCustomMusic}
             onArtStyleChange={setArtStyle}
             onVisualElementsChange={setVisualElements}
             onVisualRhythmChange={setVisualRhythm}
             onReferenceImagesChange={setReferenceImages}
             onImageCustomInstructionsChange={setImageCustomInstructions}
-            onNext={goToNextStep}
+            onMusicStyleChange={setMusicStyle}
+            onCustomMusicChange={(url, duration) => {
+              setCustomMusicUrl(url);
+              setCustomMusicDuration(duration);
+              setHasCustomMusic(true);
+            }}
+            onClearCustomMusic={() => {
+              setCustomMusicUrl('');
+              setCustomMusicDuration(0);
+              setHasCustomMusic(false);
+            }}
           />
         );
       case 3:
@@ -2227,6 +2592,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
           segmentLoopCount,
           shotLoopEnabled,
           shotLoopCount,
+          backgroundMusicEnabled,
           voiceoverEnabled,
           language,
           textOverlayEnabled,
@@ -2278,8 +2644,19 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
         );
       case 5:
         // Soundscape - Audio and Loop settings
-        // Extract voiceover data from step5Data
-        const step5Data = initialStep5Data as { voiceoverScript?: string; voiceoverAudioUrl?: string } | undefined;
+        // Extract voiceover and music data from step5Data
+        const step5Data = initialStep5Data as { 
+          voiceoverScript?: string; 
+          voiceoverAudioUrl?: string;
+          generatedMusicUrl?: string;
+          generatedMusicDuration?: number;
+        } | undefined;
+        // Get music settings from step1 and step2
+        const step2DataMusic = initialStep2Data as {
+          hasCustomMusic?: boolean;
+          customMusicUrl?: string;
+          musicStyle?: string;
+        } | undefined;
         return (
           <SoundscapeTab
             videoId={videoId || ''}
@@ -2293,44 +2670,74 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
             shotLoopEnabled={shotLoopEnabled}
             shotLoopCount={shotLoopCount}
             loopSettingsLocked={loopSettingsLocked}
-            onLockToggle={(locked) => {
+            onLockToggle={async (locked) => {
               setLoopSettingsLocked(locked);
-              saveStep5LockState(locked);
+              // Save loop settings to database when locking
+              if (locked) {
+                try {
+                  // Use refs to get the latest state (they're kept in sync via useEffect)
+                  await saveStep5SettingsImmediate(scenesRef.current, shotsRef.current, locked);
+                  console.log('[AmbientWorkflow] Loop settings saved on lock');
+                } catch (error) {
+                  console.error('[AmbientWorkflow] Failed to save loop settings on lock:', error);
+                  // Revert lock state on error
+                  setLoopSettingsLocked(false);
+                  throw error;
+                }
+              } else {
+                // Just save lock state if unlocking (though this shouldn't happen)
+                await saveStep5LockState(locked);
+              }
             }}
             voiceoverEnabled={voiceoverEnabled}
             voiceoverScript={step5Data?.voiceoverScript}
             voiceoverAudioUrl={step5Data?.voiceoverAudioUrl}
+            backgroundMusicEnabled={backgroundMusicEnabled}
+            hasCustomMusic={step2DataMusic?.hasCustomMusic}
+            customMusicUrl={step2DataMusic?.customMusicUrl}
+            musicStyle={step2DataMusic?.musicStyle || musicStyle}
+            generatedMusicUrl={step5Data?.generatedMusicUrl}
+            generatedMusicDuration={step5Data?.generatedMusicDuration}
+            onMusicGenerated={(musicUrl, duration) => {
+              console.log('[AmbientWorkflow] Music generated:', { musicUrl, duration });
+            }}
             onUpdateShot={handleUpdateShot}
             onUpdateScene={handleUpdateScene}
           />
         );
       case 6:
-        // Convert shots to segments for preview
-        const previewSegments = allShots.map((shot, index) => {
-          const version = shot.currentVersionId ? shotVersions[shot.id]?.find(v => v.id === shot.currentVersionId) : null;
-          return {
-            id: shot.id,
-            keyframeUrl: version?.imageUrl || null,
-            duration: shot.duration || 5,
-            motionDirection: "static" as const,
-            layers: { background: true, midground: true, foreground: false },
-            effects: { particles: false, lightRays: false, fog: false }
-          };
-        });
+        // Shotstack-based preview with timeline editing
         return (
           <PreviewTab
-            segments={previewSegments}
-            loopMode={loopMode ? "enabled" : "none"}
-            duration={duration}
-            onNext={goToNextStep}
+            ref={previewTabRef}
+            videoId={videoId}
           />
         );
       case 7:
+        // Calculate total duration from scenes and shots with loops
+        const exportDuration = scenes.reduce((total, scene) => {
+          const sceneLoopCount = scene.loopCount ?? 1;
+          const sceneShots = shots[scene.id] || [];
+          let sceneDuration = 0;
+          for (let i = 0; i < sceneLoopCount; i++) {
+            for (const shot of sceneShots) {
+              const shotLoopCount = shot.loopCount ?? 1;
+              sceneDuration += shot.duration * shotLoopCount;
+            }
+          }
+          return total + sceneDuration;
+        }, 0);
+        
         return (
           <ExportTab
-            projectName={projectName}
-            loopMode={loopMode ? "enabled" : "none"}
-            totalDuration={totalDuration}
+            videoId={videoId}
+            videoTitle={projectName}
+            duration={exportDuration || totalDuration}
+            sceneCount={scenes.length}
+            aspectRatio={aspectRatio}
+            hasVoiceover={voiceoverEnabled}
+            hasMusic={backgroundMusicEnabled}
+            imageModel={imageModel}
           />
         );
       default:

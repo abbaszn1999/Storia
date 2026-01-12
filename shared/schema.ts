@@ -78,7 +78,8 @@ export const videos = pgTable("videos", {
   step3Data: jsonb("step3_data"), // Flow: Scenes, shots, continuity
   step4Data: jsonb("step4_data"), // Storyboard: Shot versions, compositions
   step5Data: jsonb("step5_data"), // Preview: Animatic, audio config
-  step6Data: jsonb("step6_data"), // Export: Resolution, format settings
+  step6Data: jsonb("step6_data"), // Preview: Timeline, audio settings
+  step7Data: jsonb("step7_data"), // Export: Render state, final URLs
   
   // Output
   exportUrl: text("export_url"),

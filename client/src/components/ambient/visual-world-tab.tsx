@@ -4,8 +4,44 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Upload, X, Sparkles, Film, Palette, Play, Wand2, Eye, Loader2 } from "lucide-react";
+import { 
+  Upload, 
+  X, 
+  Sparkles, 
+  Film, 
+  Palette, 
+  Play, 
+  Pause,
+  Wand2, 
+  Eye, 
+  Loader2,
+  Music,
+  Check,
+  Trash2,
+  Clock
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
+// Music style type (matches server type)
+export type MusicStyle = 'cinematic' | 'upbeat' | 'calm' | 'corporate' | 'electronic' | 'emotional' | 'inspiring';
+
+// AI Music Styles - Generated during export
+const MUSIC_STYLES: Array<{
+  id: MusicStyle;
+  name: string;
+  desc: string;
+  icon: string;
+  gradient: string;
+}> = [
+  { id: 'cinematic', name: 'Cinematic Epic', desc: 'Dramatic, powerful', icon: '🎬', gradient: 'from-purple-500/20 to-indigo-600/20' },
+  { id: 'upbeat', name: 'Upbeat Happy', desc: 'Energetic, positive', icon: '😊', gradient: 'from-yellow-500/20 to-orange-500/20' },
+  { id: 'calm', name: 'Calm Ambient', desc: 'Peaceful, relaxing', icon: '😌', gradient: 'from-teal-500/20 to-cyan-500/20' },
+  { id: 'corporate', name: 'Corporate', desc: 'Professional, clean', icon: '💼', gradient: 'from-blue-500/20 to-sky-500/20' },
+  { id: 'electronic', name: 'Electronic', desc: 'Modern, tech vibes', icon: '🎸', gradient: 'from-pink-500/20 to-rose-500/20' },
+  { id: 'emotional', name: 'Emotional', desc: 'Touching, heartfelt', icon: '❤️', gradient: 'from-red-500/20 to-pink-500/20' },
+  { id: 'inspiring', name: 'Inspiring', desc: 'Motivational, uplifting', icon: '🔥', gradient: 'from-amber-500/20 to-orange-600/20' },
+];
 
 const ART_STYLES = [
   { id: "cinematic", label: "Cinematic", description: "Film-quality realism" },
@@ -45,12 +81,21 @@ interface VisualWorldTabProps {
   visualRhythm: string;
   referenceImages: TempReferenceImage[];
   imageCustomInstructions?: string;
+  // Background Music props
+  videoId?: string;
+  backgroundMusicEnabled?: boolean;
+  musicStyle?: MusicStyle;
+  customMusicUrl?: string;
+  customMusicDuration?: number;
+  hasCustomMusic?: boolean;
   onArtStyleChange: (style: string) => void;
   onVisualElementsChange: (elements: string[]) => void;
   onVisualRhythmChange: (rhythm: string) => void;
   onReferenceImagesChange: (images: TempReferenceImage[]) => void;
   onImageCustomInstructionsChange?: (instructions: string) => void;
-  onNext: () => void;
+  onMusicStyleChange?: (style: MusicStyle) => void;
+  onCustomMusicChange?: (url: string, duration: number) => void;
+  onClearCustomMusic?: () => void;
 }
 
 export function VisualWorldTab({
@@ -59,16 +104,28 @@ export function VisualWorldTab({
   visualRhythm,
   referenceImages,
   imageCustomInstructions = "",
+  videoId,
+  backgroundMusicEnabled = false,
+  musicStyle = 'cinematic',
+  customMusicUrl,
+  customMusicDuration,
+  hasCustomMusic = false,
   onArtStyleChange,
   onVisualElementsChange,
   onVisualRhythmChange,
   onReferenceImagesChange,
   onImageCustomInstructionsChange,
-  onNext,
+  onMusicStyleChange,
+  onCustomMusicChange,
+  onClearCustomMusic,
 }: VisualWorldTabProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const musicInputRef = useRef<HTMLInputElement>(null);
+  const musicPreviewRef = useRef<HTMLAudioElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingMusic, setIsUploadingMusic] = useState(false);
+  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
 
   const toggleVisualElement = (element: string) => {
     if (visualElements.includes(element)) {
@@ -180,6 +237,96 @@ export function VisualWorldTab({
     } catch (error) {
       console.warn('Failed to delete temp image from server:', error);
       // Not critical - temp images are auto-cleaned anyway
+    }
+  };
+
+  // Format duration as MM:SS
+  const formatDuration = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Handle custom music upload
+  const handleMusicUpload = async (file: File) => {
+    if (!videoId) {
+      toast({
+        title: "Cannot upload",
+        description: "Please save your project first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file type
+    const validTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/m4a', 'audio/x-m4a', 'audio/ogg'];
+    if (!validTypes.some(type => file.type.includes(type.split('/')[1])) && !file.name.match(/\.(mp3|wav|m4a|ogg)$/i)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload an audio file (MP3, WAV, M4A, OGG)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Max 50MB
+    if (file.size > 50 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload an audio file smaller than 50MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploadingMusic(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`/api/ambient-visual/videos/${videoId}/custom-music/upload`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const data = await response.json();
+      onCustomMusicChange?.(data.url, data.duration);
+      
+      toast({
+        title: "Music uploaded",
+        description: `${file.name} (${formatDuration(data.duration)}) ready to use`,
+      });
+    } catch (error) {
+      console.error('Music upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: "Could not upload custom music",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingMusic(false);
+      if (musicInputRef.current) {
+        musicInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Toggle music preview playback
+  const toggleMusicPreview = () => {
+    const audio = musicPreviewRef.current;
+    if (!audio) return;
+
+    if (isMusicPlaying) {
+      audio.pause();
+      setIsMusicPlaying(false);
+    } else {
+      audio.play().catch(console.error);
+      setIsMusicPlaying(true);
     }
   };
 
@@ -393,20 +540,182 @@ export function VisualWorldTab({
         </div>
       </div>
 
-      {/* Continue Button */}
-      <div className="flex justify-end pt-4">
-        <Button
-          onClick={onNext}
-          disabled={!artStyle}
-          size="lg"
-          variant="ghost"
-          className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
-          data-testid="button-continue-visual-world"
-        >
-          Continue to Flow Design
-          <ArrowRight className="ml-2 h-4 w-4" />
-        </Button>
-      </div>
+      {/* Background Music Section - Only shown when enabled in Step 1 */}
+      {backgroundMusicEnabled && (
+        <Card className="bg-white/[0.02] border-white/[0.06]">
+          <CardContent className="p-6 space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-pink-500/20 to-rose-500/20">
+                  <Music className="w-5 h-5 text-pink-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Background Music</h3>
+                  <p className="text-sm text-white/60">AI-generated music to enhance your video</p>
+                </div>
+              </div>
+              {/* AI Badge */}
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-gradient-to-r from-pink-500/10 to-purple-500/10 border border-pink-500/20">
+                <Sparkles className="w-3.5 h-3.5 text-pink-400" />
+                <span className="text-xs font-medium text-pink-300">AI Powered</span>
+              </div>
+            </div>
+
+            {/* Music Style Grid - Hidden when custom music is uploaded */}
+            {!hasCustomMusic && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {MUSIC_STYLES.map((style, index) => {
+                  const isSelected = musicStyle === style.id;
+
+                  return (
+                    <button
+                      key={style.id}
+                      onClick={() => onMusicStyleChange?.(style.id)}
+                      className={cn(
+                        "relative p-3 rounded-xl transition-all text-left overflow-hidden",
+                        "border backdrop-blur-sm",
+                        isSelected
+                          ? `border-pink-500/50 bg-gradient-to-br ${style.gradient} shadow-lg shadow-pink-500/10`
+                          : "border-white/10 bg-white/[0.03] hover:border-pink-500/30 hover:bg-white/[0.06]"
+                      )}
+                      data-testid={`button-music-${style.id}`}
+                    >
+                      {/* Selected Indicator */}
+                      {isSelected && (
+                        <div className="absolute top-2 right-2 z-10">
+                          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center">
+                            <Check className="w-3 h-3 text-white" />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2.5">
+                        <div className={cn(
+                          "w-9 h-9 rounded-lg flex items-center justify-center text-xl",
+                          "bg-gradient-to-br",
+                          style.gradient
+                        )}>
+                          {style.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm text-white truncate">{style.name}</div>
+                          <div className="text-xs text-white/50 truncate">{style.desc}</div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Custom Music Upload Section */}
+            <div className={cn("pt-4", !hasCustomMusic && "border-t border-white/10")}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Upload className="w-4 h-4 text-white/40" />
+                  <span className="text-sm text-white/60">Or Upload Your Own</span>
+                </div>
+                <span className="text-xs text-white/40">MP3, WAV, M4A, OGG • Max 5 min</span>
+              </div>
+
+              {/* Hidden file input */}
+              <input
+                ref={musicInputRef}
+                type="file"
+                accept="audio/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleMusicUpload(file);
+                }}
+              />
+
+              {/* Hidden audio element for preview */}
+              {customMusicUrl && (
+                <audio
+                  ref={musicPreviewRef}
+                  src={customMusicUrl}
+                  onEnded={() => setIsMusicPlaying(false)}
+                />
+              )}
+
+              {hasCustomMusic && customMusicUrl ? (
+                /* Custom Music Preview */
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-pink-500/10 to-purple-500/10 border border-pink-500/30">
+                  {/* Play/Pause Button */}
+                  <button
+                    onClick={toggleMusicPreview}
+                    className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center flex-shrink-0 hover:scale-105 transition-transform shadow-lg shadow-pink-500/20"
+                  >
+                    {isMusicPlaying ? (
+                      <Pause className="w-5 h-5 text-white" />
+                    ) : (
+                      <Play className="w-5 h-5 text-white ml-0.5" />
+                    )}
+                  </button>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">Custom Music</p>
+                    <div className="flex items-center gap-2 text-xs text-white/50">
+                      <Clock className="w-3 h-3" />
+                      <span>{formatDuration(customMusicDuration || 0)}</span>
+                    </div>
+                  </div>
+
+                  {/* Remove Button */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      onClearCustomMusic?.();
+                      setIsMusicPlaying(false);
+                    }}
+                    className="h-8 w-8 text-white/40 hover:text-red-400 hover:bg-red-500/10"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                /* Upload Area */
+                <button
+                  onClick={() => musicInputRef.current?.click()}
+                  disabled={isUploadingMusic}
+                  className={cn(
+                    "w-full p-6 rounded-xl border-2 border-dashed transition-all",
+                    "flex flex-col items-center justify-center gap-2",
+                    isUploadingMusic
+                      ? "border-pink-500/50 bg-pink-500/5 cursor-wait"
+                      : "border-white/10 hover:border-pink-500/30 hover:bg-white/[0.02] cursor-pointer"
+                  )}
+                >
+                  {isUploadingMusic ? (
+                    <>
+                      <Loader2 className="w-6 h-6 text-pink-400 animate-spin" />
+                      <span className="text-sm text-white/60">Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-6 h-6 text-white/40" />
+                      <span className="text-sm text-white/60">Click to upload custom music</span>
+                      <span className="text-xs text-white/40">Custom music takes priority over AI-generated music</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+
+            {/* Info Message */}
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.02] border border-white/5">
+              <Sparkles className="w-4 h-4 text-pink-400 flex-shrink-0" />
+              <p className="text-xs text-white/50">
+                <span className="text-pink-300">AI music will be generated</span> during export to match your video duration
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

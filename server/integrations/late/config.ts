@@ -8,7 +8,7 @@ export const lateConfig = {
   connectBaseUrl: 'https://getlate.dev/connect',
   
   // API configuration
-  timeout: 30000, // 30 seconds
+  timeout: 120000, // 120 seconds (2 minutes) for video publishing operations
   retryAttempts: 3,
 };
 

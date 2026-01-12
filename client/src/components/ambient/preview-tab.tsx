@@ -1,415 +1,209 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { 
-  ArrowRight, 
-  Play, 
-  Pause, 
-  Repeat, 
-  Volume2, 
-  VolumeX, 
-  Loader2,
-  Maximize2,
-  SkipBack,
-  SkipForward,
-  Music,
-  Wand2,
-  CheckCircle2
-} from "lucide-react";
+/**
+ * Preview Tab Component (Phase 6)
+ * 
+ * Uses Shotstack Studio SDK for professional video preview with:
+ * - Built-in video player with timeline
+ * - Professional audio controls (volume, mute, per-track)
+ * - Real-time playback without rendering
+ * 
+ * Final render is triggered via Continue button on the main page,
+ * not from within this component.
+ */
 
-interface Segment {
-  id: string;
-  keyframeUrl: string | null;
-  duration: number;
-  motionDirection: "up" | "down" | "left" | "right" | "static";
-  layers: {
-    background: boolean;
-    midground: boolean;
-    foreground: boolean;
-  };
-  effects: {
-    particles: boolean;
-    lightRays: boolean;
-    fog: boolean;
-  };
-}
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
+import { cn } from '@/lib/utils';
+import {
+  Sparkles,
+  AlertCircle,
+  Loader2,
+  RefreshCw,
+  Film,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ShotstackStudio, type ShotstackStudioRef } from './preview/shotstack-studio';
+import type { ShotstackEdit } from './preview/types';
 
 interface PreviewTabProps {
-  segments: Segment[];
-  loopMode: string;
-  duration: string;
-  onNext: () => void;
+  videoId?: string;
 }
 
-const AMBIENT_SOUNDS = [
-  { id: "none", label: "No Sound" },
-  { id: "rain", label: "Rain" },
-  { id: "ocean", label: "Ocean Waves" },
-  { id: "forest", label: "Forest" },
-  { id: "fireplace", label: "Fireplace" },
-  { id: "wind", label: "Wind" },
-  { id: "city", label: "City Ambience" },
-  { id: "cafe", label: "Cafe" },
-];
+// Expose getCurrentVolumes method for parent components
+export interface PreviewTabRef {
+  getCurrentVolumes: () => { master: number; sfx: number; voiceover: number; music: number } | null;
+}
 
-export function PreviewTab({
-  segments,
-  loopMode,
-  duration,
-  onNext,
-}: PreviewTabProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoopPreview, setIsLoopPreview] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolume] = useState(70);
-  const [currentSegment, setCurrentSegment] = useState(0);
-  const [ambientSound, setAmbientSound] = useState("none");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isGenerated, setIsGenerated] = useState(false);
-  const [progress, setProgress] = useState(0);
+export const PreviewTab = forwardRef<PreviewTabRef, PreviewTabProps>(({ videoId }, ref) => {
+  const studioRef = useRef<ShotstackStudioRef>(null);
 
-  const totalDuration = segments.reduce((acc, s) => acc + s.duration, 0);
+  // Loading and error states
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handlePlay = () => {
-    setIsPlaying(!isPlaying);
-  };
+  // Shotstack Edit for Studio SDK
+  const [shotstackEdit, setShotstackEdit] = useState<ShotstackEdit | null>(null);
+  const [totalDuration, setTotalDuration] = useState(0);
+  const [savedVolumes, setSavedVolumes] = useState<{ master: number; sfx: number; voiceover: number; music: number } | null>(null);
 
-  const handlePrevSegment = () => {
-    setCurrentSegment(prev => Math.max(0, prev - 1));
-  };
+  // Expose getCurrentVolumes to parent
+  useImperativeHandle(ref, () => ({
+    getCurrentVolumes: () => {
+      if (studioRef.current?.getCurrentVolumes) {
+        return studioRef.current.getCurrentVolumes();
+      }
+      return null;
+    },
+  }));
 
-  const handleNextSegment = () => {
-    setCurrentSegment(prev => Math.min(segments.length - 1, prev + 1));
-  };
+  // Fetch Shotstack Edit on mount
+  useEffect(() => {
+    if (!videoId) {
+      setIsLoading(false);
+      setError('No video ID provided');
+      return;
+    }
 
-  const handleGenerateVideo = () => {
-    setIsGenerating(true);
-    setProgress(0);
-    
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsGenerating(false);
-          setIsGenerated(true);
-          return 100;
+    const fetchStudioEdit = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const response = await fetch(
+          `/api/ambient-visual/videos/${videoId}/preview/studio-edit`,
+          { credentials: 'include' }
+        );
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Failed to load preview data');
         }
-        return prev + 2;
-      });
-    }, 100);
-  };
 
-  const currentKeyframe = segments[currentSegment]?.keyframeUrl;
+        const data = await response.json();
+
+        console.log('[PreviewTab] Loaded Shotstack Edit:', {
+          hasEdit: !!data.edit,
+          trackCount: data.edit?.timeline?.tracks?.length,
+          totalDuration: data.totalDuration,
+          clipCount: data.clipCount,
+          savedVolumes: data.savedVolumes,
+        });
+
+        if (data.edit) {
+          setShotstackEdit(data.edit);
+          setTotalDuration(data.totalDuration || 0);
+        }
+        
+        // Pass saved volumes to ShotstackStudio if available
+        if (data.savedVolumes) {
+          setSavedVolumes(data.savedVolumes);
+        }
+      } catch (err) {
+        console.error('[PreviewTab] Error fetching studio edit:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load preview');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStudioEdit();
+  }, [videoId]);
+
+  // Handle edit changes from Studio SDK
+  const handleEditChange = useCallback((edit: ShotstackEdit) => {
+    setShotstackEdit(edit);
+    // Optionally save changes back to server
+    console.log('[PreviewTab] Edit changed:', edit);
+  }, []);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[500px] bg-[#0a0a0a]">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-10 h-10 text-cyan-400 animate-spin mx-auto" />
+          <p className="text-white/60">Loading preview...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[500px] bg-[#0a0a0a]">
+        <div className="text-center space-y-4 max-w-md">
+          <AlertCircle className="w-10 h-10 text-red-400 mx-auto" />
+          <h3 className="text-lg font-medium text-white">Error Loading Preview</h3>
+          <p className="text-white/60">{error}</p>
+          <Button
+            variant="outline"
+            onClick={() => window.location.reload()}
+            className="gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // No edit data
+  if (!shotstackEdit) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[500px] bg-[#0a0a0a]">
+        <div className="text-center space-y-4 max-w-md">
+          <Film className="w-10 h-10 text-white/40 mx-auto" />
+          <h3 className="text-lg font-medium text-white">No Preview Data</h3>
+          <p className="text-white/60">
+            Timeline data not found. Please complete the Soundscape step first.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8">
-      <div className="text-center max-w-2xl mx-auto">
-        <h2 className="text-2xl font-bold mb-2">Preview & Generate</h2>
-        <p className="text-muted-foreground">
-          Review your ambient visual and generate the final video
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Preview Area */}
-        <div className="lg:col-span-2 space-y-4">
-          <Card className="bg-white/[0.02] border-white/[0.06] overflow-hidden">
-            {/* Video Preview */}
-            <div className="aspect-video bg-black relative">
-              {currentKeyframe ? (
-                <img 
-                  src={currentKeyframe} 
-                  alt="Preview" 
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-white/50">
-                  No keyframes generated
-                </div>
-              )}
-
-              {/* Playback Overlay */}
-              {isPlaying && (
-                <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                  <div className="text-white/80 text-sm">Playing preview...</div>
-                </div>
-              )}
-
-              {/* Segment Indicator */}
-              <Badge variant="outline" className="absolute top-4 left-4 bg-black/50 border-white/20 text-white">
-                Segment {currentSegment + 1} / {segments.length}
-              </Badge>
-
-              {/* Fullscreen Button */}
-              <Button
-                size="icon"
-                variant="ghost"
-                className="absolute top-4 right-4 text-white hover:bg-white/20"
-                data-testid="button-fullscreen"
-              >
-                <Maximize2 className="h-4 w-4" />
-              </Button>
-
-              {/* Loop Indicator */}
-              {isLoopPreview && (
-                <Badge variant="outline" className="absolute bottom-4 right-4 gap-1 bg-black/50 border-white/20 text-white">
-                  <Repeat className="h-3 w-3" />
-                  Loop Preview
-                </Badge>
-              )}
-            </div>
-
-            {/* Playback Controls */}
-            <CardContent className="p-4">
-              {/* Progress Bar */}
-              <div className="mb-4">
-                <Slider
-                  value={[progress]}
-                  max={100}
-                  step={1}
-                  className="cursor-pointer"
-                  data-testid="slider-progress"
-                />
-                <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                  <span>0:00</span>
-                  <span>{Math.floor(totalDuration / 60)}:{String(totalDuration % 60).padStart(2, '0')}</span>
-                </div>
-              </div>
-
-              {/* Controls */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={handlePrevSegment}
-                    disabled={currentSegment === 0}
-                    data-testid="button-prev-segment"
-                  >
-                    <SkipBack className="h-4 w-4" />
-                  </Button>
-                  
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={handlePlay}
-                    className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
-                    data-testid="button-play"
-                  >
-                    {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  </Button>
-                  
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={handleNextSegment}
-                    disabled={currentSegment === segments.length - 1}
-                    data-testid="button-next-segment"
-                  >
-                    <SkipForward className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  {/* Loop Toggle */}
-                  <div className="flex items-center gap-2">
-                    <Repeat className={`h-4 w-4 ${isLoopPreview ? "text-cyan-400" : "text-muted-foreground"}`} />
-                    <Switch
-                      checked={isLoopPreview}
-                      onCheckedChange={setIsLoopPreview}
-                      data-testid="switch-loop-preview"
-                    />
-                  </div>
-
-                  {/* Volume */}
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setIsMuted(!isMuted)}
-                      data-testid="button-mute"
-                    >
-                      {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                    </Button>
-                    <Slider
-                      value={[isMuted ? 0 : volume]}
-                      onValueChange={([val]) => setVolume(val)}
-                      max={100}
-                      className="w-24"
-                      data-testid="slider-volume"
-                    />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Segment Timeline */}
-          <Card className="bg-white/[0.02] border-white/[0.06]">
-            <CardContent className="p-4">
-              <Label className="text-sm font-semibold mb-3 block">Segment Timeline</Label>
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                {segments.map((segment, index) => (
-                  <button
-                    key={segment.id}
-                    onClick={() => setCurrentSegment(index)}
-                    className={`flex-shrink-0 w-24 rounded-lg overflow-hidden border-2 transition-all ${
-                      currentSegment === index
-                        ? "border-cyan-500 ring-2 ring-cyan-500/20"
-                        : "border-white/10 hover:border-white/20"
-                    }`}
-                    data-testid={`button-timeline-segment-${index + 1}`}
-                  >
-                    <div className="aspect-video bg-white/5">
-                      {segment.keyframeUrl ? (
-                        <img 
-                          src={segment.keyframeUrl} 
-                          alt={`Segment ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
-                          {index + 1}
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-xs text-center py-1 bg-white/5">
-                      {segment.duration}s
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+    <div className="h-full flex flex-col bg-[#0a0a0a]">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-500 flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-white">Preview</h2>
+            <p className="text-sm text-white/50">
+              {formatDuration(totalDuration)} • Shotstack Studio
+            </p>
+          </div>
         </div>
 
-        {/* Right Sidebar */}
-        <div className="space-y-6">
-          {/* Sound Layer */}
-          <Card className="bg-white/[0.02] border-white/[0.06]">
-            <CardContent className="p-4 space-y-4">
-              <div className="flex items-center gap-2">
-                <Music className="h-5 w-5 text-cyan-400" />
-                <Label className="text-lg font-semibold">Ambient Sound</Label>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Add optional background audio
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {AMBIENT_SOUNDS.map((sound) => (
-                  <button
-                    key={sound.id}
-                    onClick={() => setAmbientSound(sound.id)}
-                    className={`px-3 py-2 rounded-lg border text-sm transition-all hover-elevate ${
-                      ambientSound === sound.id
-                        ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
-                        : "border-white/10 bg-white/5 hover:bg-white/[0.07]"
-                    }`}
-                    data-testid={`button-sound-${sound.id}`}
-                  >
-                    {sound.label}
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Video Info */}
-          <Card className="bg-white/[0.02] border-white/[0.06]">
-            <CardContent className="p-4 space-y-3">
-              <Label className="text-lg font-semibold">Video Summary</Label>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Duration</span>
-                  <span>{Math.floor(totalDuration / 60)}:{String(totalDuration % 60).padStart(2, '0')}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Segments</span>
-                  <span>{segments.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Loop Mode</span>
-                  <span className="capitalize">{loopMode.replace("-", " ")}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Ambient Sound</span>
-                  <span>{AMBIENT_SOUNDS.find(s => s.id === ambientSound)?.label}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Generate Button */}
-          <Card className={isGenerated ? "border-green-500/50 bg-green-500/5" : "bg-white/[0.02] border-white/[0.06]"}>
-            <CardContent className="p-4 space-y-4">
-              {isGenerated ? (
-                <div className="text-center space-y-3">
-                  <CheckCircle2 className="h-12 w-12 mx-auto text-green-500" />
-                  <div>
-                    <h4 className="font-semibold text-green-500">Video Generated!</h4>
-                    <p className="text-sm text-muted-foreground">Ready for export</p>
-                  </div>
-                </div>
-              ) : isGenerating ? (
-                <div className="text-center space-y-3">
-                  <Loader2 className="h-12 w-12 mx-auto animate-spin text-cyan-400" />
-                  <div>
-                    <h4 className="font-semibold">Generating Video...</h4>
-                    <p className="text-sm text-muted-foreground">{progress}% complete</p>
-                  </div>
-                  <div className="w-full bg-white/10 rounded-full h-2">
-                    <div 
-                      className="bg-gradient-to-r from-cyan-500 to-teal-500 h-2 rounded-full transition-all"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="text-center">
-                    <div className="inline-flex p-3 rounded-full bg-gradient-to-br from-cyan-500/20 to-teal-500/20 mb-3">
-                      <Wand2 className="h-8 w-8 text-cyan-400" />
-                    </div>
-                    <h4 className="font-semibold">Generate Full Video</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Create the final ambient visual
-                    </p>
-                  </div>
-                  <Button
-                    onClick={handleGenerateVideo}
-                    variant="ghost"
-                    className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
-                    size="lg"
-                    data-testid="button-generate-video"
-                  >
-                    <Wand2 className="mr-2 h-4 w-4" />
-                    Generate Video
-                  </Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
+        {/* Info about export */}
+        <div className="text-sm text-white/40">
+          Click "Continue" to export your video
         </div>
       </div>
 
-      {/* Continue Button */}
-      <div className="flex justify-end pt-4">
-        <Button
-          onClick={onNext}
-          size="lg"
-          variant="ghost"
-          disabled={!isGenerated}
-          className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white disabled:opacity-50"
-          data-testid="button-continue-preview"
-        >
-          Continue to Export
-          <ArrowRight className="ml-2 h-4 w-4" />
-        </Button>
+      {/* Shotstack Studio */}
+      <div className="flex-1 p-4 overflow-hidden">
+        <ShotstackStudio
+          ref={studioRef}
+          template={shotstackEdit}
+          onEditChange={handleEditChange}
+          className="w-full"
+          height="calc(100vh - 200px)"
+          initialVolumes={savedVolumes}
+        />
       </div>
     </div>
   );
+});
+
+PreviewTab.displayName = 'PreviewTab';
+
+// Format duration helper
+function formatDuration(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
 }

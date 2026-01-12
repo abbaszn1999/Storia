@@ -188,6 +188,7 @@ export async function generateVoiceoverAudio(
       language,
       videoId,
       videoTitle,
+      videoCreatedAt,
       userId,
       workspaceId,
       workspaceName,
@@ -301,11 +302,12 @@ export async function generateVoiceoverAudio(
       : videoTitle;
 
     // Format video creation date as YYYYMMDD for path
+    // IMPORTANT: Ensure dateLabel is always defined to prevent fallback to current date
     const dateLabel = videoCreatedAt 
       ? (typeof videoCreatedAt === 'string' 
           ? new Date(videoCreatedAt).toISOString().slice(0, 10).replace(/-/g, "")
           : videoCreatedAt.toISOString().slice(0, 10).replace(/-/g, ""))
-      : undefined;
+      : new Date().toISOString().slice(0, 10).replace(/-/g, ""); // Fallback to current date (same as buildVideoModePath default)
 
     const bunnyPath = buildVideoModePath({
       userId,
@@ -460,11 +462,12 @@ async function generateSingleChunkAudio(
         : videoTitle;
 
       // Format video creation date as YYYYMMDD for path
+      // IMPORTANT: Ensure dateLabel is always defined to prevent fallback to current date
       const dateLabel = videoCreatedAt 
         ? (typeof videoCreatedAt === 'string' 
             ? new Date(videoCreatedAt).toISOString().slice(0, 10).replace(/-/g, "")
             : videoCreatedAt.toISOString().slice(0, 10).replace(/-/g, ""))
-        : undefined;
+        : new Date().toISOString().slice(0, 10).replace(/-/g, ""); // Fallback to current date (same as buildVideoModePath default)
 
       const bunnyPath = buildVideoModePath({
         userId,

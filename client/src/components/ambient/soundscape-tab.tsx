@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   Volume2, 
   Music, 
@@ -52,6 +62,14 @@ interface SoundscapeTabProps {
   // Voiceover data from Step 5
   voiceoverScript?: string;
   voiceoverAudioUrl?: string;
+  // Background Music settings
+  backgroundMusicEnabled?: boolean;   // From Step 1
+  hasCustomMusic?: boolean;           // From Step 2
+  customMusicUrl?: string;            // From Step 2
+  musicStyle?: string;                // From Step 2
+  generatedMusicUrl?: string;         // From Step 5
+  generatedMusicDuration?: number;    // From Step 5
+  onMusicGenerated?: (musicUrl: string, duration: number) => void;
   // Callbacks
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
   onUpdateScene: (sceneId: string, updates: Partial<Scene>) => void;
@@ -86,21 +104,85 @@ function SoundscapeShotCard({
   const [isRecommendingSfx, setIsRecommendingSfx] = useState(false);
   const [isGeneratingSfx, setIsGeneratingSfx] = useState(false);
   
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  
   const hasVideo = version?.videoUrl && 
                    typeof version.videoUrl === 'string' && 
                    version.videoUrl.trim().length > 0;
+  const hasSoundEffect = shot.soundEffectUrl && 
+                         typeof shot.soundEffectUrl === 'string' && 
+                         shot.soundEffectUrl.trim().length > 0;
 
   // Get current loop count - use saved value or default to 1
   // NOTE: Loop counts are now initialized by the backend during step 4->5 transition
   // Do NOT auto-initialize here as it causes race conditions that overwrite saved data
   const currentLoopCount = shot.loopCount ?? defaultShotLoopCount ?? 1;
 
+  // Sync audio playback with video playback
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    
+    if (!video || !audio || !hasSoundEffect) return;
+
+    const handlePlay = () => {
+      audio.currentTime = video.currentTime;
+      audio.play().catch(console.error);
+    };
+
+    const handlePause = () => {
+      audio.pause();
+    };
+
+    const handleTimeUpdate = () => {
+      if (Math.abs(audio.currentTime - video.currentTime) > 0.1) {
+        audio.currentTime = video.currentTime;
+      }
+    };
+
+    const handleSeeked = () => {
+      audio.currentTime = video.currentTime;
+    };
+
+    const handleEnded = () => {
+      // When video ends and loops, reset audio
+      audio.currentTime = 0;
+      if (!video.paused) {
+        audio.play().catch(console.error);
+      }
+    };
+
+    const handleSeeking = () => {
+      // Sync immediately when user seeks
+      audio.currentTime = video.currentTime;
+    };
+
+    video.addEventListener('play', handlePlay);
+    video.addEventListener('pause', handlePause);
+    video.addEventListener('timeupdate', handleTimeUpdate);
+    video.addEventListener('seeked', handleSeeked);
+    video.addEventListener('seeking', handleSeeking);
+    video.addEventListener('ended', handleEnded);
+
+    return () => {
+      video.removeEventListener('play', handlePlay);
+      video.removeEventListener('pause', handlePause);
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+      video.removeEventListener('seeked', handleSeeked);
+      video.removeEventListener('seeking', handleSeeking);
+      video.removeEventListener('ended', handleEnded);
+    };
+  }, [hasSoundEffect]);
+
   return (
     <Card className="shrink-0 w-80 overflow-visible bg-white/[0.02] border-white/[0.06]">
       {/* Video Preview - matches Composition phase image preview area */}
       <div className="aspect-video bg-black/30 relative group rounded-t-lg overflow-hidden">
         {hasVideo ? (
+          <>
           <video
+              ref={videoRef}
             src={version?.videoUrl || ''}
             className="w-full h-full object-cover"
             controls
@@ -108,6 +190,16 @@ function SoundscapeShotCard({
             loop
             playsInline
           />
+            {hasSoundEffect && (
+              <audio
+                ref={audioRef}
+                src={shot.soundEffectUrl || ''}
+                loop
+                preload="auto"
+                className="hidden"
+              />
+            )}
+          </>
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 gap-2">
             <Play className="h-12 w-12 text-white/30" />
@@ -203,12 +295,20 @@ function SoundscapeShotCard({
         )}
       </div>
 
+      {/* SFX Play Indicator */}
+      {hasVideo && hasSoundEffect && (
+        <div className="px-4 pt-2 flex items-center gap-2 text-xs text-teal-400">
+          <Music className="h-3.5 w-3.5" />
+          <span>SFX will play with video</span>
+        </div>
+      )}
+
       <CardContent className="p-4 space-y-3">
         {/* Sound Effects Section Header with Recommend Button */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Music className="h-4 w-4 text-teal-400" />
-            <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Sound Effects</Label>
+        <div className="flex items-center gap-2">
+          <Music className="h-4 w-4 text-teal-400" />
+          <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Sound Effects</Label>
           </div>
           <Button
             size="sm"
@@ -264,22 +364,13 @@ function SoundscapeShotCard({
           onChange={(e) => onUpdateShot(shot.id, { soundEffectDescription: e.target.value })}
         />
         
-        {/* Generate SFX Button */}
+        {/* Generate/Regenerate SFX Button */}
         <Button
           size="sm"
           variant="ghost"
           className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white disabled:opacity-50"
-          disabled={isGeneratingSfx || !shot.soundEffectDescription?.trim() || !hasVideo}
+          disabled={isGeneratingSfx || !hasVideo}
           onClick={async () => {
-            if (!shot.soundEffectDescription?.trim()) {
-              toast({
-                title: "No sound effect description",
-                description: "Please add a sound effect description or use the Recommend button",
-                variant: "destructive",
-              });
-              return;
-            }
-            
             if (!hasVideo) {
               toast({
                 title: "No video available",
@@ -291,12 +382,19 @@ function SoundscapeShotCard({
 
             setIsGeneratingSfx(true);
             try {
+              // Store the old SFX URL for deletion
+              const oldSoundEffectUrl = shot.soundEffectUrl;
+              
+              // Use default prompt if no description is provided
+              const prompt = shot.soundEffectDescription?.trim() || "Generate a Soundeffect for The Following Video";
+              
               const response = await fetch(`/api/ambient-visual/videos/${videoId}/shots/${shot.id}/sound-effect/generate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify({
-                  prompt: shot.soundEffectDescription,
+                  prompt: prompt,
+                  previousSoundEffectUrl: oldSoundEffectUrl || undefined,
                 }),
               });
               
@@ -306,12 +404,13 @@ function SoundscapeShotCard({
               }
               
               const data = await response.json();
+              // Update both URL and description (in case default prompt was used)
               onUpdateShot(shot.id, { 
-                soundEffectUrl: data.videoWithAudioUrl,
-                videoWithAudioUrl: data.videoWithAudioUrl,
+                soundEffectUrl: data.audioUrl,
+                soundEffectDescription: prompt, // Save the prompt that was used (default or user-provided)
               });
               toast({
-                title: "Sound effect generated",
+                title: shot.soundEffectUrl ? "Sound effect regenerated" : "Sound effect generated",
                 description: "Video with sound effects is ready",
               });
             } catch (error) {
@@ -329,12 +428,12 @@ function SoundscapeShotCard({
           {isGeneratingSfx ? (
             <>
               <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-              Generating...
+              {shot.soundEffectUrl ? "Regenerating..." : "Generating..."}
             </>
           ) : (
             <>
-              <Sparkles className="mr-2 h-3 w-3" />
-              Generate SFX
+          <Sparkles className="mr-2 h-3 w-3" />
+              {shot.soundEffectUrl ? "Regenerate SFX" : "Generate SFX"}
             </>
           )}
         </Button>
@@ -344,12 +443,6 @@ function SoundscapeShotCard({
           <div className="flex items-center gap-2 p-2 rounded-md bg-teal-500/10 border border-teal-500/20">
             <Music className="h-3.5 w-3.5 text-teal-400" />
             <span className="text-xs text-teal-300 truncate flex-1">SFX uploaded</span>
-            <button 
-              className="text-white/40 hover:text-red-400 transition-colors"
-              onClick={() => onUpdateShot(shot.id, { soundEffectUrl: null })}
-            >
-              <X className="h-3 w-3" />
-            </button>
           </div>
         )}
       </CardContent>
@@ -553,6 +646,13 @@ export function SoundscapeTab({
   voiceoverEnabled = false,
   voiceoverScript: initialVoiceoverScript = '',
   voiceoverAudioUrl: initialVoiceoverAudioUrl,
+  backgroundMusicEnabled = false,
+  hasCustomMusic = false,
+  customMusicUrl,
+  musicStyle,
+  generatedMusicUrl: initialGeneratedMusicUrl,
+  generatedMusicDuration: initialGeneratedMusicDuration,
+  onMusicGenerated,
   onUpdateShot,
   onUpdateScene,
 }: SoundscapeTabProps) {
@@ -566,6 +666,13 @@ export function SoundscapeTab({
   const [showVoiceoverModal, setShowVoiceoverModal] = useState(false);
   const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+
+  // Background Music state
+  const [generatedMusicUrl, setGeneratedMusicUrl] = useState<string | null>(initialGeneratedMusicUrl || null);
+  const [generatedMusicDuration, setGeneratedMusicDuration] = useState<number | null>(initialGeneratedMusicDuration || null);
+  const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
+  const [showMusicPlayer, setShowMusicPlayer] = useState(false);
+  const [showLockConfirmation, setShowLockConfirmation] = useState(false);
 
   // Calculate total video duration with all loops
   const calculateTotalVideoDuration = () => {
@@ -616,6 +723,16 @@ export function SoundscapeTab({
       setVoiceoverAudioUrl(null);
     }
   }, [initialVoiceoverScript, initialVoiceoverAudioUrl]);
+
+  // Sync music props
+  useEffect(() => {
+    if (initialGeneratedMusicUrl) {
+      setGeneratedMusicUrl(initialGeneratedMusicUrl);
+    }
+    if (initialGeneratedMusicDuration) {
+      setGeneratedMusicDuration(initialGeneratedMusicDuration);
+    }
+  }, [initialGeneratedMusicUrl, initialGeneratedMusicDuration]);
 
   // Calculate default loop counts from Step 1 settings
   const defaultSegmentLoopCount = segmentLoopCount !== 'auto' ? segmentLoopCount : null;
@@ -707,22 +824,27 @@ export function SoundscapeTab({
               
               {/* Lock Loop Settings Button */}
               {loopMode && (
+                <>
                 <Button
                   onClick={() => {
-                    const newLocked = !loopSettingsLocked;
-                    onLockToggle(newLocked);
+                      if (loopSettingsLocked) {
+                        // Show warning dialog when trying to unlock
                     toast({
-                      title: newLocked ? "Loop Settings Locked" : "Loop Settings Unlocked",
-                      description: newLocked 
-                        ? "Loop counts are now locked and cannot be changed" 
-                        : "You can now edit loop counts",
+                          title: "Settings Already Locked",
+                          description: "Loop settings are locked and cannot be unlocked.",
+                          variant: "destructive",
                     });
+                      } else {
+                        // Show confirmation dialog before locking
+                        setShowLockConfirmation(true);
+                      }
                   }}
                   variant={loopSettingsLocked ? "default" : "outline"}
                   className={loopSettingsLocked 
-                    ? "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white" 
+                      ? "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white cursor-not-allowed" 
                     : "border-white/20 hover:bg-white/5"
                   }
+                    disabled={loopSettingsLocked}
                 >
                   {loopSettingsLocked ? (
                     <>
@@ -736,12 +858,68 @@ export function SoundscapeTab({
                     </>
                   )}
                 </Button>
+                  
+                  {/* Lock Confirmation Dialog */}
+                  <AlertDialog open={showLockConfirmation} onOpenChange={setShowLockConfirmation}>
+                    <AlertDialogContent className="bg-[#0a0a0a] border-white/[0.08] p-0 gap-0 overflow-hidden sm:max-w-[500px]">
+                      {/* Header with gradient background */}
+                      <div className="relative px-6 pt-6 pb-4 bg-gradient-to-b from-amber-500/10 to-transparent">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30">
+                            <Lock className="h-6 w-6 text-amber-400" />
+                          </div>
+                          <div>
+                            <AlertDialogTitle className="text-xl font-semibold">Confirm Lock Loop Settings</AlertDialogTitle>
+                            <p className="text-sm text-white/50 mt-0.5">This action cannot be undone</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="px-6 pb-6 space-y-5">
+                        <AlertDialogDescription className="text-sm text-white/70 leading-relaxed">
+                          Once loop settings are locked, they cannot be unlocked. This ensures consistency for voiceover and music generation timing. Are you sure you want to lock the loop settings?
+                        </AlertDialogDescription>
+                        
+                        <AlertDialogFooter className="flex-col sm:flex-row gap-3 pt-3 border-t border-white/[0.06]">
+                          <AlertDialogCancel 
+                            onClick={() => setShowLockConfirmation(false)}
+                            className="w-full sm:w-auto border-white/[0.1] hover:bg-white/[0.03] hover:border-white/[0.15] transition-colors bg-transparent text-white/70 hover:text-white"
+                          >
+                            Cancel
+                          </AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => {
+                              onLockToggle(true);
+                              setShowLockConfirmation(false);
+                              toast({
+                                title: "Loop Settings Locked",
+                                description: "Loop counts are now locked and cannot be changed. You can now generate voiceover and music.",
+                              });
+                            }}
+                            className="w-full sm:w-auto bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-medium shadow-lg shadow-amber-500/20"
+                          >
+                            Lock Settings
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </div>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
               )}
               
               {/* Generate/View Voiceover Button - Only shown if voiceover is enabled */}
               {voiceoverEnabled && (
                 <Button
+                  disabled={isGeneratingVoiceover || (loopMode && !loopSettingsLocked)}
                   onClick={async () => {
+                    if (loopMode && !loopSettingsLocked) {
+                      toast({
+                        title: "Loop Settings Must Be Locked",
+                        description: "Please lock your loop settings before generating voiceover.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
                     if (isVoiceoverGenerated) {
                       // Open modal to view voiceover
                       setShowVoiceoverModal(true);
@@ -780,8 +958,7 @@ export function SoundscapeTab({
                       }
                     }
                   }}
-                  disabled={isGeneratingVoiceover}
-                  className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
+                  className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white disabled:opacity-50"
                 >
                   {isGeneratingVoiceover ? (
                     <>
@@ -800,6 +977,92 @@ export function SoundscapeTab({
                     </>
                   )}
                 </Button>
+              )}
+
+              {/* Background Music Button - Only shown if music enabled AND no custom music */}
+              {backgroundMusicEnabled && !hasCustomMusic && (
+                <Button
+                  disabled={isGeneratingMusic || (loopMode && !loopSettingsLocked)}
+                  onClick={async () => {
+                    if (loopMode && !loopSettingsLocked) {
+                      toast({
+                        title: "Loop Settings Must Be Locked",
+                        description: "Please lock your loop settings before generating music.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    if (generatedMusicUrl) {
+                      // Show music player
+                      setShowMusicPlayer(true);
+                    } else {
+                      // Generate music via API
+                      setIsGeneratingMusic(true);
+                      try {
+                        const response = await fetch(`/api/ambient-visual/videos/${videoId}/music/generate`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include',
+                        });
+                        
+                        if (!response.ok) {
+                          const error = await response.json();
+                          throw new Error(error.error || error.details || 'Failed to generate music');
+                        }
+                        
+                        const data = await response.json();
+                        setGeneratedMusicUrl(data.musicUrl);
+                        setGeneratedMusicDuration(data.duration);
+                        setShowMusicPlayer(true);
+                        
+                        // Notify parent
+                        if (onMusicGenerated) {
+                          onMusicGenerated(data.musicUrl, data.duration);
+                        }
+                        
+                        toast({
+                          title: "Background Music Generated",
+                          description: `Duration: ${Math.floor(data.duration / 60)}min ${data.duration % 60}s`,
+                        });
+                      } catch (error) {
+                        console.error('[SoundscapeTab] Failed to generate music:', error);
+                        toast({
+                          title: "Music Generation Failed",
+                          description: error instanceof Error ? error.message : "Failed to generate background music",
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setIsGeneratingMusic(false);
+                      }
+                    }
+                  }}
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white disabled:opacity-50"
+                >
+                  {isGeneratingMusic ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating Music...
+                    </>
+                  ) : generatedMusicUrl ? (
+                    <>
+                      <Music className="mr-2 h-4 w-4" />
+                      View Music
+                    </>
+                  ) : (
+                    <>
+                      <Music className="mr-2 h-4 w-4" />
+                      Generate Background Music
+                    </>
+                  )}
+                </Button>
+              )}
+
+              {/* Custom Music Info - Only shown if music enabled AND custom music uploaded */}
+              {backgroundMusicEnabled && hasCustomMusic && customMusicUrl && (
+                <Badge variant="outline" className="border-purple-500/50 text-purple-400 py-1.5 px-3">
+                  <Music className="mr-1.5 h-3.5 w-3.5" />
+                  Custom Music Uploaded
+                </Badge>
               )}
             </div>
           </div>
@@ -1021,6 +1284,133 @@ export function SoundscapeTab({
                   <>
                     <Mic className="mr-2 h-4 w-4" />
                     Create Voiceover
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Background Music Player Dialog */}
+      <Dialog open={showMusicPlayer} onOpenChange={setShowMusicPlayer}>
+        <DialogContent className="sm:max-w-[500px] bg-[#0a0a0a] border-white/[0.08] p-0 gap-0 overflow-hidden">
+          {/* Header with gradient background */}
+          <div className="relative px-6 pt-6 pb-4 bg-gradient-to-b from-purple-500/10 to-transparent">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30">
+                <Music className="h-6 w-6 text-purple-400" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-semibold">Background Music</DialogTitle>
+                <p className="text-sm text-white/50 mt-0.5">
+                  {musicStyle ? `Style: ${musicStyle.charAt(0).toUpperCase() + musicStyle.slice(1)}` : 'AI Generated Music'}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="px-6 pb-6 space-y-5">
+            {/* Music Info */}
+            {generatedMusicDuration && (
+              <div className="flex items-center gap-4 text-sm text-white/60">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-4 w-4" />
+                  <span>Duration: {Math.floor(generatedMusicDuration / 60)}min {generatedMusicDuration % 60}s</span>
+                </div>
+              </div>
+            )}
+
+            {/* Audio Player Section */}
+            <div className="space-y-3">
+              <Label className="text-sm text-white/70 font-medium flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+                Audio Preview
+              </Label>
+              {generatedMusicUrl ? (
+                <div className="p-4 rounded-xl bg-gradient-to-br from-purple-500/5 to-pink-500/5 border border-purple-500/20">
+                  <audio 
+                    controls 
+                    src={generatedMusicUrl} 
+                    className="w-full"
+                  />
+                </div>
+              ) : (
+                <div className="relative p-8 rounded-xl bg-white/[0.02] border border-dashed border-white/[0.08] text-center overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-500/[0.02] to-pink-500/[0.02]"></div>
+                  <div className="relative">
+                    <div className="inline-flex p-3 rounded-full bg-white/[0.03] mb-3">
+                      <Music className="h-6 w-6 text-white/20" />
+                    </div>
+                    <p className="text-sm text-white/40">
+                      No music generated yet
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-3 border-t border-white/[0.06]">
+              <Button
+                variant="outline"
+                onClick={() => setShowMusicPlayer(false)}
+                className="flex-1 h-11 border-white/[0.1] hover:bg-white/[0.03] hover:border-white/[0.15] transition-colors"
+              >
+                Close
+              </Button>
+              <Button
+                disabled={isGeneratingMusic}
+                onClick={async () => {
+                  // Regenerate music via API
+                  setIsGeneratingMusic(true);
+                  try {
+                    const response = await fetch(`/api/ambient-visual/videos/${videoId}/music/generate`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                    });
+                    
+                    if (!response.ok) {
+                      const error = await response.json();
+                      throw new Error(error.error || error.details || 'Failed to regenerate music');
+                    }
+                    
+                    const data = await response.json();
+                    setGeneratedMusicUrl(data.musicUrl);
+                    setGeneratedMusicDuration(data.duration);
+                    
+                    // Notify parent
+                    if (onMusicGenerated) {
+                      onMusicGenerated(data.musicUrl, data.duration);
+                    }
+                    
+                    toast({
+                      title: "Music Regenerated",
+                      description: `Duration: ${Math.floor(data.duration / 60)}min ${data.duration % 60}s`,
+                    });
+                  } catch (error) {
+                    console.error('[SoundscapeTab] Failed to regenerate music:', error);
+                    toast({
+                      title: "Regeneration Failed",
+                      description: error instanceof Error ? error.message : "Failed to regenerate music",
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setIsGeneratingMusic(false);
+                  }
+                }}
+                className="flex-1 h-11 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium shadow-lg shadow-purple-500/20"
+              >
+                {isGeneratingMusic ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Regenerating...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Regenerate Music
                   </>
                 )}
               </Button>

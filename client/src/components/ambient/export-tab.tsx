@@ -1,421 +1,1186 @@
-import { useState } from "react";
+/**
+ * Export Tab Component (Phase 7)
+ * 
+ * Two-panel layout matching story-preview-export.tsx:
+ * - Left panel: Video summary, export settings, platform publishing
+ * - Right panel: Video preview with rendering progress
+ */
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  Download, 
+  Share2, 
+  Copy, 
+  Check,
+  Play,
+  Pause,
+  Loader2,
+  ExternalLink,
+  Clock,
+  Monitor,
+  CheckCircle2,
+  Video,
+  Wand2,
+  Link2,
+  Lock,
+  Film,
+  Music,
+  Mic,
+  Layers,
+  AlertCircle,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import { SiYoutube, SiTiktok, SiInstagram, SiFacebook } from "react-icons/si";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  Download,
-  Share2,
-  Youtube,
-  Monitor,
-  Smartphone,
-  Square,
-  RectangleHorizontal,
-  Volume2,
-  VolumeX,
-  Music,
-  Repeat,
-  CheckCircle2,
-  Loader2,
-  Copy,
-  ExternalLink
-} from "lucide-react";
-import { SiTiktok, SiInstagram } from "react-icons/si";
+import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { useSocialAccounts } from "@/components/shared/social";
+import { useWorkspace } from "@/contexts/workspace-context";
+import { apiRequest } from "@/lib/queryClient";
+import { lateApi, type PublishVideoInput, type LatePlatform } from "@/lib/api/late";
 
-const ASPECT_RATIOS = [
-  { id: "16:9", label: "16:9", description: "Landscape", icon: RectangleHorizontal },
-  { id: "9:16", label: "9:16", description: "Portrait", icon: Smartphone },
-  { id: "1:1", label: "1:1", description: "Square", icon: Square },
-  { id: "21:9", label: "21:9", description: "Ultrawide", icon: Monitor },
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPES & CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const PLATFORMS = [
+  { id: "youtube_shorts", name: "YouTube Shorts", icon: SiYoutube, color: "bg-red-600", gradient: "from-red-600 to-red-700", apiPlatform: "youtube" as LatePlatform, requiresAspectRatio: false },
+  { id: "youtube_video", name: "YouTube Video", icon: SiYoutube, color: "bg-red-600", gradient: "from-red-600 to-red-700", apiPlatform: "youtube" as LatePlatform, requiresAspectRatio: true, aspectRatioText: "Requires 16:9 or 4:5 or 1:1 aspect ratio." },
+  { id: "tiktok", name: "TikTok", icon: SiTiktok, color: "bg-black", gradient: "from-gray-800 to-black", apiPlatform: "tiktok" as LatePlatform, requiresAspectRatio: false },
+  { id: "instagram", name: "Instagram Reels", icon: SiInstagram, gradient: "from-purple-600 via-pink-500 to-orange-400", apiPlatform: "instagram" as LatePlatform, requiresAspectRatio: false },
+  { id: "facebook", name: "Facebook Reels", icon: SiFacebook, color: "bg-blue-600", gradient: "from-blue-600 to-blue-700", apiPlatform: "facebook" as LatePlatform, requiresAspectRatio: false },
 ];
 
-const RESOLUTIONS = [
-  { id: "720p", label: "720p HD", description: "1280x720" },
-  { id: "1080p", label: "1080p Full HD", description: "1920x1080" },
-  { id: "4k", label: "4K Ultra HD", description: "3840x2160" },
-];
-
-const SOUND_MIX_OPTIONS = [
-  { id: "ambient-only", label: "Ambient Sound Only", icon: Volume2 },
-  { id: "with-music", label: "With Background Music", icon: Music },
-  { id: "silent", label: "Silent / Muted", icon: VolumeX },
-];
-
-const PLATFORM_PRESETS = [
-  { id: "youtube", label: "YouTube Background", icon: Youtube, settings: "16:9, 1080p, Loop" },
-  { id: "tiktok", label: "TikTok / Reels", icon: SiTiktok, settings: "9:16, 1080p" },
-  { id: "instagram", label: "Instagram", icon: SiInstagram, settings: "1:1 or 9:16, 1080p" },
-  { id: "desktop", label: "Desktop Wallpaper", icon: Monitor, settings: "16:9 or 21:9, 4K, Loop" },
+const RENDER_STEPS = [
+  { id: 'downloading', label: 'Downloading assets', progress: 10 },
+  { id: 'queued', label: 'Preparing timeline', progress: 20 },
+  { id: 'fetching', label: 'Fetching media', progress: 40 },
+  { id: 'rendering', label: 'Rendering video', progress: 60 },
+  { id: 'saving', label: 'Saving video', progress: 85 },
+  { id: 'uploading', label: 'Uploading to CDN', progress: 95 },
+  { id: 'done', label: 'Complete', progress: 100 },
 ];
 
 interface ExportTabProps {
-  projectName: string;
-  loopMode: string;
-  totalDuration: number;
+  videoId?: string;
+  videoTitle?: string;
+  duration?: number;
+  sceneCount?: number;
+  aspectRatio?: string;
+  hasVoiceover?: boolean;
+  hasMusic?: boolean;
+  imageModel?: string;
 }
 
 export function ExportTab({
-  projectName,
-  loopMode,
-  totalDuration,
+  videoId,
+  videoTitle = 'Untitled',
+  duration = 0,
+  sceneCount = 0,
+  aspectRatio = '16:9',
+  hasVoiceover = false,
+  hasMusic = false,
+  imageModel = 'AI Model',
 }: ExportTabProps) {
   const { toast } = useToast();
-  const [aspectRatio, setAspectRatio] = useState("16:9");
-  const [resolution, setResolution] = useState("1080p");
-  const [soundMix, setSoundMix] = useState("ambient-only");
-  const [enableLoop, setEnableLoop] = useState(loopMode === "seamless");
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportProgress, setExportProgress] = useState(0);
-  const [isExported, setIsExported] = useState(false);
-  const [exportedUrl, setExportedUrl] = useState("");
+  const { currentWorkspace } = useWorkspace();
+  const { isLoading: isLoadingAccounts, isConnected, getConnectUrl, refetch: refetchAccounts } = useSocialAccounts();
   
-  const [title, setTitle] = useState(projectName || "Ambient Visual");
-  const [description, setDescription] = useState("");
-
-  const handleExport = () => {
-    setIsExporting(true);
-    setExportProgress(0);
+  // Render state
+  const [renderStatus, setRenderStatus] = useState<string>('pending');
+  const [renderProgress, setRenderProgress] = useState(0);
+  const [exportUrl, setExportUrl] = useState<string | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Video player state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  
+  // Publishing state
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [publishType, setPublishType] = useState<"instant" | "schedule">("instant");
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
+  
+  // Metadata
+  const [youtubeTitle, setYoutubeTitle] = useState(videoTitle);
+  const [youtubeDescription, setYoutubeDescription] = useState('');
+  const [socialCaption, setSocialCaption] = useState('');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  
+  // Collapsible platform sections
+  const [expandedPlatforms, setExpandedPlatforms] = useState<string[]>([]);
+  
+  // Check export status and start render if needed
+  useEffect(() => {
+    if (!videoId) return;
     
-    const interval = setInterval(() => {
-      setExportProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsExporting(false);
-          setIsExported(true);
-          setExportedUrl("https://storia.app/ambient/exported-video-123");
-          return 100;
+    let pollInterval: NodeJS.Timeout | null = null;
+    let isMounted = true;
+    let hasStartedRender = false;
+    
+    const pollStatus = async (): Promise<boolean> => {
+      try {
+        const statusResponse = await fetch(
+          `/api/ambient-visual/videos/${videoId}/export/status`,
+          { credentials: 'include' }
+        );
+        
+        if (!statusResponse.ok) {
+          const errData = await statusResponse.json();
+          // If step7Data doesn't exist, this is an invalid state
+          if (errData.error?.includes('not initialized')) {
+            if (isMounted) {
+              setError('Export was not properly initialized. Please go back to Preview and click Export Video again.');
+              setRenderStatus('failed');
+            }
+            return false;
+          }
+          return true; // Keep polling for other errors
         }
-        return prev + 5;
+        
+        const data = await statusResponse.json();
+        if (isMounted) {
+          setRenderStatus(data.renderStatus);
+          setRenderProgress(data.renderProgress || 0);
+          
+          if (data.exportUrl) {
+            setExportUrl(data.exportUrl);
+          }
+          if (data.thumbnailUrl) {
+            setThumbnailUrl(data.thumbnailUrl);
+          }
+          if (data.error) {
+            setError(data.error);
+          }
+        }
+        
+        // Stop polling when done or failed
+        if (data.renderStatus === 'done' || data.renderStatus === 'failed') {
+          if (data.renderStatus === 'done' && isMounted) {
+            toast({
+              title: 'Export Complete!',
+              description: 'Your video is ready to download or publish.',
+            });
+          }
+          return false; // Stop polling
+        }
+        
+        // Try to start render if pending and haven't tried yet
+        if (data.renderStatus === 'pending' && !hasStartedRender) {
+          hasStartedRender = true;
+          console.log('[ExportTab] Attempting to start render...');
+          
+          try {
+            const startResponse = await fetch(
+              `/api/ambient-visual/videos/${videoId}/export/start-render`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+              }
+            );
+            
+            if (!startResponse.ok) {
+              const errData = await startResponse.json();
+              if (!errData.error?.includes('already')) {
+                console.error('[ExportTab] Start render failed:', errData.error);
+              }
+            }
+          } catch (startErr) {
+            console.error('[ExportTab] Start render error:', startErr);
+          }
+        }
+        
+        return true; // Continue polling
+      } catch (pollError) {
+        console.error('[ExportTab] Poll error:', pollError);
+        return true; // Continue polling on network errors
+      }
+    };
+    
+    const startPolling = async () => {
+      // Initial poll
+      const shouldContinue = await pollStatus();
+      
+      if (!shouldContinue || !isMounted) return;
+      
+      // Start interval polling (every 3 seconds)
+      pollInterval = setInterval(async () => {
+        const shouldContinue = await pollStatus();
+        if (!shouldContinue && pollInterval) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+        }
+      }, 3000);
+    };
+    
+    startPolling();
+    
+    return () => {
+      isMounted = false;
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+    };
+  }, [videoId, toast]); // Removed renderStatus to prevent re-running
+  
+  // Handlers
+  const handlePlatformToggle = (platformId: string) => {
+    setSelectedPlatforms(prev => {
+      const newSelected = prev.includes(platformId)
+        ? prev.filter(id => id !== platformId)
+        : [...prev, platformId];
+      
+      // If deselecting, also collapse it
+      if (prev.includes(platformId)) {
+        setExpandedPlatforms(current => current.filter(id => id !== platformId));
+      }
+      
+      return newSelected;
+    });
+  };
+  
+  const togglePlatformExpand = (platformId: string) => {
+    setExpandedPlatforms(prev =>
+      prev.includes(platformId)
+        ? prev.filter(id => id !== platformId)
+        : [...prev, platformId]
+    );
+  };
+  
+  const handleDownload = async () => {
+    if (!exportUrl) return;
+    
+    try {
+      const filename = `${videoTitle.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.mp4`;
+      const response = await fetch(exportUrl);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      URL.revokeObjectURL(blobUrl);
+      
+      toast({
+        title: 'Download started',
+        description: 'Your video is being downloaded.',
       });
-    }, 150);
-  };
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(exportedUrl);
-    toast({
-      title: "Link Copied",
-      description: "Video link copied to clipboard",
-    });
-  };
-
-  const handleApplyPreset = (presetId: string) => {
-    switch (presetId) {
-      case "youtube":
-        setAspectRatio("16:9");
-        setResolution("1080p");
-        setEnableLoop(true);
-        break;
-      case "tiktok":
-        setAspectRatio("9:16");
-        setResolution("1080p");
-        setEnableLoop(false);
-        break;
-      case "instagram":
-        setAspectRatio("1:1");
-        setResolution("1080p");
-        setEnableLoop(false);
-        break;
-      case "desktop":
-        setAspectRatio("16:9");
-        setResolution("4k");
-        setEnableLoop(true);
-        break;
+    } catch (err) {
+      console.error('[ExportTab] Download error:', err);
+      toast({
+        title: 'Download failed',
+        description: 'Failed to download video. Please try again.',
+        variant: 'destructive',
+      });
     }
+  };
+  
+  const handleCopyLink = () => {
+    if (!exportUrl) return;
+    navigator.clipboard.writeText(exportUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
     toast({
-      title: "Preset Applied",
-      description: `Settings updated for ${PLATFORM_PRESETS.find(p => p.id === presetId)?.label}`,
+      title: 'Link copied',
+      description: 'Video URL copied to clipboard.',
     });
   };
+  
+  const handlePlayPause = () => {
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+    } else {
+      videoRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
+  };
+  
+  // Platform connection
+  const connectIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const handleConnect = useCallback(async (platformId: string) => {
+    const platform = PLATFORMS.find(p => p.id === platformId);
+    if (!platform?.apiPlatform) return;
 
+    setConnectingPlatform(platformId);
+    
+    const url = await getConnectUrl(platform.apiPlatform);
+    if (url) {
+      window.open(url, '_blank', 'width=600,height=700');
+      toast({
+        title: "Connecting...",
+        description: "Complete authentication in the new window, then return here.",
+      });
+      connectIntervalRef.current = setInterval(async () => {
+        await refetchAccounts();
+      }, 3000);
+      setTimeout(() => {
+        if (connectIntervalRef.current) {
+          clearInterval(connectIntervalRef.current);
+          connectIntervalRef.current = null;
+        }
+        setConnectingPlatform(null);
+      }, 120000);
+    } else {
+      setConnectingPlatform(null);
+      toast({
+        title: "Connection failed",
+        description: "Could not open connection page. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [getConnectUrl, refetchAccounts, toast]);
+  
+  // Clear connecting state when platform becomes connected
+  useEffect(() => {
+    if (connectingPlatform) {
+      const platform = PLATFORMS.find(p => p.id === connectingPlatform);
+      if (platform?.apiPlatform && isConnected(platform.apiPlatform)) {
+        if (connectIntervalRef.current) {
+          clearInterval(connectIntervalRef.current);
+          connectIntervalRef.current = null;
+        }
+        setConnectingPlatform(null);
+        toast({
+          title: "Connected!",
+          description: `${platform.name} has been connected successfully.`,
+        });
+      }
+    }
+  }, [connectingPlatform, isConnected, toast]);
+  
+  // AI metadata generation
+  const handleAIMetadata = useCallback(async (platform: string) => {
+    setIsGeneratingAI(true);
+    try {
+      // Build rich scriptText from available video data
+      let scriptText = videoTitle;
+      
+      // Fetch video data to get step1Data and step3Data for richer context
+      if (videoId) {
+        try {
+          const videoResponse = await fetch(`/api/videos/${videoId}`, {
+            credentials: 'include',
+          });
+          
+          if (videoResponse.ok) {
+            const videoData = await videoResponse.json();
+            const step1Data = videoData.step1Data;
+            const step3Data = videoData.step3Data;
+            
+            // Build rich description combining:
+            // 1. Video title
+            // 2. Mood description (from step1Data)
+            // 3. Scene descriptions (from step3Data)
+            const parts: string[] = [];
+            
+            if (videoTitle && videoTitle !== 'Untitled') {
+              parts.push(`Title: ${videoTitle}`);
+            }
+            
+            if (step1Data?.moodDescription) {
+              parts.push(`\nMood & Atmosphere:\n${step1Data.moodDescription}`);
+            }
+            
+            if (step3Data?.scenes && Array.isArray(step3Data.scenes) && step3Data.scenes.length > 0) {
+              parts.push(`\nScenes:`);
+              step3Data.scenes.forEach((scene: any, index: number) => {
+                if (scene.title || scene.description) {
+                  parts.push(`\nScene ${index + 1}: ${scene.title || 'Untitled'}`);
+                  if (scene.description) {
+                    parts.push(`${scene.description}`);
+                  }
+                }
+              });
+            }
+            
+            if (parts.length > 0) {
+              scriptText = parts.join('\n');
+            }
+          }
+        } catch (fetchError) {
+          console.warn('[ExportTab] Could not fetch video data for metadata generation, using title only:', fetchError);
+          // Continue with just videoTitle if fetch fails
+        }
+      }
+      
+      const res = await apiRequest("POST", "/api/stories/social/metadata", {
+        platform: platform === 'youtube' ? 'youtube' : platform,
+        scriptText: scriptText,
+        duration: duration,
+      });
+      
+      const data = await res.json();
+      
+      if (platform === 'youtube') {
+        if (data.title) setYoutubeTitle(data.title);
+        if (data.description) setYoutubeDescription(data.description);
+      } else {
+        if (data.caption) setSocialCaption(data.caption);
+      }
+      
+      toast({
+        title: "Metadata generated",
+        description: `AI generated ${platform} metadata successfully`,
+      });
+    } catch (error) {
+      console.error('[ExportTab] Failed to generate metadata:', error);
+      toast({
+        title: "Generation failed",
+        description: "Failed to generate AI metadata. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  }, [videoId, videoTitle, duration, toast]);
+  
+  // Publish to social
+  const hasYouTube = selectedPlatforms.some(p => ["youtube_shorts", "youtube_video"].includes(p));
+  const hasSocialPlatforms = selectedPlatforms.some(p => ["tiktok", "instagram", "facebook"].includes(p));
+  
+  const handlePublish = useCallback(async () => {
+    if (!exportUrl || selectedPlatforms.length === 0) return;
+    
+    if (!currentWorkspace) {
+      toast({
+        title: "No workspace selected",
+        description: "Please select a workspace to publish videos.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsPublishing(true);
+    
+    try {
+      const publishInput: PublishVideoInput = {
+        videoUrl: exportUrl,
+        platforms: selectedPlatforms.map(id => {
+          const platform = PLATFORMS.find(p => p.id === id);
+          // Map both youtube_shorts and youtube_video to youtube platform
+          let apiPlatform: LatePlatform;
+          if (id === "youtube_shorts" || id === "youtube_video") {
+            apiPlatform = "youtube";
+          } else {
+            apiPlatform = (platform?.apiPlatform || id) as LatePlatform;
+          }
+          return { platform: apiPlatform }; // Return object with platform property
+        }),
+        metadata: {}, // Initialize metadata as empty object
+      };
+      
+      if (hasYouTube) {
+        publishInput.metadata.youtube = {
+          title: youtubeTitle || videoTitle,
+          description: youtubeDescription,
+        };
+      }
+      
+      if (hasSocialPlatforms) {
+        if (selectedPlatforms.includes('tiktok')) {
+          publishInput.metadata.tiktok = { caption: socialCaption };
+        }
+        if (selectedPlatforms.includes('instagram')) {
+          publishInput.metadata.instagram = { caption: socialCaption };
+        }
+        if (selectedPlatforms.includes('facebook')) {
+          publishInput.metadata.facebook = { caption: socialCaption };
+        }
+      }
+      
+      publishInput.publishNow = publishType === 'instant';
+      if (publishType === 'schedule' && scheduleDate && scheduleTime) {
+        publishInput.scheduledFor = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+      }
+      
+      if (!currentWorkspace) {
+        throw new Error('No workspace selected');
+      }
+      
+      const result = await lateApi.publishVideo(currentWorkspace.id, publishInput);
+      
+      const platformNames = selectedPlatforms.map(id => 
+        PLATFORMS.find(p => p.id === id)?.name || id
+      ).join(', ');
+      
+      toast({
+        title: publishType === 'schedule' ? "Scheduled!" : "Published!",
+        description: `Video ${publishType === 'schedule' ? 'scheduled for' : 'published to'} ${platformNames}`,
+      });
+      
+    } catch (error: any) {
+      console.error('[ExportTab] Publish failed:', error);
+      toast({
+        title: "Publish failed",
+        description: error.message || "Failed to publish video. Please check your social accounts are connected.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [exportUrl, selectedPlatforms, currentWorkspace, hasYouTube, youtubeTitle, youtubeDescription, socialCaption, publishType, scheduleDate, scheduleTime, videoTitle, toast]);
+  
+  const canPublish = selectedPlatforms.length > 0 && 
+    exportUrl &&
+    renderStatus === 'done' &&
+    (publishType === 'instant' || (scheduleDate && scheduleTime)) &&
+    (!hasYouTube || (youtubeTitle.trim() && youtubeDescription.trim())) &&
+    (!hasSocialPlatforms || socialCaption.trim());
+  
+  // Format duration
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+  
+  // Get current render step
+  const getCurrentStep = () => {
+    return RENDER_STEPS.find(s => s.id === renderStatus) || RENDER_STEPS[0];
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════════════════════════
+  
   return (
-    <div className="space-y-8">
-      <div className="text-center max-w-2xl mx-auto">
-        <h2 className="text-2xl font-bold mb-2">Export Your Ambient Visual</h2>
-        <p className="text-muted-foreground">
-          Configure output settings and download your video
-        </p>
+    <div className="h-full flex bg-[#0a0a0a] overflow-hidden">
+      {/* Background Effects */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[150px]" />
+        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-teal-500/10 rounded-full blur-[120px]" />
       </div>
 
-      {isExported ? (
-        /* Export Complete View */
-        <Card className="max-w-2xl mx-auto border-green-500/50 bg-green-500/5">
-          <CardContent className="p-8 text-center space-y-6">
-            <CheckCircle2 className="h-16 w-16 mx-auto text-green-500" />
+      {/* Left Panel - Control Panel */}
+      <div className={cn(
+        "w-[40%] min-w-[380px] max-w-[520px] flex-shrink-0",
+        "h-full",
+        "bg-black/40 backdrop-blur-xl",
+        "border-r border-white/[0.06]",
+        "flex flex-col relative z-10 overflow-hidden"
+      )}>
+        {/* Header */}
+        <div className="flex-shrink-0 p-4 border-b border-white/[0.06]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-500 flex items-center justify-center">
+              <Film className="w-5 h-5 text-white" />
+            </div>
             <div>
-              <h3 className="text-xl font-bold text-green-500">Export Complete!</h3>
-              <p className="text-muted-foreground mt-1">Your ambient visual is ready</p>
+              <div className="flex items-center gap-2">
+                {renderStatus === 'done' ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                ) : renderStatus === 'failed' ? (
+                  <AlertCircle className="h-4 w-4 text-red-500" />
+                ) : (
+                  <Loader2 className="h-4 w-4 text-cyan-400 animate-spin" />
+                )}
+                <h1 className="text-base font-semibold">
+                  {renderStatus === 'done' ? 'Export Complete' : 
+                   renderStatus === 'failed' ? 'Export Failed' : 
+                   'Exporting Video...'}
+                </h1>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {renderStatus === 'done' ? 'Your video is ready' :
+                 renderStatus === 'failed' ? error || 'An error occurred' :
+                 `${renderProgress}% complete`}
+              </p>
             </div>
-            
-            <div className="bg-white/5 rounded-lg p-4 flex items-center gap-3">
-              <Input 
-                value={exportedUrl} 
-                readOnly 
-                className="flex-1 bg-white/5 border-white/10 text-white"
-                data-testid="input-exported-url"
-              />
-              <Button variant="outline" onClick={handleCopyLink} className="border-white/10 hover:bg-white/5" data-testid="button-copy-link">
-                <Copy className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" asChild className="border-white/10 hover:bg-white/5" data-testid="button-open-link">
-                <a href={exportedUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              </Button>
-            </div>
+          </div>
+        </div>
 
-            <div className="flex justify-center gap-4">
-              <Button size="lg" variant="ghost" className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white" data-testid="button-download-final">
-                <Download className="mr-2 h-4 w-4" />
-                Download Video
-              </Button>
-              <Button size="lg" variant="outline" className="border-white/10 hover:bg-white/5" data-testid="button-share-final">
-                <Share2 className="mr-2 h-4 w-4" />
-                Share
-              </Button>
-            </div>
-
-            <div className="pt-4 border-t border-white/10">
-              <p className="text-sm text-muted-foreground mb-3">Quick share to:</p>
-              <div className="flex justify-center gap-3">
-                {PLATFORM_PRESETS.map((platform) => {
-                  const Icon = platform.icon;
-                  return (
-                    <Button key={platform.id} variant="outline" size="icon" className="border-white/10 hover:bg-white/5 hover:border-cyan-500/50" data-testid={`button-share-${platform.id}`}>
-                      <Icon className="h-4 w-4" />
-                    </Button>
-                  );
-                })}
+        {/* Scrollable Content */}
+        <ScrollArea className="flex-1">
+          <div className="p-4 space-y-5 pb-40">
+            {/* Video Summary */}
+            <div className={cn(
+              "p-4 rounded-xl",
+              "bg-white/[0.02] border border-white/[0.06]"
+            )}>
+              <div className="flex items-center gap-2 mb-3">
+                <Video className="h-4 w-4 text-cyan-400" />
+                <span className="text-sm font-medium">Video Summary</span>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Title</span>
+                  <span className="truncate ml-4 max-w-[180px]">{videoTitle}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Duration</span>
+                  <span>{formatDuration(duration)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Scenes</span>
+                  <span>{sceneCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Aspect Ratio</span>
+                  <span>{aspectRatio}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Audio</span>
+                  <div className="flex items-center gap-2">
+                    {hasVoiceover && (
+                      <Badge variant="outline" className="text-xs border-purple-500/30 text-purple-300">
+                        <Mic className="w-3 h-3 mr-1" />
+                        Voiceover
+                      </Badge>
+                    )}
+                    {hasMusic && (
+                      <Badge variant="outline" className="text-xs border-pink-500/30 text-pink-300">
+                        <Music className="w-3 h-3 mr-1" />
+                        Music
+                      </Badge>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Video Settings */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Platform Presets */}
-            <Card className="bg-white/[0.02] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <Label className="text-lg font-semibold">Platform Presets</Label>
-                <p className="text-sm text-muted-foreground">
-                  Quick settings for popular platforms
-                </p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {PLATFORM_PRESETS.map((preset) => {
-                    const Icon = preset.icon;
-                    return (
-                      <button
-                        key={preset.id}
-                        onClick={() => handleApplyPreset(preset.id)}
-                        className="p-4 rounded-lg border text-center transition-all hover-elevate border-white/10 bg-white/5 hover:bg-white/[0.07] hover:border-cyan-500/50"
-                        data-testid={`button-preset-${preset.id}`}
+
+            {/* Export Settings (read-only) */}
+            <div className={cn(
+              "p-4 rounded-xl",
+              "bg-white/[0.02] border border-white/[0.06]"
+            )}>
+              <div className="flex items-center gap-2 mb-3">
+                <Monitor className="h-4 w-4 text-cyan-400" />
+                <span className="text-sm font-medium">Export Settings</span>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Quality</span>
+                  <span className="text-white">1080p Full HD</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Format</span>
+                  <span className="text-white">MP4</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+            {/* Share To Platforms */}
+            {renderStatus === 'done' && (
+              <>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Share2 className="h-4 w-4 text-cyan-400" />
+                      <span className="text-sm font-medium">Share To (Optional)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={async () => {
+                          // Generate metadata for all selected platforms
+                          if (hasYouTube) {
+                            await handleAIMetadata('youtube');
+                          }
+                          if (hasSocialPlatforms) {
+                            await handleAIMetadata('tiktok');
+                          }
+                        }}
+                        disabled={isGeneratingAI || selectedPlatforms.length === 0}
+                        className="h-7 text-xs gap-1 text-cyan-400 hover:text-cyan-300"
                       >
-                        <Icon className="h-6 w-6 mx-auto mb-2" />
-                        <div className="font-medium text-sm">{preset.label}</div>
-                        <div className="text-xs text-muted-foreground mt-1">{preset.settings}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Aspect Ratio */}
-            <Card className="bg-white/[0.02] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <Label className="text-lg font-semibold">Aspect Ratio</Label>
-                <div className="grid grid-cols-4 gap-3">
-                  {ASPECT_RATIOS.map((ratio) => {
-                    const Icon = ratio.icon;
-                    return (
-                      <button
-                        key={ratio.id}
-                        onClick={() => setAspectRatio(ratio.id)}
-                        className={`p-4 rounded-lg border text-center transition-all hover-elevate ${
-                          aspectRatio === ratio.id
-                            ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
-                            : "border-white/10 bg-white/5 hover:bg-white/[0.07]"
-                        }`}
-                        data-testid={`button-aspect-${ratio.id.replace(":", "-")}`}
-                      >
-                        <Icon className="h-6 w-6 mx-auto mb-2" />
-                        <div className="font-medium">{ratio.label}</div>
-                        <div className="text-xs text-muted-foreground">{ratio.description}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Resolution */}
-            <Card className="bg-white/[0.02] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <Label className="text-lg font-semibold">Resolution</Label>
-                <div className="grid grid-cols-3 gap-3">
-                  {RESOLUTIONS.map((res) => (
-                    <button
-                      key={res.id}
-                      onClick={() => setResolution(res.id)}
-                      className={`p-4 rounded-lg border text-center transition-all hover-elevate ${
-                        resolution === res.id
-                          ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
-                          : "border-white/10 bg-white/5 hover:bg-white/[0.07]"
-                      }`}
-                      data-testid={`button-resolution-${res.id}`}
-                    >
-                      <div className="font-medium">{res.label}</div>
-                      <div className="text-xs text-muted-foreground">{res.description}</div>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Sound & Loop Options */}
-            <Card className="bg-white/[0.02] border-white/[0.06]">
-              <CardContent className="p-6 space-y-6">
-                <div className="space-y-4">
-                  <Label className="text-lg font-semibold">Sound Mix</Label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {SOUND_MIX_OPTIONS.map((opt) => {
-                      const Icon = opt.icon;
+                        {isGeneratingAI ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Wand2 className="w-3 h-3" />
+                        )}
+                        AI Generate
+                      </Button>
+                      {selectedPlatforms.length > 0 && (
+                        <Badge variant="outline" className="text-xs border-cyan-500/30 text-cyan-300">
+                          {selectedPlatforms.length} selected
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {PLATFORMS.map(platform => {
+                        const Icon = platform.icon;
+                        const platformConnected = platform.apiPlatform ? isConnected(platform.apiPlatform) : false;
+                        const isSelected = selectedPlatforms.includes(platform.id);
+                        const isExpanded = expandedPlatforms.includes(platform.id);
+                        const isDisabled = !platformConnected;
+                        const showMetadata = isExpanded; // Only show when manually expanded
+                      
                       return (
-                        <button
-                          key={opt.id}
-                          onClick={() => setSoundMix(opt.id)}
-                          className={`p-3 rounded-lg border text-center transition-all hover-elevate ${
-                            soundMix === opt.id
-                              ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
-                              : "border-white/10 bg-white/5 hover:bg-white/[0.07]"
-                          }`}
-                          data-testid={`button-sound-${opt.id}`}
-                        >
-                          <Icon className="h-5 w-5 mx-auto mb-1" />
-                          <div className="text-sm font-medium">{opt.label}</div>
-                        </button>
+                        <div key={platform.id} className="space-y-2">
+                          <motion.div
+                            whileHover={{ scale: isDisabled ? 1 : 1.02 }}
+                            whileTap={{ scale: isDisabled ? 1 : 0.98 }}
+                            className={cn(
+                              "p-3 rounded-xl transition-all duration-200",
+                              "flex items-center gap-3",
+                              "border",
+                              isDisabled
+                                ? "bg-white/[0.01] border-white/[0.04] opacity-60"
+                                : isSelected
+                                  ? "bg-white/[0.08] border-cyan-500/50"
+                                  : "bg-white/[0.02] border-white/[0.06] hover:border-white/[0.12] cursor-pointer"
+                            )}
+                            onClick={() => !isDisabled && handlePlatformToggle(platform.id)}
+                          >
+                            {platformConnected ? (
+                              <div className={cn(
+                                "w-4 h-4 rounded border flex items-center justify-center flex-shrink-0",
+                                isSelected
+                                  ? "bg-cyan-500 border-cyan-500"
+                                  : "border-white/30"
+                              )}>
+                                {isSelected && <Check className="w-3 h-3 text-white" />}
+                              </div>
+                            ) : (
+                              <Lock className="w-4 h-4 text-white/30 flex-shrink-0" />
+                            )}
+                            
+                            <div className={cn(
+                              "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                              "bg-gradient-to-br",
+                              platform.gradient || platform.color,
+                              isDisabled && "opacity-50"
+                            )}>
+                              <Icon className="h-4 w-4 text-white" />
+                            </div>
+                            
+                            <div className="flex-1 min-w-0">
+                              <span className={cn(
+                                "text-xs font-medium block",
+                                isDisabled && "text-white/50"
+                              )}>
+                                {platform.name}
+                              </span>
+                              {platform.requiresAspectRatio && platform.aspectRatioText && (
+                                <span className="text-[9px] text-muted-foreground block mt-0.5">
+                                  {platform.aspectRatioText}
+                                </span>
+                              )}
+                              {!platformConnected && !platform.requiresAspectRatio && (
+                                <span className="text-[9px] text-amber-400 block mt-0.5">Not Connected</span>
+                              )}
+                            </div>
+                            
+                            {!platformConnected ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleConnect(platform.id);
+                                }}
+                                disabled={connectingPlatform === platform.id}
+                                className={cn(
+                                  "h-6 px-2 text-[10px] gap-1",
+                                  "bg-cyan-500/10 border-cyan-500/30 text-cyan-300",
+                                  "hover:bg-cyan-500/20",
+                                  "disabled:opacity-70"
+                                )}
+                              >
+                                {connectingPlatform === platform.id ? (
+                                  <>
+                                    <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                                    Connecting...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Link2 className="w-2.5 h-2.5" />
+                                    Connect
+                                  </>
+                                )}
+                              </Button>
+                            ) : isSelected && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  togglePlatformExpand(platform.id);
+                                }}
+                                className="h-6 w-6 p-0"
+                              >
+                                {isExpanded ? (
+                                  <ChevronUp className="w-4 h-4 text-cyan-400" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-cyan-400" />
+                                )}
+                              </Button>
+                            )}
+                           </motion.div>
+                           
+                           {/* Metadata section for selected and expanded platforms */}
+                           <AnimatePresence>
+                             {showMetadata && (
+                               <motion.div
+                                 initial={{ height: 0, opacity: 0 }}
+                                 animate={{ height: "auto", opacity: 1 }}
+                                 exit={{ height: 0, opacity: 0 }}
+                                 transition={{ duration: 0.2 }}
+                                 className="overflow-hidden"
+                               >
+                              <div className={cn(
+                                "p-3 rounded-xl space-y-3 ml-11",
+                                "bg-white/[0.02] border border-white/[0.06]"
+                              )}>
+                                {(platform.id === 'youtube_shorts' || platform.id === 'youtube_video') && (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-medium text-white/70">YouTube Details</span>
+                                    </div>
+                                    <Input
+                                      placeholder="Video title"
+                                      value={youtubeTitle}
+                                      onChange={(e) => setYoutubeTitle(e.target.value)}
+                                      className="bg-white/[0.03] border-white/[0.08] h-9 text-sm"
+                                    />
+                                    <Textarea
+                                      placeholder="Video description"
+                                      value={youtubeDescription}
+                                      onChange={(e) => setYoutubeDescription(e.target.value)}
+                                      className="bg-white/[0.03] border-white/[0.08] min-h-[80px] text-sm resize-none"
+                                    />
+                                  </>
+                                )}
+                                {(platform.id === 'tiktok' || platform.id === 'instagram' || platform.id === 'facebook') && (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <Music className="h-3 w-3 text-white/50" />
+                                      <span className="text-xs font-medium text-white/70">Social Caption</span>
+                                    </div>
+                                    <Textarea
+                                      placeholder="Write a caption..."
+                                      value={socialCaption}
+                                      onChange={(e) => setSocialCaption(e.target.value)}
+                                      className="bg-white/[0.03] border-white/[0.08] min-h-[80px] text-sm resize-none"
+                                    />
+                                  </>
+                                )}
+                               </div>
+                             </motion.div>
+                             )}
+                           </AnimatePresence>
+                         </div>
                       );
                     })}
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                  <div className="flex items-center gap-3">
-                    <Repeat className="h-5 w-5 text-cyan-400" />
-                    <div>
-                      <Label className="font-medium">Export as Seamless Loop</Label>
-                      <p className="text-xs text-muted-foreground">Optimize for endless replay</p>
+              </>
+            )}
+            
+            {/* Footer Actions - Inside ScrollArea */}
+            {renderStatus === 'done' && (
+              <div className="space-y-3 pt-5">
+                {/* Warning message when metadata is missing */}
+                {selectedPlatforms.length > 0 && !canPublish && (
+                  <div className={cn(
+                    "flex items-start gap-2 p-3 rounded-lg",
+                    "bg-amber-500/10 border border-amber-500/20"
+                  )}>
+                    <AlertCircle className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-amber-300">
+                        Fill in metadata for: {selectedPlatforms.map(id => 
+                          PLATFORMS.find(p => p.id === id)?.name
+                        ).join(', ')}
+                      </p>
                     </div>
                   </div>
-                  <Switch
-                    checked={enableLoop}
-                    onCheckedChange={setEnableLoop}
-                    data-testid="switch-loop-export"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Right Column - Metadata & Export */}
-          <div className="space-y-6">
-            {/* Video Metadata */}
-            <Card className="bg-white/[0.02] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <Label className="text-lg font-semibold">Video Details</Label>
+                )}
                 
-                <div className="space-y-2">
-                  <Label className="text-sm">Title</Label>
-                  <Input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Enter video title"
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-cyan-500/50"
-                    data-testid="input-title"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm">Description</Label>
-                  <Textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Add a description for your ambient visual..."
-                    rows={4}
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-cyan-500/50"
-                    data-testid="input-description"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Export Summary */}
-            <Card className="bg-white/[0.02] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <Label className="text-lg font-semibold">Export Summary</Label>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Duration</span>
-                    <span>{Math.floor(totalDuration / 60)}:{String(totalDuration % 60).padStart(2, '0')}</span>
+                {/* Publish Buttons */}
+                {selectedPlatforms.length > 0 && (
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => {
+                        setPublishType('instant');
+                        handlePublish();
+                      }}
+                      disabled={!canPublish || isPublishing}
+                      className={cn(
+                        "flex-1 bg-gradient-to-r from-purple-600 to-purple-700",
+                        "hover:from-purple-500 hover:to-purple-600",
+                        "disabled:opacity-50 disabled:cursor-not-allowed"
+                      )}
+                    >
+                      {isPublishing && publishType === 'instant' ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Publishing...
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="w-4 h-4 mr-2" />
+                          Publish Now
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => setPublishType('schedule')}
+                      disabled={isPublishing}
+                      variant="outline"
+                      className="flex-1 border-white/10 hover:bg-white/5"
+                    >
+                      <Clock className="w-4 h-4 mr-2" />
+                      Schedule
+                    </Button>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Aspect Ratio</span>
-                    <span>{aspectRatio}</span>
+                )}
+                
+                {/* Schedule date/time picker - shown when Schedule button clicked */}
+                {selectedPlatforms.length > 0 && publishType === 'schedule' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      type="date"
+                      value={scheduleDate}
+                      onChange={(e) => setScheduleDate(e.target.value)}
+                      className="bg-white/[0.03] border-white/[0.08] h-9 text-sm"
+                      placeholder="Date"
+                    />
+                    <Input
+                      type="time"
+                      value={scheduleTime}
+                      onChange={(e) => setScheduleTime(e.target.value)}
+                      className="bg-white/[0.03] border-white/[0.08] h-9 text-sm"
+                      placeholder="Time"
+                    />
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Resolution</span>
-                    <span>{RESOLUTIONS.find(r => r.id === resolution)?.label}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Sound</span>
-                    <span>{SOUND_MIX_OPTIONS.find(s => s.id === soundMix)?.label}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Loop</span>
-                    <span>{enableLoop ? "Enabled" : "Disabled"}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Export Button */}
-            <Card className="bg-white/[0.02] border-white/[0.06]">
-              <CardContent className="p-6">
-                {isExporting ? (
-                  <div className="text-center space-y-4">
-                    <Loader2 className="h-10 w-10 mx-auto animate-spin text-cyan-400" />
-                    <div>
-                      <h4 className="font-semibold">Exporting Video...</h4>
-                      <p className="text-sm text-muted-foreground">{exportProgress}% complete</p>
-                    </div>
-                    <div className="w-full bg-white/10 rounded-full h-2">
-                      <div 
-                        className="bg-gradient-to-r from-cyan-500 to-teal-500 h-2 rounded-full transition-all"
-                        style={{ width: `${exportProgress}%` }}
-                      />
-                    </div>
-                  </div>
-                ) : (
+                )}
+                
+                {/* Final Publish Button */}
+                {selectedPlatforms.length > 0 && (
                   <Button
-                    onClick={handleExport}
-                    variant="ghost"
-                    className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
-                    size="lg"
-                    data-testid="button-export"
+                    onClick={handlePublish}
+                    disabled={!canPublish || isPublishing}
+                    className={cn(
+                      "w-full h-11 font-medium",
+                      "bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600",
+                      "hover:from-purple-500 hover:via-pink-500 hover:to-purple-500",
+                      "disabled:opacity-50 disabled:cursor-not-allowed"
+                    )}
                   >
-                    <Download className="mr-2 h-4 w-4" />
-                    Export Video
+                    {isPublishing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {publishType === 'schedule' ? 'Scheduling...' : 'Publishing...'}
+                      </>
+                    ) : (
+                      <>
+                        <Share2 className="w-4 h-4 mr-2" />
+                        {publishType === 'schedule' ? 'Schedule to' : 'Publish to'} {selectedPlatforms.length} Platform{selectedPlatforms.length > 1 ? 's' : ''}
+                      </>
+                    )}
                   </Button>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        </ScrollArea>
+      </div>
+
+      {/* Right Panel - Video Preview */}
+      <div className="flex-1 flex flex-col items-center justify-center p-4 relative z-10 overflow-hidden">
+        {/* Rendering Progress */}
+        {renderStatus !== 'done' && renderStatus !== 'failed' && (
+          <div className="w-full max-w-lg text-center space-y-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="relative"
+            >
+              <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-cyan-500/20 to-teal-500/20 flex items-center justify-center">
+                <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
+              </div>
+            </motion.div>
+            
+            <div className="space-y-2">
+              <h3 className="text-xl font-semibold text-white">
+                {getCurrentStep().label}...
+              </h3>
+              <p className="text-sm text-white/60">
+                This may take a few minutes
+              </p>
+            </div>
+            
+            {/* Progress Bar */}
+            <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+              <motion.div
+                className="h-full bg-gradient-to-r from-cyan-500 to-teal-500"
+                initial={{ width: 0 }}
+                animate={{ width: `${renderProgress}%` }}
+                transition={{ duration: 0.5 }}
+              />
+            </div>
+            <p className="text-sm text-white/40">{renderProgress}%</p>
+            
+            {/* Steps */}
+            <div className="flex justify-center gap-2 flex-wrap">
+              {RENDER_STEPS.filter(s => s.id !== 'done').map((step) => {
+                const isCurrent = step.id === renderStatus;
+                const isComplete = RENDER_STEPS.findIndex(s => s.id === step.id) < 
+                                   RENDER_STEPS.findIndex(s => s.id === renderStatus);
+                
+                return (
+                  <div
+                    key={step.id}
+                    className={cn(
+                      "flex items-center gap-1 text-xs px-2 py-1 rounded-full",
+                      isCurrent ? "bg-cyan-500/20 text-cyan-300" :
+                      isComplete ? "bg-white/5 text-white/40" :
+                      "bg-white/[0.02] text-white/20"
+                    )}
+                  >
+                    {isComplete && <Check className="w-3 h-3" />}
+                    {isCurrent && <Loader2 className="w-3 h-3 animate-spin" />}
+                    {step.label}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        
+        {/* Error State */}
+        {renderStatus === 'failed' && (
+          <div className="w-full max-w-md text-center space-y-4">
+            <div className="w-16 h-16 mx-auto rounded-full bg-red-500/20 flex items-center justify-center">
+              <AlertCircle className="w-8 h-8 text-red-400" />
+            </div>
+            <h3 className="text-xl font-semibold text-white">Export Failed</h3>
+            <p className="text-sm text-white/60">{error || 'An error occurred during export'}</p>
+            {error?.includes('not initialized') || error?.includes('not properly initialized') ? (
+              <div className="space-y-3">
+                <p className="text-xs text-white/40">
+                  The export process was interrupted. Please go back to the Preview step and click "Export Video" again.
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => window.history.back()}
+                  className="gap-2 border-white/10 hover:bg-white/5"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Go Back to Preview
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => window.location.reload()}
+                className="gap-2 border-white/10 hover:bg-white/5"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Try Again
+              </Button>
+            )}
+          </div>
+        )}
+        
+        {/* Video Player */}
+        {renderStatus === 'done' && exportUrl && (
+          <div className="w-full h-full max-w-6xl flex flex-col items-center justify-center space-y-4 pb-24">
+            {/* Video Container with modern styling */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+              className={cn(
+                "relative w-full mx-auto",
+                aspectRatio === "9:16" ? "aspect-[9/16] max-h-[85vh]" :
+                aspectRatio === "1:1" ? "aspect-square max-h-[75vh]" :
+                "aspect-video max-h-[70vh]",
+                "rounded-xl overflow-hidden",
+                "bg-black/60",
+                "border border-white/[0.08]",
+                "shadow-2xl shadow-black/50"
+              )}
+            >
+              <video
+                ref={videoRef}
+                src={exportUrl}
+                poster={thumbnailUrl || undefined}
+                className="w-full h-full object-contain"
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onEnded={() => setIsPlaying(false)}
+                controls
+              />
+
+              {/* Badges */}
+              <div className="absolute top-4 left-4 flex gap-2">
+                <Badge className="bg-black/70 backdrop-blur-sm border-white/10 text-xs px-2.5 py-1">
+                  <Clock className="w-3 h-3 mr-1.5" />
+                  {formatDuration(duration)}
+                </Badge>
+              </div>
+              <div className="absolute top-4 right-4">
+                <Badge variant="outline" className="bg-black/70 backdrop-blur-sm border-white/10 text-xs px-2.5 py-1">
+                  <Layers className="w-3 h-3 mr-1.5" />
+                  {aspectRatio}
+                </Badge>
+              </div>
+
+              {/* Corner Decorations */}
+              <div className="absolute top-4 left-4 w-5 h-5 border-l-2 border-t-2 border-cyan-500/30 rounded-tl pointer-events-none" />
+              <div className="absolute top-4 right-4 w-5 h-5 border-r-2 border-t-2 border-cyan-500/30 rounded-tr pointer-events-none" />
+              <div className="absolute bottom-4 left-4 w-5 h-5 border-l-2 border-b-2 border-cyan-500/30 rounded-bl pointer-events-none" />
+              <div className="absolute bottom-4 right-4 w-5 h-5 border-r-2 border-b-2 border-cyan-500/30 rounded-br pointer-events-none" />
+            </motion.div>
+            
+            {/* Action Buttons */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.4 }}
+              className="flex items-center justify-center gap-3"
+            >
+              <Button
+                variant="outline"
+                onClick={handleDownload}
+                className="gap-2 bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.08]"
+              >
+                <Download className="h-4 w-4" />
+                Download
+              </Button>
+              <Button
+                variant="outline"
+                asChild
+                className="gap-2 bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.08]"
+              >
+                <a href={exportUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4" />
+                  Open
+                </a>
+              </Button>
+            </motion.div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

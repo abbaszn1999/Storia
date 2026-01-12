@@ -15,6 +15,8 @@ interface AmbientTimelineNavigationProps {
   onBack: () => void;
   isNextDisabled?: boolean;
   nextLabel?: string;
+  hideNextButton?: boolean;
+  hideBackButton?: boolean;
 }
 
 export function AmbientTimelineNavigation({
@@ -24,7 +26,9 @@ export function AmbientTimelineNavigation({
   onNext,
   onBack,
   isNextDisabled = false,
-  nextLabel
+  nextLabel,
+  hideNextButton = false,
+  hideBackButton = false
 }: AmbientTimelineNavigationProps) {
   const currentIndex = AMBIENT_STEPS.findIndex(s => s.id === currentStep);
   const isFirstStep = currentIndex === 0;
@@ -71,20 +75,23 @@ export function AmbientTimelineNavigation({
       <div className="bg-black/90 backdrop-blur-xl border-t border-white/[0.06] px-6 py-4">
         <div className="w-full flex items-center justify-center gap-6">
           {/* Back Button */}
-          <Button
-            variant="ghost"
-            size="lg"
-            onClick={onBack}
-            disabled={isFirstStep}
-            className={cn(
-              "min-w-[100px] gap-2 flex-shrink-0",
-              "text-white/70 hover:text-white hover:bg-white/5",
-              isFirstStep && "opacity-0 pointer-events-none"
-            )}
-          >
-            <ChevronLeft className="w-4 h-4" />
-            Back
-          </Button>
+          {!hideBackButton && (
+            <Button
+              variant="ghost"
+              size="lg"
+              onClick={onBack}
+              disabled={isFirstStep}
+              className={cn(
+                "min-w-[100px] gap-2 flex-shrink-0",
+                "text-white/70 hover:text-white hover:bg-white/5",
+                isFirstStep && "opacity-0 pointer-events-none"
+              )}
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Back
+            </Button>
+          )}
+          {hideBackButton && <div className="min-w-[100px]" />}
 
           {/* Timeline Steps */}
           <div className="flex items-center justify-center flex-shrink-0">
@@ -199,24 +206,28 @@ export function AmbientTimelineNavigation({
           </div>
 
           {/* Next/Complete Button */}
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-shrink-0">
-            <Button
-              onClick={onNext}
-              disabled={isNextDisabled}
-              size="lg"
-              className={cn(
-                "min-w-[120px] gap-2 font-semibold",
-                "bg-gradient-to-r",
-                accentClasses.gradient,
-                "hover:opacity-90 transition-opacity",
-                "shadow-lg",
-                accentClasses.glow
-              )}
-            >
-              {nextLabel || (isLastStep ? "Export Video" : "Continue")}
-              {!isLastStep && <ChevronRight className="w-4 h-4" />}
-            </Button>
-          </motion.div>
+          {!hideNextButton ? (
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-shrink-0">
+              <Button
+                onClick={onNext}
+                disabled={isNextDisabled}
+                size="lg"
+                className={cn(
+                  "min-w-[120px] gap-2 font-semibold",
+                  "bg-gradient-to-r",
+                  accentClasses.gradient,
+                  "hover:opacity-90 transition-opacity",
+                  "shadow-lg",
+                  accentClasses.glow
+                )}
+              >
+                {nextLabel || (isLastStep ? "Export Video" : "Continue")}
+                {!isLastStep && <ChevronRight className="w-4 h-4" />}
+              </Button>
+            </motion.div>
+          ) : (
+            <div className="min-w-[120px]" />
+          )}
         </div>
       </div>
     </motion.div>

@@ -41,6 +41,7 @@ import {
   RefreshCw,
   Lightbulb,
   Mic,
+  Music,
   Video,
   ImageIcon,
 } from "lucide-react";
@@ -283,6 +284,7 @@ interface AtmosphereTabProps {
   imageModel?: string;
   imageResolution?: string;
   aspectRatio?: string;
+  backgroundMusicEnabled?: boolean;
   voiceoverEnabled?: boolean;
   voiceoverStory?: string;   // User's narration theme for voiceover
   voiceId?: string;          // Selected ElevenLabs voice ID
@@ -325,6 +327,7 @@ interface AtmosphereTabProps {
   onImageModelChange?: (model: string) => void;
   onImageResolutionChange?: (resolution: string) => void;
   onAspectRatioChange?: (aspectRatio: string) => void;
+  onBackgroundMusicChange?: (enabled: boolean) => void;
   onVoiceoverChange?: (enabled: boolean) => void;
   onVoiceoverStoryChange?: (story: string) => void;
   onVoiceIdChange?: (voiceId: string) => void;
@@ -365,6 +368,7 @@ export function AtmosphereTab({
   imageModel = "nano-banana",
   imageResolution = "1k",
   aspectRatio = "16:9",
+  backgroundMusicEnabled = false,
   voiceoverEnabled = false,
   voiceoverStory = '',
   voiceId = '',
@@ -400,6 +404,7 @@ export function AtmosphereTab({
   onImageModelChange,
   onImageResolutionChange,
   onAspectRatioChange,
+  onBackgroundMusicChange,
   onVoiceoverChange,
   onVoiceoverStoryChange,
   onVoiceIdChange,
@@ -1883,7 +1888,53 @@ export function AtmosphereTab({
               </CardContent>
             </Card>
 
-            {/* Voiceover - LAST SETTING */}
+            {/* Background Music */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Music className="w-5 h-5 text-pink-400" />
+                  <Label className="text-lg font-semibold text-white">Background Music</Label>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-white/70">Enable Background Music</label>
+                  <div className="flex bg-white/5 rounded-lg p-1 border border-white/10">
+                    <button
+                      onClick={() => onBackgroundMusicChange?.(true)}
+                      className={cn(
+                        "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
+                        backgroundMusicEnabled ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
+                      )}
+                    >
+                      On
+                    </button>
+                    <button
+                      onClick={() => onBackgroundMusicChange?.(false)}
+                      className={cn(
+                        "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
+                        !backgroundMusicEnabled ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
+                      )}
+                    >
+                      Off
+                    </button>
+                  </div>
+                </div>
+
+                {backgroundMusicEnabled && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    className="pt-2"
+                  >
+                    <p className="text-xs text-white/40">
+                      Background music will be generated in the Soundscape phase based on your mood and atmosphere settings.
+                    </p>
+                  </motion.div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Voiceover */}
             <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center gap-2 mb-2">

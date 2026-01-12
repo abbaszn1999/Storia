@@ -1,12 +1,22 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, useSearch } from "wouter";
+import { useParams, useSearch, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { AmbientVisualWorkflow, type AmbientVisualWorkflowRef } from "@/components/ambient/ambient-visual-workflow";
 import { AmbientStudioLayout } from "@/components/ambient/studio";
 import { AmbientOnboarding } from "@/components/ambient/onboarding";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/contexts/workspace-context";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { AmbientStepId } from "@/components/ambient/studio";
 import type { Video } from "@shared/schema";
 
@@ -16,6 +26,7 @@ export default function AmbientVisualModePage() {
   const urlParams = new URLSearchParams(searchParams);
   const { toast } = useToast();
   const { currentWorkspace, isLoading: isWorkspaceLoading } = useWorkspace();
+  const [, navigate] = useLocation();
   
   const initialVideoId = params.id || urlParams.get("id") || "new";
   const isNewVideo = initialVideoId === "new";
@@ -25,7 +36,7 @@ export default function AmbientVisualModePage() {
   const urlTitle = urlParams.get("title") || "Untitled Ambient Visual";
   
   // Fetch existing video data
-  const { data: existingVideo, isLoading: isVideoLoading } = useQuery<Video>({
+  const { data: existingVideo, isLoading: isVideoLoading, refetch } = useQuery<Video>({
     queryKey: [`/api/videos/${initialVideoId}`],
     enabled: !isNewVideo,
     staleTime: 0,  // Always refetch
@@ -60,6 +71,10 @@ export default function AmbientVisualModePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [canContinue, setCanContinue] = useState(false);  // Validation state from workflow
   
+  // Export confirmation dialog state
+  const [showExportConfirm, setShowExportConfirm] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  
   // Ref to access workflow's save function
   const workflowRef = useRef<AmbientVisualWorkflowRef>(null);
 
@@ -77,7 +92,16 @@ export default function AmbientVisualModePage() {
       
       // Restore current step
       if (existingVideo.currentStep !== null && existingVideo.currentStep !== undefined) {
-        setActiveStep(existingVideo.currentStep as AmbientStepId);
+        let restoredStep = existingVideo.currentStep as AmbientStepId;
+        
+        // Safety check: if on step 7 but step7Data doesn't exist, go back to step 6
+        // This can happen if the export process was interrupted
+        if (restoredStep === 7 && !existingVideo.step7Data) {
+          console.log('[AmbientPage] Step 7 but no step7Data, reverting to step 6');
+          restoredStep = 6;
+        }
+        
+        setActiveStep(restoredStep);
       }
       
       // Restore completed steps
@@ -120,26 +144,119 @@ export default function AmbientVisualModePage() {
   }
 
   const handleStepClick = (step: AmbientStepId) => {
+    // Prevent going back from step 7 (export)
+    if (activeStep === 7 && step < 7) {
+      toast({
+        title: "Cannot go back",
+        description: "Export has started. You cannot go back to previous steps.",
+        variant: "destructive",
+      });
+      return;
+    }
     setDirection(step > activeStep ? 1 : -1);
     setActiveStep(step);
+  };
+
+  // Handle export confirmation and transition to step 7
+  const handleExportConfirm = async () => {
+    setIsExporting(true);
+    
+    try {
+      // Get current volumes from workflow/preview tab
+      let volumes = null;
+      if (workflowRef.current) {
+        volumes = await workflowRef.current.getCurrentVolumes?.();
+      }
+
+      console.log('[AmbientPage] Starting export with volumes:', volumes);
+
+      // Call continue-to-7 endpoint
+      const response = await fetch(
+        `/api/ambient-visual/videos/${videoId}/step/6/continue-to-7`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ volumes }),
+        }
+      );
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to start export');
+      }
+
+      // Close dialog
+      setShowExportConfirm(false);
+
+      // Start the actual render
+      const renderResponse = await fetch(
+        `/api/ambient-visual/videos/${videoId}/export/start-render`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        }
+      );
+
+      if (!renderResponse.ok) {
+        console.error('[AmbientPage] Failed to start render, but continuing to export page');
+      }
+
+      // Update local state
+      if (!completedSteps.includes(6)) {
+        setCompletedSteps([...completedSteps, 6]);
+      }
+      setDirection(1);
+      setActiveStep(7);
+
+      // Refetch video data to get updated step7Data
+      refetch();
+
+      toast({
+        title: 'Export started',
+        description: 'Your video is being rendered. This may take a few minutes.',
+      });
+    } catch (error) {
+      console.error('[AmbientPage] Export error:', error);
+      toast({
+        title: 'Export failed',
+        description: error instanceof Error ? error.message : 'Failed to start export',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleNext = async () => {
     const nextStep = (activeStep + 1) as AmbientStepId;
     if (nextStep <= 7) {
-      // For step 4, use the workflow's goToNextStep which handles database update
-      if (activeStep === 4 && workflowRef.current) {
+      // Special handling for Step 6 -> Step 7 (export)
+      if (activeStep === 6) {
+        // Show confirmation dialog instead of directly advancing
+        setShowExportConfirm(true);
+        return;
+      }
+
+      // For steps that need special transition handling (4 and 5), use goToNextStep
+      if ((activeStep === 4 || activeStep === 5) && workflowRef.current) {
         setIsSaving(true);
         try {
           await workflowRef.current.goToNextStep();
           // The workflow's goToNextStep will call onStepChange to update the step
           // and update the database, so we don't need to do it here
-          // Also mark step 4 as completed
-          if (!completedSteps.includes(4)) {
-            setCompletedSteps([...completedSteps, 4]);
+          // Also mark current step as completed
+          if (!completedSteps.includes(activeStep)) {
+            setCompletedSteps([...completedSteps, activeStep]);
+          }
+          // CRITICAL: Refetch video data after step 4->5 transition to get updated step5Data
+          if (activeStep === 4) {
+            console.log('[AmbientPage] Refetching video data after step 4->5 transition to get step5Data');
+            await refetch();
           }
         } catch (error) {
-          console.error('Failed to continue from step 4:', error);
+          console.error(`Failed to continue from step ${activeStep}:`, error);
           // Error is already shown by the workflow component
         } finally {
           setIsSaving(false);
@@ -169,6 +286,16 @@ export default function AmbientVisualModePage() {
   };
 
   const handleBack = () => {
+    // Prevent going back from step 7
+    if (activeStep === 7) {
+      toast({
+        title: "Cannot go back",
+        description: "Export has started. You cannot go back to previous steps.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const prevStep = (activeStep - 1) as AmbientStepId;
     if (prevStep >= 1) {
       setDirection(-1);
@@ -239,40 +366,92 @@ export default function AmbientVisualModePage() {
   }
 
   return (
-    <AmbientStudioLayout
-      currentStep={activeStep}
-      completedSteps={completedSteps}
-      direction={direction}
-      onStepClick={handleStepClick}
-      onNext={handleNext}
-      onBack={handleBack}
-      videoTitle={videoTitle}
-      isNextDisabled={isSaving || !canContinue}
-      nextLabel={isSaving ? "Saving..." : undefined}
-    >
-      <AmbientVisualWorkflow 
-        ref={workflowRef}
-        activeStep={activeStep}
-        onStepChange={(step) => {
-          setDirection(step > activeStep ? 1 : -1);
-          // Mark previous steps as completed
-          if (!completedSteps.includes(activeStep)) {
-            setCompletedSteps([...completedSteps, activeStep]);
-          }
-          setActiveStep(step as AmbientStepId);
-        }}
-        onSaveStateChange={setIsSaving}
-        onValidationChange={setCanContinue}
-        projectName={videoTitle}
-        videoId={videoId}
-        initialStep1Data={existingVideo?.step1Data as Record<string, unknown> | undefined}
-        initialStep2Data={existingVideo?.step2Data as Record<string, unknown> | undefined}
-        initialStep3Data={existingVideo?.step3Data as Record<string, unknown> | undefined}
-        initialStep4Data={existingVideo?.step4Data as Record<string, unknown> | undefined}
-        initialStep5Data={existingVideo?.step5Data as Record<string, unknown> | undefined}
-        initialAnimationMode={animationMode}
-        initialVideoGenerationMode={videoGenerationMode}
-      />
-    </AmbientStudioLayout>
+    <>
+      <AmbientStudioLayout
+        currentStep={activeStep}
+        completedSteps={completedSteps}
+        direction={direction}
+        onStepClick={handleStepClick}
+        onNext={handleNext}
+        onBack={handleBack}
+        videoTitle={videoTitle}
+        isNextDisabled={isSaving || !canContinue || isExporting}
+        nextLabel={
+          isExporting ? "Exporting..." :
+          isSaving ? "Saving..." : 
+          activeStep === 6 ? "Export Video" :
+          activeStep === 7 ? undefined : // No button on step 7
+          undefined
+        }
+        hideNextButton={activeStep === 7}
+        hideBackButton={activeStep === 7}
+        disableMainScroll={activeStep === 7}
+      >
+        <AmbientVisualWorkflow 
+          ref={workflowRef}
+          activeStep={activeStep}
+          onStepChange={(step) => {
+            setDirection(step > activeStep ? 1 : -1);
+            // Mark previous steps as completed
+            if (!completedSteps.includes(activeStep)) {
+              setCompletedSteps([...completedSteps, activeStep]);
+            }
+            setActiveStep(step as AmbientStepId);
+          }}
+          onSaveStateChange={setIsSaving}
+          onValidationChange={setCanContinue}
+          projectName={videoTitle}
+          videoId={videoId}
+          initialStep1Data={existingVideo?.step1Data as Record<string, unknown> | undefined}
+          initialStep2Data={existingVideo?.step2Data as Record<string, unknown> | undefined}
+          initialStep3Data={existingVideo?.step3Data as Record<string, unknown> | undefined}
+          initialStep4Data={existingVideo?.step4Data as Record<string, unknown> | undefined}
+          initialStep5Data={existingVideo?.step5Data as Record<string, unknown> | undefined}
+          initialAnimationMode={animationMode}
+          initialVideoGenerationMode={videoGenerationMode}
+        />
+      </AmbientStudioLayout>
+
+      {/* Export Confirmation Dialog */}
+      <AlertDialog open={showExportConfirm} onOpenChange={setShowExportConfirm}>
+        <AlertDialogContent className="bg-[#1a1a1a] border-white/10">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-white">
+              <AlertTriangle className="w-5 h-5 text-amber-400" />
+              Ready to Export?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-white/60">
+              This will start rendering your final video. Once export begins, you will not be able to go back and make changes to your video.
+              <br /><br />
+              <span className="text-white/80">
+                Make sure you're happy with your preview before continuing.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              className="bg-white/5 border-white/10 text-white hover:bg-white/10"
+              disabled={isExporting}
+            >
+              Go Back
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleExportConfirm}
+              disabled={isExporting}
+              className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:opacity-90 text-white border-0"
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Starting Export...
+                </>
+              ) : (
+                'Yes, Export Video'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

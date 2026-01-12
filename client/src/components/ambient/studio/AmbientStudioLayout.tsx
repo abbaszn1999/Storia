@@ -20,6 +20,9 @@ interface AmbientStudioLayoutProps {
   videoTitle: string;
   isNextDisabled?: boolean;
   nextLabel?: string;
+  hideNextButton?: boolean;
+  hideBackButton?: boolean;
+  disableMainScroll?: boolean; // For step 7 (export) to prevent main scroll
   children: ReactNode;
 }
 
@@ -33,6 +36,9 @@ export function AmbientStudioLayout({
   videoTitle,
   isNextDisabled,
   nextLabel,
+  hideNextButton,
+  hideBackButton,
+  disableMainScroll = false,
   children
 }: AmbientStudioLayoutProps) {
   const [, navigate] = useLocation();
@@ -88,8 +94,13 @@ export function AmbientStudioLayout({
       </header>
 
       {/* Main Content Area - Scrollable */}
-      <main className="relative z-10 flex-1 overflow-y-auto scrollbar-thin">
-        <div className="px-6 pb-40">
+      <main className={cn(
+        "relative z-10 flex-1",
+        disableMainScroll ? "overflow-hidden" : "overflow-y-auto scrollbar-thin"
+      )}>
+        <div className={cn(
+          disableMainScroll ? "h-full" : "px-6 pb-40"
+        )}>
           {children}
         </div>
       </main>
@@ -103,6 +114,8 @@ export function AmbientStudioLayout({
         onBack={onBack}
         isNextDisabled={isNextDisabled}
         nextLabel={nextLabel}
+        hideNextButton={hideNextButton}
+        hideBackButton={hideBackButton}
       />
     </div>
   );

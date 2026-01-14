@@ -15,6 +15,7 @@ interface ContinuityProposalProps {
   onGroupApprove: (sceneId: string, groupId: string) => void;
   onGroupDecline: (sceneId: string, groupId: string) => void;
   onGroupEdit: (sceneId: string, updatedGroup: ContinuityGroup) => void;
+  onApproveAll?: () => void;
   onLock: () => void;
   onGenerateProposal: () => void;
   isGenerating?: boolean;
@@ -30,6 +31,7 @@ export function ContinuityProposal({
   onGroupApprove,
   onGroupDecline,
   onGroupEdit,
+  onApproveAll,
   onLock,
   onGenerateProposal,
   isGenerating = false,
@@ -234,18 +236,33 @@ export function ContinuityProposal({
             )}
           </div>
           
-          {/* Lock button */}
-          {!isLocked && totalApprovedGroups > 0 && (
-            <Button 
-              onClick={onLock} 
-              disabled={!canLock}
-              className="bg-gradient-storia" 
-              data-testid="button-lock-continuity"
-            >
-              <Lock className="h-4 w-4 mr-2" />
-              Lock & Continue
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Approve All button */}
+            {!isLocked && totalProposedGroups > 0 && onApproveAll && (
+              <Button 
+                onClick={onApproveAll}
+                variant="outline"
+                className="border-green-500/50 text-green-600 dark:text-green-400 hover:bg-green-500/10"
+                data-testid="button-approve-all-continuity"
+              >
+                <Check className="h-4 w-4 mr-2" />
+                Approve All ({totalProposedGroups})
+              </Button>
+            )}
+            
+            {/* Lock button */}
+            {!isLocked && totalApprovedGroups > 0 && (
+              <Button 
+                onClick={onLock} 
+                disabled={!canLock}
+                className="bg-gradient-storia" 
+                data-testid="button-lock-continuity"
+              >
+                <Lock className="h-4 w-4 mr-2" />
+                Lock & Continue
+              </Button>
+            )}
+          </div>
           
           {/* Locked indicator */}
           {isLocked && (

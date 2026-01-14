@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Sparkles, Film, Globe, Clock, Palette, MessageSquare, FileText, Wand2, RectangleHorizontal, RectangleVertical, Square, Grid3x3, ChevronDown, ImageIcon, Video } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, Sparkles, Film, Globe, Clock, Palette, MessageSquare, FileText, Wand2, RectangleHorizontal, RectangleVertical, Square, Grid3x3, ChevronDown, ImageIcon, Video, AlertTriangle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -168,6 +169,7 @@ export function ScriptEditor({
     genres: string[];
     tones: string[];
     language: string;
+    userIdea: string;
   } | null>(null);
 
   // Update state when props change (for restoring from database)
@@ -183,6 +185,7 @@ export function ScriptEditor({
           genres: initialGenres,
           tones: initialTones,
           language: initialLanguage,
+          userIdea: initialUserIdea,
         });
       }
     }
@@ -262,7 +265,16 @@ export function ScriptEditor({
     scriptSettingsSnapshot.duration !== duration ||
     JSON.stringify(scriptSettingsSnapshot.genres.sort()) !== JSON.stringify(selectedGenres.sort()) ||
     JSON.stringify(scriptSettingsSnapshot.tones.sort()) !== JSON.stringify(selectedTones.sort()) ||
-    scriptSettingsSnapshot.language !== language
+    scriptSettingsSnapshot.language !== language ||
+    scriptSettingsSnapshot.userIdea !== storyIdea
+  );
+
+  // Check if critical settings (genre, tone, duration, userIdea) have changed
+  const criticalSettingsChanged = scriptSettingsSnapshot !== null && hasGeneratedOnce && (
+    scriptSettingsSnapshot.duration !== duration ||
+    JSON.stringify(scriptSettingsSnapshot.genres.sort()) !== JSON.stringify(selectedGenres.sort()) ||
+    JSON.stringify(scriptSettingsSnapshot.tones.sort()) !== JSON.stringify(selectedTones.sort()) ||
+    scriptSettingsSnapshot.userIdea !== storyIdea
   );
 
   // Compute validation: user can continue if script exists AND settings haven't changed
@@ -313,7 +325,7 @@ export function ScriptEditor({
 
   const expandScriptMutation = useMutation({
     mutationFn: async (userIdea: string) => {
-      // Save ALL settings before generating script (matching ambient visual pattern)
+      // Save ALL settings before generating script
       if (videoId && videoId !== 'new') {
         await saveStep1Data({
           duration: parseInt(duration),
@@ -322,8 +334,12 @@ export function ScriptEditor({
           language,
           aspectRatio: selectedAspectRatio,
           scriptModel: selectedModel,
+          imageModel,
+          videoModel,
           narrationStyle: videoMode === "character-vlog" ? selectedNarrationStyle : undefined,
           userIdea,
+          numberOfScenes: selectedNumberOfScenes,
+          shotsPerScene: selectedShotsPerScene,
         });
       }
 
@@ -357,6 +373,7 @@ export function ScriptEditor({
         genres: selectedGenres,
         tones: selectedTones,
         language,
+        userIdea: storyIdea,
       });
       
       // Save generated script to step1Data
@@ -390,6 +407,7 @@ export function ScriptEditor({
         genres: selectedGenres,
         tones: selectedTones,
         language,
+        userIdea: storyIdea,
       });
     } else {
       // Clear snapshot when script is cleared
@@ -447,37 +465,9 @@ export function ScriptEditor({
   const scriptCharCount = generatedScript.length;
   const wordCount = generatedScript.trim() ? generatedScript.trim().split(/\s+/).length : 0;
 
-  // Save genres, tones, duration, language, and structure settings when they change (debounced)
-  useEffect(() => {
-    if (!videoId || videoId === 'new') return;
-    
-    const timeoutId = setTimeout(() => {
-      saveStep1Data({
-        genres: selectedGenres,
-        tones: selectedTones,
-        duration: parseInt(duration),
-        language,
-        numberOfScenes: selectedNumberOfScenes,
-        shotsPerScene: selectedShotsPerScene,
-      });
-    }, 500); // Debounce for 500ms
-
-    return () => clearTimeout(timeoutId);
-  }, [selectedGenres, selectedTones, duration, language, selectedNumberOfScenes, selectedShotsPerScene, videoId]);
-
-  // Save imageModel and videoModel when they change (debounced)
-  useEffect(() => {
-    if (!videoId || videoId === 'new') return;
-    
-    const timeoutId = setTimeout(() => {
-      saveStep1Data({
-        imageModel,
-        videoModel,
-      });
-    }, 500); // Debounce for 500ms
-
-    return () => clearTimeout(timeoutId);
-  }, [imageModel, videoModel, videoId]);
+  // Note: step1Data is now only saved when:
+  // 1. User clicks "Generate Script" (before and after generation)
+  // 2. User clicks "Continue" to next step (handled in narrative-mode/index.tsx)
 
   return (
     <div className="flex w-full gap-0 overflow-hidden">
@@ -502,13 +492,9 @@ export function ScriptEditor({
                 </div>
                 <Select 
                   value={selectedModel} 
-                  onValueChange={async (value) => {
+                  onValueChange={(value) => {
                     setSelectedModel(value);
                     onScriptModelChange?.(value);
-                    // Save to database
-                    if (videoId && videoId !== 'new') {
-                      await saveStep1Data({ scriptModel: value });
-                    }
                   }}
                 >
                   <SelectTrigger className="h-auto min-h-[48px] py-2.5 bg-white/5 border-white/10 text-white">
@@ -577,9 +563,6 @@ export function ScriptEditor({
                       const newRatio = compatibleRatios[0];
                       setSelectedAspectRatio(newRatio);
                       onAspectRatioChange?.(newRatio);
-                      if (videoId && videoId !== 'new') {
-                        saveStep1Data({ aspectRatio: newRatio });
-                      }
                     }
                   }}
                 >
@@ -658,9 +641,6 @@ export function ScriptEditor({
                       const newRatio = compatibleRatios[0];
                       setSelectedAspectRatio(newRatio);
                       onAspectRatioChange?.(newRatio);
-                      if (videoId && videoId !== 'new') {
-                        saveStep1Data({ aspectRatio: newRatio });
-                      }
                     }
                   }}
                 >
@@ -783,13 +763,9 @@ export function ScriptEditor({
                       return (
                         <button
                           key={ratio.id}
-                          onClick={async () => {
+                          onClick={() => {
                             setSelectedAspectRatio(ratio.id);
                             onAspectRatioChange?.(ratio.id);
-                            // Save to database
-                            if (videoId && videoId !== 'new') {
-                              await saveStep1Data({ aspectRatio: ratio.id });
-                            }
                           }}
                           className={cn(
                             "p-4 rounded-lg border transition-all hover-elevate text-left",
@@ -1138,6 +1114,17 @@ export function ScriptEditor({
 
         {/* Generated Script Section */}
         <div className="flex-1 p-6 overflow-hidden flex flex-col">
+          {/* Reminder Alert when critical settings change */}
+          {criticalSettingsChanged && (
+            <Alert className="mb-4 border-amber-500/50 bg-amber-500/10">
+              <AlertTriangle className="h-4 w-4 text-amber-400" />
+              <AlertDescription className="text-amber-200">
+                <strong className="text-amber-300">Settings Changed:</strong> You've modified the genre, tone, duration, or story idea. 
+                Please regenerate the script to reflect these changes.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className={cn("p-2 rounded-lg bg-gradient-to-br", accentClasses)}>

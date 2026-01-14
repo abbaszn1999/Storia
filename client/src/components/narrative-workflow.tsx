@@ -8,7 +8,8 @@ import { ExportSettings, type ExportData } from "@/components/narrative/export-s
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Character } from "@shared/schema";
-import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
+import type { Scene, Shot, ReferenceImage } from "@/types/storyboard";
+import type { NarrativeShotVersion } from "@/types/narrative-storyboard";
 
 interface NarrativeWorkflowProps {
   activeStep: string;
@@ -18,6 +19,7 @@ interface NarrativeWorkflowProps {
   script: string;
   aspectRatio: string;
   scriptModel: string;
+  isGeneratingPrompts?: boolean;
   voiceActorId: string | null;
   voiceOverEnabled: boolean;
   // Step 1 settings
@@ -32,7 +34,7 @@ interface NarrativeWorkflowProps {
   videoModel?: string;
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
-  shotVersions: { [shotId: string]: ShotVersion[] };
+  shotVersions: { [shotId: string]: NarrativeShotVersion[] };
   characters: Character[];
   referenceImages: ReferenceImage[];
   continuityLocked: boolean;
@@ -54,7 +56,7 @@ interface NarrativeWorkflowProps {
   onShotsPerSceneChange?: (shots: number | 'auto') => void;
   onScenesChange: (scenes: Scene[]) => void;
   onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
-  onShotVersionsChange: (shotVersions: { [shotId: string]: ShotVersion[] }) => void;
+  onShotVersionsChange: (shotVersions: { [shotId: string]: NarrativeShotVersion[] }) => void;
   onCharactersChange: (characters: Character[]) => void;
   onReferenceImagesChange: (referenceImages: ReferenceImage[]) => void;
   onContinuityLockedChange: (locked: boolean) => void;
@@ -97,6 +99,7 @@ export function NarrativeWorkflow({
   referenceImages,
   continuityLocked,
   continuityGroups,
+  isGeneratingPrompts = false,
   worldSettings,
   onScriptChange,
   onAspectRatioChange,
@@ -236,6 +239,29 @@ export function NarrativeWorkflow({
         videoId,
       };
       
+      // Pass versionId if currentVersion exists - this ensures we update the existing version
+      // instead of creating a new one (important for start-end mode where we generate frames separately)
+      if (currentVersion) {
+        requestBody.versionId = currentVersion.id;
+        
+        // Pass per-frame advanced settings if in start-end mode
+        if (frame === 'start' || frame === 'end') {
+          if (frame === 'start') {
+            if (currentVersion.startFrameNegativePrompt) requestBody.startFrameNegativePrompt = currentVersion.startFrameNegativePrompt;
+            if (currentVersion.startFrameSeed !== undefined && currentVersion.startFrameSeed !== null) requestBody.startFrameSeed = currentVersion.startFrameSeed;
+            if (currentVersion.startFrameGuidanceScale !== undefined && currentVersion.startFrameGuidanceScale !== null) requestBody.startFrameGuidanceScale = currentVersion.startFrameGuidanceScale;
+            if (currentVersion.startFrameSteps !== undefined && currentVersion.startFrameSteps !== null) requestBody.startFrameSteps = currentVersion.startFrameSteps;
+            if (currentVersion.startFrameStrength !== undefined && currentVersion.startFrameStrength !== null) requestBody.startFrameStrength = currentVersion.startFrameStrength;
+          } else {
+            if (currentVersion.endFrameNegativePrompt) requestBody.endFrameNegativePrompt = currentVersion.endFrameNegativePrompt;
+            if (currentVersion.endFrameSeed !== undefined && currentVersion.endFrameSeed !== null) requestBody.endFrameSeed = currentVersion.endFrameSeed;
+            if (currentVersion.endFrameGuidanceScale !== undefined && currentVersion.endFrameGuidanceScale !== null) requestBody.endFrameGuidanceScale = currentVersion.endFrameGuidanceScale;
+            if (currentVersion.endFrameSteps !== undefined && currentVersion.endFrameSteps !== null) requestBody.endFrameSteps = currentVersion.endFrameSteps;
+            if (currentVersion.endFrameStrength !== undefined && currentVersion.endFrameStrength !== null) requestBody.endFrameStrength = currentVersion.endFrameStrength;
+          }
+        }
+      }
+      
       // Pass frame parameter if provided (for start-end mode)
       if (frame) {
         requestBody.frame = frame;
@@ -268,10 +294,24 @@ export function NarrativeWorkflow({
         return;
       }
       
-      // Update shotVersions with the new version
+      // Update shotVersions with the new or updated version
       if (data.version) {
-        const newVersions = shotVersions[shotId] || [];
-        const updatedVersions = [...newVersions, data.version];
+        const existingVersions = shotVersions[shotId] || [];
+        
+        // Check if this version already exists (when updating an existing version)
+        const versionIndex = existingVersions.findIndex(v => v.id === data.version.id);
+        
+        let updatedVersions;
+        if (versionIndex >= 0) {
+          // Update existing version in place
+          updatedVersions = existingVersions.map(v => 
+            v.id === data.version.id ? data.version : v
+          );
+        } else {
+          // Add new version
+          updatedVersions = [...existingVersions, data.version];
+        }
+        
         onShotVersionsChange({
           ...shotVersions,
           [shotId]: updatedVersions,
@@ -330,18 +370,44 @@ export function NarrativeWorkflow({
         }
       }
       
+      // Get current version to pass advanced settings
+      const currentVersion = versionId ? currentVersions.find(v => v.id === versionId) : currentVersions[currentVersions.length - 1];
+      
+      const requestBody: any = {
+        shotId,
+        videoId,
+        versionId, // Pass versionId to update existing version
+      };
+      
+      // Pass frame parameter if provided (for start-end mode)
+      if (frame) {
+        requestBody.frame = frame;
+        
+        // Pass per-frame advanced settings if version exists
+        if (currentVersion) {
+          if (frame === 'start') {
+            if (currentVersion.startFrameNegativePrompt) requestBody.startFrameNegativePrompt = currentVersion.startFrameNegativePrompt;
+            if (currentVersion.startFrameSeed !== undefined && currentVersion.startFrameSeed !== null) requestBody.startFrameSeed = currentVersion.startFrameSeed;
+            if (currentVersion.startFrameGuidanceScale !== undefined && currentVersion.startFrameGuidanceScale !== null) requestBody.startFrameGuidanceScale = currentVersion.startFrameGuidanceScale;
+            if (currentVersion.startFrameSteps !== undefined && currentVersion.startFrameSteps !== null) requestBody.startFrameSteps = currentVersion.startFrameSteps;
+            if (currentVersion.startFrameStrength !== undefined && currentVersion.startFrameStrength !== null) requestBody.startFrameStrength = currentVersion.startFrameStrength;
+          } else {
+            if (currentVersion.endFrameNegativePrompt) requestBody.endFrameNegativePrompt = currentVersion.endFrameNegativePrompt;
+            if (currentVersion.endFrameSeed !== undefined && currentVersion.endFrameSeed !== null) requestBody.endFrameSeed = currentVersion.endFrameSeed;
+            if (currentVersion.endFrameGuidanceScale !== undefined && currentVersion.endFrameGuidanceScale !== null) requestBody.endFrameGuidanceScale = currentVersion.endFrameGuidanceScale;
+            if (currentVersion.endFrameSteps !== undefined && currentVersion.endFrameSteps !== null) requestBody.endFrameSteps = currentVersion.endFrameSteps;
+            if (currentVersion.endFrameStrength !== undefined && currentVersion.endFrameStrength !== null) requestBody.endFrameStrength = currentVersion.endFrameStrength;
+          }
+        }
+      }
+      
       const response = await fetch('/api/narrative/shots/generate-image', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-workspace-id': workspaceId,
         },
-        body: JSON.stringify({
-          shotId,
-          videoId,
-          versionId, // Pass versionId to update existing version
-          ...(frame && { frame }), // Pass frame parameter if provided (for start-end mode)
-        }),
+        body: JSON.stringify(requestBody),
         credentials: 'include',
       });
       
@@ -394,7 +460,7 @@ export function NarrativeWorkflow({
     );
   };
 
-  const handleUpdateShotVersion = (shotId: string, versionId: string, updates: Partial<ShotVersion>) => {
+  const handleUpdateShotVersion = (shotId: string, versionId: string, updates: Partial<NarrativeShotVersion>) => {
     // Update local state only - API save happens on Generate/Regenerate button click
     onShotVersionsChange(
       Object.fromEntries(
@@ -599,6 +665,16 @@ export function NarrativeWorkflow({
     onReferenceImagesChange(
       referenceImages.filter(ref => !shotIds.includes(ref.shotId || ''))
     );
+    
+    // Remove continuity groups for this scene
+    const updatedContinuityGroups = { ...continuityGroups };
+    delete updatedContinuityGroups[sceneId];
+    onContinuityGroupsChange(updatedContinuityGroups);
+    
+    // If no scenes remain, unlock continuity
+    if (updatedScenes.length === 0) {
+      onContinuityLockedChange(false);
+    }
   };
 
   const handleDeleteShot = (shotId: string) => {
@@ -633,6 +709,20 @@ export function NarrativeWorkflow({
     onReferenceImagesChange(
       referenceImages.filter(ref => ref.shotId !== shotId)
     );
+    
+    // Filter continuity groups to remove any groups that reference this shot
+    const updatedContinuityGroups = { ...continuityGroups };
+    if (updatedContinuityGroups[sceneId]) {
+      updatedContinuityGroups[sceneId] = updatedContinuityGroups[sceneId].filter(group => {
+        // Remove groups that contain the deleted shot
+        return !group.shotIds || !group.shotIds.includes(shotId);
+      });
+      // If no groups remain for this scene, remove the scene entry
+      if (updatedContinuityGroups[sceneId].length === 0) {
+        delete updatedContinuityGroups[sceneId];
+      }
+    }
+    onContinuityGroupsChange(updatedContinuityGroups);
   };
 
   return (
@@ -737,6 +827,7 @@ export function NarrativeWorkflow({
           voiceOverEnabled={voiceOverEnabled}
           continuityLocked={continuityLocked}
           continuityGroups={continuityGroups}
+          isGeneratingPrompts={isGeneratingPrompts}
           onVoiceActorChange={onVoiceActorChange}
           onVoiceOverToggle={onVoiceOverToggle}
           onGenerateShot={handleGenerateShot}

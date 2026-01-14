@@ -1,5 +1,7 @@
 import { callTextModel } from '../../../ai/service';
 import { getModelConfig } from '../../../ai/config';
+import { appendFileSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
 import { scriptWriterSystemPrompt, generateScriptPrompt } from '../prompts/script-writer';
 import { characterAnalyzerSystemPrompt, analyzeCharactersPrompt } from '../prompts/character-analyzer';
 import { locationAnalyzerSystemPrompt, analyzeLocationsPrompt } from '../prompts/location-analyzer';
@@ -7,7 +9,33 @@ import { sceneAnalyzerSystemPrompt, analyzeScriptPrompt } from '../prompts/scene
 import { characterCreatorSystemPrompt, createCharacterPrompt } from '../prompts/character-creator';
 import { imagePrompterSystemPrompt, generateImagePrompt } from '../prompts/image-prompter';
 import { videoAnimatorSystemPrompt, generateVideoPrompt } from '../prompts/video-animator';
-import { promptEngineerSystemPrompt, generatePromptEngineerPrompt, type PromptEngineerUserPromptInput } from '../prompts/prompt-engineer';
+import { promptEngineerSystemPrompt, generatePromptEngineerPrompt } from '../prompts/prompt-engineer';
+import type { PromptEngineerUserPromptInput } from '../prompts/prompt-engineer';
+
+const DEBUG_LOG_PATH = join(process.cwd(), '.cursor', 'debug.log');
+function debugLog(location: string, message: string, data: any, hypothesisId: string) {
+  try {
+    // Ensure directory exists
+    const logDir = dirname(DEBUG_LOG_PATH);
+    mkdirSync(logDir, { recursive: true });
+    
+    const logEntry = JSON.stringify({
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run1',
+      hypothesisId,
+    }) + '\n';
+    appendFileSync(DEBUG_LOG_PATH, logEntry, 'utf8');
+    // Also log to console as backup
+    console.log(`[DEBUG] ${location}: ${message}`, data);
+  } catch (e) {
+    // Log to console if file logging fails
+    console.error(`[DEBUG LOG ERROR] ${location}: ${message}`, data, e);
+  }
+}
 import { 
   generateCharacterImage as generateCharacterImageAgent,
   type CharacterImageInput,
@@ -133,29 +161,35 @@ export interface LocationImageGeneratorOutput {
   error?: string;
 }
 
+export interface ShotInput {
+  id: string;
+  sceneId: string;
+  sceneTitle: string;
+  shotNumber: number;
+  duration: number;
+  shotType: string;
+  cameraMovement: string;
+  narrationText: string;  // May contain @tags
+  actionDescription: string;  // Contains @tags
+  characters: string[];  // Array of @{CharacterName} tags
+  location: string;  // @{LocationName} tag
+  frameMode?: "image-reference" | "start-end";  // For auto mode
+}
+
+export interface ContinuityContext {
+  inGroup: boolean;
+  groupId: string | null;
+  isFirstInGroup: boolean;
+  previousEndFrameSummary?: string;  // Not used in batch mode, kept for backward compatibility
+  continuityConstraints?: string;
+}
+
 export interface PromptEngineerInput {
-  shot: {
-    id: string;
-    sceneId: string;
-    sceneTitle: string;
-    shotNumber: number;
-    duration: number;
-    shotType: string;
-    cameraMovement: string;
-    narrationText: string;  // May contain @tags
-    actionDescription: string;  // Contains @tags
-    characters: string[];  // Array of @{CharacterName} tags
-    location: string;  // @{LocationName} tag
-    frameMode?: "image-reference" | "start-end";  // For auto mode
-  };
+  sceneId: string;
+  sceneTitle: string;
+  shots: ShotInput[];  // Array of shots in the scene
   narrativeMode: "image-reference" | "start-end" | "auto";
-  continuity: {
-    inGroup: boolean;
-    groupId: string | null;
-    isFirstInGroup: boolean;
-    previousEndFrameSummary?: string;
-    continuityConstraints?: string;
-  };
+  continuity: ContinuityContext[];  // Array of continuity contexts, one per shot (in same order as shots)
   characterReferences: Array<{
     name: string;
     anchor: string;  // Short stable identity descriptor
@@ -199,6 +233,9 @@ export interface PromptEngineerOutput {
   referenceImageUrls: string[];  // All character + location + style reference URLs
   cost?: number;
 }
+
+// Batch output: array of prompts, one per shot
+export type PromptEngineerBatchOutput = PromptEngineerOutput[];
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS FOR PROMPT ENGINEER
@@ -823,17 +860,15 @@ export class NarrativeAgents {
 
   /**
    * Agent 4.1: Shot Prompt Engineer
-   * Generates both image and video prompts for a shot in a single AI call
+   * Generates both image and video prompts for all shots in a scene in a single AI call
    */
   static async generatePrompts(
     input: PromptEngineerInput,
     userId?: string,
     workspaceId?: string
-  ): Promise<PromptEngineerOutput> {
-    // Determine effective frame mode
-    const effectiveMode = input.narrativeMode === "auto"
-      ? (input.shot.frameMode || "image-reference")
-      : input.narrativeMode;
+  ): Promise<PromptEngineerBatchOutput> {
+    // Sort shots by shotNumber to ensure correct order
+    const sortedShots = [...input.shots].sort((a, b) => a.shotNumber - b.shotNumber);
     
     // Determine provider and model
     let provider: "openai" | "gemini" = "openai";
@@ -853,21 +888,23 @@ export class NarrativeAgents {
       // Model not found in config, assume no reasoning support
     }
     
-    // Build user prompt
+    // Build user prompt input
     const userPromptInput: PromptEngineerUserPromptInput = {
-      shot: {
-        sceneId: input.shot.sceneId,
-        sceneTitle: input.shot.sceneTitle,
-        shotNumber: input.shot.shotNumber,
-        duration: input.shot.duration,
-        shotType: input.shot.shotType,
-        cameraMovement: input.shot.cameraMovement,
-        narrationText: input.shot.narrationText,
-        actionDescription: input.shot.actionDescription,
-        characters: input.shot.characters,
-        location: input.shot.location,
-        frameMode: input.shot.frameMode,
-      },
+      sceneId: input.sceneId,
+      sceneTitle: input.sceneTitle,
+      shots: sortedShots.map(shot => ({
+        sceneId: shot.sceneId,
+        sceneTitle: shot.sceneTitle,
+        shotNumber: shot.shotNumber,
+        duration: shot.duration,
+        shotType: shot.shotType,
+        cameraMovement: shot.cameraMovement,
+        narrationText: shot.narrationText,
+        actionDescription: shot.actionDescription,
+        characters: shot.characters,
+        location: shot.location,
+        frameMode: shot.frameMode,
+      })),
       narrativeMode: input.narrativeMode,
       continuity: input.continuity,
       characterReferences: input.characterReferences,
@@ -878,26 +915,25 @@ export class NarrativeAgents {
     
     const userPrompt = generatePromptEngineerPrompt(userPromptInput);
     
-    
-    console.log('[narrative:agents] Generating prompts (Agent 4.1):', {
-      shotId: input.shot.id,
-      shotNumber: input.shot.shotNumber,
-      effectiveMode,
+    console.log('[narrative:agents] Generating prompts (Agent 4.1 - Batch Mode):', {
+      sceneId: input.sceneId,
+      sceneTitle: input.sceneTitle,
+      shotCount: sortedShots.length,
+      shotNumbers: sortedShots.map(s => s.shotNumber),
       model: modelName,
       provider,
       supportsReasoning,
-      inGroup: input.continuity.inGroup,
-      isFirstInGroup: input.continuity.isFirstInGroup,
       userId,
       workspaceId,
     });
     
     try {
       // Calculate expected output tokens
-      // Estimate: ~500 tokens for prompts (image + video + negative)
-      const expectedOutputTokens = 1000;
+      // Estimate: ~1000 tokens per shot (image + video + negative prompts)
+      const expectedOutputTokens = sortedShots.length * 1000;
       
       // Build payload with JSON schema for structured output
+      // OpenAI requires root schema to be an object, so we wrap the array in an object
       const payload: any = {
         input: [
           { role: "system", content: promptEngineerSystemPrompt },
@@ -906,44 +942,54 @@ export class NarrativeAgents {
         text: {
           format: {
             type: "json_schema",
-            name: "prompt_engineer_output",
+            name: "prompt_engineer_batch_output",
             strict: true,
             schema: {
               type: "object",
               properties: {
-                scene_id: { type: "string" },
-                shotNumber: { type: "number" },
-                finalFrameMode: { 
-                  type: "string",
-                  enum: ["image-reference", "start-end"]
-                },
-                continuity: {
-                  type: "object",
-                  properties: {
-                    in_group: { type: "boolean" },
-                    group_id: { type: ["string", "null"] },
-                    is_first_in_group: { type: "boolean" },
+                prompts: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      scene_id: { type: "string" },
+                      shotNumber: { type: "number" },
+                      finalFrameMode: { 
+                        type: "string",
+                        enum: ["image-reference", "start-end"]
+                      },
+                      continuity: {
+                        type: "object",
+                        properties: {
+                          in_group: { type: "boolean" },
+                          group_id: { type: ["string", "null"] },
+                          is_first_in_group: { type: "boolean" },
+                        },
+                        required: ["in_group", "group_id", "is_first_in_group"],
+                        additionalProperties: false,
+                      },
+                      imagePrompt: { type: "string" },
+                      startFramePrompt: { type: "string" },
+                      endFramePrompt: { type: "string" },
+                      videoPrompt: { type: "string" },
+                      negativePrompt: { type: "string" },
+                    },
+                    required: [
+                      "scene_id",
+                      "shotNumber",
+                      "finalFrameMode",
+                      "continuity",
+                      "imagePrompt",
+                      "startFramePrompt",
+                      "endFramePrompt",
+                      "videoPrompt",
+                      "negativePrompt",
+                    ],
+                    additionalProperties: false,
                   },
-                  required: ["in_group", "group_id", "is_first_in_group"],
-                  additionalProperties: false,
                 },
-                imagePrompt: { type: "string" },
-                startFramePrompt: { type: "string" },
-                endFramePrompt: { type: "string" },
-                videoPrompt: { type: "string" },
-                negativePrompt: { type: "string" },
               },
-              required: [
-                "scene_id",
-                "shotNumber",
-                "finalFrameMode",
-                "continuity",
-                "imagePrompt",
-                "startFramePrompt",
-                "endFramePrompt",
-                "videoPrompt",
-                "negativePrompt",
-              ],
+              required: ["prompts"],
               additionalProperties: false,
             },
           },
@@ -979,78 +1025,109 @@ export class NarrativeAgents {
           .trim();
       }
       
-      // Parse JSON response
-      let parsedData: any;
+      // Parse JSON response (should be an object with a "prompts" array)
+      let parsedResponse: any;
       try {
-        parsedData = JSON.parse(rawOutput);
+        parsedResponse = JSON.parse(rawOutput);
       } catch (parseError) {
         console.error('[narrative:agents] Failed to parse JSON response:', rawOutput);
         throw new Error('AI returned invalid JSON format');
       }
       
-      // Validate structure
-      if (!parsedData.scene_id || typeof parsedData.shotNumber !== 'number') {
-        console.error('[narrative:agents] Invalid response structure:', parsedData);
-        throw new Error('AI response missing required fields');
+      // Extract the prompts array from the response object
+      let parsedData: any[];
+      if (Array.isArray(parsedResponse)) {
+        // Fallback: if response is directly an array (old format), use it
+        parsedData = parsedResponse;
+      } else if (parsedResponse && typeof parsedResponse === 'object' && Array.isArray(parsedResponse.prompts)) {
+        // Expected format: object with "prompts" property
+        parsedData = parsedResponse.prompts;
+      } else {
+        console.error('[narrative:agents] Invalid response structure - expected object with "prompts" array, got:', typeof parsedResponse, parsedResponse);
+        throw new Error('AI response must be an object with a "prompts" array property');
       }
       
-      // Collect reference image URLs
+      // Validate array length matches input shots
+      if (parsedData.length !== sortedShots.length) {
+        console.warn('[narrative:agents] Response array length mismatch:', {
+          expected: sortedShots.length,
+          received: parsedData.length,
+        });
+      }
+      
+      // Collect reference image URLs (same for all shots)
       const referenceImageUrls = collectReferenceUrls(
         input.characterReferences,
         input.locationReferences,
         input.styleReference
       );
       
-      
-      // Transform to output format (convert snake_case to camelCase for continuity)
-      const output: PromptEngineerOutput = {
-        sceneId: parsedData.scene_id,
-        shotNumber: parsedData.shotNumber,
-        finalFrameMode: parsedData.finalFrameMode,
-        continuity: {
-          inGroup: parsedData.continuity.in_group,
-          groupId: parsedData.continuity.group_id,
-          isFirstInGroup: parsedData.continuity.is_first_in_group,
-        },
-        imagePrompt: parsedData.imagePrompt || '',
-        startFramePrompt: parsedData.startFramePrompt || '',
-        endFramePrompt: parsedData.endFramePrompt || '',
-        videoPrompt: parsedData.videoPrompt || '',
-        negativePrompt: parsedData.negativePrompt || '',
-        referenceImageUrls,
-        cost: response.usage?.totalCostUsd,
-      };
-      
-      // Validate frame mode logic
-      if (output.finalFrameMode === "image-reference") {
-        if (output.startFramePrompt || output.endFramePrompt) {
-          console.warn('[narrative:agents] Warning: image-reference mode should have empty start/end frames');
+      // Transform array to output format (convert snake_case to camelCase)
+      const outputs: PromptEngineerBatchOutput = parsedData.map((item: any, index: number) => {
+        // Validate structure
+        if (!item.scene_id || typeof item.shotNumber !== 'number') {
+          console.error('[narrative:agents] Invalid item structure at index', index, ':', item);
+          throw new Error(`AI response item at index ${index} missing required fields`);
         }
-      } else if (output.finalFrameMode === "start-end") {
-        if (output.imagePrompt) {
-          console.warn('[narrative:agents] Warning: start-end mode should have empty imagePrompt');
+        
+        // Find corresponding shot to validate shotNumber matches
+        const correspondingShot = sortedShots.find(s => s.shotNumber === item.shotNumber);
+        if (!correspondingShot) {
+          console.warn('[narrative:agents] Response item shotNumber', item.shotNumber, 'not found in input shots');
         }
-        if (output.continuity.inGroup && !output.continuity.isFirstInGroup) {
-          if (output.startFramePrompt) {
-            console.warn('[narrative:agents] Warning: subsequent shot in group should have empty startFramePrompt');
+        
+        const output: PromptEngineerOutput = {
+          sceneId: item.scene_id,
+          shotNumber: item.shotNumber,
+          finalFrameMode: item.finalFrameMode,
+          continuity: {
+            inGroup: item.continuity.in_group,
+            groupId: item.continuity.group_id,
+            isFirstInGroup: item.continuity.is_first_in_group,
+          },
+          imagePrompt: item.imagePrompt || '',
+          startFramePrompt: item.startFramePrompt || '',
+          endFramePrompt: item.endFramePrompt || '',
+          videoPrompt: item.videoPrompt || '',
+          negativePrompt: item.negativePrompt || '',
+          referenceImageUrls,
+          // Cost is shared across all shots, so divide by shot count
+          cost: response.usage?.totalCostUsd ? response.usage.totalCostUsd / parsedData.length : undefined,
+        };
+        
+        // Validate frame mode logic
+        if (output.finalFrameMode === "image-reference") {
+          if (output.startFramePrompt || output.endFramePrompt) {
+            console.warn(`[narrative:agents] Warning: Shot ${output.shotNumber} - image-reference mode should have empty start/end frames`);
+          }
+        } else if (output.finalFrameMode === "start-end") {
+          if (output.imagePrompt) {
+            console.warn(`[narrative:agents] Warning: Shot ${output.shotNumber} - start-end mode should have empty imagePrompt`);
+          }
+          if (output.continuity.inGroup && !output.continuity.isFirstInGroup) {
+            if (output.startFramePrompt) {
+              console.warn(`[narrative:agents] Warning: Shot ${output.shotNumber} - subsequent shot in group should have empty startFramePrompt`);
+            }
           }
         }
-      }
-      
-      console.log('[narrative:agents] Prompts generated successfully:', {
-        shotNumber: output.shotNumber,
-        finalFrameMode: output.finalFrameMode,
-        hasImagePrompt: !!output.imagePrompt,
-        hasStartFrame: !!output.startFramePrompt,
-        hasEndFrame: !!output.endFramePrompt,
-        hasVideoPrompt: !!output.videoPrompt,
-        referenceCount: referenceImageUrls.length,
-        cost: output.cost,
+        
+        return output;
       });
       
-      return output;
+      // Sort outputs by shotNumber to ensure correct order
+      outputs.sort((a, b) => a.shotNumber - b.shotNumber);
+      
+      console.log('[narrative:agents] Prompts generated successfully (batch):', {
+        sceneId: input.sceneId,
+        shotCount: outputs.length,
+        shotNumbers: outputs.map(o => o.shotNumber),
+        totalCost: response.usage?.totalCostUsd,
+        averageCostPerShot: response.usage?.totalCostUsd ? response.usage.totalCostUsd / outputs.length : undefined,
+      });
+      
+      return outputs;
     } catch (error) {
-      console.error('[narrative:agents] Failed to generate prompts:', error);
+      console.error('[narrative:agents] Failed to generate prompts (batch):', error);
       throw new Error(`Failed to generate prompts: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -1115,7 +1192,7 @@ export class NarrativeAgents {
         {
           name,
           appearance,
-          personality,
+          personality: personality || '', // Ensure personality is always a string
           artStyleDescription,
           model: model || getDefaultCharacterImageModel(),
           negativePrompt,

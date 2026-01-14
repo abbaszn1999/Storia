@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -12,11 +13,12 @@ import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, ChevronDown, Shirt, Eraser, Trash2, Play, Pause, Check, Link2, LayoutGrid, Clock, ArrowRight, Film } from "lucide-react";
+import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, ChevronDown, Shirt, Eraser, Trash2, Play, Pause, Check, Link2, LayoutGrid, Clock, ArrowRight, Film, Star, Maximize } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { Character } from "@shared/schema";
-import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
+import type { Scene, Shot, ReferenceImage } from "@/types/storyboard";
+import type { NarrativeShotVersion } from "@/types/narrative-storyboard";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
 import {
   DndContext,
@@ -146,7 +148,7 @@ interface StoryboardEditorProps {
   narrativeMode: "image-reference" | "start-end" | "auto";
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
-  shotVersions: { [shotId: string]: ShotVersion[] };
+  shotVersions: { [shotId: string]: NarrativeShotVersion[] };
   referenceImages: ReferenceImage[];
   characters: Character[];
   locations?: Array<{ id: string; name: string; description?: string }>;
@@ -156,12 +158,13 @@ interface StoryboardEditorProps {
   continuityGroups: { [sceneId: string]: any[] };
   isCommerceMode?: boolean;
   isLogoMode?: boolean;
+  isGeneratingPrompts?: boolean;
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
   onGenerateShot: (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => void;
   onRegenerateShot: (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => void;
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
-  onUpdateShotVersion?: (shotId: string, versionId: string, updates: Partial<ShotVersion>) => void;
+  onUpdateShotVersion?: (shotId: string, versionId: string, updates: Partial<NarrativeShotVersion>) => void;
   onUpdateScene?: (sceneId: string, updates: Partial<Scene>) => void;
   onReorderShots?: (sceneId: string, shotIds: string[]) => void;
   onUploadShotReference: (shotId: string, file: File) => void;
@@ -173,6 +176,7 @@ interface StoryboardEditorProps {
   onDeleteScene?: (sceneId: string) => void;
   onDeleteShot?: (shotId: string) => void;
   onNext: () => void;
+  onGenerateSceneImages?: (sceneId: string) => Promise<void>;
 }
 
 interface SortableShotCardProps {
@@ -180,8 +184,9 @@ interface SortableShotCardProps {
   shotIndex: number;
   sceneModel: string | null;
   sceneImageModel: string | null;
-  version: ShotVersion | null;
-  nextShotVersion: ShotVersion | null;
+  version: NarrativeShotVersion | null;
+  nextShotVersion: NarrativeShotVersion | null;
+  previousShotVersion: NarrativeShotVersion | null;
   referenceImage: ReferenceImage | null;
   isGenerating: boolean;
   isGeneratingStart?: boolean;
@@ -198,10 +203,12 @@ interface SortableShotCardProps {
   availableImageModels: Array<{ name: string; label: string; description: string }>;
   availableVideoModels: Array<{ name: string; label: string; description: string }>;
   onSelectShot: (shot: Shot) => void;
-  onGenerateShot: (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }) => void;
-  onRegenerateShot: (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }) => void;
+  onExpandImage?: (imageUrl: string) => void;
+  onGenerateShot: (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => void;
+  onRegenerateShot: (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => void;
   onUpdatePrompt: (shotId: string, prompt: string) => void;
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
+  onUpdateShotVersion?: (shotId: string, versionId: string, updates: Partial<NarrativeShotVersion>) => void;
   onUploadReference: (shotId: string, file: File) => void;
   onDeleteReference: (shotId: string) => void;
   onUpdateVideoPrompt: (shotId: string, prompt: string) => void;
@@ -534,6 +541,7 @@ function SortableShotCard({
   sceneImageModel,
   version,
   nextShotVersion,
+  previousShotVersion,
   referenceImage,
   isGenerating,
   isGeneratingStart = false,
@@ -550,10 +558,12 @@ function SortableShotCard({
   availableImageModels,
   availableVideoModels,
   onSelectShot,
+  onExpandImage,
   onGenerateShot,
   onRegenerateShot,
   onUpdatePrompt,
   onUpdateShot,
+  onUpdateShotVersion,
   onUploadReference,
   onDeleteReference,
   onUpdateVideoPrompt,
@@ -689,9 +699,14 @@ function SortableShotCard({
   };
 
   // Determine available frames and which image to display
-  const hasStartFrame = version?.startFrameUrl || version?.imageUrl;
+  // For start frame: check if it exists in current version OR if it's inherited from previous shot's end frame
+  const hasStartFrame = version?.startFrameUrl || version?.imageUrl || (isStartFrameInherited && (previousShotVersion?.endFrameUrl || previousShotVersion?.imageUrl));
   const hasEndFrame = version?.endFrameUrl;
   const hasNextShotStartFrame = nextShotVersion?.startFrameUrl || nextShotVersion?.imageUrl;
+  
+  // Check if start frame exists (required prerequisite for generating end frame)
+  // hasStartFrame already accounts for inherited frames, so we can use it directly
+  const startFrameExists = hasStartFrame;
   
   // Enable End tab for standalone/last shots OR connected shots (which will show next shot's start)
   const shouldShowEndTab = effectiveMode === "start-end" && (showEndFrame || isConnectedToNext);
@@ -713,7 +728,12 @@ function SortableShotCard({
   
   if (effectiveMode === "start-end") {
     if (activeFrame === "start") {
-      displayImageUrl = version?.startFrameUrl || version?.imageUrl;
+      // If start frame is inherited, show previous shot's end frame
+      if (isStartFrameInherited && previousShotVersion) {
+        displayImageUrl = previousShotVersion.endFrameUrl || previousShotVersion.imageUrl;
+      } else {
+        displayImageUrl = version?.startFrameUrl || version?.imageUrl;
+      }
       actualFrameShown = "start";
       } else {
         // End frame requested
@@ -748,6 +768,15 @@ function SortableShotCard({
     displayImageUrl = version?.imageUrl;
     actualFrameShown = null;
   }
+
+  // Determine if the current frame has an image (for button state)
+  // Similar to ambient visual mode: show "Generate Image" if no image, "Edit Image" + "Regenerate" if image exists
+  // For start frame: if inherited, it's considered as "having an image" (should show Edit/Regenerate, not Generate)
+  const currentFrameHasImage = effectiveMode === "start-end"
+    ? (activeFrame === "start" 
+        ? (hasStartFrame || isStartFrameInherited)  // Start frame exists OR is inherited
+        : (hasEndFrame || (isConnectedToNext && hasNextShotStartFrame)))  // End frame exists OR connected to next
+    : !!displayImageUrl;
 
   return (
     <Card
@@ -886,45 +915,62 @@ function SortableShotCard({
         </div>
         <div className="absolute top-2 right-2 flex items-center gap-1">
           {displayImageUrl && (
-            <Popover open={cameraPopoverOpen} onOpenChange={setCameraPopoverOpen}>
-              <PopoverTrigger asChild>
+            <>
+              {onExpandImage && (
                 <Button
                   size="icon"
                   variant="ghost"
                   className="h-6 w-6 bg-background/80 text-muted-foreground hover:text-purple-400"
-                  title="Quick camera angle"
-                  data-testid={`button-camera-angle-${shot.id}`}
+                  title="View full image"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onExpandImage(displayImageUrl);
+                  }}
+                  data-testid={`button-expand-image-${shot.id}`}
                 >
-                  <Camera className="h-3 w-3" />
+                  <Maximize className="h-3 w-3" />
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-48 p-2" align="end">
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground px-2 pb-1">Camera Angle</p>
-                  {CAMERA_ANGLE_PRESETS.map((preset) => (
-                    <Button
-                      key={preset.id}
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-start text-xs h-8 px-2"
-                      onClick={() => {
-                        toast({
-                          title: "Applying Camera Angle",
-                          description: `Transforming image: ${preset.label}`,
-                        });
-                        setCameraPopoverOpen(false);
-                      }}
-                      data-testid={`button-camera-preset-${preset.id}-${shot.id}`}
-                    >
-                      <span className="mr-2 text-sm">{preset.icon}</span>
-                      {preset.label}
-                    </Button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
+              )}
+              <Popover open={cameraPopoverOpen} onOpenChange={setCameraPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 bg-background/80 text-muted-foreground hover:text-purple-400"
+                    title="Quick camera angle"
+                    data-testid={`button-camera-angle-${shot.id}`}
+                  >
+                    <Camera className="h-3 w-3" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-48 p-2" align="end">
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground px-2 pb-1">Camera Angle</p>
+                    {CAMERA_ANGLE_PRESETS.map((preset) => (
+                      <Button
+                        key={preset.id}
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start text-xs h-8 px-2"
+                        onClick={() => {
+                          toast({
+                            title: "Applying Camera Angle",
+                            description: `Transforming image: ${preset.label}`,
+                          });
+                          setCameraPopoverOpen(false);
+                        }}
+                        data-testid={`button-camera-preset-${preset.id}-${shot.id}`}
+                      >
+                        <span className="mr-2 text-sm">{preset.icon}</span>
+                        {preset.label}
+                      </Button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </>
           )}
-          {onDeleteShot && shotsCount > 1 && (
+          {onDeleteShot && (
             <Button
               size="icon"
               variant="ghost"
@@ -1128,94 +1174,296 @@ function SortableShotCard({
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Per-Frame Advanced Settings (Start-End Mode Only) */}
+                {effectiveMode === "start-end" && version && (
+                  <>
+                    <div className="pt-2 border-t border-white/10">
+                      <Label className="text-xs font-semibold text-muted-foreground mb-2 block">
+                        {activeFrame === "start" ? "Start Frame" : "End Frame"} Advanced Settings
+                      </Label>
+                      
+                      {/* Negative Prompt */}
+                      <div className="space-y-1 mb-3">
+                        <Label className="text-xs text-muted-foreground">Negative Prompt</Label>
+                        <Textarea
+                          value={
+                            activeFrame === "start"
+                              ? (version?.startFrameNegativePrompt || "")
+                              : (version?.endFrameNegativePrompt || "")
+                          }
+                          onChange={(e) => {
+                            if (onUpdateShotVersion) {
+                              onUpdateShotVersion(shot.id, version?.id || "", {
+                                ...(activeFrame === "start"
+                                  ? { startFrameNegativePrompt: e.target.value }
+                                  : { endFrameNegativePrompt: e.target.value }),
+                              });
+                            }
+                          }}
+                          placeholder="Elements to avoid in generation..."
+                          className="h-16 text-xs bg-white/[0.02] border-white/[0.06] resize-none"
+                          data-testid={`textarea-${activeFrame}-negative-prompt-${shot.id}`}
+                        />
+                      </div>
+
+                      {/* Seed */}
+                      <div className="space-y-1 mb-3">
+                        <Label className="text-xs text-muted-foreground">Seed (optional)</Label>
+                        <Input
+                          type="number"
+                          value={
+                            activeFrame === "start"
+                              ? (version?.startFrameSeed ?? "")
+                              : (version?.endFrameSeed ?? "")
+                          }
+                          onChange={(e) => {
+                            const value = e.target.value === "" ? null : parseInt(e.target.value);
+                            if (onUpdateShotVersion) {
+                              onUpdateShotVersion(shot.id, version?.id || "", {
+                                ...(activeFrame === "start"
+                                  ? { startFrameSeed: value }
+                                  : { endFrameSeed: value }),
+                              });
+                            }
+                          }}
+                          placeholder="Random seed"
+                          className="h-8 text-xs bg-white/[0.02] border-white/[0.06]"
+                          data-testid={`input-${activeFrame}-seed-${shot.id}`}
+                        />
+                      </div>
+
+                      {/* Guidance Scale */}
+                      <div className="space-y-1 mb-3">
+                        <Label className="text-xs text-muted-foreground">Guidance Scale (optional)</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="1"
+                          max="20"
+                          value={
+                            activeFrame === "start"
+                              ? (version?.startFrameGuidanceScale ?? "")
+                              : (version?.endFrameGuidanceScale ?? "")
+                          }
+                          onChange={(e) => {
+                            const value = e.target.value === "" ? null : parseFloat(e.target.value);
+                            if (onUpdateShotVersion) {
+                              onUpdateShotVersion(shot.id, version?.id || "", {
+                                ...(activeFrame === "start"
+                                  ? { startFrameGuidanceScale: value }
+                                  : { endFrameGuidanceScale: value }),
+                              });
+                            }
+                          }}
+                          placeholder="7.5"
+                          className="h-8 text-xs bg-white/[0.02] border-white/[0.06]"
+                          data-testid={`input-${activeFrame}-guidance-${shot.id}`}
+                        />
+                      </div>
+
+                      {/* Steps */}
+                      <div className="space-y-1 mb-3">
+                        <Label className="text-xs text-muted-foreground">Steps (optional)</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={
+                            activeFrame === "start"
+                              ? (version?.startFrameSteps ?? "")
+                              : (version?.endFrameSteps ?? "")
+                          }
+                          onChange={(e) => {
+                            const value = e.target.value === "" ? null : parseInt(e.target.value);
+                            if (onUpdateShotVersion) {
+                              onUpdateShotVersion(shot.id, version?.id || "", {
+                                ...(activeFrame === "start"
+                                  ? { startFrameSteps: value }
+                                  : { endFrameSteps: value }),
+                              });
+                            }
+                          }}
+                          placeholder="20"
+                          className="h-8 text-xs bg-white/[0.02] border-white/[0.06]"
+                          data-testid={`input-${activeFrame}-steps-${shot.id}`}
+                        />
+                      </div>
+
+                      {/* Strength */}
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Strength (optional)</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="1"
+                          value={
+                            activeFrame === "start"
+                              ? (version?.startFrameStrength ?? "")
+                              : (version?.endFrameStrength ?? "")
+                          }
+                          onChange={(e) => {
+                            const value = e.target.value === "" ? null : parseFloat(e.target.value);
+                            if (onUpdateShotVersion) {
+                              onUpdateShotVersion(shot.id, version?.id || "", {
+                                ...(activeFrame === "start"
+                                  ? { startFrameStrength: value }
+                                  : { endFrameStrength: value }),
+                              });
+                            }
+                          }}
+                          placeholder="0.8"
+                          className="h-8 text-xs bg-white/[0.02] border-white/[0.06]"
+                          data-testid={`input-${activeFrame}-strength-${shot.id}`}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
                 </CollapsibleContent>
               )}
             </Collapsible>
 
             <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1"
-                onClick={() => onSelectShot(shot)}
-                data-testid={`button-edit-image-${shot.id}`}
-              >
-                <Edit className="mr-2 h-3 w-3" />
-                Edit Image
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1"
-                onClick={() => {
-                  // Pass current local prompts to save before generating
-                  const prompts = { imagePrompt: localPrompt, videoPrompt: localVideoPrompt };
-                  
-                  // Determine which frame is being generated (for start-end mode)
-                  const frameType: 'start' | 'end' | undefined = effectiveMode === "start-end" ? activeFrame : undefined;
-                  
-                  // Check if the currently active frame has been generated
-                  let frameExists = false;
-                  if (effectiveMode === "start-end") {
-                    if (activeFrame === "start") {
-                      frameExists = !!hasStartFrame;
-                    } else if (activeFrame === "end") {
-                      // For end frame, check if it exists or if connected to next shot
-                      frameExists = !!hasEndFrame || (isConnectedToNext && !!hasNextShotStartFrame);
-                    }
-                  } else {
-                    // Image-reference mode: check if image exists
-                    frameExists = !!displayImageUrl;
-                  }
-                  
-                  if (frameExists) {
-                    // Pass frame type for tracking, but parent handler may not accept it yet
-                    (onRegenerateShot as any)(shot.id, prompts, frameType);
-                  } else {
-                    // Pass frame type for tracking, but parent handler may not accept it yet
-                    (onGenerateShot as any)(shot.id, prompts, frameType);
-                  }
-                }}
-                disabled={(() => {
-                  // Check if the specific active frame is generating
-                  if (effectiveMode === "start-end" && activeFrame) {
-                    return activeFrame === "start" ? isGeneratingStart : isGeneratingEnd;
-                  }
-                  return isGenerating;
-                })()}
-                data-testid={`button-regenerate-${shot.id}`}
-              >
-                {(() => {
-                  // Check if the specific active frame is generating
-                  const isFrameGenerating = effectiveMode === "start-end" && activeFrame
-                    ? (activeFrame === "start" ? isGeneratingStart : isGeneratingEnd)
-                    : isGenerating;
-                  
-                  return isFrameGenerating ? (
-                    <>
-                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="mr-2 h-3 w-3" />
-                      {(() => {
-                        // Check if the currently active frame has been generated
-                        if (effectiveMode === "start-end") {
-                          if (activeFrame === "start") {
-                            return !!hasStartFrame ? "Re-generate" : "Generate";
-                          } else if (activeFrame === "end") {
-                            const endFrameExists = !!hasEndFrame || (isConnectedToNext && !!hasNextShotStartFrame);
-                            return endFrameExists ? "Re-generate" : "Generate";
-                          }
+              {currentFrameHasImage ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 border-white/10 hover:bg-white/5"
+                    onClick={() => onSelectShot(shot)}
+                    disabled={(() => {
+                      // Check if the specific active frame is generating
+                      if (effectiveMode === "start-end" && activeFrame) {
+                        return activeFrame === "start" ? isGeneratingStart : isGeneratingEnd;
+                      }
+                      return isGenerating;
+                    })()}
+                    data-testid={`button-edit-image-${shot.id}`}
+                  >
+                    <Edit className="mr-2 h-3 w-3" />
+                    Edit Image
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => {
+                      // Pass current local prompts to save before generating
+                      const prompts = { imagePrompt: localPrompt, videoPrompt: localVideoPrompt };
+                      
+                      // Determine which frame is being regenerated (for start-end mode)
+                      const frameType: 'start' | 'end' | undefined = effectiveMode === "start-end" ? activeFrame : undefined;
+                      
+                      // Always regenerate since image exists
+                      (onRegenerateShot as any)(shot.id, prompts, frameType);
+                    }}
+                    disabled={(() => {
+                      // Check if the specific active frame is generating
+                      if (effectiveMode === "start-end" && activeFrame) {
+                        const isFrameGenerating = activeFrame === "start" ? isGeneratingStart : isGeneratingEnd;
+                        // For start frame: disable if it's inherited (should not be regenerated)
+                        if (activeFrame === "start" && isStartFrameInherited) {
+                          return true; // Disable if start frame is inherited
                         }
-                        // Image-reference mode
-                        return !!displayImageUrl ? "Re-generate" : "Generate";
-                      })()}
-                    </>
-                  );
-                })()}
-              </Button>
+                        // For end frame regeneration, also check if start frame exists (required prerequisite)
+                        if (activeFrame === "end" && !startFrameExists) {
+                          return true; // Disable if start frame doesn't exist
+                        }
+                        return isFrameGenerating;
+                      }
+                      return isGenerating;
+                    })()}
+                    title={
+                      effectiveMode === "start-end" && activeFrame === "start" && isStartFrameInherited
+                        ? "Start frame is inherited from previous shot"
+                        : effectiveMode === "start-end" && activeFrame === "end" && !startFrameExists
+                        ? "Start frame must be generated first"
+                        : undefined
+                    }
+                    data-testid={`button-regenerate-${shot.id}`}
+                  >
+                    {(() => {
+                      // Check if the specific active frame is generating
+                      const isFrameGenerating = effectiveMode === "start-end" && activeFrame
+                        ? (activeFrame === "start" ? isGeneratingStart : isGeneratingEnd)
+                        : isGenerating;
+                      
+                      return isFrameGenerating ? (
+                        <>
+                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="mr-2 h-3 w-3" />
+                          Re-generate
+                        </>
+                      );
+                    })()}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => {
+                    // Pass current local prompts to save before generating
+                    const prompts = { imagePrompt: localPrompt, videoPrompt: localVideoPrompt };
+                    
+                    // Determine which frame is being generated (for start-end mode)
+                    const frameType: 'start' | 'end' | undefined = effectiveMode === "start-end" ? activeFrame : undefined;
+                    
+                    // Generate new image
+                    (onGenerateShot as any)(shot.id, prompts, frameType);
+                  }}
+                  disabled={(() => {
+                    // Check if the specific active frame is generating
+                    if (effectiveMode === "start-end" && activeFrame) {
+                      const isFrameGenerating = activeFrame === "start" ? isGeneratingStart : isGeneratingEnd;
+                      // For start frame: disable if it's inherited (should not be generated)
+                      if (activeFrame === "start" && isStartFrameInherited) {
+                        return true; // Disable if start frame is inherited
+                      }
+                      // For end frame, also check if start frame exists (required prerequisite)
+                      if (activeFrame === "end" && !startFrameExists) {
+                        return true; // Disable if start frame doesn't exist
+                      }
+                      return isFrameGenerating;
+                    }
+                    return isGenerating;
+                  })()}
+                  title={
+                    effectiveMode === "start-end" && activeFrame === "start" && isStartFrameInherited
+                      ? "Start frame is inherited from previous shot"
+                      : effectiveMode === "start-end" && activeFrame === "end" && !startFrameExists
+                      ? "Start frame must be generated first"
+                      : undefined
+                  }
+                  data-testid={`button-generate-image-${shot.id}`}
+                >
+                  {(() => {
+                    // Check if the specific active frame is generating
+                    const isFrameGenerating = effectiveMode === "start-end" && activeFrame
+                      ? (activeFrame === "start" ? isGeneratingStart : isGeneratingEnd)
+                      : isGenerating;
+                    
+                    return isFrameGenerating ? (
+                      <>
+                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-3 w-3" />
+                        Generate Image
+                      </>
+                    );
+                  })()}
+                </Button>
+              )}
             </div>
           </TabsContent>
 
@@ -1381,6 +1629,7 @@ export function StoryboardEditor({
   continuityGroups,
   isCommerceMode = false,
   isLogoMode = false,
+  isGeneratingPrompts = false,
   onVoiceActorChange,
   onVoiceOverToggle,
   onGenerateShot,
@@ -1425,6 +1674,7 @@ export function StoryboardEditor({
   const editReferenceInputRef = useRef<HTMLInputElement>(null);
   // Track generating state by shot ID and frame type (e.g., "shotId:start" or "shotId:end")
   const [generatingShots, setGeneratingShots] = useState<Set<string>>(new Set());
+  const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
   const { toast } = useToast();
   
   // Model lists fetched from API
@@ -1502,14 +1752,14 @@ export function StoryboardEditor({
   const totalCount = allShots.length;
 
   // Helper to get current version of a shot
-  const getShotVersion = (shot: Shot): ShotVersion | null => {
+  const getShotVersion = (shot: Shot): NarrativeShotVersion | null => {
     if (!shot.currentVersionId) return null;
     const versions = shotVersions[shot.id] || [];
     return versions.find((v) => v.id === shot.currentVersionId) || null;
   };
 
   // Helper to get the version being previewed (or active version if no preview)
-  const getPreviewedVersion = (shot: Shot): ShotVersion | null => {
+  const getPreviewedVersion = (shot: Shot): NarrativeShotVersion | null => {
     const versions = shotVersions[shot.id] || [];
     const previewId = previewVersions[shot.id];
     if (previewId) {
@@ -1642,6 +1892,30 @@ export function StoryboardEditor({
     return null;
   };
 
+  // Helper: Get the previous connected shot in a continuity group
+  const getPreviousConnectedShot = (sceneId: string, shotIndex: number): Shot | null => {
+    if (narrativeMode !== "start-end" || !continuityLocked || shotIndex === 0) return null;
+    
+    const sceneGroups = continuityGroups[sceneId] || [];
+    const sceneShots = localShots[sceneId] || [];
+    
+    const currentShot = sceneShots[shotIndex];
+    const previousShot = sceneShots[shotIndex - 1];
+    
+    // Check if previous and current shots are in the same continuity group
+    for (const group of sceneGroups) {
+      const shotIds = group.shotIds || [];
+      const previousIdx = shotIds.indexOf(previousShot.id);
+      const currentIdx = shotIds.indexOf(currentShot.id);
+      
+      if (previousIdx !== -1 && currentIdx === previousIdx + 1) {
+        return previousShot; // Return the previous connected shot
+      }
+    }
+    
+    return null;
+  };
+
   // Helper: Check if a shot's start frame is inherited from previous shot
   const isShotStartFrameInherited = (sceneId: string, shotIndex: number): boolean => {
     if (narrativeMode !== "start-end" || !continuityLocked || shotIndex === 0) return false;
@@ -1697,6 +1971,171 @@ export function StoryboardEditor({
     toast({
       title: "Generating Storyboard",
       description: `Generating images for ${totalCount - generatedCount} shots...`,
+    });
+  };
+
+  // Generate all images for a scene sequentially (frame by frame)
+  const handleGenerateSceneImages = async (sceneId: string) => {
+    const sceneShots = localShots[sceneId] || [];
+    if (sceneShots.length === 0) {
+      toast({
+        title: "No Shots",
+        description: "This scene has no shots to generate.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const sceneGroups = continuityGroups[sceneId] || [];
+    
+    // Determine which shots need generation and in what order
+    const shotsToGenerate: Array<{ shot: Shot; frame?: 'start' | 'end' }> = [];
+    
+    for (const shot of sceneShots) {
+      const version = getShotVersion(shot);
+      const shotEffectiveMode = narrativeMode === "auto"
+        ? (shot.frameMode || "image-reference")
+        : narrativeMode;
+      
+      // Check if shot is in a continuity group
+      let isInGroup = false;
+      let shotIndexInGroup = -1;
+      let groupShotIds: string[] = [];
+      
+      for (const group of sceneGroups) {
+        if (group.shotIds && group.shotIds.includes(shot.id)) {
+          isInGroup = true;
+          groupShotIds = group.shotIds;
+          shotIndexInGroup = groupShotIds.indexOf(shot.id);
+          break;
+        }
+      }
+      
+      if (shotEffectiveMode === "image-reference") {
+        // Single frame mode: generate if no image exists
+        if (!version || !version.imageUrl) {
+          shotsToGenerate.push({ shot });
+        }
+      } else {
+        // Start-end mode
+        if (isInGroup && shotIndexInGroup > 0) {
+          // Not first in group: start frame is inherited, only generate end frame
+          if (!version || !version.endFrameUrl) {
+            shotsToGenerate.push({ shot, frame: 'end' });
+          }
+        } else {
+          // First in group or standalone: generate start frame first, then end frame
+          if (!version || !version.startFrameUrl) {
+            shotsToGenerate.push({ shot, frame: 'start' });
+          }
+          // Add end frame if start exists but end doesn't
+          if (version && version.startFrameUrl && !version.endFrameUrl) {
+            shotsToGenerate.push({ shot, frame: 'end' });
+          }
+        }
+      }
+    }
+    
+    if (shotsToGenerate.length === 0) {
+      toast({
+        title: "All Images Generated",
+        description: "All shots in this scene already have generated images.",
+      });
+      return;
+    }
+    
+    toast({
+      title: "Generating Scene Images",
+      description: `Generating ${shotsToGenerate.length} frame(s) sequentially...`,
+    });
+    
+    // Generate sequentially, waiting for each to complete
+    for (let i = 0; i < shotsToGenerate.length; i++) {
+      const { shot, frame } = shotsToGenerate[i];
+      const shotEffectiveMode = narrativeMode === "auto"
+        ? (shot.frameMode || "image-reference")
+        : narrativeMode;
+      
+      try {
+        // Wait for previous generation to complete
+        if (i > 0) {
+          // Wait until previous shot is no longer generating
+          const previousShot = shotsToGenerate[i - 1];
+          const previousFrame = previousShot.frame;
+          const previousShotEffectiveMode = narrativeMode === "auto"
+            ? (previousShot.shot.frameMode || "image-reference")
+            : narrativeMode;
+          const previousGeneratingKey = previousShotEffectiveMode === "start-end" && previousFrame
+            ? `${previousShot.shot.id}:${previousFrame}`
+            : previousShot.shot.id;
+          
+          while (generatingShots.has(previousGeneratingKey)) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+          
+          // Additional wait to ensure state is fully updated
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+        // Start generation using the wrapper that manages loading state
+        const generatingKey = shotEffectiveMode === "start-end" && frame
+          ? `${shot.id}:${frame}`
+          : shot.id;
+        
+        // Call the generation function (it will manage generatingShots state)
+        await handleGenerateShotWithLoading(shot.id, undefined, frame);
+        
+        // Wait for generation to complete by polling the generating state
+        // handleGenerateShotWithLoading manages the state, but we wait a bit to ensure it's updated
+        let attempts = 0;
+        const maxAttempts = 120; // 60 seconds max (500ms * 120)
+        
+        while (generatingShots.has(generatingKey) && attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          attempts++;
+          
+          // Also check if the image was actually generated (early exit if successful)
+          const currentVersion = getShotVersion(shot);
+          
+          if (currentVersion) {
+            if (shotEffectiveMode === "image-reference") {
+              if (currentVersion.imageUrl) {
+                break; // Image generated successfully
+              }
+            } else {
+              // Start-end mode
+              if (frame === 'start' && currentVersion.startFrameUrl) {
+                break; // Start frame generated successfully
+              } else if (frame === 'end' && currentVersion.endFrameUrl) {
+                break; // End frame generated successfully
+              }
+            }
+          }
+        }
+        
+        if (attempts >= maxAttempts) {
+          console.warn(`Generation timeout for shot ${shot.id}, frame ${frame}`);
+          toast({
+            title: "Generation Timeout",
+            description: `Generation for shot #${shot.shotNumber} took too long. Continuing with next shot...`,
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to generate frame for shot ${shot.id}:`, error);
+        toast({
+          title: "Generation Error",
+          description: `Failed to generate frame for shot #${shot.shotNumber}. Continuing with next shot...`,
+          variant: "destructive",
+        });
+        
+        // Error handling is done by handleGenerateShotWithLoading's finally block
+      }
+    }
+    
+    toast({
+      title: "Generation Complete",
+      description: `Finished generating ${shotsToGenerate.length} frame(s) for scene.`,
     });
   };
 
@@ -1872,8 +2311,129 @@ export function StoryboardEditor({
   const selectedVoice = VOICE_LIBRARY.find(v => v.id === voiceActorId);
   const selectedVoiceLabel = selectedVoice?.name || "Select voice actor";
 
+  // Calculate total shots count for loading message
+  const totalShotsCount = Object.values(shots).reduce((sum, sceneShots) => sum + sceneShots.length, 0);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Loading Overlay - Show when generating prompts */}
+      {isGeneratingPrompts && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 backdrop-blur-sm"
+        >
+          {/* Breathing Glow Effect */}
+          <motion.div
+            animate={{
+              scale: [1, 1.2, 1],
+              opacity: [0.3, 0.6, 0.3],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            className="absolute w-40 h-40 rounded-full blur-3xl bg-gradient-to-br from-purple-500 to-cyan-500"
+          />
+
+          {/* Content */}
+          <div className="relative z-10 flex flex-col items-center justify-center text-center px-8">
+            {/* Icon with Star and Sparkles */}
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+              className="mb-6"
+            >
+              <div className="relative">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-purple-500/50">
+                  <Star className="h-10 w-10 text-white" />
+                </div>
+                {/* Sparkles around the star */}
+                <motion.div
+                  animate={{ 
+                    scale: [1, 1.2, 1],
+                    opacity: [0.5, 1, 0.5],
+                  }}
+                  transition={{ 
+                    duration: 1.5, 
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                  className="absolute -top-1 -right-1"
+                >
+                  <Sparkles className="h-4 w-4 text-cyan-400" />
+                </motion.div>
+                <motion.div
+                  animate={{ 
+                    scale: [1, 1.2, 1],
+                    opacity: [0.5, 1, 0.5],
+                  }}
+                  transition={{ 
+                    duration: 1.5, 
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 0.5,
+                  }}
+                  className="absolute -bottom-1 -left-1"
+                >
+                  <Sparkles className="h-4 w-4 text-purple-400" />
+                </motion.div>
+              </div>
+            </motion.div>
+
+            {/* Title */}
+            <motion.h2
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-3xl font-bold text-white mb-2"
+            >
+              Generating Prompts
+            </motion.h2>
+
+            {/* Description */}
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="text-base text-gray-300 mb-1"
+            >
+              Creating optimized prompts for all {totalShotsCount} shot{totalShotsCount !== 1 ? 's' : ''}...
+            </motion.p>
+
+            {/* Info Text */}
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-sm text-gray-400 mt-4"
+            >
+              This may take a moment
+            </motion.p>
+
+            {/* Loading Dots */}
+            <div className="flex gap-2 mt-6">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <motion.div
+                  key={i}
+                  animate={{
+                    scale: [1, 1.2, 1],
+                    opacity: [0.4, 1, 0.4],
+                  }}
+                  transition={{
+                    duration: 1.2,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: i * 0.15,
+                  }}
+                  className="w-2 h-2 rounded-full bg-gradient-to-br from-purple-400 to-cyan-400"
+                />
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      )}
       <div className="sticky top-0 z-50 bg-black/40 backdrop-blur-xl py-4 border-b border-white/[0.06]">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -1998,7 +2558,7 @@ export function StoryboardEditor({
                       </div>
                       <h4 className="font-semibold text-sm text-white">{scene.title}</h4>
                     </div>
-                    {onDeleteScene && scenes.length > 1 && (
+                    {onDeleteScene && (
                       <Button
                         size="icon"
                         variant="ghost"
@@ -2060,6 +2620,28 @@ export function StoryboardEditor({
                     <Button
                       size="sm"
                       className="w-full mt-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white"
+                      onClick={async () => {
+                        await handleGenerateSceneImages(scene.id);
+                      }}
+                      disabled={generatingShots.size > 0}
+                      data-testid={`button-generate-scene-images-${scene.id}`}
+                    >
+                      {generatingShots.size > 0 ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Generate All Images
+                        </>
+                      )}
+                    </Button>
+                    
+                    <Button
+                      size="sm"
+                      className="w-full mt-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white"
                       onClick={() => {
                         toast({
                           title: "Animate Scene",
@@ -2114,6 +2696,10 @@ export function StoryboardEditor({
                           // Get next shot's version for connected shots
                           const nextShot = getNextConnectedShot(scene.id, shotIndex);
                           const nextShotVersion = nextShot ? getShotVersion(nextShot) : null;
+                          
+                          // Get previous shot's version for inherited start frames
+                          const previousShot = getPreviousConnectedShot(scene.id, shotIndex);
+                          const previousShotVersion = previousShot ? getShotVersion(previousShot) : null;
 
                           return (
                             <React.Fragment key={shot.id}>
@@ -2125,6 +2711,7 @@ export function StoryboardEditor({
                                 sceneImageModel={scene.imageModel || availableImageModels[0]?.name || 'nano-banana'}
                                 version={version}
                                 nextShotVersion={nextShotVersion}
+                                previousShotVersion={previousShotVersion}
                                 referenceImage={referenceImage}
                                 isGenerating={isGeneratingShot}
                                 isGeneratingStart={isGeneratingStart}
@@ -2141,10 +2728,12 @@ export function StoryboardEditor({
                                 isPartOfConnection={isPartOfConnection}
                                 isStartFrameInherited={isStartFrameInherited}
                                 onSelectShot={handleSelectShot}
+                                onExpandImage={(imageUrl) => setExpandedImageUrl(imageUrl)}
                                 onGenerateShot={handleGenerateShotWithLoading}
                                 onRegenerateShot={handleRegenerateShotWithLoading}
                                 onUpdatePrompt={handleUpdatePrompt}
                                 onUpdateShot={onUpdateShot}
+                                onUpdateShotVersion={onUpdateShotVersion}
                                 onUploadReference={handleUploadReference}
                                 onDeleteReference={handleDeleteReference}
                                 onUpdateVideoPrompt={handleUpdateVideoPrompt}
@@ -3250,6 +3839,30 @@ export function StoryboardEditor({
               Animate all
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Full Image Dialog */}
+      <Dialog open={!!expandedImageUrl} onOpenChange={(open) => !open && setExpandedImageUrl(null)}>
+        <DialogContent className="max-w-7xl h-[90vh] p-0 gap-0">
+          {expandedImageUrl && (
+            <div className="relative w-full h-full flex items-center justify-center bg-black">
+              <img
+                src={expandedImageUrl}
+                alt="Full size image"
+                className="max-w-full max-h-full object-contain"
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                className="absolute top-4 right-4 h-10 w-10 bg-background/80 text-muted-foreground hover:text-white"
+                onClick={() => setExpandedImageUrl(null)}
+                data-testid="button-close-expanded-image"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

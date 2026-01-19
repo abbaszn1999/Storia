@@ -2440,6 +2440,77 @@ router.post('/videos/:id/step/3/generate-voiceover-scripts', isAuthenticated, as
 });
 
 /**
+ * PATCH /api/social-commerce/videos/:id/voiceover-script/:beatId
+ * Update a single beat's voiceover script
+ * 
+ * Used when user edits the script in Tab 4 and clicks Regenerate
+ */
+router.patch('/videos/:id/voiceover-script/:beatId', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id, beatId } = req.params;
+    const { script } = req.body;
+
+    if (!script || typeof script !== 'string') {
+      return res.status(400).json({ error: 'Script is required' });
+    }
+
+    const video = await storage.getVideo(id);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Verify workspace access (videos belong to workspaces, not directly to users)
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
+    }
+
+    const step3Data = video.step3Data as Step3Data | null;
+    if (!step3Data?.voiceoverScripts?.beat_scripts) {
+      return res.status(400).json({ error: 'No voiceover scripts found' });
+    }
+
+    // Find and update the specific beat script
+    const beatScriptIndex = step3Data.voiceoverScripts.beat_scripts.findIndex(
+      (bs: any) => bs.beatId === beatId
+    );
+
+    if (beatScriptIndex === -1) {
+      return res.status(404).json({ error: `Beat script not found for beatId: ${beatId}` });
+    }
+
+    // Update the script
+    step3Data.voiceoverScripts.beat_scripts[beatScriptIndex].voiceoverScript.script = script;
+
+    // Save to database
+    await storage.updateVideo(id, {
+      step3Data,
+      updatedAt: new Date(),
+    });
+
+    console.log('[social-commerce:routes] Voiceover script updated:', {
+      videoId: id,
+      beatId,
+      scriptLength: script.length,
+    });
+
+    res.json({
+      success: true,
+      beatId,
+      script,
+    });
+  } catch (error) {
+    console.error('[social-commerce:routes] Error updating voiceover script:', error);
+    res.status(500).json({ error: 'Failed to update voiceover script' });
+  }
+});
+
+/**
  * PATCH /api/social-commerce/videos/:id/step/4/continue
  * Save Step 4 (Voiceover) data and proceed to Step 5
  * 

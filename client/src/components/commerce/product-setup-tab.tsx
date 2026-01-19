@@ -763,7 +763,7 @@ export function ProductSetupTab({
                                               {voice.name}
                                             </div>
                                       <div className="text-xs text-muted-foreground">
-                                              {voice.gender} · {voice.style} · {voice.accent}
+                                              {voice.gender} · {voice.style} · {voice.collection}
                                             </div>
                                           </div>
                                         </div>
@@ -1059,6 +1059,29 @@ export function ProductSetupTab({
                     <span className={localVisualIntensity >= 67 ? "text-emerald-500 dark:text-emerald-400 font-medium" : ""}>Wild</span>
                           </div>
                         </div>
+
+                {/* Pacing Override - Shot Speed */}
+                <div className="space-y-3 pt-3 border-t border-[#e5e7eb] dark:border-white/[0.08]">
+                  <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Pacing</label>
+                  <Slider
+                    value={[pacingOverride ?? 50]}
+                    onValueChange={(value) => {
+                      const newValue = value[0];
+                      if (onPacingOverrideChange) {
+                        onPacingOverrideChange(newValue);
+                      }
+                    }}
+                    min={0}
+                    max={100}
+                    step={1}
+                    className="w-full [&>span>span]:bg-emerald-500 [&>span:last-child]:border-emerald-500"
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span className={(pacingOverride ?? 50) < 33 ? "text-emerald-500 dark:text-emerald-400 font-medium" : ""}>Slow</span>
+                    <span className={(pacingOverride ?? 50) >= 33 && (pacingOverride ?? 50) < 67 ? "text-emerald-500 dark:text-emerald-400 font-medium" : ""}>Balanced</span>
+                    <span className={(pacingOverride ?? 50) >= 67 ? "text-emerald-500 dark:text-emerald-400 font-medium" : ""}>Fast</span>
+                  </div>
+                </div>
                           </div>
             </GlassPanel>
 
@@ -1311,8 +1334,11 @@ export function ProductSetupTab({
                 </div>
                 )}
 
-                {/* Generate Composite Button */}
-                {productImages?.heroProfile && !productImages?.compositeImage && (
+                {/* Generate Composite Button - Only show if Hero + (Angles OR Elements) */}
+                {productImages?.heroProfile && 
+                 !productImages?.compositeImage && 
+                 ((productImages?.productAngles && productImages.productAngles.length > 0) || 
+                  (productImages?.elements && productImages.elements.length > 0)) && (
                   <div className="pt-4 border-t border-[#e5e7eb] dark:border-white/[0.08]">
                     <Button
                       onClick={async () => {

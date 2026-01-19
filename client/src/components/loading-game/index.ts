@@ -54,5 +54,22 @@ export { LoadingGameProvider, useLoadingGame } from './LoadingGameProvider';
 export { FilmCatcherGame } from './FilmCatcherGame';
 export { GameCanvas } from './GameCanvas';
 export { useGameLoop } from './useGameLoop';
-export type { LoadingGameConfig, GameState, GameObject, Particle } from './types';
-export { GAME_CONFIG, GOOD_ITEMS, BAD_ITEMS } from './types';
+export type { 
+  LoadingGameConfig, 
+  GameState, 
+  GameObject, 
+  Particle,
+  PowerUpType,
+  ActivePowerUp,
+  Achievement,
+  DifficultyLevel,
+} from './types';
+export { 
+  GAME_CONFIG, 
+  GOOD_ITEMS, 
+  BAD_ITEMS, 
+  POWER_UP_ITEMS,
+  ACHIEVEMENTS_LIST,
+  DIFFICULTY_LEVELS,
+  getDifficultyForLevel,
+} from './types';

@@ -328,8 +328,8 @@ export function AudioStep({
               </div>
             </div>
 
-            {/* Voice Grid - 2x3 layout for 6 voices */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* Voice Grid - 6 columns layout */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
               <AnimatePresence mode="wait">
                 {currentVoices.map((voice, index) => {
                   const isSelected = selectedVoice === voice.id;

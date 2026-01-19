@@ -47,17 +47,10 @@ export interface VoiceoverScript {
   language: 'ar' | 'en';
   tempo: string;
   volume: string;
-  dialogue: Array<{
-    timestamp: number;
-    duration: number;
-    line: string;
-    wordCount: number;
-    emotionalTone: string;
-    pacing: 'slow' | 'normal' | 'fast';
-  }>;
-  totalDuration: number;
-  totalWordCount: number;
-  scriptSummary: string;
+  script: string; // FULL voiceover script text WITH SSML breaks (<break time="X.Xs" />) and audio tags ([happy], [excited], etc.). ElevenLabs reads these directly.
+  totalDuration: number; // Duration in seconds (approximately 8 seconds per beat)
+  totalWordCount: number; // Word count for this beat script
+  scriptSummary: string; // Brief description of script approach
 }
 
 export interface VoiceoverScriptOutput {

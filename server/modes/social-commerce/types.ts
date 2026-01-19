@@ -89,6 +89,7 @@ export interface Step1Data {
   videoResolution?: string;
   language?: 'ar' | 'en';
   voiceOverEnabled?: boolean;
+  voiceActorId?: string | null; // ID from VOICE_LIBRARY (e.g., "voice-rachel", "voice-adam")
   
   // Audio Settings
   audioVolume?: 'low' | 'medium' | 'high';
@@ -542,12 +543,30 @@ export interface MediaPlannerOutput {
  * Step 4 Data stored in database
  */
 /**
- * @deprecated Tab 4 has been removed. This type is kept for backward compatibility only.
+ * Voiceover audio data for a single beat
+ */
+export interface VoiceoverAudioData {
+  audioUrl: string;
+  generatedAt: Date;
+  voiceId: string;
+  duration: number;  // in seconds
+}
+
+/**
+ * Step 4 Data - Voiceover Tab
  */
 export interface Step4Data {
   // Agent 4.1 output (now includes timing in shots: rendered_duration)
   /** @deprecated Agent 4.1 has been removed */
   mediaPlanner?: MediaPlannerOutput;
+  
+  // Agent 5.2 output (Voiceover Scripts)
+  voiceoverScripts?: VoiceoverScriptOutput;
+  
+  // Generated voiceover audio files
+  voiceoverAudios?: {
+    [beatId: string]: VoiceoverAudioData;
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -904,6 +923,7 @@ export interface VoiceoverScriptInput {
  * Output from Agent 5.2: Voiceover Script Architect
  */
 export interface VoiceoverScriptOutput {
+  // Scripts for each beat
   beat_scripts: Array<{
     beatId: 'beat1' | 'beat2' | 'beat3';
     voiceoverScript: {
@@ -911,25 +931,38 @@ export interface VoiceoverScriptOutput {
       language: 'ar' | 'en';
       tempo: string;
       volume: string;
-      dialogue: Array<{
-        timestamp: number; // Start time (0.0-8.0)
-        duration: number; // Duration of this line (calculated)
-        line: string;
-        wordCount: number;
-        emotionalTone: string;
-        pacing: 'slow' | 'normal' | 'fast';
-      }>;
-      totalDuration: number; // Sum of all dialogue + pauses
-      totalWordCount: number;
-      scriptSummary: string; // Brief description of script approach
+      script: string; // FULL voiceover script text for this beat WITH SSML breaks (<break time="X.Xs" />) and audio tags ([happy], [excited], etc.). ElevenLabs reads these directly.
+      totalDuration: number; // Duration in seconds (approximately 12 seconds)
+      totalWordCount: number; // Word count for this beat
+      scriptSummary: string; // Brief description of script approach for this beat
     };
   }>;
   
-  // Full script (only when generated, not when user provided)
-  fullScript?: {
-    text: string; // The complete continuous script
+  // Full combined script (all beats joined)
+  fullScript: {
+    text: string; // Complete combined voiceover script text (all beat scripts joined). Include SSML breaks and audio tags.
     totalDuration: number; // Total seconds across all beats
-    totalWordCount: number;
+    totalWordCount: number; // Total word count across all beats
+  };
+}
+
+/**
+ * Animatic State - Volume and render settings for Tab 5 (Animatic Preview)
+ */
+export interface AnimaticState {
+  volumes: {
+    voiceover: number; // 0-1
+    video: number;     // 0-1 - Controls embedded audio from Sora video
+  };
+  render?: {
+    id: string;
+    status: 'queued' | 'rendering' | 'done' | 'failed';
+    progress: number;
+    url?: string;
+    thumbnailUrl?: string;
+    startedAt?: string;
+    completedAt?: string;
+    error?: string;
   };
 }
 
@@ -972,6 +1005,43 @@ export interface Step5Data {
   // Final export
   exportUrl?: string;
   thumbnailUrl?: string;
+  
+  // Animatic preview state (Tab 5)
+  animatic?: AnimaticState;
+}
+
+/**
+ * Step 6 Data - Export and Publishing settings
+ */
+export interface Step6Data {
+  // Render trigger timestamp
+  renderTriggeredAt?: string;
+  
+  // Export settings
+  exportSettings?: {
+    resolution: '720p' | '1080p' | '4k';
+    format: 'mp4';
+  };
+  
+  // Publish settings (saved for Late API)
+  publishSettings?: {
+    selectedPlatforms: string[];
+    metadata: {
+      youtube?: { title: string; description: string };
+      tiktok?: { caption: string };
+      instagram?: { caption: string };
+      facebook?: { caption: string };
+    };
+    scheduledFor?: string;
+  };
+  
+  // Published URLs (after publishing to platforms)
+  publishedUrls?: {
+    [platform: string]: {
+      url: string;
+      publishedAt: string;
+    };
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

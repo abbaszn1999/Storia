@@ -29,9 +29,9 @@ export {
   validateBeatPromptOutput,
   buildImageAttachments,
 } from './tab-3/prompt-architect';
-export type { BatchBeatPromptInput, BeatPromptOutput } from '../../types';
+export type { BatchBeatPromptInput, BeatPromptOutput } from '../types';
 
 // Agent 5.2: Voiceover Script Architect
 export { generateVoiceoverScripts } from './tab-3/voiceover-script-architect';
-export type { VoiceoverScriptInput, VoiceoverScriptOutput } from '../../types';
+export type { VoiceoverScriptInput, VoiceoverScriptOutput } from '../types';
 

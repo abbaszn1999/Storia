@@ -70,20 +70,67 @@ async function pollRunwareTasks({
     Authorization: `Bearer ${apiKey}`,
   };
   const start = Date.now();
+  const maxRetryAttempts = 3; // Maximum retries per polling request
+  const requestTimeout = 30000; // 30 seconds timeout per request
 
   while (true) {
     await sleep(intervalMs);
-    // For polling, we use taskType: "getResponse" with the original taskUUID
-    const res = await fetch(pollUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(
-        refs.map((ref) => ({
-          taskType: "getResponse",
-          taskUUID: ref.taskUUID,
-        })),
-      ),
-    });
+    
+    // Retry logic للتعامل مع network errors
+    let res;
+    let retryAttempt = 0;
+    
+    while (retryAttempt < maxRetryAttempts) {
+      try {
+        // Create AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
+        
+        // For polling, we use taskType: "getResponse" with the original taskUUID
+        res = await fetch(pollUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(
+            refs.map((ref) => ({
+              taskType: "getResponse",
+              taskUUID: ref.taskUUID,
+            })),
+          ),
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        break; // نجح - اخرج من retry loop
+      } catch (fetchError: any) {
+        retryAttempt++;
+        const isNetworkError = 
+          fetchError.code === 'ECONNRESET' || 
+          fetchError.code === 'ETIMEDOUT' ||
+          fetchError.message?.includes('fetch failed') ||
+          fetchError.name === 'AbortError' ||
+          fetchError.message?.includes('aborted');
+        
+        if (isNetworkError && retryAttempt < maxRetryAttempts) {
+          console.warn(`[runware] Polling request failed (attempt ${retryAttempt}/${maxRetryAttempts}), retrying...`, {
+            error: fetchError.message,
+            code: fetchError.code,
+            name: fetchError.name,
+          });
+          // Exponential backoff
+          await sleep(intervalMs * retryAttempt);
+          continue;
+        } else {
+          // إما أنه ليس network error، أو وصلنا للحد الأقصى
+          console.error('[runware] Polling request failed after retries:', {
+            error: fetchError.message,
+            code: fetchError.code,
+            name: fetchError.name,
+            retryAttempt,
+          });
+          throw fetchError;
+        }
+      }
+    }
 
     if (!res.ok) {
       const details = await res.text();

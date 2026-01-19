@@ -11,14 +11,15 @@ import type { Request, Response } from 'express';
 import multer from 'multer';
 import { randomUUID } from 'crypto';
 import { storage } from '../../../storage';
-import { bunnyStorage, buildVideoModePath } from '../../../storage/bunny-storage';
+import { bunnyStorage, buildVideoModePath, buildVideoProjectFolderPath } from '../../../storage/bunny-storage';
 import { isAuthenticated, getCurrentUserId } from '../../../auth';
 import { callAi } from '../../../ai/service';
 import { getVideoDimensionsForImageGeneration } from '../../../ai/config';
 import { SOCIAL_COMMERCE_CONFIG } from '../config';
 import { generateBeatPrompts } from '../agents/tab-3/prompt-architect';
-// Removed: generateVoiceoverScripts import - Agent 5.2 will be implemented in Tab 4
+import { generateVoiceoverScripts } from '../agents/tab-3/voiceover-script-architect';
 import { generateComposite } from '../services/composite-generator';
+import { trimVideoStart } from '../../../stories/shared/services/ffmpeg-helpers';
 import type { BatchBeatPromptInput, BeatPromptOutput, VoiceoverScriptInput } from '../types';
 import type {
   CreateVideoRequest,
@@ -26,10 +27,29 @@ import type {
   Step1Data as Step1DataType,
   Step2Data,
   Step3Data,
-  // Step4Data, Step5Data, ShotPrompts, PromptArchitectInput, SceneDefinition, ShotDefinition - kept for backward compatibility only
+  Step4Data,
+  // Step5Data, ShotPrompts, PromptArchitectInput, SceneDefinition, ShotDefinition - kept for backward compatibility only
 } from '../types';
 
+// Tab-4 Voiceover Routes
+import voiceoverPreviewRouter from './tab-4/voiceover-preview';
+
+// Tab-5 Animatic Routes
+import animaticRouter from './tab-5/animatic';
+
+// Tab-6 Export Routes
+import exportRouter from './tab-6/export';
+
 const router = Router();
+
+// Mount tab-4 voiceover routes
+router.use('/voiceover', voiceoverPreviewRouter);
+
+// Mount tab-5 animatic routes
+router.use('/animatic', animaticRouter);
+
+// Mount tab-6 export routes
+router.use('/export', exportRouter);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TEMPORARY IMAGE STORAGE (Memory)
@@ -247,8 +267,8 @@ router.delete('/composite', isAuthenticated, async (req: Request, res: Response)
       return res.status(400).json({ error: 'Invalid CDN URL' });
     }
 
-    // Check if it's a composite image path
-    if (!filePath.includes('/Assets/Composites/')) {
+    // Check if it's a composite image path (support both old and new paths)
+    if (!filePath.includes('/Assets/Composites/') && !filePath.includes('/Rendered/Composites/')) {
       return res.status(400).json({ error: 'URL is not a composite image' });
     }
 
@@ -875,7 +895,28 @@ router.delete('/videos/:id', isAuthenticated, async (req: Request, res: Response
       return res.status(403).json({ error: 'Access denied to this workspace' });
     }
     
-    // TODO: Clean up Bunny CDN assets when deleting
+    // Clean up Bunny CDN assets
+    if (bunnyStorage.isBunnyConfigured()) {
+      try {
+        // Build folder path using createdAt date
+        const folderPath = buildVideoProjectFolderPath({
+          userId,
+          workspaceName: workspace.name,
+          toolMode: 'commerce',
+          projectName: video.title || 'untitled',
+          dateLabel: video.createdAt 
+            ? new Date(video.createdAt).toISOString().slice(0, 10).replace(/-/g, "")
+            : undefined,
+        });
+
+        console.log('[social-commerce:routes] Deleting video folder from Bunny CDN:', folderPath);
+        await bunnyStorage.deleteFolder(folderPath);
+        console.log('[social-commerce:routes] ✓ Video folder deleted from Bunny CDN');
+      } catch (bunnyError) {
+        // Log but don't fail the delete - DB record should still be removed
+        console.error('[social-commerce:routes] Failed to delete Bunny folder (continuing with DB delete):', bunnyError);
+      }
+    }
     
     await storage.deleteVideo(id);
     
@@ -1244,6 +1285,7 @@ router.post('/videos/:id/composite/generate', isAuthenticated, async (req: Reque
       result = await generateComposite(
         {
           mode: 'manual',
+          videoId,
           heroImage,
           productAngles: productAngles || [],
           elements: elements || [],
@@ -1265,6 +1307,7 @@ router.post('/videos/:id/composite/generate', isAuthenticated, async (req: Reque
       result = await generateComposite(
         {
           mode: 'ai_generated',
+          videoId,
           images,
           context,
           productTitle: step1Data.productTitle,
@@ -1326,10 +1369,16 @@ router.post('/videos/:id/composite/generate', isAuthenticated, async (req: Reque
     });
   } catch (error) {
     console.error('[social-commerce:routes] Composite generation error:', error);
-    res.status(500).json({
-      error: 'Failed to generate composite',
-      details: error instanceof Error ? error.message : 'Unknown error',
-    });
+    
+    // ✅ Check إذا كان response تم إرساله بالفعل
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: 'Failed to generate composite',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } else {
+      console.error('[social-commerce:routes] Response already sent, cannot send error response');
+    }
   }
 });
 
@@ -2018,13 +2067,23 @@ function assembleVoiceoverScriptInput(
   }));
 
   // Voiceover Settings (from Tab 1)
+  // Convert userScript to existingDialogue format if provided
+  const existingDialogue = step1Data.voiceoverScript && step1Data.voiceoverScript.trim().length > 0
+    ? [{
+        id: 'user-script-1',
+        line: step1Data.voiceoverScript.trim(),
+        timestamp: undefined, // User hasn't timed it
+        beatId: undefined, // Not assigned to specific beat yet
+      }]
+    : undefined;
+
   const voiceoverSettings = {
     enabled: step1Data.voiceOverEnabled || false,
     language: (step1Data.language || 'en') as 'ar' | 'en',
     tempo: (step1Data.speechTempo || 'auto') as 'auto' | 'slow' | 'normal' | 'fast' | 'ultra-fast',
     volume: (step1Data.audioVolume || 'medium') as 'low' | 'medium' | 'high',
     customInstructions: step1Data.customVoiceoverInstructions,
-    userScript: step1Data.voiceoverScript, // Optional user-written script (if provided, AI will use it; if empty, AI will generate)
+    existingDialogue: existingDialogue,
   };
 
   // Strategic Context (from user inputs - replaces Agent 1.1)
@@ -2262,7 +2321,338 @@ router.post('/videos/:id/step/3/generate-prompts', isAuthenticated, async (req: 
   }
 });
 
-// Removed: assemblePromptArchitectInput function and Step 5 route - replaced by simplified 3-tab structure
+/**
+ * POST /api/social-commerce/videos/:id/step/3/generate-voiceover-scripts
+ * 
+ * Generate voiceover scripts using Agent 5.2
+ * Called when transitioning from Step 3 to Step 4 (if voiceover enabled)
+ */
+router.post('/videos/:id/step/3/generate-voiceover-scripts', isAuthenticated, async (req: Request, res: Response) => {
+  const startTime = Date.now();
+  
+  try {
+    const { id } = req.params;
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const video = await storage.getVideo(id);
+    
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Verify workspace access
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
+    }
+
+    const workspaceId = video.workspaceId;
+    const step1Data = video.step1Data as Step1DataType;
+    const step2Data = video.step2Data as Step2Data;
+    const step3Data = video.step3Data as Step3Data;
+
+    // Validate prerequisites
+    if (!step1Data || !step2Data) {
+      return res.status(400).json({
+        error: 'Missing prerequisite data',
+        details: 'Please complete Tab 1 and Tab 2 before generating voiceover scripts',
+      });
+    }
+
+    // Check if voiceover is enabled
+    if (!step1Data.voiceOverEnabled) {
+      return res.status(400).json({
+        error: 'Voiceover is disabled',
+        details: 'Voiceover must be enabled in Tab 1 to generate scripts',
+      });
+    }
+
+    // Get visual_beats from step2Data
+    const narrative = step2Data.narrative || (step3Data as any)?.narrative;
+    if (!narrative?.visual_beats || !Array.isArray(narrative.visual_beats) || narrative.visual_beats.length === 0) {
+      return res.status(400).json({
+        error: 'Missing visual_beats',
+        details: 'Tab 2 must contain visual_beats from Agent 3.2. Please generate visual beats first.',
+      });
+    }
+
+    const visualBeats = narrative.visual_beats;
+
+    // Assemble VoiceoverScriptInput
+    const voiceoverInput = assembleVoiceoverScriptInput(
+      visualBeats,
+      step1Data,
+      step2Data,
+      step3Data
+    );
+
+    console.log('[social-commerce:agent-5.2] Starting voiceover script generation:', {
+      videoId: id,
+      workspaceId,
+      beatCount: voiceoverInput.beats.length,
+      language: voiceoverInput.voiceoverSettings.language,
+      tempo: voiceoverInput.voiceoverSettings.tempo,
+    });
+
+    // Run Agent 5.2
+    const voiceoverOutput = await generateVoiceoverScripts(
+      voiceoverInput,
+      userId,
+      workspaceId
+    );
+
+    // Save to step3Data
+    const updatedStep3Data: Step3Data = {
+      ...(step3Data || {}),
+      voiceoverScripts: voiceoverOutput,
+    };
+
+    // Update video
+    const updated = await storage.updateVideo(id, {
+      step3Data: updatedStep3Data,
+      updatedAt: new Date(),
+    });
+
+    const duration = Date.now() - startTime;
+    console.log('[social-commerce:agent-5.2] Voiceover script generation completed:', {
+      videoId: id,
+      beatCount: voiceoverOutput.beat_scripts.length,
+      durationMs: duration,
+      durationSeconds: (duration / 1000).toFixed(2),
+    });
+
+    res.json({
+      success: true,
+      step3Data: updatedStep3Data,
+      beatCount: voiceoverOutput.beat_scripts.length,
+    });
+  } catch (error) {
+    console.error('[social-commerce:agent-5.2] Error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to generate voiceover scripts',
+      details: errorMessage,
+    });
+  }
+});
+
+/**
+ * PATCH /api/social-commerce/videos/:id/step/4/continue
+ * Save Step 4 (Voiceover) data and proceed to Step 5
+ * 
+ * Flow:
+ * 1. Verify voiceover scripts exist in step3Data (from Agent 5.2)
+ * 2. Mark step 4 as completed
+ * 3. Update currentStep to 5
+ * 4. Return updated video
+ */
+router.patch('/videos/:id/step/4/continue', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+
+    const video = await storage.getVideo(id);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Verify workspace access
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
+    }
+
+    const step3Data = video.step3Data as Step3Data | null;
+
+    // Validate that voiceover scripts exist (should be generated by Agent 5.2)
+    if (!step3Data?.voiceoverScripts) {
+      return res.status(400).json({ 
+        error: 'Voiceover scripts are required. Please generate voiceover scripts first.' 
+      });
+    }
+
+    // Get existing step4Data to preserve voiceoverAudios
+    const existingStep4Data = video.step4Data as Step4Data | null;
+
+    console.log('[social-commerce:routes] Step 4 continue - saving data:', {
+      videoId: id,
+      hasVoiceoverScripts: !!step3Data.voiceoverScripts,
+      beatCount: step3Data.voiceoverScripts.beat_scripts?.length || 0,
+      hasExistingVoiceoverAudios: !!existingStep4Data?.voiceoverAudios,
+      existingVoiceoverAudioBeatIds: existingStep4Data?.voiceoverAudios 
+        ? Object.keys(existingStep4Data.voiceoverAudios) 
+        : [],
+    });
+
+    // Build completed steps array
+    const completedSteps = Array.isArray(video.completedSteps) 
+      ? [...video.completedSteps] 
+      : [];
+    
+    if (!completedSteps.includes(4)) {
+      completedSteps.push(4);
+    }
+
+    // Save step4Data with voiceover scripts reference
+    // IMPORTANT: Preserve existing voiceoverAudios that were generated during this step!
+    const step4Data: Step4Data = {
+      // Preserve existing voiceover audios (generated when user clicked "Generate Audio")
+      ...existingStep4Data,
+      // Save reference to voiceover scripts (they're in step3Data but we keep a copy here for step 4)
+      voiceoverScripts: step3Data.voiceoverScripts,
+    };
+
+    // Update video
+    const updated = await storage.updateVideo(id, {
+      step4Data,
+      currentStep: 5,
+      completedSteps,
+      updatedAt: new Date(),
+    });
+
+    console.log('[social-commerce:routes] Step 4 completed:', {
+      videoId: id,
+      currentStep: 5,
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('[social-commerce:routes] Step 4 continue error:', error);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to complete step 4',
+      details: errorMessage,
+    });
+  }
+});
+
+/**
+ * PATCH /api/social-commerce/videos/:id/step/5/continue
+ * Mark Step 5 (Animatic) as completed and proceed to Step 6 (Export)
+ */
+router.patch('/videos/:id/step/5/continue', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+
+    const video = await storage.getVideo(id);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Verify workspace access
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
+    }
+
+    // Build completed steps array
+    const completedSteps = Array.isArray(video.completedSteps) 
+      ? [...video.completedSteps] 
+      : [];
+    
+    if (!completedSteps.includes(5)) {
+      completedSteps.push(5);
+    }
+
+    // Update video
+    const updated = await storage.updateVideo(id, {
+      currentStep: 6,
+      completedSteps,
+      updatedAt: new Date(),
+    });
+
+    console.log('[social-commerce:routes] Step 5 completed:', {
+      videoId: id,
+      currentStep: 6,
+      completedSteps,
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('[social-commerce:routes] Step 5 continue error:', error);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to complete step 5',
+      details: errorMessage,
+    });
+  }
+});
+
+/**
+ * PATCH /api/social-commerce/videos/:id/step/6/complete
+ * Mark Step 6 (Export) as completed - final step
+ */
+router.patch('/videos/:id/step/6/complete', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+
+    const video = await storage.getVideo(id);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Verify workspace access
+    const workspace = await verifyWorkspaceAccess(video.workspaceId, userId);
+    if (!workspace) {
+      return res.status(403).json({ error: 'Access denied to this workspace' });
+    }
+
+    // Build completed steps array
+    const completedSteps = Array.isArray(video.completedSteps) 
+      ? [...video.completedSteps] 
+      : [];
+    
+    if (!completedSteps.includes(6)) {
+      completedSteps.push(6);
+    }
+
+    // Update video - mark as completed
+    const updated = await storage.updateVideo(id, {
+      currentStep: 6,
+      completedSteps,
+      status: 'completed',
+      updatedAt: new Date(),
+    });
+
+    console.log('[social-commerce:routes] Step 6 completed - Video finished:', {
+      videoId: id,
+      currentStep: 6,
+      completedSteps,
+      status: 'completed',
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('[social-commerce:routes] Step 6 complete error:', error);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to complete step 6',
+      details: errorMessage,
+    });
+  }
+});
+
+// Removed: assemblePromptArchitectInput function and old Step 5 route - replaced by simplified 3-tab structure
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // BEAT GENERATION ENDPOINTS
@@ -2390,6 +2780,16 @@ router.post('/videos/:id/beats/:beatId/generate', isAuthenticated, async (req: R
       throw new Error('No video buffer or URL in Sora API response');
     }
 
+    // Trim first 0.5 seconds from video (Sora sometimes has glitchy first frame)
+    console.log('[social-commerce:beat-generation] Trimming first 0.5s from video...');
+    try {
+      videoBuffer = await trimVideoStart(videoBuffer, 0.5);
+      console.log('[social-commerce:beat-generation] ✓ Video trimmed successfully');
+    } catch (trimError) {
+      console.warn('[social-commerce:beat-generation] Failed to trim video, using original:', trimError);
+      // Continue with original buffer if trim fails - don't block video generation
+    }
+
     // Get workspace info for path building (workspace variable already exists from verifyWorkspaceAccess)
     const workspaceInfo = await storage.getWorkspace(video.workspaceId);
     if (!workspaceInfo) {
@@ -2426,8 +2826,16 @@ router.post('/videos/:id/beats/:beatId/generate', isAuthenticated, async (req: R
     // Use the real CDN URL instead of placeholder
     const videoUrl = videoCdnUrl;
 
+    // ✅ FIX: Re-read video data fresh to prevent race condition
+    // When multiple beats finish at similar times, each one might read stale data
+    // and overwrite the other's beatVideos. By re-reading just before write, we minimize this.
+    const freshVideo = await storage.getVideo(id);
+    if (!freshVideo) {
+      throw new Error('Video not found when saving beat');
+    }
+
     // Update step3Data with generated video (migrated from step5Data)
-    const existingStep3Data = video.step3Data as any || {};
+    const existingStep3Data = freshVideo.step3Data as any || {};
     const updatedStep3Data: Step3Data = {
       ...existingStep3Data,
       beatVideos: {
@@ -2442,6 +2850,11 @@ router.post('/videos/:id/beats/:beatId/generate', isAuthenticated, async (req: R
 
     await storage.updateVideo(id, {
       step3Data: updatedStep3Data,
+    });
+    
+    console.log('[social-commerce:beat-generation] ✓ Beat saved to database:', {
+      beatId,
+      totalBeatsNow: Object.keys(updatedStep3Data.beatVideos || {}).length,
     });
 
     res.json({
@@ -2511,6 +2924,91 @@ router.get('/videos/:id/beats/:beatId/status', isAuthenticated, async (req: Requ
     });
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOICE PREVIEW ENDPOINT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/social-commerce/voice-preview/:voiceId
+ * Generates voice preview audio using ElevenLabs TTS
+ * No authentication required - just redirects to ElevenLabs preview URL
+ * Query params:
+ *   - lang: 'ar' for Arabic, 'en' for English (default: uses voice default preview)
+ */
+router.get(
+  "/voice-preview/:voiceId",
+  async (req: Request, res: Response) => {
+    try {
+      const { voiceId } = req.params;
+      const { lang } = req.query;
+      const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
+
+      if (!elevenLabsApiKey) {
+        return res.status(500).json({ error: "ElevenLabs API key not configured" });
+      }
+
+      // If Arabic language requested, generate TTS with Arabic text
+      if (lang === 'ar') {
+        const arabicPreviewText = "مرحباً، أنا صوتك للسرد. سأساعدك في إنشاء قصص رائعة.";
+        
+        console.log(`[social-commerce:voice-preview] Generating Arabic preview for voice ${voiceId}`);
+        
+        const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+          method: 'POST',
+          headers: {
+            'xi-api-key': elevenLabsApiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: arabicPreviewText,
+            model_id: 'eleven_multilingual_v2',
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.75,
+            },
+          }),
+        });
+
+        if (!ttsResponse.ok) {
+          console.error(`[social-commerce:voice-preview] TTS failed for voice ${voiceId}:`, ttsResponse.statusText);
+          // Fall back to default preview
+          return res.redirect(`/api/social-commerce/voice-preview/${voiceId}`);
+        }
+
+        const audioBuffer = await ttsResponse.arrayBuffer();
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Content-Length', audioBuffer.byteLength);
+        return res.send(Buffer.from(audioBuffer));
+      }
+
+      // Default: fetch the standard preview from ElevenLabs
+      const response = await fetch(`https://api.elevenlabs.io/v1/voices/${voiceId}`, {
+        headers: {
+          'xi-api-key': elevenLabsApiKey,
+        },
+      });
+
+      if (!response.ok) {
+        console.error(`[social-commerce:voice-preview] Failed to fetch voice ${voiceId}:`, response.statusText);
+        return res.status(response.status).json({ error: "Failed to fetch voice preview" });
+      }
+
+      const voiceData = await response.json();
+      
+      // ElevenLabs returns preview_url in the voice data
+      if (voiceData.preview_url) {
+        // Redirect to the preview URL
+        return res.redirect(voiceData.preview_url);
+      } else {
+        return res.status(404).json({ error: "Preview not available for this voice" });
+      }
+    } catch (error) {
+      console.error("[social-commerce:voice-preview] Error:", error);
+      res.status(500).json({ error: "Failed to fetch voice preview" });
+    }
+  }
+);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONFIGURATION ENDPOINT

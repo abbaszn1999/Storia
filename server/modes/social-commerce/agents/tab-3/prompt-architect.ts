@@ -44,40 +44,56 @@ const AGENT_CONFIG = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// URL VALIDATION
+// IMAGE DOWNLOAD & BASE64 CONVERSION
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Validate image URL is accessible before sending to OpenAI
- * Returns true if URL is accessible, false otherwise
+ * Download image from URL and convert to base64 data URI
+ * OpenAI cannot access Bunny CDN URLs directly, so we must convert to base64
  */
-async function validateImageUrl(url: string, timeout: number = 5000): Promise<boolean> {
+async function downloadImageAsBase64(url: string, timeout: number = 15000): Promise<{ dataUri: string; contentType: string } | null> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     
+    console.log(`[social-commerce:agent-5.1] Downloading image for base64 conversion: ${url.substring(0, 80)}...`);
+    
     const response = await fetch(url, {
-      method: 'HEAD',
+      method: 'GET',
       signal: controller.signal,
     });
     
     clearTimeout(timeoutId);
-    const contentType = response.headers.get('content-type');
-    const isValid = response.ok && (contentType?.startsWith('image/') ?? false);
     
-    if (!isValid) {
-      console.warn(`[social-commerce:agent-5.1] Image URL validation failed: ${url}`, {
-        status: response.status,
-        contentType,
-      });
+    if (!response.ok) {
+      console.error(`[social-commerce:agent-5.1] Failed to download image: ${response.status} ${response.statusText}`);
+      return null;
     }
     
-    return isValid;
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    if (!contentType.startsWith('image/')) {
+      console.error(`[social-commerce:agent-5.1] Invalid content type: ${contentType}`);
+      return null;
+    }
+    
+    // Download as buffer and convert to base64
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const base64 = buffer.toString('base64');
+    const dataUri = `data:${contentType};base64,${base64}`;
+    
+    console.log(`[social-commerce:agent-5.1] Image converted to base64:`, {
+      contentType,
+      originalSize: `${(buffer.length / 1024).toFixed(1)}KB`,
+      base64Length: base64.length,
+    });
+    
+    return { dataUri, contentType };
   } catch (error) {
-    console.warn(`[social-commerce:agent-5.1] Image URL validation error: ${url}`, {
+    console.error(`[social-commerce:agent-5.1] Image download error: ${url}`, {
       error: error instanceof Error ? error.message : String(error),
     });
-    return false;
+    return null;
   }
 }
 
@@ -86,25 +102,33 @@ async function validateImageUrl(url: string, timeout: number = 5000): Promise<bo
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
+ * Content types for OpenAI Responses API (Vision)
+ * Uses input_text and input_image formats
+ */
+type TextContent = { type: 'input_text'; text: string };
+type ImageContent = { type: 'input_image'; image_url: string };
+type ContentItem = TextContent | ImageContent;
+
+/**
  * Build interleaved content array with product image for vision analysis
- * Simplified: Single product image (hero) for vision analysis
+ * Downloads image and converts to base64 data URI (OpenAI cannot access CDN URLs directly)
+ * Uses OpenAI Responses API format: { type: 'input_image', image_url: 'data:...' }
  */
 export async function buildImageAttachments(
   productImageUrl: string
-): Promise<Array<{ type: 'input_text'; text: string } | { type: 'input_image'; image_url: string }>> {
-  const contentArray: Array<
-    { type: 'input_text'; text: string } | { type: 'input_image'; image_url: string }
-  > = [];
+): Promise<ContentItem[]> {
+  const contentArray: ContentItem[] = [];
 
   if (!productImageUrl) {
     console.warn('[social-commerce:agent-5.1] No product image URL provided');
     return contentArray;
   }
 
-  // Validate image URL
-  const isValid = await validateImageUrl(productImageUrl);
-  if (!isValid) {
-    console.warn(`[social-commerce:agent-5.1] Product image URL validation failed, but continuing: ${productImageUrl}`);
+  // Download image and convert to base64
+  const imageData = await downloadImageAsBase64(productImageUrl);
+  if (!imageData) {
+    console.error(`[social-commerce:agent-5.1] Failed to download image, skipping vision analysis: ${productImageUrl}`);
+    return contentArray;
   }
   
   // Add image mapping header
@@ -113,14 +137,14 @@ export async function buildImageAttachments(
     text: `I am providing 1 product image for vision analysis. This image is for VISION ANALYSIS ONLY - use it to understand the product and make informed prompt generation decisions. Analyze this image to extract: product geometry (exact dimensions, ratios, shapes), material properties (surface texture, finish, gloss level), hero features (key visual landmarks), color accuracy, and viable camera angles.`,
   });
 
-  // Add product hero image
+  // Add product hero image (as base64 data URI)
   contentArray.push({
     type: 'input_text',
     text: `--- PRODUCT HERO IMAGE ---\nPrimary product view showing overall shape, proportions, and main features. Use this for vision analysis to understand product geometry, hero features, material properties, and viable camera angles.`,
   });
   contentArray.push({
     type: 'input_image',
-    image_url: productImageUrl,
+    image_url: imageData.dataUri,
   });
 
   return contentArray;
@@ -280,9 +304,7 @@ export async function generateBeatPrompts(
   const userPromptText = buildBatchBeatPromptUserPrompt(input);
 
   // Build content array (images first, then text prompt)
-  const contentArray: Array<
-    { type: 'input_text'; text: string } | { type: 'input_image'; image_url: string }
-  > = [...imageAttachments];
+  const contentArray: ContentItem[] = [...imageAttachments];
 
   // Add user prompt at the end
   contentArray.push({

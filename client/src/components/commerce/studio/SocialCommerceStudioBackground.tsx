@@ -13,7 +13,7 @@ export function SocialCommerceStudioBackground({
 }: SocialCommerceStudioBackgroundProps) {
   return (
     <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-      {/* Primary Gradient Orb - Pink/Orange */}
+      {/* Primary Gradient Orb - Emerald/Teal */}
       <motion.div
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 0.12, scale: 1 }}
@@ -21,21 +21,21 @@ export function SocialCommerceStudioBackground({
         className={cn(
           "absolute top-1/4 right-1/4 w-[700px] h-[700px]",
           "rounded-full blur-[150px]",
-          "bg-gradient-to-br from-pink-500 to-orange-500"
+          "bg-gradient-to-br from-emerald-500 to-teal-600"
         )}
       />
       
-      {/* Secondary Orb - Orange/Amber */}
+      {/* Secondary Orb - Teal */}
       {showSecondaryOrb && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.08 }}
           transition={{ delay: 0.5, duration: 1 }}
-          className="absolute bottom-1/4 left-1/4 w-[500px] h-[500px] rounded-full blur-[120px] bg-orange-500/40"
+          className="absolute bottom-1/4 left-1/4 w-[500px] h-[500px] rounded-full blur-[120px] bg-teal-600/40"
         />
       )}
 
-      {/* Tertiary Accent - Amber */}
+      {/* Tertiary Accent - Emerald */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.05 }}
@@ -43,7 +43,7 @@ export function SocialCommerceStudioBackground({
         className={cn(
           "absolute top-3/4 right-1/3 w-[300px] h-[300px]",
           "rounded-full blur-[100px]",
-          "bg-gradient-to-br from-amber-500 to-pink-400"
+          "bg-gradient-to-br from-emerald-400 to-teal-500"
         )}
       />
 

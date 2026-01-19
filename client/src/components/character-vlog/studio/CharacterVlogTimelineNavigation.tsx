@@ -39,8 +39,19 @@ export function CharacterVlogTimelineNavigation({
   };
 
   const canNavigateTo = (stepId: VlogStepId) => {
-    // Allow free navigation to all tabs for UI/UX preview
-    return true;
+    // Only allow navigation to:
+    // 1. The current step (user is already there)
+    // 2. Completed steps (steps that have been completed via Continue button)
+    // Future steps that haven't been completed are disabled
+    if (stepId === currentStep) return true;
+    if (completedSteps.includes(stepId)) return true;
+    
+    // Check if it's a previous step (should be completed)
+    const stepIndex = VLOG_STEPS.findIndex(s => s.id === stepId);
+    if (stepIndex < currentIndex) return true; // Allow going back to previous steps
+    
+    // Future steps are not clickable
+    return false;
   };
 
   // Gradient pink to orange from logo for vlog theme

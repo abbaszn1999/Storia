@@ -8,6 +8,7 @@
  */
 
 import { callTextModel } from "../../../../ai/service";
+import { randomUUID } from "crypto";
 import {
   SHOT_GENERATOR_SYSTEM_PROMPT,
   buildShotGeneratorUserPrompt,
@@ -82,6 +83,108 @@ const SHOT_GENERATOR_OUTPUT_SCHEMA = {
 };
 
 /**
+ * Continuity group structure (matches client-side ContinuityGroup)
+ */
+interface ContinuityGroup {
+  id: string;
+  sceneId: string;
+  groupNumber: number;
+  shotIds: string[];
+  description?: string | null;
+  transitionType?: string | null;
+  status: string;
+  editedBy?: string | null;
+  editedAt?: Date | null;
+  approvedAt?: Date | null;
+  createdAt: Date;
+}
+
+/**
+ * Convert shot flags to continuity groups
+ * Groups consecutive shots where isLinkedToPrevious is true
+ * Returns groups with shot indices that will be mapped to IDs in routes
+ */
+function mapFlagsToContinuityGroups(
+  shots: Array<{
+    shotType: '1F' | '2F';
+    isLinkedToPrevious: boolean;
+    isFirstInGroup: boolean;
+  }>,
+  sceneId: string,
+  referenceMode: '1F' | '2F' | 'AI'
+): Array<{
+  shotIndices: number[]; // 0-based indices to map to shot IDs in routes
+  description: string;
+  transitionType: string;
+}> {
+  // No groups in 1F mode
+  if (referenceMode === '1F') {
+    return [];
+  }
+
+  const groups: Array<{
+    shotIndices: number[];
+    description: string;
+    transitionType: string;
+  }> = [];
+  let currentGroup: number[] | null = null;
+
+  for (let i = 0; i < shots.length; i++) {
+    const shot = shots[i];
+
+    // Start a new group if this shot is first in group
+    if (shot.isFirstInGroup) {
+      // Finalize previous group if exists
+      if (currentGroup && currentGroup.length >= 2) {
+        // Validate first shot is 2F (for 2F and AI modes)
+        const firstShotIndex = currentGroup[0];
+        if (shots[firstShotIndex] && shots[firstShotIndex].shotType === '2F') {
+          groups.push({
+            shotIndices: [...currentGroup],
+            description: `Continuity group with ${currentGroup.length} shots`,
+            transitionType: 'flow',
+          });
+        }
+      }
+      // Start new group
+      currentGroup = [i];
+    }
+    // Add to current group if linked to previous
+    else if (shot.isLinkedToPrevious && currentGroup) {
+      currentGroup.push(i);
+    }
+    // Not linked - finalize current group if exists
+    else {
+      if (currentGroup && currentGroup.length >= 2) {
+        const firstShotIndex = currentGroup[0];
+        if (shots[firstShotIndex] && shots[firstShotIndex].shotType === '2F') {
+          groups.push({
+            shotIndices: [...currentGroup],
+            description: `Continuity group with ${currentGroup.length} shots`,
+            transitionType: 'flow',
+          });
+        }
+      }
+      currentGroup = null;
+    }
+  }
+
+  // Finalize last group if exists
+  if (currentGroup && currentGroup.length >= 2) {
+    const firstShotIndex = currentGroup[0];
+    if (shots[firstShotIndex] && shots[firstShotIndex].shotType === '2F') {
+      groups.push({
+        shotIndices: [...currentGroup],
+        description: `Continuity group with ${currentGroup.length} shots`,
+        transitionType: 'flow',
+      });
+    }
+  }
+
+  return groups;
+}
+
+/**
  * Parse JSON response from AI, handling potential formatting issues
  */
 function parseShotResponse(rawOutput: string): ShotGeneratorOutput {
@@ -142,6 +245,7 @@ function parseShotResponse(rawOutput: string): ShotGeneratorOutput {
         cameraShot: shot.cameraShot,
         referenceTags: shot.referenceTags,
         duration: shot.duration,
+        // Keep flags for group conversion, but they're deprecated
         isLinkedToPrevious: shot.isLinkedToPrevious,
         isFirstInGroup: shot.isFirstInGroup,
       };
@@ -277,16 +381,60 @@ export async function generateShots(
       );
     }
     
+    // Create continuity groups from flags (for 2F and AI modes)
+    let continuityGroups: Array<{
+      shotIndices: number[];
+      description: string;
+      transitionType: string;
+    }> = [];
+    
+    if (input.referenceMode === '2F' || input.referenceMode === 'AI') {
+      // Log flags before mapping
+      const flagsSummary = parsed.shots.map((shot: any, idx: number) => ({
+        index: idx,
+        shotType: shot.shotType,
+        isLinkedToPrevious: shot.isLinkedToPrevious,
+        isFirstInGroup: shot.isFirstInGroup,
+      }));
+      console.log('[character-vlog:shot-generator] Flags from AI:', {
+        referenceMode: input.referenceMode,
+        shotCount: parsed.shots.length,
+        flags: flagsSummary,
+        linkedCount: flagsSummary.filter((f: any) => f.isLinkedToPrevious).length,
+        firstInGroupCount: flagsSummary.filter((f: any) => f.isFirstInGroup).length,
+      });
+      
+      continuityGroups = mapFlagsToContinuityGroups(
+        parsed.shots,
+        '', // sceneId will be set in routes
+        input.referenceMode
+      );
+      
+      console.log('[character-vlog:shot-generator] Continuity groups created:', {
+        groupCount: continuityGroups.length,
+        totalShotsInGroups: continuityGroups.reduce((sum, g) => sum + g.shotIndices.length, 0),
+        groups: continuityGroups.map(g => ({
+          shotIndices: g.shotIndices,
+          description: g.description,
+          transitionType: g.transitionType,
+        })),
+      });
+    } else {
+      console.log('[character-vlog:shot-generator] Skipping continuity groups (referenceMode is 1F)');
+    }
+
     console.log('[character-vlog:shot-generator] Shots generated:', {
       shotCount: parsed.shots.length,
       totalDuration,
       sceneDuration: input.sceneDuration,
       durationDiff,
+      continuityGroupsCount: continuityGroups.length,
       cost: parsed.cost || response.usage?.totalCostUsd,
     });
 
     return {
       shots: parsed.shots,
+      continuityGroups: continuityGroups.length > 0 ? continuityGroups : undefined,
       cost: parsed.cost || response.usage?.totalCostUsd,
     };
   } catch (error) {

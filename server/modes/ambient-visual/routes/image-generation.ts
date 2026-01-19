@@ -33,7 +33,7 @@ async function generateSingleFrameImage(
   currentVersion: any,
   userId: string,
   workspaceId?: string
-): Promise<{ startFrameUrl?: string; endFrameUrl?: string; error?: string }> {
+): Promise<{ startFrameUrl?: string; endFrameUrl?: string; imageUrl?: string; error?: string }> {
   const { getImageDimensions } = await import('../../../ai/config/image-models');
   const { getRunwareModelId } = await import('../../../ai/config');
   const { callAi } = await import('../../../ai/service');
@@ -47,6 +47,47 @@ async function generateSingleFrameImage(
   }
 
   try {
+    // Check for image-transitions mode
+    const isImageTransitionsMode = input.animationMode === 'image-transitions';
+    
+    if (isImageTransitionsMode) {
+      // Image-transitions mode: use imagePrompt (no start/end frames)
+      if (!input.imagePrompt) {
+        return { error: 'No image prompt available' };
+      }
+
+      const payload = {
+        taskType: "imageInference",
+        taskUUID: randomUUID(),
+        model: runwareModelId,
+        positivePrompt: input.imagePrompt,
+        width: dimensions.width,
+        height: dimensions.height,
+        numberResults: 1,
+        includeCost: true,
+        outputType: "URL",
+      };
+
+      const response = await callAi({
+        provider: "runware",
+        model: input.imageModel,
+        task: "image-generation",
+        payload: [payload],
+        userId,
+        workspaceId,
+        runware: { timeoutMs: 180000 },
+      }, { skipCreditCheck: false });
+
+      const outputData = response.output as any[];
+      const data = outputData[0];
+
+      if (data?.imageURL) {
+        return { imageUrl: data.imageURL };
+      } else {
+        return { error: data?.error || 'No image URL in response' };
+      }
+    }
+    
     if (frame === 'start') {
       if (!input.startFramePrompt) {
         return { error: 'No start frame prompt available' };
@@ -156,21 +197,27 @@ router.post('/videos/:id/shots/:shotId/generate-image', isAuthenticated, async (
     }
 
     const { id: videoId, shotId } = req.params;
-    const { frame } = req.body as { frame: 'start' | 'end' };
+    const { frame } = req.body as { frame?: 'start' | 'end' };
 
-    if (!frame || !['start', 'end'].includes(frame)) {
-      return res.status(400).json({ error: 'Invalid frame parameter. Must be "start" or "end".' });
-    }
-
-    console.log('[ambient-visual:routes] Single shot image generation:', { videoId, shotId, frame });
-
-    // 1. Fetch video with all step data
+    // 1. Fetch video with all step data (needed to check animation mode)
     const video = await storage.getVideo(videoId);
     if (!video) {
       return res.status(404).json({ error: 'Video not found' });
     }
 
     const step1Data = video.step1Data as Step1Data;
+    const isImageTransitionsMode = step1Data?.animationMode === 'image-transitions';
+
+    // For image-transitions mode, frame parameter is optional (defaults to generating single image)
+    // For video-animation mode, frame parameter is required
+    if (!isImageTransitionsMode) {
+      if (!frame || !['start', 'end'].includes(frame)) {
+        return res.status(400).json({ error: 'Invalid frame parameter. Must be "start" or "end" for video-animation mode.' });
+      }
+    }
+
+    console.log('[ambient-visual:routes] Single shot image generation:', { videoId, shotId, frame, animationMode: step1Data?.animationMode });
+
     const step3Data = video.step3Data as Step3Data;
     const step4Data = video.step4Data as Step4Data;
 
@@ -243,24 +290,26 @@ router.post('/videos/:id/shots/:shotId/generate-image', isAuthenticated, async (
       }
     }
 
-    // 5. Validate generation rules
-    if (frame === 'start' && isConnectedShot && !isFirstInGroup) {
-      // Connected shot (not first) - start frame is inherited, cannot generate
-      return res.status(400).json({ 
-        error: 'Start frame is inherited from previous shot for connected shots.',
-        inherited: true,
-        previousShotEndFrameUrl
-      });
-    }
-
-    if (frame === 'end') {
-      // End frame needs start frame to exist first
-      const hasStartFrame = latestVersion.startFrameUrl || latestVersion.imageUrl;
-      
-      if (!hasStartFrame && !(isConnectedShot && !isFirstInGroup && previousShotEndFrameUrl)) {
+    // 5. Validate generation rules (only for video-animation mode)
+    if (!isImageTransitionsMode) {
+      if (frame === 'start' && isConnectedShot && !isFirstInGroup) {
+        // Connected shot (not first) - start frame is inherited, cannot generate
         return res.status(400).json({ 
-          error: 'Start frame must be generated before end frame.' 
+          error: 'Start frame is inherited from previous shot for connected shots.',
+          inherited: true,
+          previousShotEndFrameUrl
         });
+      }
+
+      if (frame === 'end') {
+        // End frame needs start frame to exist first
+        const hasStartFrame = latestVersion.startFrameUrl || latestVersion.imageUrl;
+        
+        if (!hasStartFrame && !(isConnectedShot && !isFirstInGroup && previousShotEndFrameUrl)) {
+          return res.status(400).json({ 
+            error: 'Start frame must be generated before end frame.' 
+          });
+        }
       }
     }
 
@@ -280,8 +329,12 @@ router.post('/videos/:id/shots/:shotId/generate-image', isAuthenticated, async (
       isFirstInGroup,
     };
 
-    // Set prompts based on which frame we're generating
-    if (frame === 'start') {
+    // Set prompts based on animation mode and which frame we're generating
+    if (isImageTransitionsMode) {
+      // Image-transitions mode: use imagePrompt only
+      input.imagePrompt = latestVersion.imagePrompt;
+      // Will generate a single image (no start/end frames)
+    } else if (frame === 'start') {
       input.startFramePrompt = latestVersion.startFramePrompt;
       // Will only generate start frame
     } else {
@@ -302,15 +355,18 @@ router.post('/videos/:id/shots/:shotId/generate-image', isAuthenticated, async (
     // 8. Generate the image
     console.log('[ambient-visual:routes] Calling generateSingleFrameImage:', input);
     
+    // For image-transitions mode, pass 'start' as frame (helper function will handle it correctly)
+    const frameToUse: 'start' | 'end' = isImageTransitionsMode ? 'start' : (frame || 'start');
+    
     const result = await generateSingleFrameImage(
       input, 
-      frame, 
+      frameToUse, 
       latestVersion,
       userId, 
       video.workspaceId
     );
 
-    if (result.error && !result.startFrameUrl && !result.endFrameUrl) {
+    if (result.error && !result.startFrameUrl && !result.endFrameUrl && !result.imageUrl) {
       return res.status(500).json({ 
         error: result.error,
         shotId 
@@ -320,7 +376,10 @@ router.post('/videos/:id/shots/:shotId/generate-image', isAuthenticated, async (
     // 9. Update the shot version with new image URL
     const updatedVersion = { ...latestVersion };
     
-    if (frame === 'start') {
+    if (isImageTransitionsMode) {
+      // Image-transitions mode: store in imageUrl
+      updatedVersion.imageUrl = result.imageUrl;
+    } else if (frame === 'start') {
       updatedVersion.startFrameUrl = result.startFrameUrl;
       // If start is regenerated, clear end frame as it should be regenerated too
       if (result.startFrameUrl) {
@@ -375,7 +434,9 @@ router.post('/videos/:id/shots/:shotId/generate-image', isAuthenticated, async (
 
     console.log('[ambient-visual:routes] Single image generated:', {
       shotId,
-      frame,
+      frame: isImageTransitionsMode ? 'image' : frame,
+      animationMode: step1Data.animationMode,
+      hasImage: !!updatedVersion.imageUrl,
       hasStartFrame: !!updatedVersion.startFrameUrl,
       hasEndFrame: !!updatedVersion.endFrameUrl,
       nextShotUpdated: !!nextShotVersion,
@@ -498,32 +559,117 @@ router.post('/videos/:id/shots/:shotId/regenerate-image', isAuthenticated, async
       }
     }
 
-    // 5. Determine what to regenerate based on frame parameter and rules
+    // 5. Determine what to regenerate based on animationMode
+    const isImageTransitionsMode = step1Data.animationMode === 'image-transitions';
+    
+    if (isImageTransitionsMode) {
+      // IMAGE-TRANSITIONS MODE: Regenerate single image
+      if (!latestVersion.imagePrompt) {
+        return res.status(400).json({ error: 'No image prompt available for regeneration' });
+      }
+      
+      const imageModel = shot.imageModel || scene?.imageModel || step1Data.imageModel;
+      
+      const input: any = {
+        shotId,
+        shotNumber: shot.shotNumber,
+        sceneId,
+        animationMode: step1Data.animationMode,
+        imageModel,
+        aspectRatio: step1Data.aspectRatio,
+        imageResolution: step1Data.imageResolution,
+        imagePrompt: latestVersion.imagePrompt,
+      };
+      
+      const result = await generateSingleFrameImage(
+        input,
+        'start', // Pass 'start' but helper will handle image-transitions differently
+        latestVersion,
+        userId,
+        video.workspaceId
+      );
+      
+      if (result.error && !result.imageUrl) {
+        return res.status(500).json({ error: result.error });
+      }
+      
+      const updatedVersion = {
+        ...latestVersion,
+        imageUrl: result.imageUrl,
+        status: 'completed',
+        needsRerender: false,
+      };
+      
+      const updatedShotVersions = {
+        ...step4Data.shotVersions,
+        [shotId]: versions.map((v: any) => 
+          v.id === latestVersion.id ? updatedVersion : v
+        )
+      };
+      
+      const updatedStep4Data: Step4Data = {
+        ...step4Data,
+        shotVersions: updatedShotVersions,
+      };
+      
+      await storage.updateVideo(videoId, { step4Data: updatedStep4Data });
+      
+      console.log('[ambient-visual:routes] Image regenerated (image-transitions):', {
+        shotId,
+        hasImage: !!updatedVersion.imageUrl,
+      });
+      
+      return res.json({
+        success: true,
+        shotId,
+        shotVersion: updatedVersion,
+      });
+    }
+    
+    // VIDEO-ANIMATION MODE: Regenerate start/end frames
+    const isImageReferenceMode = step1Data.videoGenerationMode === 'image-reference';
+    
     let regenerateStart = false;
     let regenerateEnd = false;
     
     if (frame === 'end') {
-      // Only regenerate end frame
-      regenerateEnd = true;
+      // Only regenerate end frame (only valid for start-end-frame mode)
+      if (!isImageReferenceMode) {
+        regenerateEnd = true;
+      } else {
+        // Image-reference mode doesn't have end frames
+        return res.status(400).json({ error: 'Image-reference mode does not have end frames' });
+      }
     } else if (frame === 'start') {
       // Only regenerate start frame (end frame remains unchanged)
       // For connected shots (not first), start cannot be regenerated
       if (isConnectedShot && !isFirstInGroup) {
         // Can only regenerate end, start is inherited
-        regenerateEnd = true;
+        if (!isImageReferenceMode) {
+          regenerateEnd = true;
+        } else {
+          return res.status(400).json({ error: 'Connected shots (non-first) cannot regenerate start frame' });
+        }
       } else {
         regenerateStart = true;
         // Don't regenerate end - keep existing end frame
       }
     } else {
       // frame === undefined: regenerate both (for backward compatibility)
-      // For connected shots (not first), start cannot be regenerated
-      if (isConnectedShot && !isFirstInGroup) {
-        // Can only regenerate end, start is inherited
-        regenerateEnd = true;
-      } else {
+      // For image-reference mode: only regenerate start
+      if (isImageReferenceMode) {
         regenerateStart = true;
-        regenerateEnd = true;
+        regenerateEnd = false;
+      } else {
+        // Start-end-frame mode: regenerate both
+        // For connected shots (not first), start cannot be regenerated
+        if (isConnectedShot && !isFirstInGroup) {
+          // Can only regenerate end, start is inherited
+          regenerateEnd = true;
+        } else {
+          regenerateStart = true;
+          regenerateEnd = true;
+        }
       }
     }
 

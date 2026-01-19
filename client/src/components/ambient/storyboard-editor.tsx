@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, ChevronDown, Shirt, Eraser, Trash2, Play, Pause, Check, Link2, LayoutGrid, Clock, ArrowRight } from "lucide-react";
+import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, History, Settings2, ChevronRight, ChevronDown, Shirt, Eraser, Trash2, Play, Pause, Check, Link2, LayoutGrid, Clock, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Character } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage, Step1Data } from "@/types/storyboard";
@@ -86,12 +86,6 @@ const getImageModelLabel = (value: string): string => {
 const ANIMATION_MODE_OPTIONS = [
   { value: "smooth-image", label: "Smooth Image (Ken Burns)" },
   { value: "animate", label: "Full Animation (AI Video)" },
-];
-
-const MOTION_INTENSITY_OPTIONS = [
-  { value: "subtle", label: "Subtle" },
-  { value: "moderate", label: "Moderate" },
-  { value: "dynamic", label: "Dynamic" },
 ];
 
 const SHOT_TYPES = [
@@ -194,6 +188,7 @@ interface StoryboardEditorProps {
   continuityLocked: boolean;
   continuityGroups: { [sceneId: string]: any[] };
   step4Initialized?: boolean;  // Whether step4Data has been restored - prevents premature initialization
+  hidePhase3Fields?: boolean;  // Hide Phase 3 fields like Shot Type (used when in Phase 4/Composition)
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
   onGenerateShot: (shotId: string) => void;
@@ -226,7 +221,6 @@ interface SortableShotCardProps {
   shotIndex: number;
   sceneModel: string | null;
   sceneImageModel: string | null;
-  sceneCameraMotion: string | null;
   version: ShotVersion | null;
   nextShotVersion: ShotVersion | null;
   previousShotVersion: ShotVersion | null;  // Previous shot's version for continuity checks
@@ -243,6 +237,7 @@ interface SortableShotCardProps {
   previousShotNumber: number | null;  // For showing "Inherited from Shot X"
   filteredVideoModels: string[];  // Video models filtered by narrative mode
   filteredImageModels: typeof IMAGE_MODEL_CONFIGS;  // Image models filtered by aspect ratio
+  hidePhase3Fields?: boolean;  // Hide Phase 3 fields like Shot Type
   onSelectShot: (shot: Shot) => void;
   onRegenerateShot: (shotId: string, frame?: 'start' | 'end') => void;
   onGenerateSingleImage: (shotId: string, frame: 'start' | 'end') => void;
@@ -262,7 +257,6 @@ function SortableShotCard({
   shotIndex,
   sceneModel,
   sceneImageModel,
-  sceneCameraMotion,
   version,
   nextShotVersion,
   previousShotVersion,
@@ -279,6 +273,7 @@ function SortableShotCard({
   previousShotNumber,
   filteredVideoModels,
   filteredImageModels,
+  hidePhase3Fields = false,
   onSelectShot,
   onRegenerateShot,
   onGenerateSingleImage,
@@ -320,16 +315,24 @@ function SortableShotCard({
 
   // Get the appropriate prompt based on active frame and animation mode
   // - Image Transitions mode: uses imagePrompt only
-  // - Video Animation mode (both sub-modes): uses startFramePrompt/endFramePrompt
+  // - Video Animation (image-reference): uses startFramePrompt only (no endFramePrompt)
+  // - Video Animation (start-end-frame): uses startFramePrompt/endFramePrompt
   const isVideoAnimationMode = animationMode === "animate";  // "animate" = video-animation, "smooth-image" = image-transitions
+  const isStartEndFrameMode = narrativeMode === "start-end";
   
   const getActivePrompt = (): string => {
     if (isVideoAnimationMode) {
-      // Video Animation mode: use frame-specific prompts
-      if (activeFrame === "start") {
-        return version?.startFramePrompt || "";
+      // Video Animation mode
+      if (isStartEndFrameMode) {
+        // Start-End Frame mode: use frame-specific prompts
+        if (activeFrame === "start") {
+          return version?.startFramePrompt || "";
+        } else {
+          return version?.endFramePrompt || "";
+        }
       } else {
-        return version?.endFramePrompt || "";
+        // Image-Reference mode: use startFramePrompt only (no endFramePrompt)
+        return version?.startFramePrompt || "";
       }
     } else {
       // Image Transitions mode: use the single imagePrompt
@@ -380,28 +383,59 @@ function SortableShotCard({
   const hasNextShotStartFrame = nextShotVersion?.startFrameUrl || nextShotVersion?.imageUrl;
   const hasPreviousShotEndFrame = previousShotVersion?.endFrameUrl;
   
+  // Debug logging for image-reference mode
+  if (isVideoAnimationMode && !isStartEndFrameMode) {
+    console.log('[SortableShotCard] Image-Reference mode debug:', {
+      shotId: shot.id,
+      shotNumber: shot.shotNumber,
+      hasVersion: !!version,
+      versionId: version?.id,
+      startFrameUrl: version?.startFrameUrl,
+      imageUrl: version?.imageUrl,
+      hasStartFrame,
+      narrativeMode,
+    });
+  }
+  
   // Calculate display image URL with proper fallbacks
   let displayImageUrl: string | null | undefined;
   let actualFrameShown: "start" | "end" | null = null;
   
   if (isVideoAnimationMode) {
-    // Video Animation mode: show start/end frames
-    if (activeFrame === "start") {
+    if (isStartEndFrameMode) {
+      // Start-End Frame mode: show start/end frames
+      if (activeFrame === "start") {
+        displayImageUrl = version?.startFrameUrl || version?.imageUrl;
+        actualFrameShown = "start";
+      } else {
+        // End frame requested
+        if (isConnectedToNext && hasNextShotStartFrame) {
+          // For connected shots, show the next shot's start frame as this shot's end frame
+          displayImageUrl = hasNextShotStartFrame;
+          actualFrameShown = "end";
+        } else if (hasEndFrame) {
+          displayImageUrl = version?.endFrameUrl;
+          actualFrameShown = "end";
+        } else {
+          // No end frame yet - show placeholder
+          displayImageUrl = null;
+          actualFrameShown = "end";
+        }
+      }
+    } else {
+      // Image-Reference mode: show only start frame (no end frame, no tabs)
       displayImageUrl = version?.startFrameUrl || version?.imageUrl;
       actualFrameShown = "start";
-    } else {
-      // End frame requested
-      if (isConnectedToNext && hasNextShotStartFrame) {
-        // For connected shots, show the next shot's start frame as this shot's end frame
-        displayImageUrl = hasNextShotStartFrame;
-        actualFrameShown = "end";
-      } else if (hasEndFrame) {
-        displayImageUrl = version?.endFrameUrl;
-        actualFrameShown = "end";
-      } else {
-        // No end frame yet - show placeholder
-        displayImageUrl = null;
-        actualFrameShown = "end";
+      
+      // Additional debug logging
+      if (!displayImageUrl && version) {
+        console.warn('[SortableShotCard] Image-Reference mode: version exists but no image URL:', {
+          shotId: shot.id,
+          versionId: version.id,
+          hasStartFrameUrl: !!version.startFrameUrl,
+          hasImageUrl: !!version.imageUrl,
+          versionKeys: Object.keys(version),
+        });
       }
     }
   } else {
@@ -412,8 +446,10 @@ function SortableShotCard({
   
   // Determine if the current frame has an image (for button state)
   const currentFrameHasImage = isVideoAnimationMode
-    ? (activeFrame === "start" ? hasStartFrame : hasEndFrame)
-    : hasStartFrame;
+    ? (isStartEndFrameMode 
+        ? (activeFrame === "start" ? hasStartFrame : hasEndFrame)  // Start-End Frame mode: check based on activeFrame
+        : hasStartFrame)  // Image-Reference mode: only check startFrame (no end frame)
+    : hasStartFrame;  // Image Transitions mode: check imageUrl
   
   // Determine if generate button should be disabled
   // For connected shots (not first in group): Start frame is inherited, can't generate
@@ -423,21 +459,34 @@ function SortableShotCard({
   
   const isGenerateDisabled = (() => {
     if (isVideoAnimationMode) {
-      if (activeFrame === "start") {
-        // Start frame selected
-        if (isStartFrameInherited) {
-          // Connected shot (not first): start frame is inherited, can't generate
-          return true;
+      if (isStartEndFrameMode) {
+        // Start-End Frame mode: check based on activeFrame
+        if (activeFrame === "start") {
+          // Start frame selected
+          if (isStartFrameInherited) {
+            // Connected shot (not first): start frame is inherited, can't generate
+            return true;
+          }
+          return false; // Normal shot or first in group: can generate start
+        } else {
+          // End frame selected
+          if (isStartFrameInherited) {
+            // Connected shot: need previous shot's end frame first
+            return !hasPreviousShotEndFrame;
+          }
+          // Normal shot: need start frame first
+          return !hasStartFrame;
         }
-        return false; // Normal shot or first in group: can generate start
       } else {
-        // End frame selected
-        if (isStartFrameInherited) {
-          // Connected shot: need previous shot's end frame first
-          return !hasPreviousShotEndFrame;
+        // Image-Reference mode: only start frame exists, no end frame logic
+        // In image-reference mode, activeFrame should always be "start" (tabs are hidden)
+        // But we check anyway to be safe
+        if (activeFrame === "start") {
+          // Can always generate start frame in image-reference mode (no inheritance)
+          return false;
         }
-        // Normal shot: need start frame first
-        return !hasStartFrame;
+        // Should never happen in image-reference mode, but handle gracefully
+        return true;
       }
     }
     // Image transitions mode: no disable logic needed
@@ -447,17 +496,22 @@ function SortableShotCard({
   // Tooltip for disabled state
   const disabledTooltip = (() => {
     if (!isGenerateDisabled) return undefined;
-    if (activeFrame === "start" && isStartFrameInherited) {
-      return "Start frame is inherited from previous shot";
-    }
-    if (activeFrame === "end") {
-      if (isStartFrameInherited && !hasPreviousShotEndFrame) {
-        return "Previous connected shot must be generated first";
+    if (isVideoAnimationMode && isStartEndFrameMode) {
+      // Start-End Frame mode tooltips
+      if (activeFrame === "start" && isStartFrameInherited) {
+        return "Start frame is inherited from previous shot";
       }
-      if (!hasStartFrame) {
-        return "Generate start frame first";
+      if (activeFrame === "end") {
+        if (isStartFrameInherited && !hasPreviousShotEndFrame) {
+          return "Previous connected shot must be generated first";
+        }
+        if (!hasStartFrame) {
+          return "Generate start frame first";
+        }
       }
     }
+    // Image-Reference mode: should never be disabled (no inheritance)
+    // Image Transitions mode: should never be disabled
     return undefined;
   })();
 
@@ -469,8 +523,8 @@ function SortableShotCard({
       data-testid={`card-shot-${shot.id}`}
     >
       <div className="aspect-video bg-black/30 relative group rounded-t-lg overflow-hidden">
-        {/* Start/End Frame Tab Selector (Video Animation Mode Only - hidden in Video tab) */}
-        {isVideoAnimationMode && activeTab === "image" && (
+        {/* Start/End Frame Tab Selector (Start-End Frame Mode Only - hidden in Video tab and Image-Reference mode) */}
+        {isVideoAnimationMode && narrativeMode === "start-end" && activeTab === "image" && (
           <div className="absolute top-2 left-2 flex gap-1 bg-black/80 backdrop-blur-sm rounded-md p-1 z-10 border border-white/10">
             <button
               onClick={() => setActiveFrame("start")}
@@ -535,8 +589,11 @@ function SortableShotCard({
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 gap-2">
               <ImageIcon className="h-12 w-12 text-white/30" />
-              {isVideoAnimationMode && activeFrame === "end" && (
+              {isVideoAnimationMode && isStartEndFrameMode && activeFrame === "end" && (
                 <p className="text-xs text-white/50">End frame not generated</p>
+              )}
+              {isVideoAnimationMode && !isStartEndFrameMode && (
+                <p className="text-xs text-white/50">Image not generated</p>
               )}
             </div>
           )
@@ -757,19 +814,43 @@ function SortableShotCard({
                   )}
                 </div>
 
+                {!hidePhase3Fields && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Shot Type</Label>
+                    <Select
+                      value={shot.shotType}
+                      onValueChange={(value) => onUpdateShot(shot.id, { shotType: value })}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-shot-type-${shot.id}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#0a0a0a] border-white/10">
+                        {SHOT_TYPES.map((type) => (
+                          <SelectItem key={type} value={type} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Camera Movement - for Ken Burns effects in image-transitions mode */}
                 <div className="space-y-1">
-                  <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Shot Type</Label>
+                  <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Camera Movement</Label>
                   <Select
-                    value={shot.shotType}
-                    onValueChange={(value) => onUpdateShot(shot.id, { shotType: value })}
+                    value={shot.cameraMovement || "static"}
+                    onValueChange={(value) => {
+                      onUpdateShot(shot.id, { cameraMovement: value });
+                    }}
                   >
-                    <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-shot-type-${shot.id}`}>
+                    <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-camera-movement-image-${shot.id}`}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-[#0a0a0a] border-white/10">
-                      {SHOT_TYPES.map((type) => (
-                        <SelectItem key={type} value={type} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
-                          {type}
+                      {getCameraMovements(animationMode === "animate" ? "video-animation" : "image-transitions").map((movement) => (
+                        <SelectItem key={movement} value={movement} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
+                          {getCameraMotionLabel(movement)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -796,7 +877,7 @@ function SortableShotCard({
                     size="sm"
                     variant="ghost"
                     className="flex-1 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white disabled:opacity-50"
-                    onClick={() => onRegenerateShot(shot.id, isVideoAnimationMode ? activeFrame : undefined)}
+                    onClick={() => onRegenerateShot(shot.id, isVideoAnimationMode && isStartEndFrameMode ? activeFrame : undefined)}
                     disabled={isGenerating}
                     data-testid={`button-regenerate-${shot.id}`}
                   >
@@ -818,8 +899,8 @@ function SortableShotCard({
                   size="sm"
                   variant="ghost"
                   className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  onClick={() => onGenerateSingleImage(shot.id, isVideoAnimationMode ? activeFrame : 'start')}
-                  disabled={isGenerating || isGenerateDisabled || (isStartFrameInherited && activeFrame === 'start')}
+                  onClick={() => onGenerateSingleImage(shot.id, isVideoAnimationMode && isStartEndFrameMode ? activeFrame : 'start')}
+                  disabled={isGenerating || isGenerateDisabled || (isStartEndFrameMode && isStartFrameInherited && activeFrame === 'start')}
                   title={disabledTooltip}
                   data-testid={`button-generate-image-${shot.id}`}
                 >
@@ -828,7 +909,7 @@ function SortableShotCard({
                       <Loader2 className="mr-2 h-3 w-3 animate-spin" />
                       Generating...
                     </>
-                  ) : isStartFrameInherited && activeFrame === 'start' ? (
+                  ) : isStartEndFrameMode && isStartFrameInherited && activeFrame === 'start' ? (
                     <>
                       <Link2 className="mr-2 h-3 w-3" />
                       Inherited from Shot {previousShotNumber}
@@ -950,19 +1031,15 @@ function SortableShotCard({
                 <div className="space-y-1">
                   <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Camera Movement</Label>
                   <Select
-                    value={shot.cameraMovement || "scene-default"}
+                    value={shot.cameraMovement || "static"}
                     onValueChange={(value) => {
-                      const availableMovements = getCameraMovements(animationMode === "animate" ? "video-animation" : "image-transitions");
-                      onUpdateShot(shot.id, { cameraMovement: value === "scene-default" ? sceneCameraMotion || availableMovements[0] : value });
+                      onUpdateShot(shot.id, { cameraMovement: value });
                     }}
                   >
                     <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-camera-movement-${shot.id}`}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-[#0a0a0a] border-white/10">
-                      <SelectItem value="scene-default" className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
-                        Scene Default {sceneCameraMotion ? `(${getCameraMotionLabel(sceneCameraMotion)})` : ""}
-                      </SelectItem>
                       {getCameraMovements(animationMode === "animate" ? "video-animation" : "image-transitions").map((movement) => (
                         <SelectItem key={movement} value={movement} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
                           {getCameraMotionLabel(movement)}
@@ -972,35 +1049,7 @@ function SortableShotCard({
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Sound Effects</Label>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 text-xs px-2 hover:bg-white/5"
-                      onClick={() => {
-                        const autoPrompt = `Ambient sounds for ${shot.shotType.toLowerCase()} shot${shot.description ? ': ' + shot.description : ''}`;
-                        onUpdateShot(shot.id, { soundEffects: autoPrompt });
-                        toast({
-                          title: "Sound effects generated",
-                          description: "Auto-generated sound effects prompt",
-                        });
-                      }}
-                      data-testid={`button-auto-generate-sound-${shot.id}`}
-                    >
-                      <Wand2 className="mr-1 h-3 w-3" />
-                      Automatically
-                    </Button>
-                  </div>
-                  <Textarea
-                    placeholder="Describe sound effects for this shot..."
-                    value={shot.soundEffects || ""}
-                    onChange={(e) => onUpdateShot(shot.id, { soundEffects: e.target.value })}
-                    className="min-h-[60px] text-xs resize-none bg-white/5 border-white/10"
-                    data-testid={`textarea-sound-effects-${shot.id}`}
-                  />
-                </div>
+                {/* Sound Effects section removed - handled in Phase 5 (Soundscape) */}
               </CollapsibleContent>
             </Collapsible>
 
@@ -1069,6 +1118,7 @@ export function StoryboardEditor({
   continuityLocked,
   continuityGroups,
   step4Initialized = false,  // Wait for step4Data restore before initializing scenes
+  hidePhase3Fields = false,  // Hide Phase 3 fields like Shot Type
   onVoiceActorChange,
   onVoiceOverToggle,
   onGenerateShot,
@@ -1207,7 +1257,6 @@ export function StoryboardEditor({
       hasOnUpdateScene: !!onUpdateScene,
       step1DataVideoModel: step1Data?.videoModel,
       step1DataImageModel: step1Data?.imageModel,
-      step1DataCameraMotion: step1Data?.cameraMotion,
       step4Initialized,
     });
     
@@ -1225,7 +1274,7 @@ export function StoryboardEditor({
     // Find scenes that haven't been initialized yet (check if ANY field is missing)
     const uninitializedScenes = scenes.filter(
       scene => !initializedSceneIds.has(scene.id) && 
-               (!scene.videoModel || !scene.imageModel || !scene.cameraMotion)
+               (!scene.videoModel || !scene.imageModel)
     );
 
     console.log('[StoryboardEditor] Scene states:', scenes.map(s => ({
@@ -1233,7 +1282,6 @@ export function StoryboardEditor({
       title: s.title,
       videoModel: s.videoModel,
       imageModel: s.imageModel,
-      cameraMotion: s.cameraMotion,
       isInitialized: initializedSceneIds.has(s.id),
     })));
 
@@ -1246,7 +1294,6 @@ export function StoryboardEditor({
       scenesToInit: uninitializedScenes.length,
       videoModel: step1Data.videoModel,
       imageModel: step1Data.imageModel,
-      cameraMotion: step1Data.cameraMotion,
     });
 
     // Initialize each uninitalized scene - only fill in missing fields
@@ -1254,9 +1301,15 @@ export function StoryboardEditor({
       const updates: Partial<Scene> = {};
       
       if (!scene.videoModel) {
-        let modelToSet = step1Data.videoModel || filteredVideoModels[0];
+        // Prioritize step1Data.videoModel if it's in the filtered list, otherwise use first filtered or step1Data
+        const step1ModelInFiltered = step1Data.videoModel && filteredVideoModels.includes(step1Data.videoModel);
+        let modelToSet = step1ModelInFiltered
+          ? step1Data.videoModel
+          : (filteredVideoModels.length > 0 
+              ? filteredVideoModels[0] 
+              : step1Data.videoModel);
         
-        // Validate compatibility with current narrative mode
+        // Validate compatibility with current narrative mode (shouldn't happen if step1ModelInFiltered is true)
         if (modelToSet && !filteredVideoModels.includes(modelToSet)) {
           console.warn(
             `[StoryboardEditor] Model ${modelToSet} incompatible with ${narrativeMode}, ` +
@@ -1275,15 +1328,14 @@ export function StoryboardEditor({
         updates.videoModel = modelToSet;
       }
       if (!scene.imageModel) {
-        // Use filtered image models (respecting aspect ratio) or fallback to step1Data
-        const defaultImageModel = filteredImageModels.length > 0 
-          ? filteredImageModels[0].value 
-          : (step1Data.imageModel || IMAGE_MODELS[0]);
+        // Prioritize step1Data.imageModel if it's in the filtered list, otherwise use first filtered or step1Data
+        const step1ModelInFiltered = step1Data.imageModel && filteredImageModels.some(m => m.value === step1Data.imageModel);
+        const defaultImageModel = step1ModelInFiltered
+          ? step1Data.imageModel
+          : (filteredImageModels.length > 0 
+              ? filteredImageModels[0].value 
+              : (step1Data.imageModel || IMAGE_MODELS[0]));
         updates.imageModel = defaultImageModel;
-      }
-      if (!scene.cameraMotion) {
-        const defaultCameraMotion = step1Data.cameraMotion || getCameraMovements(animationMode)[0];
-        updates.cameraMotion = defaultCameraMotion;
       }
       
       if (Object.keys(updates).length > 0) {
@@ -1319,29 +1371,58 @@ export function StoryboardEditor({
   const getShotVersion = (shot: Shot): ShotVersion | null => {
     const versions = shotVersions[shot.id] || [];
     
-    console.log('[getShotVersion]', {
-      shotId: shot.id,
-      currentVersionId: shot.currentVersionId,
-      versionsCount: versions.length,
-      hasImagePrompt: versions[0]?.imagePrompt ? 'yes' : 'no',
-    });
+    // Debug: Log all versions for this shot
+    if (versions.length > 0) {
+      console.log('[getShotVersion] All versions for shot:', {
+        shotId: shot.id,
+        shotNumber: shot.shotNumber,
+        currentVersionId: shot.currentVersionId,
+        versionsCount: versions.length,
+        allVersionIds: versions.map(v => v.id),
+        versionsWithStartFrame: versions.filter(v => v.startFrameUrl).map(v => ({ id: v.id, startFrameUrl: v.startFrameUrl?.substring(0, 50) + '...' })),
+        versionsWithImage: versions.filter(v => v.imageUrl).map(v => ({ id: v.id, imageUrl: v.imageUrl?.substring(0, 50) + '...' })),
+      });
+    }
     
     // If shot has a currentVersionId, use that specific version
     if (shot.currentVersionId) {
       const found = versions.find((v) => v.id === shot.currentVersionId);
-      console.log('[getShotVersion] Found by currentVersionId:', found?.id, 'imagePrompt length:', found?.imagePrompt?.length);
-      return found || null;
+      if (found) {
+        console.log('[getShotVersion] Found by currentVersionId:', {
+          versionId: found.id,
+          hasStartFrameUrl: !!found.startFrameUrl,
+          hasImageUrl: !!found.imageUrl,
+          startFrameUrl: found.startFrameUrl?.substring(0, 50) + '...',
+        });
+        return found;
+      } else {
+        console.warn('[getShotVersion] currentVersionId not found in versions array:', {
+          shotId: shot.id,
+          currentVersionId: shot.currentVersionId,
+          availableVersionIds: versions.map(v => v.id),
+        });
+      }
     }
     
     // Otherwise, return the latest version (last in array) if any exist
     // This handles cases where Agent 4.1 generated prompts but currentVersionId wasn't set
     if (versions.length > 0) {
       const latest = versions[versions.length - 1];
-      console.log('[getShotVersion] Returning latest version:', latest?.id, 'imagePrompt length:', latest?.imagePrompt?.length);
+      console.log('[getShotVersion] Returning latest version (no currentVersionId):', {
+        versionId: latest.id,
+        hasStartFrameUrl: !!latest.startFrameUrl,
+        hasImageUrl: !!latest.imageUrl,
+        startFrameUrl: latest.startFrameUrl?.substring(0, 50) + '...',
+      });
       return latest;
     }
     
-    console.log('[getShotVersion] No version found');
+    console.warn('[getShotVersion] No version found for shot:', {
+      shotId: shot.id,
+      shotNumber: shot.shotNumber,
+      versionsInState: Object.keys(shotVersions).length,
+      shotIdsInState: Object.keys(shotVersions),
+    });
     return null;
   };
 
@@ -1714,21 +1795,37 @@ export function StoryboardEditor({
           <div className="flex items-center gap-3">
               {/* Calculate image and video generation status */}
               {(() => {
-                // Check if all shots have required images
+                // Check if all shots have required images based on mode
                 const allImagesReady = allShots.every(s => {
                   const v = shotVersions[s.id]?.[shotVersions[s.id]?.length - 1];
-                  return animationMode === 'image-transitions' 
-                    ? v?.imageUrl 
-                    : v?.startFrameUrl; // For start-end mode, at minimum need start frame
+                  if (animationMode === 'image-transitions') {
+                    return !!v?.imageUrl;
+                  } else if (narrativeMode === 'image-reference') {
+                    // Image-reference mode: only needs startFrameUrl (no end frame)
+                    return !!v?.startFrameUrl;
+                  } else {
+                    // Start-end frame mode: needs both frames
+                    return !!(v?.startFrameUrl && v?.endFrameUrl);
+                  }
                 });
                 
                 // Count shots ready for video (have images) but no video yet
-                // Use robust check: videoUrl must be a non-empty string
+                // In image-transitions mode, videos are NOT needed (Shotstack creates them from images)
                 const shotsWithoutVideo = allShots.filter(s => {
+                  // Skip video check entirely for image-transitions mode
+                  if (animationMode === 'image-transitions') {
+                    return false; // No videos need to be generated
+                  }
+                  
                   const v = shotVersions[s.id]?.[shotVersions[s.id]?.length - 1];
-                  const hasRequiredImages = animationMode === 'image-transitions' 
-                    ? v?.imageUrl 
-                    : v?.startFrameUrl;
+                  let hasRequiredImages: boolean;
+                  if (narrativeMode === 'image-reference') {
+                    // Image-reference mode: only needs startFrameUrl
+                    hasRequiredImages = !!v?.startFrameUrl;
+                  } else {
+                    // Start-end frame mode: needs both frames
+                    hasRequiredImages = !!(v?.startFrameUrl && v?.endFrameUrl);
+                  }
                   const hasVideo = v?.videoUrl && 
                                    typeof v.videoUrl === 'string' && 
                                    v.videoUrl.trim().length > 0;
@@ -1772,7 +1869,8 @@ export function StoryboardEditor({
                     )}
                     
                     {/* Generate All Videos Button - show when images ready but videos not complete */}
-                    {allImagesReady && videosToGenerate > 0 && onGenerateAllVideos && (
+                    {/* Hide for image-transitions mode - Shotstack creates videos from images directly */}
+                    {animationMode !== 'image-transitions' && allImagesReady && videosToGenerate > 0 && onGenerateAllVideos && (
                       <Button
                         variant="outline"
                         className="border-white/10 hover:bg-white/5"
@@ -1953,46 +2051,6 @@ export function StoryboardEditor({
                     </div>
                     )}
 
-                    {/* Camera Motion - scene default for all shots */}
-                      <div className="space-y-1">
-                      <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Camera Motion</Label>
-                        <Select
-                        value={scene.cameraMotion || getCameraMovements(animationMode)[0]}
-                        onValueChange={(value) => onUpdateScene?.(scene.id, { cameraMotion: value })}
-                        >
-                        <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-scene-camera-motion-${scene.id}`}>
-                          <SelectValue placeholder="Select camera motion">
-                            {scene.cameraMotion ? getCameraMotionLabel(scene.cameraMotion) : getCameraMotionLabel(getCameraMovements(animationMode)[0])}
-                          </SelectValue>
-                          </SelectTrigger>
-                        <SelectContent className="bg-[#0a0a0a] border-white/10">
-                          {getCameraMovements(animationMode).map((motion) => (
-                            <SelectItem key={motion} value={motion} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
-                              {getCameraMotionLabel(motion)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Motion Intensity</Label>
-                      <Select
-                        defaultValue="subtle"
-                      >
-                        <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-motion-intensity-${scene.id}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#0a0a0a] border-white/10">
-                          {MOTION_INTENSITY_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value} className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30">
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
                     <Button
                       size="sm"
                       variant="ghost"
@@ -2055,7 +2113,6 @@ export function StoryboardEditor({
                                 shotIndex={shotIndex}
                                 sceneModel={scene.videoModel || filteredVideoModels[0]}
                                 sceneImageModel={scene.imageModel || (filteredImageModels[0]?.value || IMAGE_MODELS[0])}
-                                sceneCameraMotion={scene.cameraMotion || getCameraMovements(animationMode)[0]}
                                 version={version}
                                 nextShotVersion={nextShotVersion}
                                 previousShotVersion={previousShotVersion}
@@ -2072,6 +2129,7 @@ export function StoryboardEditor({
                                 previousShotNumber={previousShotNumber}
                                 filteredVideoModels={filteredVideoModels}
                                 filteredImageModels={filteredImageModels}
+                                hidePhase3Fields={hidePhase3Fields}
                                 onSelectShot={handleSelectShot}
                                 onRegenerateShot={onRegenerateShot}
                                 onGenerateSingleImage={onGenerateSingleImage || ((shotId, frame) => onGenerateShot(shotId))}

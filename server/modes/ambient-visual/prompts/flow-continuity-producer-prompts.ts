@@ -89,8 +89,6 @@ GROUP SIZE RULES
 ═══════════════════════════════════════════════════════════════════════════════
 
 • Minimum: 2 shots per group (a single connection)
-• Maximum: 5 shots per group (maintain manageability)
-• Ideal: 2-4 shots per group
 
 Not every shot needs to be in a group! Leave standalone shots when:
 • The shot is a distinct moment
@@ -181,13 +179,11 @@ INSTRUCTIONS
 2. Identify consecutive shots that would benefit from frame continuity
 3. Group them by the most appropriate transition type
 4. Provide a brief description of why each group connects well
-5. Remember: Not all shots need to be grouped!
 
 IMPORTANT REMINDERS:
 • Only group shots WITHIN the same scene
 • Shots must be consecutive (no gaps)
 • Use the exact shot IDs provided
-• Group size: 2-5 shots maximum
 
 Generate the continuity proposal as JSON now.`;
 }

@@ -16,6 +16,7 @@ interface FlowDesignTabProps {
   continuityGroups?: { [sceneId: string]: ContinuityGroup[] };
   continuityGenerated?: boolean; // Track if continuity has been analyzed (one-time only)
   animationMode: 'image-transitions' | 'video-animation';
+  videoModel?: string; // Video model from atmosphere phase
   autoGenerate?: boolean; // If true, automatically generate flow design on mount
   onScenesGenerated: (scenes: Scene[], shots: { [sceneId: string]: Shot[] }, shotVersions?: { [shotId: string]: ShotVersion[] }) => void;
   onContinuityLocked?: () => void;
@@ -35,6 +36,7 @@ export function FlowDesignTab({
   continuityGroups,
   continuityGenerated,
   animationMode,
+  videoModel,
   autoGenerate = false,
   onScenesGenerated,
   onContinuityLocked,
@@ -168,6 +170,8 @@ export function FlowDesignTab({
       continuityLocked={continuityLocked}
       continuityGroups={continuityGroups}
       continuityGenerated={continuityGenerated}
+      videoModel={videoModel}
+      animationMode={animationMode}
       onScenesGenerated={onScenesGenerated}
       onContinuityLocked={onContinuityLocked}
       onContinuityGroupsChange={onContinuityGroupsChange}

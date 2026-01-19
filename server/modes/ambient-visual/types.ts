@@ -42,7 +42,6 @@ export interface Step1Data {
   videoResolution?: string;
   motionPrompt?: string;
   transitionStyle?: string;
-  cameraMotion?: string;
   
   // Pacing & Flow
   pacing: number;
@@ -135,7 +134,6 @@ export interface Scene {
   duration?: number | null;
   videoModel?: string | null;
   imageModel?: string | null;
-  cameraMotion?: string | null;
   lighting?: string | null;
   weather?: string | null;
   loopCount?: number | null;  // Per-scene loop count (for Soundscape step)
@@ -340,7 +338,6 @@ export interface VideoPromptEngineerInput {
   animationMode: AnimationMode;  // 'image-transitions' | 'video-animation'
   videoGenerationMode?: VideoGenerationMode;  // Only used for video-animation
   motionPrompt?: string;
-  cameraMotion?: string;
   
   // For connected shots (Start-End Frame mode in video-animation)
   isFirstInGroup?: boolean;
@@ -406,6 +403,10 @@ export interface VideoImageGeneratorInput {
   isConnectedShot?: boolean;     // True if part of a continuity group
   previousShotEndFrameUrl?: string;  // URL of previous shot's end frame (for inheritance)
   inheritStartFrame?: boolean;   // True if should inherit start from previous shot's end
+  
+  // Existing frames (for smart partial generation)
+  existingStartFrameUrl?: string;  // If already generated, skip start frame generation
+  existingEndFrameUrl?: string;    // If already generated, skip end frame generation
 }
 
 /**
@@ -458,6 +459,10 @@ export interface VideoImageGeneratorBatchInput {
     groupId?: string;
     isFirstInGroup?: boolean;
     previousShotId?: string;
+    
+    // Existing frames (for smart partial generation)
+    existingStartFrameUrl?: string;
+    existingEndFrameUrl?: string;
   }>;
   
   // Approved continuity groups
@@ -631,6 +636,8 @@ export interface TimelineShotItem {
   loopCount?: number | null;
   transition?: string | null;
   videoUrl?: string | null;
+  imageUrl?: string | null;  // For image-transitions mode
+  cameraMovement?: string;    // For image-transitions mode
   order: number;  // For reordering within scene
 }
 

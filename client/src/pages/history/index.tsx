@@ -76,6 +76,7 @@ export default function History() {
   const [activeTab, setActiveTab] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [previewStory, setPreviewStory] = useState<Story | null>(null);
+  const [previewVideo, setPreviewVideo] = useState<VideoType | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const { currentWorkspace, isLoading: isLoadingWorkspace } = useWorkspace();
   const queryClient = useQueryClient();
@@ -235,8 +236,8 @@ export default function History() {
 
   // Filter by tab (All, Videos, Stories)
   const filteredByTab = useMemo(() => {
-    if (activeTab === "all") return filteredItems;
-    if (activeTab === "videos") return filteredItems.filter(item => item.type === "video");
+    if (activeTab === "all") return filteredItems.filter(item => item.status === "completed");
+    if (activeTab === "videos") return filteredItems.filter(item => item.type === "video" && item.status === "completed");
     if (activeTab === "stories") return filteredItems.filter(item => item.type === "story");
     return filteredItems;
   }, [activeTab, filteredItems]);
@@ -273,7 +274,8 @@ export default function History() {
   }, [totalPages, currentPage]);
 
   // Count videos and stories for tabs
-  const videosCount = useMemo(() => filteredItems.filter(item => item.type === "video").length, [filteredItems]);
+  const allCount = useMemo(() => filteredItems.filter(item => item.status === "completed").length, [filteredItems]);
+  const videosCount = useMemo(() => filteredItems.filter(item => item.type === "video" && item.status === "completed").length, [filteredItems]);
   const storiesCount = useMemo(() => filteredItems.filter(item => item.type === "story").length, [filteredItems]);
 
   // Pagination component helper
@@ -389,9 +391,18 @@ export default function History() {
     const handlePreview = (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      const story = storiesData.find(s => s.id === item.id);
-      if (story) {
-        setPreviewStory(story);
+      if (item.type === "story") {
+        const story = storiesData.find(s => s.id === item.id);
+        if (story) {
+          setPreviewStory(story);
+          setPreviewVideo(null);
+        }
+      } else if (item.type === "video") {
+        const video = videosData.find(v => v.id === item.id);
+        if (video) {
+          setPreviewVideo(video);
+          setPreviewStory(null);
+        }
       }
     };
 
@@ -537,7 +548,7 @@ export default function History() {
           <div className="px-4 py-5">
             <div className="flex items-center justify-between gap-4 flex-wrap">
           <TabsList>
-            <TabsTrigger value="all" data-testid="tab-all">All ({filteredItems.length})</TabsTrigger>
+            <TabsTrigger value="all" data-testid="tab-all">All ({allCount})</TabsTrigger>
             <TabsTrigger value="videos" data-testid="tab-videos">Videos ({videosCount})</TabsTrigger>
             <TabsTrigger value="stories" data-testid="tab-stories">Stories ({storiesCount})</TabsTrigger>
           </TabsList>
@@ -687,7 +698,7 @@ export default function History() {
         </TabsContent>
       </Tabs>
 
-      {/* Preview Modal */}
+      {/* Preview Modal for Stories */}
       <Dialog open={!!previewStory} onOpenChange={(open) => !open && setPreviewStory(null)}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
@@ -776,6 +787,101 @@ export default function History() {
                   disabled={deleteMutation.isPending}
                 >
                   {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview Modal for Videos */}
+      <Dialog open={!!previewVideo} onOpenChange={(open) => !open && setPreviewVideo(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{previewVideo?.title || "Untitled"}</DialogTitle>
+          </DialogHeader>
+          {previewVideo && (
+            <div className="space-y-4">
+              {previewVideo.exportUrl && (
+                <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                  <video
+                    src={previewVideo.exportUrl}
+                    controls
+                    className="w-full h-full"
+                    autoPlay
+                  />
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Mode:</span>
+                  <p className="font-medium">{previewVideo.mode 
+                    ? MODE_DISPLAY_NAMES[previewVideo.mode] || formatModeName(previewVideo.mode)
+                    : "Unknown"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Status:</span>
+                  <p className="font-medium">{previewVideo.status || "draft"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Created:</span>
+                  <p className="font-medium">{formatDistanceToNow(new Date(previewVideo.createdAt), { addSuffix: true })}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Updated:</span>
+                  <p className="font-medium">{formatDistanceToNow(new Date(previewVideo.updatedAt), { addSuffix: true })}</p>
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                {previewVideo.exportUrl && (
+                  <Button
+                    variant="outline"
+                    disabled={isDownloading}
+                    onClick={async () => {
+                      try {
+                        setIsDownloading(true);
+                        
+                        // Fetch video as blob
+                        const response = await fetch(previewVideo.exportUrl!);
+                        const blob = await response.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        
+                        // Create download link
+                        const link = document.createElement("a");
+                        link.href = blobUrl;
+                        link.download = `${previewVideo.title || "Untitled"}.mp4`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        // Clean up blob URL
+                        URL.revokeObjectURL(blobUrl);
+                      } catch (error) {
+                        console.error("Download failed:", error);
+                        toast({
+                          title: "Download failed",
+                          description: "Failed to download the video. Please try again.",
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setIsDownloading(false);
+                      }
+                    }}
+                  >
+                    {isDownloading ? "Downloading..." : "Download"}
+                  </Button>
+                )}
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    toast({
+                      title: "Not implemented",
+                      description: "Video deletion is not yet implemented.",
+                      variant: "destructive",
+                    });
+                  }}
+                >
+                  Delete
                 </Button>
               </div>
             </div>

@@ -61,13 +61,14 @@ router.post('/videos/:id/preview/build-timeline', isAuthenticated, async (req: R
       return res.status(404).json({ error: 'Video not found' });
     }
 
+    const step1Data = video.step1Data as Step1Data | undefined;
     const step6Data = video.step6Data as Step6Data | undefined;
     if (!step6Data?.timeline) {
       return res.status(400).json({ error: 'No timeline data found. Complete step 5 first.' });
     }
 
     // Build timeline input from Step6Data
-    const timelineInput = buildTimelineInputFromStep6(step6Data);
+    const timelineInput = buildTimelineInputFromStep6(step6Data, step1Data);
 
     // Validate input
     const errors = validateTimelineInput(timelineInput);
@@ -126,13 +127,14 @@ router.post('/videos/:id/preview/render', isAuthenticated, async (req: Request, 
       return res.status(404).json({ error: 'Video not found' });
     }
 
+    const step1Data = video.step1Data as Step1Data | undefined;
     const step6Data = video.step6Data as Step6Data | undefined;
     if (!step6Data?.timeline) {
       return res.status(400).json({ error: 'No timeline data found. Complete step 5 first.' });
     }
 
     // Build timeline input from Step6Data
-    const timelineInput = buildTimelineInputFromStep6(step6Data, quality);
+    const timelineInput = buildTimelineInputFromStep6(step6Data, step1Data, quality);
 
     // Validate input
     const errors = validateTimelineInput(timelineInput);
@@ -451,7 +453,49 @@ router.get('/videos/:id/preview/data', isAuthenticated, async (req: Request, res
     let step6Data = video.step6Data as Step6Data | undefined;
     const step1Data = video.step1Data as Step1Data;
     const step2Data = video.step2Data as Step2Data;
+    const step4Data = video.step4Data as Step4Data;
     const step5Data = video.step5Data as Step5Data;
+    
+    // BACKWARD COMPATIBILITY FIX: Repair step6Data timeline if shots are missing imageUrl
+    // This handles projects created before image-transitions mode was fully implemented
+    if (step6Data?.timeline && step1Data?.animationMode === 'image-transitions' && step4Data?.shotVersions) {
+      let needsRepair = false;
+      const repairedShots: Record<string, TimelineShotItem[]> = {};
+      
+      for (const [sceneId, sceneShots] of Object.entries(step6Data.timeline.shots)) {
+        repairedShots[sceneId] = sceneShots.map(shot => {
+          // If shot is missing imageUrl, try to get it from step4Data
+          if (!shot.imageUrl) {
+            const versions = step4Data.shotVersions[shot.id] || [];
+            const latestVersion = versions[versions.length - 1];
+            const imageUrl = (latestVersion?.imageUrl || (latestVersion as any)?.startFrameUrl || null);
+            
+            if (imageUrl) {
+              console.log('[preview-render:get-data] Repairing shot with imageUrl from step4Data:', {
+                shotId: shot.id,
+                imageUrl: imageUrl.substring(0, 80) + '...',
+              });
+              needsRepair = true;
+              return { ...shot, imageUrl };
+            }
+          }
+          return shot;
+        });
+      }
+      
+      // If we repaired any shots, save the updated step6Data
+      if (needsRepair) {
+        step6Data = {
+          ...step6Data,
+          timeline: {
+            ...step6Data.timeline,
+            shots: repairedShots,
+          },
+        };
+        await storage.updateVideo(videoId, { step6Data });
+        console.log('[preview-render:get-data] Repaired and saved step6Data timeline with image URLs');
+      }
+    }
 
     // Log what data we have
     console.log('[preview-render:get-data] Checking music data:', {
@@ -489,7 +533,9 @@ router.get('/videos/:id/preview/data', isAuthenticated, async (req: Request, res
 
       // Ensure audioTracks exists
       if (!step6Data.timeline.audioTracks) {
-        step6Data.timeline.audioTracks = {};
+        step6Data.timeline.audioTracks = {
+          sfx: [], // Initialize sfx as empty array (required field)
+        };
       }
       
       const existingMusicUrl = step6Data.timeline.audioTracks.music?.src;
@@ -528,9 +574,9 @@ router.get('/videos/:id/preview/data', isAuthenticated, async (req: Request, res
         };
 
         // Also remove ambient from volumes if present (cleanup old data)
-        if ('ambient' in (step6Data.volumes as Record<string, unknown>)) {
-          const { ambient, ...cleanVolumes } = step6Data.volumes as Record<string, unknown>;
-          step6Data.volumes = cleanVolumes as Step6VolumeSettings;
+        if (step6Data.volumes && 'ambient' in (step6Data.volumes as unknown as Record<string, unknown>)) {
+          const { master, sfx, voiceover, music } = step6Data.volumes;
+          step6Data.volumes = { master, sfx, voiceover, music };
         }
 
         // Save updated step6Data
@@ -584,6 +630,12 @@ router.get('/videos/:id/preview/data', isAuthenticated, async (req: Request, res
           timelineShots[sceneId] = (sceneShots as Shot[]).map((shot, index) => {
             const versions = shotVersions[shot.id] || [];
             const latestVersion = versions[versions.length - 1];
+            
+            // For image-transitions mode: use imageUrl, or fallback to startFrameUrl for backward compatibility
+            const imageUrl = step1Data?.animationMode === 'image-transitions'
+              ? (latestVersion?.imageUrl || (latestVersion as any)?.startFrameUrl || null)
+              : (latestVersion?.imageUrl || null);
+            
             return {
               id: shot.id,
               sceneId,
@@ -592,6 +644,8 @@ router.get('/videos/:id/preview/data', isAuthenticated, async (req: Request, res
               loopCount: shot.loopCount ?? 1,
               transition: shot.transition,
               videoUrl: latestVersion?.videoUrl || null,
+              imageUrl: imageUrl,  // Use imageUrl with backward compatibility fallback
+              cameraMovement: shot.cameraMovement,  // Add camera movement
               order: index,
             };
           });
@@ -764,6 +818,12 @@ router.get('/videos/:id/preview/studio-edit', isAuthenticated, async (req: Reque
         }
       });
     }
+    
+    console.log('[preview-render:studio-edit] Building timeline:', {
+      animationMode: step1Data?.animationMode,
+      sceneCount: scenesSource.length,
+      shotCount: Object.values(shotsSource).flat().length,
+    });
 
     // Convert to timeline builder format
     const timelineScenes: TimelineScene[] = scenesSource.map((scene: any, idx: number) => ({
@@ -787,18 +847,35 @@ router.get('/videos/:id/preview/studio-edit', isAuthenticated, async (req: Reque
         transition: shot.transition,
         soundEffectDescription: shot.soundEffectDescription,
         soundEffectUrl: shot.soundEffectUrl,
+        cameraMovement: shot.cameraMovement, // Add camera movement
       }));
     }
 
     const timelineShotVersions: Record<string, TimelineShotVersion[]> = {};
     for (const shotId of Object.keys(shotVersions)) {
       const versions = shotVersions[shotId] || [];
-      timelineShotVersions[shotId] = versions.map((v: any) => ({
-        id: v.id,
-        shotId: v.shotId,
-        videoUrl: v.videoUrl,
-        soundEffectPrompt: v.soundEffectPrompt,
-      }));
+      timelineShotVersions[shotId] = versions.map((v: any) => {
+        // For image-transitions mode: use imageUrl, or fallback to startFrameUrl for backward compatibility
+        const imageUrl = step1Data?.animationMode === 'image-transitions'
+          ? (v.imageUrl || v.startFrameUrl || null)
+          : (v.imageUrl || null);
+        
+        console.log('[preview-render:studio-edit] Processing shot version:', {
+          shotId: v.shotId,
+          hasVideoUrl: !!v.videoUrl,
+          hasImageUrl: !!v.imageUrl,
+          hasStartFrameUrl: !!v.startFrameUrl,
+          finalImageUrl: imageUrl ? imageUrl.substring(0, 80) + '...' : null,
+        });
+        
+        return {
+          id: v.id,
+          shotId: v.shotId,
+          videoUrl: v.videoUrl,
+          imageUrl: imageUrl, // Use imageUrl with backward compatibility fallback
+          soundEffectPrompt: v.soundEffectPrompt,
+        };
+      });
     }
 
     // Build audio tracks - use step6Data.timeline.audioTracks as source of truth
@@ -853,7 +930,9 @@ router.get('/videos/:id/preview/studio-edit', isAuthenticated, async (req: Reque
         
         // Ensure audioTracks exists
         if (!step6Data.timeline.audioTracks) {
-          step6Data.timeline.audioTracks = {};
+          step6Data.timeline.audioTracks = {
+            sfx: [], // Initialize sfx as empty array (required field)
+          };
         }
         
         step6Data.timeline.audioTracks.music = {
@@ -868,9 +947,9 @@ router.get('/videos/:id/preview/studio-edit', isAuthenticated, async (req: Reque
         };
         
         // Remove ambient from volumes if present
-        if (step6Data.volumes && 'ambient' in (step6Data.volumes as Record<string, unknown>)) {
-          const { ambient, ...cleanVolumes } = step6Data.volumes as Record<string, unknown>;
-          step6Data.volumes = cleanVolumes as Step6VolumeSettings;
+        if (step6Data.volumes && 'ambient' in (step6Data.volumes as unknown as Record<string, unknown>)) {
+          const { master, sfx, voiceover, music } = step6Data.volumes;
+          step6Data.volumes = { master, sfx, voiceover, music };
         }
         
         await storage.updateVideo(videoId, { step6Data });
@@ -909,7 +988,7 @@ router.get('/videos/:id/preview/studio-edit', isAuthenticated, async (req: Reque
       src: sfx.src,
       start: sfx.start,
       duration: sfx.duration,
-      shotId: sfx.shotId,
+      shotId: sfx.shotId || '', // Ensure shotId is always a string
       volume: sfx.volume,
     })) || [];
 
@@ -922,7 +1001,18 @@ router.get('/videos/:id/preview/studio-edit', isAuthenticated, async (req: Reque
       sfxClips, // Pass SFX clips for ambient-visual mode
       volumes,
       output: outputSettings,
+      animationMode: step1Data?.animationMode, // CRITICAL: Pass animation mode to timeline builder
     };
+    
+    console.log('[preview-render:studio-edit] Calling buildShotstackTimeline with:', {
+      animationMode: input.animationMode,
+      sceneCount: input.scenes.length,
+      shotVersionsCount: Object.keys(input.shotVersions).length,
+      sampleShotVersion: Object.values(input.shotVersions)[0]?.[0] ? {
+        hasVideoUrl: !!Object.values(input.shotVersions)[0][0].videoUrl,
+        hasImageUrl: !!Object.values(input.shotVersions)[0][0].imageUrl,
+      } : null,
+    });
 
     const result = buildShotstackTimeline(input);
 
@@ -939,6 +1029,8 @@ router.get('/videos/:id/preview/studio-edit', isAuthenticated, async (req: Reque
       ),
       // Return saved volumes so frontend can initialize correctly
       savedVolumes: step6Volumes,
+      // Return animation mode for frontend conditional rendering
+      animationMode: step1Data?.animationMode || 'video-animation',
     });
   } catch (error) {
     console.error('[preview-render] Studio edit error:', error);
@@ -1063,6 +1155,7 @@ router.post('/webhooks/shotstack', async (req: Request, res: Response) => {
  */
 function buildTimelineInputFromStep6(
   step6Data: Step6Data,
+  step1Data?: Step1Data,
   quality: 'preview' | 'final' = 'preview'
 ): TimelineBuilderInput {
   const timeline = step6Data.timeline!;
@@ -1112,20 +1205,35 @@ function buildTimelineInputFromStep6(
       transition: shot.transition,
       soundEffectDescription: null,
       soundEffectUrl: null, // SFX is in audioTracks, not shots
+      cameraMovement: shot.cameraMovement, // Add camera movement for image-transitions mode
     }));
   }
 
-  // Build shot versions from timeline shots (video URLs)
+  // Build shot versions from timeline shots (video URLs and image URLs)
   const shotVersions: Record<string, TimelineShotVersion[]> = {};
   for (const [sceneId, sceneShots] of Object.entries(timeline.shots)) {
     for (const shot of sceneShots) {
-      if (shot.videoUrl) {
+      console.log('[buildTimelineInputFromStep6] Processing shot from timeline:', {
+        shotId: shot.id,
+        hasVideoUrl: !!shot.videoUrl,
+        hasImageUrl: !!shot.imageUrl,
+        videoUrl: shot.videoUrl ? shot.videoUrl.substring(0, 80) + '...' : null,
+        imageUrl: shot.imageUrl ? shot.imageUrl.substring(0, 80) + '...' : null,
+      });
+      
+      if (shot.videoUrl || shot.imageUrl) {
         shotVersions[shot.id] = [{
           id: `${shot.id}-v1`,
           shotId: shot.id,
           videoUrl: shot.videoUrl,
+          imageUrl: shot.imageUrl, // Add image URL for image-transitions mode
           soundEffectPrompt: null,
         }];
+      } else {
+        console.warn('[buildTimelineInputFromStep6] Shot missing both video and image URL, will be skipped by timeline builder:', {
+          shotId: shot.id,
+          sceneId: sceneId,
+        });
       }
     }
   }
@@ -1134,7 +1242,7 @@ function buildTimelineInputFromStep6(
   const outputSettings: OutputSettings = {
     format: 'mp4',
     resolution: quality === 'preview' ? 'sd' : '1080',
-    aspectRatio: '16:9', // TODO: Get from step1Data
+    aspectRatio: step1Data?.aspectRatio || '16:9', // Get from step1Data
     fps: quality === 'preview' ? 24 : 30,
     // Add thumbnail for final renders (capture at 1 second, 50% scale)
     ...(quality === 'final' ? {
@@ -1151,13 +1259,23 @@ function buildTimelineInputFromStep6(
     src: sfx.src,
     start: sfx.start,
     duration: sfx.duration,
-    shotId: sfx.shotId,
+    shotId: sfx.shotId || '', // Ensure shotId is always a string
     volume: sfx.volume,
   }));
 
   console.log('[buildTimelineInputFromStep6] SFX clips:', {
     count: sfxClips.length,
     sample: sfxClips[0] ? { src: sfxClips[0].src.slice(-50), start: sfxClips[0].start } : null,
+  });
+
+  console.log('[buildTimelineInputFromStep6] Returning TimelineBuilderInput:', {
+    animationMode: step1Data?.animationMode,
+    sceneCount: scenes.length,
+    shotVersionsCount: Object.keys(shotVersions).length,
+    sampleShotVersion: Object.values(shotVersions)[0]?.[0] ? {
+      hasVideoUrl: !!Object.values(shotVersions)[0][0].videoUrl,
+      hasImageUrl: !!Object.values(shotVersions)[0][0].imageUrl,
+    } : null,
   });
 
   return {
@@ -1172,6 +1290,7 @@ function buildTimelineInputFromStep6(
     sfxClips, // Pass SFX clips array for ambient-visual mode
     volumes,
     output: outputSettings,
+    animationMode: step1Data?.animationMode, // Add animation mode
   };
 }
 

@@ -84,11 +84,12 @@ export async function composeShots(
   });
 
   const systemPrompt = buildShotComposerSystemPrompt(
-    shotCount,
+    input.shotsPerSegment === 'auto' ? 'auto' : shotCount,
     sceneDuration,
     input.pacing,
     input.animationMode,
-    supportedDurations
+    supportedDurations,
+    input.shotsPerSegment
   );
   const userPrompt = buildShotComposerUserPrompt(input);
 

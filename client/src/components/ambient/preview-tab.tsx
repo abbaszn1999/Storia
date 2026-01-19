@@ -43,6 +43,7 @@ export const PreviewTab = forwardRef<PreviewTabRef, PreviewTabProps>(({ videoId 
   const [shotstackEdit, setShotstackEdit] = useState<ShotstackEdit | null>(null);
   const [totalDuration, setTotalDuration] = useState(0);
   const [savedVolumes, setSavedVolumes] = useState<{ master: number; sfx: number; voiceover: number; music: number } | null>(null);
+  const [animationMode, setAnimationMode] = useState<'image-transitions' | 'video-animation'>('video-animation');
 
   // Expose getCurrentVolumes to parent
   useImperativeHandle(ref, () => ({
@@ -85,6 +86,7 @@ export const PreviewTab = forwardRef<PreviewTabRef, PreviewTabProps>(({ videoId 
           totalDuration: data.totalDuration,
           clipCount: data.clipCount,
           savedVolumes: data.savedVolumes,
+          animationMode: data.animationMode,
         });
 
         if (data.edit) {
@@ -95,6 +97,11 @@ export const PreviewTab = forwardRef<PreviewTabRef, PreviewTabProps>(({ videoId 
         // Pass saved volumes to ShotstackStudio if available
         if (data.savedVolumes) {
           setSavedVolumes(data.savedVolumes);
+        }
+        
+        // Set animation mode from response
+        if (data.animationMode) {
+          setAnimationMode(data.animationMode);
         }
       } catch (err) {
         console.error('[PreviewTab] Error fetching studio edit:', err);
@@ -193,6 +200,7 @@ export const PreviewTab = forwardRef<PreviewTabRef, PreviewTabProps>(({ videoId 
           className="w-full"
           height="calc(100vh - 200px)"
           initialVolumes={savedVolumes}
+          animationMode={animationMode}
         />
       </div>
     </div>

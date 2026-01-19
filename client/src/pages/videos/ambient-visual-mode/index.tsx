@@ -70,6 +70,7 @@ export default function AmbientVisualModePage() {
   const [direction, setDirection] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
   const [canContinue, setCanContinue] = useState(false);  // Validation state from workflow
+  const [isGeneratingFlowDesign, setIsGeneratingFlowDesign] = useState(false);  // Flow design generation state
   
   // Export confirmation dialog state
   const [showExportConfirm, setShowExportConfirm] = useState(false);
@@ -239,8 +240,11 @@ export default function AmbientVisualModePage() {
         return;
       }
 
-      // For steps that need special transition handling (4 and 5), use goToNextStep
-      if ((activeStep === 4 || activeStep === 5) && workflowRef.current) {
+      // For steps that need special transition handling (2, 4 and 5), use goToNextStep
+      // Step 2: Auto-generates flow design before navigating
+      // Step 4: Generates prompts before navigating (for video-animation mode)
+      // Step 5: Special handling for soundscape
+      if ((activeStep === 2 || activeStep === 4 || activeStep === 5) && workflowRef.current) {
         setIsSaving(true);
         try {
           await workflowRef.current.goToNextStep();
@@ -375,7 +379,7 @@ export default function AmbientVisualModePage() {
         onNext={handleNext}
         onBack={handleBack}
         videoTitle={videoTitle}
-        isNextDisabled={isSaving || !canContinue || isExporting}
+        isNextDisabled={isSaving || !canContinue || isExporting || isGeneratingFlowDesign}
         nextLabel={
           isExporting ? "Exporting..." :
           isSaving ? "Saving..." : 
@@ -400,6 +404,7 @@ export default function AmbientVisualModePage() {
           }}
           onSaveStateChange={setIsSaving}
           onValidationChange={setCanContinue}
+          onGeneratingFlowDesignChange={setIsGeneratingFlowDesign}
           projectName={videoTitle}
           videoId={videoId}
           initialStep1Data={existingVideo?.step1Data as Record<string, unknown> | undefined}

@@ -44,6 +44,7 @@ import type { Scene, Shot, ShotVersion, LoopType } from "@/types/storyboard";
 
 interface SoundscapeTabProps {
   videoId: string;
+  animationMode?: 'image-transitions' | 'video-animation'; // Added to conditionally show sound effects
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
@@ -84,8 +85,10 @@ function SoundscapeShotCard({
   shotLoopEnabled,
   defaultShotLoopCount,
   loopSettingsLocked,
+  showSoundEffects = true, // Default to true for backward compatibility
   videoId,
   sceneId,
+  animationMode = 'video-animation', // Added to check mode
   onUpdateShot,
 }: {
   shot: Shot;
@@ -95,8 +98,10 @@ function SoundscapeShotCard({
   shotLoopEnabled: boolean;
   defaultShotLoopCount: number | null;
   loopSettingsLocked: boolean;
+  showSoundEffects?: boolean; // Added to conditionally show sound effects UI
   videoId: string;
   sceneId: string;
+  animationMode?: 'image-transitions' | 'video-animation'; // Added
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
 }) {
   const { toast } = useToast();
@@ -107,9 +112,11 @@ function SoundscapeShotCard({
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   
-  const hasVideo = version?.videoUrl && 
-                   typeof version.videoUrl === 'string' && 
-                   version.videoUrl.trim().length > 0;
+  // For image-transitions mode, check imageUrl; for video-animation mode, check videoUrl
+  const hasVideo = animationMode === 'image-transitions'
+    ? (version?.imageUrl && typeof version.imageUrl === 'string' && version.imageUrl.trim().length > 0)
+    : (version?.videoUrl && typeof version.videoUrl === 'string' && version.videoUrl.trim().length > 0);
+    
   const hasSoundEffect = shot.soundEffectUrl && 
                          typeof shot.soundEffectUrl === 'string' && 
                          shot.soundEffectUrl.trim().length > 0;
@@ -181,16 +188,26 @@ function SoundscapeShotCard({
       <div className="aspect-video bg-black/30 relative group rounded-t-lg overflow-hidden">
         {hasVideo ? (
           <>
-          <video
+          {animationMode === 'image-transitions' ? (
+            // Show image for image-transitions mode
+            <img
+              src={version?.imageUrl || ''}
+              alt={`Shot ${shot.shotNumber}`}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            // Show video for video-animation mode
+            <video
               ref={videoRef}
-            src={version?.videoUrl || ''}
-            className="w-full h-full object-cover"
-            controls
-            muted
-            loop
-            playsInline
-          />
-            {hasSoundEffect && (
+              src={version?.videoUrl || ''}
+              className="w-full h-full object-cover"
+              controls
+              muted
+              loop
+              playsInline
+            />
+          )}
+            {hasSoundEffect && animationMode === 'video-animation' && (
               <audio
                 ref={audioRef}
                 src={shot.soundEffectUrl || ''}
@@ -203,7 +220,9 @@ function SoundscapeShotCard({
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 gap-2">
             <Play className="h-12 w-12 text-white/30" />
-            <p className="text-xs text-white/50">No video generated</p>
+            <p className="text-xs text-white/50">
+              {animationMode === 'image-transitions' ? 'No image generated' : 'No video generated'}
+            </p>
           </div>
         )}
         
@@ -304,146 +323,151 @@ function SoundscapeShotCard({
       )}
 
       <CardContent className="p-4 space-y-3">
-        {/* Sound Effects Section Header with Recommend Button */}
-        <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Music className="h-4 w-4 text-teal-400" />
-          <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Sound Effects</Label>
-          </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-6 text-xs px-2 hover:bg-white/5 text-teal-400 hover:text-teal-300"
-            disabled={isRecommendingSfx}
-            onClick={async () => {
-              setIsRecommendingSfx(true);
-              try {
-                const response = await fetch(`/api/ambient-visual/videos/${videoId}/shots/${shot.id}/sound-effect/recommend`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  credentials: 'include',
-                });
-                
-                if (!response.ok) {
-                  const error = await response.json();
-                  throw new Error(error.error || 'Failed to get recommendation');
+        {/* Sound Effects Section - Only shown for video-animation mode */}
+        {showSoundEffects && (
+          <>
+            {/* Sound Effects Section Header with Recommend Button */}
+            <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Music className="h-4 w-4 text-teal-400" />
+              <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Sound Effects</Label>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 text-xs px-2 hover:bg-white/5 text-teal-400 hover:text-teal-300"
+                disabled={isRecommendingSfx}
+                onClick={async () => {
+                  setIsRecommendingSfx(true);
+                  try {
+                    const response = await fetch(`/api/ambient-visual/videos/${videoId}/shots/${shot.id}/sound-effect/recommend`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                    });
+                    
+                    if (!response.ok) {
+                      const error = await response.json();
+                      throw new Error(error.error || 'Failed to get recommendation');
+                    }
+                    
+                    const data = await response.json();
+                    onUpdateShot(shot.id, { soundEffectDescription: data.prompt });
+                    toast({
+                      title: "Sound effect recommended",
+                      description: "AI-generated sound effect description added",
+                    });
+                  } catch (error) {
+                    console.error('[SoundscapeShotCard] Failed to get recommendation:', error);
+                    toast({
+                      title: "Recommendation failed",
+                      description: error instanceof Error ? error.message : "Failed to get sound effect recommendation",
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setIsRecommendingSfx(false);
+                  }
+                }}
+              >
+                {isRecommendingSfx ? (
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-1 h-3 w-3" />
+                )}
+                Recommend
+              </Button>
+            </div>
+            
+            {/* Sound Effects Description */}
+            <Textarea
+              placeholder="Describe sound effects (e.g., rain, wind, birds)..."
+              className="min-h-[80px] text-xs bg-white/5 border-white/10 resize-none"
+              value={shot.soundEffectDescription || ''}
+              onChange={(e) => onUpdateShot(shot.id, { soundEffectDescription: e.target.value })}
+            />
+            
+            {/* Generate/Regenerate SFX Button */}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white disabled:opacity-50"
+              disabled={isGeneratingSfx || !hasVideo}
+              onClick={async () => {
+                if (!hasVideo) {
+                  toast({
+                    title: "No video available",
+                    description: "Generate video for this shot first",
+                    variant: "destructive",
+                  });
+                  return;
                 }
-                
-                const data = await response.json();
-                onUpdateShot(shot.id, { soundEffectDescription: data.prompt });
-                toast({
-                  title: "Sound effect recommended",
-                  description: "AI-generated sound effect description added",
-                });
-              } catch (error) {
-                console.error('[SoundscapeShotCard] Failed to get recommendation:', error);
-                toast({
-                  title: "Recommendation failed",
-                  description: error instanceof Error ? error.message : "Failed to get sound effect recommendation",
-                  variant: "destructive",
-                });
-              } finally {
-                setIsRecommendingSfx(false);
-              }
-            }}
-          >
-            {isRecommendingSfx ? (
-              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-            ) : (
-              <Sparkles className="mr-1 h-3 w-3" />
-            )}
-            Recommend
-          </Button>
-        </div>
-        
-        {/* Sound Effects Description */}
-        <Textarea
-          placeholder="Describe sound effects (e.g., rain, wind, birds)..."
-          className="min-h-[80px] text-xs bg-white/5 border-white/10 resize-none"
-          value={shot.soundEffectDescription || ''}
-          onChange={(e) => onUpdateShot(shot.id, { soundEffectDescription: e.target.value })}
-        />
-        
-        {/* Generate/Regenerate SFX Button */}
-        <Button
-          size="sm"
-          variant="ghost"
-          className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white disabled:opacity-50"
-          disabled={isGeneratingSfx || !hasVideo}
-          onClick={async () => {
-            if (!hasVideo) {
-              toast({
-                title: "No video available",
-                description: "Generate video for this shot first",
-                variant: "destructive",
-              });
-              return;
-            }
 
-            setIsGeneratingSfx(true);
-            try {
-              // Store the old SFX URL for deletion
-              const oldSoundEffectUrl = shot.soundEffectUrl;
-              
-              // Use default prompt if no description is provided
-              const prompt = shot.soundEffectDescription?.trim() || "Generate a Soundeffect for The Following Video";
-              
-              const response = await fetch(`/api/ambient-visual/videos/${videoId}/shots/${shot.id}/sound-effect/generate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({
-                  prompt: prompt,
-                  previousSoundEffectUrl: oldSoundEffectUrl || undefined,
-                }),
-              });
-              
-              if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Failed to generate sound effect');
-              }
-              
-              const data = await response.json();
-              // Update both URL and description (in case default prompt was used)
-              onUpdateShot(shot.id, { 
-                soundEffectUrl: data.audioUrl,
-                soundEffectDescription: prompt, // Save the prompt that was used (default or user-provided)
-              });
-              toast({
-                title: shot.soundEffectUrl ? "Sound effect regenerated" : "Sound effect generated",
-                description: "Video with sound effects is ready",
-              });
-            } catch (error) {
-              console.error('[SoundscapeShotCard] Failed to generate sound effect:', error);
-              toast({
-                title: "Generation failed",
-                description: error instanceof Error ? error.message : "Failed to generate sound effect",
-                variant: "destructive",
-              });
-            } finally {
-              setIsGeneratingSfx(false);
-            }
-          }}
-        >
-          {isGeneratingSfx ? (
-            <>
-              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-              {shot.soundEffectUrl ? "Regenerating..." : "Generating..."}
-            </>
-          ) : (
-            <>
-          <Sparkles className="mr-2 h-3 w-3" />
-              {shot.soundEffectUrl ? "Regenerate SFX" : "Generate SFX"}
-            </>
-          )}
-        </Button>
-        
-        {/* SFX Uploaded Indicator */}
-        {shot.soundEffectUrl && (
-          <div className="flex items-center gap-2 p-2 rounded-md bg-teal-500/10 border border-teal-500/20">
-            <Music className="h-3.5 w-3.5 text-teal-400" />
-            <span className="text-xs text-teal-300 truncate flex-1">SFX uploaded</span>
-          </div>
+                setIsGeneratingSfx(true);
+                try {
+                  // Store the old SFX URL for deletion
+                  const oldSoundEffectUrl = shot.soundEffectUrl;
+                  
+                  // Use default prompt if no description is provided
+                  const prompt = shot.soundEffectDescription?.trim() || "Generate a Soundeffect for The Following Video";
+                  
+                  const response = await fetch(`/api/ambient-visual/videos/${videoId}/shots/${shot.id}/sound-effect/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                      prompt: prompt,
+                      previousSoundEffectUrl: oldSoundEffectUrl || undefined,
+                    }),
+                  });
+                  
+                  if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to generate sound effect');
+                  }
+                  
+                  const data = await response.json();
+                  // Update both URL and description (in case default prompt was used)
+                  onUpdateShot(shot.id, { 
+                    soundEffectUrl: data.audioUrl,
+                    soundEffectDescription: prompt, // Save the prompt that was used (default or user-provided)
+                  });
+                  toast({
+                    title: shot.soundEffectUrl ? "Sound effect regenerated" : "Sound effect generated",
+                    description: "Video with sound effects is ready",
+                  });
+                } catch (error) {
+                  console.error('[SoundscapeShotCard] Failed to generate sound effect:', error);
+                  toast({
+                    title: "Generation failed",
+                    description: error instanceof Error ? error.message : "Failed to generate sound effect",
+                    variant: "destructive",
+                  });
+                } finally {
+                  setIsGeneratingSfx(false);
+                }
+              }}
+            >
+              {isGeneratingSfx ? (
+                <>
+                  <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                  {shot.soundEffectUrl ? "Regenerating..." : "Generating..."}
+                </>
+              ) : (
+                <>
+              <Sparkles className="mr-2 h-3 w-3" />
+                  {shot.soundEffectUrl ? "Regenerate SFX" : "Generate SFX"}
+                </>
+              )}
+            </Button>
+            
+            {/* SFX Uploaded Indicator */}
+            {shot.soundEffectUrl && (
+              <div className="flex items-center gap-2 p-2 rounded-md bg-teal-500/10 border border-teal-500/20">
+                <Music className="h-3.5 w-3.5 text-teal-400" />
+                <span className="text-xs text-teal-300 truncate flex-1">SFX uploaded</span>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
@@ -462,6 +486,8 @@ function SceneRow({
   shotLoopEnabled,
   defaultShotLoopCount,
   loopSettingsLocked,
+  showSoundEffects = true, // Added for image-transitions mode
+  animationMode = 'video-animation', // Added
   videoId,
   onUpdateScene,
   onUpdateShot,
@@ -477,6 +503,8 @@ function SceneRow({
   shotLoopEnabled: boolean;
   defaultShotLoopCount: number | null;
   loopSettingsLocked: boolean;
+  showSoundEffects?: boolean; // Added for image-transitions mode
+  animationMode?: 'image-transitions' | 'video-animation'; // Added
   videoId: string;
   onUpdateScene: (sceneId: string, updates: Partial<Scene>) => void;
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
@@ -593,6 +621,8 @@ function SceneRow({
                       shotLoopEnabled={shotLoopEnabled}
                       defaultShotLoopCount={defaultShotLoopCount}
                       loopSettingsLocked={loopSettingsLocked}
+                      showSoundEffects={showSoundEffects}
+                      animationMode={animationMode}
                       videoId={videoId}
                       sceneId={scene.id}
                       onUpdateShot={onUpdateShot}
@@ -632,6 +662,7 @@ function SceneRow({
 
 export function SoundscapeTab({
   videoId,
+  animationMode = 'video-animation', // Default to video-animation for backward compatibility
   scenes,
   shots,
   shotVersions,
@@ -658,6 +689,9 @@ export function SoundscapeTab({
 }: SoundscapeTabProps) {
   const { toast } = useToast();
   const [isScrolled, setIsScrolled] = useState(false);
+  
+  // Determine if sound effects should be shown (only for video-animation mode)
+  const showSoundEffects = animationMode === 'video-animation';
   
   // Voiceover state
   const [voiceoverScript, setVoiceoverScript] = useState<string>(initialVoiceoverScript);
@@ -739,10 +773,18 @@ export function SoundscapeTab({
   const defaultShotLoopCount = shotLoopCount !== 'auto' ? shotLoopCount : null;
 
   // Get total counts
+  // For image-transitions mode, check imageUrl; for video-animation mode, check videoUrl
   const allShots = Object.values(shots).flat();
   const totalShots = allShots.length;
   const shotsWithVideo = allShots.filter(s => {
     const v = shotVersions[s.id]?.[shotVersions[s.id]?.length - 1];
+    
+    // For image-transitions mode, check if image exists (no videos needed)
+    if (animationMode === 'image-transitions') {
+      return v?.imageUrl && typeof v.imageUrl === 'string' && v.imageUrl.trim().length > 0;
+    }
+    
+    // For video-animation mode, check if video exists
     return v?.videoUrl && typeof v.videoUrl === 'string' && v.videoUrl.trim().length > 0;
   }).length;
 
@@ -799,7 +841,7 @@ export function SoundscapeTab({
                 <div>
                   <h3 className="text-lg font-semibold">Soundscape</h3>
                   <p className="text-sm text-muted-foreground">
-                    {shotsWithVideo} of {totalShots} shots have videos
+                    {shotsWithVideo} of {totalShots} shots have {animationMode === 'image-transitions' ? 'images' : 'videos'}
                   </p>
                 </div>
               </div>
@@ -814,14 +856,6 @@ export function SoundscapeTab({
             </div>
             
             <div className="flex items-center gap-3">
-              {/* Loop Mode Indicator */}
-              {loopMode && (
-                <Badge variant="outline" className="border-amber-500/50 text-amber-400">
-                  <Repeat className="mr-1 h-3 w-3" />
-                  Loop Mode: {loopType}
-                </Badge>
-              )}
-              
               {/* Lock Loop Settings Button */}
               {loopMode && (
                 <>
@@ -1084,6 +1118,8 @@ export function SoundscapeTab({
             shotLoopEnabled={shotLoopEnabled}
             defaultShotLoopCount={defaultShotLoopCount}
             loopSettingsLocked={loopSettingsLocked}
+            showSoundEffects={showSoundEffects}
+            animationMode={animationMode}
             videoId={videoId}
             onUpdateScene={onUpdateScene}
             onUpdateShot={onUpdateShot}

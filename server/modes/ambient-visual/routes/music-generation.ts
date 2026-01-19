@@ -91,7 +91,21 @@ router.post('/videos/:id/music/generate', isAuthenticated, async (req: Request, 
     
     let totalDuration = 60; // Default fallback
     if (scenesSource && shotsSource) {
-      totalDuration = calculateTotalDurationWithLoops(scenesSource, shotsSource);
+      // Convert null loopCounts to undefined for type compatibility
+      const scenesForCalc = scenesSource.map(scene => ({
+        id: scene.id,
+        loopCount: scene.loopCount ?? undefined,
+      }));
+      
+      const shotsForCalc: Record<string, Array<{ duration: number; loopCount?: number }>> = {};
+      for (const [sceneId, sceneShots] of Object.entries(shotsSource)) {
+        shotsForCalc[sceneId] = sceneShots.map(shot => ({
+          duration: shot.duration,
+          loopCount: shot.loopCount ?? undefined,
+        }));
+      }
+      
+      totalDuration = calculateTotalDurationWithLoops(scenesForCalc, shotsForCalc);
     }
 
     console.log('[music-generation:routes] Starting music generation:', {
@@ -128,8 +142,19 @@ router.post('/videos/:id/music/generate', isAuthenticated, async (req: Request, 
     const result = await generateBackgroundMusic(musicInput);
 
     // Save to step5Data
+    // IMPORTANT: Fetch fresh video data to avoid overwriting concurrent updates (e.g., voiceover generation)
+    const freshVideo = await storage.getVideo(videoId);
+    const freshStep5Data = (freshVideo?.step5Data as Step5Data) || {};
+    
+    console.log('[music-generation:routes] Updating music - preserving existing step5Data:', {
+      hasVoiceoverAudioUrl: !!freshStep5Data.voiceoverAudioUrl,
+      hasVoiceoverScript: !!freshStep5Data.voiceoverScript,
+      hasScenesWithLoops: !!freshStep5Data.scenesWithLoops,
+      hasShotsWithLoops: !!freshStep5Data.shotsWithLoops,
+    });
+    
     const updatedStep5Data: Step5Data = {
-      ...step5Data,
+      ...freshStep5Data,  // Preserve all existing fields (voiceover, loops, etc.)
       generatedMusicUrl: result.musicUrl,
       generatedMusicDuration: result.duration,
       generatedMusicStyle: result.style,

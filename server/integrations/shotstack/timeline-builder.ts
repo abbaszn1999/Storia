@@ -11,9 +11,11 @@ import type {
   Track,
   Clip,
   VideoAsset,
+  ImageAsset,
   AudioAsset,
   Transition,
   TransitionEffect,
+  Effect,
   TimelineBuilderInput,
   TimelineBuilderOutput,
   TimelineScene,
@@ -81,7 +83,8 @@ export function buildShotstackTimeline(input: TimelineBuilderInput): TimelineBui
     input.scenes,
     input.shots,
     input.shotVersions,
-    input.volumes
+    input.volumes,
+    input.animationMode
   );
 
   // Build tracks array (video on top, audio layers below)
@@ -214,7 +217,8 @@ function buildExpandedClips(
   scenes: TimelineScene[],
   shots: Record<string, TimelineShot[]>,
   shotVersions: Record<string, TimelineShotVersion[]>,
-  volumes: VolumeSettings
+  volumes: VolumeSettings,
+  animationMode?: 'image-transitions' | 'video-animation'
 ): { videoClips: Clip[]; sfxClips: Clip[]; totalDuration: number } {
   const videoClips: Clip[] = [];
   const sfxClips: Clip[] = [];
@@ -244,7 +248,49 @@ function buildExpandedClips(
         const isLastSceneIteration = sceneIteration === sceneLoopCount - 1;
 
         if (!version?.videoUrl) {
-          console.warn(`[TimelineBuilder] Shot ${shot.id} has no video URL, skipping`);
+          // Check if image-transitions mode with imageUrl
+          if (animationMode === 'image-transitions' && version?.imageUrl) {
+            // Repeat shot by shot loop count
+            for (let shotIteration = 0; shotIteration < shotLoopCount; shotIteration++) {
+              const isLastShotIteration = shotIteration === shotLoopCount - 1;
+              
+              // Determine transition (only on last iteration of shot, before next shot)
+              let transition: Transition | undefined;
+              if (isLastShotIteration && !isLastShotInScene) {
+                // Apply transition between shots (within scene)
+                transition = buildTransition(shot.transition);
+              } else if (isLastShotIteration && isLastShotInScene && !isLastSceneIteration) {
+                // Apply transition at end of scene iteration (before scene repeats)
+                transition = buildTransition('fade');
+              }
+
+              // Add image clip with motion effect
+              const imageClip = buildImageClipWithMotion(
+                version.imageUrl,
+                currentTime,
+                shot.duration,
+                shot.cameraMovement,
+                transition
+              );
+              videoClips.push(imageClip);
+
+              // Add SFX clip if exists (synced with image)
+              if (shot.soundEffectUrl) {
+                const sfxClip = buildAudioClip(
+                  shot.soundEffectUrl,
+                  currentTime,
+                  shot.duration,
+                  volumes.sfx * volumes.master
+                );
+                sfxClips.push(sfxClip);
+              }
+
+              currentTime += shot.duration;
+            }
+            continue;
+          }
+          
+          console.warn(`[TimelineBuilder] Shot ${shot.id} has no video/image URL, skipping`);
           continue;
         }
 
@@ -373,6 +419,62 @@ function buildAudioClip(
 }
 
 /**
+ * Build an image clip with motion effect
+ */
+function buildImageClipWithMotion(
+  imageUrl: string,
+  start: number,
+  duration: number,
+  cameraMovement?: string,
+  transition?: Transition
+): Clip {
+  const asset: ImageAsset = {
+    type: 'image',
+    src: imageUrl,
+  };
+
+  const effect = mapCameraMovementToEffect(cameraMovement);
+
+  const clip: Clip = {
+    asset,
+    start,
+    length: duration,
+    fit: 'cover',
+  };
+
+  if (effect) {
+    clip.effect = effect;
+  }
+
+  if (transition) {
+    clip.transition = transition;
+  }
+
+  return clip;
+}
+
+/**
+ * Map camera movement to Shotstack motion effect
+ */
+function mapCameraMovementToEffect(motion?: string): Effect | undefined {
+  if (!motion) {
+    return undefined;
+  }
+
+  const effectMap: Record<string, Effect> = {
+    'slow-zoom-in': 'zoomIn',
+    'slow-zoom-out': 'zoomOut',
+    'pan-left': 'slideLeft',
+    'pan-right': 'slideRight',
+    'ken-burns-up': 'zoomIn',
+    'ken-burns-down': 'zoomIn',
+    'diagonal-drift': 'zoomIn',
+  };
+
+  return effectMap[motion];
+}
+
+/**
  * Build a transition from transition name
  */
 function buildTransition(transitionName?: string | null): Transition | undefined {
@@ -420,6 +522,13 @@ export function calculateTotalDuration(
 export function validateTimelineInput(input: TimelineBuilderInput): string[] {
   const errors: string[] = [];
 
+  console.log('[validateTimelineInput] Validating:', {
+    animationMode: input.animationMode,
+    sceneCount: input.scenes?.length || 0,
+    shotCount: Object.keys(input.shots || {}).length,
+    shotVersionsCount: Object.keys(input.shotVersions || {}).length,
+  });
+
   if (!input.scenes || input.scenes.length === 0) {
     errors.push('No scenes provided');
   }
@@ -436,14 +545,36 @@ export function validateTimelineInput(input: TimelineBuilderInput): string[] {
     }
   }
 
-  // Check that all shots have video URLs
+  // Check that all shots have video URLs or image URLs (for image-transitions mode)
   for (const [sceneId, sceneShots] of Object.entries(input.shots || {})) {
     for (const shot of sceneShots) {
       const version = getLatestVersion(input.shotVersions, shot.id);
-      if (!version?.videoUrl) {
-        errors.push(`Shot ${shot.shotNumber} in scene ${sceneId} has no video`);
+      
+      // For image-transitions mode, check for imageUrl; otherwise check for videoUrl
+      if (input.animationMode === 'image-transitions') {
+        if (!version?.imageUrl) {
+          console.warn('[validateTimelineInput] Shot missing imageUrl:', {
+            shotId: shot.id,
+            shotNumber: shot.shotNumber,
+            sceneId,
+            hasVersion: !!version,
+            hasImageUrl: !!version?.imageUrl,
+            hasVideoUrl: !!version?.videoUrl,
+          });
+          errors.push(`Shot ${shot.shotNumber} in scene ${sceneId} has no image (image-transitions mode)`);
+        }
+      } else {
+        if (!version?.videoUrl) {
+          errors.push(`Shot ${shot.shotNumber} in scene ${sceneId} has no video`);
+        }
       }
     }
+  }
+
+  if (errors.length > 0) {
+    console.error('[validateTimelineInput] Validation failed:', errors);
+  } else {
+    console.log('[validateTimelineInput] Validation passed ✅');
   }
 
   return errors;

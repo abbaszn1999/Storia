@@ -41,7 +41,6 @@ export interface Step1Data {
   videoResolution?: string;
   motionPrompt?: string;
   transitionStyle?: string;
-  cameraMotion?: string;
   
   // Pacing & Flow
   pacing: number;
@@ -73,7 +72,6 @@ export interface Scene {
   duration?: number | null;
   videoModel?: string | null;
   imageModel?: string | null;
-  cameraMotion?: string | null;
   lighting?: string | null;
   weather?: string | null;
   loopCount?: number | null;  // Per-scene loop count (for Soundscape step)

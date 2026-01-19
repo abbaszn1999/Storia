@@ -57,6 +57,16 @@ router.post('/videos/:id/shots/:shotId/generate-video', isAuthenticated, async (
       return res.status(400).json({ error: 'No atmosphere data found. Complete Phase 1 first.' });
     }
 
+    // Skip video generation for image-transitions mode
+    const isImageTransitionsMode = step1Data.animationMode === 'image-transitions';
+    if (isImageTransitionsMode) {
+      return res.json({
+        message: 'Image-transitions mode: Videos will be created by Shotstack during final render with motion effects applied.',
+        skipped: true,
+        reason: 'image-transitions-mode',
+      });
+    }
+
     if (!step4Data?.shotVersions?.[shotId]) {
       return res.status(400).json({ error: 'No version data found for this shot. Generate prompts and images first.' });
     }
@@ -97,11 +107,17 @@ router.post('/videos/:id/shots/:shotId/generate-video', isAuthenticated, async (
     }
 
     // 5. Check if this is Start-End Frame mode and validate end frame
-    const isStartEndMode = step1Data.videoGenerationMode === 'start-end-frame' || 
-                           step1Data.animationMode === 'video-animation';
+    const isStartEndFrame = step1Data.videoGenerationMode === 'start-end-frame';
+    const isImageReference = step1Data.videoGenerationMode === 'image-reference';
     
-    if (isStartEndMode && !latestVersion.endFrameUrl) {
+    // Only require end frame for start-end-frame mode, not for image-reference mode
+    if (isStartEndFrame && !latestVersion.endFrameUrl) {
       return res.status(400).json({ error: 'End frame not generated. Generate end frame first.' });
+    }
+    
+    // Image-reference mode doesn't need end frame
+    if (isImageReference && latestVersion.endFrameUrl) {
+      console.warn(`[ambient-visual:routes] Shot ${shotId} in image-reference mode has endFrameUrl, which should not exist`);
     }
 
     // 6. Get video prompt
@@ -121,12 +137,15 @@ router.post('/videos/:id/shots/:shotId/generate-video', isAuthenticated, async (
 
     // Check if model supports start-end frame mode
     const modelSupportsEndFrame = supportsStartEndFrame(videoModel);
-    const useEndFrame = isStartEndMode && modelSupportsEndFrame && !!latestVersion.endFrameUrl;
+    // Only use end frame for start-end-frame mode (not for image-reference mode)
+    const useEndFrame = isStartEndFrame && modelSupportsEndFrame && !!latestVersion.endFrameUrl;
 
     console.log('[ambient-visual:routes] Video generation config:', {
       shotId,
       videoModel,
-      isStartEndMode,
+      videoGenerationMode: step1Data.videoGenerationMode,
+      isStartEndFrame,
+      isImageReference,
       modelSupportsEndFrame,
       useEndFrame,
       hasStartFrame: !!latestVersion.startFrameUrl,
@@ -150,7 +169,7 @@ router.post('/videos/:id/shots/:shotId/generate-video', isAuthenticated, async (
         aspectRatio: step1Data.aspectRatio,
         videoResolution: step1Data.videoResolution,
         duration: shot.duration || 5,
-        cameraFixed: step1Data.cameraMotion === 'static',
+        cameraFixed: shot.cameraMovement === 'static',
         generateAudio: false, // Could be configurable
       },
       userId,
@@ -259,9 +278,21 @@ router.post('/videos/:id/generate-all-videos', isAuthenticated, async (req: Requ
     const step4Shots = step4Data.shots || step3Data?.shots || {};
     const step4Scenes = step4Data.scenes || step3Data?.scenes || [];
 
-    // Determine if we're in Start-End Frame mode
-    const isStartEndMode = step1Data.videoGenerationMode === 'start-end-frame' || 
-                           step1Data.animationMode === 'video-animation';
+    // Determine if we're in Start-End Frame mode (only check videoGenerationMode, not animationMode)
+    const isStartEndMode = step1Data.videoGenerationMode === 'start-end-frame';
+    const isImageReferenceMode = step1Data.videoGenerationMode === 'image-reference';
+    const isImageTransitionsMode = step1Data.animationMode === 'image-transitions';
+
+    // Skip video generation for image-transitions mode
+    if (isImageTransitionsMode) {
+      return res.json({
+        message: 'Image-transitions mode: Videos will be created by Shotstack during final render. No intermediate videos needed.',
+        skipped: true,
+        totalShots: 0,
+        shotsProcessed: 0,
+        reason: 'image-transitions-mode',
+      });
+    }
 
     // 3. Filter shots that are ready for video generation
     const shotsToProcess: Array<{
@@ -312,17 +343,40 @@ router.post('/videos/:id/generate-all-videos', isAuthenticated, async (req: Requ
         shotsWithoutVideo++;
         console.log(`[ambient-visual:routes] Shot ${shotNumber} (${shot.id}): No video found (videoUrl: ${latestVersion.videoUrl}), checking requirements...`);
 
-        // Check for required frames
-        if (!latestVersion.startFrameUrl) {
-          shotsMissingFrames++;
-          console.log(`[ambient-visual:routes] Shot ${shotNumber} (${shot.id}): No start frame, skipping`);
-          continue;
-        }
-
-        if (isStartEndMode && !latestVersion.endFrameUrl) {
-          shotsMissingFrames++;
-          console.log(`[ambient-visual:routes] Shot ${shotNumber} (${shot.id}): No end frame (Start-End mode), skipping`);
-          continue;
+        // Check for required frames based on mode
+        if (isImageTransitionsMode) {
+          // Image transitions mode: needs imageUrl
+          if (!latestVersion.imageUrl) {
+            shotsMissingFrames++;
+            console.log(`[ambient-visual:routes] Shot ${shotNumber} (${shot.id}): No image (Image Transitions mode), skipping`);
+            continue;
+          }
+        } else if (isImageReferenceMode) {
+          // Image-reference mode: only needs startFrameUrl (no end frame)
+          if (!latestVersion.startFrameUrl) {
+            shotsMissingFrames++;
+            console.log(`[ambient-visual:routes] Shot ${shotNumber} (${shot.id}): No start frame (Image-Reference mode), skipping`);
+            continue;
+          }
+        } else if (isStartEndMode) {
+          // Start-end frame mode: needs both startFrameUrl and endFrameUrl
+          if (!latestVersion.startFrameUrl) {
+            shotsMissingFrames++;
+            console.log(`[ambient-visual:routes] Shot ${shotNumber} (${shot.id}): No start frame (Start-End mode), skipping`);
+            continue;
+          }
+          if (!latestVersion.endFrameUrl) {
+            shotsMissingFrames++;
+            console.log(`[ambient-visual:routes] Shot ${shotNumber} (${shot.id}): No end frame (Start-End mode), skipping`);
+            continue;
+          }
+        } else {
+          // Fallback: check for startFrameUrl
+          if (!latestVersion.startFrameUrl) {
+            shotsMissingFrames++;
+            console.log(`[ambient-visual:routes] Shot ${shotNumber} (${shot.id}): No start frame, skipping`);
+            continue;
+          }
         }
 
         if (!latestVersion.videoPrompt) {
@@ -383,7 +437,7 @@ router.post('/videos/:id/generate-all-videos', isAuthenticated, async (req: Requ
           aspectRatio: step1Data.aspectRatio,
           videoResolution: step1Data.videoResolution,
           duration: shot.duration || 5,
-          cameraFixed: step1Data.cameraMotion === 'static',
+          cameraFixed: shot.cameraMovement === 'static',
           generateAudio: false,
         };
       }),

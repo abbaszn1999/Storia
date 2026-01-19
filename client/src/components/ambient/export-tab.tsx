@@ -612,7 +612,7 @@ export function ExportTab({
         </div>
 
         {/* Scrollable Content */}
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1" viewportClassName="bg-transparent">
           <div className="p-4 space-y-5 pb-40">
             {/* Video Summary */}
             <div className={cn(

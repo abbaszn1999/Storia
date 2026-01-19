@@ -268,7 +268,6 @@ Return your response as valid JSON with: imagePrompt`;
  * Dynamically adjusts output requirements based on continuity status
  */
 function buildVideoAnimationUserPrompt(input: VideoPromptEngineerInput): string {
-  const motion = input.cameraMotion || 'gentle-drift';
   const isConnectedNonFirst = input.isConnectedShot && !input.isFirstInGroup;
   
   // Build continuity section
@@ -375,7 +374,6 @@ VIDEO SETTINGS
 ═══════════════════════════════════════════════════════════════════════════════
 
 Video Generation Mode: ${input.videoGenerationMode === 'start-end-frame' ? 'Start-End Frame' : 'Image Reference'}
-Default Camera Motion: ${motion}
 ${input.motionPrompt ? `Motion Instructions: ${input.motionPrompt}` : ''}
 
 ═══════════════════════════════════════════════════════════════════════════════

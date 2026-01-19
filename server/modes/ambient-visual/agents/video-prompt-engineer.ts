@@ -66,6 +66,26 @@ const VIDEO_ANIMATION_SCHEMA = {
 } as const;
 
 /**
+ * JSON Schema for Video Animation mode - Image Reference (single keyframe)
+ * Generates startFramePrompt and videoPrompt only (no end frame)
+ */
+const VIDEO_ANIMATION_IMAGE_REFERENCE_SCHEMA = {
+  type: "object",
+  properties: {
+    startFramePrompt: {
+      type: "string",
+      description: "Complete visual description for the keyframe image (150-600 characters)"
+    },
+    videoPrompt: {
+      type: "string",
+      description: "Motion and camera instructions for video generation (50-300 characters)"
+    }
+  },
+  required: ["startFramePrompt", "videoPrompt"],
+  additionalProperties: false
+} as const;
+
+/**
  * JSON Schema for Video Animation mode - connected shot (not first in group)
  * Generates endFramePrompt and videoPrompt (start is inherited from previous shot)
  */
@@ -102,6 +122,14 @@ interface VideoAnimationResponse {
 }
 
 /**
+ * Response type for Video Animation mode - Image Reference (single keyframe)
+ */
+interface VideoAnimationImageReferenceResponse {
+  startFramePrompt: string;
+  videoPrompt: string;
+}
+
+/**
  * Response type for Video Animation mode - connected shot (not first)
  */
 interface VideoAnimationConnectedResponse {
@@ -128,7 +156,11 @@ export async function generateVideoPrompts(
   workspaceId?: string
 ): Promise<VideoPromptEngineerOutput> {
   const isImageTransitions = input.animationMode === 'image-transitions';
-  const isConnectedNonFirst = input.isConnectedShot && !input.isFirstInGroup;
+  const isImageReference = input.animationMode === 'video-animation' && 
+                           input.videoGenerationMode === 'image-reference';
+  const isStartEndFrame = input.animationMode === 'video-animation' && 
+                          input.videoGenerationMode === 'start-end-frame';
+  const isConnectedNonFirst = isStartEndFrame && input.isConnectedShot && !input.isFirstInGroup;
   
   // Select appropriate schema based on mode and continuity status
   let schema;
@@ -137,6 +169,10 @@ export async function generateVideoPrompts(
   if (isImageTransitions) {
     schema = IMAGE_TRANSITIONS_SCHEMA;
     schemaName = "image_transitions_output";
+  } else if (isImageReference) {
+    // Image-Reference mode: single startFramePrompt + videoPrompt (no end frame)
+    schema = VIDEO_ANIMATION_IMAGE_REFERENCE_SCHEMA;
+    schemaName = "video_animation_image_reference_output";
   } else if (isConnectedNonFirst) {
     schema = VIDEO_ANIMATION_CONNECTED_SCHEMA;
     schemaName = "video_animation_connected_output";
@@ -152,6 +188,7 @@ export async function generateVideoPrompts(
     shotId: input.shotId,
     sceneId: input.sceneId,
     animationMode: input.animationMode,
+    videoGenerationMode: input.videoGenerationMode,
     shotType: input.shotType,
     artStyle: input.artStyle,
     isConnectedShot: input.isConnectedShot,
@@ -204,6 +241,23 @@ export async function generateVideoPrompts(
         imagePrompt: imageResponse.imagePrompt,
         cost: response.usage?.totalCostUsd,
       };
+    } else if (isImageReference) {
+      // Image-Reference mode: single startFramePrompt + videoPrompt (no end frame)
+      const imageRefResponse = parsed as VideoAnimationImageReferenceResponse;
+      
+      console.log('[ambient-visual:video-prompt-engineer] Image-Reference prompts generated:', {
+        shotId: input.shotId,
+        startFramePromptLength: imageRefResponse.startFramePrompt.length,
+        videoPromptLength: imageRefResponse.videoPrompt.length,
+        cost: response.usage?.totalCostUsd,
+      });
+
+      return {
+        startFramePrompt: imageRefResponse.startFramePrompt,
+        videoPrompt: imageRefResponse.videoPrompt,
+        // No endFramePrompt for image-reference mode
+        cost: response.usage?.totalCostUsd,
+      };
     } else if (isConnectedNonFirst) {
       // Video Animation mode - connected shot (not first): end frame + video prompt (start inherited)
       const connectedResponse = parsed as VideoAnimationConnectedResponse;
@@ -245,6 +299,8 @@ export async function generateVideoPrompts(
     console.error('[ambient-visual:video-prompt-engineer] Generation failed:', {
       shotId: input.shotId,
       animationMode: input.animationMode,
+      videoGenerationMode: input.videoGenerationMode,
+      isImageReference,
       isConnectedNonFirst,
       error: error instanceof Error ? error.message : 'Unknown error',
     });

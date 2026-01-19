@@ -435,6 +435,7 @@ export interface TimelineBuilderInput {
   sfxClips?: SfxClipItem[];
   volumes: VolumeSettings;
   output: OutputSettings;
+  animationMode?: 'image-transitions' | 'video-animation';
 }
 
 // SFX clip item for pre-computed SFX timeline
@@ -465,12 +466,14 @@ export interface TimelineShot {
   transition?: string | null;
   soundEffectDescription?: string | null;
   soundEffectUrl?: string | null;
+  cameraMovement?: string;
 }
 
 export interface TimelineShotVersion {
   id: string;
   shotId: string;
   videoUrl?: string | null;
+  imageUrl?: string | null;
   soundEffectPrompt?: string | null;
 }
 

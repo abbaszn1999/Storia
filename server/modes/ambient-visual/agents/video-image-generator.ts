@@ -209,12 +209,15 @@ export async function generateShotImages(
     isConnectedShot,
     previousShotEndFrameUrl,
     inheritStartFrame,
+    existingStartFrameUrl,  // NEW: Use existing frames if available
+    existingEndFrameUrl,    // NEW: Use existing frames if available
   } = input;
 
   console.log("[video-image-generator] Processing shot:", {
     shotId: shotId.substring(0, 8) + '...',
     shotNumber,
     animationMode,
+    videoGenerationMode: input.videoGenerationMode,
     isConnectedShot,
     isFirstInGroup,
     inheritStartFrame,
@@ -222,6 +225,8 @@ export async function generateShotImages(
     hasEndPrompt: !!endFramePrompt,
     hasImagePrompt: !!imagePrompt,
     hasPreviousEndUrl: !!previousShotEndFrameUrl,
+    hasExistingStart: !!existingStartFrameUrl,
+    hasExistingEnd: !!existingEndFrameUrl,
   });
 
   // Get Runware model ID
@@ -248,10 +253,22 @@ export async function generateShotImages(
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // IMAGE TRANSITIONS MODE: Generate single image
+  // IMAGE TRANSITIONS MODE: Generate single image (or use existing)
   // ─────────────────────────────────────────────────────────────────────────────
   
   if (animationMode === 'image-transitions') {
+    // Check if image already exists (smart partial generation)
+    if (existingStartFrameUrl) {
+      console.log(`[video-image-generator] Shot ${shotNumber}: Using existing image (skipping generation)`);
+      return {
+        shotId,
+        imageUrl: existingStartFrameUrl,
+        width: dimensions.width,
+        height: dimensions.height,
+        cost: 0,  // No cost since we're reusing existing
+      };
+    }
+    
     if (!imagePrompt) {
       return {
         shotId,
@@ -284,95 +301,174 @@ export async function generateShotImages(
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // VIDEO ANIMATION MODE: Generate start and end frames
+  // VIDEO ANIMATION MODE: Check if image-reference or start-end-frame
   // ─────────────────────────────────────────────────────────────────────────────
 
-  let startFrameUrl: string | undefined;
-  let endFrameUrl: string | undefined;
-  let startFrameInherited = false;
+  const isImageReference = animationMode === 'video-animation' && 
+                           input.videoGenerationMode === 'image-reference';
+  const isStartEndFrame = animationMode === 'video-animation' && 
+                          input.videoGenerationMode === 'start-end-frame';
 
-  // Step 1: Get or generate START frame
-  if (inheritStartFrame && previousShotEndFrameUrl) {
-    // Inherit START from previous shot's END
-    console.log(`[video-image-generator] Shot ${shotNumber}: Inheriting start frame from previous shot`);
-    startFrameUrl = previousShotEndFrameUrl;
-    startFrameInherited = true;
-  } else if (startFramePrompt) {
-    // Generate START frame
-    const startResult = await generateSingleImage(startFramePrompt, {
-      ...baseOptions,
-      taskLabel: `Shot ${shotNumber} START frame`,
-    });
+  // ─────────────────────────────────────────────────────────────────────────────
+  // IMAGE-REFERENCE MODE: Generate single start frame only (no end frame)
+  // ─────────────────────────────────────────────────────────────────────────────
 
-    totalCost += startResult.cost;
-
-    if (startResult.error) {
+  if (isImageReference) {
+    // Check if image already exists (smart partial generation)
+    if (existingStartFrameUrl) {
+      console.log(`[video-image-generator] Shot ${shotNumber}: Using existing start frame (skipping generation)`);
       return {
         shotId,
-        error: `Start frame generation failed: ${startResult.error}`,
-        cost: totalCost,
+        startFrameUrl: existingStartFrameUrl,
+        imageUrl: existingStartFrameUrl,  // Also set imageUrl for compatibility
+        // No endFrameUrl for image-reference mode
+        width: dimensions.width,
+        height: dimensions.height,
+        cost: 0,  // No cost since we're reusing existing
       };
     }
 
-    startFrameUrl = startResult.imageUrl;
-    console.log(`[video-image-generator] Shot ${shotNumber}: Start frame generated`);
-  } else {
+    if (!startFramePrompt) {
+      return {
+        shotId,
+        error: "Missing startFramePrompt for image-reference mode",
+      };
+    }
+
+    const result = await generateSingleImage(startFramePrompt, {
+      ...baseOptions,
+      taskLabel: `Shot ${shotNumber} start frame (image-reference)`,
+    });
+
+    if (result.error) {
+      return {
+        shotId,
+        error: result.error,
+        cost: result.cost,
+      };
+    }
+
+    console.log(`[video-image-generator] Shot ${shotNumber}: Start frame generated (image-reference mode)`);
+
     return {
       shotId,
-      error: "Missing startFramePrompt for video-animation mode",
+      startFrameUrl: result.imageUrl,
+      imageUrl: result.imageUrl,  // Also set imageUrl for compatibility (some UI code may check for it)
+      // No endFrameUrl for image-reference mode
+      width: dimensions.width,
+      height: dimensions.height,
+      cost: result.cost,
     };
   }
 
-  // Small delay between generations
-  await sleep(CONFIG.SEQUENTIAL_DELAY_MS);
+  // ─────────────────────────────────────────────────────────────────────────────
+  // START-END FRAME MODE: Generate start and end frames (or use existing)
+  // ─────────────────────────────────────────────────────────────────────────────
 
-  // Step 2: Generate END frame using START frame as reference
-  if (endFramePrompt) {
-    const endResult = await generateSingleImage(endFramePrompt, {
-      ...baseOptions,
-      referenceImageUrl: startFrameUrl, // Use start frame as reference for visual consistency
-      taskLabel: `Shot ${shotNumber} END frame`,
-    });
+  if (isStartEndFrame) {
+    let startFrameUrl: string | undefined;
+    let endFrameUrl: string | undefined;
+    let startFrameInherited = false;
 
-    totalCost += endResult.cost;
+    // Step 1: Get or generate START frame
+    if (existingStartFrameUrl) {
+      // Use existing START frame (smart partial generation)
+      console.log(`[video-image-generator] Shot ${shotNumber}: Using existing start frame (skipping generation)`);
+      startFrameUrl = existingStartFrameUrl;
+    } else if (inheritStartFrame && previousShotEndFrameUrl) {
+      // Inherit START from previous shot's END
+      console.log(`[video-image-generator] Shot ${shotNumber}: Inheriting start frame from previous shot`);
+      startFrameUrl = previousShotEndFrameUrl;
+      startFrameInherited = true;
+    } else if (startFramePrompt) {
+      // Generate START frame
+      const startResult = await generateSingleImage(startFramePrompt, {
+        ...baseOptions,
+        taskLabel: `Shot ${shotNumber} START frame`,
+      });
 
-    if (endResult.error) {
+      totalCost += startResult.cost;
+
+      if (startResult.error) {
+        return {
+          shotId,
+          error: `Start frame generation failed: ${startResult.error}`,
+          cost: totalCost,
+        };
+      }
+
+      startFrameUrl = startResult.imageUrl;
+      console.log(`[video-image-generator] Shot ${shotNumber}: Start frame generated`);
+    } else {
       return {
         shotId,
-        startFrameUrl, // Return start even if end failed
+        error: "Missing startFramePrompt for start-end-frame mode",
+      };
+    }
+
+    // Small delay between generations (only if we generated start frame)
+    if (!existingStartFrameUrl && !inheritStartFrame) {
+      await sleep(CONFIG.SEQUENTIAL_DELAY_MS);
+    }
+
+    // Step 2: Generate END frame using START frame as reference (or use existing)
+    if (existingEndFrameUrl) {
+      // Use existing END frame (smart partial generation)
+      console.log(`[video-image-generator] Shot ${shotNumber}: Using existing end frame (skipping generation)`);
+      endFrameUrl = existingEndFrameUrl;
+    } else if (endFramePrompt) {
+      const endResult = await generateSingleImage(endFramePrompt, {
+        ...baseOptions,
+        referenceImageUrl: startFrameUrl, // Use start frame as reference for visual consistency
+        taskLabel: `Shot ${shotNumber} END frame`,
+      });
+
+      totalCost += endResult.cost;
+
+      if (endResult.error) {
+        return {
+          shotId,
+          startFrameUrl, // Return start even if end failed
+          startFrameInherited,
+          error: `End frame generation failed: ${endResult.error}`,
+          cost: totalCost,
+        };
+      }
+
+      endFrameUrl = endResult.imageUrl;
+      console.log(`[video-image-generator] Shot ${shotNumber}: End frame generated`);
+    } else {
+      return {
+        shotId,
+        startFrameUrl,
         startFrameInherited,
-        error: `End frame generation failed: ${endResult.error}`,
+        error: "Missing endFramePrompt for start-end-frame mode",
         cost: totalCost,
       };
     }
 
-    endFrameUrl = endResult.imageUrl;
-    console.log(`[video-image-generator] Shot ${shotNumber}: End frame generated`);
-  } else {
+    console.log(`[video-image-generator] Shot ${shotNumber}: Complete ✓`, {
+      startFrameInherited,
+      hasStartFrame: !!startFrameUrl,
+      hasEndFrame: !!endFrameUrl,
+      totalCost,
+    });
+
     return {
       shotId,
       startFrameUrl,
+      endFrameUrl,
       startFrameInherited,
-      error: "Missing endFramePrompt for video-animation mode",
+      width: dimensions.width,
+      height: dimensions.height,
       cost: totalCost,
     };
   }
 
-  console.log(`[video-image-generator] Shot ${shotNumber}: Complete ✓`, {
-    startFrameInherited,
-    hasStartFrame: !!startFrameUrl,
-    hasEndFrame: !!endFrameUrl,
-    totalCost,
-  });
-
+  // Fallback: If neither image-reference nor start-end-frame, return error
   return {
     shotId,
-    startFrameUrl,
-    endFrameUrl,
-    startFrameInherited,
-    width: dimensions.width,
-    height: dimensions.height,
-    cost: totalCost,
+    error: `Unsupported video generation mode: ${input.videoGenerationMode}`,
   };
 }
 

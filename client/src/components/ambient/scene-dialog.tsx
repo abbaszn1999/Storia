@@ -89,10 +89,14 @@ export function SceneDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] bg-[#0a0a0a] border-white/[0.06] text-white">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Segment" : "Add Segment"}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-white flex items-center gap-2">
+            <span className="bg-gradient-to-r from-cyan-400 to-teal-400 bg-clip-text text-transparent">
+              {isEdit ? "Edit Segment" : "Add Segment"}
+            </span>
+          </DialogTitle>
+          <DialogDescription className="text-white/60">
             {isEdit ? "Update segment details" : "Create a new visual segment for your ambient video"}
           </DialogDescription>
         </DialogHeader>
@@ -104,10 +108,11 @@ export function SceneDialog({
               name="sceneNumber"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Segment Number</FormLabel>
+                  <FormLabel className="text-white/80">Segment Number</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
+                      className="bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-cyan-500/50 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                       {...field}
                       onChange={(e) => field.onChange(parseInt(e.target.value))}
                       data-testid="input-scene-number"
@@ -123,9 +128,14 @@ export function SceneDialog({
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Title</FormLabel>
+                  <FormLabel className="text-white/80">Title</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Segment title (e.g., Morning Mist)" data-testid="input-scene-title" />
+                    <Input 
+                      {...field} 
+                      placeholder="Segment title (e.g., Morning Mist)" 
+                      className="bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-cyan-500/50 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                      data-testid="input-scene-title" 
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -137,12 +147,12 @@ export function SceneDialog({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Atmosphere Description</FormLabel>
+                  <FormLabel className="text-white/80">Atmosphere Description</FormLabel>
                   <FormControl>
                     <Textarea
                       {...field}
                       placeholder="Describe the visual atmosphere of this segment..."
-                      className="resize-none"
+                      className="resize-none bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-cyan-500/50 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                       rows={3}
                       data-testid="input-scene-description"
                     />
@@ -157,12 +167,13 @@ export function SceneDialog({
               name="duration"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Duration (seconds)</FormLabel>
+                  <FormLabel className="text-white/80">Duration (seconds)</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
                       min={10}
                       max={120}
+                      className="bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-cyan-500/50 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                       {...field}
                       onChange={(e) => field.onChange(parseInt(e.target.value))}
                       data-testid="input-scene-duration"
@@ -179,11 +190,17 @@ export function SceneDialog({
                 variant="outline"
                 onClick={() => onOpenChange(false)}
                 disabled={isPending}
+                className="bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20"
                 data-testid="button-cancel-scene"
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isPending} data-testid="button-save-scene">
+              <Button 
+                type="submit" 
+                disabled={isPending} 
+                className="bg-gradient-to-r from-cyan-500 via-teal-500 to-blue-500 hover:opacity-90 text-white border-0"
+                data-testid="button-save-scene"
+              >
                 {isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

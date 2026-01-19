@@ -367,7 +367,6 @@ router.post('/atmosphere/generate', isAuthenticated, async (req: Request, res: R
       videoResolution: allSettings.videoResolution,
       motionPrompt: allSettings.motionPrompt,
       transitionStyle: allSettings.transitionStyle,
-      cameraMotion: allSettings.cameraMotion,
       
       // Pacing & Flow
       pacing: allSettings.pacing,
@@ -424,7 +423,7 @@ router.post('/atmosphere/generate', isAuthenticated, async (req: Request, res: R
       shotLoopCount: allSettings.shotLoopCount,
       
       // User's manual text (1 field)
-      userPrompt: allSettings.moodDescription || undefined,
+      userPrompt: allSettings.userStory || undefined,
     };
 
     // Step 3: Generate mood description using AI
@@ -501,7 +500,6 @@ router.patch('/videos/:id/step/1/continue', isAuthenticated, async (req: Request
       videoResolution: allSettings.videoResolution,
       motionPrompt: allSettings.motionPrompt,
       transitionStyle: allSettings.transitionStyle,
-      cameraMotion: allSettings.cameraMotion,
       
       // Pacing & Flow
       pacing: allSettings.pacing,
@@ -1160,7 +1158,6 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
           ...scene,
           imageModel: scene.imageModel || step1Data.imageModel,
           videoModel: scene.videoModel || step1Data.videoModel,
-          cameraMotion: scene.cameraMotion || step1Data.cameraMotion,
         })),
         shots: cleanedExistingShots || Object.fromEntries(
           Object.entries(step3Data.shots).map(([sceneId, sceneShots]) => [
@@ -1202,7 +1199,6 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
         ...scene,
         imageModel: scene.imageModel || step1Data.imageModel,
         videoModel: scene.videoModel || step1Data.videoModel,
-        cameraMotion: scene.cameraMotion || step1Data.cameraMotion,
       }));
       shots = Object.fromEntries(
         Object.entries(step3Data.shots).map(([sceneId, sceneShots]) => [
@@ -1335,7 +1331,6 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
             animationMode: step1Data.animationMode,  // Use actual animation mode
             videoGenerationMode: step1Data.videoGenerationMode,
             motionPrompt: step1Data.motionPrompt,
-            cameraMotion: step1Data.cameraMotion,
             isFirstInGroup,
             isConnectedShot,
             previousShotEndFramePrompt,  // Pass to AI for context (video-animation only)
@@ -1347,6 +1342,10 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
           // Create version based on animation mode
           const versionId = `version-${Date.now()}-${shot.id.slice(-8)}`;
           const isImageTransitions = step1Data.animationMode === 'image-transitions';
+          const isImageReference = step1Data.animationMode === 'video-animation' && 
+                                   step1Data.videoGenerationMode === 'image-reference';
+          const isStartEndFrame = step1Data.animationMode === 'video-animation' && 
+                                  step1Data.videoGenerationMode === 'start-end-frame';
           
           let shotVersion: ShotVersion;
           
@@ -1361,8 +1360,21 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
               needsRerender: false,
               createdAt: new Date(),
             };
-          } else {
-            // Video Animation mode: startFramePrompt, endFramePrompt, videoPrompt
+          } else if (isImageReference) {
+            // Image-Reference mode: startFramePrompt + videoPrompt only (no endFramePrompt)
+            shotVersion = {
+              id: versionId,
+              shotId: shot.id,
+              versionNumber: 1,
+              startFramePrompt: result.startFramePrompt,
+              videoPrompt: result.videoPrompt,
+              // No endFramePrompt for image-reference mode
+              status: 'prompt_generated',
+              needsRerender: false,
+              createdAt: new Date(),
+            };
+          } else if (isStartEndFrame) {
+            // Start-End Frame mode: startFramePrompt, endFramePrompt, videoPrompt
             // For connected shots (not first): Agent 4.1 generates endFramePrompt + videoPrompt (start is inherited)
             // Store end frame prompt for potential inheritance by next shot
             if (result.endFramePrompt) {
@@ -1388,6 +1400,20 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
               needsRerender: false,
               createdAt: new Date(),
             };
+          } else {
+            // Fallback: should not happen, but handle gracefully
+            console.warn(`[ambient-visual:routes] Unknown mode combination for shot ${shot.id}:`, {
+              animationMode: step1Data.animationMode,
+              videoGenerationMode: step1Data.videoGenerationMode,
+            });
+            shotVersion = {
+              id: versionId,
+              shotId: shot.id,
+              versionNumber: 1,
+              status: 'prompt_generated',
+              needsRerender: false,
+              createdAt: new Date(),
+            };
           }
 
           step4Data.shotVersions[shot.id] = [shotVersion];
@@ -1401,10 +1427,14 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
             shotNumber: shot.shotNumber,
             sceneTitle: scene.title,
             animationMode: step1Data.animationMode,
+            videoGenerationMode: step1Data.videoGenerationMode,
+            isImageReference,
             isConnectedShot: isImageTransitions ? 'N/A' : isConnectedShot,
             isFirstInGroup: isImageTransitions ? 'N/A' : isFirstInGroup,
-            startFrameInherited: isImageTransitions ? 'N/A' : shotVersion.startFrameInherited,
-            generatedFieldsOnly: isImageTransitions ? 'imagePrompt' : (isConnectedShot && !isFirstInGroup ? 'endFramePrompt + videoPrompt' : 'all 3'),
+            startFrameInherited: isImageTransitions || isImageReference ? 'N/A' : shotVersion.startFrameInherited,
+            generatedFields: isImageTransitions ? 'imagePrompt' : 
+                           (isImageReference ? 'startFramePrompt + videoPrompt' :
+                           (isConnectedShot && !isFirstInGroup ? 'endFramePrompt + videoPrompt' : 'all 3')),
             cost: result.cost,
           });
 
@@ -1525,6 +1555,8 @@ router.post('/videos/:id/generate-all-images', isAuthenticated, async (req: Requ
       groupId?: string;
       isFirstInGroup?: boolean;
       previousShotId?: string;
+      existingStartFrameUrl?: string;
+      existingEndFrameUrl?: string;
     }> = [];
 
     // Create versionId map for result merging
@@ -1546,16 +1578,40 @@ router.post('/videos/:id/generate-all-images', isAuthenticated, async (req: Requ
 
         const latestVersion = versions[versions.length - 1];
         
-        // Skip shots that already have images generated
+        // Check if shot needs image generation (smart partial generation)
         const isImageTransitionsMode = step1Data.animationMode === 'image-transitions';
-        const hasExistingImage = isImageTransitionsMode
-          ? !!latestVersion.imageUrl
-          : (!!latestVersion.startFrameUrl && !!latestVersion.endFrameUrl);
+        const isImageReferenceMode = step1Data.animationMode === 'video-animation' && 
+                                     step1Data.videoGenerationMode === 'image-reference';
+        const isStartEndFrameMode = step1Data.animationMode === 'video-animation' && 
+                                   step1Data.videoGenerationMode === 'start-end-frame';
         
-        if (hasExistingImage) {
-          console.log(`[ambient-visual:routes] Skipping shot ${shot.id} - already has images`);
+        let needsImageGeneration: boolean;
+        if (isImageTransitionsMode) {
+          // Image transitions mode: needs imageUrl
+          needsImageGeneration = !latestVersion.imageUrl;
+        } else if (isImageReferenceMode) {
+          // Image-reference mode: only needs startFrameUrl (no end frame)
+          needsImageGeneration = !latestVersion.startFrameUrl;
+        } else if (isStartEndFrameMode) {
+          // Start-end frame mode: needs both startFrameUrl and endFrameUrl
+          needsImageGeneration = !latestVersion.startFrameUrl || !latestVersion.endFrameUrl;
+        } else {
+          // Fallback: check for startFrameUrl (shouldn't happen with proper mode)
+          needsImageGeneration = !latestVersion.startFrameUrl;
+        }
+        
+        if (!needsImageGeneration) {
+          console.log(`[ambient-visual:routes] Skipping shot ${shot.id} - all required images already exist`);
           skippedCount++;
           continue;
+        }
+        
+        // Log what needs to be generated
+        if (!isImageTransitionsMode) {
+          const missingFrames = [];
+          if (!latestVersion.startFrameUrl) missingFrames.push('start');
+          if (!latestVersion.endFrameUrl) missingFrames.push('end');
+          console.log(`[ambient-visual:routes] Shot ${shot.id} missing frames: ${missingFrames.join(', ')}`);
         }
         
         versionIdMap.set(shot.id, latestVersion.id);
@@ -1572,6 +1628,9 @@ router.post('/videos/:id/generate-all-images', isAuthenticated, async (req: Requ
           imagePrompt: latestVersion.imagePrompt || undefined,
           startFramePrompt: latestVersion.startFramePrompt || undefined,
           endFramePrompt: latestVersion.endFramePrompt || undefined,
+          // NEW: Pass existing frame URLs so agent can skip regeneration
+          existingStartFrameUrl: latestVersion.startFrameUrl || undefined,
+          existingEndFrameUrl: latestVersion.endFrameUrl || undefined,
         });
       }
     }
@@ -1776,7 +1835,7 @@ router.patch('/videos/:id/step/4/continue-to-5', isAuthenticated, async (req: Re
       return res.status(404).json({ error: 'Video not found' });
     }
 
-    // Verify all videos are generated
+    // Verify all videos/images are generated (depends on animation mode)
     const step4Data = video.step4Data as Step4Data;
     if (!step4Data || !step4Data.shotVersions) {
       return res.status(400).json({ 
@@ -1784,7 +1843,8 @@ router.patch('/videos/:id/step/4/continue-to-5', isAuthenticated, async (req: Re
       });
     }
 
-    // Check if all shots have videos
+    // Check if all shots have required media based on animation mode
+    const step1Data = video.step1Data as Step1Data;
     const step3Data = video.step3Data as Step3Data;
     if (!step3Data || !step3Data.shots) {
       return res.status(400).json({ 
@@ -1792,20 +1852,41 @@ router.patch('/videos/:id/step/4/continue-to-5', isAuthenticated, async (req: Re
       });
     }
 
+    const isImageTransitionsMode = step1Data?.animationMode === 'image-transitions';
     const allShots = Object.values(step3Data.shots).flat();
-    const shotsWithoutVideo = allShots.filter(shot => {
-      const versions = step4Data.shotVersions[shot.id] || [];
-      const latestVersion = versions[versions.length - 1];
-      const hasVideo = latestVersion?.videoUrl && 
-                       typeof latestVersion.videoUrl === 'string' && 
-                       latestVersion.videoUrl.trim().length > 0;
-      return !hasVideo;
-    });
-
-    if (shotsWithoutVideo.length > 0) {
-      return res.status(400).json({ 
-        error: `Cannot continue: ${shotsWithoutVideo.length} shot(s) still need video generation.` 
+    
+    if (isImageTransitionsMode) {
+      // IMAGE-TRANSITIONS MODE: Check all shots have images
+      const shotsWithoutImage = allShots.filter(shot => {
+        const versions = step4Data.shotVersions[shot.id] || [];
+        const latestVersion = versions[versions.length - 1];
+        const hasImage = latestVersion?.imageUrl && 
+                         typeof latestVersion.imageUrl === 'string' && 
+                         latestVersion.imageUrl.trim().length > 0;
+        return !hasImage;
       });
+
+      if (shotsWithoutImage.length > 0) {
+        return res.status(400).json({ 
+          error: `Cannot continue: ${shotsWithoutImage.length} shot(s) still need image generation.` 
+        });
+      }
+    } else {
+      // VIDEO-ANIMATION MODE: Check all shots have videos
+      const shotsWithoutVideo = allShots.filter(shot => {
+        const versions = step4Data.shotVersions[shot.id] || [];
+        const latestVersion = versions[versions.length - 1];
+        const hasVideo = latestVersion?.videoUrl && 
+                         typeof latestVersion.videoUrl === 'string' && 
+                         latestVersion.videoUrl.trim().length > 0;
+        return !hasVideo;
+      });
+
+      if (shotsWithoutVideo.length > 0) {
+        return res.status(400).json({ 
+          error: `Cannot continue: ${shotsWithoutVideo.length} shot(s) still need video generation.` 
+        });
+      }
     }
 
     // Preserve existing step5Data - ONLY initialize loop data if not already present
@@ -2329,9 +2410,18 @@ router.post('/videos/:id/voiceover/generate-script', isAuthenticated, async (req
     );
 
     // Update step5Data with the generated script
-    const existingStep5Data = video.step5Data as Step5Data || {};
+    // IMPORTANT: Fetch fresh video data to avoid overwriting concurrent updates (e.g., music generation)
+    const freshVideo = await storage.getVideo(id);
+    const existingStep5Data = (freshVideo?.step5Data as Step5Data) || {};
+    
+    console.log('[ambient-visual:routes] Updating voiceover script - preserving existing step5Data:', {
+      hasGeneratedMusicUrl: !!existingStep5Data.generatedMusicUrl,
+      hasScenesWithLoops: !!existingStep5Data.scenesWithLoops,
+      hasShotsWithLoops: !!existingStep5Data.shotsWithLoops,
+    });
+    
     const updatedStep5Data: Step5Data = {
-      ...existingStep5Data,
+      ...existingStep5Data,  // Preserve all existing fields (music, loops, etc.)
       voiceoverScript: result.script,
       voiceoverStatus: 'script_generated',
     };
@@ -2437,8 +2527,18 @@ router.post('/videos/:id/voiceover/generate-audio', isAuthenticated, async (req:
     const result = await generateVoiceoverAudio(input);
 
     // Update step5Data with the generated audio
+    // IMPORTANT: Fetch fresh video data to avoid overwriting concurrent updates (e.g., music generation)
+    const freshVideo = await storage.getVideo(id);
+    const freshStep5Data = (freshVideo?.step5Data as Step5Data) || {};
+    
+    console.log('[ambient-visual:routes] Updating voiceover audio - preserving existing step5Data:', {
+      hasGeneratedMusicUrl: !!freshStep5Data.generatedMusicUrl,
+      hasScenesWithLoops: !!freshStep5Data.scenesWithLoops,
+      hasShotsWithLoops: !!freshStep5Data.shotsWithLoops,
+    });
+    
     const updatedStep5Data: Step5Data = {
-      ...step5Data,
+      ...freshStep5Data,  // Preserve all existing fields (music, loops, etc.)
       voiceoverScript: scriptToUse,  // Save the final script used
       voiceoverAudioUrl: result.audioUrl,
       voiceoverDuration: result.duration,
@@ -2927,18 +3027,43 @@ router.patch('/videos/:id/step/5/continue-to-6', isAuthenticated, async (req: Re
     const scenesSource = step5Data?.scenesWithLoops || step3Data.scenes;
     const shotsSource = step5Data?.shotsWithLoops || step3Data.shots;
 
-    // Validate all shots have videos
+    // Validate all shots have required media based on animation mode
+    const isImageTransitionsMode = step1Data?.animationMode === 'image-transitions';
     const allShots = Object.values(shotsSource).flat();
-    const shotsWithoutVideo = allShots.filter(shot => {
-      const versions = step4Data.shotVersions[shot.id] || [];
-      const latestVersion = versions[versions.length - 1];
-      return !latestVersion?.videoUrl;
-    });
-
-    if (shotsWithoutVideo.length > 0) {
-      return res.status(400).json({
-        error: `Cannot continue: ${shotsWithoutVideo.length} shot(s) still need video generation.`,
+    
+    if (isImageTransitionsMode) {
+      // IMAGE-TRANSITIONS MODE: Check all shots have images
+      // Use imageUrl if available, fallback to startFrameUrl for backward compatibility
+      const shotsWithoutImage = allShots.filter(shot => {
+        const versions = step4Data.shotVersions[shot.id] || [];
+        const latestVersion = versions[versions.length - 1];
+        const hasImage = (latestVersion?.imageUrl || latestVersion?.startFrameUrl) && 
+                         typeof (latestVersion?.imageUrl || latestVersion?.startFrameUrl) === 'string' && 
+                         (latestVersion?.imageUrl || latestVersion?.startFrameUrl)!.trim().length > 0;
+        return !hasImage;
       });
+
+      if (shotsWithoutImage.length > 0) {
+        return res.status(400).json({
+          error: `Cannot continue: ${shotsWithoutImage.length} shot(s) still need image generation.`,
+        });
+      }
+    } else {
+      // VIDEO-ANIMATION MODE: Check all shots have videos
+      const shotsWithoutVideo = allShots.filter(shot => {
+        const versions = step4Data.shotVersions[shot.id] || [];
+        const latestVersion = versions[versions.length - 1];
+        const hasVideo = latestVersion?.videoUrl && 
+                         typeof latestVersion.videoUrl === 'string' && 
+                         latestVersion.videoUrl.trim().length > 0;
+        return !hasVideo;
+      });
+
+      if (shotsWithoutVideo.length > 0) {
+        return res.status(400).json({
+          error: `Cannot continue: ${shotsWithoutVideo.length} shot(s) still need video generation.`,
+        });
+      }
     }
 
     // Build timeline scenes
@@ -2958,6 +3083,12 @@ router.patch('/videos/:id/step/5/continue-to-6', isAuthenticated, async (req: Re
       timelineShots[sceneId] = (sceneShots as Shot[]).map((shot, index) => {
         const versions = step4Data.shotVersions[shot.id] || [];
         const latestVersion = versions[versions.length - 1];
+        
+        // For image-transitions mode: use imageUrl, or fallback to startFrameUrl for backward compatibility
+        const imageUrl = isImageTransitionsMode
+          ? (latestVersion?.imageUrl || latestVersion?.startFrameUrl || null)
+          : null;
+        
         return {
           id: shot.id,
           sceneId,
@@ -2966,6 +3097,8 @@ router.patch('/videos/:id/step/5/continue-to-6', isAuthenticated, async (req: Re
           loopCount: shot.loopCount ?? 1,
           transition: shot.transition,
           videoUrl: latestVersion?.videoUrl || null,
+          imageUrl: imageUrl,  // Use imageUrl for image-transitions mode (with fallback)
+          cameraMovement: shot.cameraMovement,  // Add camera movement for image-transitions mode
           order: index,
         };
       });

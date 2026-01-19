@@ -242,6 +242,9 @@ export async function generateAllShotImages(
       isConnectedShot: !!continuityInfo?.groupId,
       previousShotEndFrameUrl,
       inheritStartFrame,
+      // NEW: Pass existing frames for smart partial generation
+      existingStartFrameUrl: shot.existingStartFrameUrl,
+      existingEndFrameUrl: shot.existingEndFrameUrl,
     };
 
     // Generate images for this shot

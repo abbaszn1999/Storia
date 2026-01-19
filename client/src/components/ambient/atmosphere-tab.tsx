@@ -232,17 +232,6 @@ const TRANSITION_STYLES = [
   { id: "wipe", label: "Soft Wipe", description: "Directional reveal" },
 ];
 
-const CAMERA_MOTIONS = [
-  { id: "auto", label: "Auto" },
-  { id: "static", label: "Static" },
-  { id: "slow-pan", label: "Slow Pan" },
-  { id: "gentle-drift", label: "Gentle Drift" },
-  { id: "orbit", label: "Orbit" },
-  { id: "push-in", label: "Push In" },
-  { id: "pull-out", label: "Pull Out" },
-  { id: "float", label: "Floating" },
-];
-
 /**
  * Get compatible aspect ratios based on selected image and video models
  * For Image Transitions mode: returns image model's aspect ratios
@@ -299,9 +288,8 @@ interface AtmosphereTabProps {
   videoModel?: string;
   videoResolution?: string;
   motionPrompt?: string;
-  // Transition/Camera Motion (moved from Flow Design)
+  // Transition Style (moved from Flow Design)
   transitionStyle?: string;
-  cameraMotion?: string;
   // Pacing & Segment Settings (moved from Flow Design)
   pacing?: number;
   segmentEnabled?: boolean;
@@ -340,7 +328,6 @@ interface AtmosphereTabProps {
   onVideoResolutionChange?: (resolution: string) => void;
   onMotionPromptChange?: (prompt: string) => void;
   onTransitionStyleChange?: (style: string) => void;
-  onCameraMotionChange?: (motion: string) => void;
   onPacingChange?: (pacing: number) => void;
   onSegmentEnabledChange?: (enabled: boolean) => void;
   onSegmentCountChange?: (count: 'auto' | number) => void;
@@ -382,7 +369,6 @@ export function AtmosphereTab({
   videoResolution = getDefaultVideoModel().resolutions[0] || '720p',
   motionPrompt = '',
   transitionStyle = 'crossfade',
-  cameraMotion = 'slow-pan',
   pacing = 30,
   segmentEnabled = true,
   segmentCount = 'auto',
@@ -417,7 +403,6 @@ export function AtmosphereTab({
   onVideoResolutionChange,
   onMotionPromptChange,
   onTransitionStyleChange,
-  onCameraMotionChange,
   onPacingChange,
   onSegmentEnabledChange,
   onSegmentCountChange,
@@ -643,7 +628,6 @@ export function AtmosphereTab({
         // Animation style settings
         defaultEasingStyle,
         transitionStyle,
-        cameraMotion,
         // Pacing & Flow
         pacing,
         segmentEnabled,
@@ -717,7 +701,7 @@ export function AtmosphereTab({
         )}
       >
         {/* Scrollable Content */}
-        <ScrollArea className="flex-1 h-full">
+        <ScrollArea className="flex-1 h-full" viewportClassName="bg-transparent">
           <div className="p-6 space-y-6 pb-12">
             {/* Animation Mode - First setting at the top */}
             <Card className="bg-white/[0.02] border-white/[0.06]">
@@ -1491,59 +1475,34 @@ export function AtmosphereTab({
               </CardContent>
             </Card>
 
-            {/* Transition Style OR Camera Motion (Conditional based on Animation Mode) */}
+            {/* Transition Style (Conditional - only show for image-transitions) */}
+            {animationMode === 'image-transitions' && (
             <Card className="bg-white/[0.02] border-white/[0.06]">
               <CardContent className="p-6 space-y-4">
-                {animationMode === 'image-transitions' ? (
-                  <>
-                    <Label className="text-lg font-semibold text-white">Transition Style</Label>
-                    <p className="text-xs text-white/50">
-                      How should images transition between each other?
-                    </p>
-                    <div className="grid grid-cols-2 gap-3">
-                      {TRANSITION_STYLES.map((style) => (
-                        <button
-                          key={style.id}
-                          onClick={() => onTransitionStyleChange?.(style.id)}
-                          className={cn(
-                            "p-3 rounded-lg border text-left transition-all",
-                            transitionStyle === style.id
-                              ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50"
-                              : "bg-white/5 border-white/10 hover:bg-white/10"
-                          )}
-                        >
-                          <div className="font-medium text-sm text-white">{style.label}</div>
-                          <div className="text-xs text-white/50">{style.description}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <Label className="text-lg font-semibold text-white">Camera Motion</Label>
-                    <p className="text-xs text-white/50">
-                      Default camera movement for AI-generated video clips
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {CAMERA_MOTIONS.map((motion) => (
-                        <button
-                          key={motion.id}
-                          onClick={() => onCameraMotionChange?.(motion.id)}
-                          className={cn(
-                            "px-4 py-2 rounded-lg border text-sm transition-all",
-                            cameraMotion === motion.id
-                              ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50 text-white"
-                              : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70"
-                          )}
-                        >
-                          {motion.label}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
+                <Label className="text-lg font-semibold text-white">Transition Style</Label>
+                <p className="text-xs text-white/50">
+                  How should images transition between each other?
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {TRANSITION_STYLES.map((style) => (
+                    <button
+                      key={style.id}
+                      onClick={() => onTransitionStyleChange?.(style.id)}
+                      className={cn(
+                        "p-3 rounded-lg border text-left transition-all",
+                        transitionStyle === style.id
+                          ? "bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border-cyan-500/50"
+                          : "bg-white/5 border-white/10 hover:bg-white/10"
+                      )}
+                    >
+                      <div className="font-medium text-sm text-white">{style.label}</div>
+                      <div className="text-xs text-white/50">{style.description}</div>
+                    </button>
+                  ))}
+                </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Pacing & Loop Settings */}
             <Card className="bg-white/[0.02] border-white/[0.06]">

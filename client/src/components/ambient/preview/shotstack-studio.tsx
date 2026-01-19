@@ -7,12 +7,12 @@
  * - Synchronized audio playback
  */
 
-import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { 
   Loader2, AlertCircle, RefreshCw, Play, Pause, 
   Volume2, VolumeX, Mic, Music, SlidersHorizontal,
-  SkipBack, SkipForward
+  SkipBack, SkipForward, Info
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -29,6 +29,7 @@ interface ShotstackStudioProps {
   className?: string;
   height?: string | number;
   initialVolumes?: { master: number; sfx: number; voiceover: number; music: number } | null;
+  animationMode?: 'image-transitions' | 'video-animation';
 }
 
 interface AudioTrack {
@@ -44,6 +45,7 @@ export const ShotstackStudio = forwardRef<ShotstackStudioRef, ShotstackStudioPro
     className,
     height = '100%',
     initialVolumes,
+    animationMode = 'video-animation',
   }: ShotstackStudioProps, ref) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const sfxRefs = useRef<Map<number, HTMLAudioElement>>(new Map());
@@ -75,59 +77,106 @@ export const ShotstackStudio = forwardRef<ShotstackStudioRef, ShotstackStudioPro
     }, [initialVolumes]);
 
     // Extract clips from template - search by content type, not fixed indices
-    const tracks = template?.timeline?.tracks || [];
-    
-    // Video clips - find first track with video clips
-    const videoTrack = tracks.find(track => 
-      track.clips?.some(clip => clip.asset?.type === 'video')
-    );
-    const videoClips = videoTrack?.clips?.filter(
-      clip => clip.asset?.type === 'video' && clip.asset?.src
-    ).sort((a, b) => (a.start || 0) - (b.start || 0)) || [];
+    // Use useMemo to prevent recalculation on every render
+    const videoClips = useMemo(() => {
+      const tracks = template?.timeline?.tracks || [];
+      
+      console.log('[ShotstackStudio] Template received:', {
+        hasTemplate: !!template,
+        trackCount: tracks.length,
+        tracks: tracks.map((t, i) => ({
+          index: i,
+          clipCount: t.clips?.length || 0,
+          clipTypes: t.clips?.map(c => c.asset?.type).join(', '),
+        })),
+      });
+      
+      // Video/Image clips - find first track with video OR image clips (for image-transitions mode)
+      const videoTrack = tracks.find(track => 
+        track.clips?.some(clip => 
+          clip.asset?.type === 'video' || clip.asset?.type === 'image'
+        )
+      );
+      const clips = videoTrack?.clips?.filter(
+        clip => (clip.asset?.type === 'video' || clip.asset?.type === 'image') && clip.asset?.src
+      ).sort((a, b) => (a.start || 0) - (b.start || 0)) || [];
+      
+      console.log('[ShotstackStudio] Extracted clips:', {
+        trackCount: tracks.length,
+        videoClipCount: clips.filter(c => c.asset?.type === 'video').length,
+        imageClipCount: clips.filter(c => c.asset?.type === 'image').length,
+        totalClips: clips.length,
+        firstClipType: clips[0]?.asset?.type,
+        firstClipStart: clips[0]?.start,
+        firstClipLength: clips[0]?.length,
+        firstClipSrc: clips[0]?.asset?.src ? (clips[0].asset.src as string).substring(0, 60) + '...' : null,
+      });
+      
+      return clips;
+    }, [template]);
 
-    // SFX clips - find audio track with multiple clips (sfx are per-shot)
-    const sfxTrack = tracks.find(track => {
-      const audioClips = track.clips?.filter(clip => clip.asset?.type === 'audio');
-      return audioClips && audioClips.length > 1;
-    });
-    const sfxClips = sfxTrack?.clips?.filter(
-      clip => clip.asset?.type === 'audio' && clip.asset?.src
-    ).sort((a, b) => (a.start || 0) - (b.start || 0)) || [];
+    // SFX clips and audio tracks
+    const { sfxClips, voiceoverUrl, musicUrl } = useMemo(() => {
+      const tracks = template?.timeline?.tracks || [];
+      
+      // SFX clips - find audio track with multiple clips (sfx are per-shot)
+      const sfxTrack = tracks.find(track => {
+        const audioClips = track.clips?.filter(clip => clip.asset?.type === 'audio');
+        return audioClips && audioClips.length > 1;
+      });
+      const sfx = sfxTrack?.clips?.filter(
+        clip => clip.asset?.type === 'audio' && clip.asset?.src
+      ).sort((a, b) => (a.start || 0) - (b.start || 0)) || [];
 
-    // Voiceover - find audio track with single clip containing 'voiceover' in URL or at start=0
-    // and without 'music' in URL
-    const voiceoverTrack = tracks.find(track => {
-      const audioClips = track.clips?.filter(clip => clip.asset?.type === 'audio');
-      if (!audioClips || audioClips.length !== 1) return false;
-      const src = audioClips[0]?.asset?.src as string || '';
-      // Voiceover URLs typically contain 'voice' or 'voiceover'
-      return src.includes('Voice-Over') || src.includes('voiceover') || 
-             (src.includes('Voice') && !src.includes('Music'));
-    });
-    const voiceoverUrl = voiceoverTrack?.clips?.[0]?.asset?.src as string | undefined;
+      // Voiceover - find audio track with single clip containing 'voiceover' in URL or at start=0
+      // and without 'music' in URL
+      const voiceoverTrack = tracks.find(track => {
+        const audioClips = track.clips?.filter(clip => clip.asset?.type === 'audio');
+        if (!audioClips || audioClips.length !== 1) return false;
+        const src = audioClips[0]?.asset?.src as string || '';
+        // Voiceover URLs typically contain 'voice' or 'voiceover'
+        return src.includes('Voice-Over') || src.includes('voiceover') || 
+               (src.includes('Voice') && !src.includes('Music'));
+      });
+      const vo = voiceoverTrack?.clips?.[0]?.asset?.src as string | undefined;
 
-    // Music - find audio track with single clip containing 'music' in URL
-    const musicTrack = tracks.find(track => {
-      const audioClips = track.clips?.filter(clip => clip.asset?.type === 'audio');
-      if (!audioClips || audioClips.length !== 1) return false;
-      const src = audioClips[0]?.asset?.src as string || '';
-      // Music URLs typically contain 'music' or 'Background-Music'
-      return src.includes('Music') || src.includes('music') || src.includes('generated_music');
-    });
-    const musicUrl = musicTrack?.clips?.[0]?.asset?.src as string | undefined;
-    
-    console.log('[ShotstackStudio] Extracted audio tracks:', {
-      trackCount: tracks.length,
-      videoClipCount: videoClips.length,
-      sfxClipCount: sfxClips.length,
-      hasVoiceover: !!voiceoverUrl,
-      hasMusic: !!musicUrl,
-      voiceoverUrl,
-      musicUrl,
-    });
+      // Music - find audio track with single clip containing 'music' in URL
+      const musicTrack = tracks.find(track => {
+        const audioClips = track.clips?.filter(clip => clip.asset?.type === 'audio');
+        if (!audioClips || audioClips.length !== 1) return false;
+        const src = audioClips[0]?.asset?.src as string || '';
+        // Music URLs typically contain 'music' or 'Background-Music'
+        return src.includes('Music') || src.includes('music') || src.includes('generated_music');
+      });
+      const music = musicTrack?.clips?.[0]?.asset?.src as string | undefined;
+      
+      console.log('[ShotstackStudio] Extracted audio tracks:', {
+        trackCount: tracks.length,
+        videoClipCount: videoClips.length,
+        sfxClipCount: sfx.length,
+        hasVoiceover: !!vo,
+        hasMusic: !!music,
+        voiceoverUrl: vo,
+        musicUrl: music,
+      });
+      
+      return { sfxClips: sfx, voiceoverUrl: vo, musicUrl: music };
+    }, [template, videoClips.length]);
 
     const currentClip = videoClips[currentClipIndex];
-    const currentVideoUrl = currentClip?.asset?.src as string | undefined;
+    const currentMediaUrl = currentClip?.asset?.src as string | undefined;
+    const isImage = currentClip?.asset?.type === 'image';
+    const isVideo = currentClip?.asset?.type === 'video';
+    
+    console.log('[ShotstackStudio] Current media state:', {
+      currentClipIndex,
+      totalClips: videoClips.length,
+      hasCurrentClip: !!currentClip,
+      currentMediaUrl: currentMediaUrl ? currentMediaUrl.substring(0, 60) + '...' : null,
+      isImage,
+      isVideo,
+      isPlaying,
+    });
 
     // Get current edit
     const getCurrentEdit = useCallback((): ShotstackEdit | null => {
@@ -241,13 +290,13 @@ export const ShotstackStudio = forwardRef<ShotstackStudioRef, ShotstackStudioPro
       }
     }, [sfxClips, isPlaying]);
 
-    // Handle video load
+    // Handle media load
     useEffect(() => {
-      if (currentVideoUrl) {
+      if (currentMediaUrl) {
         setIsLoading(true);
         setError(null);
       }
-    }, [currentVideoUrl]);
+    }, [currentMediaUrl]);
 
     const handleLoadedData = useCallback(() => {
       setIsLoading(false);
@@ -255,7 +304,7 @@ export const ShotstackStudio = forwardRef<ShotstackStudioRef, ShotstackStudioPro
     }, []);
 
     const handleError = useCallback(() => {
-      setError('Failed to load video');
+      setError('Failed to load media');
       setIsLoading(false);
     }, []);
 
@@ -289,16 +338,19 @@ export const ShotstackStudio = forwardRef<ShotstackStudioRef, ShotstackStudioPro
     // Play/Pause all media
     const togglePlay = useCallback(() => {
       const video = videoRef.current;
-      if (!video) return;
-
+      
       if (isPlaying) {
-        video.pause();
+        // PAUSE: Works for both images and videos
+        if (video) {
+          video.pause();
+        }
         sfxRefs.current.forEach(audio => audio.pause());
         [voiceoverRef, musicRef].forEach(ref => {
           if (ref.current) ref.current.pause();
         });
         setIsPlaying(false);
       } else {
+        // PLAY: Handle both images and videos
         // Ensure volumes are set BEFORE playing
         const voiceoverVol = isMuted ? 0 : volumes.voiceover * volumes.master;
         const musicVol = isMuted ? 0 : volumes.music * volumes.master;
@@ -308,6 +360,8 @@ export const ShotstackStudio = forwardRef<ShotstackStudioRef, ShotstackStudioPro
           voiceover: voiceoverVol,
           music: musicVol,
           sfx: sfxVol,
+          isImage,
+          isVideo,
         });
         
         // Set volumes before play
@@ -321,8 +375,12 @@ export const ShotstackStudio = forwardRef<ShotstackStudioRef, ShotstackStudioPro
           musicRef.current.volume = musicVol;
         }
         
-        video.play().catch(console.error);
-        // Start voiceover and music
+        // Only try to play video if it's actually a video clip
+        if (video && isVideo) {
+          video.play().catch(console.error);
+        }
+        
+        // Start voiceover and music (for both images and videos)
         if (voiceoverRef.current && voiceoverRef.current.src && voiceoverVol > 0) {
           voiceoverRef.current.play().catch(() => {});
         }
@@ -331,15 +389,98 @@ export const ShotstackStudio = forwardRef<ShotstackStudioRef, ShotstackStudioPro
         }
         setIsPlaying(true);
       }
-    }, [isPlaying, isMuted, volumes]);
+    }, [isPlaying, isMuted, volumes, isImage, isVideo]);
 
-    // Auto-play next clip
+    // For images: simulate video-like playback with timer
+    useEffect(() => {
+      console.log('[ShotstackStudio] Image playback effect triggered:', {
+        isImage,
+        isPlaying,
+        hasCurrentClip: !!currentClip,
+        currentClipIndex,
+        clipLength: currentClip?.length,
+      });
+      
+      if (!isImage || !isPlaying || !currentClip) {
+        console.log('[ShotstackStudio] Image playback skipped - condition not met');
+        return;
+      }
+      
+      console.log('[ShotstackStudio] Starting image playback timer for clip:', currentClipIndex);
+      
+      const startTime = Date.now();
+      const clipLength = currentClip.length || 0;
+      const clipStartTime = videoClips
+        .slice(0, currentClipIndex)
+        .reduce((acc, clip) => acc + (clip.length || 0), 0);
+      
+      let frameCount = 0;
+      const interval = setInterval(() => {
+        const elapsed = (Date.now() - startTime) / 1000; // Convert to seconds
+        const newTime = clipStartTime + elapsed;
+        
+        // Only update display time every 5 frames (250ms) to reduce re-renders
+        frameCount++;
+        if (frameCount % 5 === 0) {
+          setCurrentTime(newTime);
+        }
+        
+        // Sync audio directly without causing re-renders
+        // Access audio refs and voiceover/music refs directly
+        if (voiceoverRef.current && voiceoverRef.current.src) {
+          const voAudio = voiceoverRef.current;
+          if (Math.abs(voAudio.currentTime - newTime) > 0.3) {
+            voAudio.currentTime = newTime;
+          }
+        }
+        
+        if (musicRef.current && musicRef.current.src) {
+          const musicAudio = musicRef.current;
+          if (Math.abs(musicAudio.currentTime - newTime) > 0.3) {
+            musicAudio.currentTime = newTime;
+          }
+        }
+        
+        // Check if clip is finished
+        if (elapsed >= clipLength) {
+          console.log('[ShotstackStudio] Clip finished, advancing...', {
+            elapsed,
+            clipLength,
+            currentClipIndex,
+            totalClips: videoClips.length,
+          });
+          
+          clearInterval(interval);
+          
+          if (currentClipIndex < videoClips.length - 1) {
+            setCurrentClipIndex(prev => prev + 1);
+          } else {
+            console.log('[ShotstackStudio] Reached end of clips, stopping playback');
+            setIsPlaying(false);
+            setCurrentClipIndex(0);
+            setCurrentTime(0);
+            // Pause all audio
+            sfxRefs.current.forEach(audio => audio.pause());
+            [voiceoverRef, musicRef].forEach(ref => {
+              if (ref.current) ref.current.pause();
+            });
+          }
+        }
+      }, 50); // Update 20 times per second
+      
+      return () => {
+        console.log('[ShotstackStudio] Cleaning up image playback timer');
+        clearInterval(interval);
+      };
+    }, [isImage, isPlaying, currentClipIndex, videoClips, voiceoverRef, musicRef, sfxRefs]);
+
+    // Auto-play next clip (for videos)
     useEffect(() => {
       const video = videoRef.current;
-      if (video && isPlaying && currentVideoUrl) {
+      if (video && isPlaying && currentMediaUrl && isVideo) {
         video.play().catch(console.error);
       }
-    }, [currentClipIndex, isPlaying, currentVideoUrl]);
+    }, [currentClipIndex, isPlaying, currentMediaUrl, isVideo]);
 
     // Seek
     const handleSeek = useCallback((value: number[]) => {
@@ -387,14 +528,14 @@ export const ShotstackStudio = forwardRef<ShotstackStudioRef, ShotstackStudioPro
       );
     }
 
-    // No video clips
+    // No video/image clips
     if (videoClips.length === 0) {
       return (
         <div className={cn("flex items-center justify-center bg-black/50 rounded-xl", className)} style={{ height }}>
           <div className="flex flex-col items-center gap-3 text-center p-6">
             <AlertCircle className="w-8 h-8 text-yellow-400" />
-            <p className="text-white/60">No video clips found in timeline</p>
-            <p className="text-xs text-white/40">Generate videos in the Compose phase first</p>
+            <p className="text-white/60">No video or image clips found in timeline</p>
+            <p className="text-xs text-white/40">Generate images or videos in the Compose phase first</p>
           </div>
         </div>
       );
@@ -404,6 +545,19 @@ export const ShotstackStudio = forwardRef<ShotstackStudioRef, ShotstackStudioPro
       <div className={cn("flex gap-4", className)} style={{ height }}>
         {/* Main Video Player */}
         <div className="flex-1 flex flex-col bg-black rounded-xl overflow-hidden">
+          {/* Image Transitions Mode Notice - Above video */}
+          {isImage && !error && !isLoading && (
+            <div className="flex-shrink-0 bg-amber-500/95 text-black px-4 py-2.5 text-sm flex items-start gap-3">
+              <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold mb-0.5">Preview Mode: Static Images</p>
+                <p className="text-xs text-black/80">
+                  Motion effects (zoom, pan, Ken Burns) will be applied in the final exported video.
+                </p>
+              </div>
+            </div>
+          )}
+          
           {/* Video Container */}
           <div className="relative flex-1 bg-black">
             {isLoading && (
@@ -434,18 +588,29 @@ export const ShotstackStudio = forwardRef<ShotstackStudioRef, ShotstackStudioPro
               </div>
             )}
 
-            <video
-              ref={videoRef}
-              src={currentVideoUrl}
-              className="absolute inset-0 w-full h-full object-contain bg-black"
-              onLoadedData={handleLoadedData}
-              onError={handleError}
-              onTimeUpdate={handleTimeUpdate}
-              onEnded={handleEnded}
-              onClick={togglePlay}
-              playsInline
-              muted
-            />
+            {isImage ? (
+              <img
+                src={currentMediaUrl}
+                className="absolute inset-0 w-full h-full object-contain bg-black"
+                onLoad={handleLoadedData}
+                onError={handleError}
+                onClick={togglePlay}
+                alt="Preview"
+              />
+            ) : (
+              <video
+                ref={videoRef}
+                src={currentMediaUrl}
+                className="absolute inset-0 w-full h-full object-contain bg-black"
+                onLoadedData={handleLoadedData}
+                onError={handleError}
+                onTimeUpdate={handleTimeUpdate}
+                onEnded={handleEnded}
+                onClick={togglePlay}
+                playsInline
+                muted
+              />
+            )}
 
             {/* Play button overlay */}
             {!isPlaying && !isLoading && !error && (
@@ -573,15 +738,17 @@ export const ShotstackStudio = forwardRef<ShotstackStudioRef, ShotstackStudioPro
 
             <div className="h-px bg-white/[0.06]" />
 
-            {/* SFX */}
-            <TrackControl
-              icon={<Volume2 className="w-3.5 h-3.5" />}
-              label={`SFX${sfxClips.length > 0 ? ` (${sfxClips.length})` : ''}`}
-              color="amber"
-              volume={volumes.sfx}
-              onVolumeChange={(v) => updateVolume('sfx', v)}
-              disabled={sfxClips.length === 0}
-            />
+            {/* SFX - Only show for video-animation mode */}
+            {animationMode === 'video-animation' && (
+              <TrackControl
+                icon={<Volume2 className="w-3.5 h-3.5" />}
+                label={`SFX${sfxClips.length > 0 ? ` (${sfxClips.length})` : ' (none)'}`}
+                color="amber"
+                volume={volumes.sfx}
+                onVolumeChange={(v) => updateVolume('sfx', v)}
+                disabled={sfxClips.length === 0}
+              />
+            )}
 
             {/* Voiceover */}
             <TrackControl

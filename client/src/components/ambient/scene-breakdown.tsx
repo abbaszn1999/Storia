@@ -33,6 +33,8 @@ interface SceneBreakdownProps {
   continuityLocked?: boolean;
   continuityGroups?: { [sceneId: string]: ContinuityGroup[] };
   continuityGenerated?: boolean; // Track if continuity has been analyzed (one-time only)
+  videoModel?: string; // Video model from atmosphere phase
+  animationMode: 'image-transitions' | 'video-animation'; // Animation mode for camera movements
   onScenesGenerated: (scenes: Scene[], shots: { [sceneId: string]: Shot[] }, shotVersions?: { [shotId: string]: ShotVersion[] }) => void;
   onContinuityLocked?: () => void;
   onContinuityGroupsChange?: (groups: { [sceneId: string]: ContinuityGroup[] }) => void;
@@ -49,6 +51,8 @@ export function SceneBreakdown({
   continuityLocked = false,
   continuityGroups: propsGroups = {},
   continuityGenerated = false,
+  videoModel,
+  animationMode,
   onScenesGenerated, 
   onContinuityLocked,
   onContinuityGroupsChange,
@@ -886,52 +890,7 @@ export function SceneBreakdown({
         </p>
       </div>
 
-      {!hasBreakdown ? (
-        <div className="space-y-8">
-          {/* Empty State - Generate or Add Manually */}
-          <Card className="border-dashed border-2 border-white/10 bg-white/[0.02]">
-            <CardContent className="py-16 px-8">
-              <div className="text-center space-y-6">
-                <div className="inline-flex p-4 rounded-full bg-gradient-to-br from-cyan-500/20 to-teal-500/20">
-                  <Sparkles className="h-8 w-8 text-cyan-400" />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-xl font-semibold">Design Your Flow</h3>
-                  <p className="text-muted-foreground max-w-md mx-auto">
-                    AI will analyze your atmosphere description and create visual segments with shots.
-                  </p>
-                </div>
-                <div className="flex items-center justify-center">
-                  <Button
-                    size="lg"
-                    variant="ghost"
-                    className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white"
-                    onClick={async () => {
-                      setIsGeneratingBreakdown(true);
-                      await handleGenerateBreakdown();
-                      setIsGeneratingBreakdown(false);
-                    }}
-                    disabled={isGeneratingBreakdown}
-                    data-testid="button-generate-breakdown"
-                  >
-                    {isGeneratingBreakdown ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating Segments...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Generate Flow Design
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      ) : (
+      {hasBreakdown && (
         <>
           {/* Synopsis - Always visible */}
           <Card className="bg-white/[0.02] border-white/[0.06]">
@@ -1004,7 +963,13 @@ export function SceneBreakdown({
                         </div>
                         <Badge variant="outline" className="bg-gradient-to-r from-cyan-500/20 to-teal-500/20 text-cyan-300 border-cyan-500/50 text-xs px-2" data-testid={`scene-duration-${scene.id}`}>
                           <Clock className="h-3 w-3 mr-1" />
-                          {scene.duration || 0}s
+                          {(() => {
+                            // Calculate actual duration from shots if available, otherwise use scene target duration
+                            const sceneShots = shots[scene.id] || [];
+                            const calculatedDuration = sceneShots.reduce((sum, shot) => sum + (shot.duration || 0), 0);
+                            // Use calculated duration if shots exist, otherwise fall back to scene target duration
+                            return calculatedDuration > 0 ? calculatedDuration : (scene.duration || 0);
+                          })()}s
                         </Badge>
                       </div>
                       <div className="flex items-center gap-1">
@@ -1170,6 +1135,8 @@ export function SceneBreakdown({
             shot={editingShot}
             sceneId={activeSceneId}
             shotCount={activeSceneId ? (shots[activeSceneId] || []).length : 0}
+            videoModel={videoModel}
+            animationMode={animationMode}
             onSubmit={handleShotSubmit}
             isPending={false}
           />

@@ -110,14 +110,16 @@ const CAMERA_MOVEMENTS = {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function buildShotComposerSystemPrompt(
-  shotCount: number,
+  shotCount: number | 'auto',
   sceneDuration: number,
   pacing: number,
   animationMode: AnimationMode,
-  supportedDurations?: number[]
+  supportedDurations?: number[],
+  shotsPerSegment?: 'auto' | number
 ): string {
   const category = getPacingCategory(pacing);
-  const avgDuration = Math.round(sceneDuration / shotCount);
+  const isAuto = shotsPerSegment === 'auto' || shotCount === 'auto';
+  const avgDuration = typeof shotCount === 'number' ? Math.round(sceneDuration / shotCount) : Math.round(sceneDuration / 4); // Default estimate for auto
   const movements = CAMERA_MOVEMENTS[animationMode];
   
   const durationConstraint = supportedDurations && supportedDurations.length > 0
@@ -129,8 +131,13 @@ IMPORTANT: Shot durations MUST be one of these values: ${supportedDurations.join
 The video model only supports these specific durations. Choose from this list when setting each shot's duration.`
     : '';
   
+  // When auto, let AI determine optimal shot count based on duration
+  const shotCountInstruction = isAuto
+    ? `determine the optimal number of shots (typically 2-6 shots) based on the ${sceneDuration}-second duration and pacing`
+    : `${shotCount} individual SHOTS`;
+  
   return `You are an expert cinematographer specializing in ambient visual content.
-Your task is to compose ${shotCount} individual SHOTS for a ${sceneDuration}-second scene segment.${durationConstraint}
+Your task is to compose ${shotCountInstruction} for a ${sceneDuration}-second scene segment.${durationConstraint}
 
 ═══════════════════════════════════════════════════════════════════════════════
 AMBIENT SHOT COMPOSITION PHILOSOPHY
@@ -153,18 +160,21 @@ SLOW SHOT CHARACTERISTICS:
 • Subtle, almost imperceptible camera movement
 • Deep focus on atmospheric details
 • Let viewers absorb each visual moment
+• Typically fewer shots (2-3) for longer durations
 ` : category === 'fast' ? `
 FAST SHOT CHARACTERISTICS:
 • Quicker cuts between shots (~${avgDuration} seconds)
 • More dynamic camera movements
 • Varied shot types for visual interest
 • Maintains energy while staying ambient
+• Typically more shots (4-6) for visual variety
 ` : `
 MEDIUM SHOT CHARACTERISTICS:
 • Balanced shot durations (~${avgDuration} seconds)
 • Mix of static and moving shots
 • Natural visual rhythm
 • Good variety without feeling rushed
+• Typically 3-4 shots for balanced pacing
 `}
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -204,12 +214,17 @@ CRITICAL CONSTRAINTS
 ═══════════════════════════════════════════════════════════════════════════════
 
 MUST:
-✓ Generate EXACTLY ${shotCount} shots
+${isAuto 
+  ? `✓ Determine the optimal number of shots based on scene duration and pacing
 ✓ Total duration = EXACTLY ${sceneDuration} seconds
+✓ Choose shot count that allows each shot to be 5-30 seconds (based on pacing)
+✓ Consider pacing: ${category === 'slow' ? 'slower pacing = fewer, longer shots' : category === 'fast' ? 'faster pacing = more, shorter shots' : 'medium pacing = balanced shot count and durations'}`
+  : `✓ Generate EXACTLY ${shotCount} shots
+✓ Total duration = EXACTLY ${sceneDuration} seconds`}
 ${supportedDurations && supportedDurations.length > 0 
   ? `✓ Each shot duration MUST be one of: ${supportedDurations.join(', ')} seconds`
   : `✓ Each shot: 5-30 seconds (based on pacing)`}
-✓ Average duration: ~${avgDuration} seconds
+${!isAuto ? `✓ Average duration: ~${avgDuration} seconds` : ''}
 ✓ Vary shot types for visual interest
 ✓ Each description is visually specific
 
@@ -221,6 +236,7 @@ ${supportedDurations && supportedDurations.length > 0
   : `✗ Create shots shorter than 5 seconds
 ✗ Create shots longer than 30 seconds`}
 ✗ Use the same camera movement for all shots
+${!isAuto ? `✗ Generate more or fewer than ${shotCount} shots` : ''}
 
 ═══════════════════════════════════════════════════════════════════════════════
 OUTPUT FORMAT
@@ -237,7 +253,7 @@ Return ONLY valid JSON with this exact structure:
       "description": "<specific visual description, what the viewer sees>"
     }
   ],
-  "totalShots": ${shotCount},
+  "totalShots": <number of shots you created>,
   "totalDuration": ${sceneDuration}
 }`;
 }
@@ -327,7 +343,9 @@ TECHNICAL PARAMETERS
 ═══════════════════════════════════════════════════════════════════════════════
 
 • Scene Duration: ${sceneDuration} seconds
-• Target Shot Count: ${shotCount} shots
+${input.shotsPerSegment === 'auto' 
+  ? `• Shot Count: AUTO - Determine the optimal number of shots (typically 2-6) based on duration and pacing`
+  : `• Target Shot Count: ${shotCount} shots (exact count required)`}
 • Pacing: ${input.pacing}/100 (${getPacingCategory(input.pacing)})
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -338,11 +356,20 @@ INSTRUCTIONS
 ${input.allScenes && input.allScenes.length > 1 ? '2. Consider how your shots will flow from previous scenes and transition to upcoming scenes' : ''}
 ${input.existingShots && Object.keys(input.existingShots).length > 0 ? '3. Maintain visual consistency and pacing with shots already composed for earlier scenes' : ''}
 ${input.allScenes && input.allScenes.length > 1 ? '4' : '2'}. Analyze the current scene's atmosphere and visual elements
-${input.allScenes && input.allScenes.length > 1 ? '5' : '3'}. Create ${shotCount} shots that:
+${input.shotsPerSegment === 'auto'
+  ? `${input.allScenes && input.allScenes.length > 1 ? '5' : '3'}. Determine the optimal number of shots (2-6 recommended) that:
+   - Appropriately fill the ${sceneDuration}-second duration
+   - Match the ${getPacingCategory(input.pacing)} pacing (${input.pacing}/100)
+   - Allow each shot to be 5-30 seconds (based on pacing)
    - Explore different aspects of the scene
    - Sum to EXACTLY ${sceneDuration} seconds
    - Use appropriate camera movements
-   - Flow naturally from one to the next
+   - Flow naturally from one to the next`
+  : `${input.allScenes && input.allScenes.length > 1 ? '5' : '3'}. Create EXACTLY ${shotCount} shots that:
+   - Explore different aspects of the scene
+   - Sum to EXACTLY ${sceneDuration} seconds
+   - Use appropriate camera movements
+   - Flow naturally from one to the next`}
 ${input.allScenes && input.allScenes.length > 1 ? '6' : '4'}. Each shot should be visually specific and filmable
 
 Generate the shot breakdown as JSON now.`;

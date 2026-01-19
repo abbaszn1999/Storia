@@ -95,20 +95,40 @@ function buildContinuityInfoMap(
       const existingInfo = continuityMap.get(shotId);
       
       if (i === 0) {
-        // First shot in group generates both frames
-        continuityMap.set(shotId, {
-          groupId: group.id,
-          isFirst: true,
-          previousShotId: null,
-        });
+        // First shot in THIS group - but check if it already has inheritance from another group
+        // BUGFIX: If shot is already marked as inheriting (isFirst: false), DON'T overwrite it!
+        // This happens when a shot is first in Group B but second in Group A (overlapping groups)
+        if (existingInfo && !existingInfo.isFirst) {
+          // Shot already has inheritance from another group - keep it!
+          console.log(`[batch] Shot ${shotId.substring(0, 8)}... is first in group ${group.id.substring(0, 8)}... but already inherits from group ${existingInfo.groupId ? existingInfo.groupId.substring(0, 8) : 'unknown'}..., keeping inheritance`);
+        } else {
+          // Either no existing info, or marked as first - set as first in this group
+          continuityMap.set(shotId, {
+            groupId: group.id,
+            isFirst: true,
+            previousShotId: null,
+          });
+        }
       } else {
         // Subsequent shots inherit from previous
-        // BUT: if this shot is already marked as NOT first (from another group),
-        // we should prioritize inheritance (shot appears in multiple groups)
-        if (existingInfo && !existingInfo.isFirst) {
-          // Already has inheritance, keep it
-          console.log(`[batch] Shot ${shotId} already has inheritance from group ${existingInfo.groupId}, keeping it`);
+        // BUGFIX: If shot already exists in map (from another group), only override if it's currently marked as "first"
+        // This handles overlapping groups correctly: once a shot is marked as inheriting, it stays that way
+        if (existingInfo) {
+          // Shot already processed by another group
+          if (existingInfo.isFirst) {
+            // Currently marked as first - override with inheritance
+            console.log(`[batch] Shot ${shotId} was first in group ${existingInfo.groupId || 'unknown'}, now inheriting from previous shot in group ${group.id.substring(0, 8)}...`);
+            continuityMap.set(shotId, {
+              groupId: group.id,
+              isFirst: false,
+              previousShotId: sortedShotIds[i - 1],
+            });
+          } else {
+            // Already marked as inheriting - keep it
+            console.log(`[batch] Shot ${shotId} already has inheritance from group ${existingInfo.groupId || 'unknown'}, keeping it`);
+          }
         } else {
+          // First time seeing this shot - mark as inheriting
           continuityMap.set(shotId, {
             groupId: group.id,
             isFirst: false,
@@ -201,6 +221,15 @@ export async function generateAllShotImages(
   let successCount = 0;
   let failureCount = 0;
 
+  // BUGFIX: Pre-populate endFrameUrlMap with existing end frames for continuity inheritance
+  // This ensures that shots with existing end frames can serve as reference for next shots
+  for (const shot of orderedShots) {
+    if (shot.existingEndFrameUrl) {
+      endFrameUrlMap.set(shot.shotId, shot.existingEndFrameUrl);
+      console.log(`[batch] Pre-loaded existing end frame for shot ${shot.shotId.substring(0, 8)}... for continuity inheritance`);
+    }
+  }
+
   console.log(`[batch] Processing ${orderedShots.length} shots sequentially...`);
 
   // Process shots sequentially (required for continuity inheritance)
@@ -221,7 +250,7 @@ export async function generateAllShotImages(
       if (inheritStartFrame) {
         console.log(`[batch] Shot #${shot.shotNumber} will inherit start from shot ${continuityInfo.previousShotId.substring(0, 8)}...`);
       } else {
-        console.warn(`[batch] Shot #${shot.shotNumber} should inherit but previous shot's end frame not found!`);
+        console.log(`[batch] Shot #${shot.shotNumber} should inherit but previous shot's end frame not in memory (may use existing saved frame if available)`);
       }
     }
 
@@ -266,10 +295,10 @@ export async function generateAllShotImages(
     } else {
       successCount++;
       
-      // Store end frame URL for inheritance by next shot
+      // Store end frame URL for inheritance by next shot (update if newly generated)
       if (result.endFrameUrl) {
         endFrameUrlMap.set(shot.shotId, result.endFrameUrl);
-        console.log(`[batch] Shot #${shot.shotNumber} end frame stored for inheritance`);
+        console.log(`[batch] Shot #${shot.shotNumber} end frame ${shot.existingEndFrameUrl ? 'updated' : 'stored'} for inheritance`);
       }
     }
 

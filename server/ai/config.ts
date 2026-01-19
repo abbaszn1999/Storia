@@ -955,6 +955,63 @@ export function isProviderEnabled(provider: AiProviderName): boolean {
   return Boolean(getProviderConfig(provider).enabled);
 }
 
+/**
+ * Get all available text models from enabled providers
+ * Returns models that support text-generation
+ */
+export function getAvailableTextModels(): Array<{
+  value: string;
+  label: string;
+  description: string;
+  provider: string;
+  default?: boolean;
+}> {
+  const textModels: Array<{
+    value: string;
+    label: string;
+    description: string;
+    provider: string;
+    default?: boolean;
+  }> = [];
+
+  // Get models from OpenAI if enabled
+  if (isProviderEnabled('openai')) {
+    const openaiConfig = getProviderConfig('openai');
+    Object.values(openaiConfig.models).forEach((model) => {
+      if (model.metadata.supports?.includes('text-generation')) {
+        textModels.push({
+          value: model.name,
+          label: model.metadata.label || model.name,
+          description: model.metadata.description || '',
+          provider: 'OpenAI',
+          default: model.default || false,
+        });
+      }
+    });
+  }
+
+  // Get models from Gemini if enabled
+  if (isProviderEnabled('gemini')) {
+    const geminiConfig = getProviderConfig('gemini');
+    Object.values(geminiConfig.models).forEach((model) => {
+      if (model.metadata.supports?.includes('text-generation')) {
+        textModels.push({
+          value: model.name,
+          label: model.metadata.label || model.name,
+          description: model.metadata.description || '',
+          provider: 'Google',
+          default: model.default || false,
+        });
+      }
+    });
+  }
+
+  // Note: Anthropic models would be added here if we had an anthropic provider
+  // For now, we'll add them manually if needed
+
+  return textModels;
+}
+
 // Re-export video model configurations for backward compatibility
 export {
   VIDEO_MODEL_CONFIGS,

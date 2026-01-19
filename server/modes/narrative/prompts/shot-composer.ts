@@ -4,7 +4,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
  * Prompts for Agent 3.2: Shot Composer
- * Breaks scenes into individual shots with camera framing, timing, narration, and action descriptions.
+ * Breaks scenes into individual shots with camera framing, timing, and action descriptions.
  */
 
 import type { ShotComposerInput } from "../agents/breakdown/shot-composer";
@@ -63,7 +63,6 @@ You must determine the optimal number of shots based on the scene's duration, co
 • Scene duration and pacing needs
 • Narrative beats and story moments
 • Visual variety requirements
-• Dialogue/narration timing
 
 Typical range: 2-8 shots per scene. Longer or more complex scenes may need more shots.
 ` : `
@@ -85,11 +84,23 @@ SCENE PARAMETERS
 • Genre: ${genre}
 ${tone ? `• Tone: ${tone}` : ''}
 
+REASONING PROCESS:
+
+Follow these steps when composing shots for a scene:
+
+1. **Analyze** the current_scene to understand narrative beats and visual requirements
+2. **Determine** optimal shot count per scene based on duration_seconds and content complexity
+3. **Plan** shot sequence maintaining visual flow and continuity between shots
+4. **Assign** shot types, sizes, angles, and movements based on storytelling needs and genre/tone
+5. **Extract** action descriptions from script excerpt for each shot
+6. **Link** characters and locations using @{CharacterName} and @{LocationName} tags in action descriptions
+7. **Validate** that total shot durations match scene duration_seconds (±2 seconds tolerance)
+
 ═══════════════════════════════════════════════════════════════════════════════
 REFERENCE TAGGING SYSTEM
 ═══════════════════════════════════════════════════════════════════════════════
 
-You MUST use a consistent tagging system for characters and locations in BOTH narration text and action descriptions:
+You MUST use a consistent tagging system for characters and locations in action descriptions:
 
 CRITICAL RULES:
 • If characters are provided in the list: Use @{CharacterName} format (e.g., @Little Red Riding Hood, @The Wolf)
@@ -98,17 +109,15 @@ CRITICAL RULES:
 • If NO locations are provided: Use descriptive text instead of location names (e.g., "dense forest with tall trees" instead of "Dark Wood")
 
 Examples WITH characters/locations provided:
-- Narration: "As @The Wolf walks through @Dark Wood, the morning light reveals..."
 - Action: "@Little Red Riding Hood enters @Ancient Temple and approaches the window"
 
 Examples WITHOUT characters/locations provided:
-- Narration: "As a large gray wolf walks through a dense forest, the morning light reveals..."
 - Action: "A young girl wearing a vibrant red cloak enters an ancient stone temple and approaches the window"
 
 These tags will be provided in the user prompt. You must:
 • ONLY use @{CharacterName} tags if characters are provided in the list - otherwise use descriptive text
 • ONLY use @{LocationName} tags if locations are provided in the list - otherwise use descriptive text
-• Use these tags in both "narrationText" and "actionDescription" fields when available
+• Use these tags in "actionDescription" field when available
 • When characters/locations are NOT provided, describe them visually instead of using names
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -145,7 +154,6 @@ DURATION DISTRIBUTION
 • Allow small tolerance (±2 seconds) for rounding
 • Distribute duration proportionally based on:
   - Shot importance and narrative weight
-  - Narration text length (longer narration = longer shot)
   - Visual complexity (complex actions may need more time)
 ${availableDurations && availableDurations.length > 0 ? `
 ⚠️ CRITICAL: Available Video Model Durations
@@ -199,11 +207,10 @@ For each shot, provide:
 2. Duration (in seconds, must sum to ~${sceneDuration}s)
 3. Shot type (Wide Shot, Medium Shot, Close-Up, etc.)
 4. Camera movement (Static, Pan, Zoom, Dolly, etc.)
-5. Narration text (use @tags ONLY if characters/locations provided, otherwise use descriptive text)
-6. Action description (use @tags ONLY if characters/locations provided, otherwise use descriptive text)
-7. Characters (array of @{CharacterName} tags if provided, or empty array [] if not - do NOT create character names)
-8. Location (@{LocationName} tag if provided, or empty string "" if not - do NOT create location names)
-${narrativeMode === "auto" ? '9. Frame mode ("image-reference" or "start-end") - REQUIRED in auto mode' : ''}
+5. Action description (use @tags ONLY if characters/locations provided, otherwise use descriptive text)
+6. Characters (array of @{CharacterName} tags if provided, or empty array [] if not - do NOT create character names)
+7. Location (@{LocationName} tag if provided, or empty string "" if not - do NOT create location names)
+${narrativeMode === "auto" ? '8. Frame mode ("image-reference" or "start-end") - REQUIRED in auto mode' : ''}
 
 Be precise, cinematic, and ensure narrative flow between shots.`;
 }
@@ -297,8 +304,7 @@ INSTRUCTIONS
 1. Read the full script and current scene excerpt carefully
 2. ${input.shotsPerScene === 'auto' ? `Determine the optimal number of shots (aim for ~${shotCount} shots)` : `Create EXACTLY ${input.shotsPerScene} shots - this is a hard requirement`}
 3. For each shot:
-   - Extract the relevant portion of narration from the script excerpt
-   - Create a clear action description of what visually happens
+   - Create a clear action description of what visually happens in this shot
    - Assign appropriate shot type and camera movement
    - Estimate duration (sum must equal ~${input.scene.duration || 0} seconds)
    - Identify characters present:
@@ -308,17 +314,17 @@ INSTRUCTIONS
      * If locations are provided in the list: use @{LocationName} tag (e.g., @Dark Wood)
      * If NO locations provided: use descriptive text (e.g., "dense forest with tall trees") - do NOT use location names
    - Use @tags ONLY when characters/locations are provided in the list
-   - When characters/locations are NOT provided, use visual descriptions instead of names in narrationText and actionDescription
+   - When characters/locations are NOT provided, use visual descriptions instead of names in actionDescription
    ${narrativeMode === "auto" ? `- Decide frame mode: "image-reference" for simple/static shots, "start-end" for complex/moving shots` : ''}
 4. Ensure shots flow naturally and maintain narrative coherence
 5. Vary shot types and camera movements for visual interest
 6. Match the genre and tone in your shot choices
 7. CRITICAL: If the AVAILABLE CHARACTERS section says "NO CHARACTERS DEFINED", you MUST:
-   - Use descriptive text in narrationText and actionDescription (e.g., "young girl", "a woman", "the protagonist")
+   - Use descriptive text in actionDescription (e.g., "young girl", "a woman", "the protagonist")
    - Do NOT use character names like "Little Red Riding Hood", "Sarah", etc.
    - Return empty array [] for the characters field
 8. CRITICAL: If the AVAILABLE LOCATIONS section says "NO LOCATIONS DEFINED", you MUST:
-   - Use descriptive text in narrationText and actionDescription (e.g., "dense forest", "ancient temple", "city street")
+   - Use descriptive text in actionDescription (e.g., "dense forest", "ancient temple", "city street")
    - Do NOT use location names like "Dark Wood", "Ancient Temple", etc.
    - Return empty string "" for the location field
 ${(narrativeMode === "start-end" || narrativeMode === "auto") ? `

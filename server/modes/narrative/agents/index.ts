@@ -53,6 +53,11 @@ import {
   type StoryboardImageInput,
   type StoryboardImageOutput,
 } from './image-generator';
+import {
+  editStoryboardImage as editStoryboardImageAgent,
+  type ImageEditorInput,
+  type ImageEditorOutput,
+} from './image-editor';
 
 export interface ScriptSettings {
   duration: number;
@@ -169,8 +174,7 @@ export interface ShotInput {
   duration: number;
   shotType: string;
   cameraMovement: string;
-  narrationText: string;  // May contain @tags
-  actionDescription: string;  // Contains @tags
+  actionDescription: string;  // Contains @tags - visual action only, NO narration
   characters: string[];  // Array of @{CharacterName} tags
   location: string;  // @{LocationName} tag
   frameMode?: "image-reference" | "start-end";  // For auto mode
@@ -899,12 +903,13 @@ export class NarrativeAgents {
         duration: shot.duration,
         shotType: shot.shotType,
         cameraMovement: shot.cameraMovement,
-        narrationText: shot.narrationText,
         actionDescription: shot.actionDescription,
         characters: shot.characters,
         location: shot.location,
         frameMode: shot.frameMode,
-      })),
+        // Pass through additional fields that may be needed for transformation
+        id: shot.id,
+      } as any)),
       narrativeMode: input.narrativeMode,
       continuity: input.continuity,
       characterReferences: input.characterReferences,
@@ -933,7 +938,7 @@ export class NarrativeAgents {
       const expectedOutputTokens = sortedShots.length * 1000;
       
       // Build payload with JSON schema for structured output
-      // OpenAI requires root schema to be an object, so we wrap the array in an object
+      // New format: { scene_id, scene_title, image_model, video_model, narrative_mode, aspect_ratio, style_anchor, shots: [...] }
       const payload: any = {
         input: [
           { role: "system", content: promptEngineerSystemPrompt },
@@ -947,49 +952,58 @@ export class NarrativeAgents {
             schema: {
               type: "object",
               properties: {
-                prompts: {
+                scene_id: { type: "string" },
+                scene_title: { type: "string" },
+                image_model: { type: "string" },
+                video_model: { type: "string" },
+                narrative_mode: { type: "string" },
+                aspect_ratio: { type: "string" },
+                style_anchor: { type: "string" },
+                shots: {
                   type: "array",
                   items: {
                     type: "object",
                     properties: {
-                      scene_id: { type: "string" },
-                      shotNumber: { type: "number" },
+                      shot_id: { type: "string" },
+                      shot_index: { type: "number" },
+                      scene_shot_index: { type: "number" },
                       finalFrameMode: { 
                         type: "string",
                         enum: ["image-reference", "start-end"]
                       },
-                      continuity: {
-                        type: "object",
-                        properties: {
-                          in_group: { type: "boolean" },
-                          group_id: { type: ["string", "null"] },
-                          is_first_in_group: { type: "boolean" },
-                        },
-                        required: ["in_group", "group_id", "is_first_in_group"],
-                        additionalProperties: false,
+                      isLinkedToPrevious: { type: "boolean" },
+                      characterTags: {
+                        type: "array",
+                        items: { type: "string" }
                       },
+                      locationTag: { type: "string" },
                       imagePrompt: { type: "string" },
                       startFramePrompt: { type: "string" },
                       endFramePrompt: { type: "string" },
                       videoPrompt: { type: "string" },
                       negativePrompt: { type: "string" },
+                      visualContinuityNotes: { type: "string" },
                     },
                     required: [
-                      "scene_id",
-                      "shotNumber",
+                      "shot_id",
+                      "shot_index",
+                      "scene_shot_index",
                       "finalFrameMode",
-                      "continuity",
+                      "isLinkedToPrevious",
+                      "characterTags",
+                      "locationTag",
                       "imagePrompt",
                       "startFramePrompt",
                       "endFramePrompt",
                       "videoPrompt",
                       "negativePrompt",
+                      "visualContinuityNotes",
                     ],
                     additionalProperties: false,
                   },
                 },
               },
-              required: ["prompts"],
+              required: ["scene_id", "scene_title", "image_model", "video_model", "narrative_mode", "aspect_ratio", "style_anchor", "shots"],
               additionalProperties: false,
             },
           },
@@ -1025,7 +1039,7 @@ export class NarrativeAgents {
           .trim();
       }
       
-      // Parse JSON response (should be an object with a "prompts" array)
+      // Parse JSON response (new format: { scene_id, scene_title, ..., shots: [...] })
       let parsedResponse: any;
       try {
         parsedResponse = JSON.parse(rawOutput);
@@ -1034,17 +1048,20 @@ export class NarrativeAgents {
         throw new Error('AI returned invalid JSON format');
       }
       
-      // Extract the prompts array from the response object
+      // Extract the shots array from the response object
       let parsedData: any[];
-      if (Array.isArray(parsedResponse)) {
+      if (parsedResponse && typeof parsedResponse === 'object' && Array.isArray(parsedResponse.shots)) {
+        // Expected format: object with "shots" property
+        parsedData = parsedResponse.shots;
+      } else if (Array.isArray(parsedResponse)) {
         // Fallback: if response is directly an array (old format), use it
         parsedData = parsedResponse;
       } else if (parsedResponse && typeof parsedResponse === 'object' && Array.isArray(parsedResponse.prompts)) {
-        // Expected format: object with "prompts" property
+        // Old format fallback: object with "prompts" property
         parsedData = parsedResponse.prompts;
       } else {
-        console.error('[narrative:agents] Invalid response structure - expected object with "prompts" array, got:', typeof parsedResponse, parsedResponse);
-        throw new Error('AI response must be an object with a "prompts" array property');
+        console.error('[narrative:agents] Invalid response structure - expected object with "shots" array, got:', typeof parsedResponse, parsedResponse);
+        throw new Error('AI response must be an object with a "shots" array property');
       }
       
       // Validate array length matches input shots
@@ -1062,28 +1079,49 @@ export class NarrativeAgents {
         input.styleReference
       );
       
-      // Transform array to output format (convert snake_case to camelCase)
+      // Transform array to output format (convert new format to internal format)
       const outputs: PromptEngineerBatchOutput = parsedData.map((item: any, index: number) => {
-        // Validate structure
-        if (!item.scene_id || typeof item.shotNumber !== 'number') {
+        // Validate structure - handle both new format (shot_id, shot_index) and old format (shotNumber)
+        let shotNumber: number;
+        if (typeof item.shot_index === 'number') {
+          // New format: use shot_index (may need to map back to shotNumber)
+          shotNumber = item.shot_index;
+          // Try to find matching shot by ID first, then by index
+          const matchingShot = sortedShots.find(s => (s as any).id === item.shot_id || 
+            (s as any).shot_id === item.shot_id) || 
+            sortedShots[item.scene_shot_index - 1];
+          if (matchingShot) {
+            shotNumber = matchingShot.shotNumber;
+          }
+        } else if (typeof item.shotNumber === 'number') {
+          // Old format fallback
+          shotNumber = item.shotNumber;
+        } else {
           console.error('[narrative:agents] Invalid item structure at index', index, ':', item);
-          throw new Error(`AI response item at index ${index} missing required fields`);
+          throw new Error(`AI response item at index ${index} missing shot_id/shot_index or shotNumber`);
         }
         
-        // Find corresponding shot to validate shotNumber matches
-        const correspondingShot = sortedShots.find(s => s.shotNumber === item.shotNumber);
+        // Find corresponding shot
+        const correspondingShot = sortedShots.find(s => s.shotNumber === shotNumber) || sortedShots[index];
         if (!correspondingShot) {
-          console.warn('[narrative:agents] Response item shotNumber', item.shotNumber, 'not found in input shots');
+          console.warn('[narrative:agents] Response item shotNumber', shotNumber, 'not found in input shots');
         }
+        
+        // Determine continuity info from corresponding shot's continuity context
+        const cont = input.continuity[index] || input.continuity.find((_, i) => sortedShots[i]?.shotNumber === shotNumber) || {
+          inGroup: item.isLinkedToPrevious || false,
+          groupId: null,
+          isFirstInGroup: false,
+        };
         
         const output: PromptEngineerOutput = {
-          sceneId: item.scene_id,
-          shotNumber: item.shotNumber,
-          finalFrameMode: item.finalFrameMode,
+          sceneId: item.scene_id || input.sceneId,
+          shotNumber: shotNumber,
+          finalFrameMode: item.finalFrameMode || (item.frame_mode || (input.narrativeMode === 'auto' ? 'image-reference' : input.narrativeMode)),
           continuity: {
-            inGroup: item.continuity.in_group,
-            groupId: item.continuity.group_id,
-            isFirstInGroup: item.continuity.is_first_in_group,
+            inGroup: item.isLinkedToPrevious || cont.inGroup,
+            groupId: cont.groupId,
+            isFirstInGroup: !item.isLinkedToPrevious || cont.isFirstInGroup,
           },
           imagePrompt: item.imagePrompt || '',
           startFramePrompt: item.startFramePrompt || '',
@@ -1136,23 +1174,53 @@ export class NarrativeAgents {
     return `[PLACEHOLDER] Image will be generated with Nano Banana/Gemini 2.5 Flash`;
   }
 
+  /**
+   * Agent 4.5: Generate video from storyboard images
+   * Supports both image-reference and start-end narrative modes
+   */
   static async generateVideo(
-    imageUrl: string, 
-    prompt: string,
-    modelAirId?: string,
-    duration?: number,
+    request: {
+      narrativeMode: "image-reference" | "start-end" | "auto";
+      shotId: string;
+      shotVersionId: string;
+      videoModel: string;
+      aspectRatio: string;
+      resolution: string;
+      duration: number;
+      videoPrompt: string;
+      imageUrl?: string;  // For image-reference mode
+      startFrameUrl?: string;  // For start-end mode
+      endFrameUrl?: string;  // For start-end mode
+      effectiveMode?: "image-reference" | "start-end";  // For auto mode
+    },
     userId?: string,
     workspaceId?: string
-  ): Promise<string> {
-    // TODO: Implement actual video generation using Runware API with modelAirId
-    // For now, return placeholder
-    console.log('[narrative:agents] Video generation requested:', {
-      modelAirId,
-      duration,
-      hasImage: !!imageUrl,
-      promptLength: prompt.length,
-    });
-    return `[PLACEHOLDER] Video will be generated from image using model ${modelAirId}`;
+  ): Promise<{
+    taskId: string;
+    status: "processing" | "completed" | "failed";
+    videoUrl?: string;
+    videoDuration?: number;
+    cost?: number;
+    error?: string;
+  }> {
+    const { generateVideo: generateVideoImpl } = await import('./video-generator');
+    
+    return generateVideoImpl(
+      {
+        narrativeMode: request.narrativeMode,
+        videoModel: request.videoModel,
+        aspectRatio: request.aspectRatio,
+        resolution: request.resolution,
+        duration: request.duration,
+        videoPrompt: request.videoPrompt,
+        imageUrl: request.imageUrl,
+        startFrameUrl: request.startFrameUrl,
+        endFrameUrl: request.endFrameUrl,
+        effectiveMode: request.effectiveMode,
+      },
+      userId,
+      workspaceId
+    );
   }
 
   /**
@@ -1357,6 +1425,56 @@ export class NarrativeAgents {
         startFrameUrl: null,
         endFrameUrl: null,
         shotVersionId: input.shotId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Agent 4.3: Image Editor
+   * 
+   * Edits generated storyboard images based on user feedback
+   * Supports iterative refinement without full regeneration
+   */
+  static async editImage(
+    input: ImageEditorInput,
+    userId?: string,
+    workspaceId?: string
+  ): Promise<ImageEditorOutput> {
+    console.log('[narrative:agents] Editing image (Agent 4.3):', {
+      shotId: input.shotId,
+      videoId: input.videoId,
+      editCategory: input.editCategory,
+      model: input.imageModel,
+      hasOriginalImage: !!input.originalImageUrl,
+      referenceCount: input.referenceImages?.length || 0,
+      userId,
+      workspaceId,
+    });
+
+    try {
+      const result = await editStoryboardImageAgent(
+        input,
+        userId,
+        workspaceId
+      );
+
+      if (result.error) {
+        console.error('[narrative:agents] Image editing failed:', result.error);
+        return result;
+      }
+
+      console.log('[narrative:agents] Image edited successfully:', {
+        shotId: input.shotId,
+        hasEditedImage: !!result.editedImageUrl,
+        cost: result.cost,
+      });
+
+      return result;
+    } catch (error) {
+      console.error('[narrative:agents] Image editing error:', error);
+      return {
+        editedImageUrl: '',
         error: error instanceof Error ? error.message : 'Unknown error',
       };
     }

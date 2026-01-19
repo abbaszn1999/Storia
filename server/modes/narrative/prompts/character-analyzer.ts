@@ -60,6 +60,18 @@ Therefore, you must:
 - Provide enough detail to inspire visuals, but avoid contradicting
   the script.
 
+REASONING PROCESS:
+
+Follow these steps when analyzing characters:
+
+1. **Read** the entire script carefully to identify all character mentions
+2. **Identify** characters that appear multiple times or are clearly central to the story
+3. **Merge** different references to the same character (names, titles, pronouns) into a single character object
+4. **Analyze** each character's role, personality, and appearance from script evidence
+5. **Assign** importance scores based on narrative significance (1-10 scale)
+6. **Sort** characters by importance_score in descending order (most important first)
+7. **Validate** that all characters meet inclusion criteria and are not duplicates
+
 
 ========================
 3. CHARACTER SELECTION RULES

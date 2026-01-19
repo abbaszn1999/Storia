@@ -7,6 +7,7 @@
 
 import { callAi } from "../../../ai/service";
 import { getRunwareModelId } from "../../../ai/config";
+import { IMAGE_MODEL_CONFIGS, getImageDimensions } from "../../../ai/config/image-models";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -57,31 +58,50 @@ const DEFAULT_STORYBOARD_NEGATIVE_PROMPT =
   "mutated, ugly, duplicate, morbid, mutilated, oversaturated, " +
   "underexposed, overexposed, bad lighting, inconsistent style";
 
-// Aspect ratio to dimensions mapping
-// Based on common model capabilities (nano-banana, flux-2-dev, etc.)
-const ASPECT_RATIO_DIMENSIONS: Record<string, { width: number; height: number }> = {
-  "16:9": { width: 1344, height: 768 },
-  "9:16": { width: 768, height: 1344 },
-  "1:1": { width: 1024, height: 1024 },
-  "4:3": { width: 1184, height: 864 },
-  "3:4": { width: 864, height: 1184 },
-  "3:2": { width: 1248, height: 832 },
-  "2:3": { width: 832, height: 1248 },
-  "5:4": { width: 1152, height: 896 },
-  "4:5": { width: 896, height: 1152 },
-  "21:9": { width: 1536, height: 672 },
-  "9:21": { width: 672, height: 1536 },
-};
-
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Get dimensions for aspect ratio
+ * Get dimensions for aspect ratio and image model
+ * Uses model-specific dimensions when available (e.g., SeaDream 4.5 requires minimum 2560×1440 for 16:9)
  */
-function getDimensions(aspectRatio: string): { width: number; height: number } {
-  return ASPECT_RATIO_DIMENSIONS[aspectRatio] || ASPECT_RATIO_DIMENSIONS["16:9"];
+function getDimensions(aspectRatio: string, imageModel: string): { width: number; height: number } {
+  // Check if model has specific dimension requirements
+  const modelConfig = IMAGE_MODEL_CONFIGS[imageModel];
+  
+  if (modelConfig) {
+    // For SeaDream 4.5, use 2K resolution (minimum required)
+    // SeaDream 4.5 requires minimum 3,686,400 pixels (2560×1440)
+    if (imageModel === "seedream-4.5") {
+      return getImageDimensions(aspectRatio, "2k", imageModel);
+    }
+    
+    // For SeaDream 4.0, default to 2K if available, fallback to 1K
+    if (imageModel === "seedream-4.0") {
+      // Try 2K first (preferred for quality), fallback to 1K
+      const dims2k = getImageDimensions(aspectRatio, "2k", imageModel);
+      // Verify we got valid 2K dimensions (should be >= 1024×1024)
+      if (dims2k && dims2k.width > 0 && dims2k.height > 0 && dims2k.width * dims2k.height >= 1024 * 1024) {
+        return dims2k;
+      }
+      return getImageDimensions(aspectRatio, "1k", imageModel);
+    }
+    
+    // For other models with model-specific dimensions, use the first available resolution
+    if (modelConfig.resolutions && modelConfig.resolutions.length > 0) {
+      const resolution = modelConfig.resolutions[0];
+      const modelDims = getImageDimensions(aspectRatio, resolution, imageModel);
+      // Verify we got valid dimensions
+      if (modelDims && modelDims.width > 0 && modelDims.height > 0) {
+        return modelDims;
+      }
+    }
+  }
+  
+  // Fallback to standard dimensions for other models
+  // Default to 1k resolution which works for most models
+  return getImageDimensions(aspectRatio, "1k", imageModel);
 }
 
 /**
@@ -114,17 +134,27 @@ async function generateSingleImage(
     console.warn(`[agent-4.2:storyboard-image] Model "${model}" not found in mapping, using as-is (may be AIR ID)`);
   }
 
+  // Get model config to check capabilities
+  const modelConfig = IMAGE_MODEL_CONFIGS[model];
+  const supportsNegativePrompt = modelConfig?.supportsNegativePrompt ?? false;
+
   // Build the payload
   const payload: Record<string, any> = {
     taskType: "imageInference",
     model: runwareModelId,
     positivePrompt: prompt,
-    negativePrompt,
     width,
     height,
     numberResults: 1,
     includeCost: true,
   };
+
+  // Only include negativePrompt if the model supports it
+  if (supportsNegativePrompt && negativePrompt) {
+    payload.negativePrompt = negativePrompt;
+  } else if (negativePrompt && !supportsNegativePrompt) {
+    console.log(`[agent-4.2:storyboard-image] Model "${model}" does not support negativePrompt, omitting it`);
+  }
 
   // Add advanced settings if provided
   if (advancedSettings) {
@@ -231,8 +261,9 @@ export async function generateStoryboardImage(
     ? (frameType ? "start-end" : "image-reference")
     : narrativeMode;
 
-  // Get dimensions for aspect ratio
-  const dimensions = getDimensions(aspectRatio);
+  // Get dimensions for aspect ratio and image model
+  // This ensures model-specific requirements are met (e.g., SeaDream 4.5 minimum 2560×1440)
+  const dimensions = getDimensions(aspectRatio, imageModel);
 
   // Use provided negative prompt or default
   const finalNegativePrompt = negativePrompt || DEFAULT_STORYBOARD_NEGATIVE_PROMPT;

@@ -40,6 +40,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { renderTextWithMentions } from "./mention-renderer";
 import { TextareaWithMentions } from "./textarea-with-mentions";
 import { apiRequest } from "@/lib/queryClient";
+import { animateShot, checkVideoStatus } from "@/lib/api/narrative";
 
 // Default models (fallback if API fails)
 const DEFAULT_VIDEO_MODELS = [
@@ -159,6 +160,11 @@ interface StoryboardEditorProps {
   isCommerceMode?: boolean;
   isLogoMode?: boolean;
   isGeneratingPrompts?: boolean;
+  // Video settings for generation
+  imageModel?: string; // Default image model from step1Data
+  videoModel?: string; // Default video model from step1Data
+  videoResolution?: string;
+  aspectRatio?: string;
   onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
   onGenerateShot: (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => void;
@@ -184,6 +190,7 @@ interface SortableShotCardProps {
   shotIndex: number;
   sceneModel: string | null;
   sceneImageModel: string | null;
+  defaultVideoModel?: string | { id?: string; name?: string; modelId?: string; value?: string } | null;
   version: NarrativeShotVersion | null;
   nextShotVersion: NarrativeShotVersion | null;
   previousShotVersion: NarrativeShotVersion | null;
@@ -214,6 +221,8 @@ interface SortableShotCardProps {
   onUpdateVideoPrompt: (shotId: string, prompt: string) => void;
   onUpdateVideoDuration: (shotId: string, duration: number) => void;
   onDeleteShot?: (shotId: string) => void;
+  onAnimateShot?: (shotId: string) => void;
+  isGeneratingVideo?: boolean;
   shotsCount: number;
 }
 
@@ -539,6 +548,7 @@ function SortableShotCard({
   shotIndex,
   sceneModel,
   sceneImageModel,
+  defaultVideoModel,
   version,
   nextShotVersion,
   previousShotVersion,
@@ -569,6 +579,8 @@ function SortableShotCard({
   onUpdateVideoPrompt,
   onUpdateVideoDuration,
   onDeleteShot,
+  onAnimateShot,
+  isGeneratingVideo = false,
   shotsCount,
 }: SortableShotCardProps) {
   const {
@@ -598,6 +610,31 @@ function SortableShotCard({
   const [activeFrame, setActiveFrame] = useState<"start" | "end">("start");
   const [advancedImageOpen, setAdvancedImageOpen] = useState(false);
   const [advancedVideoOpen, setAdvancedVideoOpen] = useState(false);
+
+  // Helper to extract model ID string (handle both string and object formats)
+  const getModelId = (model: any): string | null => {
+    if (!model) return null;
+    if (typeof model === "string") return model;
+    if (typeof model === "object") {
+      if (model.id) return model.id;
+      if (model.name) return model.name;
+      if (model.modelId) return model.modelId;
+      if (model.value) return model.value;
+    }
+    return null;
+  };
+
+  // Resolve effective video model with priority: shot → scene → default
+  const getEffectiveVideoModelId = (): string | null => {
+    if (shot.videoModel) {
+      return getModelId(shot.videoModel);
+    } else if (sceneModel) {
+      return getModelId(sceneModel);
+    } else if (defaultVideoModel) {
+      return getModelId(defaultVideoModel);
+    }
+    return null;
+  };
   const [cameraPopoverOpen, setCameraPopoverOpen] = useState(false);
 
   // ✨ For commerce mode, use shot.shotType instead of global narrativeMode
@@ -786,8 +823,8 @@ function SortableShotCard({
       data-testid={`card-shot-${shot.id}`}
     >
       <div className="aspect-video bg-muted relative group rounded-t-lg overflow-hidden">
-        {/* Start/End Frame Tab Selector (Start-End Mode Only) */}
-        {effectiveMode === "start-end" && (
+        {/* Start/End Frame Tab Selector (Start-End Mode Only - Image tab) */}
+        {effectiveMode === "start-end" && activeTab === "image" && (
           <div className="absolute top-2 left-2 flex gap-1 bg-background/90 backdrop-blur-sm rounded-md p-1 z-10">
             <button
               onClick={() => setActiveFrame("start")}
@@ -1089,91 +1126,219 @@ function SortableShotCard({
               </CollapsibleTrigger>
               {!isInherited && (
                 <CollapsibleContent className="space-y-3 mt-2">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Image Model</Label>
-                  <Select
-                    value={shot.imageModel || "scene-default"}
-                    onValueChange={(value) => onUpdateShot(shot.id, { imageModel: value === "scene-default" ? null : value })}
-                  >
-                    <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-image-model-${shot.id}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-black/90 border-white/[0.06]">
-                      <SelectItem value="scene-default">
-                        Scene Default {sceneImageModel ? `(${sceneImageModel})` : ""}
-                      </SelectItem>
-                      {availableImageModels.map((model) => (
-                        <SelectItem key={model.name} value={model.name}>
-                          {model.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Reference Image</Label>
-                  {referenceImage ? (
-                    <div className="relative">
-                      <div className="aspect-video rounded-md overflow-hidden border">
-                        <img
-                          src={referenceImage.imageUrl}
-                          alt="Reference"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <Button
-                        size="icon"
-                        variant="destructive"
-                        className="absolute top-2 left-2 h-6 w-6"
-                        onClick={() => onDeleteReference(shot.id)}
-                        data-testid={`button-delete-reference-${shot.id}`}
+                {/* Per-Frame Settings (Start-End Mode) or Shared Settings (Image-Reference Mode) */}
+                {effectiveMode === "start-end" && version ? (
+                  <>
+                    {/* Per-Frame Image Model */}
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        {activeFrame === "start" ? "Start Frame" : "End Frame"} Image Model
+                      </Label>
+                      <Select
+                        value={
+                          activeFrame === "start"
+                            ? (version.startFrameImageModel || shot.imageModel || "scene-default")
+                            : (version.endFrameImageModel || shot.imageModel || "scene-default")
+                        }
+                        onValueChange={(value) => {
+                          if (onUpdateShotVersion) {
+                            const updateValue = value === "scene-default" ? null : value;
+                            onUpdateShotVersion(shot.id, version.id, {
+                              ...(activeFrame === "start"
+                                ? { startFrameImageModel: updateValue }
+                                : { endFrameImageModel: updateValue }),
+                            });
+                          }
+                        }}
                       >
-                        <X className="h-3 w-3" />
-                      </Button>
+                        <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-${activeFrame}-image-model-${shot.id}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-black/90 border-white/[0.06]">
+                          <SelectItem value="scene-default">
+                            Scene Default {sceneImageModel ? `(${sceneImageModel})` : ""}
+                          </SelectItem>
+                          {availableImageModels.map((model) => (
+                            <SelectItem key={model.name} value={model.name}>
+                              {model.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  ) : (
-                    <div>
-                      <Input
-                        id={`reference-upload-${shot.id}`}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleFileSelect}
-                        data-testid={`input-reference-${shot.id}`}
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => document.getElementById(`reference-upload-${shot.id}`)?.click()}
-                        data-testid={`button-upload-reference-${shot.id}`}
-                      >
-                        <Upload className="mr-2 h-3 w-3" />
-                        Upload Reference
-                      </Button>
-                    </div>
-                  )}
-                </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Shot Type</Label>
-                  <Select
-                    value={shot.shotType}
-                    onValueChange={(value) => onUpdateShot(shot.id, { shotType: value })}
-                  >
-                    <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-shot-type-${shot.id}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-black/90 border-white/[0.06]">
-                      {SHOT_TYPES.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    {/* Per-Frame Reference Image */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">
+                        {activeFrame === "start" ? "Start Frame" : "End Frame"} Reference Image
+                      </Label>
+                      {referenceImage ? (
+                        <div className="relative">
+                          <div className="aspect-video rounded-md overflow-hidden border">
+                            <img
+                              src={referenceImage.imageUrl}
+                              alt="Reference"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <Button
+                            size="icon"
+                            variant="destructive"
+                            className="absolute top-2 left-2 h-6 w-6"
+                            onClick={() => onDeleteReference(shot.id)}
+                            data-testid={`button-delete-${activeFrame}-reference-${shot.id}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div>
+                          <Input
+                            id={`reference-upload-${shot.id}-${activeFrame}`}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleFileSelect}
+                            data-testid={`input-${activeFrame}-reference-${shot.id}`}
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => document.getElementById(`reference-upload-${shot.id}-${activeFrame}`)?.click()}
+                            data-testid={`button-upload-${activeFrame}-reference-${shot.id}`}
+                          >
+                            <Upload className="mr-2 h-3 w-3" />
+                            Upload Reference
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Per-Frame Shot Type */}
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        {activeFrame === "start" ? "Start Frame" : "End Frame"} Shot Type
+                      </Label>
+                      <Select
+                        value={
+                          activeFrame === "start"
+                            ? (version.startFrameShotType || shot.shotType)
+                            : (version.endFrameShotType || shot.shotType)
+                        }
+                        onValueChange={(value) => {
+                          if (onUpdateShotVersion) {
+                            onUpdateShotVersion(shot.id, version.id, {
+                              ...(activeFrame === "start"
+                                ? { startFrameShotType: value }
+                                : { endFrameShotType: value }),
+                            });
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-${activeFrame}-shot-type-${shot.id}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-black/90 border-white/[0.06]">
+                          {SHOT_TYPES.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Shared Settings (Image-Reference Mode) */}
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Image Model</Label>
+                      <Select
+                        value={shot.imageModel || "scene-default"}
+                        onValueChange={(value) => onUpdateShot(shot.id, { imageModel: value === "scene-default" ? null : value })}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-image-model-${shot.id}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-black/90 border-white/[0.06]">
+                          <SelectItem value="scene-default">
+                            Scene Default {sceneImageModel ? `(${sceneImageModel})` : ""}
+                          </SelectItem>
+                          {availableImageModels.map((model) => (
+                            <SelectItem key={model.name} value={model.name}>
+                              {model.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Reference Image</Label>
+                      {referenceImage ? (
+                        <div className="relative">
+                          <div className="aspect-video rounded-md overflow-hidden border">
+                            <img
+                              src={referenceImage.imageUrl}
+                              alt="Reference"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <Button
+                            size="icon"
+                            variant="destructive"
+                            className="absolute top-2 left-2 h-6 w-6"
+                            onClick={() => onDeleteReference(shot.id)}
+                            data-testid={`button-delete-reference-${shot.id}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div>
+                          <Input
+                            id={`reference-upload-${shot.id}`}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleFileSelect}
+                            data-testid={`input-reference-${shot.id}`}
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => document.getElementById(`reference-upload-${shot.id}`)?.click()}
+                            data-testid={`button-upload-reference-${shot.id}`}
+                          >
+                            <Upload className="mr-2 h-3 w-3" />
+                            Upload Reference
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Shot Type</Label>
+                      <Select
+                        value={shot.shotType}
+                        onValueChange={(value) => onUpdateShot(shot.id, { shotType: value })}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-shot-type-${shot.id}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-black/90 border-white/[0.06]">
+                          {SHOT_TYPES.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
 
                 {/* Per-Frame Advanced Settings (Start-End Mode Only) */}
                 {effectiveMode === "start-end" && version && (
@@ -1204,118 +1369,6 @@ function SortableShotCard({
                           placeholder="Elements to avoid in generation..."
                           className="h-16 text-xs bg-white/[0.02] border-white/[0.06] resize-none"
                           data-testid={`textarea-${activeFrame}-negative-prompt-${shot.id}`}
-                        />
-                      </div>
-
-                      {/* Seed */}
-                      <div className="space-y-1 mb-3">
-                        <Label className="text-xs text-muted-foreground">Seed (optional)</Label>
-                        <Input
-                          type="number"
-                          value={
-                            activeFrame === "start"
-                              ? (version?.startFrameSeed ?? "")
-                              : (version?.endFrameSeed ?? "")
-                          }
-                          onChange={(e) => {
-                            const value = e.target.value === "" ? null : parseInt(e.target.value);
-                            if (onUpdateShotVersion) {
-                              onUpdateShotVersion(shot.id, version?.id || "", {
-                                ...(activeFrame === "start"
-                                  ? { startFrameSeed: value }
-                                  : { endFrameSeed: value }),
-                              });
-                            }
-                          }}
-                          placeholder="Random seed"
-                          className="h-8 text-xs bg-white/[0.02] border-white/[0.06]"
-                          data-testid={`input-${activeFrame}-seed-${shot.id}`}
-                        />
-                      </div>
-
-                      {/* Guidance Scale */}
-                      <div className="space-y-1 mb-3">
-                        <Label className="text-xs text-muted-foreground">Guidance Scale (optional)</Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          min="1"
-                          max="20"
-                          value={
-                            activeFrame === "start"
-                              ? (version?.startFrameGuidanceScale ?? "")
-                              : (version?.endFrameGuidanceScale ?? "")
-                          }
-                          onChange={(e) => {
-                            const value = e.target.value === "" ? null : parseFloat(e.target.value);
-                            if (onUpdateShotVersion) {
-                              onUpdateShotVersion(shot.id, version?.id || "", {
-                                ...(activeFrame === "start"
-                                  ? { startFrameGuidanceScale: value }
-                                  : { endFrameGuidanceScale: value }),
-                              });
-                            }
-                          }}
-                          placeholder="7.5"
-                          className="h-8 text-xs bg-white/[0.02] border-white/[0.06]"
-                          data-testid={`input-${activeFrame}-guidance-${shot.id}`}
-                        />
-                      </div>
-
-                      {/* Steps */}
-                      <div className="space-y-1 mb-3">
-                        <Label className="text-xs text-muted-foreground">Steps (optional)</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          max="100"
-                          value={
-                            activeFrame === "start"
-                              ? (version?.startFrameSteps ?? "")
-                              : (version?.endFrameSteps ?? "")
-                          }
-                          onChange={(e) => {
-                            const value = e.target.value === "" ? null : parseInt(e.target.value);
-                            if (onUpdateShotVersion) {
-                              onUpdateShotVersion(shot.id, version?.id || "", {
-                                ...(activeFrame === "start"
-                                  ? { startFrameSteps: value }
-                                  : { endFrameSteps: value }),
-                              });
-                            }
-                          }}
-                          placeholder="20"
-                          className="h-8 text-xs bg-white/[0.02] border-white/[0.06]"
-                          data-testid={`input-${activeFrame}-steps-${shot.id}`}
-                        />
-                      </div>
-
-                      {/* Strength */}
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Strength (optional)</Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          max="1"
-                          value={
-                            activeFrame === "start"
-                              ? (version?.startFrameStrength ?? "")
-                              : (version?.endFrameStrength ?? "")
-                          }
-                          onChange={(e) => {
-                            const value = e.target.value === "" ? null : parseFloat(e.target.value);
-                            if (onUpdateShotVersion) {
-                              onUpdateShotVersion(shot.id, version?.id || "", {
-                                ...(activeFrame === "start"
-                                  ? { startFrameStrength: value }
-                                  : { endFrameStrength: value }),
-                              });
-                            }
-                          }}
-                          placeholder="0.8"
-                          className="h-8 text-xs bg-white/[0.02] border-white/[0.06]"
-                          data-testid={`input-${activeFrame}-strength-${shot.id}`}
                         />
                       </div>
                     </div>
@@ -1526,22 +1579,29 @@ function SortableShotCard({
                   <Select
                     value={version?.videoDuration?.toString() || ""}
                     onValueChange={(value) => onUpdateVideoDuration(shot.id, parseInt(value))}
-                    disabled={!shot.videoModel && !sceneModel}
+                    disabled={(() => {
+                      const effectiveModelId = getEffectiveVideoModelId();
+                      // Disable if no model found or no durations available
+                      return !effectiveModelId || !VIDEO_MODEL_DURATIONS[effectiveModelId] || VIDEO_MODEL_DURATIONS[effectiveModelId].length === 0;
+                    })()}
                   >
                     <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-video-duration-${shot.id}`}>
                       <SelectValue placeholder="Select duration" />
                     </SelectTrigger>
                     <SelectContent className="bg-black/90 border-white/[0.06]">
-                      {(shot.videoModel && VIDEO_MODEL_DURATIONS[shot.videoModel] 
-                        ? VIDEO_MODEL_DURATIONS[shot.videoModel]
-                        : sceneModel && VIDEO_MODEL_DURATIONS[sceneModel]
-                        ? VIDEO_MODEL_DURATIONS[sceneModel]
-                        : []
-                      ).map((duration) => (
-                        <SelectItem key={duration} value={duration.toString()}>
-                          {duration}s
-                        </SelectItem>
-                      ))}
+                      {(() => {
+                        const effectiveModelId = getEffectiveVideoModelId();
+                        // Get supported durations for the effective model
+                        const supportedDurations = effectiveModelId && VIDEO_MODEL_DURATIONS[effectiveModelId]
+                          ? VIDEO_MODEL_DURATIONS[effectiveModelId]
+                          : [];
+
+                        return supportedDurations.map((duration) => (
+                          <SelectItem key={duration} value={duration.toString()}>
+                            {duration}s
+                          </SelectItem>
+                        ));
+                      })()}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1583,18 +1643,16 @@ function SortableShotCard({
                 size="sm"
                 variant="outline"
                 className="flex-1"
-                onClick={() => {
-                  const hasVideo = version?.videoUrl;
-                  toast({
-                    title: hasVideo ? "Video Regeneration" : "Video Generation",
-                    description: hasVideo 
-                      ? "Video regeneration will be available after implementing the AI video generation pipeline."
-                      : "Video generation will be implemented in the next phase with AI model integration (Kling/Veo/Runway).",
-                  });
-                }}
+                onClick={() => onAnimateShot?.(shot.id)}
+                disabled={isGeneratingVideo || !version}
                 data-testid={`button-generate-video-${shot.id}`}
               >
-                {version?.videoUrl ? (
+                {isGeneratingVideo ? (
+                  <>
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    Generating...
+                  </>
+                ) : version?.videoUrl ? (
                   <>
                     <RefreshCw className="mr-2 h-3 w-3" />
                     Regenerate
@@ -1630,6 +1688,10 @@ export function StoryboardEditor({
   isCommerceMode = false,
   isLogoMode = false,
   isGeneratingPrompts = false,
+  imageModel: defaultImageModel,
+  videoModel: defaultVideoModel,
+  videoResolution: defaultVideoResolution,
+  aspectRatio: defaultAspectRatio = "16:9",
   onVoiceActorChange,
   onVoiceOverToggle,
   onGenerateShot,
@@ -1653,6 +1715,7 @@ export function StoryboardEditor({
   const [editChange, setEditChange] = useState("");
   const [activeCategory, setActiveCategory] = useState<"prompt" | "clothes" | "remove" | "expression" | "figure" | "camera" | "effects" | "variations" | null>(null);
   const [selectedCharacterId, setSelectedCharacterId] = useState<string>("");
+  const [activeFrameInDialog, setActiveFrameInDialog] = useState<"start" | "end">("start");
   const [localShots, setLocalShots] = useState(shots);
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
@@ -1663,6 +1726,8 @@ export function StoryboardEditor({
   const [syncedPlaying, setSyncedPlaying] = useState(false);
   const [previewVersions, setPreviewVersions] = useState<Record<string, string>>({});
   const [editReferenceImages, setEditReferenceImages] = useState<Array<{ id: string; url: string; name: string }>>([]);
+  const [selectedEditingModel, setSelectedEditingModel] = useState<string>("nano-banana");
+  const [isEditing, setIsEditing] = useState(false);
   const [cameraRotation, setCameraRotation] = useState(0);
   const [cameraVertical, setCameraVertical] = useState(0);
   const [cameraZoom, setCameraZoom] = useState(0);
@@ -1675,6 +1740,9 @@ export function StoryboardEditor({
   // Track generating state by shot ID and frame type (e.g., "shotId:start" or "shotId:end")
   const [generatingShots, setGeneratingShots] = useState<Set<string>>(new Set());
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+  // Video generation state
+  const [generatingVideos, setGeneratingVideos] = useState<Set<string>>(new Set());
+  const [videoGenerationTasks, setVideoGenerationTasks] = useState<Record<string, string>>({}); // shotId -> taskId
   const { toast } = useToast();
   
   // Model lists fetched from API
@@ -1709,6 +1777,13 @@ export function StoryboardEditor({
   // Use hardcoded image models (matching world-cast.tsx approach)
   const availableImageModels = IMAGE_MODELS;
   const availableVideoModels = videoModels.length > 0 ? videoModels : DEFAULT_VIDEO_MODELS.map(name => ({ name, label: name, description: '' }));
+  
+  // Filter models that support editing
+  const editingModels = availableImageModels.filter(model => 
+    ['nano-banana', 'nano-banana-2-pro', 'flux-2-pro', 'openai-gpt-image-1', 
+     'openai-gpt-image-1.5', 'runway-gen-4-image', 'runway-gen-4-image-turbo', 
+     'kling-image-o1'].includes(model.name)
+  );
 
   // Sync localShots with incoming shots prop to reflect updates
   useEffect(() => {
@@ -1733,8 +1808,21 @@ export function StoryboardEditor({
         ...prev,
         [selectedShot.id]: selectedShot.currentVersionId as string
       }));
+      
+      // Initialize active frame based on available frames in start-end mode
+      if (narrativeMode === "start-end") {
+        const version = shotVersions[selectedShot.id]?.find(v => v.id === selectedShot.currentVersionId);
+        if (version) {
+          // If start frame exists, default to start; otherwise use end if available
+          if (version.startFrameUrl) {
+            setActiveFrameInDialog("start");
+          } else if (version.endFrameUrl) {
+            setActiveFrameInDialog("end");
+          }
+        }
+      }
     }
-  }, [selectedShot?.id, selectedShot?.currentVersionId]);
+  }, [selectedShot?.id, selectedShot?.currentVersionId, narrativeMode, shotVersions]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1761,12 +1849,8 @@ export function StoryboardEditor({
   // Helper to get the version being previewed (or active version if no preview)
   const getPreviewedVersion = (shot: Shot): NarrativeShotVersion | null => {
     const versions = shotVersions[shot.id] || [];
-    const previewId = previewVersions[shot.id];
-    if (previewId) {
-      const preview = versions.find((v) => v.id === previewId);
-      if (preview) return preview;
-    }
-    return getShotVersion(shot);
+    const previewVersionId = previewVersions[shot.id] || shot.currentVersionId;
+    return versions.find(v => v.id === previewVersionId) || null;
   };
 
   // Wrapper handlers that track loading state by frame type
@@ -2208,6 +2292,280 @@ export function StoryboardEditor({
     }
   };
 
+  // Video generation handler
+  const handleAnimateShot = async (shotId: string) => {
+    const shot = allShots.find(s => s.id === shotId);
+    if (!shot) {
+      toast({
+        title: "Error",
+        description: "Shot not found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Get shot version
+    const version = getShotVersion(shot);
+    if (!version) {
+      toast({
+        title: "Error",
+        description: "Please generate an image for this shot first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Find scene for resolution hierarchy and continuity checks
+    const scene = scenes.find(s => s.id === shot.sceneId);
+
+    // Determine effective mode
+    const effectiveMode = narrativeMode === "auto" 
+      ? (shot.frameMode || "image-reference")
+      : narrativeMode;
+
+    // Validate required images/frames
+    if (effectiveMode === "image-reference") {
+      if (!version.imageUrl) {
+        toast({
+          title: "Error",
+          description: "Image is required for video generation",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      // Start-end mode
+      // Check if start frame should be inherited from previous shot
+      let shouldInheritStartFrame = false;
+      
+      if (scene && narrativeMode === "start-end" && continuityLocked) {
+        const sceneGroups = continuityGroups[scene.id] || [];
+        const sceneShots = localShots[scene.id] || [];
+        const shotIndex = sceneShots.findIndex(s => s.id === shotId);
+        
+        if (shotIndex > 0) {
+          const previousShot = sceneShots[shotIndex - 1];
+          
+          // Check if previous and current shots are in the same continuity group
+          for (const group of sceneGroups) {
+            const shotIds = group.shotIds || [];
+            const previousIdx = shotIds.indexOf(previousShot.id);
+            const currentIdx = shotIds.indexOf(shotId);
+            
+            if (previousIdx !== -1 && currentIdx === previousIdx + 1) {
+              shouldInheritStartFrame = true;
+              break;
+            }
+          }
+        }
+      }
+      
+      // Only require startFrameUrl if it's not being inherited
+      if (!version.startFrameUrl && !shouldInheritStartFrame) {
+        toast({
+          title: "Error",
+          description: "Start frame is required for video generation",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
+    // Resolve video settings with priority: shot → scene → video → default
+    // Note: videoResolution is not in shared Shot/Scene types, but is present in narrative mode data
+    const resolution = (shot as any).videoResolution 
+      || (scene as any)?.videoResolution 
+      || defaultVideoResolution 
+      || "720p";
+    
+    // Helper to extract model ID string (handle both string and object formats)
+    const getModelId = (model: any): string | null => {
+      if (!model) return null;
+      if (typeof model === "string") return model;
+      if (typeof model === "object") {
+        // Try various common properties
+        if (model.id) return model.id;
+        if (model.name) return model.name;
+        if (model.modelId) return model.modelId;
+        if (model.value) return model.value;
+        // If it's an array, take first element
+        if (Array.isArray(model) && model.length > 0) {
+          return getModelId(model[0]);
+        }
+      }
+      return null;
+    };
+    
+    // Resolve video model with priority: shot → scene → default → fallback
+    let videoModel: string = "seedance-1.0-pro"; // Default fallback
+    if (shot.videoModel) {
+      const modelId = getModelId(shot.videoModel);
+      if (modelId) videoModel = modelId;
+    } else if (scene?.videoModel) {
+      const modelId = getModelId(scene.videoModel);
+      if (modelId) videoModel = modelId;
+    } else if (defaultVideoModel) {
+      const modelId = getModelId(defaultVideoModel);
+      if (modelId) videoModel = modelId;
+    }
+    
+    // Final validation: ensure videoModel is always a string
+    if (typeof videoModel !== "string") {
+      videoModel = "seedance-1.0-pro"; // Force fallback
+    }
+
+    const aspectRatio = defaultAspectRatio || "16:9";
+
+    // Get video prompt
+    const videoPrompt = version.videoPrompt || "";
+
+    // Set generating state
+    setGeneratingVideos(prev => new Set(prev).add(shotId));
+
+    try {
+      const result = await animateShot(videoId, shotId, {
+        shotVersionId: version.id,
+        videoModel,
+        aspectRatio,
+        resolution,
+        duration: version.videoDuration || shot.duration,
+        videoPrompt,
+        narrativeMode: narrativeMode || "image-reference",
+      });
+
+      if (result.status === "failed") {
+        toast({
+          title: "Video generation failed",
+          description: result.error || "Unknown error",
+          variant: "destructive",
+        });
+        setGeneratingVideos(prev => {
+          const next = new Set(prev);
+          next.delete(shotId);
+          return next;
+        });
+        return;
+      }
+
+      // If processing, start polling
+      if (result.status === "processing" && result.taskId) {
+        setVideoGenerationTasks(prev => ({ ...prev, [shotId]: result.taskId }));
+        startPolling(shotId, result.taskId);
+      } else if (result.status === "completed" && result.videoUrl) {
+        // Already completed - update version
+        if (onUpdateShotVersion) {
+          onUpdateShotVersion(shotId, version.id, {
+            videoUrl: result.videoUrl,
+            status: "completed",
+          });
+        }
+        toast({
+          title: "Video generated",
+          description: "Video generation completed successfully",
+        });
+        setGeneratingVideos(prev => {
+          const next = new Set(prev);
+          next.delete(shotId);
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error('[storyboard-editor] Video generation error:', error);
+      toast({
+        title: "Video generation failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+      setGeneratingVideos(prev => {
+        const next = new Set(prev);
+        next.delete(shotId);
+        return next;
+      });
+    }
+  };
+
+  // Polling function for video generation status
+  const startPolling = (shotId: string, taskId: string) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const status = await checkVideoStatus(videoId, shotId, taskId);
+        
+        if (status.status === "completed" && status.videoUrl) {
+          // Update shot version with video URL
+          const shot = allShots.find(s => s.id === shotId);
+          if (shot?.currentVersionId && onUpdateShotVersion) {
+            onUpdateShotVersion(shotId, shot.currentVersionId, {
+              videoUrl: status.videoUrl,
+              status: "completed",
+            });
+          }
+          
+          toast({
+            title: "Video generated",
+            description: "Video generation completed successfully",
+          });
+          
+          // Clean up
+          clearInterval(pollInterval);
+          setGeneratingVideos(prev => {
+            const next = new Set(prev);
+            next.delete(shotId);
+            return next;
+          });
+          setVideoGenerationTasks(prev => {
+            const next = { ...prev };
+            delete next[shotId];
+            return next;
+          });
+        } else if (status.status === "failed") {
+          toast({
+            title: "Video generation failed",
+            description: status.error || "Unknown error",
+            variant: "destructive",
+          });
+          
+          // Clean up
+          clearInterval(pollInterval);
+          setGeneratingVideos(prev => {
+            const next = new Set(prev);
+            next.delete(shotId);
+            return next;
+          });
+          setVideoGenerationTasks(prev => {
+            const next = { ...prev };
+            delete next[shotId];
+            return next;
+          });
+        }
+        // If still processing, continue polling
+      } catch (error) {
+        console.error('[storyboard-editor] Status check error:', error);
+        // Continue polling on error (might be temporary)
+      }
+    }, 3000); // Poll every 3 seconds
+
+    // Stop polling after 5 minutes (safety timeout)
+    const timeoutId = setTimeout(() => {
+      clearInterval(pollInterval);
+      setGeneratingVideos(prev => {
+        const next = new Set(prev);
+        next.delete(shotId);
+        return next;
+      });
+      setVideoGenerationTasks(prev => {
+        const next = { ...prev };
+        delete next[shotId];
+        return next;
+      });
+    }, 300000);
+
+    // Store interval and timeout for cleanup
+    return () => {
+      clearInterval(pollInterval);
+      clearTimeout(timeoutId);
+    };
+  };
+
   const handleSelectShot = (shot: Shot) => {
     setSelectedShot(shot);
     setEditPrompt(shot.description || "");
@@ -2224,15 +2582,182 @@ export function StoryboardEditor({
     }
   };
 
+  /**
+   * Build editing instruction from category and user input
+   */
+  const buildEditingInstruction = (
+    category: string | null,
+    editChange: string,
+    selectedCharacterId: string,
+    characters: Character[]
+  ): string => {
+    const char = selectedCharacterId ? characters.find(c => c.id === selectedCharacterId) : null;
+    
+    switch (category) {
+      case "prompt":
+        return editChange;
+      case "clothes":
+        return char 
+          ? `Change ${char.name}'s clothes to: ${editChange}`
+          : `Change the character's clothes to: ${editChange}`;
+      case "remove":
+        return `Remove ${editChange} from the image`;
+      case "expression":
+        return char
+          ? `Change ${char.name}'s expression to: ${editChange}`
+          : `Change the character's expression to: ${editChange}`;
+      case "figure":
+        return char
+          ? `Change ${char.name}'s view to: ${editChange}`
+          : `Change the character's view to: ${editChange}`;
+      case "effects":
+        return `Add ${editChange} effect to the image`;
+      default:
+        return editChange;
+    }
+  };
+
+  /**
+   * Handle image editing API call
+   */
+  const handleEditImage = async () => {
+    if (!selectedShot) return;
+    
+    // Get selected version (from previewVersions or default to active)
+    const selectedVersionId = previewVersions[selectedShot.id] || selectedShot.currentVersionId;
+    const version = shotVersions[selectedShot.id]?.find(v => v.id === selectedVersionId);
+    
+    if (!version) {
+      toast({ 
+        title: "No version found", 
+        variant: "destructive",
+        description: "Please select a version to edit"
+      });
+      return;
+    }
+
+    // Get the image URL based on mode and active frame
+    let imageUrl: string | null | undefined;
+    if (narrativeMode === "start-end") {
+      // For start-end mode, use the frame that's currently active in the dialog
+      imageUrl = activeFrameInDialog === "start" 
+        ? version.startFrameUrl 
+        : version.endFrameUrl;
+    } else {
+      // For image-reference mode, use imageUrl
+      imageUrl = version.imageUrl;
+    }
+    
+    if (!imageUrl) {
+      toast({ 
+        title: "No image to edit", 
+        variant: "destructive",
+        description: narrativeMode === "start-end" 
+          ? `The selected version doesn't have a ${activeFrameInDialog} frame`
+          : "The selected version doesn't have an image"
+      });
+      return;
+    }
+    
+    if (!selectedEditingModel) {
+      toast({ 
+        title: "Please select an editing model", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    if (!activeCategory) {
+      toast({ 
+        title: "Please select an editing category", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    if (!editChange.trim()) {
+      toast({ 
+        title: "Please provide editing instructions", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    const instruction = buildEditingInstruction(
+      activeCategory,
+      editChange,
+      selectedCharacterId,
+      characters
+    );
+    
+    setIsEditing(true);
+    try {
+      const response = await apiRequest('POST', `/api/narrative/videos/${videoId}/shots/${selectedShot.id}/edit-image`, {
+        versionId: version.id,
+        editCategory: activeCategory,
+        editingInstruction: instruction,
+        referenceImages: editReferenceImages.map(img => img.url),
+        characterId: selectedCharacterId || undefined,
+        imageModel: selectedEditingModel,
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        toast({ 
+          title: "Edit failed", 
+          description: data.error,
+          variant: "destructive" 
+        });
+        return;
+      }
+      
+      // Refresh shot versions by triggering a re-fetch
+      // The parent component should handle this, but we can also update locally
+      // Set new version as preview
+      if (data.newVersionId) {
+        setPreviewVersions(prev => ({
+          ...prev,
+          [selectedShot.id]: data.newVersionId
+        }));
+      }
+      
+      toast({ 
+        title: "Image edited successfully",
+        description: `New version ${data.version?.versionNumber || ''} created`
+      });
+      
+      // Clear edit inputs
+      setEditChange("");
+      setEditReferenceImages([]);
+      setActiveCategory(null);
+    } catch (error: any) {
+      console.error('[storyboard-editor] Image editing error:', error);
+      toast({ 
+        title: "Edit failed", 
+        description: error.message || "Unknown error occurred",
+        variant: "destructive" 
+      });
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
   const handleGenerateFromDialog = () => {
-    if (selectedShot) {
+    if (!selectedShot) return;
+    
+    // Check if we're in editing mode (activeCategory is set)
+    if (activeCategory) {
+      // Call image editing
+      handleEditImage();
+    } else {
+      // Original behavior: full regeneration
       onUpdateShot(selectedShot.id, { description: editPrompt });
       onGenerateShot(selectedShot.id);
       toast({
         title: "Generating Image",
         description: "Creating image from your prompt...",
       });
-      // Keep dialog open so user can approve or select from versions
     }
   };
 
@@ -2582,7 +3107,7 @@ export function StoryboardEditor({
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Image Model</Label>
                       <Select
-                        value={scene.imageModel || availableImageModels[0]?.name || 'nano-banana'}
+                        value={scene.imageModel || defaultImageModel || availableImageModels[0]?.name || 'nano-banana'}
                         onValueChange={(value) => onUpdateScene?.(scene.id, { imageModel: value })}
                       >
                         <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-scene-image-model-${scene.id}`}>
@@ -2707,8 +3232,9 @@ export function StoryboardEditor({
                                 key={shot.id}
                                 shot={shot}
                                 shotIndex={shotIndex}
-                                sceneModel={scene.videoModel || availableVideoModels[0]?.name || 'kling'}
-                                sceneImageModel={scene.imageModel || availableImageModels[0]?.name || 'nano-banana'}
+                                sceneModel={scene.videoModel || defaultVideoModel || availableVideoModels[0]?.name || 'kling'}
+                                sceneImageModel={scene.imageModel || defaultImageModel || availableImageModels[0]?.name || 'nano-banana'}
+                                defaultVideoModel={defaultVideoModel}
                                 version={version}
                                 nextShotVersion={nextShotVersion}
                                 previousShotVersion={previousShotVersion}
@@ -2739,6 +3265,8 @@ export function StoryboardEditor({
                                 onUpdateVideoPrompt={handleUpdateVideoPrompt}
                                 onUpdateVideoDuration={handleUpdateVideoDuration}
                                 onDeleteShot={onDeleteShot}
+                                onAnimateShot={handleAnimateShot}
+                                isGeneratingVideo={generatingVideos.has(shot.id)}
                                 shotsCount={sceneShots.length}
                               />
                               {/* Connection Link Icon and Add Shot Button */}
@@ -3041,6 +3569,10 @@ export function StoryboardEditor({
           setSyncedPlaying(false);
           setEditReferenceImages([]); // Clear reference images when closing
           setEditChange(""); // Clear edit change text
+          setActiveCategory(null); // Clear active category
+          setSelectedCharacterId(""); // Clear selected character
+          setSelectedEditingModel("nano-banana"); // Reset to default model
+          setActiveFrameInDialog("start"); // Reset to start frame
           setCameraRotation(0); // Reset camera controls
           setCameraVertical(0);
           setCameraZoom(0);
@@ -3058,9 +3590,10 @@ export function StoryboardEditor({
                   {shotVersions[selectedShot.id] && shotVersions[selectedShot.id]
                     .sort((a, b) => a.versionNumber - b.versionNumber)
                     .map((version) => {
-                      const isActive = version.id === selectedShot.currentVersionId;
+                          const isActive = version.id === selectedShot.currentVersionId;
                       const isPreviewed = !compareMode && version.id === previewVersions[selectedShot.id];
                       const isSelectedForCompare = compareVersions.includes(version.id);
+                      const isSelectedForEditing = !compareMode && !isPreviewed && version.id === (previewVersions[selectedShot.id] || selectedShot.currentVersionId);
                       return (
                         <div
                           key={version.id}
@@ -3087,27 +3620,44 @@ export function StoryboardEditor({
                                 });
                               }
                             } else {
-                              // Normal mode: set as preview version for this shot
+                              // Normal mode: set as preview version for this shot (this is the version that will be edited)
                               setPreviewVersions(prev => ({
                                 ...prev,
                                 [selectedShot.id]: version.id
                               }));
+                              
+                              // Update active frame if needed (for start-end mode)
+                              if (narrativeMode === "start-end") {
+                                // If current active frame doesn't exist in new version, switch to available frame
+                                if (activeFrameInDialog === "start" && !version.startFrameUrl && version.endFrameUrl) {
+                                  setActiveFrameInDialog("end");
+                                } else if (activeFrameInDialog === "end" && !version.endFrameUrl && version.startFrameUrl) {
+                                  setActiveFrameInDialog("start");
+                                }
+                              }
                             }
                           }}
                           data-testid={`version-thumbnail-${version.id}`}
                         >
                           <div className="aspect-video bg-muted rounded-md overflow-hidden">
-                            {version.imageUrl ? (
-                              <img
-                                src={version.imageUrl}
-                                alt={`v${version.versionNumber}`}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex items-center justify-center h-full">
-                                <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                              </div>
-                            )}
+                            {(() => {
+                              // Priority: imageUrl > startFrameUrl > endFrameUrl
+                              const thumbnailUrl = version.imageUrl || version.startFrameUrl || version.endFrameUrl;
+                              if (thumbnailUrl) {
+                                return (
+                                  <img
+                                    src={thumbnailUrl}
+                                    alt={`v${version.versionNumber}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                );
+                              }
+                              return (
+                                <div className="flex items-center justify-center h-full">
+                                  <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                                </div>
+                              );
+                            })()}
                             
                             {/* Play button overlay for video versions */}
                             {version.videoUrl && (
@@ -3124,6 +3674,11 @@ export function StoryboardEditor({
                             <Badge variant={isActive ? "default" : "secondary"} className="text-xs h-5">
                               {isActive ? "Active" : `v${version.versionNumber}`}
                             </Badge>
+                            {!compareMode && isPreviewed && activeCategory && (
+                              <Badge variant="default" className="text-xs h-5 bg-cyan-500/80">
+                                Editing
+                              </Badge>
+                            )}
                           </div>
                           
                           {/* Bottom left badges - Video/Image type and duration */}
@@ -3180,31 +3735,110 @@ export function StoryboardEditor({
                   </Button>
                 </div>
                 
+                {/* Start/End Frame Selector (Start-End Mode Only) */}
+                {!compareMode && narrativeMode === "start-end" && getPreviewedVersion(selectedShot) && (
+                  <div className="absolute top-6 right-6 z-20">
+                    <div className="flex items-center gap-2 bg-background/95 backdrop-blur-md rounded-lg border shadow-lg p-1">
+                      <Button
+                        size="sm"
+                        variant={activeFrameInDialog === "start" ? "default" : "ghost"}
+                        onClick={() => setActiveFrameInDialog("start")}
+                        className={activeFrameInDialog === "start" ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white" : ""}
+                        data-testid="button-select-start-frame"
+                        disabled={!getPreviewedVersion(selectedShot)?.startFrameUrl}
+                      >
+                        Start Frame
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={activeFrameInDialog === "end" ? "default" : "ghost"}
+                        onClick={() => setActiveFrameInDialog("end")}
+                        className={activeFrameInDialog === "end" ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white" : ""}
+                        data-testid="button-select-end-frame"
+                        disabled={!getPreviewedVersion(selectedShot)?.endFrameUrl}
+                      >
+                        End Frame
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
                 {/* Main Image or Video */}
                 {!compareMode ? (
                   <div className="flex-1 flex items-center justify-center p-12 pb-32">
-                    {getPreviewedVersion(selectedShot)?.videoUrl ? (
-                      <div className="w-full max-w-4xl">
-                        <video
-                          key={getPreviewedVersion(selectedShot)!.videoUrl}
-                          src={getPreviewedVersion(selectedShot)!.videoUrl!}
-                          controls
-                          className="w-full rounded-lg shadow-2xl"
-                          data-testid="video-player"
-                        />
-                      </div>
-                    ) : getPreviewedVersion(selectedShot)?.imageUrl ? (
-                      <img
-                        src={getPreviewedVersion(selectedShot)!.imageUrl!}
-                        alt="Shot"
-                        className="max-w-full max-h-full object-contain rounded-lg"
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
-                        <ImageIcon className="h-32 w-32" />
-                        <p className="text-xl">No image generated yet</p>
-                      </div>
-                    )}
+                    {(() => {
+                      const version = getPreviewedVersion(selectedShot);
+                      if (!version) {
+                        return (
+                          <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                            <ImageIcon className="h-32 w-32" />
+                            <p className="text-xl">No image generated yet</p>
+                          </div>
+                        );
+                      }
+                      
+                      // Priority: video > imageUrl > startFrameUrl > endFrameUrl
+                      if (version.videoUrl) {
+                        return (
+                          <div className="w-full max-w-4xl">
+                            <video
+                              key={version.videoUrl}
+                              src={version.videoUrl}
+                              controls
+                              className="w-full rounded-lg shadow-2xl"
+                              data-testid="video-player"
+                            />
+                          </div>
+                        );
+                      }
+                      
+                      // For image-reference mode: use imageUrl
+                      if (version.imageUrl) {
+                        return (
+                          <img
+                            src={version.imageUrl}
+                            alt="Shot"
+                            className="max-w-full max-h-full object-contain rounded-lg"
+                          />
+                        );
+                      }
+                      
+                      // For start-end mode: show frame based on activeFrameInDialog
+                      if (narrativeMode === "start-end") {
+                        const frameUrl = activeFrameInDialog === "start" 
+                          ? version.startFrameUrl 
+                          : version.endFrameUrl;
+                        
+                        if (frameUrl) {
+                          return (
+                            <img
+                              src={frameUrl}
+                              alt={`${activeFrameInDialog === "start" ? "Start" : "End"} Frame`}
+                              className="max-w-full max-h-full object-contain rounded-lg"
+                            />
+                          );
+                        }
+                      }
+                      
+                      // Fallback: try any available frame URL
+                      const fallbackUrl = version.startFrameUrl || version.endFrameUrl;
+                      if (fallbackUrl) {
+                        return (
+                          <img
+                            src={fallbackUrl}
+                            alt="Shot"
+                            className="max-w-full max-h-full object-contain rounded-lg"
+                          />
+                        );
+                      }
+                      
+                      return (
+                        <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                          <ImageIcon className="h-32 w-32" />
+                          <p className="text-xl">No image generated yet</p>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ) : (
                   /* Compare Mode View */
@@ -3378,6 +4012,32 @@ export function StoryboardEditor({
                   </div>
                 )}
 
+                {/* Image Editing Model Dropdown - Above context panel */}
+                {activeCategory && (
+                  <div className="absolute bottom-32 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-10">
+                    <div className="bg-background/95 backdrop-blur-md rounded-lg border shadow-2xl p-4 mb-2">
+                      <div className="space-y-2">
+                        <Label className="text-sm text-muted-foreground">Image Editing Model</Label>
+                        <Select value={selectedEditingModel} onValueChange={setSelectedEditingModel}>
+                          <SelectTrigger className="bg-background/50">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {editingModels.map((model) => (
+                              <SelectItem key={model.name} value={model.name}>
+                                {model.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Select the AI model to use for editing this image
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Context Panel - Appears above toolbar based on active category */}
                 {activeCategory && (
                   <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-10">
@@ -3467,6 +4127,8 @@ export function StoryboardEditor({
                                 <div className="space-y-2">
                                   <Label className="text-sm text-muted-foreground">Change clothes to:</Label>
                                   <Input
+                                    value={editChange}
+                                    onChange={(e) => setEditChange(e.target.value)}
                                     placeholder="Enter clothing description"
                                     className="bg-background/50"
                                     data-testid="input-clothes-change"
@@ -3477,7 +4139,7 @@ export function StoryboardEditor({
                               {activeCategory === "expression" && (
                                 <div className="space-y-2">
                                   <Label className="text-sm text-muted-foreground">Change expression to:</Label>
-                                  <Select>
+                                  <Select value={editChange} onValueChange={setEditChange}>
                                     <SelectTrigger className="bg-background/50">
                                       <SelectValue placeholder="Select expression" />
                                     </SelectTrigger>
@@ -3497,17 +4159,17 @@ export function StoryboardEditor({
                               {activeCategory === "figure" && (
                                 <div className="space-y-2">
                                   <Label className="text-sm text-muted-foreground">Change view to:</Label>
-                                  <Select>
+                                  <Select value={editChange} onValueChange={setEditChange}>
                                     <SelectTrigger className="bg-background/50">
                                       <SelectValue placeholder="Select view" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="front">Front view</SelectItem>
-                                      <SelectItem value="back">Back view</SelectItem>
-                                      <SelectItem value="side">Side view</SelectItem>
-                                      <SelectItem value="top">Top view</SelectItem>
-                                      <SelectItem value="low">Low angle view</SelectItem>
-                                      <SelectItem value="closeup">Close-up</SelectItem>
+                                      <SelectItem value="front view">Front view</SelectItem>
+                                      <SelectItem value="back view">Back view</SelectItem>
+                                      <SelectItem value="side view">Side view</SelectItem>
+                                      <SelectItem value="top view">Top view</SelectItem>
+                                      <SelectItem value="low angle view">Low angle view</SelectItem>
+                                      <SelectItem value="close-up">Close-up</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
@@ -3521,6 +4183,8 @@ export function StoryboardEditor({
                         <div className="space-y-3">
                           <Label className="text-sm text-muted-foreground">Remove from image:</Label>
                           <Input
+                            value={editChange}
+                            onChange={(e) => setEditChange(e.target.value)}
                             placeholder="Enter item to remove"
                             className="bg-background/50"
                             data-testid="input-remove-item"
@@ -3638,7 +4302,7 @@ export function StoryboardEditor({
                       {activeCategory === "effects" && (
                         <div className="space-y-3">
                           <Label className="text-sm text-muted-foreground">Add effects:</Label>
-                          <Select>
+                          <Select value={editChange} onValueChange={setEditChange}>
                             <SelectTrigger className="bg-background/50">
                               <SelectValue placeholder="Select effect" />
                             </SelectTrigger>
@@ -3750,11 +4414,21 @@ export function StoryboardEditor({
                 <div className="absolute right-6">
                   <Button
                     onClick={handleGenerateFromDialog}
-                    className="bg-gradient-to-r from-[hsl(269,100%,62%)] to-[hsl(286,77%,58%)] hover:from-[hsl(269,100%,57%)] hover:to-[hsl(286,77%,53%)] text-white font-semibold px-6 rounded-full shadow-lg"
+                    disabled={isEditing}
+                    className="bg-gradient-to-r from-[hsl(269,100%,62%)] to-[hsl(286,77%,58%)] hover:from-[hsl(269,100%,57%)] hover:to-[hsl(286,77%,53%)] text-white font-semibold px-6 rounded-full shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     data-testid="button-generate-from-dialog"
                   >
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Re-gen
+                    {isEditing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Editing...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        {activeCategory ? "Apply Edit" : "Re-gen"}
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>

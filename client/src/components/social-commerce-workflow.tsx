@@ -1661,7 +1661,22 @@ export function SocialCommerceWorkflow({
             onVoiceActorChange(voiceId);
           }}
           onUpdateVoiceoverScript={async (beatId, script) => {
-            console.log('[VoiceoverPremium] Script updated for', beatId, script);
+            console.log('[VoiceoverPremium] Updating script for', beatId, script.substring(0, 50) + '...');
+            try {
+              const response = await fetch(`/api/social-commerce/videos/${videoId}/voiceover-script/${beatId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ script }),
+              });
+              if (!response.ok) {
+                throw new Error('Failed to update script');
+              }
+              console.log('[VoiceoverPremium] Script saved successfully for', beatId);
+            } catch (error) {
+              console.error('[VoiceoverPremium] Failed to save script:', error);
+              throw error;
+            }
           }}
           onRecommendVoiceover={async (beatId) => {
             console.log('[VoiceoverPremium] Recommend voiceover for', beatId);

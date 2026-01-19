@@ -19,7 +19,18 @@ export interface StoryboardImageInput {
   imagePrompt: string; // For image-reference mode
   startFramePrompt: string; // For start-end mode
   endFramePrompt: string | null; // For start-end mode, null if start-only
-  negativePrompt?: string;
+  negativePrompt?: string; // For image-reference mode
+  // Per-frame advanced settings (for start-end mode)
+  startFrameNegativePrompt?: string;
+  endFrameNegativePrompt?: string;
+  startFrameSeed?: number;
+  endFrameSeed?: number;
+  startFrameGuidanceScale?: number;
+  endFrameGuidanceScale?: number;
+  startFrameSteps?: number;
+  endFrameSteps?: number;
+  startFrameStrength?: number;
+  endFrameStrength?: number;
   referenceImages: string[]; // Character + location + style refs + previous frame if in continuity group
   aspectRatio: string; // From step1Data (e.g., "16:9", "9:16", "1:1")
   imageModel: string; // From shot/scene settings (e.g., "flux-2-dev", "nano-banana")
@@ -84,7 +95,13 @@ async function generateSingleImage(
   height: number,
   model: string,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  advancedSettings?: {
+    seed?: number;
+    guidanceScale?: number;
+    steps?: number;
+    strength?: number;
+  }
 ): Promise<{ imageUrl: string; cost?: number }> {
   // Get Runware model ID from friendly name
   // Use getRunwareModelId() which handles mapping and fallback
@@ -108,6 +125,22 @@ async function generateSingleImage(
     numberResults: 1,
     includeCost: true,
   };
+
+  // Add advanced settings if provided
+  if (advancedSettings) {
+    if (advancedSettings.seed !== undefined) {
+      payload.seed = advancedSettings.seed;
+    }
+    if (advancedSettings.guidanceScale !== undefined) {
+      payload.guidanceScale = advancedSettings.guidanceScale;
+    }
+    if (advancedSettings.steps !== undefined) {
+      payload.steps = advancedSettings.steps;
+    }
+    if (advancedSettings.strength !== undefined) {
+      payload.strength = advancedSettings.strength;
+    }
+  }
 
   // Add reference images if provided
   if (referenceImages && referenceImages.length > 0) {
@@ -177,6 +210,16 @@ export async function generateStoryboardImage(
     startFramePrompt,
     endFramePrompt,
     negativePrompt,
+    startFrameNegativePrompt,
+    endFrameNegativePrompt,
+    startFrameSeed,
+    endFrameSeed,
+    startFrameGuidanceScale,
+    endFrameGuidanceScale,
+    startFrameSteps,
+    endFrameSteps,
+    startFrameStrength,
+    endFrameStrength,
     referenceImages,
     aspectRatio,
     imageModel,
@@ -252,15 +295,25 @@ export async function generateStoryboardImage(
 
       // Generate start frame if needed
       if ((frameType === "start-and-end" || frameType === "start-only") && startFramePrompt && startFramePrompt.trim() !== "") {
+        // Use start frame specific negative prompt if provided, otherwise fall back to default
+        const startNegativePrompt = startFrameNegativePrompt || finalNegativePrompt;
+        const startAdvancedSettings = {
+          seed: startFrameSeed,
+          guidanceScale: startFrameGuidanceScale,
+          steps: startFrameSteps,
+          strength: startFrameStrength,
+        };
+        
         const startResult = await generateSingleImage(
           startFramePrompt,
-          finalNegativePrompt,
+          startNegativePrompt,
           referenceImages,
           dimensions.width,
           dimensions.height,
           imageModel,
           userId,
-          workspaceId
+          workspaceId,
+          startAdvancedSettings
         );
         startFrameUrl = startResult.imageUrl;
         totalCost += startResult.cost || 0;
@@ -272,16 +325,26 @@ export async function generateStoryboardImage(
         const endReferenceImages = startFrameUrl
           ? [...referenceImages, startFrameUrl]
           : referenceImages;
+        
+        // Use end frame specific negative prompt if provided, otherwise fall back to default
+        const endNegativePrompt = endFrameNegativePrompt || finalNegativePrompt;
+        const endAdvancedSettings = {
+          seed: endFrameSeed,
+          guidanceScale: endFrameGuidanceScale,
+          steps: endFrameSteps,
+          strength: endFrameStrength,
+        };
 
         const endResult = await generateSingleImage(
           endFramePrompt,
-          finalNegativePrompt,
+          endNegativePrompt,
           endReferenceImages,
           dimensions.width,
           dimensions.height,
           imageModel,
           userId,
-          workspaceId
+          workspaceId,
+          endAdvancedSettings
         );
         endFrameUrl = endResult.imageUrl;
         totalCost += endResult.cost || 0;

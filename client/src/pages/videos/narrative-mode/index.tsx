@@ -9,7 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import type { NarrativeStepId } from "@/components/narrative/studio";
 import type { Character, Video } from "@shared/schema";
-import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
+import type { Scene, Shot, ReferenceImage } from "@/types/storyboard";
+import type { NarrativeShotVersion } from "@/types/narrative-storyboard";
 
 export default function NarrativeMode() {
   const params = useParams<{ id?: string }>();
@@ -35,7 +36,8 @@ export default function NarrativeMode() {
   
   // Debug: Log when video data changes
   useEffect(() => {
-    console.log('[NarrativePage] existingVideo changed:', existingVideo?.id, 'narrativeMode:', existingVideo?.narrativeMode);
+    const video = existingVideo as any;
+    console.log('[NarrativePage] existingVideo changed:', existingVideo?.id, 'narrativeMode:', video?.narrativeMode);
   }, [existingVideo]);
   
   const [videoId, setVideoId] = useState<string>(initialVideoId);
@@ -67,7 +69,7 @@ export default function NarrativeMode() {
   const [shotsPerScene, setShotsPerScene] = useState<number | 'auto'>('auto');
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [shots, setShots] = useState<{ [sceneId: string]: Shot[] }>({});
-  const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
+  const [shotVersions, setShotVersions] = useState<{ [shotId: string]: NarrativeShotVersion[] }>({});
   const [characters, setCharacters] = useState<Character[]>([]);
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
   const [continuityLocked, setContinuityLocked] = useState(false);
@@ -98,10 +100,11 @@ export default function NarrativeMode() {
       // Skip navigation restoration if already restored (prevents refetch from navigating away)
       const isInitialRestore = !hasRestoredRef.current;
       
+      const video = existingVideo as any;
       console.log('[NarrativePage] Restoring from existingVideo:', {
         id: existingVideo.id,
         title: existingVideo.title,
-        narrativeMode: existingVideo.narrativeMode,
+        narrativeMode: video?.narrativeMode,
         currentStep: existingVideo.currentStep,
         step1Data: existingVideo.step1Data,
         isInitialRestore,
@@ -129,10 +132,11 @@ export default function NarrativeMode() {
         };
         
         // Restore narrative mode from step1Data (primary location) or top-level (fallback)
+        const video = existingVideo as any;
         if (step1.narrativeMode) {
           setNarrativeMode(step1.narrativeMode as "image-reference" | "start-end" | "auto");
-        } else if (existingVideo.narrativeMode) {
-          setNarrativeMode(existingVideo.narrativeMode as "image-reference" | "start-end" | "auto");
+        } else if (video?.narrativeMode) {
+          setNarrativeMode(video.narrativeMode as "image-reference" | "start-end" | "auto");
         }
         
         // Restore all step1 fields
@@ -153,11 +157,8 @@ export default function NarrativeMode() {
         if (step1.imageModel) setImageModel(step1.imageModel);
         if (step1.videoModel) setVideoModel(step1.videoModel);
         
-        // Remove imageModel from worldSettings if it exists (migrated to step1Data)
-        setWorldSettings(prev => {
-          const { imageModel: _, ...rest } = prev;
-          return rest;
-        });
+        // imageModel is now stored in step1Data, not worldSettings
+        // No need to remove it from worldSettings as it's not part of the type
         
         console.log('[NarrativePage] Restored step1 data:', {
           hasScript: !!step1.script,
@@ -169,9 +170,12 @@ export default function NarrativeMode() {
           language: step1.language,
           userIdea: step1.userIdea,
         });
-      } else if (existingVideo.narrativeMode) {
+      } else {
         // Fallback: try top-level narrativeMode if no step1Data
-        setNarrativeMode(existingVideo.narrativeMode as "image-reference" | "start-end" | "auto");
+        const video = existingVideo as any;
+        if (video?.narrativeMode) {
+          setNarrativeMode(video.narrativeMode as "image-reference" | "start-end" | "auto");
+        }
       }
       
       // Step ID mapping (numeric to string)
@@ -202,9 +206,6 @@ export default function NarrativeMode() {
         
         if (firstUncompletedStep) {
           console.log('[NarrativePage] Navigating to first uncompleted step:', firstUncompletedStep);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.tsx:181',message:'setActiveStep called (first uncompleted)',data:{to:firstUncompletedStep,source:'restoration',isInitialRestore},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'Z4'})}).catch(()=>{});
-          // #endregion
           setActiveStep(firstUncompletedStep);
         } else if (existingVideo.currentStep !== null && existingVideo.currentStep !== undefined) {
           // All steps completed - restore to the saved current step
@@ -235,10 +236,9 @@ export default function NarrativeMode() {
           characters?: Character[];
         };
         
-        // Restore world settings
+        // Restore world settings (imageModel is stored in step1Data, not worldSettings)
         setWorldSettings({
           artStyle: step2.artStyle || "none",
-          imageModel: step2.imageModel || "flux-2-dev",
           worldDescription: step2.worldDescription || "",
           locations: step2.locations || [],
           imageInstructions: step2.imageInstructions || "",
@@ -289,7 +289,7 @@ export default function NarrativeMode() {
       // Restore step4 data (shot versions, reference images, prompts - only if not already restored from step2)
       if (existingVideo.step4Data && typeof existingVideo.step4Data === 'object') {
         const step4 = existingVideo.step4Data as { 
-          shotVersions?: { [shotId: string]: ShotVersion[] };
+          shotVersions?: { [shotId: string]: NarrativeShotVersion[] };
           characters?: Character[];
           referenceImages?: ReferenceImage[];
           prompts?: Record<string, any>;  // Prompts generated by Agent 4.1
@@ -330,7 +330,7 @@ export default function NarrativeMode() {
                   // Check if there's already a version for this shot
                   // First, try to find version by shot.currentVersionId if it exists
                   let version = shot.currentVersionId
-                    ? restoredShotVersions[shot.id].find((v: ShotVersion) => v.id === shot.currentVersionId)
+                    ? restoredShotVersions[shot.id].find((v: NarrativeShotVersion) => v.id === shot.currentVersionId)
                     : null;
                   
                   // If no version found by currentVersionId, use the latest existing version
@@ -396,9 +396,6 @@ export default function NarrativeMode() {
                     const updatedVersion = { ...version };
                     // Only update if the field is truly empty (null, undefined, or empty string)
                     // This preserves user edits that were saved to the database
-                    // #region agent log
-                    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.tsx:367',message:'Checking restoration imagePrompt',data:{shotId:shot.id,versionId:version.id,hasExistingPrompt:!!updatedVersion.imagePrompt,existingPrompt:updatedVersion.imagePrompt?.substring(0,40),newPrompt:promptData.imagePrompt?.substring(0,40)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'W'})}).catch(()=>{});
-                    // #endregion
                     if (!updatedVersion.imagePrompt && promptData.imagePrompt) {
                       updatedVersion.imagePrompt = promptData.imagePrompt;
                     }
@@ -425,7 +422,7 @@ export default function NarrativeMode() {
                     
                     if (hasChanges) {
                       // Update the version in the array
-                      const versionIndex = restoredShotVersions[shot.id].findIndex((v: ShotVersion) => v.id === version!.id);
+                      const versionIndex = restoredShotVersions[shot.id].findIndex((v: NarrativeShotVersion) => v.id === version!.id);
                       if (versionIndex >= 0) {
                         restoredShotVersions[shot.id][versionIndex] = updatedVersion;
                       }
@@ -527,7 +524,12 @@ export default function NarrativeMode() {
     language?: string;
     aspectRatio?: string;
     scriptModel?: string;
+    imageModel?: string;
+    videoModel?: string;
     userIdea?: string;
+    numberOfScenes?: number | 'auto';
+    shotsPerScene?: number | 'auto';
+    narrationStyle?: "third-person" | "first-person";
   }) => {
     if (!videoId || videoId === 'new') {
       console.warn('[NarrativePage] Cannot save step1 data - no valid videoId');
@@ -626,9 +628,6 @@ export default function NarrativeMode() {
   };
 
   const handleNext = async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.tsx:594',message:'handleNext called',data:{activeStep,isGeneratingPrompts},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'Y'})}).catch(()=>{});
-    // #endregion
     const steps: NarrativeStepId[] = ["script", "world", "breakdown", "storyboard", "animatic", "export"];
     const currentIndex = steps.indexOf(activeStep);
     const nextIndex = currentIndex + 1;
@@ -646,7 +645,11 @@ export default function NarrativeMode() {
             language: language,
             aspectRatio: aspectRatio,
             scriptModel: scriptModel,
+            imageModel: imageModel,
+            videoModel: videoModel,
             userIdea: userIdea,
+            numberOfScenes: numberOfScenes,
+            shotsPerScene: shotsPerScene,
             // narrativeMode is stored separately in video metadata, not in step1Data
           };
 
@@ -671,8 +674,9 @@ export default function NarrativeMode() {
           const styleReference = styleRefs.map(r => r.imageUrl);
 
           // Build complete Step2Data object
+          // Note: imageModel is stored in step1Data, not step2Data
           const step2Data = {
-            imageModel: worldSettings.imageModel || "flux-2-dev",
+            imageModel: imageModel || "flux-2-dev", // Use imageModel from step1Data state
             artStyle: worldSettings.artStyle || "none",
             styleReference: styleReference.length > 0 ? styleReference : undefined,
             cinematicInspiration: worldSettings.cinematicInspiration || undefined,
@@ -696,7 +700,7 @@ export default function NarrativeMode() {
         }
       }
 
-      // If we're on the "breakdown" step, generate prompts for all shots before proceeding
+      // If we're on the "breakdown" step, navigate immediately and generate prompts in background
       // ONLY if step4Data.prompts is empty/blank (similar to breakdown generation)
       if (activeStep === "breakdown") {
         // Check if prompts already exist in step4Data
@@ -722,39 +726,45 @@ export default function NarrativeMode() {
             return;
           }
           
-          try {
-            setIsGeneratingPrompts(true);
-            
-            // Collect all shots from all scenes
-            const allShots: Array<{ id: string; sceneId: string }> = [];
-            Object.entries(shots).forEach(([sceneId, sceneShots]) => {
-              sceneShots.forEach((shot: any) => {
-                allShots.push({ id: shot.id, sceneId });
-              });
+          // Collect all shots from all scenes (get full Shot objects)
+          const allShots: Shot[] = [];
+          Object.entries(shots).forEach(([sceneId, sceneShots]) => {
+            sceneShots.forEach((shot: Shot) => {
+              allShots.push(shot);
             });
+          });
 
-            if (allShots.length === 0) {
-              toast({
-                title: "No Shots",
-                description: "Please create at least one shot before continuing.",
-                variant: "destructive",
-              });
-              setIsGeneratingPrompts(false);
-              return;
+          if (allShots.length === 0) {
+            toast({
+              title: "No Shots",
+              description: "Please create at least one shot before continuing.",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          // Group shots by sceneId (using full Shot objects)
+          const shotsByScene = new Map<string, Shot[]>();
+          allShots.forEach(shot => {
+            if (!shotsByScene.has(shot.sceneId)) {
+              shotsByScene.set(shot.sceneId, []);
             }
+            shotsByScene.get(shot.sceneId)!.push(shot);
+          });
 
-            // Show loading toast
-            const loadingToast = toast({
-              title: "Generating Prompts",
-              description: `Generating prompts for ${allShots.length} shot${allShots.length > 1 ? 's' : ''}...`,
-            });
+          // Start prompt generation in background (don't await)
+          setIsGeneratingPrompts(true);
+          
+          // Generate prompts asynchronously (fire and forget)
+          (async () => {
+            try {
 
-            // Generate prompts for all shots in parallel (optimized)
+            // Generate prompts for all scenes in parallel (batch mode - one API call per scene)
             const prompts: Record<string, any> = {};
-            const newShotVersions: { [shotId: string]: ShotVersion[] } = { ...shotVersions };
+            const newShotVersions: { [shotId: string]: NarrativeShotVersion[] } = { ...shotVersions };
             
-            // Create all API calls in parallel
-            const promptPromises = allShots.map(async (shot) => {
+            // Create API calls for each scene
+            const scenePromises = Array.from(shotsByScene.entries()).map(async ([sceneId, sceneShots]) => {
               try {
                 const response = await fetch('/api/narrative/prompts/generate', {
                   method: 'POST',
@@ -764,7 +774,7 @@ export default function NarrativeMode() {
                   },
                   credentials: 'include',
                   body: JSON.stringify({
-                    shotId: shot.id,
+                    sceneId: sceneId,
                     videoId: videoId,
                     model: scriptModel,
                   }),
@@ -772,101 +782,119 @@ export default function NarrativeMode() {
 
                 if (!response.ok) {
                   const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-                  console.error(`[NarrativePage] Prompt generation failed for shot ${shot.id}:`, errorData);
-                  return { shotId: shot.id, success: false, error: errorData };
+                  console.error(`[NarrativePage] Prompt generation failed for scene ${sceneId}:`, errorData);
+                  return { sceneId, success: false, error: errorData, prompts: [] };
                 }
 
-                const promptData = await response.json();
-                return { shotId: shot.id, success: true, promptData };
+                // Response is now an array of prompts (one per shot in scene)
+                const promptArray = await response.json();
+                return { sceneId, success: true, prompts: promptArray };
               } catch (error) {
-                console.error(`[NarrativePage] Prompt generation error for shot ${shot.id}:`, error);
-                return { shotId: shot.id, success: false, error };
+                console.error(`[NarrativePage] Prompt generation error for scene ${sceneId}:`, error);
+                return { sceneId, success: false, error, prompts: [] };
               }
             });
 
-            // Wait for all requests to complete
-            const results = await Promise.all(promptPromises);
+            // Wait for all scene requests to complete
+            const sceneResults = await Promise.all(scenePromises);
             
             // Process results and update state
             const updatedShots = { ...shots };
             let successCount = 0;
             let errorCount = 0;
 
-            for (const result of results) {
-              if (result.success && result.promptData) {
-                prompts[result.shotId] = result.promptData;
-                
-                // Create or update shot version with prompts
-                if (!newShotVersions[result.shotId]) {
-                  newShotVersions[result.shotId] = [];
-                }
-                
-                // Check if shot already has a version
-                const existingShot = Object.values(shots).flat().find((s: Shot) => s.id === result.shotId);
-                let version = existingShot?.currentVersionId
-                  ? newShotVersions[result.shotId].find((v: ShotVersion) => v.id === existingShot.currentVersionId)
-                  : null;
-                
-                if (!version) {
-                  // Create new version with prompts
-                  const newVersionId = `version-${result.shotId}-${Date.now()}`;
-                  version = {
-                    id: newVersionId,
-                    shotId: result.shotId,
-                    versionNumber: 1,
-                    imagePrompt: result.promptData.imagePrompt || null,
-                    startFramePrompt: result.promptData.startFramePrompt || null,
-                    endFramePrompt: result.promptData.endFramePrompt || null,
-                    videoPrompt: result.promptData.videoPrompt || null,
-                    negativePrompt: result.promptData.negativePrompt || null,
-                    status: 'pending',
-                    needsRerender: false,
-                    createdAt: new Date(),
-                  };
-                  newShotVersions[result.shotId].push(version);
+            // Create a map of shotId to shot for quick lookup
+            const shotMap = new Map<string, Shot>();
+            allShots.forEach(shot => shotMap.set(shot.id, shot));
+
+            for (const sceneResult of sceneResults) {
+              if (sceneResult.success && Array.isArray(sceneResult.prompts)) {
+                // Process each prompt in the array
+                for (const promptData of sceneResult.prompts) {
+                  // Find the shot by shotNumber and sceneId
+                  const sceneShots = shotsByScene.get(sceneResult.sceneId) || [];
+                  const shot: Shot | undefined = sceneShots.find(s => s.shotNumber === promptData.shotNumber);
                   
-                  // Update shot to point to this version
-                  const shot = allShots.find(s => s.id === result.shotId);
-                  if (shot) {
-                    const sceneId = shot.sceneId;
-                    if (updatedShots[sceneId]) {
-                      const shotIndex = updatedShots[sceneId].findIndex((s: Shot) => s.id === result.shotId);
+                  if (!shot) {
+                    console.warn(`[NarrativePage] Could not find shot for prompt with shotNumber ${promptData.shotNumber} in scene ${sceneResult.sceneId}`);
+                    errorCount++;
+                    continue;
+                  }
+
+                  const shotId = shot.id;
+                  prompts[shotId] = promptData;
+                  
+                  // Create or update shot version with prompts
+                  if (!newShotVersions[shotId]) {
+                    newShotVersions[shotId] = [];
+                  }
+                  
+                  // Check if shot already has a version
+                  const existingShot = shotMap.get(shotId);
+                  let version = existingShot?.currentVersionId
+                    ? newShotVersions[shotId].find((v: NarrativeShotVersion) => v.id === existingShot.currentVersionId)
+                    : null;
+                  
+                  if (!version) {
+                    // Create new version with prompts
+                    const newVersionId = `version-${shotId}-${Date.now()}`;
+                    version = {
+                      id: newVersionId,
+                      shotId: shotId,
+                      versionNumber: 1,
+                      imagePrompt: promptData.imagePrompt || null,
+                      startFramePrompt: promptData.startFramePrompt || null,
+                      endFramePrompt: promptData.endFramePrompt || null,
+                      videoPrompt: promptData.videoPrompt || null,
+                      negativePrompt: promptData.negativePrompt || null,
+                      status: 'pending',
+                      needsRerender: false,
+                      createdAt: new Date(),
+                    };
+                    newShotVersions[shotId].push(version);
+                    
+                    // Update shot to point to this version
+                    const shotSceneId: string = shot.sceneId;
+                    if (updatedShots[shotSceneId]) {
+                      const shotIndex = updatedShots[shotSceneId].findIndex((s: Shot) => s.id === shotId);
                       if (shotIndex >= 0) {
-                        updatedShots[sceneId][shotIndex] = {
-                          ...updatedShots[sceneId][shotIndex],
+                        updatedShots[shotSceneId][shotIndex] = {
+                          ...updatedShots[shotSceneId][shotIndex],
                           currentVersionId: newVersionId,
                         };
                       }
                     }
-                  }
-                } else {
-                  // Update existing version with prompts (only if fields are empty)
-                  const updatedVersion = { ...version };
-                  if (!updatedVersion.imagePrompt && result.promptData.imagePrompt) {
-                    updatedVersion.imagePrompt = result.promptData.imagePrompt;
-                  }
-                  if (!updatedVersion.startFramePrompt && result.promptData.startFramePrompt) {
-                    updatedVersion.startFramePrompt = result.promptData.startFramePrompt;
-                  }
-                  if (!updatedVersion.endFramePrompt && result.promptData.endFramePrompt) {
-                    updatedVersion.endFramePrompt = result.promptData.endFramePrompt;
-                  }
-                  if (!updatedVersion.videoPrompt && result.promptData.videoPrompt) {
-                    updatedVersion.videoPrompt = result.promptData.videoPrompt;
-                  }
-                  if (!updatedVersion.negativePrompt && result.promptData.negativePrompt) {
-                    updatedVersion.negativePrompt = result.promptData.negativePrompt;
+                  } else {
+                    // Update existing version with prompts (only if fields are empty)
+                    const updatedVersion = { ...version };
+                    if (!updatedVersion.imagePrompt && promptData.imagePrompt) {
+                      updatedVersion.imagePrompt = promptData.imagePrompt;
+                    }
+                    if (!updatedVersion.startFramePrompt && promptData.startFramePrompt) {
+                      updatedVersion.startFramePrompt = promptData.startFramePrompt;
+                    }
+                    if (!updatedVersion.endFramePrompt && promptData.endFramePrompt) {
+                      updatedVersion.endFramePrompt = promptData.endFramePrompt;
+                    }
+                    if (!updatedVersion.videoPrompt && promptData.videoPrompt) {
+                      updatedVersion.videoPrompt = promptData.videoPrompt;
+                    }
+                    if (!updatedVersion.negativePrompt && promptData.negativePrompt) {
+                      updatedVersion.negativePrompt = promptData.negativePrompt;
+                    }
+                    
+                    const versionIndex = newShotVersions[shotId].findIndex((v: NarrativeShotVersion) => v.id === version!.id);
+                    if (versionIndex >= 0) {
+                      newShotVersions[shotId][versionIndex] = updatedVersion;
+                    }
                   }
                   
-                  const versionIndex = newShotVersions[result.shotId].findIndex((v: ShotVersion) => v.id === version!.id);
-                  if (versionIndex >= 0) {
-                    newShotVersions[result.shotId][versionIndex] = updatedVersion;
-                  }
+                  successCount++;
                 }
-                
-                successCount++;
               } else {
-                errorCount++;
+                // Count all shots in failed scene as errors
+                const sceneShots = shotsByScene.get(sceneResult.sceneId) || [];
+                errorCount += sceneShots.length;
               }
             }
 
@@ -876,9 +904,6 @@ export default function NarrativeMode() {
               setShots(updatedShots);
             }
 
-            // Dismiss loading toast
-            loadingToast.dismiss();
-
             if (errorCount > 0) {
               toast({
                 title: "Partial Success",
@@ -886,7 +911,7 @@ export default function NarrativeMode() {
                 variant: errorCount === allShots.length ? "destructive" : "default",
               });
               
-              // If all failed, don't proceed
+              // If all failed, stop loading
               if (errorCount === allShots.length) {
                 setIsGeneratingPrompts(false);
                 return;
@@ -923,17 +948,19 @@ export default function NarrativeMode() {
             }
 
             console.log('[NarrativePage] Prompts generated and saved successfully');
-          } catch (error) {
-            toast({
-              title: "Prompt Generation Failed",
-              description: error instanceof Error ? error.message : "Failed to generate prompts. Please try again.",
-              variant: "destructive",
-            });
-            setIsGeneratingPrompts(false);
-            return;
-          } finally {
-            setIsGeneratingPrompts(false);
-          }
+            } catch (error) {
+              toast({
+                title: "Prompt Generation Failed",
+                description: error instanceof Error ? error.message : "Failed to generate prompts. Please try again.",
+                variant: "destructive",
+              });
+            } finally {
+              setIsGeneratingPrompts(false);
+            }
+          })();
+          
+          // Navigate immediately without waiting for prompts
+          // The storyboard will show a loading overlay while prompts are being generated
         }
         // If prompts already exist, skip generation and proceed directly
       }
@@ -948,9 +975,6 @@ export default function NarrativeMode() {
       // Update local state
       setCompletedSteps(newCompletedSteps);
       setDirection(1);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.tsx:923',message:'setActiveStep called (handleNext)',data:{from:activeStep,to:nextStep,source:'handleNext'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'Z5'})}).catch(()=>{});
-      // #endregion
       setActiveStep(nextStep);
       
       // Save to database
@@ -1089,6 +1113,7 @@ export default function NarrativeMode() {
         workspaceId={workspaceId}
         narrativeMode={narrativeMode}
         script={script}
+        isGeneratingPrompts={isGeneratingPrompts}
         aspectRatio={aspectRatio}
         scriptModel={scriptModel}
         voiceActorId={voiceActorId}

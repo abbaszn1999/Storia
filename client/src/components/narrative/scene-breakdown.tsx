@@ -105,6 +105,7 @@ export function SceneBreakdown({
   const [localDeclinedGroups, setLocalDeclinedGroups] = useState<{ [sceneId: string]: ContinuityGroup[] }>({});
   
   // Initialize from propsGroups by separating approved vs proposed vs declined
+  // When using parent callback, we still need to sync local state for internal operations
   useEffect(() => {
     const approved: { [sceneId: string]: ContinuityGroup[] } = {};
     const proposed: { [sceneId: string]: ContinuityGroup[] } = {};
@@ -112,13 +113,15 @@ export function SceneBreakdown({
     
     Object.entries(propsGroups).forEach(([sceneId, groups]) => {
       groups.forEach(group => {
-        if (group.status === "approved") {
+        // Ensure status exists, default to "proposed" if missing
+        const status = group.status || "proposed";
+        if (status === "approved") {
           if (!approved[sceneId]) approved[sceneId] = [];
           approved[sceneId].push(group);
-        } else if (group.status === "proposed") {
+        } else if (status === "proposed") {
           if (!proposed[sceneId]) proposed[sceneId] = [];
           proposed[sceneId].push(group);
-        } else if (group.status === "declined") {
+        } else if (status === "declined") {
           if (!declined[sceneId]) declined[sceneId] = [];
           declined[sceneId].push(group);
         }
@@ -128,7 +131,7 @@ export function SceneBreakdown({
     setLocalApprovedGroups(approved);
     setLocalProposalDraft(proposed);
     setLocalDeclinedGroups(declined);
-  }, []); // Only run once on mount
+  }, [propsGroups]); // Sync when propsGroups changes (e.g., after new breakdown)
   
   // If parent provides callback, use props as source of truth; otherwise use local state
   const hasParentCallback = Boolean(onContinuityGroupsChange);
@@ -165,7 +168,7 @@ export function SceneBreakdown({
     ? Object.fromEntries(
         Object.entries(propsGroups).map(([sceneId, groups]) => [
           sceneId, 
-          groups.filter(g => g.status === "approved")
+          groups.filter(g => (g.status || "proposed") === "approved")
         ]).filter(([_, groups]) => groups.length > 0)
       )
     : localApprovedGroups;
@@ -174,7 +177,7 @@ export function SceneBreakdown({
     ? Object.fromEntries(
         Object.entries(propsGroups).map(([sceneId, groups]) => [
           sceneId,
-          groups.filter(g => g.status === "proposed")
+          groups.filter(g => (g.status || "proposed") === "proposed")
         ]).filter(([_, groups]) => groups.length > 0)
       )
     : localProposalDraft;
@@ -183,7 +186,7 @@ export function SceneBreakdown({
     ? Object.fromEntries(
         Object.entries(propsGroups).map(([sceneId, groups]) => [
           sceneId,
-          groups.filter(g => g.status === "declined")
+          groups.filter(g => (g.status || "proposed") === "declined")
         ]).filter(([_, groups]) => groups.length > 0)
       )
     : localDeclinedGroups;
@@ -359,6 +362,59 @@ export function SceneBreakdown({
     toast({
       title: "Group Approved",
       description: "Continuity group approved successfully.",
+    });
+  };
+
+  const handleApproveAll = () => {
+    // Get all proposed groups across all scenes
+    const allProposedGroups: Array<{ sceneId: string; group: ContinuityGroup }> = [];
+    Object.entries(proposalDraft).forEach(([sceneId, groups]) => {
+      groups.forEach((group: ContinuityGroup) => {
+        allProposedGroups.push({ sceneId, group });
+      });
+    });
+
+    if (allProposedGroups.length === 0) {
+      toast({
+        title: "No Groups to Approve",
+        description: "There are no proposed continuity groups to approve.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Deep clone approved groups map
+    const newApproved: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(approvedGroups) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      newApproved[id] = [...groups]; // Clone array
+    });
+
+    // Approve all proposed groups
+    allProposedGroups.forEach(({ sceneId, group }) => {
+      const approvedGroup: ContinuityGroup = {
+        ...group,
+        status: "approved",
+        approvedAt: new Date(),
+      };
+
+      if (!newApproved[sceneId]) newApproved[sceneId] = [];
+      newApproved[sceneId] = [...newApproved[sceneId], approvedGroup];
+    });
+
+    // Clear all proposed groups (move them all to approved)
+    const newProposed: { [sceneId: string]: ContinuityGroup[] } = {};
+
+    // Deep clone declined groups map
+    const newDeclined: { [sceneId: string]: ContinuityGroup[] } = {};
+    (Object.entries(declinedGroups) as [string, ContinuityGroup[]][]).forEach(([id, groups]) => {
+      newDeclined[id] = [...groups]; // Clone array
+    });
+
+    updateAllGroupMaps(newApproved, newProposed, newDeclined);
+
+    toast({
+      title: "All Groups Approved",
+      description: `Approved ${allProposedGroups.length} continuity group${allProposedGroups.length !== 1 ? 's' : ''} successfully.`,
     });
   };
 
@@ -1156,6 +1212,21 @@ export function SceneBreakdown({
     onScenesGenerated?.(updatedScenes, updatedShots);
     onScenesChange?.(updatedScenes);
     onShotsChange?.(updatedShots);
+    
+    // Clear continuity groups for this scene
+    if (onContinuityGroupsChange) {
+      const updatedGroups = { ...propsGroups };
+      delete updatedGroups[sceneId];
+      onContinuityGroupsChange(updatedGroups);
+    }
+    
+    // If this was the last scene, unlock continuity
+    if (updatedScenes.length === 0) {
+      if (onContinuityLockedChange) {
+        onContinuityLockedChange(false);
+      }
+      setLocalContinuityLocked(false);
+    }
   };
 
   const removeShotData = (shotId: string, sceneId: string) => {
@@ -1165,6 +1236,22 @@ export function SceneBreakdown({
     }
     onScenesGenerated?.(scenes, updatedShots);
     onShotsChange?.(updatedShots);
+    
+    // Filter continuity groups to remove any groups that reference this shot
+    if (onContinuityGroupsChange) {
+      const updatedGroups = { ...propsGroups };
+      if (updatedGroups[sceneId]) {
+        updatedGroups[sceneId] = updatedGroups[sceneId].filter(group => {
+          // Remove groups that contain the deleted shot
+          return !group.shotIds || !group.shotIds.includes(shotId);
+        });
+        // If no groups remain for this scene, remove the scene entry
+        if (updatedGroups[sceneId].length === 0) {
+          delete updatedGroups[sceneId];
+        }
+      }
+      onContinuityGroupsChange(updatedGroups);
+    }
   };
 
   const handleGenerateBreakdown = async () => {
@@ -1236,6 +1323,7 @@ export function SceneBreakdown({
         scenes: Scene[];
         shots: { [sceneId: string]: Shot[] };
         continuityGroups?: { [sceneId: string]: ContinuityGroup[] };
+        continuityLocked?: boolean;
         shotVersions?: { [shotId: string]: ShotVersion[] };
         totalDuration?: number;
         cost?: number;
@@ -1245,26 +1333,66 @@ export function SceneBreakdown({
       onScenesChange?.(data.scenes);
       onShotsChange?.(data.shots);
 
+      // Handle continuity locked state from breakdown response
+      if (data.continuityLocked !== undefined) {
+        if (onContinuityLockedChange) {
+          onContinuityLockedChange(data.continuityLocked);
+        }
+        setLocalContinuityLocked(data.continuityLocked);
+      }
+
       // Handle continuity groups from breakdown response
       if (data.continuityGroups && Object.keys(data.continuityGroups).length > 0) {
         // Convert date strings back to Date objects for local state
+        // IMPORTANT: Ensure all groups have status: "proposed" so they show up in the UI
         const continuityGroupsWithDates: { [sceneId: string]: ContinuityGroup[] } = {};
         for (const [sceneId, groups] of Object.entries(data.continuityGroups)) {
           continuityGroupsWithDates[sceneId] = groups.map(group => ({
             ...group,
+            status: group.status || "proposed", // Ensure status is set to "proposed" if missing
             createdAt: typeof group.createdAt === 'string' ? new Date(group.createdAt) : group.createdAt,
             editedAt: group.editedAt && typeof group.editedAt === 'string' ? new Date(group.editedAt) : group.editedAt,
             approvedAt: group.approvedAt && typeof group.approvedAt === 'string' ? new Date(group.approvedAt) : group.approvedAt,
           }));
         }
 
-        // Initialize continuity groups as proposals
-        updateAllGroupMaps(approvedGroups, continuityGroupsWithDates, declinedGroups);
+        // Clear old continuity groups before setting new ones
+        // This ensures old groups referencing deleted scenes/shots don't interfere
+        const emptyApproved: { [sceneId: string]: ContinuityGroup[] } = {};
+        const emptyDeclined: { [sceneId: string]: ContinuityGroup[] } = {};
+        
+        // Initialize continuity groups as proposals (with cleared approved/declined)
+        updateAllGroupMaps(emptyApproved, continuityGroupsWithDates, emptyDeclined);
+
+        // Reset continuity locked state since we have new groups to review
+        // (Only if not already set from API response above)
+        if (data.continuityLocked === undefined) {
+          if (onContinuityLockedChange) {
+            onContinuityLockedChange(false);
+          }
+          setLocalContinuityLocked(false);
+        }
 
         toast({
           title: "Continuity Groups Generated",
           description: `Generated ${Object.values(continuityGroupsWithDates).flat().length} continuity group proposals. Review and approve to proceed.`,
         });
+      } else {
+        // If no continuity groups in response, clear existing ones
+        if (onContinuityGroupsChange) {
+          onContinuityGroupsChange({});
+        } else {
+          updateAllGroupMaps({}, {}, {});
+        }
+        
+        // Reset continuity locked state when no groups are generated
+        // (Only if not already set from API response above)
+        if (data.continuityLocked === undefined) {
+          if (onContinuityLockedChange) {
+            onContinuityLockedChange(false);
+          }
+          setLocalContinuityLocked(false);
+        }
       }
       setSynopsis(script.substring(0, 200));
       toast({
@@ -1502,6 +1630,7 @@ export function SceneBreakdown({
               onGroupApprove={handleGroupApprove}
               onGroupDecline={handleGroupDecline}
               onGroupEdit={handleGroupEdit}
+              onApproveAll={handleApproveAll}
               onLock={handleLock}
               onGenerateProposal={handleGenerateContinuityProposal}
               isGenerating={isGeneratingContinuity}

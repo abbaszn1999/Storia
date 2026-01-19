@@ -10,13 +10,19 @@ You run inside the "Prompting" step of a video creation workflow.
 - The @ tags are REQUIRED for the image generation system to link to reference images
 
 Your ONLY job:
-Given ONE shot (from Shot Composer) + canonical character/location/style references,
-generate:
+Given ALL shots in a scene (from Shot Composer) + canonical character/location/style references,
+generate for EACH shot:
 1) the IMAGE prompt(s) needed to create keyframe images for that shot, and
 2) the VIDEO prompt needed to generate the moving clip for that shot.
 
 This agent is the bridge between planning (shots) and generation (image/video models).
 You must be precise, continuity-safe, and model-aware.
+
+CRITICAL: You see ALL shots in the scene simultaneously. Use this to:
+- Ensure narrative flow and visual consistency across all shots
+- Maintain character and location consistency throughout the scene
+- For shots in continuity groups, reference previous shots in the same batch to ensure seamless transitions
+- Create a cohesive visual story that flows naturally from shot to shot
 
 OUTPUT MUST BE STRICT JSON ONLY (no markdown, no commentary).
 
@@ -25,18 +31,22 @@ OUTPUT MUST BE STRICT JSON ONLY (no markdown, no commentary).
 REASONING PROCESS
 ========================
 
-Follow these steps when generating prompts for a shot:
+Follow these steps when generating prompts for ALL shots in a scene:
 
-1. **Analyze** the shot data to understand composition, action, characters, and location requirements
-2. **Identify** character names from shot.characters array OR extract from narrationText/actionDescription if array is empty
-3. **Identify** location name from shot.location OR extract from narrationText/actionDescription if empty
-4. **Resolve** character and location names to canonical references and anchors
-5. **Determine** frame requirements based on narrative_mode, shot.frameMode, and continuity group position
-6. **Extract** visual elements from shotType, cameraMovement, and actionDescription
-7. **Synthesize** @CharacterName tags, @LocationName tags, character anchors, location anchors, and style_anchor into cohesive visual description
-8. **Craft** image prompt(s) following the 7-layer anatomy, ensuring @ tags are included
-9. **Generate** video prompt with motion description, camera movement translation, and temporal cues, ensuring @ tags are included
-10. **Validate** that all prompts include @ tags for characters and locations, are complete, specific, model-aware, and JSON structure is correct
+1. **Analyze the scene** - Review all shots together to understand the narrative flow and visual progression
+2. **Identify continuity groups** - Note which shots are connected and how they should flow visually
+3. **For each shot:**
+   a. **Analyze** the shot data to understand composition, action, characters, and location requirements
+   b. **Identify** character names from shot.characters array OR extract from narrationText/actionDescription if array is empty
+   c. **Identify** location name from shot.location OR extract from narrationText/actionDescription if empty
+   d. **Resolve** character and location names to canonical references and anchors
+   e. **Determine** frame requirements based on narrative_mode, shot.frameMode, and continuity group position
+   f. **Extract** visual elements from shotType, cameraMovement, and actionDescription
+   g. **Check continuity** - If shot is in a continuity group and not first, reference the previous shot's endFramePrompt from this batch
+   h. **Synthesize** @CharacterName tags, @LocationName tags, character anchors, location anchors, and style_anchor into cohesive visual description
+   i. **Craft** image prompt(s) following the 7-layer anatomy, ensuring @ tags are included
+   j. **Generate** video prompt with motion description, camera movement translation, and temporal cues, ensuring @ tags are included
+4. **Validate** that all prompts for all shots include @ tags, are complete, specific, model-aware, and JSON structure is correct
 
 
 ========================
@@ -45,9 +55,13 @@ Follow these steps when generating prompts for a shot:
 
 You will ALWAYS receive:
 
-A) Shot package (single shot)
-- shot: JSON object containing at minimum:
-  - scene_id, scene_title (strings)
+A) Scene context
+- scene_id: string
+- scene_title: string
+- total_shots: number (how many shots are in this scene)
+
+B) Shots array (ALL shots in the scene)
+- shots: Array of JSON objects, each containing:
   - shotNumber (int)
   - duration (int seconds)
   - shotType (string)
@@ -56,19 +70,18 @@ A) Shot package (single shot)
   - actionDescription (string)        // contains @CharacterName / @LocationName tags
   - characters (array of strings)     // ["@Name", ...] - treat as canonical
   - location (string)                // "@LocationName"
+  - frameMode (optional, string)      // present in auto mode; "image-reference" or "start-end"
+  - continuity: object with:
+    - in_group: boolean
+    - group_id: string or null
+    - is_first_in_group: boolean
+    - continuity_constraints: string (may be empty; wardrobe/props/lighting constraints to maintain)
   
   NOTE: If characters array is empty but character names appear in narrationText or actionDescription, 
   you MUST extract those character names and include them with @ tags in your generated prompts.
-  - frameMode (optional, string)      // present in auto mode; "image-reference" or "start-end"
 
-B) Continuity context (single shot context)
+C) Narrative mode
 - narrative_mode: "image-reference" | "start-end" | "auto"
-- continuity:
-  - in_group: boolean
-  - group_id: string or null
-  - is_first_in_group: boolean
-  - previous_end_frame_summary: string (may be empty; describes what the previous end frame looks like)
-  - continuity_constraints: string (may be empty; wardrobe/props/lighting constraints to maintain)
 
 C) Canonical references (already prepared upstream; do NOT invent new identities)
 - style_reference:
@@ -102,7 +115,7 @@ Assumptions:
 2) CORE OUTPUTS
 ========================
 
-For every shot you MUST generate:
+For EVERY shot in the scene, you MUST generate:
 - videoPrompt (string): the text prompt that drives the video model
 - image prompt(s) for keyframes, depending on shot mode and continuity grouping:
 
@@ -121,6 +134,7 @@ B) If the final per-shot mode is start-end:
       - If is_first_in_group == false:
           Provide ONLY endFramePrompt.
           startFramePrompt must be an empty string (the system will reuse previous shot's end frame as the start).
+          IMPORTANT: You can see the previous shot's endFramePrompt in this batch - use it to ensure visual continuity.
       In continuity groups, keep lighting, wardrobe, and key props consistent unless continuity_constraints explicitly says otherwise.
 
 The "final per-shot mode" is:
@@ -174,11 +188,14 @@ EXAMPLE WRONG PROMPT (missing @ tags):
 "Little Red Riding Hood, a young girl wearing a vibrant red cloak, walking along a winding path in Dark Wood..."
 5) LIGHTING + MOOD: time, palette, contrast, weather
 6) STYLE: style_anchor + realism_level if relevant
-7) CONSISTENCY: ONLY if in continuity group AND previous_end_frame_summary is provided:
-   - Explicitly say "same outfit, same lighting, consistent facial features"
-   - Reference the previous end frame ONLY if previous_end_frame_summary is provided and not empty
-   - If previous_end_frame_summary is empty or "(none)", do NOT mention previous shots, scenes, or continuity
-   - For the first shot in the first scene, there is NO previous context - do not invent continuity
+7) CONSISTENCY: 
+   - If in continuity group and NOT first in group:
+     * Explicitly say "same outfit, same lighting, consistent facial features"
+     * Reference the previous shot's endFramePrompt from this batch to ensure seamless continuation
+     * Maintain visual consistency with the previous shot in the same continuity group
+   - If first in continuity group or not in a group:
+     * Focus on the current shot without referencing previous content
+   - For the first shot in the scene, there is NO previous context - do not invent continuity
 
 Model-specific formatting:
 - FLUX:
@@ -206,10 +223,11 @@ Video prompts must define:
 - Style consistency (style_anchor)
 - Temporal phrasing:
   - "Starts with …" and "Ends with …" (especially for start-end)
-  - ONLY if in continuity group AND previous_end_frame_summary is provided and not empty:
-    * Say it "continues seamlessly from the previous end frame"
-    * Reference the previous context ONLY when previous_end_frame_summary contains actual content
-  - If previous_end_frame_summary is empty or "(none - NO previous context exists)", do NOT mention previous frames or continuity
+  - If in continuity group and NOT first in group:
+    * Say it "continues seamlessly from the previous shot's end frame"
+    * Reference the previous shot's endFramePrompt from this batch to ensure motion continuity
+  - If first in continuity group or not in a group:
+    * Do NOT mention previous frames or continuity
 
 If the video_model uses start/end frames:
 - Keep lighting and perspective consistent across start/end (avoid huge lens/perspective jumps).
@@ -277,7 +295,16 @@ Before outputting JSON, verify:
 8) OUTPUT FORMAT (STRICT JSON ONLY)
 ========================
 
-You MUST output ONLY this JSON object with exactly these keys:
+You MUST output a JSON OBJECT with a "prompts" property containing an array of one object per shot, in the same order as the input shots array.
+
+The output must be:
+{
+  "prompts": [
+    // ... array of shot objects
+  ]
+}
+
+Each object in the prompts array must have exactly these keys:
 
 {
   "scene_id": string,
@@ -299,34 +326,44 @@ You MUST output ONLY this JSON object with exactly these keys:
 }
 
 Rules:
-- Always include all keys above.
+- Output an OBJECT with a "prompts" property containing an array of objects, one for each shot in the scene
+- The prompts array must contain the same number of objects as shots in the input
+- Objects must be in the same order as the input shots (by shotNumber)
+- Format: { "prompts": [ ... ] }
+- Always include all keys above for each shot.
 - If a field is not applicable, output "" (empty string).
 - negativePrompt can be "" if you don't need it.
 - JSON must be valid (no trailing commas).
-- finalFrameMode must match the determined mode (image-reference or start-end based on narrative_mode and shot.frameMode).`;
+- finalFrameMode must match the determined mode (image-reference or start-end based on narrative_mode and shot.frameMode).
+- Ensure narrative flow and visual consistency across all shots in the array`;
+
+export interface ShotForPrompt {
+  sceneId: string;
+  sceneTitle: string;
+  shotNumber: number;
+  duration: number;
+  shotType: string;
+  cameraMovement: string;
+  narrationText: string;
+  actionDescription: string;
+  characters: string[];
+  location: string;
+  frameMode?: "image-reference" | "start-end";
+}
+
+export interface ContinuityForPrompt {
+  inGroup: boolean;
+  groupId: string | null;
+  isFirstInGroup: boolean;
+  continuityConstraints?: string;
+}
 
 export interface PromptEngineerUserPromptInput {
-  shot: {
-    sceneId: string;
-    sceneTitle: string;
-    shotNumber: number;
-    duration: number;
-    shotType: string;
-    cameraMovement: string;
-    narrationText: string;
-    actionDescription: string;
-    characters: string[];
-    location: string;
-    frameMode?: "image-reference" | "start-end";
-  };
+  sceneId: string;
+  sceneTitle: string;
+  shots: ShotForPrompt[];
   narrativeMode: "image-reference" | "start-end" | "auto";
-  continuity: {
-    inGroup: boolean;
-    groupId: string | null;
-    isFirstInGroup: boolean;
-    previousEndFrameSummary?: string;
-    continuityConstraints?: string;
-  };
+  continuity: ContinuityForPrompt[];  // Array, one per shot (same order as shots)
   characterReferences: Array<{
     name: string;
     anchor: string;
@@ -354,7 +391,9 @@ export interface PromptEngineerUserPromptInput {
 
 export function generatePromptEngineerPrompt(input: PromptEngineerUserPromptInput): string {
   const {
-    shot,
+    sceneId,
+    sceneTitle,
+    shots,
     narrativeMode,
     continuity,
     characterReferences,
@@ -363,21 +402,71 @@ export function generatePromptEngineerPrompt(input: PromptEngineerUserPromptInpu
     generationTargets,
   } = input;
 
-  // Build shot JSON
-  const shotJson = JSON.stringify({
-    scene_id: shot.sceneId,
-    scene_title: shot.sceneTitle,
-    shotNumber: shot.shotNumber,
-    duration: shot.duration,
-    shotType: shot.shotType,
-    cameraMovement: shot.cameraMovement,
-    narrationText: shot.narrationText,
-    actionDescription: shot.actionDescription,
-    characters: shot.characters,
-    location: shot.location,
-    ...(shot.frameMode ? { frameMode: shot.frameMode } : {}),
-  }, null, 2);
-  
+  // Sort shots by shotNumber to ensure correct order
+  const sortedShots = [...shots].sort((a, b) => a.shotNumber - b.shotNumber);
+
+  // Build shots array JSON with continuity context
+  const shotsWithContinuity = sortedShots.map((shot, index) => {
+    const continuityContext = continuity[index] || {
+      inGroup: false,
+      groupId: null,
+      isFirstInGroup: false,
+    };
+
+    // For shots in continuity groups that are not first, include reference to previous shot
+    let previousShotReference = '';
+    if (continuityContext.inGroup && !continuityContext.isFirstInGroup) {
+      // Find previous shot in same group
+      const previousIndex = index - 1;
+      if (previousIndex >= 0 && sortedShots[previousIndex]) {
+        const prevShot = sortedShots[previousIndex];
+        previousShotReference = `\n  - previous_shot_number: ${prevShot.shotNumber} (use this shot's endFramePrompt as reference for continuity)`;
+      }
+    }
+
+    return {
+      shotNumber: shot.shotNumber,
+      duration: shot.duration,
+      shotType: shot.shotType,
+      cameraMovement: shot.cameraMovement,
+      narrationText: shot.narrationText,
+      actionDescription: shot.actionDescription,
+      characters: shot.characters,
+      location: shot.location,
+      ...(shot.frameMode ? { frameMode: shot.frameMode } : {}),
+      continuity: {
+        in_group: continuityContext.inGroup,
+        group_id: continuityContext.groupId,
+        is_first_in_group: continuityContext.isFirstInGroup,
+        ...(continuityContext.continuityConstraints ? { continuity_constraints: continuityContext.continuityConstraints } : {}),
+      },
+      ...(previousShotReference ? { _note: previousShotReference } : {}),
+    };
+  });
+
+  const shotsJson = JSON.stringify(shotsWithContinuity, null, 2);
+
+  // Build continuity groups summary
+  const continuityGroupsMap = new Map<string, number[]>();
+  sortedShots.forEach((shot, index) => {
+    const cont = continuity[index];
+    if (cont && cont.inGroup && cont.groupId) {
+      if (!continuityGroupsMap.has(cont.groupId)) {
+        continuityGroupsMap.set(cont.groupId, []);
+      }
+      continuityGroupsMap.get(cont.groupId)!.push(shot.shotNumber);
+    }
+  });
+
+  let continuityGroupsText = '';
+  if (continuityGroupsMap.size > 0) {
+    continuityGroupsText = '\nCONTINUITY GROUPS:\n';
+    continuityGroupsMap.forEach((shotNumbers, groupId) => {
+      continuityGroupsText += `- Group "${groupId}": Shots ${shotNumbers.join(', ')} (must flow seamlessly)\n`;
+    });
+  } else {
+    continuityGroupsText = '\nCONTINUITY GROUPS: (none - all shots are independent)\n';
+  }
   
   // Build character references JSON
   const characterReferencesJson = JSON.stringify(
@@ -418,7 +507,20 @@ export function generatePromptEngineerPrompt(input: PromptEngineerUserPromptInpu
     .replace(/-1$/, '')
     .toLowerCase();
 
-  return `You are in the Prompting step. Generate prompts for ONE SHOT.
+  // Build character/location tags summary
+  const allCharacterTags = new Set<string>();
+  const allLocationTags = new Set<string>();
+  sortedShots.forEach(shot => {
+    shot.characters.forEach(char => allCharacterTags.add(char));
+    if (shot.location) allLocationTags.add(shot.location);
+  });
+
+  return `You are in the Prompting step. Generate prompts for ALL SHOTS in this scene.
+
+SCENE CONTEXT
+- scene_id: ${sceneId}
+- scene_title: ${sceneTitle}
+- total_shots: ${sortedShots.length}
 
 GENERATION TARGETS
 - image_model: ${imageModelDisplay}
@@ -437,51 +539,42 @@ ${characterReferencesJson}
 
 LOCATION REFERENCES (canonical)
 ${locationReferencesJson}
-
-CONTINUITY CONTEXT
-- in_group: ${continuity.inGroup}
-- group_id: ${continuity.groupId || 'null'}
-- is_first_in_group: ${continuity.isFirstInGroup}
-${continuity.previousEndFrameSummary && continuity.previousEndFrameSummary.trim() !== '' 
-  ? `- previous_end_frame_summary:\n${continuity.previousEndFrameSummary}` 
-  : '- previous_end_frame_summary: (none - NO previous context exists)'}
-${continuity.continuityConstraints && continuity.continuityConstraints.trim() !== '' 
-  ? `- continuity_constraints:\n${continuity.continuityConstraints}` 
-  : '- continuity_constraints: (none)'}
-
-IMPORTANT CONTINUITY RULES:
-- If previous_end_frame_summary is "(none - NO previous context exists)", you MUST NOT mention:
-  * Previous shots
-  * Previous scenes  
-  * Continuity from previous content
-  * "Continuing from..." or similar phrases
-- ONLY mention previous context when previous_end_frame_summary contains actual content
-- For the first shot in the first scene, there is no previous context - focus only on the current shot
-
-SHOT (single)
-${shotJson}
+${continuityGroupsText}
+SHOTS (array - generate prompts for ALL of these)
+${shotsJson}
 
 ⚠️ CRITICAL @ TAG REQUIREMENT - READ THIS FIRST ⚠️
-The shot data above contains:
-- shot.characters: ${JSON.stringify(shot.characters)} - These are the @ tags you MUST use
-- shot.location: ${shot.location} - This is the @ tag you MUST use
+The shots data above contains:
+- Character tags used: ${Array.from(allCharacterTags).length > 0 ? Array.from(allCharacterTags).join(', ') : '(none)'}
+- Location tags used: ${Array.from(allLocationTags).length > 0 ? Array.from(allLocationTags).join(', ') : '(none)'}
 
 You MUST use these EXACT @ tags in your generated prompts. DO NOT write character or location names without @ tags.
 
+IMPORTANT CONTINUITY RULES FOR BATCH MODE:
+- You see ALL shots in this scene simultaneously - use this to ensure narrative flow
+- For shots in continuity groups that are NOT first in group:
+  * You can see the previous shot's data in this batch
+  * Reference the previous shot's endFramePrompt when generating the current shot's prompt
+  * Ensure visual continuity (same outfit, lighting, props) unless continuity_constraints say otherwise
+- For shots that are first in continuity group or not in a group:
+  * Focus on the current shot without referencing previous content
+- Maintain character and location consistency across ALL shots in the scene
+
 INSTRUCTIONS
-- Output strict JSON only in the schema from system instructions.
-- MANDATORY: Every generated prompt (imagePrompt, startFramePrompt, endFramePrompt, videoPrompt) MUST include @CharacterName tags.
-- MANDATORY: Every generated prompt MUST include @LocationName tags.
-- If the shot's narrationText/actionDescription contains @ tags, you MUST use the SAME @ tags in your output prompts.
-- Example: If input says "@Little Red Riding Hood walks in @Dark Wood", your output MUST say "@Little Red Riding Hood walking in @Dark Wood" (preserve @ tags).
+- Output a JSON OBJECT with a "prompts" property containing an array with one object per shot, in the same order as the input shots (by shotNumber)
+- The prompts array must contain exactly ${sortedShots.length} objects
+- Format: { "prompts": [ ... ] }
+- MANDATORY: Every generated prompt (imagePrompt, startFramePrompt, endFramePrompt, videoPrompt) MUST include @CharacterName tags
+- MANDATORY: Every generated prompt MUST include @LocationName tags
+- If a shot's narrationText/actionDescription contains @ tags, you MUST use the SAME @ tags in your output prompts
+- Example: If input says "@Little Red Riding Hood walks in @Dark Wood", your output MUST say "@Little Red Riding Hood walking in @Dark Wood" (preserve @ tags)
 - Example of CORRECT format: "@Little Red Riding Hood walking along the path in @Dark Wood."
 - Example of WRONG format: "Little Red Riding Hood walking along the path in Dark Wood." (missing @ tags - DO NOT DO THIS)
-- The @ tags are how the image generation system identifies which character/location reference images to use - they are REQUIRED.
-- If you mention a character name, it MUST be in @CharacterName format (extract from shot.characters array or narrationText/actionDescription).
-- If you mention a location name, it MUST be in @LocationName format (extract from shot.location or narrationText/actionDescription).
-- Also include character anchors (descriptions) for additional context, but @ tags are mandatory and must appear.
+- The @ tags are how the image generation system identifies which character/location reference images to use - they are REQUIRED
+- Also include character anchors (descriptions) for additional context, but @ tags are mandatory and must appear
 - Apply start-end continuity rule:
-  - If start-end and in continuity group and NOT first -> output only endFramePrompt.
-- Make prompts model-aware for the selected image_model and video_model.`;
+  - If start-end and in continuity group and NOT first -> output only endFramePrompt (startFramePrompt must be empty)
+- Make prompts model-aware for the selected image_model and video_model
+- Ensure narrative flow and visual consistency across all shots in the scene`;
 }
 

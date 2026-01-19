@@ -2,6 +2,8 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import multer from 'multer';
 import { randomUUID } from 'crypto';
+import { appendFileSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
 import { NarrativeAgents } from '../agents';
 import { getCameraMovementPrompt } from '../utils/camera-presets';
 import { StorageCleanup } from '../utils/storage-cleanup';
@@ -11,6 +13,31 @@ import { bunnyStorage } from '../../../storage/bunny-storage';
 import { insertCharacterSchema, insertLocationSchema } from '@shared/schema';
 import { getRunwareImageModels, getRunwareVideoModels } from '../../../ai/config';
 import { VIDEO_MODEL_CONFIGS, getAvailableVideoModels } from '../../../ai/config/video-models';
+
+const DEBUG_LOG_PATH = join(process.cwd(), '.cursor', 'debug.log');
+function debugLog(location: string, message: string, data: any, hypothesisId: string) {
+  try {
+    // Ensure directory exists
+    const logDir = dirname(DEBUG_LOG_PATH);
+    mkdirSync(logDir, { recursive: true });
+    
+    const logEntry = JSON.stringify({
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run1',
+      hypothesisId,
+    }) + '\n';
+    appendFileSync(DEBUG_LOG_PATH, logEntry, 'utf8');
+    // Also log to console as backup
+    console.log(`[DEBUG] ${location}: ${message}`, data);
+  } catch (e) {
+    // Log to console if file logging fails
+    console.error(`[DEBUG LOG ERROR] ${location}: ${message}`, data, e);
+  }
+}
 
 const router = Router();
 
@@ -1465,6 +1492,7 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
       scenes: serializedScenes,
       shots: serializedShots,
       continuityGroups: serializedContinuityGroups,  // Return continuity groups in response
+      continuityLocked: false,  // Always false for new breakdown
       shotVersions,
       totalDuration: sceneResult.totalDuration,
       cost: totalCost,
@@ -1646,7 +1674,8 @@ router.get('/models', isAuthenticated, async (req: Request, res: Response) => {
 
 /**
  * POST /api/narrative/prompts/generate
- * Generate image and video prompts for a shot (Agent 4.1)
+ * Generate image and video prompts for all shots in a scene (Agent 4.1 - Batch Mode)
+ * Supports both sceneId (new batch mode) and shotId (backward compatibility - finds scene and uses batch mode)
  */
 router.post('/prompts/generate', isAuthenticated, async (req: Request, res: Response) => {
   try {
@@ -1655,18 +1684,26 @@ router.post('/prompts/generate', isAuthenticated, async (req: Request, res: Resp
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { shotId, videoId, model } = req.body;
+    const { sceneId, shotId, videoId, model } = req.body;
     const workspaceId = req.headers["x-workspace-id"] as string | undefined;
     
     // Validate required fields
-    if (!shotId || !videoId) {
+    if (!videoId) {
       return res.status(400).json({ 
         error: 'Missing required fields',
-        details: 'shotId and videoId are required'
+        details: 'videoId is required'
       });
     }
     
-    console.log('[narrative:routes] Generating prompts:', { 
+    if (!sceneId && !shotId) {
+      return res.status(400).json({ 
+        error: 'Missing required fields',
+        details: 'Either sceneId or shotId is required'
+      });
+    }
+    
+    console.log('[narrative:routes] Generating prompts (batch mode):', { 
+      sceneId,
       shotId,
       videoId,
       model,
@@ -1675,7 +1712,17 @@ router.post('/prompts/generate', isAuthenticated, async (req: Request, res: Resp
     });
     
     // Fetch video from database
-    const video = await storage.getVideo(videoId);
+    let video;
+    try {
+      video = await storage.getVideo(videoId);
+    } catch (dbError) {
+      console.error('[narrative:routes] Database error fetching video:', dbError);
+      return res.status(500).json({ 
+        error: 'Database connection error',
+        details: dbError instanceof Error ? dbError.message : 'Failed to fetch video from database'
+      });
+    }
+    
     if (!video) {
       return res.status(404).json({ 
         error: 'Video not found',
@@ -1704,103 +1751,117 @@ router.post('/prompts/generate', isAuthenticated, async (req: Request, res: Resp
     const shots = step3Data.shots || {};
     const continuityGroups = step3Data.continuityGroups || {};
     
-    // Find the shot
-    let foundShot: any = null;
+    // Find the scene
+    let targetSceneId = sceneId;
     let foundScene: any = null;
     
-    for (const [sceneId, sceneShots] of Object.entries(shots)) {
-      const shotArray = sceneShots as any[];
-      const shot = shotArray.find((s: any) => s.id === shotId);
-      if (shot) {
-        foundShot = shot;
-        foundScene = scenes.find((s: any) => s.id === sceneId);
-        break;
+    // If shotId provided instead of sceneId, find the scene containing that shot
+    if (shotId && !sceneId) {
+      for (const [sId, sceneShots] of Object.entries(shots)) {
+        const shotArray = sceneShots as any[];
+        const shot = shotArray.find((s: any) => s.id === shotId);
+        if (shot) {
+          targetSceneId = sId;
+          break;
+        }
       }
     }
     
-    if (!foundShot) {
+    if (!targetSceneId) {
       return res.status(404).json({ 
-        error: 'Shot not found',
-        details: `No shot found with id: ${shotId}`
+        error: 'Scene not found',
+        details: shotId ? `No scene found for shot: ${shotId}` : 'sceneId is required'
       });
     }
     
+    foundScene = scenes.find((s: any) => s.id === targetSceneId);
     if (!foundScene) {
       return res.status(404).json({ 
         error: 'Scene not found',
-        details: `No scene found for shot: ${shotId}`
+        details: `No scene found with id: ${targetSceneId}`
       });
     }
+    
+    // Get all shots for this scene
+    const sceneShots = (shots[targetSceneId] as any[]) || [];
+    if (sceneShots.length === 0) {
+      return res.status(404).json({ 
+        error: 'No shots found',
+        details: `No shots found for scene: ${targetSceneId}`
+      });
+    }
+    
+    // Sort shots by shotNumber
+    const sortedShots = [...sceneShots].sort((a, b) => a.shotNumber - b.shotNumber);
     
     // Extract narrative mode from step1Data or step3Data
     const narrativeMode = step1Data.narrativeMode || step3Data.narrativeMode || 'image-reference';
     
-    
-    // Build character references with anchors
-    // Ensure character names are properly tagged, and match to character references
-    const characterReferences = foundShot.characters
-      ? foundShot.characters.map((charTag: string) => {
-          // Extract character name from tag (@{Name} or @Name) or use plain name
-          let charName: string;
-          if (charTag.startsWith('@')) {
-            const nameMatch = charTag.match(/@\{?([^}]+)\}?/);
-            charName = nameMatch ? nameMatch[1] : charTag.replace('@', '');
-          } else {
-            // Plain name - use as is and will be matched by name
-            charName = charTag;
+    // Build character references map (aggregate from all shots in scene)
+    const characterMap = new Map<string, any>();
+    sortedShots.forEach(shot => {
+      if (shot.characters && Array.isArray(shot.characters)) {
+        shot.characters.forEach((charTag: string) => {
+          if (!characterMap.has(charTag)) {
+            // Extract character name from tag
+            let charName: string;
+            if (charTag.startsWith('@')) {
+              const nameMatch = charTag.match(/@\{?([^}]+)\}?/);
+              charName = nameMatch ? nameMatch[1] : charTag.replace('@', '');
+            } else {
+              charName = charTag;
+            }
+            
+            // Find character in characters array
+            const character = characters.find((c: any) => 
+              c.name === charName || c.name?.toLowerCase() === charName.toLowerCase()
+            );
+            
+            if (character) {
+              characterMap.set(charTag, {
+                name: character.name,
+                anchor: character.appearance || character.description || character.name,
+                currentOutfit: character.currentOutfit,
+                keyTraits: character.personality || character.description,
+                refImageUrl: character.imageUrl || character.referenceImageUrl,
+              });
+            } else {
+              characterMap.set(charTag, {
+                name: charName,
+                anchor: charName,
+              });
+            }
           }
-          
-          // Find character in characters array (case-insensitive match)
-          const character = characters.find((c: any) => 
-            c.name === charName || c.name?.toLowerCase() === charName.toLowerCase()
+        });
+      }
+    });
+    
+    const characterReferences = Array.from(characterMap.values());
+    
+    // Build location references map (aggregate from all shots in scene)
+    const locationMap = new Map<string, any>();
+    sortedShots.forEach(shot => {
+      if (shot.location) {
+        const locationTag = shot.location;
+        if (!locationMap.has(locationTag)) {
+          const locationMatch = locationTag.match(/@\{?([^}]+)\}?/);
+          const locationName = locationMatch ? locationMatch[1] : locationTag.replace('@', '');
+          const location = locations.find((l: any) => 
+            l.name === locationName || l.name?.toLowerCase() === locationName.toLowerCase()
           );
           
-          if (character) {
-            const charRef = {
-              name: character.name,
-              anchor: character.appearance || character.description || character.name,
-              currentOutfit: character.currentOutfit,
-              keyTraits: character.personality || character.description,
-              refImageUrl: character.imageUrl || character.referenceImageUrl,
-            };
-            return charRef;
+          if (location) {
+            locationMap.set(locationTag, {
+              name: location.name,
+              anchor: location.description || location.name,
+              refImageUrl: location.imageUrl,
+            });
           }
-          
-          // Fallback if character not found
-          return {
-            name: charName,
-            anchor: charName,
-          };
-        })
-      : [];
+        }
+      }
+    });
     
-    // Ensure shot characters array has proper @{Name} tags for Agent 4.1
-    // This helps with character reference linking in generated prompts
-    const taggedCharacters = foundShot.characters
-      ? foundShot.characters.map((charTag: string) => {
-          // If already tagged, return as is
-          if (charTag.startsWith('@')) {
-            return charTag;
-          }
-          // If plain name, tag it with @{Name} format
-          return `@{${charTag}}`;
-        })
-      : [];
-    
-    
-    // Build location reference
-    const locationTag = foundShot.location || '';
-    const locationMatch = locationTag.match(/@\{?([^}]+)\}?/);
-    const locationName = locationMatch ? locationMatch[1] : locationTag.replace('@', '');
-    const location = locations.find((l: any) => 
-      l.name === locationName || l.name?.toLowerCase() === locationName.toLowerCase()
-    );
-    
-    const locationReferences = location ? [{
-      name: location.name,
-      anchor: location.description || location.name,
-      refImageUrl: location.imageUrl,
-    }] : [];
+    const locationReferences = Array.from(locationMap.values());
     
     // Build style reference
     let styleReferenceObj: {
@@ -1810,7 +1871,6 @@ router.post('/prompts/generate', isAuthenticated, async (req: Request, res: Resp
     } | undefined;
     
     if (artStyle === 'none' && styleReference && styleReference.length > 0) {
-      // Use first style reference image
       styleReferenceObj = {
         refImageUrl: styleReference[0],
       };
@@ -1820,111 +1880,74 @@ router.post('/prompts/generate', isAuthenticated, async (req: Request, res: Resp
       };
     }
     
-    // Build continuity context
-    const sceneContinuityGroups = continuityGroups[foundScene.id] || [];
-    let continuityContext = {
-      inGroup: false,
-      groupId: null as string | null,
-      isFirstInGroup: false,
-      previousEndFrameSummary: undefined as string | undefined,
-      continuityConstraints: undefined as string | undefined,
-    };
+    // Build continuity context for each shot
+    const sceneContinuityGroups = continuityGroups[targetSceneId] || [];
+    const continuityContexts: Array<{
+      inGroup: boolean;
+      groupId: string | null;
+      isFirstInGroup: boolean;
+      continuityConstraints?: string;
+    }> = [];
     
-    // Find if shot is in a continuity group
-    for (const group of sceneContinuityGroups) {
-      if (group.shotIds && group.shotIds.includes(shotId)) {
-        continuityContext.inGroup = true;
-        continuityContext.groupId = group.id;
-        continuityContext.isFirstInGroup = group.shotIds[0] === shotId;
-        continuityContext.continuityConstraints = group.description || undefined;
-        
-        // If not first in group, try to get previous shot's end frame summary from generated prompts
-        // ONLY set previousEndFrameSummary if there's actual previous context available
-        if (!continuityContext.isFirstInGroup) {
-          const shotIndex = group.shotIds.indexOf(shotId);
-          if (shotIndex > 0) {
-            const previousShotId = group.shotIds[shotIndex - 1];
-            
-            // Retrieve previous shot's generated prompts from step4Data
-            const step4Data = (video.step4Data as Record<string, any>) || {};
-            const previousShotPrompts = step4Data.prompts?.[previousShotId];
-            
-            if (previousShotPrompts) {
-              // Extract end frame prompt or image prompt from previous shot
-              let previousContext = '';
-              
-              if (previousShotPrompts.endFramePrompt && previousShotPrompts.endFramePrompt.trim() !== '') {
-                // Use end frame prompt for start-end mode
-                previousContext = `Previous shot ended with: ${previousShotPrompts.endFramePrompt}`;
-              } else if (previousShotPrompts.imagePrompt && previousShotPrompts.imagePrompt.trim() !== '') {
-                // Use image prompt for image-reference mode
-                previousContext = `Previous shot showed: ${previousShotPrompts.imagePrompt}`;
-              }
-              
-              // Only set if we have actual context
-              if (previousContext && previousContext.trim() !== '') {
-                continuityContext.previousEndFrameSummary = previousContext;
-                console.log('[narrative:routes] Retrieved previous shot context:', {
-                  currentShotId: shotId,
-                  previousShotId,
-                  hasContext: true,
-                });
-              } else {
-                // Explicitly set to undefined to ensure no false continuity mentions
-                continuityContext.previousEndFrameSummary = undefined;
-                console.log('[narrative:routes] Previous shot has no valid prompts:', {
-                  currentShotId: shotId,
-                  previousShotId,
-                });
-              }
-            } else {
-              // No previous prompts found - explicitly undefined to prevent false continuity
-              continuityContext.previousEndFrameSummary = undefined;
-              console.log('[narrative:routes] No previous shot prompts found:', {
-                currentShotId: shotId,
-                previousShotId,
-              });
-            }
-          }
-        } else {
-          // First in group - no previous context
-          continuityContext.previousEndFrameSummary = undefined;
+    sortedShots.forEach((shot, index) => {
+      let continuityContext = {
+        inGroup: false,
+        groupId: null as string | null,
+        isFirstInGroup: false,
+        continuityConstraints: undefined as string | undefined,
+      };
+      
+      // Find if shot is in a continuity group
+      for (const group of sceneContinuityGroups) {
+        if (group.shotIds && group.shotIds.includes(shot.id)) {
+          continuityContext.inGroup = true;
+          continuityContext.groupId = group.id;
+          continuityContext.isFirstInGroup = group.shotIds[0] === shot.id;
+          continuityContext.continuityConstraints = group.description || undefined;
+          break;
         }
-        break;
       }
-    }
+      
+      continuityContexts.push(continuityContext);
+    });
     
-    // Additional validation: Ensure previousEndFrameSummary is only set when there's actual context
-    // This prevents the AI from inventing continuity when none exists
-    if (continuityContext.previousEndFrameSummary === undefined || 
-        continuityContext.previousEndFrameSummary.trim() === '') {
-      continuityContext.previousEndFrameSummary = undefined;
-    }
-    
-    // Parse shot description to extract narration and action
-    // The description field may contain both narration and action
-    const description = foundShot.description || '';
-    const narrationText = description; // For now, use description as narration
-    const actionDescription = description; // For now, use description as action
+    // Build shots input with proper tagging
+    const shotsInput = sortedShots.map(shot => {
+      // Tag characters if needed
+      const taggedCharacters = shot.characters
+        ? shot.characters.map((charTag: string) => {
+            if (charTag.startsWith('@')) {
+              return charTag;
+            }
+            return `@{${charTag}}`;
+          })
+        : [];
+      
+      const description = shot.description || '';
+      
+      return {
+        id: shot.id,
+        sceneId: targetSceneId,
+        sceneTitle: foundScene.title,
+        shotNumber: shot.shotNumber,
+        duration: shot.duration,
+        shotType: shot.shotType,
+        cameraMovement: shot.cameraMovement,
+        narrationText: description,
+        actionDescription: description,
+        characters: taggedCharacters.length > 0 ? taggedCharacters : (shot.characters || []),
+        location: shot.location || '',
+        frameMode: shot.frameMode,
+      };
+    });
     
     // Build input for agent
     const agentInput: import('../agents').PromptEngineerInput = {
-      shot: {
-        id: foundShot.id,
-        sceneId: foundScene.id,
-        sceneTitle: foundScene.title,
-        shotNumber: foundShot.shotNumber,
-        duration: foundShot.duration,
-        shotType: foundShot.shotType,
-        cameraMovement: foundShot.cameraMovement,
-        narrationText,
-        actionDescription,
-        characters: taggedCharacters.length > 0 ? taggedCharacters : (foundShot.characters || []),
-        location: foundShot.location || '',
-        frameMode: foundShot.frameMode,
-      },
+      sceneId: targetSceneId,
+      sceneTitle: foundScene.title,
+      shots: shotsInput,
       narrativeMode,
-      continuity: continuityContext,
+      continuity: continuityContexts,
       characterReferences,
       locationReferences,
       styleReference: styleReferenceObj,
@@ -1937,14 +1960,14 @@ router.post('/prompts/generate', isAuthenticated, async (req: Request, res: Resp
       model,
     };
     
-    // Call agent
-    const result = await NarrativeAgents.generatePrompts(
+    // Call agent (returns array of prompts)
+    const results = await NarrativeAgents.generatePrompts(
       agentInput,
       userId,
       workspaceId
     );
     
-    res.json(result);
+    res.json(results);
   } catch (error) {
     console.error('[narrative:routes] Prompt generation error:', error);
     res.status(500).json({ 
@@ -1967,7 +1990,28 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { shotId, videoId, versionId, imagePrompt, videoPrompt, startFramePrompt, endFramePrompt, negativePrompt, frame } = req.body;
+    const { 
+      shotId, 
+      videoId, 
+      versionId, 
+      imagePrompt, 
+      videoPrompt, 
+      startFramePrompt, 
+      endFramePrompt, 
+      negativePrompt,
+      // Per-frame advanced settings
+      startFrameNegativePrompt,
+      endFrameNegativePrompt,
+      startFrameSeed,
+      endFrameSeed,
+      startFrameGuidanceScale,
+      endFrameGuidanceScale,
+      startFrameSteps,
+      endFrameSteps,
+      startFrameStrength,
+      endFrameStrength,
+      frame 
+    } = req.body;
     const workspaceId = req.headers["x-workspace-id"] as string | undefined;
 
     if (!shotId || !videoId) {
@@ -2091,27 +2135,46 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       }
     }
 
+    // Get current shot's version to check existing frames and for validation
+    const shotVersions = step4Data.shotVersions || {};
+    const currentShotVersions = shotVersions[shotId] || [];
+    const currentVersion = versionId 
+      ? currentShotVersions.find((v: any) => v.id === versionId)
+      : currentShotVersions[currentShotVersions.length - 1];
+
     // Continuity Reference Image Collection
     // If shot is in a continuity group and not the first shot, include previous shot's frame
     const continuityGroups = step3Data.continuityGroups || {};
     const sceneContinuityGroups = continuityGroups[foundScene.id] || [];
     let previousFrameUrl: string | null = null;
+    let isInContinuityGroup = false;
+    let previousShotId: string | null = null;
+    let previousVersion: any = null;
 
     for (const group of sceneContinuityGroups) {
       if (group.shotIds && group.shotIds.includes(shotId)) {
+        isInContinuityGroup = true;
         const shotIndex = group.shotIds.indexOf(shotId);
         if (shotIndex > 0) {
           // Not first in group - get previous shot's frame
-          const previousShotId = group.shotIds[shotIndex - 1];
+          previousShotId = group.shotIds[shotIndex - 1];
           
           // Get previous shot's version from step4Data.shotVersions
-          const shotVersions = step4Data.shotVersions || {};
-          const previousShotVersions = shotVersions[previousShotId] || [];
+          const previousShotVersions = previousShotId ? (shotVersions[previousShotId] || []) : [];
           
           // Get the latest version (most recent is last in array)
-          const previousVersion = previousShotVersions.length > 0 
+          previousVersion = previousShotVersions.length > 0 
             ? previousShotVersions[previousShotVersions.length - 1] 
             : null;
+          
+          // Validation: Check if previous shot has generated frames (for continuity groups)
+          if (narrativeMode === 'start-end' || narrativeMode === 'auto') {
+            if (!previousVersion || (!previousVersion.endFrameUrl && !previousVersion.startFrameUrl && !previousVersion.imageUrl)) {
+              return res.status(400).json({ 
+                error: `Cannot generate this shot: previous shot (${previousShotId}) must have generated frames first. Please generate frames for all previous shots in the continuity group before generating this shot.` 
+              });
+            }
+          }
           
           if (previousVersion) {
             // For image-reference mode: use imageUrl
@@ -2136,10 +2199,30 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       }
     }
 
-    // Determine frame type based on user request or continuity groups
+    // Validation: Check if end frame can be generated (requires start frame to exist)
+    // For connected shots, the start frame is inherited from previous shot's end frame
+    if (frame === 'end' && narrativeMode !== 'image-reference') {
+      // Check if current shot has its own start frame
+      const hasOwnStartFrame = currentVersion && currentVersion.startFrameUrl;
+      
+      // Check if start frame is inherited from previous shot (for connected shots)
+      const hasInheritedStartFrame = isInContinuityGroup && previousVersion && 
+        (previousVersion.endFrameUrl || previousVersion.startFrameUrl || previousVersion.imageUrl);
+      
+      // End frame generation requires either own start frame OR inherited start frame
+      if (!hasOwnStartFrame && !hasInheritedStartFrame) {
+        return res.status(400).json({ 
+          error: 'Cannot generate end frame: start frame must be generated first. Please generate the start frame (or the previous shot\'s end frame for connected shots) before generating the end frame.' 
+        });
+      }
+    }
+
+    // Determine frame type based on user request
+    // IMPORTANT: Each frame is generated in a separate API call
+    // Never generate both frames in one call when user explicitly requests a frame
     let frameType: "start-only" | "end-only" | "start-and-end" | undefined = undefined;
     
-    // If user explicitly requested a specific frame, use that
+    // If user explicitly requested a specific frame, use that (never "start-and-end")
     if (frame === 'start' || frame === 'end') {
       if (frame === 'start') {
         frameType = "start-only";
@@ -2147,7 +2230,8 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
         frameType = "end-only";
       }
     } else if (narrativeMode === 'start-end' || narrativeMode === 'auto') {
-      // Otherwise, use continuity group logic (backward compatible)
+      // Only use "start-and-end" if user didn't specify a frame (backward compatibility)
+      // This should rarely happen in normal flow since UI always passes frame parameter
       for (const group of sceneContinuityGroups) {
         if (group.shotIds && group.shotIds.includes(shotId)) {
           const shotIndex = group.shotIds.indexOf(shotId);
@@ -2162,9 +2246,38 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
           break;
         }
       }
-      // If not in a group, generate both frames
+      // If not in a group, generate both frames (only if frame parameter not provided)
       if (!frameType) {
         frameType = "start-and-end";
+      }
+    }
+
+    // When generating end frame separately, include existing start frame as reference
+    // This ensures visual continuity between start and end frames
+    if (frameType === "end-only" && currentVersion && currentVersion.startFrameUrl) {
+      // Add existing start frame to reference images for end frame generation
+      if (!referenceImages.includes(currentVersion.startFrameUrl)) {
+        referenceImages.push(currentVersion.startFrameUrl);
+        console.log('[narrative:routes] Added existing start frame as reference for end frame generation:', {
+          shotId,
+          startFrameUrl: currentVersion.startFrameUrl.substring(0, 50) + '...',
+        });
+      }
+    }
+
+    // Validate that required prompts exist for the requested frame type
+    if (frameType === "start-only" || frameType === "start-and-end") {
+      if (!shotPrompts.startFramePrompt || shotPrompts.startFramePrompt.trim() === "") {
+        return res.status(400).json({ 
+          error: 'Start frame prompt is required but not found. Please generate prompts first using Agent 4.1.' 
+        });
+      }
+    }
+    if (frameType === "end-only" || frameType === "start-and-end") {
+      if (!shotPrompts.endFramePrompt || shotPrompts.endFramePrompt.trim() === "") {
+        return res.status(400).json({ 
+          error: 'End frame prompt is required but not found. Please generate prompts first using Agent 4.1.' 
+        });
       }
     }
 
@@ -2177,6 +2290,17 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       startFramePrompt: shotPrompts.startFramePrompt || '',
       endFramePrompt: shotPrompts.endFramePrompt || null,
       negativePrompt: shotPrompts.negativePrompt,
+      // Per-frame advanced settings (from request body or current version)
+      startFrameNegativePrompt: startFrameNegativePrompt ?? currentVersion?.startFrameNegativePrompt,
+      endFrameNegativePrompt: endFrameNegativePrompt ?? currentVersion?.endFrameNegativePrompt,
+      startFrameSeed: startFrameSeed !== undefined ? startFrameSeed : currentVersion?.startFrameSeed,
+      endFrameSeed: endFrameSeed !== undefined ? endFrameSeed : currentVersion?.endFrameSeed,
+      startFrameGuidanceScale: startFrameGuidanceScale !== undefined ? startFrameGuidanceScale : currentVersion?.startFrameGuidanceScale,
+      endFrameGuidanceScale: endFrameGuidanceScale !== undefined ? endFrameGuidanceScale : currentVersion?.endFrameGuidanceScale,
+      startFrameSteps: startFrameSteps !== undefined ? startFrameSteps : currentVersion?.startFrameSteps,
+      endFrameSteps: endFrameSteps !== undefined ? endFrameSteps : currentVersion?.endFrameSteps,
+      startFrameStrength: startFrameStrength !== undefined ? startFrameStrength : currentVersion?.startFrameStrength,
+      endFrameStrength: endFrameStrength !== undefined ? endFrameStrength : currentVersion?.endFrameStrength,
       referenceImages,
       aspectRatio,
       imageModel,
@@ -2211,8 +2335,8 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       }
     }
 
-    // Create or update shot version (we need versionId to build Bunny paths)
-    const shotVersions = step4Data.shotVersions || {};
+    // Create or update shot version
+    // Reuse shotVersions from earlier (line 2081) - no need to redeclare
     const existingVersions = shotVersions[shotId] || [];
     
     let newVersionId: string;
@@ -2246,6 +2370,17 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
         endFramePrompt: shotPrompts.endFramePrompt !== undefined ? shotPrompts.endFramePrompt : existingVersion.endFramePrompt,
         videoPrompt: shotPrompts.videoPrompt !== undefined ? shotPrompts.videoPrompt : existingVersion.videoPrompt,
         negativePrompt: shotPrompts.negativePrompt !== undefined ? shotPrompts.negativePrompt : existingVersion.negativePrompt,
+        // Update per-frame advanced settings if provided
+        startFrameNegativePrompt: startFrameNegativePrompt !== undefined ? startFrameNegativePrompt : existingVersion.startFrameNegativePrompt,
+        endFrameNegativePrompt: endFrameNegativePrompt !== undefined ? endFrameNegativePrompt : existingVersion.endFrameNegativePrompt,
+        startFrameSeed: startFrameSeed !== undefined ? startFrameSeed : existingVersion.startFrameSeed,
+        endFrameSeed: endFrameSeed !== undefined ? endFrameSeed : existingVersion.endFrameSeed,
+        startFrameGuidanceScale: startFrameGuidanceScale !== undefined ? startFrameGuidanceScale : existingVersion.startFrameGuidanceScale,
+        endFrameGuidanceScale: endFrameGuidanceScale !== undefined ? endFrameGuidanceScale : existingVersion.endFrameGuidanceScale,
+        startFrameSteps: startFrameSteps !== undefined ? startFrameSteps : existingVersion.startFrameSteps,
+        endFrameSteps: endFrameSteps !== undefined ? endFrameSteps : existingVersion.endFrameSteps,
+        startFrameStrength: startFrameStrength !== undefined ? startFrameStrength : existingVersion.startFrameStrength,
+        endFrameStrength: endFrameStrength !== undefined ? endFrameStrength : existingVersion.endFrameStrength,
       };
       
       existingVersions[versionIndex] = newVersion;
@@ -2266,101 +2401,26 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
         endFramePrompt: shotPrompts.endFramePrompt,
         videoPrompt: shotPrompts.videoPrompt,
         negativePrompt: shotPrompts.negativePrompt,
+        // Per-frame advanced settings
+        startFrameNegativePrompt: startFrameNegativePrompt ?? null,
+        endFrameNegativePrompt: endFrameNegativePrompt ?? null,
+        startFrameSeed: startFrameSeed ?? null,
+        endFrameSeed: endFrameSeed ?? null,
+        startFrameGuidanceScale: startFrameGuidanceScale ?? null,
+        endFrameGuidanceScale: endFrameGuidanceScale ?? null,
+        startFrameSteps: startFrameSteps ?? null,
+        endFrameSteps: endFrameSteps ?? null,
+        startFrameStrength: startFrameStrength ?? null,
+        endFrameStrength: endFrameStrength ?? null,
         createdAt: new Date().toISOString(),
       };
       
       existingVersions.push(newVersion);
     }
 
-    // Download images from Runware and upload to Bunny CDN
-    let finalImageUrl = result.imageUrl;
-    // For existing versions, preserve existing frame URLs if new ones weren't generated
-    let finalStartFrameUrl: string | null = result.startFrameUrl;
-    let finalEndFrameUrl: string | null = result.endFrameUrl;
-    
-    // Get existing version if updating
-    const existingVersion = versionId ? existingVersions.find((v: any) => v.id === versionId) : null;
-    
-    // Preserve existing URLs if new ones weren't generated
-    if (existingVersion) {
-      if (result.startFrameUrl === null || result.startFrameUrl === undefined) {
-        finalStartFrameUrl = existingVersion.startFrameUrl || null;
-      }
-      if (result.endFrameUrl === null || result.endFrameUrl === undefined) {
-        finalEndFrameUrl = existingVersion.endFrameUrl || null;
-      }
-    }
-
-    try {
-      // Upload single image (image-reference mode)
-      if (result.imageUrl) {
-        const bunnyPath = buildShotImagePath(
-          userId,
-          workspaceName,
-          videoId,
-          shotId,
-          newVersionId,
-          "image",
-          "image/png" // Default, will be determined from response
-        );
-        finalImageUrl = await downloadAndUploadToBunny(result.imageUrl, bunnyPath);
-      }
-
-      // Upload start frame (start-end mode)
-      if (result.startFrameUrl) {
-        const bunnyPath = buildShotImagePath(
-          userId,
-          workspaceName,
-          videoId,
-          shotId,
-          newVersionId,
-          "start",
-          "image/png"
-        );
-        finalStartFrameUrl = await downloadAndUploadToBunny(result.startFrameUrl, bunnyPath);
-      }
-
-      // Upload end frame (start-end mode)
-      if (result.endFrameUrl) {
-        const bunnyPath = buildShotImagePath(
-          userId,
-          workspaceName,
-          videoId,
-          shotId,
-          newVersionId,
-          "end",
-          "image/png"
-        );
-        finalEndFrameUrl = await downloadAndUploadToBunny(result.endFrameUrl, bunnyPath);
-      }
-
-      // Update version with Bunny CDN URLs
-      // For existing versions, only update URLs that were actually generated
-      newVersion.imageUrl = finalImageUrl || newVersion.imageUrl;
-      if (versionId && existingVersions.find((v: any) => v.id === versionId)) {
-        // Only update if a new URL was generated
-        if (finalStartFrameUrl !== null && finalStartFrameUrl !== undefined) {
-          newVersion.startFrameUrl = finalStartFrameUrl;
-        }
-        if (finalEndFrameUrl !== null && finalEndFrameUrl !== undefined) {
-          newVersion.endFrameUrl = finalEndFrameUrl;
-        }
-      } else {
-        // For new versions, set all URLs
-        newVersion.startFrameUrl = finalStartFrameUrl;
-        newVersion.endFrameUrl = finalEndFrameUrl;
-      }
-
-      // Update the version in the array
-      const versionIndex = existingVersions.findIndex((v: any) => v.id === newVersionId);
-      if (versionIndex >= 0) {
-        existingVersions[versionIndex] = newVersion;
-      }
-    } catch (error) {
-      console.error('[narrative:routes] Failed to upload images to Bunny CDN:', error);
-      // Continue with Runware URLs if Bunny upload fails (graceful degradation)
-      console.warn('[narrative:routes] Using Runware URLs as fallback');
-    }
+    // Use Runware URLs directly (no Bunny CDN upload for shot images)
+    // The newVersion object already has the correct URLs set from lines 2239-2249 or 2257-2269
+    // For existing versions, preservation is already handled at lines 2231-2237
 
     // Update shotVersions in step4Data
     shotVersions[shotId] = existingVersions;
@@ -2375,17 +2435,17 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
     console.log('[narrative:routes] Storyboard image generated successfully:', {
       shotId,
       versionId: newVersion.id,
-      hasImageUrl: !!finalImageUrl,
-      hasStartFrame: !!finalStartFrameUrl,
-      hasEndFrame: !!finalEndFrameUrl,
+      hasImageUrl: !!newVersion.imageUrl,
+      hasStartFrame: !!newVersion.startFrameUrl,
+      hasEndFrame: !!newVersion.endFrameUrl,
       cost: result.cost,
-      uploadedToBunny: true,
+      usingRunwareUrls: true,
     });
 
     res.json({
-      imageUrl: finalImageUrl,
-      startFrameUrl: finalStartFrameUrl,
-      endFrameUrl: finalEndFrameUrl,
+      imageUrl: newVersion.imageUrl,
+      startFrameUrl: newVersion.startFrameUrl,
+      endFrameUrl: newVersion.endFrameUrl,
       shotVersionId: newVersion.id,
       version: newVersion,
       cost: result.cost,
@@ -2414,7 +2474,24 @@ router.patch('/shots/:shotId/versions/:versionId', isAuthenticated, async (req: 
     }
 
     const { shotId, versionId } = req.params;
-    const { imagePrompt, videoPrompt, startFramePrompt, endFramePrompt, negativePrompt } = req.body;
+    const { 
+      imagePrompt, 
+      videoPrompt, 
+      startFramePrompt, 
+      endFramePrompt, 
+      negativePrompt,
+      // Per-frame advanced settings
+      startFrameNegativePrompt,
+      endFrameNegativePrompt,
+      startFrameSeed,
+      endFrameSeed,
+      startFrameGuidanceScale,
+      endFrameGuidanceScale,
+      startFrameSteps,
+      endFrameSteps,
+      startFrameStrength,
+      endFrameStrength,
+    } = req.body;
 
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2324',message:'Parsed params',data:{shotId,versionId,versionIdLength:versionId?.length,versionIdType:typeof versionId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
@@ -2484,6 +2561,17 @@ router.patch('/shots/:shotId/versions/:versionId', isAuthenticated, async (req: 
       ...(startFramePrompt !== undefined && { startFramePrompt }),
       ...(endFramePrompt !== undefined && { endFramePrompt }),
       ...(negativePrompt !== undefined && { negativePrompt }),
+      // Per-frame advanced settings
+      ...(startFrameNegativePrompt !== undefined && { startFrameNegativePrompt }),
+      ...(endFrameNegativePrompt !== undefined && { endFrameNegativePrompt }),
+      ...(startFrameSeed !== undefined && { startFrameSeed }),
+      ...(endFrameSeed !== undefined && { endFrameSeed }),
+      ...(startFrameGuidanceScale !== undefined && { startFrameGuidanceScale }),
+      ...(endFrameGuidanceScale !== undefined && { endFrameGuidanceScale }),
+      ...(startFrameSteps !== undefined && { startFrameSteps }),
+      ...(endFrameSteps !== undefined && { endFrameSteps }),
+      ...(startFrameStrength !== undefined && { startFrameStrength }),
+      ...(endFrameStrength !== undefined && { endFrameStrength }),
     };
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2396',message:'After update',data:{updatedImagePrompt:updatedVersion?.imagePrompt?.substring?.(0,80)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ZB'})}).catch(()=>{});

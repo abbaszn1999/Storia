@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { User, MapPin } from "lucide-react";
+import { renderTextWithMentions } from "./mention-renderer";
 
 interface MentionItem {
   id: string;
@@ -16,6 +17,9 @@ interface MentionTextareaProps {
   className?: string;
   characters: Array<{ id: string; name: string; description?: string }>;
   locations: Array<{ id: string; name: string; description?: string }>;
+  onBlur?: () => void;
+  readOnly?: boolean;
+  'data-testid'?: string;
 }
 
 export function MentionTextarea({
@@ -25,6 +29,9 @@ export function MentionTextarea({
   className,
   characters,
   locations,
+  onBlur,
+  readOnly = false,
+  'data-testid': dataTestId,
 }: MentionTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [showMentions, setShowMentions] = useState(false);
@@ -32,12 +39,19 @@ export function MentionTextarea({
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [cursorPosition, setCursorPosition] = useState(0);
+  const [isFocused, setIsFocused] = useState(false);
+  const [hasSelection, setHasSelection] = useState(false);
 
   // Combine characters and locations for mention list
   const mentionItems: MentionItem[] = useMemo(() => {
     const chars = characters.map(c => ({ ...c, type: 'character' as const }));
     const locs = locations.map(l => ({ ...l, type: 'location' as const }));
-    return [...chars, ...locs];
+    const items = [...chars, ...locs];
+    // Debug log
+    if (items.length === 0) {
+      console.warn('[MentionTextarea] No characters or locations available for mentions');
+    }
+    return items;
   }, [characters, locations]);
 
   // Filter mentions based on query
@@ -51,9 +65,13 @@ export function MentionTextarea({
 
   // Handle text change and detect @ mentions
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (readOnly) return; // Don't process changes if read-only
+    
     const newValue = e.target.value;
     const cursorPos = e.target.selectionStart;
+    const selectionEnd = e.target.selectionEnd;
     setCursorPosition(cursorPos);
+    setHasSelection(cursorPos !== selectionEnd);
     
     onChange(newValue);
 
@@ -73,7 +91,7 @@ export function MentionTextarea({
         const query = textAfterAt.trim();
         setMentionQuery(query);
       
-        // Calculate position for dropdown
+        // Calculate position for dropdown (using fixed positioning like narrative mode)
         const textarea = e.target;
         const textBeforeMention = textBeforeCursor.substring(0, lastAtIndex);
         
@@ -88,12 +106,14 @@ export function MentionTextarea({
         document.body.appendChild(measureSpan);
         
         const rect = textarea.getBoundingClientRect();
-        const scrollTop = textarea.scrollTop;
-        const lineHeight = parseInt(window.getComputedStyle(textarea).lineHeight) || 20;
+        const lineHeight = parseFloat(window.getComputedStyle(textarea).lineHeight) || 20;
+        const paddingTop = parseFloat(window.getComputedStyle(textarea).paddingTop) || 12;
+        
+        // Count lines before cursor (for fixed positioning, we use viewport coordinates)
         const lines = (textBeforeMention.match(/\n/g) || []).length;
         
         setMentionPosition({
-          top: rect.top + (lines * lineHeight) + lineHeight + scrollTop,
+          top: rect.top + paddingTop + (lines * lineHeight) + lineHeight + 5,
           left: rect.left + measureSpan.offsetWidth + 10,
         });
         
@@ -114,7 +134,7 @@ export function MentionTextarea({
     const target = e.target;
     target.style.height = 'auto';
     target.style.height = `${Math.max(target.scrollHeight, 50)}px`;
-  }, [onChange, characters, locations]);
+  }, [onChange, characters, locations, readOnly]);
 
   // Handle mention selection
   const insertMention = useCallback((item: MentionItem) => {
@@ -173,24 +193,52 @@ export function MentionTextarea({
     }
   }, [showMentions, filteredMentions, selectedIndex, insertMention]);
 
+  // Hide overlay when focused or when text is selected
+  const shouldShowOverlay = value && !isFocused && !hasSelection;
+
   return (
-    <div className={cn("relative w-full", className)}>
+    <div className="relative w-full">
       {/* Regular textarea with visible text */}
       <textarea
         ref={textareaRef}
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        onBlur={() => {
+        onFocus={() => setIsFocused(true)}
+        onBlur={(e) => {
+          setIsFocused(false);
+          setHasSelection(false);
           // Delay hiding to allow click on mention item
           setTimeout(() => setShowMentions(false), 200);
+          onBlur?.();
+        }}
+        onSelect={(e) => {
+          const target = e.target as HTMLTextAreaElement;
+          const selectionStart = target.selectionStart;
+          const selectionEnd = target.selectionEnd;
+          setHasSelection(selectionStart !== selectionEnd);
+        }}
+        onScroll={(e) => {
+          // Sync overlay scroll
+          if (shouldShowOverlay) {
+            const overlay = e.currentTarget.nextElementSibling as HTMLElement;
+            if (overlay) {
+              overlay.scrollTop = e.currentTarget.scrollTop;
+              overlay.scrollLeft = e.currentTarget.scrollLeft;
+            }
+          }
         }}
         placeholder={placeholder}
         rows={4}
+        readOnly={readOnly}
+        data-testid={dataTestId}
         className={cn(
+          className,
           "w-full bg-white/5 border-white/10 text-white text-xs resize-none",
           "focus:outline-none focus:ring-2 focus:ring-white/20 rounded-md px-3 py-2",
-          "placeholder:text-white/40"
+          "placeholder:text-white/40",
+          shouldShowOverlay && "text-transparent caret-white",
+          readOnly && "cursor-not-allowed"
         )}
         style={{
           width: '100%',
@@ -203,44 +251,10 @@ export function MentionTextarea({
         }}
       />
       
-      {/* Overlay for styled mentions - positioned above textarea, only shows mentions in blue */}
-      {value && value.length > 0 && (
+      {/* Mentions Dropdown - Use fixed positioning like narrative mode */}
+      {!readOnly && showMentions && filteredMentions.length > 0 && (
         <div
-          className={cn(
-            "absolute inset-0 pointer-events-none whitespace-pre-wrap break-words text-xs",
-            "px-3 py-2 rounded-md"
-          )}
-          style={{
-            fontFamily: 'inherit',
-            fontSize: '0.75rem',
-            lineHeight: '1.5',
-            zIndex: 1,
-          }}
-        >
-          {value.split(/(@[\w\s]+)/g).map((part, index) => {
-            if (part.startsWith('@')) {
-              // Extract mention name (remove trailing spaces)
-              const mentionName = part.substring(1).trim();
-              // Check if this matches any character or location name exactly
-              const matchedItem = mentionItems.find(item => item.name === mentionName);
-              if (matchedItem) {
-                return (
-                  <span key={index} className="text-blue-400 font-medium">
-                    {part}
-                  </span>
-                );
-              }
-            }
-            // Non-mention text is transparent so textarea white text shows through
-            return <span key={index} className="text-transparent">{part}</span>;
-          })}
-        </div>
-      )}
-      
-      {/* Mentions Dropdown */}
-      {showMentions && filteredMentions.length > 0 && (
-        <div
-          className="absolute z-50 bg-[#1a1a1a] border border-white/20 rounded-lg shadow-lg max-h-[200px] overflow-y-auto"
+          className="fixed z-[9999] bg-[#1a1a1a] border border-white/20 rounded-lg shadow-lg max-h-[200px] overflow-y-auto"
           style={{
             top: `${mentionPosition.top}px`,
             left: `${mentionPosition.left}px`,
@@ -272,6 +286,19 @@ export function MentionTextarea({
               </div>
             </div>
           ))}
+        </div>
+      )}
+      
+      {/* Mention Highlight Overlay - shows highlighted mentions when not focused */}
+      {shouldShowOverlay && (
+        <div
+          className="absolute inset-0 pointer-events-none px-3 py-2 text-xs whitespace-pre-wrap break-words overflow-hidden"
+          style={{
+            minHeight: '80px',
+            color: 'rgb(255, 255, 255)', // Base text color (white)
+          }}
+        >
+          {renderTextWithMentions(value)}
         </div>
       )}
     </div>

@@ -15,11 +15,14 @@
 
 Generate high-quality storyboard frame images from AI-generated prompts, respecting:
 - Reference Mode (1F/2F/AI) for frame count per shot
-- Continuity links (reuse previous end frames as start frames)
-- Character and location reference images for consistency
+- Continuity groups (approved continuity groups from Step 3)
+- Per-frame generation (user clicks Generate button on specific frame: start, end, or image)
+- Inherited start frame lock (inherited start frames cannot be generated independently - they auto-sync)
+- Shared frame optimization (continuous shots generate common frame only once)
+- Character and location reference images for consistency (using resolved tags from Agent 4.1)
 - Art style references for visual coherence
 
-This agent is an **EXECUTOR** — it does not perform prompt engineering. It receives fully-formed prompts from Agent 4.1 and calls image generation APIs with proper parameters.
+This agent is an **EXECUTOR** — it does not perform prompt engineering. It receives fully-formed prompts from Agent 4.1 (with resolved tags like `@Alex Chen` instead of `@PrimaryCharacter`) and calls image generation APIs with proper parameters.
 
 ---
 
@@ -40,13 +43,23 @@ YOUR ROLE: EXECUTOR (Not Prompt Engineer)
 - You manage reference images and aspect ratios
 
 ═══════════════════════════════════════════════════════════════════════════════
+PER-FRAME GENERATION MODEL
+═══════════════════════════════════════════════════════════════════════════════
+
+IMPORTANT: User clicks "Generate" button on a SPECIFIC frame:
+- frame: "start" | "end" | "image" (REQUIRED parameter)
+- Each frame is generated in a separate API call
+- Never generate multiple frames in one call when user requests a specific frame
+
+═══════════════════════════════════════════════════════════════════════════════
 GENERATION LOGIC BY REFERENCE MODE
 ═══════════════════════════════════════════════════════════════════════════════
 
 You receive a shot with generation instructions. Your behavior depends on:
 1. frameType ("1F" or "2F")
-2. isLinkedToPrevious (boolean)
-3. Which prompts are provided (single, start, end)
+2. Continuity groups (approved groups from step3Data.continuityGroups)
+3. frame parameter ("start" | "end" | "image")
+4. Which prompts are provided (single, start, end)
 
 ───────────────────────────────────────────────────────────────────────────────
 SCENARIO 1: 1F Mode - Standalone
@@ -71,30 +84,20 @@ OUTPUT:
 }
 
 ───────────────────────────────────────────────────────────────────────────────
-SCENARIO 2: 1F Mode - Linked to Previous
+SCENARIO 2: 1F Mode - Linked to Previous (In Continuity Group)
 ───────────────────────────────────────────────────────────────────────────────
 
 INPUT:
+- frame: "image"
 - imagePrompts.single: null (inherited)
-- imagePrompts.start: null
-- imagePrompts.end: null
-- isLinkedToPrevious: true
-- previousEndFrame: PROVIDED (URL to previous shot's end frame)
+- isConnectedToPrevious: true (from continuity group)
+- previousEndFrameUrl: PROVIDED (URL to previous shot's end frame)
 
 ACTION:
-1. DO NOT generate any image
-2. Copy previousEndFrame to imageUrl (reference frame is inherited)
-3. Leave endImageUrl as null
+1. REJECT generation request with 400 error
+2. Error message: "Image frame is inherited from previous shot and cannot be generated independently"
 
-OUTPUT:
-{
-  "imageUrl": "https://previous-shot-end-frame.url",
-  "endImageUrl": null,
-  "generatedFrameCount": 0
-}
-
-CRITICAL: This shot reuses the previous shot's end frame as its reference frame.
-No new image generation occurs.
+CRITICAL: Inherited frames cannot be generated. They auto-sync when previous shot's frame is generated.
 
 ───────────────────────────────────────────────────────────────────────────────
 SCENARIO 3: 2F Mode - Standalone (No Continuity)
@@ -146,30 +149,42 @@ Note: The end frame must be high quality as it will serve as the next shot's
 start frame.
 
 ───────────────────────────────────────────────────────────────────────────────
-SCENARIO 5: 2F Mode - Linked to Previous
+SCENARIO 5: 2F Mode - Linked to Previous (In Continuity Group)
 ───────────────────────────────────────────────────────────────────────────────
 
 INPUT:
-- imagePrompts.single: null
+- frame: "start" OR "end"
 - imagePrompts.start: null (inherited)
 - imagePrompts.end: PROVIDED
-- isLinkedToPrevious: true
-- previousEndFrame: PROVIDED (URL to previous shot's end frame)
+- isConnectedToPrevious: true (from continuity group)
+- previousEndFrameUrl: PROVIDED (URL to previous shot's end frame)
 
+WHEN frame === "start":
 ACTION:
-1. Copy previousEndFrame to imageUrl (start frame is inherited)
-2. Generate end frame using imagePrompts.end
-3. Store end in endImageUrl
+1. REJECT generation request with 400 error
+2. Error message: "Start frame is inherited from previous shot and cannot be generated independently. It will auto-sync when the previous shot's end frame is generated."
 
-OUTPUT:
+WHEN frame === "end":
+ACTION:
+1. Check if next shot is continuous (shared frame optimization)
+2. If continuous AND prompts match:
+   - Generate frame ONCE
+   - Save to both: currentShot.endFrameUrl AND nextShot.startFrameUrl (same URL)
+3. If not continuous:
+   - Generate end frame normally
+   - Store in endFrameUrl
+
+OUTPUT (when frame === "end"):
 {
-  "imageUrl": "https://previous-shot-end-frame.url",
-  "endImageUrl": "https://new-end-frame.url",
+  "endFrameUrl": "https://new-end-frame.url",
+  "isSharedFrame": true/false,
+  "nextShotId": "shot-id-if-shared" or null,
   "generatedFrameCount": 1
 }
 
-CRITICAL: Start frame = Previous shot's end frame (reused, not generated).
-Only end frame is newly generated.
+CRITICAL: 
+- Start frame = Previous shot's end frame (inherited, auto-synced, cannot be generated)
+- End frame generation may trigger shared frame optimization (saves to next shot's start)
 
 ═══════════════════════════════════════════════════════════════════════════════
 IMAGE GENERATION PARAMETERS
@@ -185,8 +200,13 @@ REQUIRED PARAMETERS:
 
 REFERENCE IMAGES (if provided):
 - `characterReferences[]`: Array of character reference image URLs
+  - Extracted from prompts using resolved tags (e.g., `@Alex Chen` from Agent 4.1)
+  - Matched to step2Data.characters by name
 - `locationReferences[]`: Array of location reference image URLs
-- `styleReference`: Art style reference image URL or description
+  - Extracted from prompts using resolved tags (e.g., `@Modern Studio` from Agent 4.1)
+  - Matched to step2Data.locations by name
+- `styleReference`: Art style reference image URL from step2Data.styleReferenceImageUrl
+- `previousFrameUrl`: Previous shot's frame (if in continuity group and not first)
 
 MODEL-SPECIFIC SETTINGS:
 - Resolution based on aspect ratio and model capabilities
@@ -330,9 +350,12 @@ Return ONLY valid JSON:
 | `aspectRatio` | string | Script step | Image dimensions (9:16, 16:9, 1:1) |
 | `imageModel` | string | Scene settings | Selected model (Flux, Midjourney, etc.) |
 | `quality` | string | Scene settings | Quality preference (standard, HD, 4K) |
-| `isLinkedToPrevious` | boolean | Agent 3.3 | Continuity flag |
-| `isFirstInGroup` | boolean | Agent 3.3 | First in continuity chain flag |
-| `previousEndFrame` | string \| null | Previous shot | Previous shot's end frame URL (if linked) |
+| `frame` | "start" \| "end" \| "image" | User action | REQUIRED: Which frame to generate |
+| `continuityGroups` | Record<string, ContinuityGroup[]> | Step 3 | Approved continuity groups (keyed by sceneId) |
+| `isConnectedToPrevious` | boolean | Continuity group | Derived from continuity group position |
+| `previousEndFrameUrl` | string \| null | Previous shot version | Previous shot's end frame URL (if connected) |
+| `nextShotId` | string \| null | Continuity group | Next shot ID (for shared frame optimization) |
+| `nextShotStartPrompt` | string \| null | Next shot prompts | Next shot's start prompt (to compare for shared frame) |
 
 ---
 
@@ -708,11 +731,15 @@ Return ONLY valid JSON:
    - 1F linked: NO generation (frame inherited)
    - 2F linked: Generate end frame only (start inherited)
 
-3. **Frame Reuse**: Linked shots copy previous end frames instead of generating new ones, ensuring perfect continuity.
+3. **Inherited Frame Lock**: Inherited start frames (from continuity groups) cannot be generated independently. They auto-sync when previous shot's end frame is generated/regenerated.
 
-4. **Reference Images**: Always pass character, location, and style references to the image model for consistency.
+4. **Shared Frame Optimization**: When generating end frame and next shot is continuous with same prompt, generate frame ONCE and save to both shots (currentShot.endFrameUrl = nextShot.startFrameUrl).
 
-5. **Error Handling**: Implement retry logic and fallback models. Return partial success if only one frame fails in 2F shots.
+5. **Auto-Sync**: When previous shot's end frame is generated/regenerated, automatically update current shot's start frame URL immediately (no user action required).
+
+6. **Reference Images**: Always pass character, location, and style references to the image model for consistency. Extract character/location names from resolved tags (e.g., `@Alex Chen`) in prompts.
+
+7. **Error Handling**: Implement retry logic and fallback models. Return clear error messages for inherited frame generation attempts.
 
 6. **Frame Count Tracking**: Track `generatedFrameCount` (0, 1, or 2) to know how many new images were generated.
 
@@ -722,5 +749,9 @@ Return ONLY valid JSON:
 
 9. **Model Selection**: Support multiple image models as each has different strengths (Flux for consistency, Midjourney for quality, DALL-E 3 for prompt adherence).
 
-10. **Async Processing**: For multi-shot generation, consider parallel processing where possible (respecting continuity dependencies).
+10. **Continuity Group System**: Use `step3Data.continuityGroups[sceneId]` to find approved groups. Check shot position in group to determine if connected to previous/next.
+
+11. **Tag Resolution**: Prompts from Agent 4.1 already have resolved tags (e.g., `@Alex Chen` instead of `@PrimaryCharacter`). Extract these tags to match characters/locations by name.
+
+12. **Per-Frame Generation**: Each frame (start, end, image) is generated in a separate API call. User explicitly chooses which frame to generate via UI button.
 

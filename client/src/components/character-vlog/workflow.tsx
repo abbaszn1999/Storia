@@ -30,6 +30,7 @@ interface CharacterVlogWorkflowProps {
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
   shotVersions: { [shotId: string]: ShotVersion[] };
+  shotInheritanceMap: { [shotId: string]: boolean };
   characters: Character[];
   locations: Location[];
   referenceImages: ReferenceImage[];
@@ -102,6 +103,7 @@ export function CharacterVlogWorkflow({
   scenes,
   shots,
   shotVersions,
+  shotInheritanceMap,
   characters,
   locations,
   referenceImages,
@@ -203,12 +205,96 @@ export function CharacterVlogWorkflow({
     console.log("Export data:", data);
   };
 
-  const handleGenerateShot = (shotId: string) => {
-    console.log("Generating shot:", shotId);
+  const handleGenerateShot = async (shotId: string) => {
+    // Find which scene this shot belongs to
+    const sceneId = Object.keys(shots).find(sId => 
+      shots[sId]?.some(shot => shot.id === shotId)
+    );
+    
+    if (!sceneId) {
+      toast({
+        title: "Error",
+        description: "Could not find scene for this shot",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Generate prompts for all shots in the scene (batch processing)
+    try {
+      const response = await fetch('/api/character-vlog/storyboard/generate-prompts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          videoId,
+          sceneId,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to generate prompts' }));
+        throw new Error(error.details || error.error || 'Failed to generate prompts');
+      }
+
+      const data = await response.json();
+      
+      // Update shot versions with generated prompts
+      const updatedShotVersions = { ...shotVersions };
+      const sceneShots = shots[sceneId] || [];
+      
+      for (const generatedShot of data.shots) {
+        const shot = sceneShots.find(s => s.id === generatedShot.shotId);
+        if (!shot) continue;
+
+        // Create or update shot version with prompts
+        const existingVersions = updatedShotVersions[shot.id] || [];
+        const newVersion: ShotVersion = {
+          id: `version-${Date.now()}-${shot.id}`,
+          shotId: shot.id,
+          versionNumber: existingVersions.length + 1,
+          imagePrompt: generatedShot.imagePrompts.single || generatedShot.imagePrompts.start || '',
+          startFramePrompt: generatedShot.imagePrompts.start || null,
+          endFramePrompt: generatedShot.imagePrompts.end || null,
+          videoPrompt: generatedShot.videoPrompt,
+          imageUrl: null,
+          startFrameUrl: null,
+          endFrameUrl: null,
+          videoUrl: null,
+          videoDuration: shot.duration || 5,
+          status: 'pending',
+          needsRerender: false,
+          createdAt: new Date(),
+        };
+
+        updatedShotVersions[shot.id] = [...existingVersions, newVersion];
+        
+        // Always set the newly generated version as current version
+        handleUpdateShot(shot.id, { currentVersionId: newVersion.id });
+      }
+
+      onShotVersionsChange(updatedShotVersions);
+
+      toast({
+        title: "Prompts Generated",
+        description: `Generated prompts for ${data.shots.length} shot(s) in scene`,
+      });
+    } catch (error) {
+      console.error('Failed to generate prompts:', error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate prompts. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleRegenerateShot = (shotId: string) => {
-    console.log("Regenerating shot:", shotId);
+  const handleRegenerateShot = async (shotId: string) => {
+    // Regeneration also processes the entire scene (batch processing)
+    await handleGenerateShot(shotId);
   };
 
   const handleUpdateShot = (shotId: string, updates: Partial<Shot>) => {
@@ -531,6 +617,8 @@ export function CharacterVlogWorkflow({
               })
             ])
           )}
+          continuityLocked={continuityLocked}
+          continuityGroups={continuityGroups}
           characters={characters.map(c => ({
             id: c.id,
             name: c.name,
@@ -565,8 +653,8 @@ export function CharacterVlogWorkflow({
                   sceneId: shot.sceneId,
                   shotNumber: idx + 1,
                   description: shot.description,
-                  cameraMovement: "Static",
-                  shotType: shot.cameraShot || "Medium",
+                  cameraMovement: shot.cameraShot || "Static",
+                  shotType: shot.shotType || "image-ref", // ✅ FIX: Preserve frame type (image-ref/start-end), not camera shot
                   soundEffects: null,
                   duration: 3,
                   transition: "cut",
@@ -599,6 +687,7 @@ export function CharacterVlogWorkflow({
           onReferenceImagesChange={onReferenceImagesChange}
           onWorldSettingsChange={(settings) => onWorldSettingsChange({
             ...settings,
+            imageModel: worldSettings.imageModel || imageModel,
             locations: worldSettings.locations || [],
             imageInstructions: worldSettings.imageInstructions || "",
             videoInstructions: worldSettings.videoInstructions || "",
@@ -614,11 +703,14 @@ export function CharacterVlogWorkflow({
           videoId={videoId}
           narrativeMode={narrativeMode}
           referenceMode={referenceMode}
+          aspectRatio={aspectRatio}
           scenes={scenes}
           shots={shots}
           shotVersions={shotVersions}
+          shotInheritanceMap={shotInheritanceMap}
           referenceImages={referenceImages}
           characters={characters}
+          locations={locations}
           voiceActorId={voiceActorId}
           voiceOverEnabled={voiceOverEnabled}
           continuityLocked={continuityLocked}

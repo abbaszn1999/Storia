@@ -2,6 +2,9 @@
 // Re-export all shared model configs for easy importing
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Model ID mapping (from legacy config.ts)
+export { getRunwareModelId } from '../config';
+
 // Video Models
 export {
   VIDEO_MODEL_CONFIGS,

@@ -3,14 +3,11 @@ import { Button } from "@/components/ui/button";
 import { ProductSetupTab } from "@/components/commerce/product-setup-tab";
 import { HookFormatTab } from "@/components/commerce/hook-format-tab";
 import { VisualStyleTab } from "@/components/commerce/visual-style-tab";
-import { SceneContinuityTab } from "@/components/commerce/scene-continuity-tab";
-import { ProductScriptEditor } from "@/components/social-commerce/product-script-editor";
-import { ProductWorldCast } from "@/components/social-commerce/product-world-cast";
 import { ProductBreakdown } from "@/components/social-commerce/product-breakdown";
-import { BeatStoryboardTab } from "@/components/commerce/beat-storyboard-tab";
-import { VoiceoverTab } from "@/components/commerce/voiceover-tab";
-import { AnimaticPreview } from "@/components/narrative/animatic-preview";
-import { ExportSettings, type ExportData } from "@/components/narrative/export-settings";
+import { BeatStoryboardPremium } from "@/components/commerce/beat-storyboard-premium";
+import { VoiceoverPremium } from "@/components/commerce/voiceover-premium";
+import { AnimaticPreviewTab } from "@/components/commerce/animatic-preview-tab";
+import { ExportTab } from "@/components/commerce/export-tab";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -34,7 +31,7 @@ interface ProductShot {
   id: string;
   segmentId: string;
   shotNumber: number;
-  shotType: string;
+  shotType?: string;
   description: string;
   voiceoverText: string;
   duration: number;
@@ -114,9 +111,20 @@ interface SocialCommerceWorkflowProps {
   visualIntensity?: number;
   // Product DNA & Brand Identity (Tab 2) props
   productImages: {
+    mode?: 'manual' | 'ai_generated';
     heroProfile: string | null;
-    macroDetail: string | null;
-    materialReference: string | null;
+    productAngles?: Array<{ id: string; url: string; uploadedAt: number }>;
+    elements?: Array<{ id: string; url: string; uploadedAt: number; description?: string }>;
+    aiModeImages?: Array<{ id: string; url: string; uploadedAt: number }>;
+    compositeImage?: { 
+      url: string; 
+      generatedAt: number; 
+      mode: 'manual' | 'ai_generated'; 
+      sourceImages: string[];
+      isApplied?: boolean;
+      prompt?: string;
+    };
+    aiContext?: { description?: string; generatedAt?: number };
   };
   materialPreset: string;
   objectMass: number;
@@ -190,7 +198,7 @@ interface SocialCommerceWorkflowProps {
   onScriptChange: (script: string) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
   onDurationChange: (duration: string) => void;
-  onVoiceActorChange: (voiceActorId: string) => void;
+  onVoiceActorChange: (voiceActorId: string | null) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
   onVoiceOverConceptChange: (concept: string) => void;
   onVoiceOverScriptChange: (script: string) => void;
@@ -248,12 +256,24 @@ interface SocialCommerceWorkflowProps {
   onVisualIntensityChange?: (value: number) => void;
   // Tab 2 handlers
   onProductImagesChange: (images: {
+    mode?: 'manual' | 'ai_generated';
     heroProfile: string | null;
-    macroDetail: string | null;
-    materialReference: string | null;
+    productAngles?: Array<{ id: string; url: string; uploadedAt: number }>;
+    elements?: Array<{ id: string; url: string; uploadedAt: number; description?: string }>;
+    aiModeImages?: Array<{ id: string; url: string; uploadedAt: number }>;
+    compositeImage?: { 
+      url: string; 
+      generatedAt: number; 
+      mode: 'manual' | 'ai_generated'; 
+      sourceImages: string[];
+      isApplied?: boolean;
+      prompt?: string;
+    };
+    aiContext?: { description?: string; generatedAt?: number };
   }) => void;
-  onProductImageUpload?: (type: 'hero' | 'angle' | 'element', file: File, description?: string, existingId?: string) => Promise<void>;
-  onProductImageDelete?: (type: 'hero' | 'angle' | 'element', id?: string) => Promise<void>;
+  onProductImageUpload?: (type: 'hero' | 'angle' | 'element' | 'ai_mode', file: File, description?: string, existingId?: string) => Promise<void>;
+  onModeSwitchWithCleanup?: (newMode: 'manual' | 'ai_generated') => Promise<void>;
+  onProductImageDelete?: (type: 'hero' | 'angle' | 'element' | 'ai_mode', id?: string) => Promise<void>;
   onCompositeGenerate?: (mode: 'manual' | 'ai_generated', context?: string) => Promise<string>;
   onGeneratePrompt?: (context?: string) => Promise<void>;
   onGenerateImage?: (prompt: string, layoutDescription: string, styleGuidance: string, sourceImages: string[], context?: string) => Promise<string>;
@@ -281,6 +301,7 @@ interface SocialCommerceWorkflowProps {
   // Tab 3 handlers
   onVisualPresetChange: (preset: string) => void;
   onCampaignSparkChange: (spark: string) => void;
+  onVisualBeatsChange: (beats: { beat1: string; beat2: string; beat3: string }) => void;
   // Campaign Intelligence handlers
   onTargetAudienceChange: (audience: string) => void;
   onCampaignObjectiveChange: (objective: string) => void;
@@ -320,8 +341,22 @@ interface SocialCommerceWorkflowProps {
       };
     };
   };
+  step4Data?: {
+    voiceoverAudios?: {
+      [beatId: string]: {
+        audioUrl: string;
+        generatedAt?: Date;
+        voiceId?: string;
+        duration?: number;
+      };
+    };
+  };
   // Loading state for Agent 5.1
   isCreating?: boolean;
+  // Voiceover regeneration handler
+  onRegenerateVoiceover?: () => Promise<void>;
+  // Voiceover audio generated handler
+  onVoiceoverAudioGenerated?: (beatId: string, audioData: { audioUrl: string; duration?: number; generatedAt?: Date; voiceId?: string }) => void;
 }
 
 export function SocialCommerceWorkflow({
@@ -467,7 +502,12 @@ export function SocialCommerceWorkflow({
   onNext,
   // Step 5: Beat Prompts
   step3Data,
+  step4Data,
   isCreating,
+  // Voiceover regeneration handler
+  onRegenerateVoiceover,
+  // Voiceover audio generated handler
+  onVoiceoverAudioGenerated,
   // Prompt preview dialog state
   isPromptPreviewOpen,
   previewPrompt,
@@ -657,69 +697,6 @@ export function SocialCommerceWorkflow({
     });
     
     onShotsChange(mappedShots);
-  };
-
-  const handleExport = (data: ExportData) => {
-    if (data.selectedPlatforms.length > 0) {
-      const missingMetadata: string[] = [];
-      
-      if (data.selectedPlatforms.includes("youtube")) {
-        const ytMeta = data.platformMetadata.youtube;
-        if (!ytMeta || !ytMeta.title || !ytMeta.description || !ytMeta.tags) {
-          missingMetadata.push("YouTube (title, description, and tags required)");
-        }
-      }
-      
-      const socialPlatforms = data.selectedPlatforms.filter((p: string) => p !== "youtube");
-      if (socialPlatforms.length > 0) {
-        const socialMeta = data.platformMetadata.social;
-        if (!socialMeta || !socialMeta.caption) {
-          missingMetadata.push("Social Media (caption required)");
-        }
-      }
-      
-      if (missingMetadata.length > 0) {
-        toast({
-          title: "Missing platform metadata",
-          description: `Please fill in the metadata for: ${missingMetadata.join(", ")}`,
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
-    if (data.selectedPlatforms.length > 0 && data.publishType === "schedule") {
-      if (!data.scheduleDate || !data.scheduleTime) {
-        toast({
-          title: "Missing schedule information",
-          description: "Please select both date and time for scheduled publishing.",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
-    if (data.selectedPlatforms.length === 0) {
-      toast({
-        title: "Export started!",
-        description: `Your video is being exported in ${data.resolution}. You'll be notified when it's ready.`,
-      });
-    } else if (data.publishType === "instant") {
-      const platformNames = data.selectedPlatforms.join(", ");
-      toast({
-        title: "Export & Publishing!",
-        description: `Your video is being exported and will be published to ${platformNames}.`,
-      });
-    } else {
-      const platformNames = data.selectedPlatforms.join(", ");
-      const scheduleDateTime = `${data.scheduleDate} at ${data.scheduleTime}`;
-      toast({
-        title: "Export & Scheduled!",
-        description: `Your video will be exported and published to ${platformNames} on ${scheduleDateTime}.`,
-      });
-    }
-
-    console.log("Export data:", data);
   };
 
   const handleGenerateShot = (shotId: string) => {
@@ -1053,6 +1030,7 @@ export function SocialCommerceWorkflow({
       id: shotId,
       sceneId: pendingSceneId,
       shotNumber: pendingShotIndex + 2,
+      shotType: 'medium',
       description: shotFormData.brief_description,
       cameraMovement: shotFormData.camera_movement,
       soundEffects: null,
@@ -1468,6 +1446,7 @@ export function SocialCommerceWorkflow({
           aspectRatio={aspectRatio}
           duration={parseInt(duration) || 8}
           voiceOverEnabled={voiceOverEnabled}
+          voiceActorId={voiceActorId}
           language={language}
           audioVolume={audioVolume}
           speechTempo={speechTempo}
@@ -1510,6 +1489,7 @@ export function SocialCommerceWorkflow({
           onAspectRatioChange={onAspectRatioChange}
           onDurationChange={(dur) => onDurationChange(dur.toString())}
           onVoiceOverToggle={onVoiceOverToggle}
+          onVoiceActorChange={onVoiceActorChange}
           onLanguageChange={onLanguageChange}
           onAudioVolumeChange={onAudioVolumeChange}
           onSpeechTempoChange={onSpeechTempoChange}
@@ -1537,7 +1517,11 @@ export function SocialCommerceWorkflow({
         <HookFormatTab
           workspaceId={workspaceId}
           videoId={videoId}
-          productImages={productImages}
+          productImages={{
+            ...productImages,
+            macroDetail: (productImages as any)?.macroDetail || null,
+            materialReference: (productImages as any)?.materialReference || null,
+          } as any}
           materialPreset={materialPreset}
           objectMass={objectMass}
           surfaceComplexity={surfaceComplexity}
@@ -1552,8 +1536,22 @@ export function SocialCommerceWorkflow({
           isGeneratingCharacter={isGeneratingCharacter}
           targetAudience={targetAudience}
           onProductImagesChange={onProductImagesChange}
-          onProductImageUpload={onProductImageUpload}
-          onProductImageDelete={onProductImageDelete}
+          onProductImageUpload={onProductImageUpload ? async (key, file) => {
+            const typeMap: Record<string, 'hero' | 'angle' | 'element'> = {
+              'heroProfile': 'hero',
+              'macroDetail': 'element',
+              'materialReference': 'element',
+            };
+            await onProductImageUpload(typeMap[key] || 'hero', file);
+          } : undefined}
+          onProductImageDelete={onProductImageDelete ? async (key) => {
+            const typeMap: Record<string, 'hero' | 'angle' | 'element'> = {
+              'heroProfile': 'hero',
+              'macroDetail': 'element',
+              'materialReference': 'element',
+            };
+            await onProductImageDelete(typeMap[key] || 'hero');
+          } : undefined}
           onMaterialPresetChange={onMaterialPresetChange}
           onObjectMassChange={onObjectMassChange}
           onSurfaceComplexityChange={onSurfaceComplexityChange}
@@ -1603,7 +1601,7 @@ export function SocialCommerceWorkflow({
           productDisplay={commerceSettings.productDisplay}
           productName={productDetails.title}
           segments={productSegments}
-          shots={productShots}
+          shots={productShots as any}
           onSegmentsChange={handleSegmentsChange}
           onShotsChange={handleProductShotsChange}
           onContinuityGroupsChange={onContinuityGroupsChange}
@@ -1615,13 +1613,12 @@ export function SocialCommerceWorkflow({
       {/* Removed: Tab 4 (Scene Continuity) - no longer needed */}
 
       {activeStep === "storyboard" && (
-        <BeatStoryboardTab
+        <BeatStoryboardPremium
           videoId={videoId}
-          workspaceId={workspaceId}
           beatPrompts={step3Data?.beatPrompts}
           voiceoverScripts={step3Data?.voiceoverScripts}
+          beatVideos={step3Data?.beatVideos}
           heroImageUrl={productImages?.heroProfile || undefined}
-          isCreating={isCreating}
           onBeatGenerate={async (beatId: string) => {
             const response = await fetch(`/api/social-commerce/videos/${videoId}/beats/${beatId}/generate`, {
               method: 'POST',
@@ -1634,53 +1631,63 @@ export function SocialCommerceWorkflow({
             }
             return response.json();
           }}
-          onBeatRegenerate={async (beatId: string) => {
-            const response = await fetch(`/api/social-commerce/videos/${videoId}/beats/${beatId}/generate`, {
-              method: 'POST',
+          onPromptUpdate={async (beatId: string, newPrompt: string) => {
+            const response = await fetch(`/api/social-commerce/videos/${videoId}/beats/${beatId}/prompt`, {
+              method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
+              body: JSON.stringify({ prompt: newPrompt }),
             });
             if (!response.ok) {
               const error = await response.json();
-              throw new Error(error.details || error.error || 'Failed to regenerate beat');
+              throw new Error(error.details || error.error || 'Failed to update prompt');
             }
-            return response.json();
           }}
-          onNext={onNext}
         />
       )}
 
       {activeStep === "voiceover" && (
-        <VoiceoverTab
-            videoId={videoId}
-            beatPrompts={step3Data?.beatPrompts}
-            voiceoverScripts={step3Data?.voiceoverScripts}
-            beatVideos={step3Data?.beatVideos}
-            voiceOverEnabled={voiceOverEnabled}
-            language={language}
-            heroImageUrl={productImages?.heroProfile || undefined}
-            onUpdateVoiceoverScript={async (beatId, script) => {
-              // TODO: Save to step3Data or step4Data
-              console.log('[VoiceoverTab] Script updated for', beatId, script);
-            }}
-            onRecommendVoiceover={async (beatId) => {
-              // TODO: Call voiceover agent API
-              console.log('[VoiceoverTab] Recommend voiceover for', beatId);
-            }}
-          />
+        <VoiceoverPremium
+          videoId={videoId}
+          beatPrompts={step3Data?.beatPrompts}
+          voiceoverScripts={step3Data?.voiceoverScripts}
+          beatVideos={step3Data?.beatVideos}
+          voiceOverEnabled={voiceOverEnabled}
+          language={language}
+          heroImageUrl={productImages?.heroProfile || undefined}
+          voiceActorId={voiceActorId}
+          voiceoverAudios={step4Data?.voiceoverAudios}
+          onVoiceActorChange={async (voiceId) => {
+            onVoiceActorChange(voiceId);
+          }}
+          onUpdateVoiceoverScript={async (beatId, script) => {
+            console.log('[VoiceoverPremium] Script updated for', beatId, script);
+          }}
+          onRecommendVoiceover={async (beatId) => {
+            console.log('[VoiceoverPremium] Recommend voiceover for', beatId);
+          }}
+          onRegenerateVoiceover={onRegenerateVoiceover}
+          onVoiceoverAudioGenerated={onVoiceoverAudioGenerated}
+        />
       )}
 
       {activeStep === "animatic" && (
-        <AnimaticPreview 
-          script={script}
-          scenes={scenes}
-          shots={shots}
+        <AnimaticPreviewTab 
+          videoId={videoId}
           onNext={onNext} 
         />
       )}
 
       {activeStep === "export" && (
-        <ExportSettings onExport={handleExport} />
+        <ExportTab
+          videoId={videoId}
+          videoTitle={productDetails.title}
+          duration={step3Data?.beatVideos ? Object.keys(step3Data.beatVideos).length * 12 : 0}
+          beatCount={step3Data?.beatVideos ? Object.keys(step3Data.beatVideos).length : 0}
+          aspectRatio={aspectRatio}
+          hasVoiceover={voiceOverEnabled}
+          hasMusic={musicEnabled}
+        />
       )}
     </div>
   );

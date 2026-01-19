@@ -3,17 +3,19 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { COMMERCE_STEPS, CommerceStepId } from "./types";
+import { COMMERCE_STEPS, CommerceStepId, getVisibleSteps } from "./types";
 import { SocialCommerceStudioBackground } from "./SocialCommerceStudioBackground";
 import { SocialCommerceTimelineNavigation } from "./SocialCommerceTimelineNavigation";
-import { ArrowLeft, ShoppingBag, Loader2 } from "lucide-react";
+import { ArrowLeft, ShoppingBag } from "lucide-react";
 import { useLocation } from "wouter";
-import { ReactNode } from "react";
+import { ReactNode, useState, useEffect } from "react";
+import { FilmCatcherGame } from "@/components/loading-game";
 
 interface SocialCommerceStudioLayoutProps {
   currentStep: CommerceStepId;
   completedSteps: CommerceStepId[];
   dirtySteps?: Set<CommerceStepId>;
+  voiceOverEnabled?: boolean;
   direction: number;
   onStepClick: (step: CommerceStepId) => void;
   onNext: () => void;
@@ -22,6 +24,7 @@ interface SocialCommerceStudioLayoutProps {
   isNextDisabled?: boolean;
   nextLabel?: string;
   isTransitioning?: boolean; // NEW: Track transition state
+  loadingProgress?: number; // Progress for loading game (0-100)
   children: ReactNode;
 }
 
@@ -29,6 +32,7 @@ export function SocialCommerceStudioLayout({
   currentStep,
   completedSteps,
   dirtySteps,
+  voiceOverEnabled = true,
   direction,
   onStepClick,
   onNext,
@@ -37,12 +41,41 @@ export function SocialCommerceStudioLayout({
   isNextDisabled,
   nextLabel,
   isTransitioning = false, // NEW: Default to false
+  loadingProgress = 0, // Default to 0
   children
 }: SocialCommerceStudioLayoutProps) {
   const [, navigate] = useLocation();
   
-  const currentStepIndex = COMMERCE_STEPS.findIndex(s => s.id === currentStep);
-  const currentStepInfo = COMMERCE_STEPS[currentStepIndex];
+  // Simulate progress when transitioning (if no actual progress provided)
+  const [simulatedProgress, setSimulatedProgress] = useState(0);
+  
+  useEffect(() => {
+    if (isTransitioning && loadingProgress === 0) {
+      // Simulate progress when no real progress is provided
+      setSimulatedProgress(0);
+      const interval = setInterval(() => {
+        setSimulatedProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(interval);
+            return 90; // Cap at 90% until actually complete
+          }
+          return prev + Math.random() * 15 + 5;
+        });
+      }, 500);
+      
+      return () => clearInterval(interval);
+    } else if (!isTransitioning) {
+      // Reset when not transitioning
+      setSimulatedProgress(0);
+    }
+  }, [isTransitioning, loadingProgress]);
+  
+  // Use real progress if provided, otherwise use simulated
+  const displayProgress = loadingProgress > 0 ? loadingProgress : simulatedProgress;
+  
+  const visibleSteps = getVisibleSteps(voiceOverEnabled);
+  const currentStepIndex = visibleSteps.findIndex(s => s.id === currentStep);
+  const currentStepInfo = visibleSteps[currentStepIndex] || COMMERCE_STEPS.find(s => s.id === currentStep);
 
   // Animation variants for smooth transitions
   const contentVariants = {
@@ -64,13 +97,13 @@ export function SocialCommerceStudioLayout({
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[#0a0a0a] text-white overflow-hidden">
+    <div className="h-screen flex flex-col bg-[#0a0a0a] text-white overflow-hidden" data-mode="social-commerce">
       {/* Commerce Background */}
       <SocialCommerceStudioBackground />
 
       {/* Header */}
       <header className="relative z-10 px-6 pt-5 pb-3 flex-shrink-0">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <div className="w-full flex items-center justify-between">
           {/* Back to Videos */}
           <motion.button
             onClick={() => navigate('/videos')}
@@ -87,7 +120,7 @@ export function SocialCommerceStudioLayout({
               "flex items-center gap-2 px-3 py-1.5 rounded-lg",
               "bg-white/5 border border-white/10"
             )}>
-              <ShoppingBag className="w-4 h-4 text-pink-500" />
+              <ShoppingBag className="w-4 h-4 text-emerald-500" />
               <span className="text-sm font-medium text-white/70">Social Commerce</span>
             </div>
             
@@ -115,33 +148,64 @@ export function SocialCommerceStudioLayout({
       {/* Main Content Area - Scrollable with Smooth Transitions */}
       <main className="relative z-10 flex-1 overflow-y-auto pb-24 custom-scrollbar">
         <div className="relative px-6 pb-6 min-h-full">
-          {/* Loading Overlay */}
+          {/* Loading Game Overlay */}
           <AnimatePresence>
             {isTransitioning && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="absolute inset-0 z-50 bg-[#0a0a0a]/90 backdrop-blur-md flex items-center justify-center"
+                transition={{ duration: 0.3 }}
+                className="fixed inset-0 z-[100] flex items-center justify-center"
+                style={{
+                  background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
+                }}
               >
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.9, opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="flex flex-col items-center gap-4"
-                >
-                  <Loader2 className="w-10 h-10 text-pink-500 animate-spin" />
-                  <motion.p
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="text-sm text-white/80 font-medium"
-                  >
-                    {nextLabel || "Loading..."}
-                  </motion.p>
-                </motion.div>
+                {/* Animated background orbs */}
+                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                  <motion.div
+                    className="absolute w-[600px] h-[600px] rounded-full opacity-20"
+                    style={{
+                      background: 'radial-gradient(circle, #10b981 0%, transparent 70%)',
+                      left: '10%',
+                      top: '20%',
+                    }}
+                    animate={{
+                      x: [0, 50, 0],
+                      y: [0, 30, 0],
+                    }}
+                    transition={{
+                      duration: 8,
+                      repeat: Infinity,
+                      ease: 'easeInOut',
+                    }}
+                  />
+                  <motion.div
+                    className="absolute w-[500px] h-[500px] rounded-full opacity-15"
+                    style={{
+                      background: 'radial-gradient(circle, #14b8a6 0%, transparent 70%)',
+                      right: '10%',
+                      bottom: '20%',
+                    }}
+                    animate={{
+                      x: [0, -40, 0],
+                      y: [0, -40, 0],
+                    }}
+                    transition={{
+                      duration: 10,
+                      repeat: Infinity,
+                      ease: 'easeInOut',
+                    }}
+                  />
+                </div>
+                
+                {/* Film Catcher Game */}
+                <FilmCatcherGame
+                  progress={displayProgress}
+                  isComplete={false}
+                  title={nextLabel || "Processing..."}
+                  subtitle="Play while you wait! 🎮"
+                />
               </motion.div>
             )}
           </AnimatePresence>
@@ -172,6 +236,7 @@ export function SocialCommerceStudioLayout({
         currentStep={currentStep}
         completedSteps={completedSteps}
         dirtySteps={dirtySteps}
+        voiceOverEnabled={voiceOverEnabled}
         onStepClick={onStepClick}
         onNext={onNext}
         onBack={onBack}

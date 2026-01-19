@@ -495,6 +495,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: 'Access denied to this video' });
       }
 
+      // Get workspace info for building Bunny path
+      const workspace = await storage.getWorkspace(video.workspaceId);
+      
+      // Clean up Bunny CDN assets
+      if (workspace && bunnyStorage.isBunnyConfigured()) {
+        try {
+          // Determine tool mode from video.mode
+          const toolModeMap: Record<string, string> = {
+            'social-commerce': 'commerce',
+            'ambient-visual': 'ambient',
+            'narrative': 'narrative',
+            'character-vlog': 'vlog',
+            'logo-animation': 'logo',
+          };
+          const toolMode = toolModeMap[video.mode] || video.mode;
+
+          // Build folder path using createdAt date
+          const folderPath = bunnyStorage.buildVideoProjectFolderPath({
+            userId,
+            workspaceName: workspace.name,
+            toolMode,
+            projectName: video.title || 'untitled',
+            dateLabel: video.createdAt 
+              ? new Date(video.createdAt).toISOString().slice(0, 10).replace(/-/g, "")
+              : undefined,
+          });
+
+          console.log('[routes] Deleting video folder from Bunny CDN:', folderPath);
+          await bunnyStorage.deleteFolder(folderPath);
+          console.log('[routes] ✓ Video folder deleted from Bunny CDN');
+        } catch (bunnyError) {
+          // Log but don't fail the delete - DB record should still be removed
+          console.error('[routes] Failed to delete Bunny folder (continuing with DB delete):', bunnyError);
+        }
+      }
+
+      // Delete from database
       await storage.deleteVideo(id);
       res.json({ success: true, message: 'Video deleted' });
     } catch (error) {

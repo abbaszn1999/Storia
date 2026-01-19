@@ -6,14 +6,16 @@
  */
 
 import sharp from 'sharp';
-import { uploadFile } from '../../../storage/bunny-storage';
+import { uploadFile, buildVideoModePath } from '../../../storage/bunny-storage';
 import { generateCompositePrompt } from '../agents/composite-prompt-architect';
 import { callAi } from '../../../ai/service';
 import type { AiRequest } from '../../../ai/types';
 import { getRunwareModelId, getImageDimensions } from '../../../ai/config';
+import { storage } from '../../../storage';
 
 export interface CompositeGenerationInput {
   mode: 'manual' | 'ai_generated';
+  videoId: string; // Video ID for building correct path
   // Manual mode fields
   heroImage?: string; // CDN URL
   productAngles?: string[]; // CDN URLs (max 2)
@@ -68,6 +70,7 @@ export async function generateAIModeComposite(
   userId: string,
   workspaceId: string
 ): Promise<CompositeGenerationOutput> {
+  const { videoId } = input;
   const { 
     images = [], 
     context, 
@@ -151,7 +154,7 @@ export async function generateAIModeComposite(
       runware: {
         deliveryMethod: 'async',
         pollIntervalMs: 2000,
-        timeoutMs: 120000, // 2 minutes timeout
+        timeoutMs: 180000, // 3 minutes timeout (increased from 2 minutes)
       },
     };
 
@@ -186,13 +189,33 @@ export async function generateAIModeComposite(
 
     const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
     
-    // Upload to Bunny Storage
+    // Upload to Bunny Storage using buildVideoModePath
     const timestamp = Date.now();
-    const workspaceName = workspaceId.replace(/[^a-zA-Z0-9-_]/g, '_');
-    const bunnyPath = `${userId}/${workspaceName}/Assets/Composites/ai_composite_${timestamp}.png`;
+
+    // Get workspace info for path building
+    const workspaceInfo = await storage.getWorkspace(workspaceId);
+    if (!workspaceInfo) {
+      throw new Error('Workspace not found');
+    }
+
+    // Get video info for project name
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      throw new Error('Video not found');
+    }
+
+    const compositeFileName = `ai_composite_${timestamp}.png`;
+    const compositePath = buildVideoModePath({
+      userId,
+      workspaceName: workspaceInfo.name,
+      toolMode: 'commerce',
+      projectName: video.title || 'untitled',
+      subFolder: 'Composites',
+      filename: compositeFileName,
+    });
     
-    console.log('[composite-generator] Uploading AI composite to Bunny:', bunnyPath);
-    const compositeUrl = await uploadFile(bunnyPath, imageBuffer, 'image/png');
+    console.log('[composite-generator] Uploading AI composite to Bunny:', compositePath);
+    const compositeUrl = await uploadFile(compositePath, imageBuffer, 'image/png');
 
     console.log('[composite-generator] ✓ AI composite generated successfully:', {
       url: compositeUrl,
@@ -210,7 +233,22 @@ export async function generateAIModeComposite(
     };
   } catch (error) {
     console.error('[composite-generator] Error generating AI composite:', error);
-    throw new Error(`Failed to generate AI composite: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    
+    // ✅ تحسين error message للـ network errors
+    let errorMessage = 'Unknown error';
+    if (error instanceof Error) {
+      if (error.message.includes('ECONNRESET') || error.message.includes('fetch failed')) {
+        errorMessage = 'Network connection error while generating image. Please try again.';
+      } else if (error.message.includes('timeout') || error.message.includes('timeout exceeded')) {
+        errorMessage = 'Image generation timed out. Please try again.';
+      } else if (error.message.includes('No image URL')) {
+        errorMessage = 'Image generation completed but no image URL was returned. Please try again.';
+      } else {
+        errorMessage = error.message;
+      }
+    }
+    
+    throw new Error(`Failed to generate AI composite: ${errorMessage}`);
   }
 }
 
@@ -227,10 +265,10 @@ export async function generateComposite(
     return generateAIModeComposite(input, userId, workspaceId);
   }
 
-  const { heroImage, productAngles = [], elements = [] } = input;
+  const { videoId, heroImage, productAngles = [], elements = [] } = input;
   
-  // Collect all source images
-  const sourceImages: string[] = [heroImage, ...productAngles, ...elements].filter(Boolean);
+  // Collect all source images (filter out undefined/null values)
+  const sourceImages: string[] = [heroImage, ...productAngles, ...elements].filter((img): img is string => Boolean(img));
   const imageCount = sourceImages.length;
   
   if (imageCount === 0) {
@@ -391,13 +429,33 @@ export async function generateComposite(
     // Generate final composite as PNG
     const compositeBuffer = await composite.png().toBuffer();
     
-    // Upload to Bunny Storage
+    // Upload to Bunny Storage using buildVideoModePath
     const timestamp = Date.now();
-    const workspaceName = workspaceId.replace(/[^a-zA-Z0-9-_]/g, '_');
-    const bunnyPath = `${userId}/${workspaceName}/Assets/Composites/composite_${timestamp}.png`;
+
+    // Get workspace info for path building
+    const workspaceInfo = await storage.getWorkspace(workspaceId);
+    if (!workspaceInfo) {
+      throw new Error('Workspace not found');
+    }
+
+    // Get video info for project name
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      throw new Error('Video not found');
+    }
+
+    const compositeFileName = `composite_${timestamp}.png`;
+    const compositePath = buildVideoModePath({
+      userId,
+      workspaceName: workspaceInfo.name,
+      toolMode: 'commerce',
+      projectName: video.title || 'untitled',
+      subFolder: 'Composites',
+      filename: compositeFileName,
+    });
     
-    console.log('[composite-generator] Uploading composite to Bunny:', bunnyPath);
-    const compositeUrl = await uploadFile(bunnyPath, compositeBuffer, 'image/png');
+    console.log('[composite-generator] Uploading composite to Bunny:', compositePath);
+    const compositeUrl = await uploadFile(compositePath, compositeBuffer, 'image/png');
     
     console.log('[composite-generator] ✓ Composite generated successfully:', {
       url: compositeUrl,

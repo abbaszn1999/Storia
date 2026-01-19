@@ -19,3 +19,13 @@ export const COMMERCE_STEPS: CommerceStep[] = [
   { id: "export", label: "Export & Publish", shortLabel: "Export", icon: "📤" },
 ];
 
+/**
+ * Get visible steps based on voiceover enabled state
+ * If voiceover is disabled, the voiceover step is hidden
+ */
+export const getVisibleSteps = (voiceOverEnabled: boolean): CommerceStep[] => {
+  if (voiceOverEnabled) {
+    return COMMERCE_STEPS; // Show all steps
+  }
+  return COMMERCE_STEPS.filter(step => step.id !== 'voiceover'); // Hide voiceover step
+};

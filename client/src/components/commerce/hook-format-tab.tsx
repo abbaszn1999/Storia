@@ -510,7 +510,7 @@ export function HookFormatTab({
                     icon={Eye}
                     title="Visual Assets"
                     description="Product photography for AI reference"
-                    iconColor="text-pink-400"
+                    iconColor="text-emerald-400"
                   />
                   <Badge variant="outline" className="text-xs px-2 py-0.5 bg-pink-500/20 border-pink-500/30 text-pink-300">
                     {filledSlots}/3
@@ -593,7 +593,7 @@ export function HookFormatTab({
                   icon={Box}
                   title="Material Intelligence"
                   description="Physical properties for realistic rendering"
-                  iconColor="text-cyan-400"
+                  iconColor="text-emerald-400"
                 />
 
                 {/* Material Preset */}
@@ -623,7 +623,7 @@ export function HookFormatTab({
                     </SelectContent>
                   </Select>
                   {materialPreset === "" && (
-                    <p className="text-xs text-amber-400/80">Required</p>
+                    <p className="text-xs text-emerald-400/80">Required</p>
                   )}
                 </div>
 
@@ -632,7 +632,7 @@ export function HookFormatTab({
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <Label className="text-xs text-white/50">Object Mass</Label>
-                      <span className="text-xs text-cyan-400">{objectMass}%</span>
+                      <span className="text-xs text-emerald-400">{objectMass}%</span>
                     </div>
                     <Slider value={[objectMass]} onValueChange={([v]) => onObjectMassChange(v)} min={0} max={100} />
                     <div className="flex justify-between text-[10px] text-white/30">
@@ -644,7 +644,7 @@ export function HookFormatTab({
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <Label className="text-xs text-white/50">Surface</Label>
-                      <span className="text-xs text-cyan-400">{surfaceComplexity}%</span>
+                      <span className="text-xs text-emerald-400">{surfaceComplexity}%</span>
                     </div>
                     <Slider value={[surfaceComplexity]} onValueChange={([v]) => onSurfaceComplexityChange(v)} min={0} max={100} />
                     <div className="flex justify-between text-[10px] text-white/30">
@@ -674,7 +674,7 @@ export function HookFormatTab({
                   icon={Sparkles}
                   title="Product Narrative"
                   description="Story elements for AI storytelling"
-                  iconColor="text-amber-400"
+                  iconColor="text-emerald-400"
                 />
 
                 <div className="space-y-3">
@@ -725,7 +725,7 @@ export function HookFormatTab({
               <CardContent className="p-5 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Camera className="w-4 h-4 text-cyan-400" />
+                    <Camera className="w-4 h-4 text-emerald-400" />
                     <div>
                       <Label className="text-xs font-semibold text-white">Cinematography Defaults</Label>
                       <p className="text-[10px] text-white/40">Set default camera preferences (can be overridden per shot)</p>
@@ -740,7 +740,7 @@ export function HookFormatTab({
                       <Label className="text-xs text-white/50">Camera Shot</Label>
                       <button
                         onClick={() => onCameraShotDefaultChange(cameraShotDefault === null ? 'eye-level' : null)}
-                        className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                        className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
                       >
                         {cameraShotDefault === null ? (
                           <>
@@ -768,7 +768,7 @@ export function HookFormatTab({
                       <SelectContent className="bg-[#0a0a0a] border-white/10">
                         <SelectItem value="ai-choose" className="text-white">
                           <span className="flex items-center gap-2">
-                            <SparklesIcon className="w-3 h-3 text-cyan-400" />
+                            <SparklesIcon className="w-3 h-3 text-emerald-400" />
                             AI Choose
                           </span>
                         </SelectItem>
@@ -790,7 +790,7 @@ export function HookFormatTab({
                       <Label className="text-xs text-white/50">Lens</Label>
                       <button
                         onClick={() => onLensDefaultChange(lensDefault === null ? '85mm' : null)}
-                        className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                        className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
                       >
                         {lensDefault === null ? (
                           <>
@@ -818,7 +818,7 @@ export function HookFormatTab({
                       <SelectContent className="bg-[#0a0a0a] border-white/10">
                         <SelectItem value="ai-choose" className="text-white">
                           <span className="flex items-center gap-2">
-                            <SparklesIcon className="w-3 h-3 text-cyan-400" />
+                            <SparklesIcon className="w-3 h-3 text-emerald-400" />
                             AI Choose
                           </span>
                         </SelectItem>
@@ -850,7 +850,7 @@ export function HookFormatTab({
                     icon={UserCircle2}
                     title="Cast DNA"
                     description="Human elements for your campaign"
-                    iconColor="text-orange-400"
+                    iconColor="text-emerald-400"
                   />
                   <Switch checked={includeHumanElement} onCheckedChange={onIncludeHumanElementChange} />
         </div>
@@ -899,7 +899,7 @@ export function HookFormatTab({
                           })}
                         </div>
                         {characterMode === null && (
-                          <p className="text-xs text-amber-400/80">Select a character mode</p>
+                          <p className="text-xs text-emerald-400/80">Select a character mode</p>
                         )}
       </div>
 
@@ -927,9 +927,9 @@ export function HookFormatTab({
                               size="sm"
                               onClick={handleOpenAIRecommendation}
                               disabled={!characterMode}
-                              className="flex-1 bg-gradient-to-r from-orange-500/10 to-pink-500/10 border-orange-500/30 hover:border-orange-500/50 disabled:opacity-50"
+                              className="flex-1 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border-emerald-500/30 hover:border-emerald-500/50 disabled:opacity-50"
                             >
-                              <Sparkles className="w-3.5 h-3.5 mr-1.5 text-orange-400" />
+                              <Sparkles className="w-3.5 h-3.5 mr-1.5 text-emerald-400" />
                               AI Recommend
                             </Button>
                             <Button
@@ -1130,7 +1130,7 @@ export function HookFormatTab({
         <DialogContent className="bg-[#0a0a0a] border-white/10 max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-white">
-              <Sparkles className="w-5 h-5 text-orange-400" />
+              <Sparkles className="w-5 h-5 text-emerald-400" />
               AI Character Recommendations
             </DialogTitle>
             <DialogDescription className="text-white/60">
@@ -1186,7 +1186,7 @@ export function HookFormatTab({
                                 {rec.mode.replace('-', ' ')}
                               </Badge>
                               {index === 0 && (
-                                <Badge className="text-[10px] px-1.5 py-0 bg-gradient-to-r from-orange-500 to-pink-500 text-white">
+                                <Badge className="text-[10px] px-1.5 py-0 bg-gradient-to-r from-emerald-500 to-teal-500 text-white">
                                   Aspirational
                                 </Badge>
                               )}
@@ -1196,7 +1196,7 @@ export function HookFormatTab({
                                 </Badge>
                               )}
                               {index === 2 && (
-                                <Badge className="text-[10px] px-1.5 py-0 bg-purple-500/80 text-white">
+                                <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500/80 text-white">
                                   Distinctive
                                 </Badge>
                               )}
@@ -1206,7 +1206,7 @@ export function HookFormatTab({
                           <Button
                             size="sm"
                             onClick={() => handleApplyRecommendation(rec)}
-                            className="bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:opacity-90 shrink-0"
+                            className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90 shrink-0"
                           >
                             Select
                           </Button>

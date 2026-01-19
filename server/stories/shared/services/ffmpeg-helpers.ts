@@ -2,7 +2,7 @@
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import ffprobeInstaller from "@ffprobe-installer/ffprobe";
-import { writeFileSync, unlinkSync, existsSync, mkdirSync, createWriteStream, statSync } from "fs";
+import { writeFileSync, unlinkSync, existsSync, mkdirSync, createWriteStream, statSync, readFileSync } from "fs";
 import { pipeline } from "stream/promises";
 import { Readable } from "stream";
 import { randomUUID } from "crypto";
@@ -1998,3 +1998,82 @@ function getEffectFilterString(effect: ImageEffect): string {
   }
 }
 
+/**
+ * Trim the first N seconds from a video buffer with high precision
+ * Uses -ss as input option for accurate seeking before decoding
+ * 
+ * This is optimized for trimming Sora-generated videos which sometimes
+ * have glitchy first frames (typically 0.05 seconds).
+ * 
+ * @param videoBuffer - Input video buffer
+ * @param trimSeconds - Seconds to trim from the start (default: 0.05)
+ * @returns Trimmed video buffer
+ */
+export async function trimVideoStart(
+  videoBuffer: Buffer,
+  trimSeconds: number = 0.05
+): Promise<Buffer> {
+  const inputPath = path.join(TEMP_DIR, `${randomUUID()}_input.mp4`);
+  const outputPath = path.join(TEMP_DIR, `${randomUUID()}_trimmed.mp4`);
+
+  try {
+    // Write input buffer to temp file
+    writeFileSync(inputPath, videoBuffer);
+    console.log(`[ffmpeg-helpers] Trimming first ${trimSeconds}s from video (high precision)...`);
+
+    await new Promise<void>((resolve, reject) => {
+      // Use seekInput() method for accurate seeking before decoding
+      // This is the recommended way in fluent-ffmpeg for trimming video start
+      ffmpeg(inputPath)
+        .seekInput(trimSeconds)
+        .outputOptions([
+          // Re-encode for precision (copy mode may cause sync issues)
+          '-c:v', 'libx264',
+          '-preset', 'ultrafast', // Fast encoding for quick processing
+          '-crf', '23', // High quality
+          '-c:a', 'aac',
+          '-b:a', '192k',
+          '-movflags', '+faststart', // Web optimization
+          '-avoid_negative_ts', 'make_zero', // Fix timestamp issues
+          '-y', // Overwrite output file
+        ])
+        .output(outputPath)
+        .on('start', (cmd) => {
+          console.log('[ffmpeg-helpers] FFmpeg trim command:', cmd);
+        })
+        .on('progress', (progress) => {
+          if (progress.percent) {
+            console.log(`[ffmpeg-helpers] Trim progress: ${Math.round(progress.percent)}%`);
+          }
+        })
+        .on('end', () => {
+          console.log('[ffmpeg-helpers] ✓ Video trimmed successfully');
+          resolve();
+        })
+        .on('error', (err) => {
+          console.error('[ffmpeg-helpers] ✗ Trim error:', err);
+          reject(err);
+        })
+        .run();
+    });
+
+    // Read trimmed video buffer
+    const trimmedBuffer = readFileSync(outputPath);
+    
+    // Cleanup temp files
+    unlinkSync(inputPath);
+    unlinkSync(outputPath);
+
+    console.log(`[ffmpeg-helpers] ✓ Trimmed video size: ${(trimmedBuffer.length / 1024).toFixed(2)}KB`);
+    return trimmedBuffer;
+  } catch (error) {
+    // Cleanup on error
+    try {
+      if (existsSync(inputPath)) unlinkSync(inputPath);
+      if (existsSync(outputPath)) unlinkSync(outputPath);
+    } catch {}
+    
+    console.error('[ffmpeg-helpers] ✗ Failed to trim video:', error);
+    throw error;
+  }
+}

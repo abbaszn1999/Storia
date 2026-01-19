@@ -45,6 +45,35 @@ const AGENT_CONFIG = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// POST-PROCESSING FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Post-process voiceover scripts to validate output
+ * IMPORTANT: We do NOT remove SSML tags or audio tags - ElevenLabs reads them directly!
+ * This function only validates the structure and logs the results.
+ */
+function postProcessVoiceoverScripts(
+  output: VoiceoverScriptOutput,
+  input: VoiceoverScriptInput
+): VoiceoverScriptOutput {
+  console.log('[social-commerce:agent-5.2] Validating voiceover scripts (keeping SSML breaks and audio tags)...');
+
+  // Log each beat script (no cleaning - we keep SSML tags and audio tags)
+  output.beat_scripts.forEach(beatScript => {
+    console.log(`[social-commerce:agent-5.2] Beat ${beatScript.beatId} script:`, {
+      scriptLength: beatScript.voiceoverScript.script?.length || 0,
+      scriptPreview: beatScript.voiceoverScript.script?.substring(0, 100) + '...',
+      totalDuration: beatScript.voiceoverScript.totalDuration,
+      totalWordCount: beatScript.voiceoverScript.totalWordCount,
+    });
+  });
+
+  // Return output as-is (no cleaning - SSML breaks and audio tags are kept for ElevenLabs)
+  return output;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN FUNCTION
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -91,7 +120,6 @@ export async function generateVoiceoverScripts(
       {
         provider: AGENT_CONFIG.provider,
         model: AGENT_CONFIG.model,
-        task: 'generate',
         payload: {
           input: [
             { role: 'system', content: systemPrompt },
@@ -127,39 +155,68 @@ export async function generateVoiceoverScripts(
 
     // Validate beat count matches
     if (output.beat_scripts.length !== input.beats.length) {
-      console.warn('[social-commerce:agent-5.2] Beat count mismatch:', {
+      console.error('[social-commerce:agent-5.2] Beat count mismatch:', {
         expected: input.beats.length,
         received: output.beat_scripts.length,
+        expectedBeatIds: input.beats.map(b => b.beatId),
+        receivedBeatIds: output.beat_scripts.map(b => b.beatId),
+      });
+      throw new Error(`Expected ${input.beats.length} beat scripts, but received ${output.beat_scripts.length}. Please ensure all beats are included.`);
+    }
+
+    // Validate all expected beats are present
+    const expectedBeatIds = new Set(input.beats.map(b => b.beatId));
+    const receivedBeatIds = new Set(output.beat_scripts.map(b => b.beatId));
+    const missingBeats = Array.from(expectedBeatIds).filter(id => !receivedBeatIds.has(id));
+    const extraBeats = Array.from(receivedBeatIds).filter(id => !expectedBeatIds.has(id));
+
+    if (missingBeats.length > 0) {
+      console.error('[social-commerce:agent-5.2] Missing beats:', {
+        missingBeats,
+        expectedBeatIds: Array.from(expectedBeatIds),
+        receivedBeatIds: Array.from(receivedBeatIds),
+      });
+      throw new Error(`Missing beat scripts for: ${missingBeats.join(', ')}. Please ensure all beats are included.`);
+    }
+
+    if (extraBeats.length > 0) {
+      console.warn('[social-commerce:agent-5.2] Extra beats (will be ignored):', {
+        extraBeats,
+        expectedBeatIds: Array.from(expectedBeatIds),
+        receivedBeatIds: Array.from(receivedBeatIds),
       });
     }
 
-    // Validate timing for each beat
+    // Validate script text exists for each beat
     for (const beatScript of output.beat_scripts) {
-      const totalDialogueDuration = beatScript.voiceoverScript.dialogue.reduce(
-        (sum, line) => sum + line.duration,
-        0
-      );
+      if (!beatScript.voiceoverScript.script || beatScript.voiceoverScript.script.trim().length === 0) {
+        console.warn(`[social-commerce:agent-5.2] Beat ${beatScript.beatId} missing script text`);
+      }
       
-      // Allow some tolerance (6.5-8.0 seconds is acceptable)
-      if (totalDialogueDuration < 6.5 || totalDialogueDuration > 8.5) {
-        console.warn(`[social-commerce:agent-5.2] Beat ${beatScript.beatId} timing warning:`, {
-          totalDuration: totalDialogueDuration,
-          expected: '6.5-8.0 seconds',
+      // Validate duration is approximately 8 seconds
+      const duration = beatScript.voiceoverScript.totalDuration;
+      if (duration < 6 || duration > 10) {
+        console.warn(`[social-commerce:agent-5.2] Beat ${beatScript.beatId} duration warning:`, {
+          duration,
+          expected: 'approximately 8 seconds',
         });
       }
     }
+
+    // Post-process to add SSML breaks and audio tags
+    const processedOutput = postProcessVoiceoverScripts(output, input);
 
     const duration = Date.now() - startTime;
     console.log('[social-commerce:agent-5.2] Voiceover script generation completed:', {
       userId,
       workspaceId,
-      beatCount: output.beat_scripts.length,
+      beatCount: processedOutput.beat_scripts.length,
       durationMs: duration,
       durationSeconds: (duration / 1000).toFixed(2),
-      hasFullScript: !!output.fullScript,
+      hasFullScript: !!processedOutput.fullScript,
     });
 
-    return output;
+    return processedOutput;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;

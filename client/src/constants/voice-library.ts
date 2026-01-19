@@ -7,9 +7,13 @@ export interface VoiceActor {
   style: string;
   elevenLabsVoiceId: string;
   previewUrl: string;
+  language: "en" | "ar";
 }
 
 export const VOICE_LIBRARY: VoiceActor[] = [
+  // ═══════════════════════════════════════════════════════════════
+  // ENGLISH VOICES
+  // ═══════════════════════════════════════════════════════════════
   {
     id: "voice-adam",
     name: "Adam",
@@ -18,7 +22,8 @@ export const VOICE_LIBRARY: VoiceActor[] = [
     accent: "American",
     style: "Professional",
     elevenLabsVoiceId: "pNInz6obpgDQGcFmaJgB",
-    previewUrl: "https://storage.googleapis.com/eleven-public-prod/premade/voices/pNInz6obpgDQGcFmaJgB/4ec35e52-1f1e-40bb-b33e-fb1c6a49f97a.mp3",
+    previewUrl: "/api/social-commerce/voice-preview/pNInz6obpgDQGcFmaJgB",
+    language: "en",
   },
   {
     id: "voice-rachel",
@@ -28,7 +33,8 @@ export const VOICE_LIBRARY: VoiceActor[] = [
     accent: "American",
     style: "Friendly",
     elevenLabsVoiceId: "21m00Tcm4TlvDq8ikWAM",
-    previewUrl: "https://storage.googleapis.com/eleven-public-prod/premade/voices/21m00Tcm4TlvDq8ikWAM/65d80f52-703f-4cae-a91d-75d4e200ed02.mp3",
+    previewUrl: "/api/social-commerce/voice-preview/21m00Tcm4TlvDq8ikWAM",
+    language: "en",
   },
   {
     id: "voice-domi",
@@ -38,7 +44,8 @@ export const VOICE_LIBRARY: VoiceActor[] = [
     accent: "American",
     style: "Confident",
     elevenLabsVoiceId: "AZnzlk1XvdvUeBnXmlld",
-    previewUrl: "https://storage.googleapis.com/eleven-public-prod/premade/voices/AZnzlk1XvdvUeBnXmlld/69c5373f-0dc2-4b61-a1ec-e41af9a04335.mp3",
+    previewUrl: "/api/social-commerce/voice-preview/AZnzlk1XvdvUeBnXmlld",
+    language: "en",
   },
   {
     id: "voice-bella",
@@ -48,7 +55,8 @@ export const VOICE_LIBRARY: VoiceActor[] = [
     accent: "American",
     style: "Soothing",
     elevenLabsVoiceId: "EXAVITQu4vr4xnSDxMaL",
-    previewUrl: "https://storage.googleapis.com/eleven-public-prod/premade/voices/EXAVITQu4vr4xnSDxMaL/04365bce-98cc-4e99-9f10-56b60680cda9.mp3",
+    previewUrl: "/api/social-commerce/voice-preview/EXAVITQu4vr4xnSDxMaL",
+    language: "en",
   },
   {
     id: "voice-josh",
@@ -58,7 +66,8 @@ export const VOICE_LIBRARY: VoiceActor[] = [
     accent: "American",
     style: "Energetic",
     elevenLabsVoiceId: "TxGEqnHWrfWFTfGW9XjX",
-    previewUrl: "https://storage.googleapis.com/eleven-public-prod/premade/voices/TxGEqnHWrfWFTfGW9XjX/c6c80dc4-ca95-48a8-8cdd-9e1b0a0e5d9d.mp3",
+    previewUrl: "/api/social-commerce/voice-preview/TxGEqnHWrfWFTfGW9XjX",
+    language: "en",
   },
   {
     id: "voice-antoni",
@@ -68,7 +77,8 @@ export const VOICE_LIBRARY: VoiceActor[] = [
     accent: "American",
     style: "Versatile",
     elevenLabsVoiceId: "ErXwobaYiN019PkySvjV",
-    previewUrl: "https://storage.googleapis.com/eleven-public-prod/premade/voices/ErXwobaYiN019PkySvjV/38d8f8f0-1b01-4f48-9a1d-b8a16e74b2a0.mp3",
+    previewUrl: "/api/social-commerce/voice-preview/ErXwobaYiN019PkySvjV",
+    language: "en",
   },
   {
     id: "voice-charlotte",
@@ -78,7 +88,8 @@ export const VOICE_LIBRARY: VoiceActor[] = [
     accent: "British",
     style: "Educational",
     elevenLabsVoiceId: "XB0fDUnXU5powFXDhCwa",
-    previewUrl: "https://storage.googleapis.com/eleven-public-prod/premade/voices/XB0fDUnXU5powFXDhCwa/942356dc-f10d-4d89-bda5-4f8505ee038b.mp3",
+    previewUrl: "/api/social-commerce/voice-preview/XB0fDUnXU5powFXDhCwa",
+    language: "en",
   },
   {
     id: "voice-callum",
@@ -88,6 +99,82 @@ export const VOICE_LIBRARY: VoiceActor[] = [
     accent: "British",
     style: "Dramatic",
     elevenLabsVoiceId: "N2lVS1w4EtoT3dr4eOWO",
-    previewUrl: "https://storage.googleapis.com/eleven-public-prod/premade/voices/N2lVS1w4EtoT3dr4eOWO/ac833bd8-ffda-4938-9ebc-b0f99ca25481.mp3",
+    previewUrl: "/api/social-commerce/voice-preview/N2lVS1w4EtoT3dr4eOWO",
+    language: "en",
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // ARABIC VOICES (using multilingual voices with Arabic)
+  // ═══════════════════════════════════════════════════════════════
+  {
+    id: "voice-layla",
+    name: "ليلى",
+    description: "صوت نسائي شاب، واضح ومعبر",
+    gender: "female",
+    accent: "Arabic",
+    style: "Expressive",
+    elevenLabsVoiceId: "21m00Tcm4TlvDq8ikWAM",
+    previewUrl: "/api/social-commerce/voice-preview/21m00Tcm4TlvDq8ikWAM?lang=ar",
+    language: "ar",
+  },
+  {
+    id: "voice-ahmed",
+    name: "أحمد",
+    description: "صوت رجالي ناضج وقوي",
+    gender: "male",
+    accent: "Arabic",
+    style: "Professional",
+    elevenLabsVoiceId: "pNInz6obpgDQGcFmaJgB",
+    previewUrl: "/api/social-commerce/voice-preview/pNInz6obpgDQGcFmaJgB?lang=ar",
+    language: "ar",
+  },
+  {
+    id: "voice-sara",
+    name: "سارة",
+    description: "صوت نسائي دافئ ومريح",
+    gender: "female",
+    accent: "Arabic",
+    style: "Warm",
+    elevenLabsVoiceId: "EXAVITQu4vr4xnSDxMaL",
+    previewUrl: "/api/social-commerce/voice-preview/EXAVITQu4vr4xnSDxMaL?lang=ar",
+    language: "ar",
+  },
+  {
+    id: "voice-khaled",
+    name: "خالد",
+    description: "صوت رجالي شاب ونشيط",
+    gender: "male",
+    accent: "Arabic",
+    style: "Energetic",
+    elevenLabsVoiceId: "ErXwobaYiN019PkySvjV",
+    previewUrl: "/api/social-commerce/voice-preview/ErXwobaYiN019PkySvjV?lang=ar",
+    language: "ar",
+  },
+  {
+    id: "voice-nora",
+    name: "نورة",
+    description: "صوت نسائي هادئ ومريح",
+    gender: "female",
+    accent: "Arabic",
+    style: "Calm",
+    elevenLabsVoiceId: "AZnzlk1XvdvUeBnXmlld",
+    previewUrl: "/api/social-commerce/voice-preview/AZnzlk1XvdvUeBnXmlld?lang=ar",
+    language: "ar",
+  },
+  {
+    id: "voice-omar",
+    name: "عمر",
+    description: "صوت رجالي واثق ومؤثر",
+    gender: "male",
+    accent: "Arabic",
+    style: "Confident",
+    elevenLabsVoiceId: "TxGEqnHWrfWFTfGW9XjX",
+    previewUrl: "/api/social-commerce/voice-preview/TxGEqnHWrfWFTfGW9XjX?lang=ar",
+    language: "ar",
   },
 ];
+
+// Helper function to get voices by language
+export function getVoicesByLanguage(language: "en" | "ar"): VoiceActor[] {
+  return VOICE_LIBRARY.filter(voice => voice.language === language);
+}

@@ -633,4 +633,10 @@
   .animate-scene-slide-right {
     animation: scene-slide-right 3s ease-in-out infinite alternate;
   }
+
+  /* Social Commerce Mode - Green Theme Override */
+  [data-mode="social-commerce"] {
+    --primary: 160 84% 39%;  /* Emerald-500 */
+    --accent: 162 63% 41%;   /* Teal-500 */
+  }
 }

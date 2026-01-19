@@ -179,6 +179,29 @@ export function buildVideoModePath(params: {
 }
 
 /**
+ * Build the video project folder path (without filename/subfolder)
+ * Used for deleting entire video project folders
+ * Example: {userId}/{workspaceName}/video_mode/{toolMode}/{projectName}_{date}/
+ */
+export function buildVideoProjectFolderPath(params: {
+  userId: string;
+  workspaceName: string;
+  toolMode: string;
+  projectName: string;
+  dateLabel?: string;
+}): string {
+  const { userId, workspaceName, toolMode, projectName, dateLabel } = params;
+  const safeDate = dateLabel || new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const clean = (str: string) => str.replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "_");
+  const user = clean(userId);
+  const workspace = clean(workspaceName);
+  const tool = clean(toolMode);
+  const project = clean(projectName);
+  
+  return `${user}/${workspace}/video_mode/${tool}/${project}_${safeDate}`;
+}
+
+/**
  * Check if Bunny Storage is properly configured
  */
 export function isBunnyConfigured(): boolean {
@@ -495,6 +518,7 @@ export const bunnyStorage = {
   getBunnyConfig,
   buildStoryModePath,
   buildVideoModePath,
+  buildVideoProjectFolderPath,
 };
 
 export default bunnyStorage;

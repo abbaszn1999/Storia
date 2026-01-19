@@ -1,15 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useSearch } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SocialCommerceWorkflow } from "@/components/social-commerce-workflow";
 import { SocialCommerceStudioLayout, type CommerceStepId } from "@/components/commerce/studio";
 import { StepResetWarningDialog } from "@/components/social-commerce/step-reset-warning-dialog";
-import { NarrativeModeSelector } from "@/components/narrative/narrative-mode-selector";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/contexts/workspace-context";
-import { Loader2 } from "lucide-react";
 import type { Character, Video } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
+import { VOICE_LIBRARY } from "@/constants/voice-library";
 
 // Duration options (beat-based chunking: each duration = N beats × 12s)
 const DURATION_OPTIONS = [12, 24, 36] as const;
@@ -99,12 +98,12 @@ export default function SocialCommerceMode() {
   const [customVoiceoverInstructions, setCustomVoiceoverInstructions] = useState("");
   
   const [soundEffectsEnabled, setSoundEffectsEnabled] = useState(false);
-  const [soundEffectsPreset, setSoundEffectsPreset] = useState("");
+  const [soundEffectsPreset, setSoundEffectsPreset] = useState("ambient");
   const [soundEffectsCustomInstructions, setSoundEffectsCustomInstructions] = useState("");
   const [soundEffectsUsePreset, setSoundEffectsUsePreset] = useState(true);
   
   const [musicEnabled, setMusicEnabled] = useState(false);
-  const [musicPreset, setMusicPreset] = useState("");
+  const [musicPreset, setMusicPreset] = useState("ambient");
   const [musicCustomInstructions, setMusicCustomInstructions] = useState("");
   const [musicMood, setMusicMood] = useState("");
   const [musicUsePreset, setMusicUsePreset] = useState(true);
@@ -122,12 +121,14 @@ export default function SocialCommerceMode() {
     heroProfile: string | null;
     productAngles?: Array<{ id: string; url: string; uploadedAt: number }>;
     elements?: Array<{ id: string; url: string; uploadedAt: number; description?: string }>;
+    aiModeImages?: Array<{ id: string; url: string; uploadedAt: number }>;
     compositeImage?: { 
       url: string; 
       generatedAt: number; 
       mode: 'manual' | 'ai_generated'; 
       sourceImages: string[];
       isApplied?: boolean;
+      prompt?: string;
     };
     aiContext?: { description?: string; generatedAt?: number };
   }>({
@@ -135,6 +136,7 @@ export default function SocialCommerceMode() {
     heroProfile: null,
     productAngles: [],
     elements: [],
+    aiModeImages: [],
   });
   
   // Asset IDs for created assets (product images only - no character/brand assets for Sora)
@@ -183,7 +185,7 @@ export default function SocialCommerceMode() {
   
   // Environment & Story Beats (Tab 3) - Removed: environmentConcept, cinematicLighting, atmosphericDensity (no longer used)
   // Removed: styleReferenceUrl - Sora only accepts one image input (product hero)
-  const [visualPreset, setVisualPreset] = useState("");
+  const [visualPreset, setVisualPreset] = useState("cinematic");
   const [campaignSpark, setCampaignSpark] = useState("");
   
   // Product Image Enhancement Dialog
@@ -197,10 +199,10 @@ export default function SocialCommerceMode() {
   // Removed: environmentBrandPrimaryColor, environmentBrandSecondaryColor (no longer used)
   
   // Campaign Objective (optional, can be deselected)
-  const [campaignObjective, setCampaignObjective] = useState("");
+  const [campaignObjective, setCampaignObjective] = useState("awareness");
   
   // Strategic Context (Tab 1 - moved from Tab 3)
-  const [targetAudience, setTargetAudience] = useState("");
+  const [targetAudience, setTargetAudience] = useState("default");
   
   // CTA (Tab 3)
   const [ctaText, setCtaText] = useState("");
@@ -262,6 +264,17 @@ export default function SocialCommerceMode() {
         videoUrl: string;
         lastFrameUrl: string;
         generatedAt: Date;
+      };
+    };
+  }>({});
+  // Step 4: Voiceover Audios
+  const [step4Data, setStep4Data] = useState<{
+    voiceoverAudios?: {
+      [beatId: string]: {
+        audioUrl: string;
+        generatedAt?: Date;
+        voiceId?: string;
+        duration?: number;
       };
     };
   }>({});
@@ -416,7 +429,7 @@ export default function SocialCommerceMode() {
         aspectRatio && 
         duration && 
         motionPrompt.trim().length > 0 &&
-        targetAudience !== "";
+        targetAudience && targetAudience !== "";
       setCanContinue(!!isValid);
     } else if (activeStep === "script") {
       // Tab 2: Creative Spark + Beats validation
@@ -461,13 +474,19 @@ export default function SocialCommerceMode() {
     // Only run if:
     // 1. We're on Tab 3
     // 2. Video exists (not new)
-    // 3. No beatPrompts exist yet
+    // 3. No beatPrompts exist yet (check both local state AND existingVideo)
     // 4. Agent 5.1 hasn't been triggered for this entry
     // 5. Not already creating (to prevent duplicate triggers)
+    
+    // ✅ FIX: Check beatPrompts from both local state and existingVideo
+    const hasBeatPrompts = step3Data?.beatPrompts || 
+                          (existingVideo?.step3Data as any)?.beatPrompts ||
+                          (existingVideo?.step5Data as any)?.beatPrompts; // Backward compatibility
+    
     if (
       activeStep === "storyboard" &&
       videoId !== "new" &&
-      !step3Data?.beatPrompts &&
+      !hasBeatPrompts &&
       !agent51TriggeredRef.current &&
       !isCreating
     ) {
@@ -480,11 +499,22 @@ export default function SocialCommerceMode() {
       });
     }
     
-    // Reset trigger ref when leaving Tab 3
+    // Only reset trigger ref when leaving Tab 3 IF beatPrompts don't exist
+    // If beatPrompts exist, keep the ref as true to prevent re-triggering
     if (activeStep !== "storyboard") {
+      const hasBeatPrompts = step3Data?.beatPrompts || 
+                            (existingVideo?.step3Data as any)?.beatPrompts ||
+                            (existingVideo?.step5Data as any)?.beatPrompts;
+      // Only reset if no beatPrompts exist (user might want to regenerate)
+      if (!hasBeatPrompts) {
+        console.log('[SocialCommerce] Resetting agent51TriggeredRef - no beatPrompts found');
       agent51TriggeredRef.current = false;
+      } else {
+        console.log('[SocialCommerce] Keeping agent51TriggeredRef = true - beatPrompts exist, preventing re-trigger');
     }
-  }, [activeStep, videoId, step3Data?.beatPrompts, isCreating]);
+      // If beatPrompts exist, keep agent51TriggeredRef.current = true to prevent re-triggering
+    }
+  }, [activeStep, videoId, step3Data?.beatPrompts, existingVideo, isCreating]); // ✅ Added existingVideo to dependencies
 
   // Helper function to determine condition from shot
   // Simplified: only uses isLinkedToPrevious since shotType is removed
@@ -504,6 +534,17 @@ export default function SocialCommerceMode() {
   // Helper function to create ShotVersion from Agent 5.1 prompts
   // Removed: createShotVersionFromPrompts - old shot-based structure no longer used
   // New structure uses beatPrompts, not shotPrompts
+
+  // Auto-select default voice on initial load if voiceOverEnabled
+  useEffect(() => {
+    if (voiceOverEnabled && !voiceActorId && language) {
+      const defaultVoice = VOICE_LIBRARY.find(v => v.language === language);
+      if (defaultVoice) {
+        console.log(`[SocialCommerce] Auto-selecting default voice for initial language ${language}:`, defaultVoice.id);
+        setVoiceActorId(defaultVoice.id);
+      }
+    }
+  }, []); // Run only once on mount
 
   // Capture snapshot when navigating to a completed step
   useEffect(() => {
@@ -537,10 +578,12 @@ export default function SocialCommerceMode() {
         if (step1.customVoiceoverInstructions) setCustomVoiceoverInstructions(step1.customVoiceoverInstructions);
         if (step1.soundEffectsEnabled !== undefined) setSoundEffectsEnabled(step1.soundEffectsEnabled);
         if (step1.soundEffectsPreset) setSoundEffectsPreset(step1.soundEffectsPreset);
+        else if (step1.soundEffectsUsePreset !== false) setSoundEffectsPreset("ambient"); // Default if using preset
         if (step1.soundEffectsCustomInstructions) setSoundEffectsCustomInstructions(step1.soundEffectsCustomInstructions);
         if (step1.soundEffectsUsePreset !== undefined) setSoundEffectsUsePreset(step1.soundEffectsUsePreset);
         if (step1.musicEnabled !== undefined) setMusicEnabled(step1.musicEnabled);
         if (step1.musicPreset) setMusicPreset(step1.musicPreset);
+        else if (step1.musicUsePreset !== false) setMusicPreset("ambient"); // Default if using preset
         if (step1.musicCustomInstructions) setMusicCustomInstructions(step1.musicCustomInstructions);
         if (step1.musicMood) setMusicMood(step1.musicMood);
         if (step1.musicUsePreset !== undefined) setMusicUsePreset(step1.musicUsePreset);
@@ -553,6 +596,15 @@ export default function SocialCommerceMode() {
         if (step1.videoResolution) setVideoResolution(step1.videoResolution);
         if (step1.language) setLanguage(step1.language);
         if (step1.voiceOverEnabled !== undefined) setVoiceOverEnabled(step1.voiceOverEnabled);
+        if (step1.voiceActorId !== undefined) setVoiceActorId(step1.voiceActorId);
+        // Auto-select default voice if voiceOverEnabled but no voiceActorId is set
+        if (step1.voiceOverEnabled !== false && !step1.voiceActorId && step1.language) {
+          const defaultVoice = VOICE_LIBRARY.find(v => v.language === step1.language);
+          if (defaultVoice) {
+            console.log(`[SocialCommerce] Auto-selecting default voice for loaded language ${step1.language}:`, defaultVoice.id);
+            setVoiceActorId(defaultVoice.id);
+          }
+        }
       }
       
       // Restore step1Data product image (product images belong to Tab 1, not Tab 2)
@@ -571,12 +623,16 @@ export default function SocialCommerceMode() {
         if (step2.uiInputs) {
           if (step2.uiInputs.visualPreset) {
             setVisualPreset(step2.uiInputs.visualPreset);
+          } else {
+            setVisualPreset("cinematic"); // Default if not set
           }
           if (step2.uiInputs.campaignSpark) {
             setCampaignSpark(step2.uiInputs.campaignSpark);
           }
           if (step2.uiInputs.campaignObjective) {
             setCampaignObjective(step2.uiInputs.campaignObjective);
+          } else {
+            setCampaignObjective("awareness"); // Default if not set
           }
           console.log('[SocialCommerce] Restored uiInputs from step2Data:', {
             hasVisualPreset: !!step2.uiInputs.visualPreset,
@@ -683,9 +739,9 @@ export default function SocialCommerceMode() {
       if (step2FromLegacy) {
         // NEW: Prioritize uiInputs if available (most complete)
         if (step2FromLegacy.uiInputs) {
-          setVisualPreset(step2FromLegacy.uiInputs.visualPreset || '');
+          setVisualPreset(step2FromLegacy.uiInputs.visualPreset || 'cinematic');
           setCampaignSpark(step2FromLegacy.uiInputs.campaignSpark || '');
-          setCampaignObjective(step2FromLegacy.uiInputs.campaignObjective || '');
+          setCampaignObjective(step2FromLegacy.uiInputs.campaignObjective || 'awareness');
         } else {
           // Fallback to old structure (backward compatibility)
           // Creative Spark
@@ -698,11 +754,15 @@ export default function SocialCommerceMode() {
           // Campaign Objective (optional)
           if (step2FromLegacy.campaignObjective) {
             setCampaignObjective(step2FromLegacy.campaignObjective);
+          } else {
+            setCampaignObjective("awareness"); // Default if not set
           }
           
           // Visual Preset
           if (step2FromLegacy.uiInputs?.visualPreset) {
             setVisualPreset(step2FromLegacy.uiInputs.visualPreset);
+          } else {
+            setVisualPreset("cinematic"); // Default if not set
           }
         }
         
@@ -751,6 +811,14 @@ export default function SocialCommerceMode() {
         });
       }
       // Note: shotPrompts removed - new structure uses beatPrompts only
+
+      // ✨ NEW: Restore step4Data if available (Voiceover Audios)
+      const step4Audio = existingVideo.step4Data as any;
+      if (step4Audio?.voiceoverAudios) {
+        setStep4Data({
+          voiceoverAudios: step4Audio.voiceoverAudios,
+        });
+      }
       
       // Restore completedSteps
       if (Array.isArray(existingVideo.completedSteps)) {
@@ -769,6 +837,8 @@ export default function SocialCommerceMode() {
       }
       
       // Set current step based on currentStep from DB
+      // ✅ FIX: Only restore currentStep if user hasn't manually navigated ahead
+      // This prevents reverting to a previous step after Agent completes
       if (existingVideo.currentStep) {
         const stepMap: { [key: number]: CommerceStepId } = {
           1: "setup",
@@ -779,7 +849,23 @@ export default function SocialCommerceMode() {
           6: "export",
         };
         const currentStepId = stepMap[existingVideo.currentStep];
-        if (currentStepId) setActiveStep(currentStepId);
+        if (currentStepId) {
+          // Only set activeStep if it's not already ahead of the saved currentStep
+          const stepOrder: CommerceStepId[] = ["setup", "script", "storyboard", "voiceover", "animatic", "export"];
+          const savedIndex = stepOrder.indexOf(currentStepId);
+          const currentIndex = stepOrder.indexOf(activeStep);
+          
+          // Only restore if current activeStep is behind or equal to saved step
+          // This prevents reverting when user has navigated ahead
+          if (currentIndex <= savedIndex || currentIndex === -1) {
+            setActiveStep(currentStepId);
+          } else {
+            console.log('[SocialCommerce] Skipping currentStep restore - user is ahead:', {
+              savedStep: currentStepId,
+              currentActiveStep: activeStep,
+            });
+          }
+        }
       }
     }
   }, [existingVideo, isNewVideo]);
@@ -931,8 +1017,9 @@ export default function SocialCommerceMode() {
       "setup": 1,
       "script": 2,
       "storyboard": 3,
-      "animatic": 4,
-      "export": 5
+      "voiceover": 4,
+      "animatic": 5,
+      "export": 6
     };
     return stepMap[step];
   };
@@ -1237,10 +1324,17 @@ export default function SocialCommerceMode() {
         throw new Error(errorMsg);
       }
 
-      // Collect all AI mode image URLs
+      // Collect all image URLs (heroProfile is used as Reference Image in AI mode)
       const sourceImages: string[] = [];
+      
+      // Add heroProfile as the primary reference image in AI mode
+      if (productImages?.heroProfile) {
+        sourceImages.push(productImages.heroProfile);
+      }
+      
+      // Also include any additional AI mode images if present
       if (productImages?.aiModeImages) {
-        sourceImages.push(...productImages.aiModeImages.map(img => img.url));
+        sourceImages.push(...productImages.aiModeImages.map((img: { id: string; url: string; uploadedAt: number }) => img.url));
       }
 
       if (sourceImages.length === 0) {
@@ -1507,10 +1601,17 @@ export default function SocialCommerceMode() {
         return data.compositeUrl;
       } else {
         // AI mode - use Nano Banana Pro via Runware
-        // Collect all AI mode image URLs
+        // Collect all image URLs (heroProfile is used as Reference Image in AI mode)
         const sourceImages: string[] = [];
+        
+        // Add heroProfile as the primary reference image in AI mode
+        if (productImages?.heroProfile) {
+          sourceImages.push(productImages.heroProfile);
+        }
+        
+        // Also include any additional AI mode images if present
         if (productImages?.aiModeImages) {
-          sourceImages.push(...productImages.aiModeImages.map(img => img.url));
+          sourceImages.push(...productImages.aiModeImages.map((img: { id: string; url: string; uploadedAt: number }) => img.url));
         }
         
         if (sourceImages.length === 0) {
@@ -1808,13 +1909,14 @@ export default function SocialCommerceMode() {
           ...prev,
           productAngles: (prev.productAngles || []).filter(a => a.id !== id),
         }));
-        setProductImageAssetIds(prev => ({
-          ...prev,
-          productAngles: {
-            ...(prev.productAngles || {}),
-            [id]: undefined,
-          },
-        }));
+        setProductImageAssetIds(prev => {
+          const updatedAngles = { ...(prev.productAngles || {}) };
+          delete updatedAngles[id];
+          return {
+            ...prev,
+            productAngles: Object.keys(updatedAngles).length > 0 ? updatedAngles : undefined,
+          };
+        });
       } else if (type === 'element' && id) {
         const assetId = productImageAssetIds.elements?.[id];
         if (assetId && videoId && videoId !== 'new') {
@@ -1838,13 +1940,14 @@ export default function SocialCommerceMode() {
           ...prev,
           elements: (prev.elements || []).filter(e => e.id !== id),
         }));
-        setProductImageAssetIds(prev => ({
-          ...prev,
-          elements: {
-            ...(prev.elements || {}),
-            [id]: undefined,
-          },
-        }));
+        setProductImageAssetIds(prev => {
+          const updatedElements = { ...(prev.elements || {}) };
+          delete updatedElements[id];
+          return {
+            ...prev,
+            elements: Object.keys(updatedElements).length > 0 ? updatedElements : undefined,
+          };
+        });
       } else if (type === 'ai_mode' && id) {
         const assetId = productImageAssetIds.aiModeImages?.[id];
         if (assetId && videoId && videoId !== 'new') {
@@ -1866,22 +1969,23 @@ export default function SocialCommerceMode() {
         }
         setProductImages(prev => ({
           ...prev,
-          aiModeImages: (prev.aiModeImages || []).filter(img => img.id !== id),
+          aiModeImages: (prev.aiModeImages || []).filter((img: { id: string; url: string; uploadedAt: number }) => img.id !== id),
         }));
-        setProductImageAssetIds(prev => ({
-          ...prev,
-          aiModeImages: {
-            ...(prev.aiModeImages || {}),
-            [id]: undefined,
-          },
-        }));
+        setProductImageAssetIds(prev => {
+          const updatedAiModeImages = { ...(prev.aiModeImages || {}) };
+          delete updatedAiModeImages[id];
+          return {
+            ...prev,
+            aiModeImages: Object.keys(updatedAiModeImages).length > 0 ? updatedAiModeImages : undefined,
+          };
+        });
         
         // Save to step1Data
         if (videoId && videoId !== 'new') {
           try {
             const updatedImages = {
               ...productImages,
-              aiModeImages: (productImages?.aiModeImages || []).filter(img => img.id !== id),
+              aiModeImages: (productImages?.aiModeImages || []).filter((img: { id: string; url: string; uploadedAt: number }) => img.id !== id),
             };
             await fetch(`/api/social-commerce/videos/${videoId}/step/1/data`, {
               method: 'PATCH',
@@ -1969,6 +2073,16 @@ export default function SocialCommerceMode() {
   };
 
   const handleStepClick = (step: CommerceStepId) => {
+    // Prevent access to voiceover step if disabled
+    if (step === "voiceover" && !voiceOverEnabled) {
+      toast({
+        title: "Voiceover Disabled",
+        description: "Please enable voiceover in Step 1 to access this step.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Check if current step is dirty and we're trying to go forward
     if (
       dirtySteps.has(activeStep) && 
@@ -1997,6 +2111,112 @@ export default function SocialCommerceMode() {
       console.log('[SocialCommerce] activeStep updated to:', nextStep);
       setTimeout(() => setIsTransitioning(false), 100); // Small delay for animation to complete
     }, delay);
+  };
+
+  // Extract Agent 5.2 generation logic to reusable function
+  const generateVoiceoverScripts = async (shouldAdvance: boolean = false) => {
+    if (videoId === "new") {
+      toast({
+        title: "Error",
+        description: "Video not created yet. Please refresh the page.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreating(true);
+
+    try {
+      console.log('[SocialCommerce] Starting voiceover script generation (Agent 5.2)...', {
+        videoId,
+        url: `/api/social-commerce/videos/${videoId}/step/3/generate-voiceover-scripts`,
+      });
+      
+      // Show loading toast
+      toast({
+        title: "Generating Voiceover Scripts",
+        description: "Agent 5.2 is generating voiceover scripts for all beats...",
+      });
+      
+      let response: Response;
+      try {
+        response = await fetch(`/api/social-commerce/videos/${videoId}/step/3/generate-voiceover-scripts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        });
+      } catch (networkError) {
+        console.error('[SocialCommerce] Network error during voiceover generation:', networkError);
+        throw new Error(
+          networkError instanceof Error 
+            ? `Network error: ${networkError.message}` 
+            : 'Failed to connect to server. Please check your internet connection.'
+        );
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.details || errorData.error || 'Failed to generate voiceover scripts');
+      }
+
+      const data = await response.json();
+      console.log('[SocialCommerce] Voiceover scripts generated:', {
+        beatCount: data.beatCount,
+        hasVoiceoverScripts: !!data.step3Data?.voiceoverScripts,
+      });
+
+      // Update local state
+      if (data.step3Data) {
+        setStep3Data(prev => ({
+          ...prev,
+          voiceoverScripts: data.step3Data.voiceoverScripts,
+        }));
+        queryClient.setQueryData([`/api/videos/${videoId}`], (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            step3Data: {
+              ...old.step3Data,
+              voiceoverScripts: data.step3Data.voiceoverScripts,
+            },
+          };
+        });
+      }
+
+      toast({
+        title: "Voiceover Scripts Generated",
+        description: `Successfully generated voiceover scripts for ${data.beatCount} beat(s).`,
+      });
+
+      // Advance to next step if requested
+      if (shouldAdvance) {
+        const allSteps: CommerceStepId[] = ["setup", "script", "storyboard", "voiceover", "animatic", "export"];
+        const visibleSteps = voiceOverEnabled 
+          ? allSteps 
+          : allSteps.filter(s => s !== "voiceover");
+        
+        const currentIndex = visibleSteps.indexOf("storyboard");
+        const nextIndex = currentIndex + 1;
+        
+        if (nextIndex < visibleSteps.length) {
+          // Mark step as completed
+          if (!completedSteps.includes("storyboard")) {
+            setCompletedSteps([...completedSteps, "storyboard"]);
+          }
+          setDirection(1);
+          transitionToStep(visibleSteps[nextIndex], 300);
+        }
+      }
+    } catch (error) {
+      console.error('[SocialCommerce] Failed to generate voiceover scripts:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to generate voiceover scripts. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   // Extract Agent 5.1 generation logic to reusable function
@@ -2093,6 +2313,21 @@ export default function SocialCommerceMode() {
           // voiceoverScripts will be saved in Tab 4 when Agent 5.2 is implemented
           beatVideos: promptsData.step3Data.beatVideos || {},
         }));
+        
+        // ✅ FIX: Update existingVideo cache to prevent re-triggering Agent 5.1
+        queryClient.setQueryData([`/api/videos/${videoId}`], (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            step3Data: {
+              ...old.step3Data,
+              beatPrompts: promptsData.step3Data.beatPrompts,
+              beatVideos: promptsData.step3Data.beatVideos || {},
+            },
+          };
+        });
+        
+        console.log('[SocialCommerce] Updated existingVideo cache with beatPrompts to prevent re-trigger');
       }
 
       // Note: shotPrompts removed - new structure uses beatPrompts only
@@ -2146,18 +2381,22 @@ export default function SocialCommerceMode() {
   };
 
   const handleNext = async () => {
-    const steps: CommerceStepId[] = ["setup", "script", "storyboard", "voiceover", "animatic", "export"];
-    const currentIndex = steps.indexOf(activeStep);
+    const allSteps: CommerceStepId[] = ["setup", "script", "storyboard", "voiceover", "animatic", "export"];
+    const visibleSteps = voiceOverEnabled 
+      ? allSteps 
+      : allSteps.filter(s => s !== "voiceover");
+    
+    const currentIndex = visibleSteps.indexOf(activeStep);
     const nextIndex = currentIndex + 1;
     
-    if (nextIndex >= steps.length) {
+    if (nextIndex >= visibleSteps.length) {
       return; // Already at last step
     }
     
     // Check if current step is dirty AND was previously completed
     if (dirtySteps.has(activeStep) && completedSteps.includes(activeStep)) {
       setShowResetWarning(true);
-      setPendingNavigation(steps[nextIndex]);
+      setPendingNavigation(visibleSteps[nextIndex]);
       return; // Don't proceed yet - wait for user confirmation
     }
     
@@ -2169,7 +2408,7 @@ export default function SocialCommerceMode() {
       if (completedSteps.includes(activeStep) && !dirtySteps.has(activeStep)) {
         console.log('[SocialCommerce] Step 1 already completed, no changes - navigating directly');
         setDirection(1);
-        transitionToStep(steps[nextIndex], 150); // Faster transition for skip
+        transitionToStep(visibleSteps[nextIndex], 150); // Faster transition for skip
         return;
       }
       
@@ -2223,6 +2462,7 @@ export default function SocialCommerceMode() {
           } : undefined,
           // Audio Settings
           voiceOverEnabled,
+          voiceActorId: voiceOverEnabled ? voiceActorId : null, // Save voice actor ID only if voiceover is enabled
           language: voiceOverEnabled ? language : undefined,
           audioVolume: voiceOverEnabled ? audioVolume : undefined,
           speechTempo: voiceOverEnabled ? speechTempo : undefined,
@@ -2274,7 +2514,7 @@ export default function SocialCommerceMode() {
           setCompletedSteps([...completedSteps, activeStep]);
         }
         setDirection(1);
-        transitionToStep(steps[nextIndex], 300);
+        transitionToStep(visibleSteps[nextIndex], 300);
       } catch (error) {
         console.error('[SocialCommerce] Failed to save step 1:', error);
         setIsTransitioning(false); // Reset transition state on error
@@ -2298,7 +2538,7 @@ export default function SocialCommerceMode() {
       if (completedSteps.includes(activeStep) && !dirtySteps.has(activeStep)) {
         console.log('[SocialCommerce] Step 2 already completed, no changes - navigating directly');
         setDirection(1);
-        transitionToStep(steps[nextIndex], 150); // Faster transition for skip
+        transitionToStep(visibleSteps[nextIndex], 150); // Faster transition for skip
         return;
       }
       
@@ -2348,7 +2588,7 @@ export default function SocialCommerceMode() {
           setCompletedSteps([...completedSteps, activeStep]);
         }
         setDirection(1);
-        transitionToStep(steps[nextIndex], 300);
+        transitionToStep(visibleSteps[nextIndex], 300);
       } catch (error) {
         console.error('[SocialCommerce] Tab 2 error:', error);
         setIsTransitioning(false); // Reset transition state on error
@@ -2365,29 +2605,231 @@ export default function SocialCommerceMode() {
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
-    // TAB 3 (STORYBOARD): Navigate to Tab 4 (Voiceover) - No agents run
+    // TAB 3 (STORYBOARD): Navigate to next step (Voiceover if enabled, else Animatic)
     // ═══════════════════════════════════════════════════════════════════════════
     // Agent 5.1 only runs when entering Tab 3 (auto-trigger) or manually via button
-    // When clicking "Next" from Tab 3, just navigate to Tab 4 if prompts exist
+    // When clicking "Next" from Tab 3, just navigate to next step if prompts exist
     if (activeStep === "storyboard") {
-      // If beatPrompts already exist, just navigate to next step (no agent run)
-      if (step3Data?.beatPrompts) {
+      // If beatPrompts don't exist yet, run Agent 5.1 first
+      if (!step3Data?.beatPrompts) {
+        await generateBeatPrompts(false); // Don't advance yet
+        return;
+      }
+
+      // Check if next step is voiceover and voiceover is enabled
+      const nextStep = visibleSteps[nextIndex];
+      
+      // If next step is voiceover and voiceover is enabled
+      if (nextStep === "voiceover" && voiceOverEnabled) {
+        // Check if voiceover scripts already exist
+        if (step3Data?.voiceoverScripts) {
+          // Scripts already exist, just navigate
+          if (!completedSteps.includes(activeStep)) {
+            setCompletedSteps([...completedSteps, activeStep]);
+          }
+          setDirection(1);
+          transitionToStep(nextStep, 200);
+          return;
+        }
+
+        // Scripts don't exist, generate them first
+        await generateVoiceoverScripts(true); // Pass true to advance after generation
+        return;
+      }
+
+      // If next step is not voiceover, or voiceover is disabled, just navigate
+      if (!completedSteps.includes(activeStep)) {
+        setCompletedSteps([...completedSteps, activeStep]);
+      }
+      setDirection(1);
+      transitionToStep(visibleSteps[nextIndex], 200);
+      return;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // TAB 4 (VOICEOVER): Save step4Data and proceed to next step
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (activeStep === "voiceover") {
+      if (videoId === "new") {
+        toast({
+          title: "Error",
+          description: "Video not created yet. Please refresh the page.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsCreating(true);
+
+      try {
+        // Save step4Data (voiceover scripts are already in step3Data, but we mark step 4 as completed)
+        const response = await fetch(`/api/social-commerce/videos/${videoId}/step/4/continue`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            // Voiceover scripts are already saved in step3Data from Agent 5.2
+            // This route just marks step 4 as completed
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.details || errorData.error || 'Failed to save step 4');
+        }
+
+        const updatedVideo = await response.json();
+        
+        console.log('[SocialCommerce] Step 4 saved:', {
+          currentStep: updatedVideo.currentStep,
+        });
+        
+        toast({
+          title: "Step 4 Completed",
+          description: "Voiceover data saved successfully.",
+        });
+
         // Mark step as completed and advance
         if (!completedSteps.includes(activeStep)) {
           setCompletedSteps([...completedSteps, activeStep]);
         }
         setDirection(1);
-        transitionToStep(steps[nextIndex], 200);
-        return;
+        transitionToStep(visibleSteps[nextIndex], 300);
+      } catch (error) {
+        console.error('[SocialCommerce] Failed to save step 4:', error);
+        setIsTransitioning(false);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to save step 4. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsCreating(false);
       }
-      
-      // Only run Agent 5.1 if prompts don't exist yet
-      await generateBeatPrompts(true); // Pass true to advance to next step
       return;
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
-    // OTHER STEPS: Just advance
+    // TAB 5 (ANIMATIC): Save and proceed to Export
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (activeStep === "animatic") {
+      if (videoId === "new") {
+        toast({
+          title: "Error",
+          description: "Video not created yet. Please refresh the page.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsCreating(true);
+
+      try {
+        const response = await fetch(`/api/social-commerce/videos/${videoId}/step/5/continue`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.details || errorData.error || 'Failed to save step 5');
+        }
+
+        const updatedVideo = await response.json();
+        
+        console.log('[SocialCommerce] Step 5 saved:', {
+          currentStep: updatedVideo.currentStep,
+          completedSteps: updatedVideo.completedSteps,
+        });
+        
+        toast({
+          title: "Step 5 Completed",
+          description: "Animatic review completed successfully.",
+        });
+
+        // Mark step as completed and advance
+        if (!completedSteps.includes(activeStep)) {
+          setCompletedSteps([...completedSteps, activeStep]);
+        }
+        setDirection(1);
+        transitionToStep(visibleSteps[nextIndex], 300);
+      } catch (error) {
+        console.error('[SocialCommerce] Failed to save step 5:', error);
+        setIsTransitioning(false);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to save step 5. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsCreating(false);
+      }
+      return;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // TAB 6 (EXPORT): Mark as completed (final step)
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (activeStep === "export") {
+      if (videoId === "new") {
+        toast({
+          title: "Error",
+          description: "Video not created yet. Please refresh the page.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsCreating(true);
+
+      try {
+        const response = await fetch(`/api/social-commerce/videos/${videoId}/step/6/complete`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.details || errorData.error || 'Failed to complete step 6');
+        }
+
+        const updatedVideo = await response.json();
+        
+        console.log('[SocialCommerce] Step 6 completed - Video finished:', {
+          currentStep: updatedVideo.currentStep,
+          completedSteps: updatedVideo.completedSteps,
+          status: updatedVideo.status,
+        });
+        
+        toast({
+          title: "Video Completed! 🎉",
+          description: "All steps completed successfully. Your video is ready!",
+        });
+
+        // Mark step as completed
+        if (!completedSteps.includes(activeStep)) {
+          setCompletedSteps([...completedSteps, activeStep]);
+        }
+        
+        // Stay on export page (last step)
+      } catch (error) {
+        console.error('[SocialCommerce] Failed to complete step 6:', error);
+        setIsTransitioning(false);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to complete step 6. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsCreating(false);
+      }
+      return;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // OTHER STEPS: Just advance (shouldn't reach here)
     // ═══════════════════════════════════════════════════════════════════════════
     
     // Mark current step as completed when moving forward
@@ -2396,17 +2838,21 @@ export default function SocialCommerceMode() {
     }
     
     setDirection(1);
-    transitionToStep(steps[nextIndex], 200); // Faster for simple navigation
+    transitionToStep(visibleSteps[nextIndex], 200); // Faster for simple navigation
   };
 
   const handleBack = () => {
-    const steps: CommerceStepId[] = ["setup", "script", "storyboard", "voiceover", "animatic", "export"];
-    const currentIndex = steps.indexOf(activeStep);
+    const allSteps: CommerceStepId[] = ["setup", "script", "storyboard", "voiceover", "animatic", "export"];
+    const visibleSteps = voiceOverEnabled 
+      ? allSteps 
+      : allSteps.filter(s => s !== "voiceover");
+    
+    const currentIndex = visibleSteps.indexOf(activeStep);
     const prevIndex = currentIndex - 1;
     
     if (prevIndex >= 0) {
       setDirection(-1);
-      transitionToStep(steps[prevIndex], 200); // Smooth back transition
+      transitionToStep(visibleSteps[prevIndex], 200); // Smooth back transition
     }
   };
 
@@ -2418,13 +2864,9 @@ export default function SocialCommerceMode() {
     if (stepNumber <= 2) {
       setProductImages({
         heroProfile: null,
-        macroDetail: null,
-        materialReference: null,
       });
       setProductImageAssetIds({
         heroProfile: null,
-        macroDetail: null,
-        materialReference: null,
       });
       // Removed: characterAssetId, characterReferenceUrl, characterReferenceFile, characterName, characterAIProfile (no image generation for Sora)
       setCharacterDescription('');
@@ -2555,69 +2997,63 @@ export default function SocialCommerceMode() {
       "setup": "Setup & Product",
       "script": "Creative Spark & Beats",
       "storyboard": "Generate Prompts",
+      "voiceover": "Voiceover",
       "animatic": "Preview",
       "export": "Export",
     };
     return names[step] || step;
   };
 
-  // Show loading while workspace is being loaded or video is being created
-  // Only show full-screen loader for initial video creation, not step transitions
-  const isInitialVideoCreation = isNewVideo && isCreating;
-  if (isWorkspaceLoading || (!isNewVideo && isVideoLoading) || isInitialVideoCreation) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
-          {isInitialVideoCreation && (
-            <p className="text-muted-foreground">Creating your project...</p>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Show error if no workspace
-  if (!workspaceId) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="text-center">
-          <p className="text-red-500">No workspace selected</p>
-          <p className="text-muted-foreground mt-2">Please select a workspace first.</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show narrative mode selector if not selected (shouldn't happen for commerce, but keeping for safety)
-  if (!narrativeMode) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-[#0a0a0a]">
-        <NarrativeModeSelector onSelectMode={(mode) => {
-          // Filter out "auto" - social commerce only supports "image-reference" or "start-end"
-          if (mode !== "auto") {
-            setNarrativeMode(mode);
-          }
-        }} />
-      </div>
-    );
-  }
-
-  // Compute nextLabel based on current state
-  const computedNextLabel = isTransitioning 
-    ? "Loading..."
-    : (isCreating 
-      ? (activeStep === "setup" ? "Saving..." :
-         activeStep === "script" ? "Running Agent 3.2..." :
-         activeStep === "storyboard" ? "Running Agents 5.1 & 5.2..." :
-         "Processing...")
-      : undefined);
+  // Compute next label based on current step and state
+  // MUST be before any early returns to maintain hook order
+  const computedNextLabel = useMemo(() => {
+    if (isCreating || isTransitioning) {
+      if (activeStep === "storyboard" && voiceOverEnabled && !step3Data?.voiceoverScripts) {
+        return "Generating voiceover scripts...";
+      }
+      if (activeStep === "storyboard" && !step3Data?.beatPrompts) {
+        return "Generating prompts...";
+      }
+      if (activeStep === "setup") {
+        return "Saving...";
+      }
+      if (activeStep === "script") {
+        return "Running Agent 3.2...";
+      }
+      return "Processing...";
+    }
+    
+    if (activeStep === "storyboard") {
+      const allSteps: CommerceStepId[] = ["setup", "script", "storyboard", "voiceover", "animatic", "export"];
+      const visibleSteps = voiceOverEnabled 
+        ? allSteps 
+        : allSteps.filter(s => s !== "voiceover");
+      const currentIndex = visibleSteps.indexOf(activeStep);
+      const nextIndex = currentIndex + 1;
+      const nextStep = visibleSteps[nextIndex];
+      
+      // If next step is voiceover and scripts don't exist yet
+      if (nextStep === "voiceover" && voiceOverEnabled && !step3Data?.voiceoverScripts) {
+        return "Generate Voiceover & Continue";
+      }
+    }
+    
+    const allSteps: CommerceStepId[] = ["setup", "script", "storyboard", "voiceover", "animatic", "export"];
+    const visibleSteps = voiceOverEnabled 
+      ? allSteps 
+      : allSteps.filter(s => s !== "voiceover");
+    const currentIndex = visibleSteps.indexOf(activeStep);
+    const isLastStep = currentIndex === visibleSteps.length - 1;
+    
+    return isLastStep ? "Export Video" : "Continue";
+  }, [activeStep, isCreating, isTransitioning, voiceOverEnabled, step3Data]);
 
   return (
     <SocialCommerceStudioLayout
       currentStep={activeStep}
       completedSteps={completedSteps}
       dirtySteps={dirtySteps}
+      voiceOverEnabled={voiceOverEnabled}
       direction={direction}
       onStepClick={handleStepClick}
       onNext={handleNext}
@@ -2630,7 +3066,7 @@ export default function SocialCommerceMode() {
       <SocialCommerceWorkflow 
               activeStep={workflowStepMap[activeStep]}
               videoId={videoId}
-              workspaceId={workspaceId}
+              workspaceId={workspaceId || ''}
               isCreating={isCreating}
               narrativeMode={narrativeMode}
               script={script}
@@ -2684,8 +3120,31 @@ export default function SocialCommerceMode() {
               onScriptChange={setScript}
               onAspectRatioChange={(value) => { setAspectRatio(value); markStepDirty('setup'); }}
               onDurationChange={(value) => { setDuration(value); markStepDirty('setup'); }}
-              onVoiceActorChange={setVoiceActorId}
-              onVoiceOverToggle={setVoiceOverEnabled}
+              onVoiceActorChange={async (voiceId: string | null) => {
+                setVoiceActorId(voiceId);
+                markStepDirty('setup');
+                // Save voiceActorId to database immediately
+                if (videoId !== "new") {
+                  try {
+                    await fetch(`/api/social-commerce/videos/${videoId}/step/1/data`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({ voiceActorId: voiceId }),
+                    });
+                  } catch (error) {
+                    console.error('Failed to save voiceActorId:', error);
+                  }
+                }
+              }}
+              onVoiceOverToggle={(enabled) => {
+                setVoiceOverEnabled(enabled);
+                markStepDirty('setup');
+                // If disabling voiceover, clear voiceActorId
+                if (!enabled) {
+                  setVoiceActorId(null);
+                }
+              }}
               onVoiceOverConceptChange={setVoiceOverConcept}
               onVoiceOverScriptChange={setVoiceOverScript}
               onVideoConceptChange={setVideoConcept}
@@ -2703,7 +3162,18 @@ export default function SocialCommerceMode() {
               onCommerceSettingsChange={setCommerceSettings}
               onVideoModelChange={(value) => { setVideoModel(value); markStepDirty('setup'); }}
               onVideoResolutionChange={(value) => { setVideoResolution(value); markStepDirty('setup'); }}
-              onLanguageChange={(value) => { setLanguage(value); markStepDirty('setup'); }}
+              onLanguageChange={(value) => { 
+                setLanguage(value); 
+                markStepDirty('setup');
+                // Auto-select default voice for the selected language
+                if (voiceOverEnabled) {
+                  const defaultVoice = VOICE_LIBRARY.find(v => v.language === value);
+                  if (defaultVoice) {
+                    console.log(`[SocialCommerce] Auto-selecting default voice for ${value}:`, defaultVoice.id);
+                    setVoiceActorId(defaultVoice.id);
+                  }
+                }
+              }}
               onMotionPromptChange={(value) => { setMotionPrompt(value); markStepDirty('setup'); }}
               // Audio Handlers
               onAudioVolumeChange={(value) => { setAudioVolume(value); markStepDirty('setup'); }}
@@ -2726,7 +3196,11 @@ export default function SocialCommerceMode() {
               onProductionLevelChange={(value) => { setProductionLevel(value); markStepDirty('setup'); }}
               // Visual Style Handlers
               onPacingOverrideChange={(value) => { setPacingOverride(value); markStepDirty('setup'); }}
-              onVisualIntensityChange={(value) => { setVisualIntensity(value); markStepDirty('setup'); }}
+              onVisualIntensityChange={(value) => { 
+                console.log('[SocialCommerce] Visual Intensity changed:', value);
+                setVisualIntensity(value); 
+                markStepDirty('setup'); 
+              }}
               onProductImagesChange={(value) => { setProductImages(value); markStepDirty('script'); }}
               onProductImageUpload={handleProductImageUpload}
               onProductImageDelete={handleDeleteProductImage}
@@ -2768,7 +3242,7 @@ export default function SocialCommerceMode() {
               onVisualPresetChange={(value) => { setVisualPreset(value); markStepDirty('script'); }}
               onCampaignSparkChange={(value) => { setCampaignSpark(value); markStepDirty('script'); }}
               visualBeats={visualBeats}
-              onVisualBeatsChange={(beats) => { setVisualBeats(beats); markStepDirty('script'); }}
+              onVisualBeatsChange={(beats: { beat1: string; beat2: string; beat3: string }) => { setVisualBeats(beats); markStepDirty('script'); }}
               campaignObjective={campaignObjective}
               onCampaignObjectiveChange={(value) => { setCampaignObjective(value); markStepDirty('script'); }}
               onTargetAudienceChange={(value) => { setTargetAudience(value); markStepDirty('setup'); }}
@@ -2781,6 +3255,20 @@ export default function SocialCommerceMode() {
               onSceneManifestChange={setSceneManifest}
               onNext={handleNext}
               step3Data={step3Data}
+              step4Data={step4Data}
+              onRegenerateVoiceover={async () => {
+                await generateVoiceoverScripts(false); // Don't advance, just regenerate
+              }}
+              onVoiceoverAudioGenerated={async (beatId, audioData) => {
+                // Update local state
+                setStep4Data(prev => ({
+                  ...prev,
+                  voiceoverAudios: {
+                    ...prev.voiceoverAudios,
+                    [beatId]: audioData,
+                  },
+                }));
+              }}
             />
 
       {/* Step Reset Warning Dialog */}

@@ -132,10 +132,13 @@ export async function generateLogoAnimation(
     const videoBuffer = await fetch(videoUrl).then(r => r.arrayBuffer()).then(b => Buffer.from(b));
     
     // Build path: {userId}/{workspace}/Videos/Logo_Animation/{projectName}/final.mp4
-    const cleanTitle = request.title.replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "_");
+    // Clean function to sanitize path components (same as bunny-storage.ts)
+    const clean = (str: string) => str.replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "_");
+    const cleanTitle = clean(request.title);
+    const cleanWorkspace = clean(workspace.name);
     const timestamp = Date.now();
     const projectFolder = `${cleanTitle}_${timestamp}`;
-    const videoPath = `${userId}/${workspace.name}/Videos/Logo_Animation/${projectFolder}/final.mp4`;
+    const videoPath = `${userId}/${cleanWorkspace}/Videos/Logo_Animation/${projectFolder}/final.mp4`;
     
     await bunnyStorage.uploadFile(videoPath, videoBuffer, "video/mp4");
     const finalVideoUrl = bunnyStorage.getPublicUrl(videoPath);

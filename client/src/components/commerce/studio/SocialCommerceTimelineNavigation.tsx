@@ -3,7 +3,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { COMMERCE_STEPS, CommerceStepId } from "./types";
+import { COMMERCE_STEPS, CommerceStepId, getVisibleSteps } from "./types";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +11,7 @@ interface SocialCommerceTimelineNavigationProps {
   currentStep: CommerceStepId;
   completedSteps: CommerceStepId[];
   dirtySteps?: Set<CommerceStepId>;
+  voiceOverEnabled?: boolean;
   onStepClick: (step: CommerceStepId) => void;
   onNext: () => void;
   onBack: () => void;
@@ -22,20 +23,22 @@ export function SocialCommerceTimelineNavigation({
   currentStep,
   completedSteps,
   dirtySteps = new Set(),
+  voiceOverEnabled = true,
   onStepClick,
   onNext,
   onBack,
   isNextDisabled = false,
   nextLabel
 }: SocialCommerceTimelineNavigationProps) {
-  const currentIndex = COMMERCE_STEPS.findIndex(s => s.id === currentStep);
+  const visibleSteps = getVisibleSteps(voiceOverEnabled);
+  const currentIndex = visibleSteps.findIndex(s => s.id === currentStep);
   const isFirstStep = currentIndex === 0;
-  const isLastStep = currentIndex === COMMERCE_STEPS.length - 1;
+  const isLastStep = currentIndex === visibleSteps.length - 1;
 
   const getStepStatus = (stepId: CommerceStepId) => {
     if (completedSteps.includes(stepId)) return 'completed';
     if (stepId === currentStep) return 'active';
-    const stepIndex = COMMERCE_STEPS.findIndex(s => s.id === stepId);
+    const stepIndex = visibleSteps.findIndex(s => s.id === stepId);
     if (stepIndex < currentIndex) return 'completed';
     return 'upcoming';
   };
@@ -45,13 +48,13 @@ export function SocialCommerceTimelineNavigation({
     return true;
   };
 
-  // Pink/Orange/Amber accent colors for commerce theme
+  // Green accent colors for commerce theme
   const accentClasses = {
-    gradient: "from-pink-500 via-orange-500 to-amber-500",
-    glow: "shadow-pink-500/30",
-    bg: "bg-pink-500",
-    text: "text-pink-500",
-    border: "border-pink-500/30"
+    gradient: "from-emerald-500 via-emerald-600 to-teal-600",
+    glow: "shadow-emerald-500/30",
+    bg: "bg-emerald-500",
+    text: "text-emerald-500",
+    border: "border-emerald-500/30"
   };
 
   return (
@@ -86,7 +89,7 @@ export function SocialCommerceTimelineNavigation({
           {/* Timeline Steps */}
           <div className="flex items-center justify-center flex-shrink-0">
             <div className="flex items-center gap-1">
-              {COMMERCE_STEPS.map((step, index) => {
+              {visibleSteps.map((step, index) => {
                 const status = getStepStatus(step.id);
                 const isClickable = canNavigateTo(step.id);
                 
@@ -124,7 +127,7 @@ export function SocialCommerceTimelineNavigation({
                           <motion.div
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
-                            className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border-2 border-[#0a0a0a] z-10"
+                            className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-[#0a0a0a] z-10"
                             title="Modified - will reset future steps"
                           />
                         )}
@@ -183,7 +186,7 @@ export function SocialCommerceTimelineNavigation({
                     </motion.button>
 
                     {/* Connector Line */}
-                    {index < COMMERCE_STEPS.length - 1 && (
+                    {index < visibleSteps.length - 1 && (
                       <div className="w-12 h-0.5 mx-1 relative overflow-hidden rounded-full bg-white/10">
                         <motion.div
                           className={cn("h-full rounded-full bg-gradient-to-r", accentClasses.gradient)}

@@ -931,16 +931,19 @@ export interface VoiceoverScriptOutput {
       language: 'ar' | 'en';
       tempo: string;
       volume: string;
-      script: string; // FULL voiceover script text for this beat WITH SSML breaks (<break time="X.Xs" />) and audio tags ([happy], [excited], etc.). ElevenLabs reads these directly.
-      totalDuration: number; // Duration in seconds (approximately 12 seconds)
-      totalWordCount: number; // Word count for this beat
+      script: string; // FULL voiceover script text WITH pause tags ([pause], [short pause], [long pause]) and audio tags
+      totalDuration: number; // CALCULATED total = speakingDuration + pauseDuration (MUST be ≤ 12.0)
+      totalWordCount: number; // Word count EXCLUDING pause tags and audio tags
+      pauseCount?: number; // Total number of pause tags used
+      speakingDuration?: number; // Speaking time only = wordCount / wordsPerSecond
+      pauseDuration?: number; // Total pause time from pause tags
       scriptSummary: string; // Brief description of script approach for this beat
     };
   }>;
   
   // Full combined script (all beats joined)
   fullScript: {
-    text: string; // Complete combined voiceover script text (all beat scripts joined). Include SSML breaks and audio tags.
+    text: string; // Complete combined voiceover script text (all beat scripts joined). Include pause tags and audio tags.
     totalDuration: number; // Total seconds across all beats
     totalWordCount: number; // Total word count across all beats
   };

@@ -1545,14 +1545,33 @@ export function StoryboardEditor({
     // Only consider approved groups
     const approvedGroups = sceneGroups.filter(group => group.status === "approved");
     
+    // First, check if this shot appears in any group
+    let isInAnyGroup = false;
     for (const group of approvedGroups) {
       const shotIds = group.shotIds || [];
-      if (shotIds[0] === shotId) {
-        return true; // This shot is the first in the group
+      if (shotIds.includes(shotId)) {
+        isInAnyGroup = true;
+        break;
       }
     }
     
-    return false;
+    if (!isInAnyGroup) return false; // Not part of any continuity
+    
+    // BUGFIX: A shot is "first in chain" if it NEVER appears as the second element (inheriting position)
+    // in any group. If it appears at index 1+ in ANY group, it inherits from a previous shot.
+    for (const group of approvedGroups) {
+      const shotIds = group.shotIds || [];
+      const shotIndex = shotIds.indexOf(shotId);
+      
+      if (shotIndex > 0) {
+        // Found at index 1 or higher - this shot inherits from previous
+        return false;
+      }
+    }
+    
+    // This shot only appears at index 0 in all groups it's part of
+    // It's the true start of the chain
+    return true;
   };
 
   // Helper: Get the previous shot in continuity group (for showing "Inherited from Shot X")

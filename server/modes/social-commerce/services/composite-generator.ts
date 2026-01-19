@@ -53,13 +53,47 @@ async function downloadImage(url: string): Promise<Buffer> {
 }
 
 /**
- * Determine layout type based on number of images
+ * Layout types for Hero-centric composite generation
+ * 
+ * NEW LAYOUT SYSTEM:
+ * - 'skip': Hero only - no compositing needed, use original image
+ * - 'hero-60-others-40': Hero (60% height) + Others (40% height, split by width)
+ * - 'hero-50-angles-25-elements-25': All three sections present
  */
-function determineLayout(imageCount: number): 'single' | 'side-by-side' | 'grid-2x2' | 'grid-3x2' {
-  if (imageCount === 1) return 'single';
-  if (imageCount === 2) return 'side-by-side';
-  if (imageCount === 3 || imageCount === 4) return 'grid-2x2';
-  return 'grid-3x2'; // 5 or 6 images
+type CompositeLayout = 'skip' | 'hero-60-others-40' | 'hero-50-angles-25-elements-25';
+
+/**
+ * Determine layout type based on which image categories are present
+ * 
+ * Rules:
+ * 1. Hero only → skip (no compositing)
+ * 2. Hero + (Angles OR Elements) → hero-60-others-40
+ * 3. Hero + Angles + Elements → hero-50-angles-25-elements-25
+ */
+function determineHeroCentricLayout(
+  hasHero: boolean,
+  anglesCount: number,
+  elementsCount: number
+): CompositeLayout {
+  if (!hasHero) {
+    throw new Error('Hero image is required for composite generation');
+  }
+  
+  const hasAngles = anglesCount > 0;
+  const hasElements = elementsCount > 0;
+  
+  // Hero only - no compositing needed
+  if (!hasAngles && !hasElements) {
+    return 'skip';
+  }
+  
+  // All three sections present
+  if (hasAngles && hasElements) {
+    return 'hero-50-angles-25-elements-25';
+  }
+  
+  // Hero + (Angles OR Elements)
+  return 'hero-60-others-40';
 }
 
 /**
@@ -254,6 +288,33 @@ export async function generateAIModeComposite(
 
 /**
  * Generate composite image from uploaded product images
+ * 
+ * NEW HERO-CENTRIC LAYOUT SYSTEM:
+ * 
+ * 1. Hero only → No compositing, return original image URL
+ * 
+ * 2. Hero + (Angles OR Elements) → 60/40 split:
+ *    ┌─────────────────────────────────────┐
+ *    │           HERO (60%)                │
+ *    │         Width: 100%                 │
+ *    │         Height: 60%                 │
+ *    ├──────────┬──────────┬───────────────┤
+ *    │ Other 1  │ Other 2  │ Other 3...    │
+ *    │ Height: 40%, Width: 100%/count      │
+ *    └──────────┴──────────┴───────────────┘
+ * 
+ * 3. Hero + Angles + Elements → 50/25/25 split:
+ *    ┌─────────────────────────────────────┐
+ *    │           HERO (50%)                │
+ *    │         Width: 100%                 │
+ *    │         Height: 50%                 │
+ *    ├──────────────────┬──────────────────┤
+ *    │   ANGLES (25%)   │   ANGLES (25%)   │
+ *    │  Width: 100%/count, Height: 25%    │
+ *    ├──────────┬───────┴───┬──────────────┤
+ *    │ ELEMENTS │ ELEMENTS  │ ELEMENTS     │
+ *    │ Width: 100%/count, Height: 25%     │
+ *    └──────────┴───────────┴──────────────┘
  */
 export async function generateComposite(
   input: CompositeGenerationInput,
@@ -267,101 +328,106 @@ export async function generateComposite(
 
   const { videoId, heroImage, productAngles = [], elements = [] } = input;
   
-  // Collect all source images (filter out undefined/null values)
-  const sourceImages: string[] = [heroImage, ...productAngles, ...elements].filter((img): img is string => Boolean(img));
-  const imageCount = sourceImages.length;
-  
-  if (imageCount === 0) {
-    throw new Error('No images provided for composite generation');
+  // Validate hero image
+  if (!heroImage) {
+    throw new Error('Hero image is required for composite generation');
   }
   
-  // Determine layout
-  const layout = determineLayout(imageCount);
+  // Determine layout based on which categories are present
+  const layout = determineHeroCentricLayout(
+    !!heroImage,
+    productAngles.length,
+    elements.length
+  );
+  
+  // Collect all source images for tracking
+  const sourceImages: string[] = [heroImage, ...productAngles, ...elements].filter((img): img is string => Boolean(img));
+  
+  console.log('[composite-generator] Starting Hero-centric composite generation:', {
+    layout,
+    heroImage: !!heroImage,
+    anglesCount: productAngles.length,
+    elementsCount: elements.length,
+    totalImages: sourceImages.length,
+  });
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LAYOUT: SKIP - Hero only, no compositing needed
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (layout === 'skip') {
+    console.log('[composite-generator] ✓ Hero only - skipping composite, using original image');
+    return {
+      compositeUrl: heroImage,
+      sourceImages: [heroImage],
+      layout: 'hero-only',
+      generatedAt: Date.now(),
+    };
+  }
   
   // Target dimensions for 9:16 aspect ratio (Sora standard)
   const targetWidth = 1024;
   const targetHeight = 1820; // 9:16 ratio
   
-  console.log('[composite-generator] Starting composite generation:', {
-    imageCount,
-    layout,
-    dimensions: `${targetWidth}x${targetHeight}`,
-  });
-  
   try {
-    // Download all images
-    const imageBuffers: Buffer[] = [];
-    for (const url of sourceImages) {
-      console.log('[composite-generator] Downloading image:', url);
-      const buffer = await downloadImage(url);
-      imageBuffers.push(buffer);
-    }
+    // Download hero image
+    console.log('[composite-generator] Downloading hero image:', heroImage);
+    const heroBuffer = await downloadImage(heroImage);
     
     let composite: sharp.Sharp;
     
-    if (layout === 'single') {
-      // Single image: Use hero as-is, resize to target dimensions
-      composite = sharp(imageBuffers[0])
-        .resize(targetWidth, targetHeight, {
-          fit: 'contain',
-          background: { r: 255, g: 255, b: 255, alpha: 1 },
-        });
-    } else if (layout === 'side-by-side') {
-      // 2 images: Side-by-side (50/50 split)
-      const [heroBuffer, secondBuffer] = imageBuffers;
-      const halfWidth = Math.floor(targetWidth / 2);
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LAYOUT: hero-60-others-40 - Hero (60%) + Others (40%)
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (layout === 'hero-60-others-40') {
+      const heroHeight = Math.floor(targetHeight * 0.6); // 60%
+      const othersHeight = targetHeight - heroHeight; // 40%
       
+      // Combine angles and elements into "others"
+      const otherImages = [...productAngles, ...elements];
+      const othersCount = otherImages.length;
+      const cellWidth = Math.floor(targetWidth / othersCount);
+      
+      console.log('[composite-generator] Layout hero-60-others-40:', {
+        heroHeight,
+        othersHeight,
+        othersCount,
+        cellWidth,
+      });
+      
+      // Resize hero to 100% width, 60% height
       const heroResized = await sharp(heroBuffer)
-        .resize(halfWidth, targetHeight, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+        .resize(targetWidth, heroHeight, { 
+          fit: 'contain', 
+          background: { r: 255, g: 255, b: 255, alpha: 1 } 
+        })
         .toBuffer();
       
-      const secondResized = await sharp(secondBuffer)
-        .resize(halfWidth, targetHeight, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
-        .toBuffer();
-      
-      composite = sharp({
-        create: {
-          width: targetWidth,
-          height: targetHeight,
-          channels: 4,
-          background: { r: 255, g: 255, b: 255, alpha: 1 },
-        },
-      })
-        .composite([
-          { input: heroResized, left: 0, top: 0 },
-          { input: secondResized, left: halfWidth, top: 0 },
-        ]);
-    } else if (layout === 'grid-2x2') {
-      // 3-4 images: Grid 2x2
-      const cellWidth = Math.floor(targetWidth / 2);
-      const cellHeight = Math.floor(targetHeight / 2);
-      
-      const resizedImages: Buffer[] = [];
-      for (const buffer of imageBuffers) {
+      // Download and resize other images
+      const othersResized: Buffer[] = [];
+      for (const url of otherImages) {
+        console.log('[composite-generator] Downloading other image:', url);
+        const buffer = await downloadImage(url);
         const resized = await sharp(buffer)
-          .resize(cellWidth, cellHeight, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+          .resize(cellWidth, othersHeight, { 
+            fit: 'contain', 
+            background: { r: 255, g: 255, b: 255, alpha: 1 } 
+          })
           .toBuffer();
-        resizedImages.push(resized);
+        othersResized.push(resized);
       }
       
-      const composites: Array<{ input: Buffer; left: number; top: number }> = [];
+      // Build composite layers
+      const composites: Array<{ input: Buffer; left: number; top: number }> = [
+        { input: heroResized, left: 0, top: 0 },
+      ];
       
-      // Hero always top-left
-      composites.push({ input: resizedImages[0], left: 0, top: 0 });
-      
-      // Second image top-right
-      if (resizedImages[1]) {
-        composites.push({ input: resizedImages[1], left: cellWidth, top: 0 });
-      }
-      
-      // Third image bottom-left
-      if (resizedImages[2]) {
-        composites.push({ input: resizedImages[2], left: 0, top: cellHeight });
-      }
-      
-      // Fourth image bottom-right
-      if (resizedImages[3]) {
-        composites.push({ input: resizedImages[3], left: cellWidth, top: cellHeight });
+      // Add other images side by side at bottom
+      for (let i = 0; i < othersResized.length; i++) {
+        composites.push({
+          input: othersResized[i],
+          left: i * cellWidth,
+          top: heroHeight,
+        });
       }
       
       composite = sharp({
@@ -372,48 +438,85 @@ export async function generateComposite(
           background: { r: 255, g: 255, b: 255, alpha: 1 },
         },
       }).composite(composites);
+      
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LAYOUT: hero-50-angles-25-elements-25 - All three sections
+    // ═══════════════════════════════════════════════════════════════════════════
     } else {
-      // 5-6 images: Grid 3x2 (Hero takes 2 cells, others 1 cell each)
-      const cellWidth = Math.floor(targetWidth / 3);
-      const cellHeight = Math.floor(targetHeight / 2);
-      const heroWidth = cellWidth * 2; // Hero takes 2 cells width
+      const heroHeight = Math.floor(targetHeight * 0.5); // 50%
+      const anglesHeight = Math.floor(targetHeight * 0.25); // 25%
+      const elementsHeight = targetHeight - heroHeight - anglesHeight; // 25%
       
-      const resizedImages: Buffer[] = [];
+      const anglesCellWidth = Math.floor(targetWidth / productAngles.length);
+      const elementsCellWidth = Math.floor(targetWidth / elements.length);
       
-      // Hero: 2 cells wide, 1 cell tall
-      const heroResized = await sharp(imageBuffers[0])
-        .resize(heroWidth, cellHeight, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+      console.log('[composite-generator] Layout hero-50-angles-25-elements-25:', {
+        heroHeight,
+        anglesHeight,
+        elementsHeight,
+        anglesCount: productAngles.length,
+        elementsCount: elements.length,
+        anglesCellWidth,
+        elementsCellWidth,
+      });
+      
+      // Resize hero to 100% width, 50% height
+      const heroResized = await sharp(heroBuffer)
+        .resize(targetWidth, heroHeight, { 
+          fit: 'contain', 
+          background: { r: 255, g: 255, b: 255, alpha: 1 } 
+        })
         .toBuffer();
-      resizedImages.push(heroResized);
       
-      // Other images: 1 cell each
-      for (let i = 1; i < imageBuffers.length; i++) {
-        const resized = await sharp(imageBuffers[i])
-          .resize(cellWidth, cellHeight, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+      // Download and resize angles
+      const anglesResized: Buffer[] = [];
+      for (const url of productAngles) {
+        console.log('[composite-generator] Downloading angle image:', url);
+        const buffer = await downloadImage(url);
+        const resized = await sharp(buffer)
+          .resize(anglesCellWidth, anglesHeight, { 
+            fit: 'contain', 
+            background: { r: 255, g: 255, b: 255, alpha: 1 } 
+          })
           .toBuffer();
-        resizedImages.push(resized);
+        anglesResized.push(resized);
       }
       
-      const composites: Array<{ input: Buffer; left: number; top: number }> = [];
-      
-      // Hero: top-left, 2 cells wide
-      composites.push({ input: resizedImages[0], left: 0, top: 0 });
-      
-      // Remaining images arranged around hero
-      let imageIndex = 1;
-      // Top row: image after hero
-      if (resizedImages[imageIndex]) {
-        composites.push({ input: resizedImages[imageIndex], left: heroWidth, top: 0 });
-        imageIndex++;
+      // Download and resize elements
+      const elementsResized: Buffer[] = [];
+      for (const url of elements) {
+        console.log('[composite-generator] Downloading element image:', url);
+        const buffer = await downloadImage(url);
+        const resized = await sharp(buffer)
+          .resize(elementsCellWidth, elementsHeight, { 
+            fit: 'contain', 
+            background: { r: 255, g: 255, b: 255, alpha: 1 } 
+          })
+          .toBuffer();
+        elementsResized.push(resized);
       }
-      // Bottom row: remaining images
-      for (let col = 0; col < 3 && imageIndex < resizedImages.length; col++) {
+      
+      // Build composite layers
+      const composites: Array<{ input: Buffer; left: number; top: number }> = [
+        { input: heroResized, left: 0, top: 0 },
+      ];
+      
+      // Add angles row (below hero)
+      for (let i = 0; i < anglesResized.length; i++) {
         composites.push({
-          input: resizedImages[imageIndex],
-          left: col * cellWidth,
-          top: cellHeight,
+          input: anglesResized[i],
+          left: i * anglesCellWidth,
+          top: heroHeight,
         });
-        imageIndex++;
+      }
+      
+      // Add elements row (below angles)
+      for (let i = 0; i < elementsResized.length; i++) {
+        composites.push({
+          input: elementsResized[i],
+          left: i * elementsCellWidth,
+          top: heroHeight + anglesHeight,
+        });
       }
       
       composite = sharp({
@@ -460,7 +563,8 @@ export async function generateComposite(
     console.log('[composite-generator] ✓ Composite generated successfully:', {
       url: compositeUrl,
       layout,
-      imageCount,
+      anglesCount: productAngles.length,
+      elementsCount: elements.length,
     });
     
     return {

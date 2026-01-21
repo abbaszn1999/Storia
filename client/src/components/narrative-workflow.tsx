@@ -54,6 +54,11 @@ interface NarrativeWorkflowProps {
   onVoiceOverToggle: (enabled: boolean) => void;
   onNumberOfScenesChange?: (scenes: number | 'auto') => void;
   onShotsPerSceneChange?: (shots: number | 'auto') => void;
+  onGenresChange?: (genres: string[]) => void;
+  onTonesChange?: (tones: string[]) => void;
+  onDurationChange?: (duration: string) => void;
+  onLanguageChange?: (language: string) => void;
+  onUserIdeaChange?: (userIdea: string) => void;
   onScenesChange: (scenes: Scene[]) => void;
   onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
   onShotVersionsChange: (shotVersions: { [shotId: string]: NarrativeShotVersion[] }) => void;
@@ -108,6 +113,11 @@ export function NarrativeWorkflow({
   onVoiceOverToggle,
   onNumberOfScenesChange,
   onShotsPerSceneChange,
+  onGenresChange,
+  onTonesChange,
+  onDurationChange,
+  onLanguageChange,
+  onUserIdeaChange,
   onScenesChange,
   onShotsChange,
   onShotVersionsChange,
@@ -239,6 +249,28 @@ export function NarrativeWorkflow({
         videoId,
       };
       
+      // Pass image model from shot (or scene) to override database value
+      // This ensures the selected model in the dropdown is used immediately
+      // Priority: shot.imageModel > scene.imageModel > default imageModel
+      if (shot) {
+        // Find the scene for this shot to get scene-level image model
+        const scene = scenes.find(s => s.id === shot.sceneId);
+        // Use shot-level model if set and not 'scene-default', otherwise scene-level, otherwise default
+        let shotImageModel: string | undefined;
+        if (shot.imageModel && shot.imageModel !== 'scene-default') {
+          shotImageModel = shot.imageModel;
+        } else if (scene?.imageModel) {
+          // Shot is set to 'scene-default' or null, use scene's model
+          shotImageModel = scene.imageModel;
+        } else {
+          // Neither shot nor scene has a model, use default
+          shotImageModel = imageModel;
+        }
+        if (shotImageModel) {
+          requestBody.imageModel = shotImageModel;
+        }
+      }
+      
       // Pass versionId if currentVersion exists - this ensures we update the existing version
       // instead of creating a new one (important for start-end mode where we generate frames separately)
       if (currentVersion) {
@@ -267,10 +299,48 @@ export function NarrativeWorkflow({
         requestBody.frame = frame;
       }
       
-      // If no version exists, pass prompts so generate-image can save them
-      if (prompts && !currentVersion && (prompts.imagePrompt !== undefined || prompts.videoPrompt !== undefined)) {
-        if (prompts.imagePrompt !== undefined) requestBody.imagePrompt = prompts.imagePrompt;
-        if (prompts.videoPrompt !== undefined) requestBody.videoPrompt = prompts.videoPrompt;
+      // Include shot-level reference image if it exists
+      const shotReference = referenceImages.find(
+        (ref) => ref.shotId === shotId && ref.type === "shot_reference"
+      );
+      if (shotReference?.imageUrl) {
+        requestBody.shotReferenceImageUrl = shotReference.imageUrl;
+      }
+      
+      // If shot exists in frontend but might not be in database (manually created),
+      // include it in the request body so backend can use it
+      if (shot) {
+        requestBody.shot = {
+          id: shot.id,
+          sceneId: shot.sceneId,
+          shotNumber: shot.shotNumber,
+          description: shot.description,
+          cameraMovement: shot.cameraMovement,
+          shotType: shot.shotType,
+          soundEffects: shot.soundEffects,
+          duration: shot.duration,
+          transition: shot.transition,
+          imageModel: shot.imageModel,
+          videoModel: shot.videoModel,
+          characters: shot.characters,
+          location: shot.location,
+        };
+      }
+      
+      // Pass prompts to backend (for manually created shots or when no version exists)
+      // Map imagePrompt to the appropriate prompt field based on frame and mode
+      if (prompts) {
+        if (frame === 'start' && prompts.imagePrompt !== undefined) {
+          requestBody.startFramePrompt = prompts.imagePrompt;
+        } else if (frame === 'end' && prompts.imagePrompt !== undefined) {
+          requestBody.endFramePrompt = prompts.imagePrompt;
+        } else if (prompts.imagePrompt !== undefined) {
+          // For image-reference mode or when frame is not specified
+          requestBody.imagePrompt = prompts.imagePrompt;
+        }
+        if (prompts.videoPrompt !== undefined) {
+          requestBody.videoPrompt = prompts.videoPrompt;
+        }
       }
       
       const response = await fetch('/api/narrative/shots/generate-image', {
@@ -282,6 +352,11 @@ export function NarrativeWorkflow({
         body: JSON.stringify(requestBody),
         credentials: 'include',
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to generate image`);
+      }
       
       const data = await response.json();
       
@@ -295,32 +370,64 @@ export function NarrativeWorkflow({
       }
       
       // Update shotVersions with the new or updated version
+      // The backend should always return a version object, but handle cases where it might not
       if (data.version) {
         const existingVersions = shotVersions[shotId] || [];
         
+        // Ensure version has all required fields
+        const versionToUpdate = {
+          ...data.version,
+          // Ensure image URLs are preserved if they exist (check both response and version object)
+          imageUrl: data.imageUrl || data.version.imageUrl || null,
+          startFrameUrl: data.startFrameUrl || data.version.startFrameUrl || null,
+          endFrameUrl: data.endFrameUrl || data.version.endFrameUrl || null,
+        };
+        
         // Check if this version already exists (when updating an existing version)
-        const versionIndex = existingVersions.findIndex(v => v.id === data.version.id);
+        const versionIndex = existingVersions.findIndex(v => v.id === versionToUpdate.id);
+        const wasExisting = versionIndex >= 0;
         
         let updatedVersions;
-        if (versionIndex >= 0) {
-          // Update existing version in place
+        if (wasExisting) {
+          // Update existing version in place - merge to preserve any existing fields
           updatedVersions = existingVersions.map(v => 
-            v.id === data.version.id ? data.version : v
+            v.id === versionToUpdate.id ? { ...v, ...versionToUpdate } : v
           );
         } else {
           // Add new version
-          updatedVersions = [...existingVersions, data.version];
+          updatedVersions = [...existingVersions, versionToUpdate];
         }
         
-        onShotVersionsChange({
+        // Create a new object to ensure React detects the change
+        const updatedShotVersions = {
           ...shotVersions,
           [shotId]: updatedVersions,
-        });
+        };
+        
+        onShotVersionsChange(updatedShotVersions);
         
         // Update shot's currentVersionId
         if (shot) {
-          handleUpdateShot(shotId, { currentVersionId: data.version.id });
+          handleUpdateShot(shotId, { currentVersionId: versionToUpdate.id });
         }
+        
+        console.log('[narrative-workflow] Updated shotVersions after generation:', {
+          shotId,
+          versionId: versionToUpdate.id,
+          hasImageUrl: !!versionToUpdate.imageUrl,
+          hasStartFrameUrl: !!versionToUpdate.startFrameUrl,
+          hasEndFrameUrl: !!versionToUpdate.endFrameUrl,
+          versionIndex,
+          wasExisting,
+        });
+      } else {
+        // Backend didn't return version - log warning but don't fail
+        console.warn('[narrative-workflow] No version returned from generate-image endpoint:', data);
+        toast({
+          title: "Image Generated",
+          description: "Image was generated but version data was not returned. Try refreshing the page.",
+          variant: "default",
+        });
       }
       
       toast({
@@ -344,13 +451,15 @@ export function NarrativeWorkflow({
     const currentVersions = shotVersions[shotId] || [];
     const versionId = shot?.currentVersionId || currentVersions[currentVersions.length - 1]?.id;
     
+    // If no version exists, fall back to generate instead of regenerate
+    if (!versionId) {
+      console.warn('[narrative-workflow] No version found for regenerate, falling back to generate:', shotId);
+      return handleGenerateShot(shotId, prompts, frame);
+    }
+    
     try {
       // Save prompts to database FIRST before regenerating
-      if (prompts && versionId && (prompts.imagePrompt !== undefined || prompts.videoPrompt !== undefined)) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'narrative-workflow.tsx:regenerate',message:'Saving prompts before regenerate',data:{shotId,versionId,imagePromptPreview:prompts.imagePrompt?.substring(0,50),videoPromptPreview:prompts.videoPrompt?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'SAVE_BEFORE_REGEN'})}).catch(()=>{});
-        // #endregion
-        
+      if (prompts && (prompts.imagePrompt !== undefined || prompts.videoPrompt !== undefined)) {
         const saveResponse = await fetch(`/api/narrative/shots/${shotId}/versions/${versionId}`, {
           method: 'PATCH',
           headers: {
@@ -376,8 +485,30 @@ export function NarrativeWorkflow({
       const requestBody: any = {
         shotId,
         videoId,
-        versionId, // Pass versionId to update existing version
+        ...(versionId && { versionId }), // Only pass versionId if it exists
       };
+      
+      // Pass image model from shot (or scene) to override database value
+      // This ensures the selected model in the dropdown is used immediately
+      // Priority: shot.imageModel > scene.imageModel > default imageModel
+      if (shot) {
+        // Find the scene for this shot to get scene-level image model
+        const scene = scenes.find(s => s.id === shot.sceneId);
+        // Use shot-level model if set and not 'scene-default', otherwise scene-level, otherwise default
+        let shotImageModel: string | undefined;
+        if (shot.imageModel && shot.imageModel !== 'scene-default') {
+          shotImageModel = shot.imageModel;
+        } else if (scene?.imageModel) {
+          // Shot is set to 'scene-default' or null, use scene's model
+          shotImageModel = scene.imageModel;
+        } else {
+          // Neither shot nor scene has a model, use default
+          shotImageModel = imageModel;
+        }
+        if (shotImageModel) {
+          requestBody.imageModel = shotImageModel;
+        }
+      }
       
       // Pass frame parameter if provided (for start-end mode)
       if (frame) {
@@ -401,6 +532,50 @@ export function NarrativeWorkflow({
         }
       }
       
+      // Pass prompts to backend (for manually created shots or when no version exists)
+      // Map imagePrompt to the appropriate prompt field based on frame and mode
+      if (prompts) {
+        if (frame === 'start' && prompts.imagePrompt !== undefined) {
+          requestBody.startFramePrompt = prompts.imagePrompt;
+        } else if (frame === 'end' && prompts.imagePrompt !== undefined) {
+          requestBody.endFramePrompt = prompts.imagePrompt;
+        } else if (prompts.imagePrompt !== undefined) {
+          // For image-reference mode or when frame is not specified
+          requestBody.imagePrompt = prompts.imagePrompt;
+        }
+        if (prompts.videoPrompt !== undefined) {
+          requestBody.videoPrompt = prompts.videoPrompt;
+        }
+      }
+      
+      // Include shot-level reference image if it exists
+      const shotReference = referenceImages.find(
+        (ref) => ref.shotId === shotId && ref.type === "shot_reference"
+      );
+      if (shotReference?.imageUrl) {
+        requestBody.shotReferenceImageUrl = shotReference.imageUrl;
+      }
+      
+      // If shot exists in frontend but might not be in database (manually created),
+      // include it in the request body so backend can use it
+      if (shot) {
+        requestBody.shot = {
+          id: shot.id,
+          sceneId: shot.sceneId,
+          shotNumber: shot.shotNumber,
+          description: shot.description,
+          cameraMovement: shot.cameraMovement,
+          shotType: shot.shotType,
+          soundEffects: shot.soundEffects,
+          duration: shot.duration,
+          transition: shot.transition,
+          imageModel: shot.imageModel,
+          videoModel: shot.videoModel,
+          characters: shot.characters,
+          location: shot.location,
+        };
+      }
+      
       const response = await fetch('/api/narrative/shots/generate-image', {
         method: 'POST',
         headers: {
@@ -410,6 +585,11 @@ export function NarrativeWorkflow({
         body: JSON.stringify(requestBody),
         credentials: 'include',
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to regenerate image`);
+      }
       
       const data = await response.json();
       
@@ -423,13 +603,63 @@ export function NarrativeWorkflow({
       }
       
       // Update shotVersions with the updated version
+      // Handle both updating existing version and creating new one
       if (data.version) {
-        const updatedVersions = currentVersions.map(v => 
-          v.id === data.version.id ? data.version : v
-        );
-        onShotVersionsChange({
+        const existingVersions = shotVersions[shotId] || [];
+        
+        // Ensure version has all required fields
+        const versionToUpdate = {
+          ...data.version,
+          // Ensure image URLs are preserved if they exist
+          imageUrl: data.imageUrl || data.version.imageUrl || null,
+          startFrameUrl: data.startFrameUrl || data.version.startFrameUrl || null,
+          endFrameUrl: data.endFrameUrl || data.version.endFrameUrl || null,
+        };
+        
+        // Check if this version already exists (when updating an existing version)
+        const versionIndex = existingVersions.findIndex(v => v.id === versionToUpdate.id);
+        const wasExisting = versionIndex >= 0;
+        
+        let updatedVersions;
+        if (wasExisting) {
+          // Update existing version in place - merge to preserve any existing fields
+          updatedVersions = existingVersions.map(v => 
+            v.id === versionToUpdate.id ? { ...v, ...versionToUpdate } : v
+          );
+        } else {
+          // Add new version (shouldn't happen for regenerate, but handle it anyway)
+          updatedVersions = [...existingVersions, versionToUpdate];
+        }
+        
+        // Create a new object to ensure React detects the change
+        const updatedShotVersions = {
           ...shotVersions,
           [shotId]: updatedVersions,
+        };
+        
+        onShotVersionsChange(updatedShotVersions);
+        
+        // Update shot's currentVersionId if it changed
+        if (shot && shot.currentVersionId !== versionToUpdate.id) {
+          handleUpdateShot(shotId, { currentVersionId: versionToUpdate.id });
+        }
+        
+        console.log('[narrative-workflow] Updated shotVersions after regeneration:', {
+          shotId,
+          versionId: versionToUpdate.id,
+          hasImageUrl: !!versionToUpdate.imageUrl,
+          hasStartFrameUrl: !!versionToUpdate.startFrameUrl,
+          hasEndFrameUrl: !!versionToUpdate.endFrameUrl,
+          versionIndex,
+          wasExisting,
+        });
+      } else {
+        // Backend didn't return version - log warning but don't fail
+        console.warn('[narrative-workflow] No version returned from regenerate endpoint:', data);
+        toast({
+          title: "Image Regenerated",
+          description: "Image was regenerated but version data was not returned. Try refreshing the page.",
+          variant: "default",
         });
       }
       
@@ -747,6 +977,11 @@ export function NarrativeWorkflow({
           onScriptModelChange={onScriptModelChange}
           onNumberOfScenesChange={onNumberOfScenesChange}
           onShotsPerSceneChange={onShotsPerSceneChange}
+          onGenresChange={onGenresChange}
+          onTonesChange={onTonesChange}
+          onDurationChange={onDurationChange}
+          onLanguageChange={onLanguageChange}
+          onUserIdeaChange={onUserIdeaChange}
           onValidationChange={onValidationChange}
           onNext={onNext}
         />
@@ -828,6 +1063,10 @@ export function NarrativeWorkflow({
           continuityLocked={continuityLocked}
           continuityGroups={continuityGroups}
           isGeneratingPrompts={isGeneratingPrompts}
+          imageModel={imageModel} // Pass from step1Data
+          videoModel={videoModel} // Pass from step1Data
+          videoResolution={undefined} // Will be resolved from shot/scene hierarchy
+          aspectRatio={aspectRatio}
           onVoiceActorChange={onVoiceActorChange}
           onVoiceOverToggle={onVoiceOverToggle}
           onGenerateShot={handleGenerateShot}

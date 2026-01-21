@@ -11,11 +11,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Sparkles, Film, Globe, Clock, Palette, MessageSquare, FileText, Wand2, RectangleHorizontal, RectangleVertical, Square, Grid3x3, ChevronDown, ImageIcon, Video, AlertTriangle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { IMAGE_MODELS, getImageModelConfig } from "@/constants/image-models";
-import { VIDEO_MODELS, getVideoModelConfig, getDefaultVideoModel, getAvailableVideoModels, isModelCompatible } from "@/constants/video-models";
+import { VIDEO_MODELS, getVideoModelConfig, getDefaultVideoModel, getAvailableVideoModels, isModelCompatible, VIDEO_RESOLUTION_LABELS } from "@/constants/video-models";
 
 interface ScriptEditorProps {
   videoId?: string;
@@ -42,6 +42,11 @@ interface ScriptEditorProps {
   onShotsPerSceneChange?: (shots: number | 'auto') => void;
   onImageModelChange?: (model: string) => void;
   onVideoModelChange?: (model: string) => void;
+  onGenresChange?: (genres: string[]) => void;
+  onTonesChange?: (tones: string[]) => void;
+  onDurationChange?: (duration: string) => void;
+  onLanguageChange?: (language: string) => void;
+  onUserIdeaChange?: (userIdea: string) => void;
   onValidationChange?: (canContinue: boolean) => void;  // Called when validation state changes
   onNext: () => void;
 }
@@ -51,15 +56,7 @@ const NARRATION_STYLES = [
   { id: "first-person", label: "First Person", description: "The character narrates their own story" },
 ];
 
-const AI_MODELS = [
-  { value: "gpt-4o", label: "GPT-4o", description: "Latest OpenAI model, fast and capable", badge: "Recommended" },
-  { value: "gpt-4-turbo", label: "GPT-4 Turbo", description: "Previous generation OpenAI flagship" },
-  { value: "gpt-4", label: "GPT-4", description: "Reliable and creative" },
-  { value: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet", description: "Anthropic's most capable model" },
-  { value: "claude-3-opus", label: "Claude 3 Opus", description: "Deep reasoning and analysis" },
-  { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro", description: "Google's advanced model" },
-  { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash", description: "Fast and efficient" },
-];
+// AI_MODELS will be fetched from the API - see useQuery below
 
 const GENRES = [
   "Adventure", "Fantasy", "Sci-Fi", "Comedy", "Drama", 
@@ -140,6 +137,11 @@ export function ScriptEditor({
   onShotsPerSceneChange,
   onImageModelChange,
   onVideoModelChange,
+  onGenresChange,
+  onTonesChange,
+  onDurationChange,
+  onLanguageChange,
+  onUserIdeaChange,
   onValidationChange,
   onNext 
 }: ScriptEditorProps) {
@@ -159,6 +161,23 @@ export function ScriptEditor({
   const [imageModel, setImageModel] = useState(initialImageModel || "nano-banana");
   const [videoModel, setVideoModel] = useState(initialVideoModel || getDefaultVideoModel().value);
   const { toast } = useToast();
+
+  // Fetch available text models from API
+  const { data: textModelsData, isLoading: isLoadingTextModels } = useQuery<{ models: Array<{ value: string; label: string; description: string; provider: string; default?: boolean }> }>({
+    queryKey: ['/api/narrative/models/text'],
+    queryFn: async () => {
+      const response = await fetch('/api/narrative/models/text');
+      if (!response.ok) {
+        throw new Error('Failed to fetch text models');
+      }
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
+  // Get available text models, fallback to default list if API fails
+  const availableTextModels = textModelsData?.models || [];
+  const defaultTextModel = availableTextModels.find(m => m.default)?.value || availableTextModels[0]?.value || "gpt-4o";
 
   // Get available video models (filtered for narrative mode compatibility)
   const availableVideoModels = getAvailableVideoModels('image-reference'); // Narrative mode uses image-reference
@@ -203,21 +222,31 @@ export function ScriptEditor({
     }
   }, [scriptModel]);
 
-  // Restore settings from database
+  // Update selected model if it's not in available models and we have models loaded
   useEffect(() => {
-    if (initialDuration && initialDuration !== duration) {
+    if (availableTextModels.length > 0 && !availableTextModels.find(m => m.value === selectedModel)) {
+      // Current model not available, switch to default
+      const newModel = defaultTextModel;
+      setSelectedModel(newModel);
+      onScriptModelChange?.(newModel);
+    }
+  }, [availableTextModels, selectedModel, defaultTextModel, onScriptModelChange]);
+
+  // Restore settings from database - always update when props change
+  useEffect(() => {
+    if (initialDuration !== undefined) {
       setDuration(initialDuration);
     }
   }, [initialDuration]);
 
   useEffect(() => {
-    if (initialGenres && initialGenres.length > 0) {
+    if (initialGenres !== undefined) {
       setSelectedGenres(initialGenres);
     }
   }, [initialGenres]);
 
   useEffect(() => {
-    if (initialTones && initialTones.length > 0) {
+    if (initialTones !== undefined) {
       setSelectedTones(initialTones);
     }
   }, [initialTones]);
@@ -417,8 +446,9 @@ export function ScriptEditor({
 
   const toggleGenre = (genre: string) => {
     setSelectedGenres(prev => {
+      let newGenres;
       if (prev.includes(genre)) {
-        return prev.filter(g => g !== genre);
+        newGenres = prev.filter(g => g !== genre);
       } else if (prev.length >= 3) {
         toast({
           title: "Maximum Reached",
@@ -427,15 +457,18 @@ export function ScriptEditor({
         });
         return prev;
       } else {
-        return [...prev, genre];
+        newGenres = [...prev, genre];
       }
+      onGenresChange?.(newGenres);
+      return newGenres;
     });
   };
 
   const toggleTone = (tone: string) => {
     setSelectedTones(prev => {
+      let newTones;
       if (prev.includes(tone)) {
-        return prev.filter(t => t !== tone);
+        newTones = prev.filter(t => t !== tone);
       } else if (prev.length >= 3) {
         toast({
           title: "Maximum Reached",
@@ -444,8 +477,10 @@ export function ScriptEditor({
         });
         return prev;
       } else {
-        return [...prev, tone];
+        newTones = [...prev, tone];
       }
+      onTonesChange?.(newTones);
+      return newTones;
     });
   };
 
@@ -490,56 +525,72 @@ export function ScriptEditor({
                   <Wand2 className="w-5 h-5 text-purple-400" />
                   <Label className="text-lg font-semibold text-white">AI Model</Label>
                 </div>
-                <Select 
-                  value={selectedModel} 
-                  onValueChange={(value) => {
-                    setSelectedModel(value);
-                    onScriptModelChange?.(value);
-                  }}
-                >
-                  <SelectTrigger className="h-auto min-h-[48px] py-2.5 bg-white/5 border-white/10 text-white">
-                    <SelectValue placeholder="Select AI model">
-                      {(() => {
-                        const model = AI_MODELS.find(m => m.value === selectedModel);
-                        if (!model) return "Select AI model";
-                        return (
-                          <div className="flex items-center gap-2 w-full">
-                            <div className="flex-1 text-left">
-                              <div className="text-sm font-medium text-white">{model.label}</div>
-                              <div className="text-xs text-white/50">{model.description}</div>
+                {isLoadingTextModels ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-4 h-4 animate-spin text-white/50" />
+                    <span className="ml-2 text-sm text-white/50">Loading models...</span>
+                  </div>
+                ) : (
+                  <Select 
+                    value={selectedModel} 
+                    onValueChange={(value) => {
+                      setSelectedModel(value);
+                      onScriptModelChange?.(value);
+                    }}
+                  >
+                    <SelectTrigger className="h-auto min-h-[48px] py-2.5 bg-white/5 border-white/10 text-white">
+                      <SelectValue placeholder="Select AI model">
+                        {(() => {
+                          const model = availableTextModels.find(m => m.value === selectedModel);
+                          if (!model) return "Select AI model";
+                          return (
+                            <div className="flex items-center gap-2 w-full">
+                              <div className="flex-1 text-left">
+                                <div className="text-sm font-medium text-white">{model.label}</div>
+                                <div className="text-xs text-white/50">{model.description}</div>
+                              </div>
+                              {model.default && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 border-purple-500/50 text-purple-300 flex-shrink-0">
+                                  Default
+                                </Badge>
+                              )}
                             </div>
-                            {model.badge && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 border-purple-500/50 text-purple-300 flex-shrink-0">
-                                {model.badge}
-                              </Badge>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[400px] bg-[#0a0a0a] border-white/10">
-                    {AI_MODELS.map((model) => (
-                      <SelectItem 
-                        key={model.value} 
-                        value={model.value}
-                        className="py-3 focus:bg-purple-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-purple-500/30 data-[state=checked]:to-pink-500/30 data-[state=checked]:text-white"
-                      >
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{model.label}</span>
-                            {model.badge && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-500/20 border-purple-500/50 text-purple-300">
-                                {model.badge}
-                              </Badge>
-                            )}
-                          </div>
-                          <span className="text-xs text-white/50">{model.description}</span>
+                          );
+                        })()}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[400px] bg-[#0a0a0a] border-white/10">
+                      {availableTextModels.length === 0 ? (
+                        <div className="p-4 text-sm text-white/50 text-center">
+                          No text models available. Please configure API keys.
                         </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      ) : (
+                        availableTextModels.map((model) => (
+                          <SelectItem 
+                            key={model.value} 
+                            value={model.value}
+                            className="py-3 focus:bg-purple-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-purple-500/30 data-[state=checked]:to-pink-500/30 data-[state=checked]:text-white"
+                          >
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{model.label}</span>
+                                {model.default && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-500/20 border-purple-500/50 text-purple-300">
+                                    Default
+                                  </Badge>
+                                )}
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-white/10 border-white/20 text-white/70">
+                                  {model.provider}
+                                </Badge>
+                              </div>
+                              <span className="text-xs text-white/50">{model.description}</span>
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
               </CardContent>
             </Card>
 
@@ -813,7 +864,10 @@ export function ScriptEditor({
                   {DURATIONS.map((dur) => (
                     <button
                       key={dur.value}
-                      onClick={() => setDuration(dur.value)}
+                      onClick={() => {
+                        setDuration(dur.value);
+                        onDurationChange?.(dur.value);
+                      }}
                       className={cn(
                         "px-3 py-2 rounded-lg border text-sm font-medium transition-all",
                         duration === dur.value
@@ -840,7 +894,10 @@ export function ScriptEditor({
                   {LANGUAGES.map((lang) => (
                     <button
                       key={lang}
-                      onClick={() => setLanguage(lang)}
+                      onClick={() => {
+                        setLanguage(lang);
+                        onLanguageChange?.(lang);
+                      }}
                       className={cn(
                         "px-3 py-1.5 rounded-lg border text-xs font-medium transition-all hover-elevate",
                         language === lang
@@ -1077,7 +1134,11 @@ export function ScriptEditor({
             <Textarea
               placeholder="Write a brief story idea or outline... AI will expand it into a full script."
               value={storyIdea}
-              onChange={(e) => setStoryIdea(e.target.value)}
+              onChange={(e) => {
+                const newValue = e.target.value;
+                setStoryIdea(newValue);
+                onUserIdeaChange?.(newValue);
+              }}
               className={cn(
                 "min-h-[120px] resize-none bg-white/5 border-white/10 text-white",
                 "focus:outline-none focus:border-purple-500/50 transition-all",

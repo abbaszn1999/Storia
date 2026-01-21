@@ -18,3 +18,13 @@ export { analyzeLocations } from './step-2-elements/location-analyzer';
 export { generateScenes } from './step-3-scenes/scene-generator';
 export { generateShots } from './step-3-scenes/shot-generator';
 
+// Step 4: Storyboard Phase
+export { 
+  generatePromptsForScene,
+  buildCharacterAnchors,
+  buildLocationAnchors,
+  buildStyleAnchor,
+} from './step-4-storyboard/unified-prompt-producer';
+export { generateStoryboardImage } from './step-4-storyboard/image-generator';
+
+export { generateVideo } from './step-4-storyboard/video-generator';

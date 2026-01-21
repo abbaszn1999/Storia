@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
+import { randomUUID } from 'crypto';
 import { storage } from '../../../storage';
 import { CHARACTER_VLOG_CONFIG } from '../config';
 import { isAuthenticated, getCurrentUserId } from '../../../auth';
 import { bunnyStorage, buildVideoModePath } from '../../../storage/bunny-storage';
-import { generateScript, analyzeCharacters, analyzeLocations, generateScenes, generateShots } from '../agents';
-import type { Step1Data, Step2Data, Step3Data, ReferenceModeCode, ScriptGeneratorInput, CharacterAnalyzerInput, LocationAnalyzerInput, SceneGeneratorInput, ShotGeneratorInput } from '../types';
+import { generateScript, analyzeCharacters, analyzeLocations, generateScenes, generateShots, generatePromptsForScene, buildCharacterAnchors, buildLocationAnchors, buildStyleAnchor, generateStoryboardImage, generateVideo } from '../agents';
+import type { Step1Data, Step2Data, Step3Data, Step4Data, ReferenceModeCode, ScriptGeneratorInput, CharacterAnalyzerInput, LocationAnalyzerInput, SceneGeneratorInput, ShotGeneratorInput, UnifiedPromptProducerSceneInput } from '../types';
 import { convertReferenceModeToCode } from '../types';
 import { VIDEO_MODEL_CONFIGS } from '../../../ai/config';
 import { convertReferenceModeCode } from '../types';
@@ -24,6 +25,118 @@ const router = Router();
 // ═══════════════════════════════════════════════════════════════════════════════
 // UTILITY FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Migrate continuity flags to continuity groups for existing videos
+ * Converts isLinkedToPrevious/isFirstInGroup flags to ContinuityGroup objects
+ */
+function migrateFlagsToGroups(
+  shots: Record<string, any[]>,
+  referenceMode: '1F' | '2F' | 'AI'
+): Record<string, any[]> {
+  // No groups in 1F mode
+  if (referenceMode === '1F') {
+    return {};
+  }
+
+  const allGroups: Record<string, any[]> = {};
+  const now = new Date();
+
+  for (const [sceneId, sceneShots] of Object.entries(shots)) {
+    if (!Array.isArray(sceneShots) || sceneShots.length === 0) {
+      continue;
+    }
+
+    const groups: any[] = [];
+    let currentGroup: Array<{ id: string; shotType: string }> | null = null;
+    let groupNumber = 1;
+
+    for (let i = 0; i < sceneShots.length; i++) {
+      const shot = sceneShots[i];
+      const isLinked = shot.isLinkedToPrevious === true;
+      const isFirst = shot.isFirstInGroup === true;
+      const shotType = shot.shotType || (shot.cameraShot ? 'start-end' : 'image-ref');
+
+      // Start a new group if this shot is first in group
+      if (isFirst) {
+        // Finalize previous group if exists
+        if (currentGroup && currentGroup.length >= 2) {
+          // Validate first shot is 2F (for 2F and AI modes)
+          const firstShot = sceneShots.find((s: any) => s.id === currentGroup![0].id);
+          if (firstShot && (firstShot.shotType === 'start-end' || firstShot.shotType === '2F')) {
+            groups.push({
+              id: randomUUID(),
+              sceneId,
+              groupNumber: groupNumber++,
+              shotIds: currentGroup.map(s => s.id),
+              description: `Continuity group with ${currentGroup.length} shots (migrated from flags)`,
+              transitionType: 'flow',
+              status: 'proposed',
+              editedBy: null,
+              editedAt: null,
+              approvedAt: null,
+              createdAt: now,
+            });
+          }
+        }
+        // Start new group
+        currentGroup = [{ id: shot.id, shotType }];
+      }
+      // Add to current group if linked to previous
+      else if (isLinked && currentGroup) {
+        currentGroup.push({ id: shot.id, shotType });
+      }
+      // Not linked - finalize current group if exists
+      else {
+        if (currentGroup && currentGroup.length >= 2) {
+          const firstShot = sceneShots.find((s: any) => s.id === currentGroup![0].id);
+          if (firstShot && (firstShot.shotType === 'start-end' || firstShot.shotType === '2F')) {
+            groups.push({
+              id: randomUUID(),
+              sceneId,
+              groupNumber: groupNumber++,
+              shotIds: currentGroup.map(s => s.id),
+              description: `Continuity group with ${currentGroup.length} shots (migrated from flags)`,
+              transitionType: 'flow',
+              status: 'proposed',
+              editedBy: null,
+              editedAt: null,
+              approvedAt: null,
+              createdAt: now,
+            });
+          }
+        }
+        currentGroup = null;
+      }
+    }
+
+    // Finalize last group if exists
+    if (currentGroup && currentGroup.length >= 2) {
+      const firstShot = sceneShots.find((s: any) => s.id === currentGroup![0].id);
+      if (firstShot && (firstShot.shotType === 'start-end' || firstShot.shotType === '2F')) {
+        groups.push({
+          id: randomUUID(),
+          sceneId,
+          groupNumber: groupNumber++,
+          shotIds: currentGroup.map(s => s.id),
+          description: `Continuity group with ${currentGroup.length} shots (migrated from flags)`,
+          transitionType: 'flow',
+          status: 'proposed',
+          editedBy: null,
+          editedAt: null,
+          approvedAt: null,
+          createdAt: now,
+        });
+      }
+    }
+
+    if (groups.length > 0) {
+      allGroups[sceneId] = groups;
+    }
+  }
+
+  return allGroups;
+}
 
 /**
  * Convert frontend display model name to backend model ID
@@ -100,6 +213,7 @@ router.post('/videos', async (req: Request, res: Response) => {
 /**
  * GET /api/character-vlog/videos/:id
  * Get video by ID
+ * Applies migration for continuity groups if needed
  */
 router.get('/videos/:id', async (req: Request, res: Response) => {
   try {
@@ -108,6 +222,100 @@ router.get('/videos/:id', async (req: Request, res: Response) => {
     
     if (!video) {
       return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Log what's being loaded for debugging currentVersionId issues
+    const step3Data = video.step3Data as Step3Data | undefined;
+    if (step3Data?.shots) {
+      const totalShots = Object.values(step3Data.shots).flat().length;
+      const shotsWithVersionId = Object.values(step3Data.shots).flat().filter((s: any) => s.currentVersionId).length;
+      console.log('[character-vlog:routes] Loading video - step3Data shots:', {
+        videoId: id,
+        totalShots,
+        shotsWithVersionId,
+        sampleShot: Object.values(step3Data.shots)[0]?.[0],
+      });
+    }
+
+    // Apply migration if step3Data exists but continuityGroups is empty and shots have flags
+    if (step3Data && step3Data.shots) {
+      const continuityGroups = step3Data.continuityGroups || {};
+      const hasEmptyGroups = Object.keys(continuityGroups).length === 0 || 
+        Object.values(continuityGroups).every(groups => !Array.isArray(groups) || groups.length === 0);
+      
+      // Check if any shots have continuity flags
+      const hasFlags = Object.values(step3Data.shots).some(sceneShots => 
+        Array.isArray(sceneShots) && sceneShots.some((shot: any) => 
+          shot.isLinkedToPrevious === true || shot.isFirstInGroup === true
+        )
+      );
+
+      if (hasEmptyGroups && hasFlags) {
+        // Get reference mode from step1Data
+        const step1Data = video.step1Data as Step1Data | undefined;
+        const referenceModeDisplay = step1Data?.referenceMode;
+        const referenceMode = referenceModeDisplay ? convertReferenceModeToCode(referenceModeDisplay) : '1F';
+
+        console.log('[character-vlog:routes] Migrating continuity flags to groups:', {
+          videoId: id,
+          referenceMode,
+        });
+
+        // Migrate flags to groups
+        const migratedGroups = migrateFlagsToGroups(step3Data.shots, referenceMode);
+        
+        if (Object.keys(migratedGroups).length > 0) {
+          // Serialize dates for storage
+          const serializedGroups: Record<string, any[]> = {};
+          for (const [sceneId, sceneGroups] of Object.entries(migratedGroups)) {
+            serializedGroups[sceneId] = sceneGroups.map(group => ({
+              ...group,
+              createdAt: group.createdAt instanceof Date ? group.createdAt.toISOString() : group.createdAt,
+              editedAt: group.editedAt instanceof Date ? group.editedAt.toISOString() : group.editedAt,
+              approvedAt: group.approvedAt instanceof Date ? group.approvedAt.toISOString() : group.approvedAt,
+            }));
+          }
+
+          // Update video with migrated groups
+          const updatedStep3Data: Step3Data = {
+            ...step3Data,
+            continuityGroups: serializedGroups,
+          };
+
+          await storage.updateVideo(id, { step3Data: updatedStep3Data });
+          
+          // Update video object for response
+          video.step3Data = updatedStep3Data;
+
+          console.log('[character-vlog:routes] Migration completed:', {
+            videoId: id,
+            groupsCreated: Object.values(serializedGroups).flat().length,
+          });
+        }
+      }
+    }
+    
+    // Log step4Data for debugging - terminal logging
+    const step4Data = video.step4Data as any;
+    if (step4Data && step4Data.shotVersions) {
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log('[LOADING VIDEO FROM DATABASE]');
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log(`Video ID: ${id}`);
+      console.log(`Total Shot Versions: ${Object.keys(step4Data.shotVersions).length}`);
+      console.log(`Total Shots with Prompts: ${step4Data.shots ? Object.keys(step4Data.shots).length : 0}`);
+      console.log('-------------------------------------------------------------------');
+      console.log('Sample Shot Versions:');
+      const sampleVersions = Object.entries(step4Data.shotVersions).slice(0, 3);
+      sampleVersions.forEach(([shotId, versions]: [string, any]) => {
+        const latestVersion = Array.isArray(versions) ? versions[versions.length - 1] : versions;
+        console.log(`  Shot: ${shotId.substring(0, 30)}...`);
+        console.log(`    - Image URL: ${latestVersion.imageUrl ? '✓' : '✗'}`);
+        console.log(`    - Start Frame URL: ${latestVersion.startFrameUrl ? '✓' : '✗'}`);
+        console.log(`    - End Frame URL: ${latestVersion.endFrameUrl ? '✓' : '✗'}`);
+        console.log(`    - Has Prompts: ${latestVersion.imagePrompt || latestVersion.startFramePrompt || latestVersion.endFramePrompt ? '✓' : '✗'}`);
+      });
+      console.log('═══════════════════════════════════════════════════════════════════');
     }
     
     res.json(video);
@@ -1332,6 +1540,7 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
     const videoModelDurations = modelConfig?.durations || [2, 4, 5, 6, 8, 10, 12];
 
     const allShots: Record<string, any[]> = {};
+    const allContinuityGroups: Record<string, any[]> = {};
     let totalShotCost = 0;
 
     for (const scene of generatedScenes) {
@@ -1378,6 +1587,19 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
 
       const shotResult = await generateShots(shotGeneratorInput, userId, workspaceId);
       
+      console.log('[character-vlog:routes] Shot generation result:', {
+        sceneId: scene.id,
+        shotCount: shotResult.shots.length,
+        hasContinuityGroups: !!shotResult.continuityGroups,
+        continuityGroupsLength: shotResult.continuityGroups?.length || 0,
+        referenceMode,
+        firstShotFlags: shotResult.shots[0] ? {
+          isLinkedToPrevious: (shotResult.shots[0] as any).isLinkedToPrevious,
+          isFirstInGroup: (shotResult.shots[0] as any).isFirstInGroup,
+          shotType: shotResult.shots[0].shotType,
+        } : null,
+      });
+      
       // Track cost
       if (shotResult.cost) {
         totalShotCost += shotResult.cost;
@@ -1394,13 +1616,76 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
         cameraShot: shot.cameraShot,  // Keep 'cameraShot' for frontend compatibility
         duration: shot.duration,
         description: shot.description || null,
-        isLinkedToPrevious: shot.isLinkedToPrevious || false,
+        // isLinkedToPrevious removed - continuity is now handled via continuityGroups
         referenceTags: shot.referenceTags || [],
         createdAt: now,
         updatedAt: now,
       }));
 
       allShots[scene.id] = generatedShots;
+
+      // Create continuity groups from shotResult if available
+      console.log('[character-vlog:routes] Checking for continuity groups:', {
+        sceneId: scene.id,
+        hasContinuityGroups: !!shotResult.continuityGroups,
+        continuityGroupsLength: shotResult.continuityGroups?.length || 0,
+        continuityGroups: shotResult.continuityGroups,
+      });
+      
+      if (shotResult.continuityGroups && shotResult.continuityGroups.length > 0) {
+        // Split large groups into pairs of 2 consecutive shots for granular approval
+        const sceneGroups: any[] = [];
+        let groupNumber = 1;
+        
+        shotResult.continuityGroups.forEach((group: any) => {
+          // Map shot indices to shot IDs
+          const shotIds = group.shotIndices.map((index: number) => generatedShots[index].id);
+          
+          // If group has more than 2 shots, split into consecutive pairs
+          if (shotIds.length > 2) {
+            for (let i = 0; i < shotIds.length - 1; i++) {
+              sceneGroups.push({
+                id: randomUUID(),
+                sceneId: scene.id,
+                groupNumber: groupNumber++,
+                shotIds: [shotIds[i], shotIds[i + 1]], // Exactly 2 consecutive shots
+                description: group.description || null,
+                transitionType: group.transitionType || null,
+                status: 'proposed',
+                editedBy: null,
+                editedAt: null,
+                approvedAt: null,
+                createdAt: now,
+              });
+            }
+          } else if (shotIds.length === 2) {
+            // Group already has exactly 2 shots
+            sceneGroups.push({
+              id: randomUUID(),
+              sceneId: scene.id,
+              groupNumber: groupNumber++,
+              shotIds,
+              description: group.description || null,
+              transitionType: group.transitionType || null,
+              status: 'proposed',
+              editedBy: null,
+              editedAt: null,
+              approvedAt: null,
+              createdAt: now,
+            });
+          }
+          // Skip groups with only 1 shot (invalid continuity)
+        });
+        
+        allContinuityGroups[scene.id] = sceneGroups;
+        
+        console.log('[character-vlog:routes] Continuity groups created for scene:', {
+          sceneId: scene.id,
+          sceneName: scene.name,
+          groupCount: sceneGroups.length,
+          originalGroups: shotResult.continuityGroups.length,
+        });
+      }
 
       console.log('[character-vlog:routes] Shots generated for scene:', {
         sceneId: scene.id,
@@ -1424,12 +1709,23 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
       }));
     }
 
+    // Serialize continuity groups (with serialized dates)
+    const serializedContinuityGroups: Record<string, any[]> = {};
+    for (const [sceneId, sceneGroups] of Object.entries(allContinuityGroups)) {
+      serializedContinuityGroups[sceneId] = sceneGroups.map(group => ({
+        ...group,
+        createdAt: group.createdAt instanceof Date ? group.createdAt.toISOString() : group.createdAt,
+        editedAt: group.editedAt instanceof Date ? group.editedAt.toISOString() : group.editedAt,
+        approvedAt: group.approvedAt instanceof Date ? group.approvedAt.toISOString() : group.approvedAt,
+      }));
+    }
+
     // Save to step3Data (aligned with ambient-visual structure)
     const step3Data: Step3Data = {
       scenes: serializedScenes,
       shots: serializedShots,
       continuityLocked: false,
-      continuityGroups: {},
+      continuityGroups: serializedContinuityGroups,
     };
 
     // Get existing video to merge step3Data
@@ -1462,6 +1758,7 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
     res.json({
       scenes: serializedScenes,
       shots: serializedShots,
+      continuityGroups: serializedContinuityGroups,
       cost: totalCost,
     });
   } catch (error) {
@@ -1572,6 +1869,7 @@ router.patch('/videos/:id/step/3/continue', isAuthenticated, async (req: Request
 
     let scenes = step3Data.scenes || [];
     let allShots: Record<string, any[]> = {};
+    const allContinuityGroups: Record<string, any[]> = {};
 
     // Step 1: Generate scenes if they don't exist
     if (scenes.length === 0) {
@@ -1671,13 +1969,69 @@ router.patch('/videos/:id/step/3/continue', isAuthenticated, async (req: Request
           cameraShot: shot.cameraShot,  // Keep for frontend compatibility
           duration: shot.duration,
           description: shot.description || null,
-          isLinkedToPrevious: shot.isLinkedToPrevious || false,
+          // isLinkedToPrevious removed - continuity is now handled via continuityGroups
           referenceTags: shot.referenceTags || [],
           createdAt: shotNow,
           updatedAt: shotNow,
         }));
 
         allShots[scene.id] = generatedShots;
+
+        // Create continuity groups from shotResult if available
+        if (shotResult.continuityGroups && shotResult.continuityGroups.length > 0) {
+          // Split large groups into pairs of 2 consecutive shots for granular approval
+          const sceneGroups: any[] = [];
+          let groupNumber = 1;
+          
+          shotResult.continuityGroups.forEach((group: any) => {
+            // Map shot indices to shot IDs
+            const shotIds = group.shotIndices.map((index: number) => generatedShots[index].id);
+            
+            // If group has more than 2 shots, split into consecutive pairs
+            if (shotIds.length > 2) {
+              for (let i = 0; i < shotIds.length - 1; i++) {
+                sceneGroups.push({
+                  id: randomUUID(),
+                  sceneId: scene.id,
+                  groupNumber: groupNumber++,
+                  shotIds: [shotIds[i], shotIds[i + 1]], // Exactly 2 consecutive shots
+                  description: group.description || null,
+                  transitionType: group.transitionType || null,
+                  status: 'proposed',
+                  editedBy: null,
+                  editedAt: null,
+                  approvedAt: null,
+                  createdAt: shotNow,
+                });
+              }
+            } else if (shotIds.length === 2) {
+              // Group already has exactly 2 shots
+              sceneGroups.push({
+                id: randomUUID(),
+                sceneId: scene.id,
+                groupNumber: groupNumber++,
+                shotIds,
+                description: group.description || null,
+                transitionType: group.transitionType || null,
+                status: 'proposed',
+                editedBy: null,
+                editedAt: null,
+                approvedAt: null,
+                createdAt: shotNow,
+              });
+            }
+            // Skip groups with only 1 shot (invalid continuity)
+          });
+          
+          allContinuityGroups[scene.id] = sceneGroups;
+          
+          console.log('[character-vlog:routes] Continuity groups created for scene:', {
+            sceneId: scene.id,
+            sceneName: scene.name || scene.title,
+            groupCount: sceneGroups.length,
+            originalGroups: shotResult.continuityGroups.length,
+          });
+        }
 
         console.log('[character-vlog:routes] Shots generated for scene:', {
           sceneId: scene.id,
@@ -1710,11 +2064,26 @@ router.patch('/videos/:id/step/3/continue', isAuthenticated, async (req: Request
       }));
     }
 
+    // Serialize continuity groups (with serialized dates)
+    const serializedContinuityGroups: Record<string, any[]> = {};
+    for (const [sceneId, sceneGroups] of Object.entries(allContinuityGroups)) {
+      serializedContinuityGroups[sceneId] = sceneGroups.map(group => ({
+        ...group,
+        createdAt: group.createdAt instanceof Date ? group.createdAt.toISOString() : group.createdAt,
+        editedAt: group.editedAt instanceof Date ? group.editedAt.toISOString() : group.editedAt,
+        approvedAt: group.approvedAt instanceof Date ? group.approvedAt.toISOString() : group.approvedAt,
+      }));
+    }
+
+    // Merge with existing continuity groups (preserve user edits/approvals)
+    const existingContinuityGroups = step3Data.continuityGroups || {};
+    const mergedContinuityGroups = { ...existingContinuityGroups, ...serializedContinuityGroups };
+
     const updatedStep3Data: Step3Data = {
       scenes: serializedScenes,
       shots: serializedShots,
       continuityLocked: false,
-      continuityGroups: {},
+      continuityGroups: mergedContinuityGroups,
     };
 
     // Update video in database
@@ -1739,6 +2108,7 @@ router.patch('/videos/:id/step/3/continue', isAuthenticated, async (req: Request
       success: true,
       scenes: updatedStep3Data.scenes,
       shots: allShots,
+      continuityGroups: mergedContinuityGroups,
       message: 'Scenes and shots generated successfully',
     });
   } catch (error) {
@@ -1765,8 +2135,8 @@ router.patch('/videos/:id/step/3/settings', isAuthenticated, async (req: Request
     }
 
     const { id: videoId } = req.params;
-    const { scenes } = req.body as {
-      scenes: Array<{
+    const { scenes, shots, continuityGroups, continuityLocked } = req.body as {
+      scenes?: Array<{
         id: string;
         name: string;
         description: string;
@@ -1774,6 +2144,9 @@ router.patch('/videos/:id/step/3/settings', isAuthenticated, async (req: Request
         actType?: 'hook' | 'intro' | 'main' | 'outro' | 'custom';
         shots?: Array<any>;
       }>;
+      shots?: Record<string, any[]>;
+      continuityGroups?: Record<string, any[]>;
+      continuityLocked?: boolean;
     };
 
     if (!videoId) {
@@ -1786,50 +2159,136 @@ router.patch('/videos/:id/step/3/settings', isAuthenticated, async (req: Request
       return res.status(404).json({ error: 'Video not found' });
     }
 
-    // Serialize Date objects to ISO strings for JSONB storage
-    // Convert frontend format (with 'name') to ambient-visual compatible format (with 'title')
-    const now = new Date();
-    const scenesToSave = scenes.map(scene => ({
-      ...scene,
-      title: (scene as any).name || (scene as any).title || '',  // Ensure 'title' exists
-      name: (scene as any).name || (scene as any).title || '',  // Keep 'name' for frontend
-      videoId: videoId,
-      sceneNumber: (scene as any).sceneNumber || scenes.indexOf(scene) + 1,
-      createdAt: (scene as any).createdAt instanceof Date 
-        ? (scene as any).createdAt.toISOString() 
-        : ((scene as any).createdAt || now.toISOString()),
-    }));
-
     // Get existing step3Data or create new
     const existingStep3Data = (video.step3Data as Step3Data) || {};
     
-    // Update step3Data with new scenes (shots remain in shots Record, not in scenes)
+    // Update step3Data
     const updatedStep3Data: Step3Data = {
       ...existingStep3Data,
-      scenes: scenesToSave,
-      // Preserve existing shots if not provided
-      shots: existingStep3Data.shots || {},
-      continuityLocked: existingStep3Data.continuityLocked || false,
-      continuityGroups: existingStep3Data.continuityGroups || {},
+      // Update scenes if provided
+      ...(scenes && {
+        scenes: scenes.map(scene => {
+          const now = new Date();
+          return {
+            ...scene,
+            title: (scene as any).name || (scene as any).title || '',
+            name: (scene as any).name || (scene as any).title || '',
+            videoId: videoId,
+            sceneNumber: (scene as any).sceneNumber || scenes.indexOf(scene) + 1,
+            createdAt: (scene as any).createdAt instanceof Date 
+              ? (scene as any).createdAt.toISOString() 
+              : ((scene as any).createdAt || now.toISOString()),
+          };
+        }),
+      }),
+      // Update shots if provided (remove isLinkedToPrevious flag)
+      shots: shots ? (() => {
+        const cleanedShots: Record<string, any[]> = {};
+        let totalShots = 0;
+        let shotsWithVersionId = 0;
+        
+        for (const [sceneId, sceneShots] of Object.entries(shots)) {
+          cleanedShots[sceneId] = sceneShots.map((shot: any) => {
+            totalShots++;
+            if (shot.currentVersionId) {
+              shotsWithVersionId++;
+            }
+            const { isLinkedToPrevious, isFirstInGroup, ...cleanedShot } = shot;
+            return cleanedShot;
+          });
+        }
+        
+        console.log('[character-vlog:routes] Saving shots with currentVersionId:', {
+          totalShots,
+          shotsWithVersionId,
+          sampleShot: Object.values(cleanedShots)[0]?.[0],
+          hasCurrentVersionId: !!Object.values(cleanedShots)[0]?.[0]?.currentVersionId,
+        });
+        
+        return cleanedShots;
+      })() : (existingStep3Data.shots || {}),
+      // Update continuityLocked if provided
+      continuityLocked: continuityLocked !== undefined ? continuityLocked : (existingStep3Data.continuityLocked || false),
+      // Update continuityGroups if provided (serialize dates)
+      continuityGroups: continuityGroups ? (() => {
+        const serialized: Record<string, any[]> = {};
+        const now = new Date();
+        for (const [sceneId, sceneGroups] of Object.entries(continuityGroups)) {
+          serialized[sceneId] = sceneGroups.map(group => {
+            // Auto-approve all proposed groups if continuityLocked is being set to true
+            const shouldAutoApprove = continuityLocked === true && group.status === 'proposed';
+            
+            return {
+              ...group,
+              // Auto-approve if continuityLocked is true and status is still 'proposed'
+              status: shouldAutoApprove ? 'approved' : group.status,
+              approvedAt: shouldAutoApprove 
+                ? now.toISOString() 
+                : (group.approvedAt instanceof Date ? group.approvedAt.toISOString() : (group.approvedAt || null)),
+              createdAt: group.createdAt instanceof Date ? group.createdAt.toISOString() : (group.createdAt || new Date().toISOString()),
+              editedAt: group.editedAt instanceof Date ? group.editedAt.toISOString() : (group.editedAt || null),
+            };
+          });
+        }
+        
+        if (continuityLocked === true) {
+          const totalGroups = Object.values(serialized).flat().length;
+          const approvedGroups = Object.values(serialized).flat().filter((g: any) => g.status === 'approved').length;
+          console.log('[character-vlog:routes] Auto-approved continuity groups on lock:', {
+            totalGroups,
+            approvedGroups,
+            autoApproved: approvedGroups,
+          });
+        }
+        
+        return serialized;
+      })() : (existingStep3Data.continuityGroups || {}),
     };
+
+    // Clean existing shots of isLinkedToPrevious flag if continuityGroups exist
+    // This ensures shots don't retain the deprecated flag when groups are used
+    if (continuityGroups && Object.keys(continuityGroups).length > 0) {
+      const cleanedShots: Record<string, any[]> = {};
+      for (const [sceneId, sceneShots] of Object.entries(updatedStep3Data.shots)) {
+        cleanedShots[sceneId] = sceneShots.map((shot: any) => {
+          const { isLinkedToPrevious, isFirstInGroup, ...cleanedShot } = shot;
+          return cleanedShot;
+        });
+      }
+      updatedStep3Data.shots = cleanedShots;
+    }
 
     // Update video in database
     await storage.updateVideo(videoId, {
       step3Data: updatedStep3Data,
     });
 
-    console.log('[character-vlog:routes] Scenes saved to step3Data:', {
+    // Log what was saved including currentVersionId status
+    const savedShotsSummary = shots ? (() => {
+      const totalShots = Object.values(updatedStep3Data.shots).flat().length;
+      const shotsWithVersionId = Object.values(updatedStep3Data.shots).flat().filter((s: any) => s.currentVersionId).length;
+      return { totalShots, shotsWithVersionId };
+    })() : null;
+    
+    console.log('[character-vlog:routes] Step 3 data saved:', {
       videoId,
-      sceneCount: scenesToSave.length,
+      sceneCount: scenes?.length || 'unchanged',
+      shotsCount: savedShotsSummary?.totalShots || 'unchanged',
+      shotsWithVersionId: savedShotsSummary?.shotsWithVersionId || 'unchanged',
+      continuityGroupsCount: continuityGroups ? Object.values(continuityGroups).flat().length : 'unchanged',
+      continuityLocked: continuityLocked !== undefined ? continuityLocked : 'unchanged',
+      shotsCleaned: continuityGroups && Object.keys(continuityGroups).length > 0,
     });
 
     res.json({
       success: true,
-      sceneCount: scenesToSave.length,
+      step3Data: updatedStep3Data,
+      sceneCount: scenes?.length,
+      continuityGroupsCount: continuityGroups ? Object.values(continuityGroups).flat().length : undefined,
     });
   } catch (error) {
-    console.error('[character-vlog:routes] Failed to save scenes:', error);
-    res.status(500).json({ error: 'Failed to save scenes' });
+    console.error('[character-vlog:routes] Failed to save step 3 data:', error);
+    res.status(500).json({ error: 'Failed to save step 3 data' });
   }
 });
 
@@ -2737,6 +3196,1504 @@ router.post('/locations/:locationId/generate-image', isAuthenticated, async (req
   } catch (error) {
     console.error('[character-vlog:routes] Location image generation error:', error);
     res.status(500).json({ error: 'Failed to generate location image' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 4: STORYBOARD PHASE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/character-vlog/storyboard/generate-prompts
+ * Generate image and video prompts for all shots in a scene
+ * 
+ * Implements explicit inheritance for continuity:
+ * - Filters approved continuity groups only
+ * - Sorts shots to match continuity order
+ * - Identifies inheritance needs before AI call
+ * - For 1F linked: inherits image prompt, generates only video
+ * - For 2F linked: inherits start from previous end, generates only end+video
+ * - Merges inherited prompts after AI generation
+ */
+router.post('/storyboard/generate-prompts', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { videoId, sceneId } = req.body as {
+      videoId: string;
+      sceneId: string;
+    };
+
+    if (!videoId || !sceneId) {
+      return res.status(400).json({ error: 'videoId and sceneId are required' });
+    }
+
+    console.log('[character-vlog:routes] Storyboard prompt generation request:', {
+      videoId,
+      sceneId,
+      userId,
+    });
+
+    // Fetch video to get all step data
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    const step1Data = (video.step1Data as Step1Data) || {};
+    const step2Data = (video.step2Data as Step2Data) || {};
+    const step3Data = (video.step3Data as Step3Data) || {};
+    const step4Data = (video.step4Data as Step4Data) || { shots: {} };
+
+    // Find scene and shots
+    const scenes = step3Data.scenes || [];
+    const scene = scenes.find((s: any) => s.id === sceneId);
+    if (!scene) {
+      return res.status(404).json({ error: 'Scene not found' });
+    }
+
+    const sceneShots = step3Data.shots?.[sceneId] || [];
+    if (sceneShots.length === 0) {
+      return res.status(400).json({ error: 'No shots found for this scene' });
+    }
+
+    console.log('[character-vlog:routes] Processing scene:', {
+      sceneId,
+      sceneName: scene.name || scene.title,
+      shotCount: sceneShots.length,
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // CONTINUITY HANDLING: Filter Approved Groups, Sort Shots, Identify Inheritance
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    // Step 1: Filter approved continuity groups only
+    const allSceneGroups = step3Data.continuityGroups?.[sceneId] || [];
+    const approvedSceneGroups = allSceneGroups.filter((group: any) => {
+      const status = group.status || 'approved'; // Default for backward compatibility
+      return status === 'approved';
+    });
+
+    console.log('[character-vlog:routes] Continuity groups:', {
+      sceneId,
+      totalGroups: allSceneGroups.length,
+      approvedGroups: approvedSceneGroups.length,
+      approvedGroupIds: approvedSceneGroups.map((g: any) => g.id),
+    });
+
+    // Step 2: Build continuity map from APPROVED groups with previousShotId tracking
+    const continuityMap = new Map<
+      string,
+      {
+        isLinkedToPrevious: boolean;
+        isFirstInGroup: boolean;
+        groupId?: string;
+        previousShotId?: string; // Track previous shot ID for inheritance
+      }
+    >();
+
+    for (const group of approvedSceneGroups) {
+      const shotIds = group.shotIds || [];
+      
+      for (let i = 0; i < shotIds.length; i++) {
+        const shotId = shotIds[i];
+        const isFirstInGroup = i === 0;
+        const isLinkedToPrevious = i > 0;
+        const previousShotId = i > 0 ? shotIds[i - 1] : undefined;
+
+        continuityMap.set(shotId, {
+          isLinkedToPrevious,
+          isFirstInGroup,
+          groupId: group.id,
+          previousShotId,
+        });
+      }
+    }
+
+    // Step 3: Sort shots to match continuity group order (critical for inheritance)
+    const sortedSceneShots = [...sceneShots].sort((a: any, b: any) => {
+      const aInGroup = continuityMap.has(a.id);
+      const bInGroup = continuityMap.has(b.id);
+      
+      // If both in groups, maintain group order
+      if (aInGroup && bInGroup) {
+        const aInfo = continuityMap.get(a.id);
+        const bInfo = continuityMap.get(b.id);
+        
+        // Same group: maintain shot order within group
+        if (aInfo && bInfo && aInfo.groupId && aInfo.groupId === bInfo.groupId) {
+          const group = approvedSceneGroups.find((g: any) => g.id === aInfo.groupId);
+          if (group) {
+            const aIndex = group.shotIds.indexOf(a.id);
+            const bIndex = group.shotIds.indexOf(b.id);
+            return aIndex - bIndex;
+          }
+        }
+      }
+      
+      // Default: maintain original order (by shotNumber)
+      return (a.shotNumber || 0) - (b.shotNumber || 0);
+    });
+
+    console.log('[character-vlog:routes] Shot order:', {
+      originalOrder: sceneShots.map((s: any) => ({ id: s.id, shotNumber: s.shotNumber })),
+      sortedOrder: sortedSceneShots.map((s: any) => ({ id: s.id, shotNumber: s.shotNumber })),
+    });
+
+    // Step 4: Process shots sequentially to identify inheritance needs
+    // Track generated prompts as we process (for inheritance chain within batch)
+    const generatedPromptsMap = new Map<string, {
+      imagePrompts: { single: string | null; start: string | null; end: string | null };
+    }>();
+
+    // Prepare shots for agent input with explicit inheritance flags
+    const shotsForAgent = sortedSceneShots.map((shot: any, index: number) => {
+      const continuityInfo = continuityMap.get(shot.id);
+      const isLinkedToPrevious = continuityInfo?.isLinkedToPrevious || false;
+      const isFirstInGroup = continuityInfo?.isFirstInGroup || false;
+      
+      // Convert shotType to frameType
+      const frameType = shot.shotType === 'image-ref' ? '1F' : shot.shotType === 'start-end' ? '2F' : '1F';
+      
+      // Determine what needs to be inherited (explicit inheritance)
+      // Trust continuity groups: if isLinkedToPrevious: true, previous shot is guaranteed to be 2F (validated in Step 3)
+      let inheritedPrompts: {
+        imagePrompt?: string;      // For 1F: inherit single image prompt from previous
+        startFramePrompt?: string; // For 2F: inherit start from previous end
+      } | undefined = undefined;
+      
+      if (isLinkedToPrevious && continuityInfo?.previousShotId) {
+        // Inheritance is determined by continuity groups - if linked, it's inherited (period)
+        // Trust continuity groups: previous shot is guaranteed to be 2F (validated in Step 3)
+        
+        // Try to get previous shot's prompts if they exist (for prompt inheritance)
+        const previousPrompts = step4Data?.shots?.[continuityInfo.previousShotId] || 
+                               generatedPromptsMap.get(continuityInfo.previousShotId);
+        
+        const hasActualPrompts = previousPrompts && previousPrompts.imagePrompts && previousPrompts.imagePrompts.end;
+        
+        if (frameType === '1F') {
+          // 1F: Inherit image prompt from previous 2F's end frame
+          inheritedPrompts = {
+            imagePrompt: (hasActualPrompts ? previousPrompts.imagePrompts.end : 'PENDING_INHERITANCE') as string,
+          };
+          console.log(`[character-vlog:routes] Shot ${shot.id} (1F linked): Will inherit image prompt from ${continuityInfo.previousShotId} end ${hasActualPrompts ? '(actual)' : '(pending)'}`);
+        } else if (frameType === '2F') {
+          // 2F: Inherit start from previous 2F's end
+          // AI will only generate: end frame + video (NOT start frame)
+          inheritedPrompts = {
+            startFramePrompt: (hasActualPrompts ? previousPrompts.imagePrompts.end : 'PENDING_INHERITANCE') as string,
+          };
+          console.log(`[character-vlog:routes] Shot ${shot.id} (2F linked): Will inherit start from ${continuityInfo.previousShotId} end ${hasActualPrompts ? '(actual)' : '(pending)'}`);
+        }
+      }
+      // If not linked, inheritedPrompts remains undefined - AI will generate all prompts
+      
+      // Legacy: Build previousShotOutput for backward compatibility (regeneration scenarios)
+      // Trust continuity groups: if linked, previous shot is 2F
+      let previousShotOutput: any = undefined;
+      if (isLinkedToPrevious && continuityInfo?.previousShotId && step4Data?.shots?.[continuityInfo.previousShotId]) {
+        const previousPrompts = step4Data.shots[continuityInfo.previousShotId];
+        // Previous shot is guaranteed to be 2F if linked, so check for end frame
+        if (previousPrompts.imagePrompts.end) {
+          previousShotOutput = {
+            lastFrameDescription: previousPrompts.imagePrompts.end,
+            visualContinuityNotes: previousPrompts.visualContinuityNotes || '',
+            imagePrompts: {
+              end: previousPrompts.imagePrompts.end,
+            },
+          };
+        }
+      }
+      
+      return {
+        shotId: shot.id,
+        shotDescription: shot.description || '',
+        frameType: frameType as '1F' | '2F',
+        cameraShot: shot.cameraMovement || shot.cameraShot || 'Medium Shot',
+        shotDuration: shot.duration || 5,
+        referenceTags: shot.referenceTags || [],
+        isFirstInGroup,
+        isLinkedToPrevious,
+        inheritedPrompts, // NEW: Explicit inheritance info
+        previousShotOutput, // Legacy: kept for backward compatibility
+      };
+    });
+
+    // Build character anchors from step2Data
+    const characterReferences = buildCharacterAnchors(
+      (step2Data.characters || []).map((char: any) => ({
+        id: char.id,
+        name: char.name,
+        appearance: char.appearance || null,
+        personality: char.personality || null,
+        imageUrl: char.imageUrl || null,
+      }))
+    );
+
+    // Build location anchors from step2Data
+    const locationReferences = buildLocationAnchors(
+      (step2Data.locations || []).map((loc: any) => ({
+        id: loc.id,
+        name: loc.name,
+        description: loc.description || null,
+        details: loc.details || null,
+        imageUrl: loc.imageUrl || null,
+      }))
+    );
+
+    // Build style anchor from step2Data
+    const styleReference = buildStyleAnchor({
+      artStyle: step2Data.artStyle || 'cinematic',
+      worldDescription: step2Data.worldDescription || '',
+      artStyleImageUrl: step2Data.styleReferenceImageUrl || undefined,
+    });
+
+    console.log('[character-vlog:routes] Built anchors:', {
+      characterCount: characterReferences.length,
+      locationCount: locationReferences.length,
+      styleAnchorLength: styleReference.anchor.length,
+    });
+
+    // Build agent input with anchors
+    const agentInput: UnifiedPromptProducerSceneInput = {
+      sceneId,
+      sceneName: scene.name || scene.title || `Scene ${scene.sceneNumber || 1}`,
+      shots: shotsForAgent,
+      characterReferences,
+      locationReferences,
+      styleReference,
+      aspectRatio: step1Data.aspectRatio || '16:9',
+    };
+
+    // Call agent
+    const workspaceId = req.headers['x-workspace-id'] as string | undefined;
+    
+    console.log('[character-vlog:routes] Calling generatePromptsForScene agent...', {
+      shotCount: agentInput.shots.length,
+      characterReferencesCount: agentInput.characterReferences.length,
+      locationReferencesCount: agentInput.locationReferences.length,
+      linkedShotsCount: agentInput.shots.filter((s: any) => s.isLinkedToPrevious).length,
+      firstInGroupCount: agentInput.shots.filter((s: any) => s.isFirstInGroup).length,
+      shotsWithInheritance: agentInput.shots.filter((s: any) => s.inheritedPrompts).length,
+    });
+
+    const result = await generatePromptsForScene(agentInput, userId, workspaceId);
+
+    // Step 5: Merge inherited prompts back into results (explicit inheritance)
+    const finalShots = result.shots.map((generatedShot: any) => {
+      const shotInput = shotsForAgent.find((s: any) => s.shotId === generatedShot.shotId);
+      const continuityInfo = continuityMap.get(generatedShot.shotId);
+      
+      // Determine if this shot has inherited prompt (for locking in UI)
+      const isInherited = !!(shotInput?.inheritedPrompts && continuityInfo?.previousShotId);
+      
+      if (shotInput?.inheritedPrompts && continuityInfo?.previousShotId) {
+        // Get previous shot's prompts for inheritance
+        const previousPrompts = step4Data?.shots?.[continuityInfo.previousShotId] || 
+                               generatedPromptsMap.get(continuityInfo.previousShotId);
+        
+        const frameType = shotInput.frameType;
+        const inheritedImagePrompt = shotInput.inheritedPrompts.imagePrompt;
+        const inheritedStartFramePrompt = shotInput.inheritedPrompts.startFramePrompt;
+        
+        // Check if this is PENDING_INHERITANCE (first generation, previous shot not in database yet)
+        const isPendingInheritance = 
+          inheritedImagePrompt === 'PENDING_INHERITANCE' || 
+          inheritedStartFramePrompt === 'PENDING_INHERITANCE';
+        
+        // If pending, check if previous shot was just generated in this batch
+        let actualPreviousPrompts = previousPrompts;
+        if (isPendingInheritance && !previousPrompts && continuityInfo?.previousShotId) {
+          // Check generatedPromptsMap for shots generated in this batch
+          const batchPreviousPrompts = generatedPromptsMap.get(continuityInfo.previousShotId);
+          if (batchPreviousPrompts && batchPreviousPrompts.imagePrompts && batchPreviousPrompts.imagePrompts.end) {
+            actualPreviousPrompts = batchPreviousPrompts as any; // Cast to match expected type
+            console.log(`[character-vlog:routes] Found previous shot ${continuityInfo.previousShotId} in current batch for inheritance`);
+          }
+        }
+        
+        if (actualPreviousPrompts && actualPreviousPrompts.imagePrompts && actualPreviousPrompts.imagePrompts.end) {
+          // Previous shot has prompts (from database or current batch) - perform actual inheritance
+          if (frameType === '1F') {
+            // 1F: Inherit image prompt, only generate video
+            console.log(`[character-vlog:routes] Merging inheritance for shot ${generatedShot.shotId} (1F): inheriting image prompt`);
+            const merged = {
+              ...generatedShot,
+              imagePrompts: {
+                single: actualPreviousPrompts.imagePrompts.end,
+                start: null,
+                end: null,
+              },
+              isInherited: true,  // Mark as inherited for UI locking
+              // videoPrompt is already generated by AI
+            };
+            // Store for next shot's inheritance
+            generatedPromptsMap.set(generatedShot.shotId, {
+              imagePrompts: merged.imagePrompts,
+            });
+            return merged;
+          } else if (frameType === '2F') {
+            // 2F: Inherit start from previous end, only generate end + video
+            console.log(`[character-vlog:routes] Merging inheritance for shot ${generatedShot.shotId} (2F): inheriting start from previous end`);
+            const merged = {
+              ...generatedShot,
+              imagePrompts: {
+                single: null,
+                start: actualPreviousPrompts.imagePrompts.end,
+                end: generatedShot.imagePrompts.end, // AI generated this
+              },
+              isInherited: true,  // Mark as inherited for UI locking
+              // videoPrompt is already generated by AI
+            };
+            // Store for next shot's inheritance
+            generatedPromptsMap.set(generatedShot.shotId, {
+              imagePrompts: merged.imagePrompts,
+            });
+            return merged;
+          }
+        } else if (isPendingInheritance) {
+          // Previous shot doesn't have prompts yet (not in database or current batch)
+          // Use AI-generated prompts as placeholder, but mark as inherited for UI locking
+          console.log(`[character-vlog:routes] Shot ${generatedShot.shotId} marked for pending inheritance - using AI prompts as placeholder (will sync via shared frame logic)`);
+          const merged = {
+            ...generatedShot,
+            isInherited: true,  // Mark as inherited so UI will lock the start frame
+          };
+          // Store for next shot's inheritance
+          if (generatedShot.imagePrompts) {
+            generatedPromptsMap.set(generatedShot.shotId, {
+              imagePrompts: generatedShot.imagePrompts,
+            });
+          }
+          return merged;
+        }
+      }
+      
+      // No inheritance needed, return as-is (with isInherited flag)
+      // But still store for potential next shot inheritance
+      if (generatedShot.imagePrompts) {
+        generatedPromptsMap.set(generatedShot.shotId, {
+          imagePrompts: generatedShot.imagePrompts,
+        });
+      }
+      return {
+        ...generatedShot,
+        isInherited: false,  // Not inherited
+      };
+    });
+
+    console.log('[character-vlog:routes] ----------------------------------------');
+    console.log('[character-vlog:routes] PROMPTS GENERATED SUCCESSFULLY');
+    console.log('[character-vlog:routes] ----------------------------------------');
+    console.log('[character-vlog:routes] Prompts generated successfully:', {
+      videoId,
+      sceneId,
+      shotCount: finalShots.length,
+      cost: result.cost,
+      shotsWithInheritance: finalShots.filter((shot: any, index: number) => {
+        const shotInput = shotsForAgent[index];
+        return shotInput?.inheritedPrompts;
+      }).length,
+    });
+
+    // Store results in step4Data (including negativePrompt and isInherited)
+    const existingStep4Data = (video.step4Data as Step4Data) || { shots: {} };
+    const updatedStep4Data: Step4Data = {
+      shots: {
+        ...existingStep4Data.shots,
+        ...Object.fromEntries(
+          finalShots.map((shot) => [
+            shot.shotId,
+            {
+              imagePrompts: shot.imagePrompts,
+              videoPrompt: shot.videoPrompt,
+              visualContinuityNotes: shot.visualContinuityNotes,
+              negativePrompt: shot.negativePrompt,
+              isInherited: shot.isInherited || false,  // Save inheritance flag
+            },
+          ])
+        ),
+      },
+    };
+
+    await storage.updateVideo(videoId, {
+      step4Data: updatedStep4Data,
+    });
+
+    console.log('[character-vlog:routes] Stored prompts in step4Data:', {
+      videoId,
+      sceneId,
+      storedShots: finalShots.length,
+    });
+
+    res.json({
+      shots: finalShots,
+      cost: result.cost,
+    });
+  } catch (error) {
+    console.error('[character-vlog:routes] Storyboard prompt generation error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({
+      error: 'Failed to generate prompts',
+      details: errorMessage,
+    });
+  }
+});
+
+/**
+ * POST /api/character-vlog/shots/generate-image
+ * Generate storyboard frame images for a shot
+ * 
+ * Supports per-frame generation:
+ * - frame: "start" | "end" | "image" (required)
+ * 
+ * Handles:
+ * - Inherited start frame validation (rejects generation if inherited)
+ * - Shared frame optimization (generates once for continuous shots)
+ * - Auto-sync (updates next shot's start frame when end frame is generated)
+ */
+router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { 
+      shotId, 
+      videoId, 
+      versionId,
+      frame, // REQUIRED: "start" | "end" | "image"
+    } = req.body;
+    const workspaceId = req.headers["x-workspace-id"] as string | undefined;
+
+    console.log('█████████████████████████████████████████████████████████████████████');
+    console.log('█ IMAGE GENERATION REQUEST RECEIVED');
+    console.log('█████████████████████████████████████████████████████████████████████');
+    console.log(`Shot ID: ${shotId}`);
+    console.log(`Video ID: ${videoId}`);
+    console.log(`Frame: ${frame}`);
+    console.log(`Version ID: ${versionId || 'NEW'}`);
+    console.log('█████████████████████████████████████████████████████████████████████');
+
+    if (!shotId || !videoId) {
+      return res.status(400).json({ error: 'shotId and videoId are required' });
+    }
+
+    if (!frame || !['start', 'end', 'image'].includes(frame)) {
+      return res.status(400).json({ error: 'frame parameter is required and must be "start", "end", or "image"' });
+    }
+
+    console.log('[character-vlog:routes] Generating storyboard image (Agent 4.2):', {
+      shotId,
+      videoId,
+      versionId,
+      frame,
+      userId,
+      workspaceId,
+    });
+
+    // Fetch video from database
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Get step data
+    const step1Data = (video.step1Data as Step1Data) || {};
+    const step2Data = (video.step2Data as Step2Data) || {};
+    const step3Data = (video.step3Data as Step3Data) || {};
+    let step4Data = (video.step4Data as any) || { shots: {}, shotVersions: {} };
+
+    // Get aspect ratio and narrative mode
+    const aspectRatio = step1Data.aspectRatio || '16:9';
+    const referenceMode = step1Data.referenceMode || 'Image Reference';
+    const referenceModeCode = convertReferenceModeToCode(referenceMode);
+    const narrativeMode: "image-reference" | "start-end" = referenceModeCode === '1F' ? 'image-reference' : 'start-end';
+
+    // Find shot in step3Data
+    const allShots: any[] = Object.values(step3Data.shots || {}).flat();
+    const foundShot = allShots.find((s: any) => s.id === shotId);
+    if (!foundShot) {
+      return res.status(404).json({ error: 'Shot not found' });
+    }
+
+    // Find scene
+    const scenes = step3Data.scenes || [];
+    const foundScene = scenes.find((s: any) => s.id === foundShot.sceneId);
+    if (!foundScene) {
+      return res.status(404).json({ error: 'Scene not found' });
+    }
+
+    // Get image model (shot-level or step1Data)
+    const imageModel = (foundShot as any).imageModel || step1Data.imageModel || 'nano-banana';
+
+    // Get prompts for this shot from step4Data
+    const shotPrompts = step4Data.shots?.[shotId];
+    if (!shotPrompts) {
+      return res.status(400).json({ error: 'Prompts not found for this shot. Please generate prompts first.' });
+    }
+
+    // Get current shot's version
+    // Always use latest version (like ambient mode) to avoid version ID mismatch issues
+    const shotVersions = step4Data.shotVersions || {};
+    const currentShotVersions = shotVersions[shotId] || [];
+    const currentVersion = currentShotVersions.length > 0 
+      ? currentShotVersions[currentShotVersions.length - 1]
+      : null;
+    
+    // Log for debugging (versionId from client is not used)
+    if (versionId) {
+      console.log('[character-vlog:routes] Version lookup (ignoring client versionId):', {
+        shotId,
+        clientProvidedVersionId: versionId,
+        serverLatestVersionId: currentVersion?.id,
+        versionCount: currentShotVersions.length,
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // CONTINUITY GROUP DETECTION AND VALIDATION
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    const continuityGroups = step3Data.continuityGroups?.[foundScene.id] || [];
+    const approvedGroups = continuityGroups.filter((g: any) => (g.status || 'approved') === 'approved');
+    
+    console.log('═══════════════════════════════════════════════════════════════════');
+    console.log('[CONTINUITY CHECK]');
+    console.log('═══════════════════════════════════════════════════════════════════');
+    console.log(`Shot ID: ${shotId}`);
+    console.log(`Scene ID: ${foundScene.id}`);
+    console.log(`Total continuity groups in scene: ${continuityGroups.length}`);
+    console.log(`Approved groups: ${approvedGroups.length}`);
+    approvedGroups.forEach((g: any, i: number) => {
+      console.log(`  Group ${i + 1}: ${g.shotIds?.join(' → ') || 'no shots'}`);
+    });
+    
+    let isInContinuityGroup = false;
+    let isConnectedToPrevious = false;
+    let previousShotId: string | null = null;
+    let previousVersion: any = null;
+    let nextShotId: string | null = null;
+    let nextShotStartPrompt: string | null = null;
+
+    // Find if shot is in a continuity group
+    for (const group of approvedGroups) {
+      if (group.shotIds && group.shotIds.includes(shotId)) {
+        isInContinuityGroup = true;
+        const shotIndex = group.shotIds.indexOf(shotId);
+        const isFirstInGroup = shotIndex === 0;
+        isConnectedToPrevious = shotIndex > 0;
+
+        console.log(`✓ Shot IS in continuity group:`);
+        console.log(`  - Group ID: ${group.id}`);
+        console.log(`  - Position in group: ${shotIndex + 1} of ${group.shotIds.length}`);
+        console.log(`  - Is first in group: ${isFirstInGroup}`);
+        console.log(`  - Is connected to previous: ${isConnectedToPrevious}`);
+
+        // Get previous shot info
+        if (isConnectedToPrevious) {
+          previousShotId = group.shotIds[shotIndex - 1];
+          console.log(`  - Previous shot ID: ${previousShotId}`);
+          if (previousShotId) {
+            const previousShotVersions = shotVersions[previousShotId] || [];
+            previousVersion = previousShotVersions.length > 0 
+              ? previousShotVersions[previousShotVersions.length - 1] 
+              : null;
+            console.log(`  - Has previous version: ${!!previousVersion}`);
+          }
+        }
+
+        // Get next shot info (for shared frame optimization)
+        if (shotIndex < group.shotIds.length - 1) {
+          nextShotId = group.shotIds[shotIndex + 1];
+          console.log(`  - Next shot ID: ${nextShotId}`);
+          if (nextShotId) {
+            const nextShotPrompts = step4Data.shots?.[nextShotId];
+            if (nextShotPrompts && narrativeMode === 'start-end') {
+              nextShotStartPrompt = nextShotPrompts.imagePrompts?.start || null;
+              console.log(`  - Next shot has start prompt: ${!!nextShotStartPrompt}`);
+            }
+          }
+        } else {
+          console.log(`  - This is the LAST shot in the group (no next shot)`);
+        }
+
+        break;
+      }
+    }
+    
+    if (!isInContinuityGroup) {
+      console.log(`✗ Shot is NOT in any continuity group (standalone shot)`);
+      console.log(`  - nextShotId will remain NULL`);
+      console.log(`  - Shared frame optimization will NOT apply`);
+    }
+    console.log('═══════════════════════════════════════════════════════════════════');
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // VALIDATION: Inherited Start Frame Lock
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    if (frame === 'start' && narrativeMode === 'start-end') {
+      // Check if start frame is inherited (connected to previous shot)
+      if (isConnectedToPrevious && previousVersion) {
+        // Start frame is inherited - reject generation
+        return res.status(400).json({ 
+          error: 'Start frame is inherited from previous shot and cannot be generated independently. It will auto-sync when the previous shot\'s end frame is generated.' 
+        });
+      }
+
+      // Check if start frame prompt is null (inherited)
+      if (!shotPrompts.imagePrompts?.start || shotPrompts.imagePrompts.start.trim() === '') {
+        // This shouldn't happen if prompts were generated correctly, but check anyway
+        if (isConnectedToPrevious) {
+          return res.status(400).json({ 
+            error: 'Start frame is inherited from previous shot and cannot be generated independently.' 
+          });
+        }
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // COLLECT REFERENCE IMAGES
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    const referenceImages: string[] = [];
+
+    // Extract character names from prompts (already resolved, e.g., "@Alex Chen")
+    const promptText = frame === 'image' 
+      ? (shotPrompts.imagePrompts?.single || '')
+      : frame === 'start'
+        ? (shotPrompts.imagePrompts?.start || '')
+        : (shotPrompts.imagePrompts?.end || '');
+
+    // Extract @mentions from prompt
+    const mentionRegex = /@([A-Z][A-Za-z0-9]*(?:\s+[A-Z][A-Za-z0-9]*)*)/g;
+    const mentions: string[] = [];
+    let match;
+    while ((match = mentionRegex.exec(promptText)) !== null) {
+      mentions.push(match[1]); // Character or location name without @
+    }
+
+    // Remove duplicate mentions (same character/location mentioned multiple times)
+    const uniqueMentions = [...new Set(mentions)];
+    
+    console.log('[character-vlog:routes] Mentions found in prompt:', {
+      totalMentions: mentions.length,
+      uniqueMentions: uniqueMentions.length,
+      mentions: uniqueMentions,
+    });
+
+    // Character reference images (using unique mentions only)
+    const characters = step2Data.characters || [];
+    for (const mention of uniqueMentions) {
+      const character = characters.find((c: any) => c.name === mention);
+      if (character?.imageUrl) {
+        referenceImages.push(character.imageUrl);
+        console.log(`  + Added character reference: ${mention}`);
+      }
+    }
+
+    // Location reference images (using unique mentions only)
+    const locations = step2Data.locations || [];
+    for (const mention of uniqueMentions) {
+      const location = locations.find((l: any) => l.name === mention);
+      if (location?.imageUrl) {
+        referenceImages.push(location.imageUrl);
+        console.log(`  + Added location reference: ${mention}`);
+      }
+    }
+
+    // Style reference image
+    if (step2Data.styleReferenceImageUrl) {
+      referenceImages.push(step2Data.styleReferenceImageUrl);
+    }
+
+    // For end frame generation: use current shot's start frame as reference (for visual consistency)
+    if (frame === 'end' && narrativeMode === 'start-end' && currentVersion?.startFrameUrl) {
+      referenceImages.push(currentVersion.startFrameUrl);
+      console.log('[character-vlog:routes] Added current shot start frame as reference for end frame:', currentVersion.startFrameUrl);
+    }
+    
+    // Previous shot's frame (for continuity) - only add if NOT already using current shot's start
+    if (isConnectedToPrevious && previousVersion && frame !== 'end') {
+      if (narrativeMode === 'image-reference' && previousVersion.imageUrl) {
+        referenceImages.push(previousVersion.imageUrl);
+      } else if (narrativeMode === 'start-end') {
+        const previousFrameUrl = previousVersion.endFrameUrl || previousVersion.startFrameUrl || null;
+        if (previousFrameUrl) {
+          referenceImages.push(previousFrameUrl);
+        }
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // SHARED FRAME OPTIMIZATION CHECK
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    let isSharedFrame = false;
+    if (frame === 'end' && narrativeMode === 'start-end' && nextShotId) {
+      // Check if next shot is continuous and has inherited prompt (isInherited flag)
+      const nextShotPromptData = step4Data.shots?.[nextShotId];
+      const currentEndPrompt = shotPrompts.imagePrompts?.end || '';
+      
+      console.log('[character-vlog:routes] Checking shared frame eligibility:', {
+        currentShotId: shotId,
+        nextShotId,
+        hasNextShotPromptData: !!nextShotPromptData,
+        nextShotIsInherited: nextShotPromptData?.isInherited,
+        hasNextShotStartPrompt: !!nextShotStartPrompt,
+        promptsMatch: currentEndPrompt.trim() === (nextShotStartPrompt || '').trim(),
+        isInContinuityGroup,
+      });
+      
+      // Only treat as shared frame if:
+      // 1. Next shot is marked as inherited (prompt was inherited from current shot's end)
+      // 2. Prompts are exactly the same (validation)
+      if (nextShotPromptData?.isInherited && 
+          nextShotStartPrompt && 
+          currentEndPrompt.trim() === nextShotStartPrompt.trim()) {
+        isSharedFrame = true;
+        console.log('[character-vlog:routes] ✓ SHARED FRAME ENABLED - Next shot will use this end frame as start:', {
+          currentShotId: shotId,
+          nextShotId,
+          nextShotIsInherited: nextShotPromptData.isInherited,
+          prompt: currentEndPrompt.substring(0, 50) + '...',
+        });
+      } else {
+        console.log('[character-vlog:routes] ✗ SHARED FRAME DISABLED - Conditions not met');
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // VALIDATE REFERENCE IMAGES (Runware requires 1-8 images)
+    // ═══════════════════════════════════════════════════════════════════════════════
+    
+    // Remove duplicates
+    const uniqueReferenceImages = [...new Set(referenceImages)];
+    
+    // Ensure we have at least 1 and at most 8 reference images
+    if (uniqueReferenceImages.length === 0) {
+      console.warn('[character-vlog:routes] No reference images found, this may cause generation issues');
+      // Note: Some models might still work without reference images
+    } else if (uniqueReferenceImages.length > 8) {
+      console.warn('[character-vlog:routes] Too many reference images, limiting to first 8');
+      uniqueReferenceImages.splice(8);
+    }
+    
+    console.log('[character-vlog:routes] Reference images for generation:', {
+      shotId,
+      frame,
+      count: uniqueReferenceImages.length,
+      images: uniqueReferenceImages.map(url => url.substring(0, 50) + '...'),
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // BUILD AGENT INPUT
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    const agentInput = {
+      shotId,
+      videoId,
+      narrativeMode: narrativeMode as "image-reference" | "start-end",
+      imagePrompt: frame === 'image' ? (shotPrompts.imagePrompts?.single || null) : null,
+      startFramePrompt: frame === 'start' ? (shotPrompts.imagePrompts?.start || null) : null,
+      endFramePrompt: frame === 'end' ? (shotPrompts.imagePrompts?.end || null) : null,
+      negativePrompt: shotPrompts.negativePrompt,
+      referenceImages: uniqueReferenceImages,
+      aspectRatio,
+      imageModel,
+      frame: frame as "start" | "end" | "image",
+      isConnectedToPrevious,
+      previousEndFrameUrl: previousVersion?.endFrameUrl || null,
+      nextShotId: isSharedFrame ? nextShotId : null,
+      nextShotStartPrompt: isSharedFrame ? nextShotStartPrompt : null,
+      isSharedFrame,
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // CALL AGENT 4.2
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    const result = await generateStoryboardImage(
+      agentInput,
+      userId,
+      workspaceId
+    );
+
+    if (result.error) {
+      return res.status(500).json({ 
+        error: result.error,
+        details: 'Image generation failed'
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // SAVE GENERATED IMAGES TO STEP4DATA
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    // Initialize shotVersions if needed
+    if (!step4Data.shotVersions) {
+      step4Data.shotVersions = {};
+    }
+    if (!shotVersions[shotId]) {
+      shotVersions[shotId] = [];
+    }
+
+    const existingVersions = shotVersions[shotId];
+    let newVersionId: string;
+    let versionNumber: number;
+    let newVersion: any;
+
+    console.log(`[character-vlog:routes] Version management decision:`, {
+      shotId,
+      frame,
+      providedVersionId: versionId,
+      hasCurrentVersion: !!currentVersion,
+      existingVersionsCount: existingVersions.length,
+      currentVersionId: currentVersion?.id,
+      willUpdate: !!currentVersion,
+      willCreate: !currentVersion,
+    });
+
+    if (currentVersion) {
+      // Update existing version (using ambient mode approach)
+      newVersionId = currentVersion.id;  // Always use the actual version ID from database
+      versionNumber = currentVersion.versionNumber || 1;
+      
+      console.log(`[character-vlog:routes] ✓ UPDATING existing version ${newVersionId} with ${frame} frame data`);
+      
+      const updatedImageUrl = result.imageUrl !== null && result.imageUrl !== undefined
+        ? result.imageUrl
+        : currentVersion.imageUrl;
+
+      const updatedStartFrameUrl = result.startFrameUrl !== null && result.startFrameUrl !== undefined
+        ? result.startFrameUrl
+        : currentVersion.startFrameUrl;
+
+      const updatedEndFrameUrl = result.endFrameUrl !== null && result.endFrameUrl !== undefined
+        ? result.endFrameUrl
+        : currentVersion.endFrameUrl;
+
+      newVersion = {
+        ...currentVersion,
+        // Update image URLs
+        imageUrl: updatedImageUrl,
+        startFrameUrl: updatedStartFrameUrl,
+        endFrameUrl: updatedEndFrameUrl,
+        // Ensure prompts are preserved/updated from step4Data
+        imagePrompt: shotPrompts.imagePrompts?.single || currentVersion.imagePrompt || null,
+        startFramePrompt: shotPrompts.imagePrompts?.start || currentVersion.startFramePrompt || null,
+        endFramePrompt: shotPrompts.imagePrompts?.end || currentVersion.endFramePrompt || null,
+        videoPrompt: shotPrompts.videoPrompt || currentVersion.videoPrompt || null,
+        negativePrompt: shotPrompts.negativePrompt || currentVersion.negativePrompt || null,
+        status: currentVersion.status || 'pending',
+        needsRerender: currentVersion.needsRerender || false,
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Update using .map() like ambient mode (more reliable than findIndex)
+      shotVersions[shotId] = existingVersions.map((v: any) =>
+        v.id === currentVersion.id ? newVersion : v
+      );
+    } else {
+      // Create new version - include prompts from step4Data
+      console.log(`[character-vlog:routes] ✓ CREATING new version for shot ${shotId} with ${frame} frame data`);
+      newVersionId = `version-${shotId}-${Date.now()}`;
+      versionNumber = 1;
+
+      newVersion = {
+        id: newVersionId,
+        shotId,
+        versionNumber,
+        // Image URLs from generation
+        imageUrl: result.imageUrl,
+        startFrameUrl: result.startFrameUrl,
+        endFrameUrl: result.endFrameUrl,
+        // Include prompts from step4Data.shots for persistence
+        imagePrompt: shotPrompts.imagePrompts?.single || null,
+        startFramePrompt: shotPrompts.imagePrompts?.start || null,
+        endFramePrompt: shotPrompts.imagePrompts?.end || null,
+        videoPrompt: shotPrompts.videoPrompt || null,
+        negativePrompt: shotPrompts.negativePrompt || null,
+        status: 'pending',
+        needsRerender: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Initialize array with new version (like ambient mode)
+      shotVersions[shotId] = [newVersion];
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // SHARED FRAME OPTIMIZATION: Auto-sync next shot's start frame
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    if (isSharedFrame && nextShotId && result.endFrameUrl) {
+      // Initialize next shot's versions if needed
+      if (!shotVersions[nextShotId]) {
+        shotVersions[nextShotId] = [];
+      }
+
+      const nextShotVersions = shotVersions[nextShotId];
+      let nextVersion = nextShotVersions.length > 0 
+        ? nextShotVersions[nextShotVersions.length - 1]
+        : null;
+
+      if (nextVersion) {
+        // Update existing version - preserve all existing data
+        nextVersion = {
+          ...nextVersion,
+          startFrameUrl: result.endFrameUrl, // Same URL as current shot's end frame
+          updatedAt: new Date().toISOString(),
+        };
+        // Update in array
+        const versionIndex = nextShotVersions.findIndex((v: any) => v.id === nextVersion.id);
+        if (versionIndex >= 0) {
+          nextShotVersions[versionIndex] = nextVersion;
+        }
+      } else {
+        // Create new version for next shot - include prompts from step4Data
+        const nextShotPrompts = step4Data.shots?.[nextShotId];
+        const nextVersionId = `version-${nextShotId}-${Date.now()}`;
+        nextVersion = {
+          id: nextVersionId,
+          shotId: nextShotId,
+          versionNumber: 1,
+          imageUrl: null,
+          startFrameUrl: result.endFrameUrl, // Same URL as current shot's end frame
+          endFrameUrl: null,
+          // Include prompts from step4Data for next shot
+          imagePrompt: nextShotPrompts?.imagePrompts?.single || null,
+          startFramePrompt: nextShotPrompts?.imagePrompts?.start || null,
+          endFramePrompt: nextShotPrompts?.imagePrompts?.end || null,
+          videoPrompt: nextShotPrompts?.videoPrompt || null,
+          negativePrompt: nextShotPrompts?.negativePrompt || null,
+          status: 'pending',
+          needsRerender: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        nextShotVersions.push(nextVersion);
+      }
+
+      shotVersions[nextShotId] = nextShotVersions;
+
+      console.log('[character-vlog:routes] Shared frame saved to both shots:', {
+        currentShotId: shotId,
+        nextShotId,
+        sharedUrl: result.endFrameUrl.substring(0, 50) + '...',
+      });
+    }
+
+    // Update step4Data
+    const updatedStep4Data = {
+      ...step4Data,
+      shotVersions,
+    };
+
+    // Save to database
+    await storage.updateVideo(videoId, {
+      step4Data: updatedStep4Data,
+    });
+
+    // Log what was saved - terminal logging
+    console.log('═══════════════════════════════════════════════════════════════════');
+    console.log('[IMAGE SAVED TO DATABASE]');
+    console.log('═══════════════════════════════════════════════════════════════════');
+    console.log(`Shot ID: ${shotId}`);
+    console.log(`Frame: ${frame}`);
+    console.log(`Version ID: ${newVersionId}`);
+    console.log('-------------------------------------------------------------------');
+    console.log('Saved Version Data:');
+    console.log(`  - Image URL: ${newVersion.imageUrl ? '✓ SAVED' : '✗ NULL'}`);
+    console.log(`  - Start Frame URL: ${newVersion.startFrameUrl ? '✓ SAVED' : '✗ NULL'}`);
+    console.log(`  - End Frame URL: ${newVersion.endFrameUrl ? '✓ SAVED' : '✗ NULL'}`);
+    console.log(`  - Image Prompt: ${newVersion.imagePrompt ? '✓ SAVED' : '✗ NULL'}`);
+    console.log(`  - Start Frame Prompt: ${newVersion.startFramePrompt ? '✓ SAVED' : '✗ NULL'}`);
+    console.log(`  - End Frame Prompt: ${newVersion.endFramePrompt ? '✓ SAVED' : '✗ NULL'}`);
+    console.log(`  - Video Prompt: ${newVersion.videoPrompt ? '✓ SAVED' : '✗ NULL'}`);
+    console.log('-------------------------------------------------------------------');
+    console.log(`Total Shot Versions in DB: ${Object.keys(updatedStep4Data.shotVersions || {}).length}`);
+    if (isSharedFrame && nextShotId) {
+      console.log(`Shared frame synced to next shot: ${nextShotId}`);
+    }
+    console.log('═══════════════════════════════════════════════════════════════════');
+
+    console.log('[character-vlog:routes] Image generation completed:', {
+      shotId,
+      frame,
+      hasImageUrl: !!result.imageUrl,
+      hasStartFrame: !!result.startFrameUrl,
+      hasEndFrame: !!result.endFrameUrl,
+      isSharedFrame,
+      nextShotId: isSharedFrame ? nextShotId : null,
+      cost: result.cost,
+    });
+
+    res.json({
+      success: true,
+      imageUrl: result.imageUrl,
+      startFrameUrl: result.startFrameUrl,
+      endFrameUrl: result.endFrameUrl,
+      shotVersionId: newVersionId,
+      version: newVersion,
+      cost: result.cost,
+      isSharedFrame,
+      nextShotId: isSharedFrame ? nextShotId : null,
+    });
+  } catch (error) {
+    console.error('[character-vlog:routes] Image generation error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({
+      error: 'Failed to generate image',
+      details: errorMessage,
+    });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VIDEO GENERATION ROUTES - AGENT 4.3
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/character-vlog/videos/:id/shots/:shotId/generate-video
+ * Generate video for a single shot (Agent 4.3)
+ * 
+ * Workflow:
+ * 1. Validate shot has generated images (from Agent 4.2)
+ * 2. Validate video prompt exists (from Agent 4.1)
+ * 3. Determine frameType (1F or 2F) from step1Data.referenceMode
+ * 4. Call Agent 4.3 with appropriate frame images
+ * 5. Save videoUrl to shotVersions
+ */
+router.post('/videos/:id/shots/:shotId/generate-video', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id: videoId, shotId } = req.params;
+    const workspaceId = req.headers['x-workspace-id'] as string | undefined;
+
+    console.log('[character-vlog:routes] Single shot video generation:', { videoId, shotId });
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FETCH VIDEO DATA
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    const step1Data = (video.step1Data as Step1Data) || {};
+    const step3Data = (video.step3Data as Step3Data) || {};
+    let step4Data = (video.step4Data as any) || { shots: {}, shotVersions: {} };
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FIND SHOT AND VALIDATE
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // step3Data.shots: Record<sceneId, Shot[]> - contains shot objects
+    // step4Data.shots: Record<shotId, prompts> - contains prompts (different structure!)
+    const step3Shots = step3Data?.shots || {};
+    const step4Scenes = step4Data.scenes || step3Data?.scenes || [];
+    
+    let shot: any = null;
+    let scene: any = null;
+    let sceneId: string = '';
+    
+    // Find shot in step3Data.shots (keyed by sceneId)
+    for (const [sId, sceneShots] of Object.entries(step3Shots)) {
+      // Ensure sceneShots is an array
+      if (!Array.isArray(sceneShots)) {
+        console.warn(`[character-vlog:routes] Scene ${sId} shots is not an array:`, typeof sceneShots);
+        continue;
+      }
+      
+      const foundShot = sceneShots.find((s: any) => s.id === shotId);
+      if (foundShot) {
+        shot = foundShot;
+        sceneId = sId;
+        scene = step4Scenes.find((s: any) => s.id === sId);
+        break;
+      }
+    }
+
+    if (!shot) {
+      console.error('[character-vlog:routes] Shot not found:', {
+        shotId,
+        availableScenes: Object.keys(step3Shots),
+        availableShots: Object.values(step3Shots).flat().map((s: any) => s.id),
+      });
+      return res.status(404).json({ error: 'Shot not found' });
+    }
+
+    // Get latest version for this shot
+    const shotVersions = step4Data.shotVersions || {};
+    const versions = shotVersions[shotId];
+    if (!versions || versions.length === 0) {
+      return res.status(400).json({ error: 'No version found for this shot. Generate images first.' });
+    }
+    
+    const latestVersion = versions[versions.length - 1];
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // VALIDATE PREREQUISITES
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Check video prompt exists
+    const shotPrompts = step4Data.shots?.[shotId];
+    if (!shotPrompts?.videoPrompt) {
+      return res.status(400).json({ error: 'No video prompt found. Generate prompts first (Agent 4.1).' });
+    }
+
+    // Determine frame type from reference mode
+    const referenceMode = step1Data.referenceMode; // 'Image Reference', 'Start/End', 'AI Auto'
+    const frameType: '1F' | '2F' = referenceMode === 'Image Reference' ? '1F' : '2F';
+
+    // Validate images exist based on frame type
+    if (frameType === '1F') {
+      if (!latestVersion.imageUrl) {
+        return res.status(400).json({ error: '1F mode requires image. Generate storyboard image first (Agent 4.2).' });
+      }
+    } else {
+      if (!latestVersion.startFrameUrl) {
+        return res.status(400).json({ error: '2F mode requires start frame. Generate start frame first (Agent 4.2).' });
+      }
+      // End frame is optional (model may not support it)
+    }
+
+    // Get video model (prioritize shot > scene > step1)
+    const videoModel = shot.videoModel || scene?.videoModel || step1Data.videoModel;
+    if (!videoModel) {
+      return res.status(400).json({ error: 'No video model configured' });
+    }
+
+    // Get other settings
+    const aspectRatio = step1Data.aspectRatio || '16:9';
+    const shotDuration = shot.duration || 5;
+
+    console.log('[character-vlog:routes] Video generation config:', {
+      shotId: shotId.substring(0, 30) + '...',
+      frameType,
+      videoModel,
+      aspectRatio,
+      shotDuration,
+      hasImage: !!latestVersion.imageUrl,
+      hasStartFrame: !!latestVersion.startFrameUrl,
+      hasEndFrame: !!latestVersion.endFrameUrl,
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CALL AGENT 4.3
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const agentInput = {
+      shotId,
+      frameType,
+      storyboardImage: latestVersion.imageUrl,
+      startFrame: latestVersion.startFrameUrl,
+      endFrame: latestVersion.endFrameUrl,
+      videoPrompt: shotPrompts.videoPrompt,
+      shotDuration,
+      videoModel,
+      aspectRatio,
+    };
+
+    const result = await generateVideo(agentInput, userId, workspaceId);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SAVE VIDEO URL TO SHOT VERSION
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    if (result.success && result.videoUrl) {
+      // Update latest version with video URL
+      const updatedVersion = {
+        ...latestVersion,
+        videoUrl: result.videoUrl,
+        thumbnailUrl: result.thumbnailUrl,
+        actualDuration: result.actualDuration,
+        videoGenerationMetadata: result.metadata,
+        status: 'generated' as const,
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Update in array
+      shotVersions[shotId] = versions.map((v: any) =>
+        v.id === latestVersion.id ? updatedVersion : v
+      );
+
+      // Save to database
+      step4Data.shotVersions = shotVersions;
+      await storage.updateVideo(videoId, { step4Data });
+
+      console.log('[character-vlog:routes] ✓ Video generated and saved:', {
+        shotId: shotId.substring(0, 30) + '...',
+        videoUrl: result.videoUrl.substring(0, 60) + '...',
+      });
+
+      return res.json({
+        success: true,
+        videoUrl: result.videoUrl,
+        thumbnailUrl: result.thumbnailUrl,
+        actualDuration: result.actualDuration,
+        metadata: result.metadata,
+      });
+    } else {
+      // Generation failed
+      console.error('[character-vlog:routes] Video generation failed:', result.error);
+      
+      return res.status(500).json({
+        success: false,
+        error: result.error,
+      });
+    }
+
+  } catch (error) {
+    console.error('[character-vlog:routes] Video generation error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({
+      error: 'Failed to generate video',
+      details: errorMessage,
+    });
+  }
+});
+
+/**
+ * POST /api/character-vlog/videos/:id/scenes/:sceneId/generate-videos
+ * Generate videos for all shots in a scene (Agent 4.3 Batch)
+ * 
+ * Workflow:
+ * 1. Get all shots in scene
+ * 2. Filter shots that have images but no videoUrl
+ * 3. Call Agent 4.3 for each shot in parallel
+ * 4. Save all videoUrls to shotVersions
+ */
+router.post('/videos/:id/scenes/:sceneId/generate-videos', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id: videoId, sceneId } = req.params;
+    const workspaceId = req.headers['x-workspace-id'] as string | undefined;
+
+    console.log('[character-vlog:routes] Batch scene video generation:', { videoId, sceneId });
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FETCH VIDEO DATA
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    const step1Data = (video.step1Data as Step1Data) || {};
+    const step3Data = (video.step3Data as Step3Data) || {};
+    let step4Data = (video.step4Data as any) || { shots: {}, shotVersions: {} };
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // GET SHOTS FOR SCENE
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // step3Data.shots: Record<sceneId, Shot[]> - contains shot objects
+    // step4Data.shots: Record<shotId, prompts> - contains prompts (different structure!)
+    const step3Shots = step3Data?.shots || {};
+    const step4Scenes = step4Data.scenes || step3Data?.scenes || [];
+    
+    const sceneShots = step3Shots[sceneId];
+    
+    // Validate sceneShots is an array
+    if (!Array.isArray(sceneShots) || sceneShots.length === 0) {
+      console.error('[character-vlog:routes] Invalid or empty scene shots:', {
+        sceneId,
+        isArray: Array.isArray(sceneShots),
+        type: typeof sceneShots,
+        availableScenes: Object.keys(step3Shots),
+      });
+      return res.status(404).json({ error: 'No shots found for this scene' });
+    }
+
+    const scene = step4Scenes.find((s: any) => s.id === sceneId);
+
+    // Determine frame type from reference mode
+    const referenceMode = step1Data.referenceMode;
+    const frameType: '1F' | '2F' = referenceMode === 'Image Reference' ? '1F' : '2F';
+
+    // Get video model (prioritize scene > step1)
+    const videoModel = scene?.videoModel || step1Data.videoModel;
+    if (!videoModel) {
+      return res.status(400).json({ error: 'No video model configured' });
+    }
+
+    const aspectRatio = step1Data.aspectRatio || '16:9';
+
+    console.log('[character-vlog:routes] Batch config:', {
+      sceneId: sceneId.substring(0, 30) + '...',
+      shotCount: sceneShots.length,
+      frameType,
+      videoModel,
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FILTER SHOTS READY FOR VIDEO GENERATION
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const shotVersions = step4Data.shotVersions || {};
+    const shotsToGenerate: any[] = [];
+
+    for (const shot of sceneShots) {
+      const shotId = shot.id;
+      const versions = shotVersions[shotId];
+      
+      if (!versions || versions.length === 0) {
+        console.log(`[character-vlog:routes] Skipping shot ${shotId}: No versions`);
+        continue;
+      }
+
+      const latestVersion = versions[versions.length - 1];
+      
+      // Skip if already has video
+      if (latestVersion.videoUrl) {
+        console.log(`[character-vlog:routes] Skipping shot ${shotId}: Already has video`);
+        continue;
+      }
+
+      // Skip if missing images
+      if (frameType === '1F' && !latestVersion.imageUrl) {
+        console.log(`[character-vlog:routes] Skipping shot ${shotId}: Missing image (1F mode)`);
+        continue;
+      }
+      if (frameType === '2F' && !latestVersion.startFrameUrl) {
+        console.log(`[character-vlog:routes] Skipping shot ${shotId}: Missing start frame (2F mode)`);
+        continue;
+      }
+
+      // Skip if missing video prompt
+      const shotPrompts = step4Data.shots?.[shotId];
+      if (!shotPrompts?.videoPrompt) {
+        console.log(`[character-vlog:routes] Skipping shot ${shotId}: Missing video prompt`);
+        continue;
+      }
+
+      shotsToGenerate.push({
+        shot,
+        shotId,
+        latestVersion,
+        shotPrompts,
+      });
+    }
+
+    if (shotsToGenerate.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No shots ready for video generation',
+        results: [],
+      });
+    }
+
+    console.log(`[character-vlog:routes] Generating videos for ${shotsToGenerate.length} shots...`);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CALL AGENT 4.3 FOR EACH SHOT (PARALLEL)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const results = await Promise.all(
+      shotsToGenerate.map(async ({ shot, shotId, latestVersion, shotPrompts }) => {
+        const agentInput = {
+          shotId,
+          frameType,
+          storyboardImage: latestVersion.imageUrl,
+          startFrame: latestVersion.startFrameUrl,
+          endFrame: latestVersion.endFrameUrl,
+          videoPrompt: shotPrompts.videoPrompt,
+          shotDuration: shot.duration || 5,
+          videoModel: shot.videoModel || videoModel,
+          aspectRatio,
+        };
+
+        const result = await generateVideo(agentInput, userId, workspaceId);
+
+        return {
+          shotId,
+          result,
+          latestVersion,
+        };
+      })
+    );
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SAVE ALL VIDEO URLS TO SHOT VERSIONS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const { shotId, result, latestVersion } of results) {
+      if (result.success && result.videoUrl) {
+        const versions = shotVersions[shotId];
+        const updatedVersion = {
+          ...latestVersion,
+          videoUrl: result.videoUrl,
+          thumbnailUrl: result.thumbnailUrl,
+          actualDuration: result.actualDuration,
+          videoGenerationMetadata: result.metadata,
+          status: 'generated' as const,
+          updatedAt: new Date().toISOString(),
+        };
+
+        shotVersions[shotId] = versions.map((v: any) =>
+          v.id === latestVersion.id ? updatedVersion : v
+        );
+
+        successCount++;
+      } else {
+        failCount++;
+      }
+    }
+
+    // Save to database
+    step4Data.shotVersions = shotVersions;
+    await storage.updateVideo(videoId, { step4Data });
+
+    console.log('[character-vlog:routes] ✓ Batch video generation complete:', {
+      total: results.length,
+      success: successCount,
+      failed: failCount,
+    });
+
+    return res.json({
+      success: true,
+      results: results.map(({ shotId, result }) => ({
+        shotId,
+        success: result.success,
+        videoUrl: result.videoUrl,
+        error: result.error,
+      })),
+      summary: {
+        total: results.length,
+        success: successCount,
+        failed: failCount,
+      },
+    });
+
+  } catch (error) {
+    console.error('[character-vlog:routes] Batch video generation error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({
+      error: 'Failed to generate videos',
+      details: errorMessage,
+    });
   }
 });
 

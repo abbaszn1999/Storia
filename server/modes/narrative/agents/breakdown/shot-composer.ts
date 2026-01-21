@@ -40,10 +40,9 @@ interface AIShotResponse {
     duration: number;
     shotType: string;
     cameraMovement: string;
-    narrationText: string;  // With @tags
-    actionDescription: string;  // With @tags
-    characters: string[];  // @character{id} format
-    location: string;  // @location{id} format
+    actionDescription: string;  // With @tags - visual action only, NO narration
+    characters: string[];  // @{CharacterName} format
+    location: string;  // @{LocationName} format
     frameMode?: "image-reference" | "start-end";  // Only in auto mode
   }>;
   continuityGroups?: Array<{
@@ -309,7 +308,6 @@ export async function composeShots(
                     duration: { type: "number" },
                     shotType: { type: "string" },
                     cameraMovement: { type: "string" },
-                    narrationText: { type: "string" },
                     actionDescription: { type: "string" },
                     characters: {
                       type: "array",
@@ -324,8 +322,8 @@ export async function composeShots(
                     } : {}),
                   },
                   required: input.narrativeMode === "auto" 
-                    ? ["shotNumber", "duration", "shotType", "cameraMovement", "narrationText", "actionDescription", "characters", "location", "frameMode"]
-                    : ["shotNumber", "duration", "shotType", "cameraMovement", "narrationText", "actionDescription", "characters", "location"],
+                    ? ["shotNumber", "duration", "shotType", "cameraMovement", "actionDescription", "characters", "location", "frameMode"]
+                    : ["shotNumber", "duration", "shotType", "cameraMovement", "actionDescription", "characters", "location"],
                   additionalProperties: false,
                 },
               },
@@ -474,7 +472,7 @@ export async function composeShots(
           SHOT_LIMITS.DURATION_MIN,
           Math.min(SHOT_LIMITS.DURATION_MAX, shot.duration)
         ),
-        description: `${shot.actionDescription}\n\nNarration: ${shot.narrationText}`, // Combine action and narration in description
+        description: shot.actionDescription, // Only use actionDescription - no narration text
         videoModel: null,
         imageModel: null,
         soundEffects: null,

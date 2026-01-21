@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Sparkles, Edit, Trash2, Plus, Copy, ChevronUp, ChevronDown, Film } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import type { Scene, Shot, ShotVersion, ContinuityGroup } from "@/types/storyboard";
+import type { Scene, Shot, ContinuityGroup } from "@/types/storyboard";
+import type { NarrativeShotVersion } from "@/types/narrative-storyboard";
 import { SceneDialog } from "./scene-dialog";
 import { ShotDialog } from "./shot-dialog";
 import { ContinuityProposal } from "./continuity-proposal";
@@ -32,7 +33,7 @@ interface SceneBreakdownProps {
   narrativeMode?: "image-reference" | "start-end" | "auto";
   scenes: Scene[];
   shots: { [sceneId: string]: Shot[] };
-  shotVersions?: { [shotId: string]: ShotVersion[] };
+  shotVersions?: { [shotId: string]: NarrativeShotVersion[] };
   continuityLocked?: boolean;
   continuityGroups?: { [sceneId: string]: ContinuityGroup[] };
   isLogoMode?: boolean;
@@ -44,7 +45,7 @@ interface SceneBreakdownProps {
   tone?: string;  // Video tone
   characters?: Array<{ id: string; name: string; description?: string }>;  // Available characters
   locations?: Array<{ id: string; name: string; description?: string }>;  // Available locations
-  onScenesGenerated?: (scenes: Scene[], shots: { [sceneId: string]: Shot[] }, shotVersions?: { [shotId: string]: ShotVersion[] }) => void;
+  onScenesGenerated?: (scenes: Scene[], shots: { [sceneId: string]: Shot[] }, shotVersions?: { [shotId: string]: NarrativeShotVersion[] }) => void;
   onScenesChange?: (scenes: Scene[]) => void;
   onShotsChange?: (shots: { [sceneId: string]: Shot[] }) => void;
   onContinuityLocked?: () => void;
@@ -1114,7 +1115,7 @@ export function SceneBreakdown({
       };
 
       // Create dummy shot versions with placeholder images
-      const dummyShotVersions: { [shotId: string]: ShotVersion[] } = {};
+      const dummyShotVersions: { [shotId: string]: NarrativeShotVersion[] } = {};
       Object.values(dummyShots).flat().forEach((shot, index) => {
         const versionId = `version-${shot.id}-1`;
         const colors = [
@@ -1324,7 +1325,7 @@ export function SceneBreakdown({
         shots: { [sceneId: string]: Shot[] };
         continuityGroups?: { [sceneId: string]: ContinuityGroup[] };
         continuityLocked?: boolean;
-        shotVersions?: { [shotId: string]: ShotVersion[] };
+        shotVersions?: { [shotId: string]: NarrativeShotVersion[] };
         totalDuration?: number;
         cost?: number;
       };

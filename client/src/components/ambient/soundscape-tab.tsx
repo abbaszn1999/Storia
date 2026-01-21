@@ -71,6 +71,7 @@ interface SoundscapeTabProps {
   generatedMusicUrl?: string;         // From Step 5
   generatedMusicDuration?: number;    // From Step 5
   onMusicGenerated?: (musicUrl: string, duration: number) => void;
+  onVoiceoverGenerated?: (voiceoverUrl: string) => void;  // Callback when voiceover is generated
   // Callbacks
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
   onUpdateScene: (sceneId: string, updates: Partial<Scene>) => void;
@@ -89,6 +90,7 @@ function SoundscapeShotCard({
   videoId,
   sceneId,
   animationMode = 'video-animation', // Added to check mode
+  isGeneratingSfxFromBulk = false, // Added for bulk generation loading state
   onUpdateShot,
 }: {
   shot: Shot;
@@ -102,6 +104,7 @@ function SoundscapeShotCard({
   videoId: string;
   sceneId: string;
   animationMode?: 'image-transitions' | 'video-animation'; // Added
+  isGeneratingSfxFromBulk?: boolean; // Added for bulk generation loading state
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
 }) {
   const { toast } = useToast();
@@ -125,6 +128,9 @@ function SoundscapeShotCard({
   // NOTE: Loop counts are now initialized by the backend during step 4->5 transition
   // Do NOT auto-initialize here as it causes race conditions that overwrite saved data
   const currentLoopCount = shot.loopCount ?? defaultShotLoopCount ?? 1;
+  
+  // Combine local and bulk generation states
+  const isCurrentlyGeneratingSfx = isGeneratingSfx || isGeneratingSfxFromBulk;
 
   // Sync audio playback with video playback
   useEffect(() => {
@@ -391,7 +397,7 @@ function SoundscapeShotCard({
               size="sm"
               variant="ghost"
               className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white disabled:opacity-50"
-              disabled={isGeneratingSfx || !hasVideo}
+              disabled={isCurrentlyGeneratingSfx || !hasVideo}
               onClick={async () => {
                 if (!hasVideo) {
                   toast({
@@ -447,7 +453,7 @@ function SoundscapeShotCard({
                 }
               }}
             >
-              {isGeneratingSfx ? (
+              {isCurrentlyGeneratingSfx ? (
                 <>
                   <Loader2 className="mr-2 h-3 w-3 animate-spin" />
                   {shot.soundEffectUrl ? "Regenerating..." : "Generating..."}
@@ -489,6 +495,7 @@ function SceneRow({
   showSoundEffects = true, // Added for image-transitions mode
   animationMode = 'video-animation', // Added
   videoId,
+  generatingSfxShotIds, // Added for bulk SFX generation
   onUpdateScene,
   onUpdateShot,
   getShotVersion,
@@ -506,6 +513,7 @@ function SceneRow({
   showSoundEffects?: boolean; // Added for image-transitions mode
   animationMode?: 'image-transitions' | 'video-animation'; // Added
   videoId: string;
+  generatingSfxShotIds: Set<string>; // Added for bulk SFX generation
   onUpdateScene: (sceneId: string, updates: Partial<Scene>) => void;
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
   getShotVersion: (shot: Shot) => ShotVersion | null;
@@ -626,6 +634,7 @@ function SceneRow({
                       videoId={videoId}
                       sceneId={scene.id}
                       onUpdateShot={onUpdateShot}
+                      isGeneratingSfxFromBulk={generatingSfxShotIds.has(shot.id)}
                     />
                     
                     {/* Transition indicator between shots */}
@@ -684,6 +693,7 @@ export function SoundscapeTab({
   generatedMusicUrl: initialGeneratedMusicUrl,
   generatedMusicDuration: initialGeneratedMusicDuration,
   onMusicGenerated,
+  onVoiceoverGenerated,
   onUpdateShot,
   onUpdateScene,
 }: SoundscapeTabProps) {
@@ -707,6 +717,9 @@ export function SoundscapeTab({
   const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
   const [showMusicPlayer, setShowMusicPlayer] = useState(false);
   const [showLockConfirmation, setShowLockConfirmation] = useState(false);
+
+  // Sound Effects state (for bulk generation)
+  const [generatingSfxShotIds, setGeneratingSfxShotIds] = useState<Set<string>>(new Set());
 
   // Calculate total video duration with all loops
   const calculateTotalVideoDuration = () => {
@@ -788,6 +801,17 @@ export function SoundscapeTab({
     return v?.videoUrl && typeof v.videoUrl === 'string' && v.videoUrl.trim().length > 0;
   }).length;
 
+  // Check if all sound effects are ready (for video-animation mode only)
+  const allSoundEffectsReady = animationMode === 'video-animation' ? allShots.every(shot => {
+    const version = shotVersions[shot.id]?.[shotVersions[shot.id]?.length - 1];
+    const hasVideo = version?.videoUrl && typeof version.videoUrl === 'string' && version.videoUrl.trim().length > 0;
+    const hasSoundEffect = shot.soundEffectUrl && typeof shot.soundEffectUrl === 'string' && shot.soundEffectUrl.trim().length > 0;
+    
+    // If shot doesn't have video yet, we don't count it as "missing SFX"
+    // Only shots with videos need sound effects
+    return !hasVideo || hasSoundEffect;
+  }) : true; // For image-transitions, always true (no SFX needed)
+
   // Track scroll position for header blur effect
   useEffect(() => {
     const handleScroll = () => {
@@ -813,6 +837,98 @@ export function SoundscapeTab({
       return versions.find(v => v.id === shot.currentVersionId) || versions[versions.length - 1];
     }
     return versions[versions.length - 1];
+  };
+
+  // Handler for bulk sound effects generation
+  const handleGenerateAllSoundEffects = async () => {
+    console.log('[SoundscapeTab] Starting bulk sound effects generation');
+    
+    // Get all shots that need sound effects
+    const shotsNeedingSfx = allShots.filter(shot => {
+      const version = getShotVersion(shot);
+      const hasVideo = version?.videoUrl && typeof version.videoUrl === 'string' && version.videoUrl.trim().length > 0;
+      const hasSoundEffect = shot.soundEffectUrl && typeof shot.soundEffectUrl === 'string' && shot.soundEffectUrl.trim().length > 0;
+      return hasVideo && !hasSoundEffect;
+    });
+
+    if (shotsNeedingSfx.length === 0) {
+      toast({
+        title: "All sound effects generated",
+        description: "All shots already have sound effects",
+      });
+      return;
+    }
+
+    console.log('[SoundscapeTab] Shots needing SFX:', shotsNeedingSfx.length);
+    
+    // Mark all shots as generating
+    setGeneratingSfxShotIds(new Set(shotsNeedingSfx.map(s => s.id)));
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    // Generate sound effects for each shot
+    for (const shot of shotsNeedingSfx) {
+      try {
+        console.log(`[SoundscapeTab] Generating SFX for shot ${shot.id}`);
+        
+        const prompt = shot.soundEffectDescription?.trim() || "Generate a Soundeffect for The Following Video";
+        
+        const response = await fetch(`/api/ambient-visual/videos/${videoId}/shots/${shot.id}/sound-effect/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            prompt: prompt,
+            previousSoundEffectUrl: shot.soundEffectUrl || undefined,
+          }),
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to generate sound effect');
+        }
+        
+        const data = await response.json();
+        
+        // Update shot with new sound effect
+        onUpdateShot(shot.id, { 
+          soundEffectUrl: data.audioUrl,
+          soundEffectDescription: prompt,
+        });
+        
+        successCount++;
+        console.log(`[SoundscapeTab] ✓ Generated SFX for shot ${shot.id}`);
+      } catch (error) {
+        console.error(`[SoundscapeTab] ✗ Failed to generate SFX for shot ${shot.id}:`, error);
+        failureCount++;
+      } finally {
+        // Remove from generating set
+        setGeneratingSfxShotIds(prev => {
+          const next = new Set(prev);
+          next.delete(shot.id);
+          return next;
+        });
+      }
+    }
+
+    // Show completion toast
+    if (successCount > 0) {
+      toast({
+        title: "Sound effects generated",
+        description: `${successCount} of ${shotsNeedingSfx.length} sound effects generated successfully`,
+      });
+    }
+
+    if (failureCount > 0) {
+      toast({
+        title: "Some generations failed",
+        description: `${failureCount} sound effect generations failed`,
+        variant: "destructive",
+      });
+    }
+
+    console.log('[SoundscapeTab] Bulk SFX generation complete:', { successCount, failureCount, total: shotsNeedingSfx.length });
   };
 
   return (
@@ -1098,6 +1214,30 @@ export function SoundscapeTab({
                   Custom Music Uploaded
                 </Badge>
               )}
+
+              {/* Generate All Sound Effects Button - Only shown for video-animation mode and when not all SFX are ready */}
+              {showSoundEffects && !allSoundEffectsReady && (
+                <Button
+                  disabled={generatingSfxShotIds.size > 0}
+                  onClick={handleGenerateAllSoundEffects}
+                  className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white disabled:opacity-50"
+                >
+                  {generatingSfxShotIds.size > 0 ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating SFX ({allShots.length - generatingSfxShotIds.size}/{allShots.filter(s => {
+                        const v = getShotVersion(s);
+                        return v?.videoUrl && !s.soundEffectUrl;
+                      }).length})
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="mr-2 h-4 w-4" />
+                      Generate All Sound Effects
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>
@@ -1121,6 +1261,7 @@ export function SoundscapeTab({
             showSoundEffects={showSoundEffects}
             animationMode={animationMode}
             videoId={videoId}
+            generatingSfxShotIds={generatingSfxShotIds}
             onUpdateScene={onUpdateScene}
             onUpdateShot={onUpdateShot}
             getShotVersion={getShotVersion}
@@ -1289,6 +1430,8 @@ export function SoundscapeTab({
                     
                     const data = await response.json();
                     setVoiceoverAudioUrl(data.audioUrl);
+                    // Notify parent that voiceover was generated
+                    onVoiceoverGenerated?.(data.audioUrl);
                     toast({
                       title: "Voiceover Audio Generated",
                       description: `Duration: ${Math.floor(data.duration / 60)}min ${Math.round(data.duration % 60)}s`,

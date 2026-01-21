@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,6 +16,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { 
   ArrowRight, 
   Sparkles, 
@@ -44,8 +49,12 @@ import {
   Music,
   Video,
   ImageIcon,
+  ChevronDown,
+  Play,
+  Pause,
 } from "lucide-react";
 import { IMAGE_MODELS, getImageModelConfig } from "@/constants/image-models";
+import { VOICE_LIBRARY, type VoiceActor } from "@/constants/voice-library";
 
 // IMAGE_MODELS imported from @/constants/image-models
 
@@ -418,6 +427,9 @@ export function AtmosphereTab({
   const { toast } = useToast();
   const [aiPrompt, setAiPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Restore aiPrompt from userStory when video is reopened
   useEffect(() => {
@@ -426,6 +438,16 @@ export function AtmosphereTab({
       setAiPrompt(userStory);
     }
   }, [userStory]);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   // Auto-convert "auto" resolution to first available resolution (for backward compatibility)
   useEffect(() => {
@@ -450,6 +472,60 @@ export function AtmosphereTab({
   }, [duration, onDurationChange]);
 
   const accentClasses = "from-cyan-500 to-teal-500";
+
+  // Filter voices by language
+  const availableVoices = VOICE_LIBRARY.filter(voice => voice.language === language);
+  
+  // Get selected voice
+  const selectedVoice = VOICE_LIBRARY.find(v => v.elevenLabsVoiceId === voiceId);
+  
+  // Handle voice preview play
+  const handlePlayVoice = (voice: VoiceActor, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    // If already playing this voice, stop it
+    if (playingVoiceId === voice.elevenLabsVoiceId) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      setPlayingVoiceId(null);
+      return;
+    }
+    
+    // Stop any currently playing audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    
+    // Create and play new audio
+    const audio = new Audio(voice.previewUrl);
+    audioRef.current = audio;
+    
+    audio.play().catch(error => {
+      console.error('[AtmosphereTab] Error playing voice preview:', error);
+      toast({
+        title: "Preview Failed",
+        description: "Could not play voice preview",
+        variant: "destructive",
+      });
+      setPlayingVoiceId(null);
+    });
+    
+    audio.onended = () => {
+      setPlayingVoiceId(null);
+      audioRef.current = null;
+    };
+    
+    audio.onerror = () => {
+      console.error('[AtmosphereTab] Error loading voice preview');
+      setPlayingVoiceId(null);
+      audioRef.current = null;
+    };
+    
+    setPlayingVoiceId(voice.elevenLabsVoiceId);
+  };
 
   // Get theme-specific options
   const getTimeContexts = () => {
@@ -1961,78 +2037,84 @@ export function AtmosphereTab({
 
                     {/* Voice Selector */}
                     <div className="space-y-2">
-                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Voice</label>
-                      <Select 
-                        value={voiceId || undefined}
-                        onValueChange={(value) => onVoiceIdChange?.(value)}
-                      >
-                        <SelectTrigger className="h-12 bg-white/5 border-white/10 text-white">
-                          <SelectValue placeholder="Select a voice..." />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#0a0a0a] border-white/10">
-                          {language === 'ar' ? (
-                            <>
-                              <SelectItem 
-                                value="pFZP5JQG7iQjIQuC4Bku"
-                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
-                              >
-                                Lily (Female, Calm)
-                              </SelectItem>
-                              <SelectItem 
-                                value="onwK4e9ZLuTAKqWW03F9"
-                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
-                              >
-                                Daniel (Male, Warm)
-                              </SelectItem>
-                              <SelectItem 
-                                value="XrExE9yKIg1WjnnlVkGX"
-                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
-                              >
-                                Matilda (Female, Soothing)
-                              </SelectItem>
-                            </>
-                          ) : (
-                            <>
-                              <SelectItem 
-                                value="21m00Tcm4TlvDq8ikWAM"
-                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
-                              >
-                                Rachel (Female, Calm)
-                              </SelectItem>
-                              <SelectItem 
-                                value="AZnzlk1XvdvUeBnXmlld"
-                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
-                              >
-                                Domi (Female, Gentle)
-                              </SelectItem>
-                              <SelectItem 
-                                value="EXAVITQu4vr4xnSDxMaL"
-                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
-                              >
-                                Bella (Female, Warm)
-                              </SelectItem>
-                              <SelectItem 
-                                value="ErXwobaYiN019PkySvjV"
-                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
-                              >
-                                Antoni (Male, Deep)
-                              </SelectItem>
-                              <SelectItem 
-                                value="TxGEqnHWrfWFTfGW9XjX"
-                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
-                              >
-                                Josh (Male, Warm)
-                              </SelectItem>
-                              <SelectItem 
-                                value="IKne3meq5aSn9XLyUdCD"
-                                className="focus:bg-cyan-500/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-cyan-500/30 data-[state=checked]:to-teal-500/30 data-[state=checked]:text-white"
-                              >
-                                Charlie (Male, Calm)
-                              </SelectItem>
-                            </>
-                          )}
-                        </SelectContent>
-                      </Select>
+                      <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Voice Selection</label>
+                      <Popover open={voiceDropdownOpen} onOpenChange={setVoiceDropdownOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={voiceDropdownOpen}
+                            className="w-full h-12 justify-between bg-white/5 border-white/10 text-white hover:bg-white/10"
+                          >
+                            <span className={selectedVoice ? "font-medium" : "text-muted-foreground"}>
+                              {selectedVoice ? selectedVoice.name : "Select a voice..."}
+                            </span>
+                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[500px] p-0 bg-[#0a0a0a]/95 backdrop-blur-xl border-white/10" align="start">
+                          <div className="max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                            <div className="p-1">
+                              {availableVoices.length === 0 ? (
+                                <div className="p-4 text-center text-sm text-white/50">
+                                  No voices available for {language === 'ar' ? 'Arabic' : 'English'}
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="px-3 py-2 border-b border-white/10">
+                                    <p className="text-xs text-white/50">
+                                      {availableVoices.length} voice{availableVoices.length > 1 ? 's' : ''} available
+                                    </p>
+                                  </div>
+                                  {availableVoices.map((voice) => (
+                                    <div
+                                      key={voice.id}
+                                      className={cn(
+                                        "flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors",
+                                        selectedVoice?.id === voice.id
+                                          ? "bg-gradient-to-r from-cyan-500/30 to-teal-500/30 text-white"
+                                          : "hover:bg-white/5 text-white/70"
+                                      )}
+                                      onClick={() => {
+                                        onVoiceIdChange?.(voice.elevenLabsVoiceId);
+                                        setVoiceDropdownOpen(false);
+                                      }}
+                                    >
+                                      <div className="flex-1 min-w-0 mr-2">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-medium text-sm truncate">{voice.name}</span>
+                                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-white/10 border-white/20 text-white/70">
+                                            {voice.gender}
+                                          </Badge>
+                                        </div>
+                                        <p className="text-xs text-white/50 mt-0.5 truncate">{voice.description}</p>
+                                        <p className="text-[10px] text-white/40 mt-0.5">{voice.collection} • {voice.style}</p>
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-8 w-8 p-0 shrink-0"
+                                        onClick={(e) => handlePlayVoice(voice, e)}
+                                      >
+                                        {playingVoiceId === voice.elevenLabsVoiceId ? (
+                                          <Pause className="h-4 w-4 text-cyan-400" />
+                                        ) : (
+                                          <Play className="h-4 w-4 text-white/50 hover:text-cyan-400" />
+                                        )}
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      {selectedVoice && (
+                        <p className="text-xs text-white/50 mt-1">
+                          {selectedVoice.collection} • {selectedVoice.style} • {selectedVoice.description}
+                        </p>
+                      )}
                     </div>
 
                     {/* Voiceover Story */}

@@ -174,6 +174,11 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   const [step5Initialized, setStep5Initialized] = useState(false);
   const step5DataAppliedRef = useRef<boolean>(false);
   
+  // Track generated voiceover/music URLs during the session
+  // These override the initial values from step5Data when content is generated
+  const [sessionVoiceoverUrl, setSessionVoiceoverUrl] = useState<string | null>(null);
+  const [sessionMusicUrl, setSessionMusicUrl] = useState<string | null>(null);
+  
   // Debounce timer ref for auto-saving step4 settings
   const step4SettingsSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   // Debounce timer ref for auto-saving step5 settings
@@ -1128,15 +1133,21 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
   });
   
   // Determine canContinue based on active step
+  // Note: Steps 4 and 5 have their own validation logic handled separately
   const canContinue = activeStep === 1 
     ? canContinueStep1 
     : activeStep === 3 
       ? canContinueStep3 
-      : true;  // Other steps have no validation yet
+      : true;  // Steps 2 has no validation, steps 4 and 5 are handled separately
 
-  // Notify parent when validation state changes
-  // canContinue depends on multiple state values, so we need to track all dependencies
+  // Notify parent when validation state changes for steps 1, 2, 3
+  // Steps 4 and 5 have their own validation useEffect below
   useEffect(() => {
+    // Skip steps 4 and 5 - they have dedicated validation logic
+    if (activeStep === 4 || activeStep === 5) {
+      return;
+    }
+    
     // Recalculate validation values for logging
     const hasDesc = moodDescription.trim().length > 0;
     const settingsChanged = descriptionSettingsSnapshot !== null && (
@@ -1152,7 +1163,7 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     const totalProposed = allGroups.filter(g => g.status === 'proposed').length;
     const totalApproved = allGroups.filter(g => g.status === 'approved').length;
     
-    console.log('[AmbientWorkflow] Validation state changed, notifying parent:', {
+    console.log('[AmbientWorkflow] Validation state changed (steps 1-3), notifying parent:', {
       activeStep,
       canContinue,
       hasDescription: hasDesc,
@@ -1517,10 +1528,12 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     }
     
     // 2. Check voiceover (if voiceover is enabled)
+    // Use sessionVoiceoverUrl if available, otherwise fall back to initialStep5Data
     if (voiceoverEnabled) {
-      const hasVoiceover = !!(step5Data?.voiceoverAudioUrl && 
-                           typeof step5Data.voiceoverAudioUrl === 'string' && 
-                           step5Data.voiceoverAudioUrl.trim().length > 0);
+      const voiceoverUrl = sessionVoiceoverUrl || step5Data?.voiceoverAudioUrl;
+      const hasVoiceover = !!(voiceoverUrl && 
+                           typeof voiceoverUrl === 'string' && 
+                           voiceoverUrl.trim().length > 0);
       validationResults.voiceoverGenerated = hasVoiceover;
       if (!hasVoiceover) {
         console.log('[AmbientWorkflow] Step 5 validation failed: Voiceover enabled but not generated');
@@ -1528,14 +1541,16 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     }
     
     // 3. Check music (if background music is enabled)
+    // Use sessionMusicUrl if available, otherwise fall back to initialStep5Data
     if (backgroundMusicEnabled) {
       const hasCustomMusic = !!(step2DataMusic?.hasCustomMusic && 
                              step2DataMusic?.customMusicUrl && 
                              typeof step2DataMusic.customMusicUrl === 'string' && 
                              step2DataMusic.customMusicUrl.trim().length > 0);
-      const hasGeneratedMusic = !!(step5Data?.generatedMusicUrl && 
-                                typeof step5Data.generatedMusicUrl === 'string' && 
-                                step5Data.generatedMusicUrl.trim().length > 0);
+      const generatedMusicUrl = sessionMusicUrl || step5Data?.generatedMusicUrl;
+      const hasGeneratedMusic = !!(generatedMusicUrl && 
+                                typeof generatedMusicUrl === 'string' && 
+                                generatedMusicUrl.trim().length > 0);
       validationResults.musicGenerated = hasCustomMusic || hasGeneratedMusic;
       if (!validationResults.musicGenerated) {
         console.log('[AmbientWorkflow] Step 5 validation failed: Background music enabled but not generated/uploaded');
@@ -1588,11 +1603,17 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     });
     
     return allMet;
-  }, [activeStep, animationMode, loopMode, loopSettingsLocked, voiceoverEnabled, backgroundMusicEnabled, shots, initialStep5Data, initialStep2Data]);
+  }, [activeStep, animationMode, loopMode, loopSettingsLocked, voiceoverEnabled, backgroundMusicEnabled, shots, initialStep5Data, initialStep2Data, sessionVoiceoverUrl, sessionMusicUrl]);
 
-  // Update validation state when videos change
+  // Update validation state for steps 4 and 5 (Compose and Soundscape)
+  // These steps have dynamic validation based on generated content
   useEffect(() => {
-    console.log('[AmbientWorkflow] Validation useEffect triggered:', {
+    // Only handle steps 4 and 5 - other steps are handled by the previous useEffect
+    if (activeStep !== 4 && activeStep !== 5) {
+      return;
+    }
+    
+    console.log('[AmbientWorkflow] Step 4/5 validation useEffect triggered:', {
       activeStep,
       allVideosGenerated,
       step5RequirementsMet,
@@ -1605,11 +1626,8 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
     } else if (activeStep === 5) {
       console.log('[AmbientWorkflow] Setting validation for step 5:', step5RequirementsMet);
       onValidationChange?.(step5RequirementsMet);
-    } else {
-      // For other steps, allow continue (validation handled by step-specific logic)
-      onValidationChange?.(true);
     }
-  }, [activeStep, allVideosGenerated, step5RequirementsMet]);
+  }, [activeStep, allVideosGenerated, step5RequirementsMet, onValidationChange]);
 
   const goToNextStep = async () => {
     // Save data before continuing for steps that require it
@@ -3361,7 +3379,12 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
             generatedMusicUrl={step5Data?.generatedMusicUrl}
             generatedMusicDuration={step5Data?.generatedMusicDuration}
             onMusicGenerated={(musicUrl, duration) => {
-              console.log('[AmbientWorkflow] Music generated:', { musicUrl, duration });
+              console.log('[AmbientWorkflow] Music generated, updating session state:', { musicUrl, duration });
+              setSessionMusicUrl(musicUrl);
+            }}
+            onVoiceoverGenerated={(voiceoverUrl) => {
+              console.log('[AmbientWorkflow] Voiceover generated, updating session state:', { voiceoverUrl });
+              setSessionVoiceoverUrl(voiceoverUrl);
             }}
             onUpdateShot={handleUpdateShot}
             onUpdateScene={handleUpdateScene}

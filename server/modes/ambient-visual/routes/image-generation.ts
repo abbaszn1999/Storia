@@ -292,23 +292,23 @@ router.post('/videos/:id/shots/:shotId/generate-image', isAuthenticated, async (
 
     // 5. Validate generation rules (only for video-animation mode)
     if (!isImageTransitionsMode) {
-      if (frame === 'start' && isConnectedShot && !isFirstInGroup) {
-        // Connected shot (not first) - start frame is inherited, cannot generate
-        return res.status(400).json({ 
-          error: 'Start frame is inherited from previous shot for connected shots.',
-          inherited: true,
-          previousShotEndFrameUrl
-        });
-      }
+    if (frame === 'start' && isConnectedShot && !isFirstInGroup) {
+      // Connected shot (not first) - start frame is inherited, cannot generate
+      return res.status(400).json({ 
+        error: 'Start frame is inherited from previous shot for connected shots.',
+        inherited: true,
+        previousShotEndFrameUrl
+      });
+    }
 
-      if (frame === 'end') {
-        // End frame needs start frame to exist first
-        const hasStartFrame = latestVersion.startFrameUrl || latestVersion.imageUrl;
-        
-        if (!hasStartFrame && !(isConnectedShot && !isFirstInGroup && previousShotEndFrameUrl)) {
-          return res.status(400).json({ 
-            error: 'Start frame must be generated before end frame.' 
-          });
+    if (frame === 'end') {
+      // End frame needs start frame to exist first
+      const hasStartFrame = latestVersion.startFrameUrl || latestVersion.imageUrl;
+      
+      if (!hasStartFrame && !(isConnectedShot && !isFirstInGroup && previousShotEndFrameUrl)) {
+        return res.status(400).json({ 
+          error: 'Start frame must be generated before end frame.' 
+        });
         }
       }
     }
@@ -635,7 +635,7 @@ router.post('/videos/:id/shots/:shotId/regenerate-image', isAuthenticated, async
     if (frame === 'end') {
       // Only regenerate end frame (only valid for start-end-frame mode)
       if (!isImageReferenceMode) {
-        regenerateEnd = true;
+      regenerateEnd = true;
       } else {
         // Image-reference mode doesn't have end frames
         return res.status(400).json({ error: 'Image-reference mode does not have end frames' });
@@ -646,7 +646,7 @@ router.post('/videos/:id/shots/:shotId/regenerate-image', isAuthenticated, async
       if (isConnectedShot && !isFirstInGroup) {
         // Can only regenerate end, start is inherited
         if (!isImageReferenceMode) {
-          regenerateEnd = true;
+        regenerateEnd = true;
         } else {
           return res.status(400).json({ error: 'Connected shots (non-first) cannot regenerate start frame' });
         }
@@ -662,13 +662,13 @@ router.post('/videos/:id/shots/:shotId/regenerate-image', isAuthenticated, async
         regenerateEnd = false;
       } else {
         // Start-end-frame mode: regenerate both
-        // For connected shots (not first), start cannot be regenerated
-        if (isConnectedShot && !isFirstInGroup) {
-          // Can only regenerate end, start is inherited
-          regenerateEnd = true;
-        } else {
-          regenerateStart = true;
-          regenerateEnd = true;
+      // For connected shots (not first), start cannot be regenerated
+      if (isConnectedShot && !isFirstInGroup) {
+        // Can only regenerate end, start is inherited
+        regenerateEnd = true;
+      } else {
+        regenerateStart = true;
+        regenerateEnd = true;
         }
       }
     }

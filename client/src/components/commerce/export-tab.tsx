@@ -442,6 +442,13 @@ export function ExportTab({
           return { platform: apiPlatform };
         }),
         metadata: {},
+        // Storia metadata for calendar integration
+        storiaVideoId: videoId,
+        storiaContentType: 'video',
+        storiaContentMode: 'commerce',
+        storiaThumbnailUrl: thumbnailUrl || undefined,
+        storiaDuration: duration,
+        storiaAspectRatio: aspectRatio,
       };
 
       if (hasYouTube) {

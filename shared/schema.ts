@@ -172,18 +172,8 @@ export const locations = pgTable("locations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const contentCalendar = pgTable("content_calendar", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
-  videoId: varchar("video_id").references(() => videos.id),
-  storyId: varchar("story_id").references(() => stories.id),
-  title: text("title").notNull(),
-  scheduledDate: timestamp("scheduled_date").notNull(),
-  platform: text("platform").notNull(),
-  status: text("status").default("scheduled").notNull(),
-  publishedUrl: text("published_url"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+// NOTE: content_calendar table has been removed - Late.dev is now the single source of truth
+// See server/calendar/ for the new calendar implementation
 
 export const workspaceIntegrations = pgTable("workspace_integrations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -246,11 +236,6 @@ export const insertBrandkitSchema = createInsertSchema(brandkits).omit({
 });
 
 export const insertUploadSchema = createInsertSchema(uploads).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertContentCalendarSchema = createInsertSchema(contentCalendar).omit({
   id: true,
   createdAt: true,
 });
@@ -423,8 +408,6 @@ export type InsertBrandkit = z.infer<typeof insertBrandkitSchema>;
 export type Brandkit = typeof brandkits.$inferSelect;
 export type InsertUpload = z.infer<typeof insertUploadSchema>;
 export type Upload = typeof uploads.$inferSelect;
-export type InsertContentCalendar = z.infer<typeof insertContentCalendarSchema>;
-export type ContentCalendarItem = typeof contentCalendar.$inferSelect;
 export type InsertWorkspaceIntegration = z.infer<typeof insertWorkspaceIntegrationSchema>;
 export type WorkspaceIntegration = typeof workspaceIntegrations.$inferSelect;
 export type InsertProductionCampaign = z.infer<typeof insertProductionCampaignSchema>;

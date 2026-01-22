@@ -8,7 +8,6 @@ import {
   brandkits,
   uploads,
   videos,
-  contentCalendar,
   workspaceIntegrations,
   type User,
   type UpsertUser,
@@ -28,14 +27,11 @@ import {
   type InsertBrandkit,
   type Upload,
   type InsertUpload,
-  type ContentCalendarItem,
-  type InsertContentCalendar,
   type WorkspaceIntegration,
   type InsertWorkspaceIntegration,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
-import { randomUUID } from "crypto";
 
 export interface IStorage {
   // User operations
@@ -96,8 +92,8 @@ export interface IStorage {
   updateUpload(id: string, updates: Partial<Upload>): Promise<Upload>;
   deleteUpload(id: string): Promise<void>;
   
-  getContentCalendarByWorkspaceId(workspaceId: string): Promise<ContentCalendarItem[]>;
-  createContentCalendarItem(item: InsertContentCalendar): Promise<ContentCalendarItem>;
+  // NOTE: Content calendar methods removed - Late.dev is now the single source of truth
+  // See server/calendar/ for the new calendar implementation
   
   getWorkspaceIntegrations(workspaceId: string): Promise<WorkspaceIntegration[]>;
   getWorkspaceIntegration(workspaceId: string, platform: string): Promise<WorkspaceIntegration | undefined>;
@@ -131,8 +127,8 @@ export class MemStorage implements IStorage {
   private locations: Map<string, Location>;
   private voices: Map<string, Voice>;
   private uploads: Map<string, Upload>;
-  private contentCalendar: Map<string, ContentCalendarItem>;
   // workspaceIntegrations now uses PostgreSQL directly (not in-memory)
+  // NOTE: contentCalendar removed - Late.dev is now the single source of truth
 
   constructor() {
     this.users = new Map();
@@ -143,7 +139,6 @@ export class MemStorage implements IStorage {
     this.locations = new Map();
     this.voices = new Map();
     this.uploads = new Map();
-    this.contentCalendar = new Map();
     // workspaceIntegrations uses PostgreSQL directly
   }
 
@@ -255,7 +250,7 @@ export class MemStorage implements IStorage {
     await db.delete(locations).where(eq(locations.workspaceId, id));
     await db.delete(voices).where(eq(voices.workspaceId, id));
     await db.delete(uploads).where(eq(uploads.workspaceId, id));
-    await db.delete(contentCalendar).where(eq(contentCalendar.workspaceId, id));
+    // NOTE: content_calendar table removed - scheduled posts are now managed via Late.dev
     await db.delete(workspaceIntegrations).where(eq(workspaceIntegrations.workspaceId, id));
     await db.delete(stories).where(eq(stories.workspaceId, id));
     await db.delete(videos).where(eq(videos.workspaceId, id));
@@ -510,24 +505,8 @@ export class MemStorage implements IStorage {
     await db.delete(uploads).where(eq(uploads.id, id));
   }
 
-  async getContentCalendarByWorkspaceId(workspaceId: string): Promise<ContentCalendarItem[]> {
-    return Array.from(this.contentCalendar.values()).filter((c) => c.workspaceId === workspaceId);
-  }
-
-  async createContentCalendarItem(insertItem: InsertContentCalendar): Promise<ContentCalendarItem> {
-    const id = randomUUID();
-    const item: ContentCalendarItem = {
-      ...insertItem,
-      id,
-      videoId: insertItem.videoId ?? null,
-      storyId: insertItem.storyId ?? null,
-      status: insertItem.status ?? "scheduled",
-      publishedUrl: insertItem.publishedUrl ?? null,
-      createdAt: new Date(),
-    };
-    this.contentCalendar.set(id, item);
-    return item;
-  }
+  // NOTE: Content calendar methods removed - Late.dev is now the single source of truth
+  // See server/calendar/ for the new calendar implementation
 
   // ========== WORKSPACE INTEGRATIONS - PostgreSQL Storage ==========
   
@@ -687,11 +666,7 @@ export class MemStorage implements IStorage {
         this.uploads.delete(upload.id);
       }
       
-      // Delete content calendar items
-      const calendar = await this.getContentCalendarByWorkspaceId(workspace.id);
-      for (const item of calendar) {
-        this.contentCalendar.delete(item.id);
-      }
+      // NOTE: Content calendar cleanup not needed - Late.dev manages scheduled posts
       
       // Delete workspace integrations from PostgreSQL
       const integrations = await this.getWorkspaceIntegrations(workspace.id);

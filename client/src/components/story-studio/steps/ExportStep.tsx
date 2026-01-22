@@ -1026,6 +1026,12 @@ export function ExportStep({
         scheduledFor: scheduleMode === 'scheduled' && scheduledDateTime 
           ? new Date(scheduledDateTime).toISOString() 
           : undefined,
+        // Storia metadata for calendar integration
+        storiaStoryId: storyId,
+        storiaContentType: 'story',
+        storiaContentMode: template.id,
+        storiaDuration: duration,
+        storiaAspectRatio: aspectRatio,
       };
 
       console.log('[ExportStep] Publishing to Late.dev:', publishInput);

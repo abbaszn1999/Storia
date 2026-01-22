@@ -10,6 +10,8 @@ import type {
   LateError,
   LateCreatePostInput,
   LateCreatePostResponse,
+  LateUpdatePostInput,
+  LateUpdatePostResponse,
   LatePost,
   LateListPostsResponse,
   LatePlatform,
@@ -252,12 +254,36 @@ export class LateService {
   }
 
   /**
+   * Update an existing post
+   * Only draft, scheduled, failed, and partial posts can be edited
+   */
+  async updatePost(postId: string, input: LateUpdatePostInput): Promise<LateUpdatePostResponse> {
+    try {
+      console.log('[Late.dev] Updating post:', postId);
+      console.log('[Late.dev] Update input:', JSON.stringify(input, null, 2));
+
+      const response = await this.makeRequest<LateUpdatePostResponse>(`/posts/${postId}`, {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      });
+
+      console.log('[Late.dev] Post updated successfully:', postId);
+      return response;
+    } catch (error) {
+      console.error('[Late.dev] Error updating post:', error);
+      throw error;
+    }
+  }
+
+  /**
    * List posts with optional filters
    */
   async listPosts(params?: {
     status?: string;
     platform?: string;
     profileId?: string;
+    dateFrom?: string;
+    dateTo?: string;
     page?: number;
     limit?: number;
   }): Promise<LateListPostsResponse> {
@@ -266,6 +292,8 @@ export class LateService {
       if (params?.status) queryParams.append('status', params.status);
       if (params?.platform) queryParams.append('platform', params.platform);
       if (params?.profileId) queryParams.append('profileId', params.profileId);
+      if (params?.dateFrom) queryParams.append('dateFrom', params.dateFrom);
+      if (params?.dateTo) queryParams.append('dateTo', params.dateTo);
       if (params?.page) queryParams.append('page', params.page.toString());
       if (params?.limit) queryParams.append('limit', params.limit.toString());
 
@@ -378,6 +406,16 @@ export class LateService {
       || input.metadata.facebook?.caption 
       || '';
 
+    // Build Storia metadata to embed in Late.dev post (for calendar integration)
+    const storiaMetadata: Record<string, any> = {};
+    if (input.storiaVideoId) storiaMetadata.storiaVideoId = input.storiaVideoId;
+    if (input.storiaStoryId) storiaMetadata.storiaStoryId = input.storiaStoryId;
+    if (input.storiaContentType) storiaMetadata.storiaContentType = input.storiaContentType;
+    if (input.storiaContentMode) storiaMetadata.storiaContentMode = input.storiaContentMode;
+    if (input.storiaThumbnailUrl) storiaMetadata.storiaThumbnailUrl = input.storiaThumbnailUrl;
+    if (input.storiaDuration) storiaMetadata.storiaDuration = input.storiaDuration;
+    if (input.storiaAspectRatio) storiaMetadata.storiaAspectRatio = input.storiaAspectRatio;
+
     // Create the post
     const createPostInput: LateCreatePostInput = {
       content: mainContent,
@@ -398,6 +436,8 @@ export class LateService {
         ...(input.metadata.facebook?.hashtags || []),
       ].filter((v, i, a) => a.indexOf(v) === i), // Remove duplicates
       tiktokSettings,
+      // Include Storia metadata for calendar integration
+      metadata: Object.keys(storiaMetadata).length > 0 ? storiaMetadata : undefined,
     };
 
     try {

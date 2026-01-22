@@ -174,7 +174,8 @@ router.post('/generate', isAuthenticated, async (req: Request, res: Response) =>
       video.workspaceId
     );
 
-    // Build Bunny CDN path
+    // Build Bunny CDN path - use video's creation date to keep files in same folder
+    const createdDate = new Date(video.createdAt).toISOString().slice(0, 10).replace(/-/g, "");
     const audioFileName = `voiceover_${beatId}_${Date.now()}.mp3`;
     const audioPath = buildVideoModePath({
       userId,
@@ -183,6 +184,7 @@ router.post('/generate', isAuthenticated, async (req: Request, res: Response) =>
       projectName: video.title || 'untitled',
       subFolder: 'Voice-Over',
       filename: audioFileName,
+      dateLabel: createdDate,
     });
 
     // Upload to Bunny CDN
@@ -360,7 +362,8 @@ router.post('/regenerate', isAuthenticated, async (req: Request, res: Response) 
       video.workspaceId
     );
 
-    // Build Bunny CDN path
+    // Build Bunny CDN path - use video's creation date to keep files in same folder
+    const createdDateRegen = new Date(video.createdAt).toISOString().slice(0, 10).replace(/-/g, "");
     const audioFileName = `voiceover_${beatId}_${Date.now()}.mp3`;
     const audioPath = buildVideoModePath({
       userId,
@@ -369,6 +372,7 @@ router.post('/regenerate', isAuthenticated, async (req: Request, res: Response) 
       projectName: video.title || 'untitled',
       subFolder: 'Voice-Over',
       filename: audioFileName,
+      dateLabel: createdDateRegen,
     });
 
     // Upload to Bunny CDN

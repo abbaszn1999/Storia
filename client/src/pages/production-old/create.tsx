@@ -23,18 +23,18 @@ import {
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Step1TypeSelection } from "@/components/production/step1-type-selection";
-import { Step2VideoMode } from "@/components/production/step2-video-mode";
-import { Step2StoryTemplate } from "@/components/production/step2-story-template";
-import { Step3NarrativeMode } from "@/components/production/step3-narrative-mode";
-import { Step3StoryTopics } from "@/components/production/step3-story-topics";
-import { Step3ASMRSettings } from "@/components/production/step3-asmr-settings";
-import { Step4CampaignBasics } from "@/components/production/step4-campaign-basics";
-import { Step4StoryAudio } from "@/components/production/step4-story-audio";
-import { Step5VideoSettings } from "@/components/production/step5-video-settings";
-import { Step6Casting } from "@/components/production/step6-casting";
-import { Step7Scheduling } from "@/components/production/step7-scheduling";
-import { Step8Publishing } from "@/components/production/step8-publishing";
+import { Step1TypeSelection } from "@/components/production-old/step1-type-selection";
+import { Step2VideoMode } from "@/components/production-old/step2-video-mode";
+import { Step2StoryTemplate } from "@/components/production-old/step2-story-template";
+import { Step3NarrativeMode } from "@/components/production-old/step3-narrative-mode";
+import { Step3StoryTopics } from "@/components/production-old/step3-story-topics";
+import { Step3ASMRSettings } from "@/components/production-old/step3-asmr-settings";
+import { Step4CampaignBasics } from "@/components/production-old/step4-campaign-basics";
+import { Step4StoryAudio } from "@/components/production-old/step4-story-audio";
+import { Step5VideoSettings } from "@/components/production-old/step5-video-settings";
+import { Step6Casting } from "@/components/production-old/step6-casting";
+import { Step7Scheduling } from "@/components/production-old/step7-scheduling";
+import { Step8Publishing } from "@/components/production-old/step8-publishing";
 
 const allWizardSteps = [
   { number: 1, title: "Content Type", icon: Layers, description: "Video or Story", forAmbient: true },

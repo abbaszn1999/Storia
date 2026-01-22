@@ -118,31 +118,49 @@ export function ControlPanel({ state, actions }: ControlPanelProps) {
               <label className="text-xs font-medium text-muted-foreground">
                 Visual Prompt
               </label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={actions.generateIdea}
-                disabled={state.isGeneratingIdea || !state.ideaInput.trim() || !state.referenceImage}
-                className={cn(
-                  "h-7 px-2.5 text-xs",
-                  "bg-primary/10 text-primary hover:bg-primary/20",
-                  "border border-primary/20",
-                  (state.isGeneratingIdea || !state.ideaInput.trim() || !state.referenceImage) && "opacity-50 cursor-not-allowed"
+              <div className="relative group">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={actions.generateIdea}
+                  disabled={state.isGeneratingIdea || !state.ideaInput.trim() || !state.referenceImage}
+                  className={cn(
+                    "h-7 px-2.5 text-xs",
+                    "bg-primary/10 text-primary hover:bg-primary/20",
+                    "border border-primary/20",
+                    (state.isGeneratingIdea || !state.ideaInput.trim() || !state.referenceImage) && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  {state.isGeneratingIdea ? (
+                    <>
+                      <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3 w-3 mr-1.5" />
+                      AI Recommend
+                    </>
+                  )}
+                </Button>
+                {/* Tooltip for disabled state */}
+                {(!state.referenceImage || !state.ideaInput.trim()) && !state.isGeneratingIdea && (
+                  <div className="absolute bottom-full right-0 mb-2 px-3 py-2 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
+                    <div className="text-[11px] text-muted-foreground">
+                      {!state.referenceImage && !state.ideaInput.trim() ? (
+                        <>Upload a logo image and enter an idea first</>
+                      ) : !state.referenceImage ? (
+                        <>Upload a logo image first</>
+                      ) : (
+                        <>Enter a logo idea first</>
+                      )}
+                    </div>
+                    {/* Tooltip arrow */}
+                    <div className="absolute top-full right-4 -mt-px border-4 border-transparent border-t-[#1a1a1a]" />
+                  </div>
                 )}
-              >
-                {state.isGeneratingIdea ? (
-                  <>
-                    <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-3 w-3 mr-1.5" />
-                    AI Recommend
-                  </>
-                )}
-              </Button>
+              </div>
             </div>
             <Textarea
               value={state.visualPrompt}

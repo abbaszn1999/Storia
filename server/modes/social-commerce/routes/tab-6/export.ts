@@ -141,6 +141,23 @@ router.get('/status/:videoId', isAuthenticated, async (req: Request, res: Respon
 
     // If done, update database with export URL
     if (shotstackStatus === 'done' && shotstackUrl) {
+      // Re-fetch video to check if another request already uploaded
+      // This prevents duplicate uploads from concurrent polling requests
+      const freshVideo = await storage.getVideo(videoId);
+      const freshStep5Data = freshVideo?.step5Data as Step5Data | undefined;
+      const freshRender = freshStep5Data?.animatic?.render;
+      
+      // If already uploaded by another request, return cached result
+      if (freshRender?.status === 'done' && freshRender?.url) {
+        console.log('[Export] Already uploaded by another request, returning cached result');
+        return res.json({
+          renderStatus: 'done',
+          renderProgress: 100,
+          exportUrl: freshRender.url,
+          thumbnailUrl: freshRender.thumbnailUrl,
+        });
+      }
+
       // Upload to Bunny CDN if configured
       let finalUrl = shotstackUrl;
       let finalThumbnail = thumbnailUrl;
@@ -158,13 +175,18 @@ router.get('/status/:videoId', isAuthenticated, async (req: Request, res: Respon
           const workspace = workspaces.find(w => w.id === video.workspaceId);
           const workspaceName = workspace?.name || video.workspaceId || 'default';
           
+          // Use video's creation date to keep files in same folder
+          const createdDate = new Date(video.createdAt).toISOString().slice(0, 10).replace(/-/g, "");
+          
+          // Use static filename to overwrite previous exports (no Date.now())
           const exportPath = buildVideoModePath({
             userId,
             workspaceName,
             toolMode: 'commerce',
             projectName: video.title || videoId,
             subFolder: 'Export',
-            filename: `final-export-${Date.now()}.mp4`
+            filename: `final-export.mp4`,
+            dateLabel: createdDate,
           });
           
           const cdnUrl = await bunnyStorage.uploadFile(
@@ -183,13 +205,15 @@ router.get('/status/:videoId', isAuthenticated, async (req: Request, res: Respon
             const thumbResponse = await fetch(thumbnailUrl);
             const thumbBuffer = await thumbResponse.arrayBuffer();
             
+            // Use static filename to overwrite previous thumbnails
             const thumbPath = buildVideoModePath({
               userId,
               workspaceName,
               toolMode: 'commerce',
               projectName: video.title || videoId,
               subFolder: 'Export',
-              filename: `thumbnail-${Date.now()}.jpg`
+              filename: `thumbnail.jpg`,
+              dateLabel: createdDate,
             });
             
             const thumbCdnUrl = await bunnyStorage.uploadFile(

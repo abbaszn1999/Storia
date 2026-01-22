@@ -238,6 +238,8 @@ export async function generateAIModeComposite(
       throw new Error('Video not found');
     }
 
+    // Use video's creation date to keep files in same folder
+    const createdDate = new Date(video.createdAt).toISOString().slice(0, 10).replace(/-/g, "");
     const compositeFileName = `ai_composite_${timestamp}.png`;
     const compositePath = buildVideoModePath({
       userId,
@@ -246,6 +248,7 @@ export async function generateAIModeComposite(
       projectName: video.title || 'untitled',
       subFolder: 'Composites',
       filename: compositeFileName,
+      dateLabel: createdDate,
     });
     
     console.log('[composite-generator] Uploading AI composite to Bunny:', compositePath);
@@ -547,6 +550,8 @@ export async function generateComposite(
       throw new Error('Video not found');
     }
 
+    // Use video's creation date to keep files in same folder
+    const createdDateManual = new Date(video.createdAt).toISOString().slice(0, 10).replace(/-/g, "");
     const compositeFileName = `composite_${timestamp}.png`;
     const compositePath = buildVideoModePath({
       userId,
@@ -555,6 +560,7 @@ export async function generateComposite(
       projectName: video.title || 'untitled',
       subFolder: 'Composites',
       filename: compositeFileName,
+      dateLabel: createdDateManual,
     });
     
     console.log('[composite-generator] Uploading composite to Bunny:', compositePath);

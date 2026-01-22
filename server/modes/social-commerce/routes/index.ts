@@ -2867,7 +2867,8 @@ router.post('/videos/:id/beats/:beatId/generate', isAuthenticated, async (req: R
       throw new Error('Workspace not found');
     }
 
-    // Build Bunny CDN path for the video
+    // Build Bunny CDN path for the video - use video's creation date to keep files in same folder
+    const createdDate = new Date(video.createdAt).toISOString().slice(0, 10).replace(/-/g, "");
     const videoFileName = `${beatId}_${Date.now()}.mp4`;
     const videoPath = buildVideoModePath({
       userId,
@@ -2876,6 +2877,7 @@ router.post('/videos/:id/beats/:beatId/generate', isAuthenticated, async (req: R
       projectName: video.title || 'untitled',
       subFolder: 'Beats',
       filename: videoFileName,
+      dateLabel: createdDate,
     });
 
     // Upload video to Bunny CDN

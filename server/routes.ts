@@ -19,6 +19,10 @@ import { calendarRoutes } from "./calendar";
 import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertCharacterSchema, insertLocationSchema, insertVoiceSchema, insertUploadSchema } from "@shared/schema";
 import { z } from "zod";
 import { bunnyStorage } from "./storage/bunny-storage";
+// Auto Production routes
+import { autoProductionSharedRoutes } from "./autoproduction/shared/routes";
+import { autoStoryRoutes } from "./autoproduction/auto-story/routes";
+import { autoVideoRoutes } from "./autoproduction/auto-video/routes";
 
 // Helper function to verify workspace ownership
 async function verifyWorkspaceOwnership(workspaceId: string, userId: string): Promise<boolean> {
@@ -30,6 +34,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes (both /api/auth and /api/account)
   app.use('/api/auth', authRoutes);
   app.use('/api/account', authRoutes);
+  
+  // Auto Production routes (NEW)
+  app.use('/api/autoproduction', autoProductionSharedRoutes);
+  app.use('/api/autoproduction/story', autoStoryRoutes);
+  app.use('/api/autoproduction/video', autoVideoRoutes);
   
   // Feature routes
   app.use('/api/narrative', narrativeRoutes);

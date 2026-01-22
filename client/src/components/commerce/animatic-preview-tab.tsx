@@ -32,7 +32,6 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -77,8 +76,6 @@ interface AnimaticPreviewTabProps {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function AnimaticPreviewTab({ videoId, onNext }: AnimaticPreviewTabProps) {
-  const { toast } = useToast();
-  
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const voiceoverRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
@@ -381,20 +378,12 @@ export function AnimaticPreviewTab({ videoId, onNext }: AnimaticPreviewTabProps)
         progress: 10,
       });
 
-      toast({
-        title: 'Export Started',
-        description: 'Your video is being rendered. This may take a few minutes.',
-      });
+      console.log('[AnimaticPreview] Export started');
 
       // Start polling for status
       pollExportStatus(data.renderId);
     } catch (err) {
       console.error('[AnimaticPreview] Export error:', err);
-      toast({
-        title: 'Export Failed',
-        description: err instanceof Error ? err.message : 'Unknown error',
-        variant: 'destructive',
-      });
     } finally {
       setIsExporting(false);
     }
@@ -419,16 +408,9 @@ export function AnimaticPreviewTab({ videoId, onNext }: AnimaticPreviewTabProps)
         });
 
         if (data.status === 'done') {
-          toast({
-            title: 'Export Complete!',
-            description: 'Your video is ready to download.',
-          });
+          console.log('[AnimaticPreview] Export complete');
         } else if (data.status === 'failed') {
-          toast({
-            title: 'Export Failed',
-            description: data.error || 'Render failed',
-            variant: 'destructive',
-          });
+          console.error('[AnimaticPreview] Export failed:', data.error);
         } else {
           // Continue polling
           setTimeout(poll, 3000);

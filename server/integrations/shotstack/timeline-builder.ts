@@ -308,12 +308,13 @@ function buildExpandedClips(
             transition = buildTransition('fade');
           }
 
-          // Add video clip (muted - audio comes from SFX track)
+          // Add video clip with embedded audio volume
+          // volumes.master controls the embedded video audio (e.g., Sora-generated audio)
           const videoClip = buildVideoClip(
             version.videoUrl,
             currentTime,
             shot.duration,
-            0, // Volume 0 - video is silent, audio is separate
+            volumes.master, // Use master volume for embedded video audio
             transition
           );
           videoClips.push(videoClip);

@@ -27,7 +27,6 @@ import {
   Check
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
 import type { BeatPromptOutput, VoiceoverScriptOutput, BeatPrompt } from "@/types/commerce";
 import type { BeatStatus, BeatGenerationState } from "@/types/commerce";
@@ -123,7 +122,6 @@ function VoiceoverCard({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const { toast } = useToast();
 
   const isLocked = status === 'locked';
   const isCompleted = status === 'completed';
@@ -173,7 +171,7 @@ function VoiceoverCard({
           await onUpdateVoiceoverScript(beat.beatId, newScript);
           setHasUnsavedChanges(false);
         } catch (error) {
-          toast({ title: "Error", description: "Failed to save script", variant: "destructive" });
+          console.error('[Voiceover] Failed to save script:', error);
         } finally {
           setIsSaving(false);
         }
@@ -186,7 +184,7 @@ function VoiceoverCard({
     const scriptToUse = editedScript.trim();
     
     if (!scriptToUse || scriptToUse.length === 0) {
-      toast({ title: "No Script", description: "Please add a voiceover script first", variant: "destructive" });
+      console.warn('[Voiceover] No script provided');
       return;
     }
 
@@ -196,7 +194,7 @@ function VoiceoverCard({
         await onUpdateVoiceoverScript(beat.beatId, scriptToUse);
         setHasUnsavedChanges(false);
       } catch (error) {
-        toast({ title: "Error", description: "Failed to save script before generating audio", variant: "destructive" });
+        console.error('[Voiceover] Failed to save script before generating audio:', error);
         return;
       }
     }
@@ -232,10 +230,7 @@ function VoiceoverCard({
       const data = await response.json();
       
       const isRegenerated = data.regenerated || forceRegenerate || hasAudio;
-      toast({ 
-        title: isRegenerated ? "Audio Regenerated" : "Audio Generated", 
-        description: isRegenerated ? "Voiceover regenerated with new script" : "Voiceover audio generated successfully"
-      });
+      console.log('[Voiceover]', isRegenerated ? 'Audio regenerated' : 'Audio generated');
 
       if (onVoiceoverAudioGenerated) {
         onVoiceoverAudioGenerated(beat.beatId, {
@@ -246,7 +241,7 @@ function VoiceoverCard({
         });
       }
     } catch (error) {
-      toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to generate voiceover", variant: "destructive" });
+      console.error('[Voiceover] Failed to generate voiceover:', error);
     } finally {
       setIsGeneratingAudio(false);
     }
@@ -282,7 +277,7 @@ function VoiceoverCard({
     audio.onerror = () => {
       setIsPlaying(false);
       if (videoRef.current) videoRef.current.pause();
-      toast({ title: "Playback Error", description: "Failed to play audio", variant: "destructive" });
+      console.error('[Voiceover] Failed to play audio');
     };
 
     audio.play().then(() => {
@@ -290,7 +285,7 @@ function VoiceoverCard({
         videoRef.current.play().catch(() => {});
       }
     }).catch(() => {
-      toast({ title: "Playback Error", description: "Failed to play audio", variant: "destructive" });
+      console.error('[Voiceover] Failed to play audio');
     });
 
     setIsPlaying(true);

@@ -14,7 +14,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useToast } from "@/hooks/use-toast";
 import type { Character } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 
@@ -516,8 +515,6 @@ export function SocialCommerceWorkflow({
   onPromptPreviewOpenChange,
   onEditedPromptChange,
 }: SocialCommerceWorkflowProps) {
-  const { toast } = useToast();
-  
   const [voiceoverTextMap, setVoiceoverTextMap] = useState<{ [shotId: string]: string }>({});
 
   // Debug: Log when voiceover step is active
@@ -878,11 +875,7 @@ export function SocialCommerceWorkflow({
 
   const handleConfirmAddScene = () => {
     if (!sceneFormData.scene_name.trim() || !sceneFormData.scene_description.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Scene name and description are required",
-        variant: "destructive",
-      });
+      console.warn('[Workflow] Scene name and description are required');
       return;
     }
 
@@ -922,10 +915,7 @@ export function SocialCommerceWorkflow({
     setAddSceneDialogOpen(false);
     setPendingSceneIndex(null);
     
-    toast({
-      title: "Scene Added",
-      description: `Scene "${sceneFormData.scene_name}" has been added`,
-    });
+    console.log('[Workflow] Scene added:', sceneFormData.scene_name);
   };
 
   const handleAddShot = (sceneId: string, afterShotIndex: number) => {
@@ -956,11 +946,7 @@ export function SocialCommerceWorkflow({
 
   const handleConfirmAddShot = () => {
     if (!shotFormData.cinematic_goal.trim() || !shotFormData.brief_description.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Cinematic goal and description are required",
-        variant: "destructive",
-      });
+      console.warn('[Workflow] Cinematic goal and description are required');
       return;
     }
 
@@ -969,11 +955,7 @@ export function SocialCommerceWorkflow({
     // Find scene in sceneManifest
     const sceneIndex = sceneManifest.scenes.findIndex(s => s.id === pendingSceneId);
     if (sceneIndex === -1) {
-      toast({
-        title: "Error",
-        description: "Scene not found",
-        variant: "destructive",
-      });
+      console.error('[Workflow] Scene not found');
       return;
     }
 
@@ -1060,10 +1042,7 @@ export function SocialCommerceWorkflow({
     setPendingSceneId(null);
     setPendingShotIndex(null);
     
-    toast({
-      title: "Shot Added",
-      description: `Shot "${shotFormData.cinematic_goal}" has been added`,
-    });
+    console.log('[Workflow] Shot added:', shotFormData.cinematic_goal);
   };
 
   const handleDeleteScene = (sceneId: string) => {

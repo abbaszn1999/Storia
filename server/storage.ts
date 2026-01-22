@@ -10,6 +10,8 @@ import {
   videos,
   contentCalendar,
   workspaceIntegrations,
+  productionCampaigns,
+  campaignItems,
   type User,
   type UpsertUser,
   type Workspace,
@@ -32,6 +34,10 @@ import {
   type InsertContentCalendar,
   type WorkspaceIntegration,
   type InsertWorkspaceIntegration,
+  type ProductionCampaign,
+  type InsertProductionCampaign,
+  type CampaignItem,
+  type InsertCampaignItem,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -117,6 +123,20 @@ export interface IStorage {
   }): Promise<WorkspaceIntegration>;
   getIntegrationByLateAccountId(lateAccountId: string): Promise<WorkspaceIntegration | undefined>;
   getLateIntegrations(workspaceId: string): Promise<WorkspaceIntegration[]>;
+  
+  // Production Campaigns (Auto Production)
+  getProductionCampaign(id: string): Promise<ProductionCampaign | undefined>;
+  getProductionCampaignsByUserId(userId: string): Promise<ProductionCampaign[]>;
+  createProductionCampaign(campaign: InsertProductionCampaign): Promise<ProductionCampaign>;
+  updateProductionCampaign(id: string, updates: Partial<ProductionCampaign>): Promise<ProductionCampaign>;
+  deleteProductionCampaign(id: string): Promise<void>;
+  
+  // Campaign Items
+  getCampaignItem(id: string): Promise<CampaignItem | undefined>;
+  getCampaignItems(campaignId: string): Promise<CampaignItem[]>;
+  createCampaignItem(item: InsertCampaignItem): Promise<CampaignItem>;
+  updateCampaignItem(id: string, updates: Partial<CampaignItem>): Promise<CampaignItem>;
+  deleteCampaignItem(id: string): Promise<void>;
   
   // Account management
   deleteUserAccount(userId: string): Promise<void>;
@@ -641,6 +661,65 @@ export class MemStorage implements IStorage {
         eq(workspaceIntegrations.source, 'late')
       )
     );
+  }
+
+  // ═══════════ PRODUCTION CAMPAIGNS ═══════════
+
+  async getProductionCampaign(id: string): Promise<ProductionCampaign | undefined> {
+    const [campaign] = await db.select().from(productionCampaigns).where(eq(productionCampaigns.id, id));
+    return campaign;
+  }
+
+  async getProductionCampaignsByUserId(userId: string): Promise<ProductionCampaign[]> {
+    return db.select().from(productionCampaigns).where(eq(productionCampaigns.userId, userId));
+  }
+
+  async createProductionCampaign(campaign: InsertProductionCampaign): Promise<ProductionCampaign> {
+    const [created] = await db.insert(productionCampaigns).values(campaign).returning();
+    return created;
+  }
+
+  async updateProductionCampaign(id: string, updates: Partial<ProductionCampaign>): Promise<ProductionCampaign> {
+    const [updated] = await db.update(productionCampaigns)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(productionCampaigns.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteProductionCampaign(id: string): Promise<void> {
+    // Delete all campaign items first (cascade)
+    await db.delete(campaignItems).where(eq(campaignItems.campaignId, id));
+    // Delete campaign
+    await db.delete(productionCampaigns).where(eq(productionCampaigns.id, id));
+  }
+
+  // ═══════════ CAMPAIGN ITEMS ═══════════
+
+  async getCampaignItem(id: string): Promise<CampaignItem | undefined> {
+    const [item] = await db.select().from(campaignItems).where(eq(campaignItems.id, id));
+    return item;
+  }
+
+  async getCampaignItems(campaignId: string): Promise<CampaignItem[]> {
+    return db.select().from(campaignItems).where(eq(campaignItems.campaignId, campaignId));
+  }
+
+  async createCampaignItem(item: InsertCampaignItem): Promise<CampaignItem> {
+    const [created] = await db.insert(campaignItems).values(item).returning();
+    return created;
+  }
+
+  async updateCampaignItem(id: string, updates: Partial<CampaignItem>): Promise<CampaignItem> {
+    const [updated] = await db.update(campaignItems)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(campaignItems.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCampaignItem(id: string): Promise<void> {
+    await db.delete(campaignItems).where(eq(campaignItems.id, id));
   }
 
   async deleteUserAccount(userId: string): Promise<void> {

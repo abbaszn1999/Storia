@@ -41,7 +41,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useToast } from "@/hooks/use-toast";
 import { useSocialAccounts } from "@/components/shared/social";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { apiRequest } from "@/lib/queryClient";
@@ -91,7 +90,6 @@ export function ExportTab({
   hasVoiceover = false,
   hasMusic = false,
 }: ExportTabProps) {
-  const { toast } = useToast();
   const { currentWorkspace } = useWorkspace();
   const { isLoading: isLoadingAccounts, isConnected, getConnectUrl, refetch: refetchAccounts } = useSocialAccounts();
 
@@ -173,10 +171,7 @@ export function ExportTab({
         // Stop polling when done or failed
         if (data.renderStatus === 'done' || data.renderStatus === 'failed') {
           if (data.renderStatus === 'done' && isMounted) {
-            toast({
-              title: 'Export Complete!',
-              description: 'Your video is ready to download or publish.',
-            });
+            console.log('[ExportTab] Export complete');
           }
           return false;
         }
@@ -206,11 +201,7 @@ export function ExportTab({
                   if (isMounted) {
                     setRenderStatus('failed');
                     setRenderProgress(0);
-                    toast({
-                      title: 'Export Configuration Error',
-                      description: errData.error || 'Shotstack API is not configured. Please contact support.',
-                      variant: 'destructive',
-                    });
+                    console.error('[ExportTab] Export configuration error:', errData.error);
                   }
                   return false; // Stop polling
                 }
@@ -250,7 +241,7 @@ export function ExportTab({
         pollInterval = null;
       }
     };
-  }, [videoId, toast]);
+  }, [videoId]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // HANDLERS
@@ -296,17 +287,9 @@ export function ExportTab({
 
       URL.revokeObjectURL(blobUrl);
 
-      toast({
-        title: 'Download started',
-        description: 'Your video is being downloaded.',
-      });
+      console.log('[ExportTab] Download started');
     } catch (err) {
       console.error('[ExportTab] Download error:', err);
-      toast({
-        title: 'Download failed',
-        description: 'Failed to download video. Please try again.',
-        variant: 'destructive',
-      });
     }
   };
 
@@ -315,10 +298,7 @@ export function ExportTab({
     navigator.clipboard.writeText(exportUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast({
-      title: 'Link copied',
-      description: 'Video URL copied to clipboard.',
-    });
+    console.log('[ExportTab] Link copied');
   };
 
   // Platform connection
@@ -333,10 +313,7 @@ export function ExportTab({
     const url = await getConnectUrl(platform.apiPlatform);
     if (url) {
       window.open(url, '_blank', 'width=600,height=700');
-      toast({
-        title: "Connecting...",
-        description: "Complete authentication in the new window, then return here.",
-      });
+      console.log('[ExportTab] Opening connection window for', platform.name);
       connectIntervalRef.current = setInterval(async () => {
         await refetchAccounts();
       }, 3000);
@@ -349,13 +326,9 @@ export function ExportTab({
       }, 120000);
     } else {
       setConnectingPlatform(null);
-      toast({
-        title: "Connection failed",
-        description: "Could not open connection page. Please try again.",
-        variant: "destructive",
-      });
+      console.error('[ExportTab] Could not open connection page');
     }
-  }, [getConnectUrl, refetchAccounts, toast]);
+  }, [getConnectUrl, refetchAccounts]);
 
   // Clear connecting state when platform becomes connected
   useEffect(() => {
@@ -367,13 +340,10 @@ export function ExportTab({
           connectIntervalRef.current = null;
         }
         setConnectingPlatform(null);
-        toast({
-          title: "Connected!",
-          description: `${platform.name} has been connected successfully.`,
-        });
+        console.log('[ExportTab] Connected to', platform.name);
       }
     }
-  }, [connectingPlatform, isConnected, toast]);
+  }, [connectingPlatform, isConnected]);
 
   // AI metadata generation
   const handleAIMetadata = useCallback(async (platform: string) => {
@@ -394,21 +364,13 @@ export function ExportTab({
         if (data.caption) setSocialCaption(data.caption);
       }
 
-      toast({
-        title: "Metadata generated",
-        description: `AI generated ${platform} metadata successfully`,
-      });
+      console.log('[ExportTab] Metadata generated for', platform);
     } catch (error) {
       console.error('[ExportTab] Failed to generate metadata:', error);
-      toast({
-        title: "Generation failed",
-        description: "Failed to generate AI metadata. Please try again.",
-        variant: "destructive",
-      });
     } finally {
       setIsGeneratingAI(false);
     }
-  }, [videoTitle, duration, toast]);
+  }, [videoTitle, duration]);
 
   // Publish to social
   const hasYouTube = selectedPlatforms.some(p => p === "youtube_shorts");
@@ -418,11 +380,7 @@ export function ExportTab({
     if (!exportUrl || selectedPlatforms.length === 0) return;
 
     if (!currentWorkspace) {
-      toast({
-        title: "No workspace selected",
-        description: "Please select a workspace to publish videos.",
-        variant: "destructive",
-      });
+      console.error('[ExportTab] No workspace selected');
       return;
     }
 
@@ -474,21 +432,13 @@ export function ExportTab({
         PLATFORMS.find(p => p.id === id)?.name || id
       ).join(', ');
 
-      toast({
-        title: publishType === 'schedule' ? "Scheduled!" : "Published!",
-        description: `Video ${publishType === 'schedule' ? 'scheduled for' : 'published to'} ${platformNames}`,
-      });
+      console.log('[ExportTab]', publishType === 'schedule' ? 'Scheduled to' : 'Published to', platformNames);
     } catch (error: any) {
       console.error('[ExportTab] Publish failed:', error);
-      toast({
-        title: "Publish failed",
-        description: error.message || "Failed to publish video. Please check your social accounts are connected.",
-        variant: "destructive",
-      });
     } finally {
       setIsPublishing(false);
     }
-  }, [exportUrl, selectedPlatforms, currentWorkspace, hasYouTube, youtubeTitle, youtubeDescription, socialCaption, publishType, scheduleDate, scheduleTime, videoTitle, toast]);
+  }, [exportUrl, selectedPlatforms, currentWorkspace, hasYouTube, youtubeTitle, youtubeDescription, socialCaption, publishType, scheduleDate, scheduleTime, videoTitle]);
 
   const canPublish = selectedPlatforms.length > 0 &&
     exportUrl &&

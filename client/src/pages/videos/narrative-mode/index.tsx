@@ -148,8 +148,8 @@ export default function NarrativeMode() {
         
         // Restore settings
         if (step1.duration !== undefined) setDuration(String(step1.duration));
-        if (step1.genres && step1.genres.length > 0) setGenres(step1.genres);
-        if (step1.tones && step1.tones.length > 0) setTones(step1.tones);
+        if (step1.genres !== undefined) setGenres(step1.genres);
+        if (step1.tones !== undefined) setTones(step1.tones);
         if (step1.language) setLanguage(step1.language);
         if (step1.userIdea) setUserIdea(step1.userIdea);
         
@@ -1142,6 +1142,11 @@ export default function NarrativeMode() {
         onVoiceOverToggle={setVoiceOverEnabled}
         onNumberOfScenesChange={setNumberOfScenes}
         onShotsPerSceneChange={setShotsPerScene}
+        onGenresChange={setGenres}
+        onTonesChange={setTones}
+        onDurationChange={setDuration}
+        onLanguageChange={setLanguage}
+        onUserIdeaChange={setUserIdea}
         onScenesChange={setScenes}
         onShotsChange={setShots}
         onShotVersionsChange={setShotVersions}

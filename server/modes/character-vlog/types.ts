@@ -80,6 +80,7 @@ export interface Step1Data {
   shotsPerScene?: number | 'auto';
   characterPersonality?: string;
   videoModel?: string;
+  imageModel?: string;
   aspectRatio?: string;
   duration?: string;
   genres?: string[];
@@ -289,6 +290,23 @@ export interface ShotGeneratorInput {
 }
 
 /**
+ * Continuity group structure (matches client-side ContinuityGroup)
+ */
+export interface ContinuityGroup {
+  id: string;
+  sceneId: string;
+  groupNumber: number;
+  shotIds: string[];
+  description?: string | null;
+  transitionType?: string | null;
+  status: string;
+  editedBy?: string | null;
+  editedAt?: Date | null;
+  approvedAt?: Date | null;
+  createdAt: Date;
+}
+
+/**
  * Output from shot generator
  */
 export interface ShotGeneratorOutput {
@@ -299,8 +317,13 @@ export interface ShotGeneratorOutput {
     cameraShot: string;                // Camera angle from 10 preset options
     referenceTags: string[];           // Character and location tags (e.g., ["@PrimaryCharacter", "@Location1"])
     duration: number;                  // Duration from videoModelDurations array
-    isLinkedToPrevious: boolean;       // Whether this shot links to previous for continuity
-    isFirstInGroup: boolean;           // Whether this shot is first in a continuity group
+    isLinkedToPrevious?: boolean;      // Deprecated - kept for backward compatibility during migration
+    isFirstInGroup?: boolean;          // Deprecated - kept for backward compatibility during migration
+  }>;
+  continuityGroups?: Array<{
+    shotIndices: number[]; // 0-based indices to map to shot IDs in routes
+    description: string;
+    transitionType: string;
   }>;
   cost?: number;
 }
@@ -338,7 +361,7 @@ export interface VlogShot {
   cameraShot?: string;  // Frontend compatibility (maps to cameraMovement)
   duration: number;
   description?: string | null;
-  isLinkedToPrevious?: boolean;
+  isLinkedToPrevious?: boolean; // Deprecated - kept for backward compatibility during migration
   referenceTags?: string[];
   createdAt?: Date | string;
   updatedAt?: Date | string;
@@ -355,8 +378,168 @@ export interface Step3Data {
   continuityGroups: Record<string, any[]>;  // Keyed by sceneId, array of continuity groups
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// UNIFIED PROMPT PRODUCER - AI INPUT/OUTPUT (BATCH PROCESSING)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for unified prompt producer (batch processing - all shots in scene at once)
+ */
+export interface UnifiedPromptProducerSceneInput {
+  sceneId: string;
+  sceneName: string;
+  shots: Array<{
+    shotId: string;
+    shotDescription: string;
+    frameType: '1F' | '2F';
+    cameraShot: string;
+    shotDuration: number;
+    referenceTags: string[];
+    isFirstInGroup: boolean;
+    isLinkedToPrevious: boolean;
+    // NEW: Explicit inheritance info (what will be inherited, not generated)
+    inheritedPrompts?: {
+      imagePrompt?: string;      // For 1F: inherit single image prompt from previous
+      startFramePrompt?: string; // For 2F: inherit start from previous end
+    };
+    // Legacy: kept for backward compatibility (regeneration scenarios)
+    previousShotOutput?: {
+      lastFrameDescription: string;
+      visualContinuityNotes: string;
+      imagePrompts: {
+        end?: string;
+      };
+    };
+  }>;
+  // Character references with anchors for consistency
+  characterReferences: Array<{
+    name: string;              // Character name with @ tag (e.g., "@Alex Chen")
+    anchor: string;            // SHORT stable identity descriptor (30-50 words)
+    imageUrl: string;          // Reference image URL
+    appearance?: string;       // Optional: full appearance description
+    personality?: string;      // Optional: personality traits
+  }>;
+  // Location references with anchors for consistency
+  locationReferences: Array<{
+    name: string;              // Location name with @ tag (e.g., "@Modern Studio")
+    anchor: string;            // SHORT stable location descriptor (20-40 words)
+    imageUrl: string;          // Reference image URL
+    description?: string;      // Optional: full description
+  }>;
+  // Style reference for visual consistency
+  styleReference: {
+    anchor: string;            // Reusable style descriptor from worldSettings
+    negativeStyle?: string;    // Optional: things to avoid
+    artStyle: string;          // Art style preset name
+    artStyleImageUrl?: string; // Optional: custom style reference image
+  };
+  aspectRatio: string;
+  
+  // Legacy fields (kept for backwards compatibility)
+  characters?: Array<{
+    id: string;
+    name: string;
+    imageUrl: string;
+  }>;
+  locations?: Array<{
+    id: string;
+    name: string;
+    imageUrl: string;
+  }>;
+  worldSettings?: {
+    artStyle: string;
+    artStyleImageUrl?: string;
+    worldDescription: string;
+  };
+}
+
+/**
+ * Output from unified prompt producer (batch processing)
+ */
+export interface UnifiedPromptProducerSceneOutput {
+  shots: Array<{
+    shotId: string;
+    imagePrompts: {
+      single: string | null;
+      start: string | null;
+      end: string | null;
+    };
+    videoPrompt: string;
+    visualContinuityNotes: string | null;
+    negativePrompt: string;  // Things to avoid in generation
+  }>;
+  cost?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 4: STORYBOARD DATA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Shot version structure - tracks generated images and videos for each shot
+ * Aligned with ambient-visual pattern for consistency
+ */
+export interface ShotVersion {
+  id: string;
+  shotId: string;
+  versionNumber: number;
+  
+  // Image URLs (from Agent 4.2)
+  imageUrl: string | null;          // For 1F mode
+  startFrameUrl: string | null;     // For 2F mode
+  endFrameUrl: string | null;       // For 2F mode
+  
+  // Video URL (from Agent 4.3)
+  videoUrl?: string | null;
+  thumbnailUrl?: string | null;     // Video thumbnail
+  actualDuration?: number;          // Final video duration (may differ from requested)
+  
+  // Prompts (from Agent 4.1)
+  imagePrompt: string | null;
+  startFramePrompt: string | null;
+  endFramePrompt: string | null;
+  videoPrompt: string | null;
+  negativePrompt: string | null;
+  
+  // Metadata
+  status: 'pending' | 'generated' | 'failed';
+  needsRerender: boolean;
+  createdAt: string;
+  updatedAt: string;
+  
+  // Video generation metadata
+  videoGenerationMetadata?: {
+    model: string;
+    generationTime: number;
+    resolution: string;
+    error?: string;
+  };
+}
+
+/**
+ * Step 4: Storyboard data - Generated prompts and versions for shots
+ */
+export interface Step4Data {
+  shots: Record<string, {
+    imagePrompts: {
+      single: string | null;
+      start: string | null;
+      end: string | null;
+    };
+    videoPrompt: string;
+    visualContinuityNotes: string | null;
+    negativePrompt: string;  // Things to avoid in generation
+    isInherited?: boolean;    // For shared frame optimization
+  }>;  // Keyed by shotId
+  
+  // Shot versions - tracks generated images and videos
+  shotVersions?: Record<string, ShotVersion[]>;  // Keyed by shotId, array of versions
+  
+  // Legacy fields for backward compatibility
+  scenes?: any[];
+}
+
 // Placeholder for future step data types
-// export interface Step4Data { ... }
 // export interface Step5Data { ... }
 // export interface Step6Data { ... }
 

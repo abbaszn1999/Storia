@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Agent 4.2: Storyboard Image Generator
+// Agent 4.2: Storyboard Image Generator (Character Vlog Mode)
 // ═══════════════════════════════════════════════════════════════════════════
 // Generates storyboard frame images using prompts from Agent 4.1
-// Supports both image-reference mode (single image) and start-end mode (paired keyframes)
+// Supports both image-reference mode (1F) and start-end mode (2F)
 // Uses reference images for visual consistency (characters, locations, style, previous frames)
+// Handles continuity groups and shared frame optimization
 
-import { callAi } from "../../../ai/service";
-import { getRunwareModelId } from "../../../ai/config";
-import { IMAGE_MODEL_CONFIGS, getImageDimensions } from "../../../ai/config/image-models";
+import { callAi } from "../../../../ai/service";
+import { getRunwareModelId } from "../../../../ai/config";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -16,32 +16,28 @@ import { IMAGE_MODEL_CONFIGS, getImageDimensions } from "../../../ai/config/imag
 export interface StoryboardImageInput {
   shotId: string;
   videoId: string;
-  narrativeMode: "image-reference" | "start-end" | "auto";
-  imagePrompt: string; // For image-reference mode
-  startFramePrompt: string; // For start-end mode
-  endFramePrompt: string | null; // For start-end mode, null if start-only
-  negativePrompt?: string; // For image-reference mode
-  // Per-frame advanced settings (for start-end mode)
-  startFrameNegativePrompt?: string;
-  endFrameNegativePrompt?: string;
-  startFrameSeed?: number;
-  endFrameSeed?: number;
-  startFrameGuidanceScale?: number;
-  endFrameGuidanceScale?: number;
-  startFrameSteps?: number;
-  endFrameSteps?: number;
-  startFrameStrength?: number;
-  endFrameStrength?: number;
-  referenceImages: string[]; // Character + location + style refs + previous frame if in continuity group
-  aspectRatio: string; // From step1Data (e.g., "16:9", "9:16", "1:1")
-  imageModel: string; // From shot/scene settings (e.g., "flux-2-dev", "nano-banana")
-  frameType?: "start-only" | "end-only" | "start-and-end"; // For start-end mode
+  narrativeMode: "image-reference" | "start-end";
+  imagePrompt: string | null; // For 1F mode
+  startFramePrompt: string | null; // For 2F mode (null if inherited)
+  endFramePrompt: string | null; // For 2F mode
+  negativePrompt?: string;
+  referenceImages: string[]; // Character + location + style refs
+  aspectRatio: string;
+  imageModel: string;
+  frame: "start" | "end" | "image"; // Which frame to generate
+  // Continuity info
+  isConnectedToPrevious?: boolean;
+  previousEndFrameUrl?: string | null;
+  // Shared frame optimization
+  nextShotId?: string | null; // If generating end frame and next is continuous
+  nextShotStartPrompt?: string | null; // To compare with current end prompt
+  isSharedFrame?: boolean; // Flag to indicate this frame will be shared
 }
 
 export interface StoryboardImageOutput {
-  imageUrl: string | null; // For image-reference mode
-  startFrameUrl: string | null; // For start-end mode
-  endFrameUrl: string | null; // For start-end mode
+  imageUrl: string | null; // For 1F mode
+  startFrameUrl: string | null; // For 2F mode
+  endFrameUrl: string | null; // For 2F mode
   shotVersionId: string;
   cost?: number;
   error?: string;
@@ -58,50 +54,31 @@ const DEFAULT_STORYBOARD_NEGATIVE_PROMPT =
   "mutated, ugly, duplicate, morbid, mutilated, oversaturated, " +
   "underexposed, overexposed, bad lighting, inconsistent style";
 
+// Aspect ratio to dimensions mapping
+// Based on common model capabilities (nano-banana, flux-2-dev, etc.)
+const ASPECT_RATIO_DIMENSIONS: Record<string, { width: number; height: number }> = {
+  "16:9": { width: 1344, height: 768 },
+  "9:16": { width: 768, height: 1344 },
+  "1:1": { width: 1024, height: 1024 },
+  "4:3": { width: 1184, height: 864 },
+  "3:4": { width: 864, height: 1184 },
+  "3:2": { width: 1248, height: 832 },
+  "2:3": { width: 832, height: 1248 },
+  "5:4": { width: 1152, height: 896 },
+  "4:5": { width: 896, height: 1152 },
+  "21:9": { width: 1536, height: 672 },
+  "9:21": { width: 672, height: 1536 },
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Get dimensions for aspect ratio and image model
- * Uses model-specific dimensions when available (e.g., SeaDream 4.5 requires minimum 2560×1440 for 16:9)
+ * Get dimensions for aspect ratio
  */
-function getDimensions(aspectRatio: string, imageModel: string): { width: number; height: number } {
-  // Check if model has specific dimension requirements
-  const modelConfig = IMAGE_MODEL_CONFIGS[imageModel];
-  
-  if (modelConfig) {
-    // For SeaDream 4.5, use 2K resolution (minimum required)
-    // SeaDream 4.5 requires minimum 3,686,400 pixels (2560×1440)
-    if (imageModel === "seedream-4.5") {
-      return getImageDimensions(aspectRatio, "2k", imageModel);
-    }
-    
-    // For SeaDream 4.0, default to 2K if available, fallback to 1K
-    if (imageModel === "seedream-4.0") {
-      // Try 2K first (preferred for quality), fallback to 1K
-      const dims2k = getImageDimensions(aspectRatio, "2k", imageModel);
-      // Verify we got valid 2K dimensions (should be >= 1024×1024)
-      if (dims2k && dims2k.width > 0 && dims2k.height > 0 && dims2k.width * dims2k.height >= 1024 * 1024) {
-        return dims2k;
-      }
-      return getImageDimensions(aspectRatio, "1k", imageModel);
-    }
-    
-    // For other models with model-specific dimensions, use the first available resolution
-    if (modelConfig.resolutions && modelConfig.resolutions.length > 0) {
-      const resolution = modelConfig.resolutions[0];
-      const modelDims = getImageDimensions(aspectRatio, resolution, imageModel);
-      // Verify we got valid dimensions
-      if (modelDims && modelDims.width > 0 && modelDims.height > 0) {
-        return modelDims;
-      }
-    }
-  }
-  
-  // Fallback to standard dimensions for other models
-  // Default to 1k resolution which works for most models
-  return getImageDimensions(aspectRatio, "1k", imageModel);
+function getDimensions(aspectRatio: string): { width: number; height: number } {
+  return ASPECT_RATIO_DIMENSIONS[aspectRatio] || ASPECT_RATIO_DIMENSIONS["16:9"];
 }
 
 /**
@@ -115,62 +92,29 @@ async function generateSingleImage(
   height: number,
   model: string,
   userId?: string,
-  workspaceId?: string,
-  advancedSettings?: {
-    seed?: number;
-    guidanceScale?: number;
-    steps?: number;
-    strength?: number;
-  }
+  workspaceId?: string
 ): Promise<{ imageUrl: string; cost?: number }> {
   // Get Runware model ID from friendly name
-  // Use getRunwareModelId() which handles mapping and fallback
   const runwareModelId = getRunwareModelId(model);
   
   // Log model mapping for debugging
   if (runwareModelId !== model) {
-    console.log(`[agent-4.2:storyboard-image] Model mapping: ${model} → ${runwareModelId}`);
+    console.log(`[character-vlog:agent-4.2] Model mapping: ${model} → ${runwareModelId}`);
   } else {
-    console.warn(`[agent-4.2:storyboard-image] Model "${model}" not found in mapping, using as-is (may be AIR ID)`);
+    console.warn(`[character-vlog:agent-4.2] Model "${model}" not found in mapping, using as-is (may be AIR ID)`);
   }
-
-  // Get model config to check capabilities
-  const modelConfig = IMAGE_MODEL_CONFIGS[model];
-  const supportsNegativePrompt = modelConfig?.supportsNegativePrompt ?? false;
 
   // Build the payload
   const payload: Record<string, any> = {
     taskType: "imageInference",
     model: runwareModelId,
     positivePrompt: prompt,
+    negativePrompt,
     width,
     height,
     numberResults: 1,
     includeCost: true,
   };
-
-  // Only include negativePrompt if the model supports it
-  if (supportsNegativePrompt && negativePrompt) {
-    payload.negativePrompt = negativePrompt;
-  } else if (negativePrompt && !supportsNegativePrompt) {
-    console.log(`[agent-4.2:storyboard-image] Model "${model}" does not support negativePrompt, omitting it`);
-  }
-
-  // Add advanced settings if provided
-  if (advancedSettings) {
-    if (advancedSettings.seed !== undefined) {
-      payload.seed = advancedSettings.seed;
-    }
-    if (advancedSettings.guidanceScale !== undefined) {
-      payload.guidanceScale = advancedSettings.guidanceScale;
-    }
-    if (advancedSettings.steps !== undefined) {
-      payload.steps = advancedSettings.steps;
-    }
-    if (advancedSettings.strength !== undefined) {
-      payload.strength = advancedSettings.strength;
-    }
-  }
 
   // Add reference images if provided
   if (referenceImages && referenceImages.length > 0) {
@@ -214,11 +158,11 @@ async function generateSingleImage(
 /**
  * Generate storyboard frame images
  * 
- * Agent 4.2: Storyboard Image Generator
+ * Agent 4.2: Storyboard Image Generator (Character Vlog Mode)
  * 
  * Generates images based on prompts from Agent 4.1:
- * - Image-reference mode: Single image per shot
- * - Start-end mode: Paired keyframes (start and/or end) for seamless transitions
+ * - Image-reference mode (1F): Single image per shot
+ * - Start-end mode (2F): Start and/or end frames for seamless transitions
  * 
  * Supports continuity groups by including previous shot's frame as reference
  * 
@@ -240,30 +184,14 @@ export async function generateStoryboardImage(
     startFramePrompt,
     endFramePrompt,
     negativePrompt,
-    startFrameNegativePrompt,
-    endFrameNegativePrompt,
-    startFrameSeed,
-    endFrameSeed,
-    startFrameGuidanceScale,
-    endFrameGuidanceScale,
-    startFrameSteps,
-    endFrameSteps,
-    startFrameStrength,
-    endFrameStrength,
     referenceImages,
     aspectRatio,
     imageModel,
-    frameType,
+    frame,
   } = input;
 
-  // Determine effective mode
-  const effectiveMode = narrativeMode === "auto"
-    ? (frameType ? "start-end" : "image-reference")
-    : narrativeMode;
-
-  // Get dimensions for aspect ratio and image model
-  // This ensures model-specific requirements are met (e.g., SeaDream 4.5 minimum 2560×1440)
-  const dimensions = getDimensions(aspectRatio, imageModel);
+  // Get dimensions for aspect ratio
+  const dimensions = getDimensions(aspectRatio);
 
   // Use provided negative prompt or default
   const finalNegativePrompt = negativePrompt || DEFAULT_STORYBOARD_NEGATIVE_PROMPT;
@@ -272,11 +200,11 @@ export async function generateStoryboardImage(
   const shotVersionId = `version-${shotId}-${Date.now()}`;
 
   try {
-    console.log("[agent-4.2:storyboard-image] Starting image generation:", {
+    console.log("[character-vlog:agent-4.2] Starting image generation:", {
       shotId,
       videoId,
-      effectiveMode,
-      frameType,
+      narrativeMode,
+      frame,
       model: imageModel,
       aspectRatio,
       dimensions,
@@ -288,8 +216,18 @@ export async function generateStoryboardImage(
       workspaceId,
     });
 
-    if (effectiveMode === "image-reference") {
-      // Generate single image
+    if (narrativeMode === "image-reference") {
+      // Generate single image for 1F mode
+      if (frame !== "image") {
+        return {
+          imageUrl: null,
+          startFrameUrl: null,
+          endFrameUrl: null,
+          shotVersionId,
+          error: `Frame type mismatch: requested "${frame}" but narrative mode is "image-reference" (requires "image")`,
+        };
+      }
+
       if (!imagePrompt || imagePrompt.trim() === "") {
         return {
           imageUrl: null,
@@ -319,75 +257,86 @@ export async function generateStoryboardImage(
         cost: result.cost,
       };
     } else {
-      // Start-end mode: generate start and/or end frames
+      // Start-end mode (2F): generate start and/or end frames
       let startFrameUrl: string | null = null;
       let endFrameUrl: string | null = null;
       let totalCost = 0;
 
-      // Generate start frame if needed
-      if ((frameType === "start-and-end" || frameType === "start-only") && startFramePrompt && startFramePrompt.trim() !== "") {
-        // Use start frame specific negative prompt if provided, otherwise fall back to default
-        const startNegativePrompt = startFrameNegativePrompt || finalNegativePrompt;
-        const startAdvancedSettings = {
-          seed: startFrameSeed,
-          guidanceScale: startFrameGuidanceScale,
-          steps: startFrameSteps,
-          strength: startFrameStrength,
-        };
-        
+      // Generate start frame if requested
+      if (frame === "start") {
+        if (!startFramePrompt || startFramePrompt.trim() === "") {
+          return {
+            imageUrl: null,
+            startFrameUrl: null,
+            endFrameUrl: null,
+            shotVersionId,
+            error: "Start frame prompt is required but not found",
+          };
+        }
+
         const startResult = await generateSingleImage(
           startFramePrompt,
-          startNegativePrompt,
+          finalNegativePrompt,
           referenceImages,
           dimensions.width,
           dimensions.height,
           imageModel,
           userId,
-          workspaceId,
-          startAdvancedSettings
+          workspaceId
         );
         startFrameUrl = startResult.imageUrl;
         totalCost += startResult.cost || 0;
       }
 
-      // Generate end frame if needed
-      if ((frameType === "start-and-end" || frameType === "end-only") && endFramePrompt && endFramePrompt.trim() !== "") {
+      // Generate end frame if requested
+      if (frame === "end") {
+        if (!endFramePrompt || endFramePrompt.trim() === "") {
+          return {
+            imageUrl: null,
+            startFrameUrl: null,
+            endFrameUrl: null,
+            shotVersionId,
+            error: "End frame prompt is required but not found",
+          };
+        }
+
         // For end frame, include start frame as reference if it exists (for continuity)
         const endReferenceImages = startFrameUrl
           ? [...referenceImages, startFrameUrl]
           : referenceImages;
-        
-        // Use end frame specific negative prompt if provided, otherwise fall back to default
-        const endNegativePrompt = endFrameNegativePrompt || finalNegativePrompt;
-        const endAdvancedSettings = {
-          seed: endFrameSeed,
-          guidanceScale: endFrameGuidanceScale,
-          steps: endFrameSteps,
-          strength: endFrameStrength,
-        };
 
         const endResult = await generateSingleImage(
           endFramePrompt,
-          endNegativePrompt,
+          finalNegativePrompt,
           endReferenceImages,
           dimensions.width,
           dimensions.height,
           imageModel,
           userId,
-          workspaceId,
-          endAdvancedSettings
+          workspaceId
         );
         endFrameUrl = endResult.imageUrl;
         totalCost += endResult.cost || 0;
       }
 
-      if (!startFrameUrl && !endFrameUrl) {
+      // Validate that at least one frame was generated
+      if (frame === "start" && !startFrameUrl) {
         return {
           imageUrl: null,
           startFrameUrl: null,
           endFrameUrl: null,
           shotVersionId,
-          error: "At least one frame (start or end) is required for start-end mode",
+          error: "Failed to generate start frame",
+        };
+      }
+
+      if (frame === "end" && !endFrameUrl) {
+        return {
+          imageUrl: null,
+          startFrameUrl: null,
+          endFrameUrl: null,
+          shotVersionId,
+          error: "Failed to generate end frame",
         };
       }
 
@@ -400,7 +349,7 @@ export async function generateStoryboardImage(
       };
     }
   } catch (error) {
-    console.error("[agent-4.2:storyboard-image] Generation failed:", error);
+    console.error("[character-vlog:agent-4.2] Generation failed:", error);
     return {
       imageUrl: null,
       startFrameUrl: null,
@@ -410,4 +359,3 @@ export async function generateStoryboardImage(
     };
   }
 }
-

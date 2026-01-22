@@ -116,12 +116,20 @@ export interface ShotVersion {
   endFrameUrl?: string | null;
   videoPrompt?: string | null;
   videoUrl?: string | null;
+  thumbnailUrl?: string | null;
   videoDuration?: number | null;
+  actualDuration?: number | null;
   negativePrompt?: string | null;
   startFrameInherited?: boolean;  // True if start frame was inherited from previous shot
   status: string;
   needsRerender: boolean;
   createdAt: Date;
+  videoGenerationMetadata?: {
+    model: string;
+    generationTime: number;
+    resolution: string;
+    error?: string;
+  };
 }
 
 export interface ReferenceImage {

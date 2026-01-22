@@ -57,7 +57,7 @@ export interface Step3Data {
     shotType: string;
     cameraMovement: string;
     duration: number;
-    description?: string | null;  // Contains combined actionDescription and narrationText
+    description?: string | null;  // Contains actionDescription only (visual action, no narration)
     videoModel?: string | null;
     imageModel?: string | null;
     soundEffects?: string | null;

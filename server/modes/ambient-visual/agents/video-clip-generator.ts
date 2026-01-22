@@ -26,7 +26,6 @@ import {
   clampDuration,
   supportsStartEndFrame,
   usesInputsWrapperFormat,
-  getVideoModelProviderSettings,
   buildFrameImagesPayload,
 } from "../utils/video-model-helpers";
 import type {
@@ -83,9 +82,6 @@ function buildVideoPayload(
     generateAudio,
   } = input;
   
-  // Get provider settings from model config
-  const providerSettings = getVideoModelProviderSettings(videoModel);
-  
   // Check if model uses inputs wrapper format (these models don't support top-level width/height)
   const useInputsWrapper = usesInputsWrapperFormat(videoModel);
   
@@ -110,30 +106,68 @@ function buildVideoPayload(
   const frameImagesPayload = buildFrameImagesPayload(startFrameUrl, endFrameUrl, videoModel);
   Object.assign(payload, frameImagesPayload);
   
-  // Add provider-specific settings if available
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AUDIO SETTINGS: Explicitly handle audio generation based on model provider
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Audio is disabled by default (generateAudio: false from caller)
+  // Each provider has different parameter names for audio control
+  // ═══════════════════════════════════════════════════════════════════════════
+  let providerSettings: Record<string, any> | undefined;
+  
+  // Determine if audio should be enabled (default is false)
+  const shouldEnableAudio = generateAudio === true;
+  
+  // Build provider settings based on model AIR ID
+  if (modelAirId === "bytedance:seedance@1.5-pro") {
+    // Seedance 1.5 Pro (ByteDance) - Uses 'audio' parameter
+    providerSettings = {
+      bytedance: {
+        audio: shouldEnableAudio,
+        ...(cameraFixed !== undefined && { cameraFixed }),
+      },
+    };
+  } else if (modelAirId.startsWith("google:3@")) {
+    // Google Veo models - Use 'generateAudio' parameter
+    providerSettings = {
+      google: {
+        generateAudio: shouldEnableAudio,
+      },
+    };
+  } else if (modelAirId.startsWith("lightricks:")) {
+    // LTX-2 Pro - Uses 'generateAudio' parameter
+    providerSettings = {
+      lightricks: {
+        generateAudio: shouldEnableAudio,
+      },
+    };
+  } else if (modelAirId.startsWith("pixverse:")) {
+    // PixVerse models - Use 'audio' parameter
+    providerSettings = {
+      pixverse: {
+        audio: shouldEnableAudio,
+      },
+    };
+  } else if (modelAirId === "klingai:kling-video@2.6-pro") {
+    // Kling VIDEO 2.6 Pro - Uses 'sound' parameter
+    providerSettings = {
+      klingai: {
+        sound: shouldEnableAudio,
+      },
+    };
+  } else if (modelAirId.startsWith("alibaba:")) {
+    // Alibaba Wan models - Use 'audio' parameter
+    providerSettings = {
+      alibaba: {
+        audio: shouldEnableAudio,
+      },
+    };
+  }
+  // Note: Models without audio support (or where audio param isn't needed) 
+  // will have providerSettings = undefined, which is fine
+  
+  // Add providerSettings to payload if defined
   if (providerSettings) {
-    const builtProviderSettings: Record<string, any> = {};
-    
-    for (const [provider, settings] of Object.entries(providerSettings)) {
-      builtProviderSettings[provider] = { ...settings };
-      
-      // Override with user-specified settings
-      if (cameraFixed !== undefined && 'cameraFixed' in settings) {
-        builtProviderSettings[provider].cameraFixed = cameraFixed;
-      }
-      if (generateAudio !== undefined && ('audio' in settings || 'generateAudio' in settings)) {
-        if ('audio' in settings) {
-          builtProviderSettings[provider].audio = generateAudio;
-        }
-        if ('generateAudio' in settings) {
-          builtProviderSettings[provider].generateAudio = generateAudio;
-        }
-      }
-    }
-    
-    if (Object.keys(builtProviderSettings).length > 0) {
-      payload.providerSettings = builtProviderSettings;
-    }
+    payload.providerSettings = providerSettings;
   }
   
   return payload;

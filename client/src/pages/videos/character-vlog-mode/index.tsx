@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useSearch } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CharacterVlogStudioLayout, type VlogStepId } from "@/components/character-vlog/studio";
 import { CharacterVlogWorkflow } from "@/components/character-vlog/workflow";
 import { CharacterVlogModeSelector } from "@/components/character-vlog/reference-mode-selector";
@@ -8,6 +8,8 @@ import { getDefaultVideoModel } from "@/constants/video-models";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import type { Character, Location, Video } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 
@@ -17,6 +19,7 @@ export default function CharacterVlogMode() {
   const urlParams = new URLSearchParams(searchParams);
   const { toast } = useToast();
   const { currentWorkspace, isLoading: isWorkspaceLoading } = useWorkspace();
+  const queryClient = useQueryClient();
   
   const initialVideoId = params.id || urlParams.get("id") || "new";
   const isNewVideo = initialVideoId === "new";
@@ -234,6 +237,7 @@ export default function CharacterVlogMode() {
       }
 
       // Load step3Data (scenes)
+      let loadedShotsFromStep3: { [sceneId: string]: Shot[] } = {};
       if (existingVideo.step3Data && typeof existingVideo.step3Data === 'object') {
         const step3 = existingVideo.step3Data as any;
         
@@ -291,12 +295,174 @@ export default function CharacterVlogMode() {
               }
             });
             if (Object.keys(loadedShots).length > 0) {
+              loadedShotsFromStep3 = loadedShots;
               console.log('[character-vlog:index] Setting shots state:', {
                 shotsCount: Object.keys(loadedShots).length,
                 firstShotSample: Object.values(loadedShots)[0]?.[0],
               });
               setShots(loadedShots);
             }
+          }
+          
+          // Restore continuityGroups from step3Data
+          if (step3.continuityGroups && typeof step3.continuityGroups === 'object') {
+            // Parse date strings back to Date objects for approvedAt, editedAt, createdAt
+            const restoredGroups: { [sceneId: string]: any[] } = {};
+            Object.entries(step3.continuityGroups).forEach(([sceneId, groups]) => {
+              if (Array.isArray(groups)) {
+                restoredGroups[sceneId] = groups.map((group: any) => ({
+                  ...group,
+                  approvedAt: group.approvedAt ? new Date(group.approvedAt) : null,
+                  editedAt: group.editedAt ? new Date(group.editedAt) : null,
+                  createdAt: group.createdAt ? new Date(group.createdAt) : new Date(),
+                }));
+              }
+            });
+            if (Object.keys(restoredGroups).length > 0) {
+              console.log('[character-vlog:index] Restoring continuityGroups:', {
+                sceneCount: Object.keys(restoredGroups).length,
+                totalGroups: Object.values(restoredGroups).flat().length,
+              });
+              setContinuityGroups(restoredGroups);
+            }
+          }
+          
+          // Restore continuityLocked
+          if (step3.continuityLocked !== undefined) {
+            setContinuityLocked(step3.continuityLocked);
+          }
+        }
+      }
+
+      // Load step4Data (shot versions with generated prompts)
+      if (existingVideo.step4Data && typeof existingVideo.step4Data === 'object') {
+        const step4 = existingVideo.step4Data as any;
+        
+        if (step4.shots && typeof step4.shots === 'object') {
+          console.log('[character-vlog:index] Loading prompts from step4Data.shots:', {
+            shotsCount: Object.keys(step4.shots).length,
+            firstShotSample: Object.values(step4.shots)[0],
+          });
+          
+          // Convert step4Data.shots to shotVersions structure
+          // Use loadedShotsFromStep3 if available, otherwise use current shots state
+          const shotsToUpdate = Object.keys(loadedShotsFromStep3).length > 0 ? loadedShotsFromStep3 : shots;
+          const loadedShotVersions: { [shotId: string]: ShotVersion[] } = {};
+          const updatedShots = { ...shotsToUpdate };
+          const inheritanceMap: { [shotId: string]: boolean } = {};
+          
+          // Load existing shotVersions from database (contains image URLs)
+          const existingShotVersions = step4.shotVersions || {};
+          
+          console.log('[character-vlog:index] Loading shotVersions from database:', {
+            hasShotVersions: !!step4.shotVersions,
+            shotVersionsCount: Object.keys(existingShotVersions).length,
+            shotsCount: Object.keys(step4.shots).length,
+            sampleShotVersion: Object.values(existingShotVersions)[0],
+          });
+          
+          Object.entries(step4.shots).forEach(([shotId, promptData]: [string, any]) => {
+            // Store inheritance flag
+            inheritanceMap[shotId] = promptData.isInherited === true;
+            
+            // Check if we have existing versions with image URLs in database
+            const savedVersions = existingShotVersions[shotId];
+            if (savedVersions && Array.isArray(savedVersions) && savedVersions.length > 0) {
+              // Merge saved versions (contain image URLs) with prompt data (contains prompts)
+              console.log(`[character-vlog:index] Loading existing version with images for ${shotId}:`, {
+                versionCount: savedVersions.length,
+                latestVersion: savedVersions[savedVersions.length - 1],
+              });
+              
+              // The latest version should have the prompts merged in
+              loadedShotVersions[shotId] = savedVersions.map((v: any) => ({
+                ...v,
+                // Merge prompts from step4Data.shots (the source of truth for prompts)
+                imagePrompt: promptData.imagePrompts?.single || v.imagePrompt || '',
+                startFramePrompt: promptData.imagePrompts?.start || v.startFramePrompt || null,
+                endFramePrompt: promptData.imagePrompts?.end || v.endFramePrompt || null,
+                videoPrompt: promptData.videoPrompt || v.videoPrompt || '',
+                negativePrompt: promptData.negativePrompt || v.negativePrompt || null,
+                status: v.status || 'pending',
+                needsRerender: v.needsRerender || false,
+                createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
+              }));
+              
+              // Use the latest version's ID for currentVersionId
+              const latestVersion = savedVersions[savedVersions.length - 1];
+              Object.keys(updatedShots).forEach((sceneId) => {
+                const sceneShots = updatedShots[sceneId] || [];
+                const shotIndex = sceneShots.findIndex(s => s.id === shotId);
+                if (shotIndex !== -1) {
+                  const updatedSceneShots = [...sceneShots];
+                  updatedSceneShots[shotIndex] = {
+                    ...updatedSceneShots[shotIndex],
+                    currentVersionId: latestVersion.id,
+                  };
+                  updatedShots[sceneId] = updatedSceneShots;
+                }
+              });
+            } else {
+              // Create a version from prompt data (no images yet) for UI to display
+              // Use server's version ID format: version-{shotId}-{timestamp}
+              const versionId = `version-${shotId}-${Date.now()}`;
+              const version: ShotVersion = {
+                id: versionId,
+                shotId: shotId,
+                versionNumber: 1,
+                imagePrompt: promptData.imagePrompts?.single || '',
+                startFramePrompt: promptData.imagePrompts?.start || null,
+                endFramePrompt: promptData.imagePrompts?.end || null,
+                videoPrompt: promptData.videoPrompt || '',
+                negativePrompt: promptData.negativePrompt || null,
+                status: 'pending',
+                needsRerender: false,
+                createdAt: new Date(),
+              };
+              
+              loadedShotVersions[shotId] = [version];
+              
+              console.log(`[character-vlog:index] Created client version for ${shotId} with prompts (no images yet)`);
+              
+              // Update the shot's currentVersionId to point to this version
+              Object.keys(updatedShots).forEach((sceneId) => {
+                const sceneShots = updatedShots[sceneId] || [];
+                const shotIndex = sceneShots.findIndex(s => s.id === shotId);
+                if (shotIndex !== -1) {
+                  const updatedSceneShots = [...sceneShots];
+                  updatedSceneShots[shotIndex] = {
+                    ...updatedSceneShots[shotIndex],
+                    currentVersionId: versionId,
+                  };
+                  updatedShots[sceneId] = updatedSceneShots;
+                }
+              });
+            }
+          });
+          
+          if (Object.keys(loadedShotVersions).length > 0) {
+            console.log('[character-vlog:index] Loaded shotVersions:', {
+              count: Object.keys(loadedShotVersions).length,
+              sample: Object.values(loadedShotVersions)[0],
+              inheritedCount: Object.values(inheritanceMap).filter(v => v).length,
+            });
+            setShotVersions(loadedShotVersions);
+            setShotInheritanceMap(inheritanceMap);  // Set inheritance map
+            // Update shots with currentVersionId
+            setShots(updatedShots);
+            console.log('[character-vlog:index] Updated shots with currentVersionId and inheritance:', {
+              updatedShotsCount: Object.keys(updatedShots).length,
+              inheritanceMapCount: Object.keys(inheritanceMap).length,
+            });
+            
+            // Mark storyboard step as completed since prompts are already generated
+            setCompletedSteps(prev => {
+              if (!prev.includes('storyboard')) {
+                console.log('[character-vlog:index] Marking storyboard step as completed (prompts already exist)');
+                return [...prev, 'storyboard'];
+              }
+              return prev;
+            });
           }
         }
       }
@@ -317,11 +483,17 @@ export default function CharacterVlogMode() {
         const stepId = stepMap[existingVideo.currentStep];
         if (stepId) {
           setActiveStep(stepId);
+          // Mark all previous steps as completed when loading an existing video
+          // This ensures users can navigate back but not forward to uncompleted steps
+          const steps: VlogStepId[] = ["script", "elements", "scenes", "storyboard", "animatic", "export"];
+          const currentIndex = steps.indexOf(stepId);
+          const previousSteps = steps.slice(0, currentIndex);
+          setCompletedSteps(previousSteps);
         }
       }
     }
   }, [existingVideo]);
-  
+
   const [activeStep, setActiveStep] = useState<VlogStepId>("script");
   const [completedSteps, setCompletedSteps] = useState<VlogStepId[]>([]);
   const [direction, setDirection] = useState(1);
@@ -346,12 +518,46 @@ export default function CharacterVlogMode() {
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [shots, setShots] = useState<{ [sceneId: string]: Shot[] }>({});
   const [shotVersions, setShotVersions] = useState<{ [shotId: string]: ShotVersion[] }>({});
+  const [shotInheritanceMap, setShotInheritanceMap] = useState<{ [shotId: string]: boolean }>({});  // Track which shots have inherited prompts
   const [characters, setCharacters] = useState<Character[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
   const [continuityLocked, setContinuityLocked] = useState(false);
   const [continuityGroups, setContinuityGroups] = useState<{ [sceneId: string]: any[] }>({});
   const [mainCharacter, setMainCharacter] = useState<Character | null>(null);
+  
+  // Prompt generation progress state
+  const [isGeneratingPrompts, setIsGeneratingPrompts] = useState(false);
+
+  // Auto-mark storyboard as completed if prompts exist (shotVersions has data)
+  useEffect(() => {
+    const hasPrompts = Object.keys(shotVersions).length > 0;
+    if (hasPrompts) {
+      setCompletedSteps(prev => {
+        if (!prev.includes('storyboard')) {
+          console.log('[character-vlog:index] Auto-marking storyboard as completed (prompts detected)');
+          return [...prev, 'storyboard'];
+        }
+        return prev;
+      });
+    }
+  }, [shotVersions]);
+
+  // Refetch video data when navigating to storyboard tab
+  // This ensures we always have fresh data from the database when switching tabs
+  useEffect(() => {
+    if (activeStep === 'storyboard' && videoId && !isNewVideo) {
+      console.log('[character-vlog:index] Navigated to storyboard - refetching video data from database');
+      queryClient.invalidateQueries({ queryKey: [`/api/videos/${videoId}`] });
+    }
+  }, [activeStep, videoId, isNewVideo, queryClient]);
+  const [promptGenerationProgress, setPromptGenerationProgress] = useState({
+    currentScene: 0,
+    totalScenes: 0,
+    currentSceneName: "",
+    processedShots: 0,
+    totalShots: 0,
+  });
   const [worldSettings, setWorldSettings] = useState<{ 
     artStyle: string; 
     imageModel?: string;
@@ -367,6 +573,156 @@ export default function CharacterVlogMode() {
     imageInstructions: "",
     videoInstructions: "",
   });
+
+  // Save function for continuityGroups and continuityLocked
+  // Use a ref to always get the latest state
+  const continuityGroupsRef = useRef(continuityGroups);
+  const continuityLockedRef = useRef(continuityLocked);
+  
+  useEffect(() => {
+    continuityGroupsRef.current = continuityGroups;
+  }, [continuityGroups]);
+  
+  useEffect(() => {
+    continuityLockedRef.current = continuityLocked;
+  }, [continuityLocked]);
+
+  const saveContinuityData = async (groupsToSave?: { [sceneId: string]: any[] }, locked?: boolean) => {
+    // Use provided values or latest from refs
+    const groups = groupsToSave ?? continuityGroupsRef.current;
+    const isLocked = locked ?? continuityLockedRef.current;
+    
+    if (videoId === 'new') {
+      console.warn('[character-vlog:index] Cannot save: videoId is "new"');
+      return;
+    }
+
+    try {
+      // Convert scenes to the format expected by the API
+      const scenesToSave = scenes.map(scene => ({
+        id: scene.id,
+        name: scene.title,
+        description: scene.description || '',
+        duration: scene.duration || 60,
+        sceneNumber: scene.sceneNumber,
+      }));
+
+      // Convert shots to the format expected by the API
+      const shotsToSave: Record<string, any[]> = {};
+      Object.entries(shots).forEach(([sceneId, sceneShots]) => {
+        shotsToSave[sceneId] = sceneShots.map(shot => ({
+          id: shot.id,
+          sceneId: shot.sceneId,
+          shotNumber: shot.shotNumber,
+          description: shot.description || '',
+          cameraMovement: shot.cameraMovement,
+          shotType: shot.shotType,
+          duration: shot.duration,
+          createdAt: shot.createdAt,
+          updatedAt: shot.updatedAt,
+        }));
+      });
+
+      // Serialize continuity groups (ensure dates are ISO strings)
+      const serializedGroups: { [sceneId: string]: any[] } = {};
+      Object.entries(groups).forEach(([sceneId, groups]) => {
+        if (Array.isArray(groups) && groups.length > 0) {
+          serializedGroups[sceneId] = groups.map(group => ({
+            ...group,
+            status: group.status || "approved",
+            approvedAt: group.approvedAt instanceof Date ? group.approvedAt.toISOString() : (group.approvedAt || null),
+            editedAt: group.editedAt instanceof Date ? group.editedAt.toISOString() : (group.editedAt || null),
+            createdAt: group.createdAt instanceof Date ? group.createdAt.toISOString() : (group.createdAt || new Date().toISOString()),
+          }));
+        }
+      });
+
+        console.log('[character-vlog:index] Saving continuity data:', {
+        videoId,
+        sceneCount: Object.keys(serializedGroups).length,
+        totalGroups: Object.values(serializedGroups).flat().length,
+        continuityLocked: isLocked,
+        groupsPreview: Object.entries(serializedGroups).map(([sceneId, gs]) => ({
+          sceneId,
+          count: gs.length,
+          statuses: gs.map((g: any) => g.status),
+        })),
+      });
+
+      const response = await fetch(`/api/character-vlog/videos/${videoId}/step/3/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          scenes: scenesToSave,
+          shots: shotsToSave,
+          continuityGroups: serializedGroups,
+          continuityLocked: isLocked,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => response.statusText);
+        throw new Error(`Failed to save: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('[character-vlog:index] Continuity groups saved successfully:', {
+        savedGroups: Object.keys(result.step3Data?.continuityGroups || {}).length,
+        savedLocked: result.step3Data?.continuityLocked,
+      });
+    } catch (error) {
+      console.error('[character-vlog:index] Failed to save continuity groups:', error);
+      toast({
+        title: "Save Failed",
+        description: error instanceof Error ? error.message : "Failed to save continuity data",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Debounced save for continuityGroups and continuityLocked (for auto-save on changes)
+  useEffect(() => {
+    if (videoId === 'new') {
+      return;
+    }
+
+    // Only auto-save if we have continuity groups or continuityLocked is true
+    if (Object.keys(continuityGroups).length === 0 && !continuityLocked) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      saveContinuityData(continuityGroups, continuityLocked);
+    }, 1000); // 1 second debounce for auto-save
+
+    return () => clearTimeout(timeoutId);
+  }, [videoId, continuityGroups, continuityLocked, scenes, shots]);
+
+  // Immediate save when continuityLocked changes to true (user clicked "Lock & Continue")
+  useEffect(() => {
+    if (videoId === 'new') {
+      return;
+    }
+
+    // Only save immediately when locked becomes true (not on initial load)
+    if (continuityLocked) {
+      // Use a small delay to ensure continuityGroups state is updated from child
+      const timeoutId = setTimeout(() => {
+        // Use refs to get latest state
+        const latestGroups = continuityGroupsRef.current;
+        const latestLocked = continuityLockedRef.current;
+        console.log('[character-vlog:index] Continuity locked - saving immediately with groups:', {
+          groupCount: Object.keys(latestGroups).length,
+          totalGroups: Object.values(latestGroups).flat().length,
+          locked: latestLocked,
+        });
+        saveContinuityData(latestGroups, latestLocked);
+      }, 200); // Small delay to ensure state sync
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [continuityLocked]); // Only trigger on continuityLocked change
 
   const handleNext = async () => {
     console.log('[character-vlog:index] handleNext called:', { activeStep, videoId });
@@ -506,60 +862,533 @@ export default function CharacterVlogMode() {
 
     // Handle step 3 (scenes) continue - generate scenes and shots if missing
     if (activeStep === "scenes") {
-      try {
-        toast({
-          title: "Generating Scenes & Shots",
-          description: "Please wait while we generate your scene breakdown...",
-        });
+      console.log('[character-vlog:frontend] Step 3 Continue clicked:', {
+        videoId,
+        workspaceId,
+        scenesCount: scenes.length,
+        shotsCount: Object.keys(shots).length,
+      });
 
-        const response = await fetch(`/api/character-vlog/videos/${videoId}/step/3/continue`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
-          },
-          credentials: 'include',
-        });
-
-        if (!response.ok) {
-          const error = await response.json().catch(() => ({ error: 'Failed to generate scenes and shots' }));
-          throw new Error(error.details || error.error || 'Failed to generate scenes and shots');
+      // Navigate to Step 4 immediately and show progress modal
+      const steps: VlogStepId[] = ["script", "elements", "scenes", "storyboard", "animatic", "export"];
+      const nextIndex = steps.indexOf(activeStep) + 1;
+      if (nextIndex < steps.length) {
+        const nextStep = steps[nextIndex];
+        setActiveStep(nextStep);
+        setDirection(1);
+        // Mark current step (scenes) as completed
+        if (!completedSteps.includes(activeStep)) {
+          setCompletedSteps([...completedSteps, activeStep]);
         }
-
-        const data = await response.json();
-        
-        // Update local state with generated scenes and shots
-        if (data.scenes) {
-          setScenes(data.scenes);
+        // Mark storyboard step as accessible (will be marked as completed after prompts are generated)
+        // This allows users to click the storyboard tab in the footer navigation
+        if (!completedSteps.includes(nextStep)) {
+          setCompletedSteps(prev => [...prev, nextStep]);
         }
-        if (data.shots) {
-          setShots(data.shots);
-        }
-
-        toast({
-          title: "Scenes & Shots Generated",
-          description: `Successfully generated ${data.scenes?.length || 0} scenes with shots. Moving to the next step.`,
-        });
-      } catch (error) {
-        toast({
-          title: "Generation Failed",
-          description: error instanceof Error ? error.message : "Failed to generate scenes and shots. Please try again.",
-          variant: "destructive",
-        });
-        return; // Don't proceed to next step if generation failed
       }
+
+      // Start prompt generation in background
+      (async () => {
+        try {
+          // Disable Continue button and show progress modal
+          setIsGeneratingPrompts(true);
+          setCanContinue(false);
+
+          toast({
+            title: "Generating Scenes & Shots",
+            description: "Please wait while we generate your scene breakdown...",
+          });
+
+          console.log('[character-vlog:frontend] Calling step/3/continue endpoint...');
+          const response = await fetch(`/api/character-vlog/videos/${videoId}/step/3/continue`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+            },
+            credentials: 'include',
+          });
+
+          console.log('[character-vlog:frontend] Step/3/continue response status:', response.status);
+
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Failed to generate scenes and shots' }));
+            console.error('[character-vlog:frontend] Step/3/continue failed:', error);
+            throw new Error(error.details || error.error || 'Failed to generate scenes and shots');
+          }
+
+          const data = await response.json();
+          console.log('[character-vlog:frontend] Step/3/continue success:', {
+            scenesCount: data.scenes?.length || 0,
+            shotsKeys: data.shots ? Object.keys(data.shots).length : 0,
+            continuityGroupsKeys: data.continuityGroups ? Object.keys(data.continuityGroups).length : 0,
+          });
+          
+          // Update local state with generated scenes and shots
+          let updatedScenes = scenes;
+          let updatedShots = shots;
+          if (data.scenes) {
+            updatedScenes = data.scenes;
+            setScenes(data.scenes);
+          }
+          if (data.shots) {
+            updatedShots = data.shots;
+            setShots(data.shots);
+          }
+          // Update continuity groups from response
+          if (data.continuityGroups) {
+            setContinuityGroups(data.continuityGroups);
+            console.log('[character-vlog:frontend] Updated continuity groups:', {
+              sceneIds: Object.keys(data.continuityGroups),
+              totalGroups: Object.values(data.continuityGroups).flat().length,
+            });
+          }
+
+          // Now generate prompts for ALL scenes
+          const scenesToProcess = updatedScenes || scenes;
+          console.log('[character-vlog:frontend] Starting prompt generation:', {
+            scenesToProcessCount: scenesToProcess.length,
+            scenesToProcessIds: scenesToProcess.map(s => s.id),
+          });
+
+          if (scenesToProcess.length === 0) {
+            console.warn('[character-vlog:frontend] No scenes to process!');
+            setIsGeneratingPrompts(false);
+            setCanContinue(true);
+            toast({
+              title: "No Scenes Found",
+              description: "Please generate scenes first.",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          // Calculate total shots for progress tracking
+          const totalShotsCount = scenesToProcess.reduce((sum, scene) => {
+            const sceneShots = updatedShots[scene.id] || [];
+            return sum + sceneShots.length;
+          }, 0);
+
+          // Initialize progress
+          setPromptGenerationProgress({
+            currentScene: 0,
+            totalScenes: scenesToProcess.length,
+            currentSceneName: "",
+            processedShots: 0,
+            totalShots: totalShotsCount,
+          });
+
+          // Generate prompts for each scene sequentially
+          // Use functional updates to ensure we have the latest state
+          let updatedShotVersions: { [shotId: string]: ShotVersion[] } = {};
+          let updatedInheritanceMap: { [shotId: string]: boolean } = {};  // Track inheritance
+          let processedScenes = 0;
+          let totalShots = 0;
+
+          for (const scene of scenesToProcess) {
+            const sceneName = scene.title || `Scene ${processedScenes + 1}`;
+            console.log(`[character-vlog:frontend] Processing scene ${processedScenes + 1}/${scenesToProcess.length}:`, {
+              sceneId: scene.id,
+              sceneName,
+            });
+
+            // Update progress for current scene
+            setPromptGenerationProgress({
+              currentScene: processedScenes + 1,
+              totalScenes: scenesToProcess.length,
+              currentSceneName: sceneName,
+              processedShots: totalShots,
+              totalShots: totalShotsCount,
+            });
+
+            try {
+              console.log('[character-vlog:frontend] Calling generate-prompts endpoint:', {
+                videoId,
+                sceneId: scene.id,
+              });
+
+              const promptsResponse = await fetch('/api/character-vlog/storyboard/generate-prompts', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                  videoId,
+                  sceneId: scene.id,
+                }),
+              });
+
+              console.log('[character-vlog:frontend] Generate-prompts response status:', promptsResponse.status);
+
+              if (!promptsResponse.ok) {
+                const error = await promptsResponse.json().catch(() => ({ error: 'Failed to generate prompts' }));
+                console.error(`[character-vlog:frontend] Failed to generate prompts for scene ${scene.id}:`, error);
+                // Continue with other scenes even if one fails
+                processedScenes++;
+                continue;
+              }
+
+              const promptsData = await promptsResponse.json();
+              console.log(`[character-vlog:frontend] Generated prompts for scene ${scene.id}:`, {
+                shotsCount: promptsData.shots?.length || 0,
+                cost: promptsData.cost,
+                responseStructure: {
+                  hasShots: !!promptsData.shots,
+                  isArray: Array.isArray(promptsData.shots),
+                  firstShot: promptsData.shots?.[0],
+                },
+              });
+
+              // Validate response structure
+              if (!promptsData.shots || !Array.isArray(promptsData.shots)) {
+                console.error(`[character-vlog:frontend] Invalid response structure for scene ${scene.id}:`, {
+                  response: promptsData,
+                  expectedShotsArray: true,
+                  actualType: typeof promptsData.shots,
+                  isArray: Array.isArray(promptsData.shots),
+                });
+                processedScenes++;
+                continue;
+              }
+
+              if (promptsData.shots.length === 0) {
+                console.warn(`[character-vlog:frontend] No shots in response for scene ${scene.id}`);
+                processedScenes++;
+                continue;
+              }
+
+              // Get current scene shots (use latest from updatedShots)
+              let sceneShots = updatedShots[scene.id] || [];
+              console.log(`[character-vlog:frontend] Scene shots found:`, {
+                sceneId: scene.id,
+                sceneShotsCount: sceneShots.length,
+                shotIds: sceneShots.map(s => s.id),
+                generatedShotIds: promptsData.shots.map((s: any) => s.shotId),
+              });
+              
+              // Update shot versions with generated prompts
+              for (const generatedShot of promptsData.shots) {
+                // Validate generatedShot structure
+                if (!generatedShot.shotId) {
+                  console.error(`[character-vlog:frontend] Generated shot missing shotId:`, generatedShot);
+                  continue;
+                }
+                // Re-fetch sceneShots in case it was updated in previous iteration
+                sceneShots = updatedShots[scene.id] || [];
+                const shot = sceneShots.find(s => s.id === generatedShot.shotId);
+                if (!shot) {
+                  console.warn(`[character-vlog:frontend] Shot ${generatedShot.shotId} not found in scene ${scene.id}`, {
+                    availableShotIds: sceneShots.map(s => s.id),
+                  });
+                  continue;
+                }
+
+                // Use the isInherited value from the server (already calculated during prompt generation)
+                const isInherited = generatedShot.isInherited === true;
+
+                console.log(`[character-vlog:frontend] Shot ${shot.id} inheritance from server:`, {
+                  isInherited,
+                  hasIsInheritedField: 'isInherited' in generatedShot,
+                  serverValue: generatedShot.isInherited,
+                });
+
+                // Create new shot version with prompts - use unique ID with timestamp and random
+                const versionId = `version-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${shot.id}`;
+                const newVersion: ShotVersion = {
+                  id: versionId,
+                  shotId: shot.id,
+                  versionNumber: 1, // Always version 1 for newly generated prompts
+                  imagePrompt: generatedShot.imagePrompts.single || generatedShot.imagePrompts.start || '',
+                  startFramePrompt: generatedShot.imagePrompts.start || null,
+                  endFramePrompt: generatedShot.imagePrompts.end || null,
+                  videoPrompt: generatedShot.videoPrompt,
+                  negativePrompt: generatedShot.negativePrompt || null,
+                  imageUrl: null,
+                  startFrameUrl: null,
+                  endFrameUrl: null,
+                  videoUrl: null,
+                  videoDuration: shot.duration || 5,
+                  status: 'pending',
+                  needsRerender: false,
+                  createdAt: new Date(),
+                };
+
+                // Store version with isInherited flag
+                updatedShotVersions[shot.id] = [newVersion];
+                
+                // Track inheritance status for this shot (use server's value, don't overwrite)
+                updatedInheritanceMap[shot.id] = isInherited;
+                
+                console.log(`[character-vlog:frontend] Created version for shot ${shot.id}:`, {
+                  versionId,
+                  hasImagePrompt: !!newVersion.imagePrompt,
+                  hasStartPrompt: !!newVersion.startFramePrompt,
+                  hasEndPrompt: !!newVersion.endFramePrompt,
+                  hasVideoPrompt: !!newVersion.videoPrompt,
+                  isInherited,
+                  startFramePromptPreview: newVersion.startFramePrompt?.substring(0, 100),
+                });
+                
+                // Update shot's currentVersionId - create new object references
+                const shotIndexForUpdate = sceneShots.findIndex(s => s.id === shot.id);
+                if (shotIndexForUpdate !== -1) {
+                  // Create a new array with updated shot
+                  const updatedSceneShots = sceneShots.map((s, idx) => 
+                    idx === shotIndexForUpdate 
+                      ? { ...s, currentVersionId: versionId }
+                      : { ...s } // Create new object for all shots to ensure React detects changes
+                  );
+                  // Create new object reference for the scene
+                  updatedShots[scene.id] = updatedSceneShots;
+                  console.log(`[character-vlog:frontend] Updated shot ${shot.id} with currentVersionId: ${versionId}`, {
+                    shotCurrentVersionId: updatedSceneShots[shotIndexForUpdate].currentVersionId,
+                  });
+                } else {
+                  console.warn(`[character-vlog:frontend] Shot ${shot.id} not found in scene ${scene.id} shots array`);
+                }
+                
+                totalShots++;
+                
+                // Update progress
+                setPromptGenerationProgress({
+                  currentScene: processedScenes + 1,
+                  totalScenes: scenesToProcess.length,
+                  currentSceneName: sceneName,
+                  processedShots: totalShots,
+                  totalShots: totalShotsCount,
+                });
+              }
+
+              processedScenes++;
+            } catch (error) {
+              console.error(`[character-vlog:frontend] Error generating prompts for scene ${scene.id}:`, error);
+              processedScenes++;
+              // Continue with other scenes even if one fails
+            }
+          }
+
+          console.log('[character-vlog:frontend] All scenes processed:', {
+            processedScenes,
+            totalShots,
+            shotVersionsKeys: Object.keys(updatedShotVersions).length,
+            updatedShotsKeys: Object.keys(updatedShots).length,
+          });
+
+          // Verify data integrity before updating state
+          const verificationErrors: string[] = [];
+          Object.keys(updatedShotVersions).forEach(shotId => {
+            const version = updatedShotVersions[shotId]?.[0];
+            if (!version) {
+              verificationErrors.push(`Shot ${shotId} has no version`);
+              return;
+            }
+            
+            // Check if shot has currentVersionId set
+            let foundInShots = false;
+            Object.values(updatedShots).forEach(sceneShots => {
+              const shot = sceneShots.find(s => s.id === shotId);
+              if (shot && shot.currentVersionId === version.id) {
+                foundInShots = true;
+              }
+            });
+            
+            if (!foundInShots) {
+              verificationErrors.push(`Shot ${shotId} version ${version.id} not linked via currentVersionId`);
+            }
+          });
+          
+          if (verificationErrors.length > 0) {
+            console.error('[character-vlog:frontend] Data integrity errors:', verificationErrors);
+          } else {
+            console.log('[character-vlog:frontend] Data integrity check passed - all versions linked to shots');
+          }
+
+          // Update state with functional updates to ensure we merge correctly
+          setShotVersions(prev => {
+            const merged = { ...prev, ...updatedShotVersions };
+            console.log('[character-vlog:frontend] Merged shotVersions:', {
+              prevKeys: Object.keys(prev).length,
+              newKeys: Object.keys(updatedShotVersions).length,
+              mergedKeys: Object.keys(merged).length,
+              sampleVersion: Object.values(merged)[0]?.[0],
+              sampleVersionId: Object.values(merged)[0]?.[0]?.id,
+              sampleVersionShotId: Object.values(merged)[0]?.[0]?.shotId,
+            });
+            return merged;
+          });
+          
+          // Update inheritance map
+          setShotInheritanceMap(prev => {
+            const merged = { ...prev, ...updatedInheritanceMap };
+            const inheritedCount = Object.values(merged).filter(v => v).length;
+            console.log('[character-vlog:frontend] Merged inheritance map:', {
+              prevKeys: Object.keys(prev).length,
+              newKeys: Object.keys(updatedInheritanceMap).length,
+              mergedKeys: Object.keys(merged).length,
+              inheritedCount,
+            });
+            return merged;
+          });
+          
+          // Update shots - create a completely new object to ensure React detects the change
+          setShots(prev => {
+            // Start with previous state to preserve all scenes
+            const merged: { [sceneId: string]: Shot[] } = {};
+            
+            // First, copy all previous scenes (preserve unchanged scenes)
+            Object.keys(prev).forEach(sceneId => {
+              merged[sceneId] = [...prev[sceneId]]; // Create new array reference
+            });
+            
+            // Then, update with modified scenes (overwrite with updated shots)
+            Object.keys(updatedShots).forEach(sceneId => {
+              merged[sceneId] = [...updatedShots[sceneId]]; // Create new array reference
+            });
+            
+            // Verify shots have currentVersionId
+            const shotsWithVersions = Object.values(merged).flat().filter(s => s.currentVersionId).length;
+            const totalShotsCount = Object.values(merged).flat().length;
+            
+            // Log detailed info for first scene
+            const firstSceneId = Object.keys(merged)[0];
+            const firstSceneShots = merged[firstSceneId] || [];
+            
+            console.log('[character-vlog:frontend] Merged shots:', {
+              prevKeys: Object.keys(prev).length,
+              updatedKeys: Object.keys(updatedShots).length,
+              mergedKeys: Object.keys(merged).length,
+              totalShotsCount,
+              shotsWithVersions,
+              firstSceneId,
+              firstSceneShotsCount: firstSceneShots.length,
+              firstSceneShotsWithVersions: firstSceneShots.filter(s => s.currentVersionId).length,
+              sampleShot: firstSceneShots[0],
+              sampleShotCurrentVersionId: firstSceneShots[0]?.currentVersionId,
+              sampleShotId: firstSceneShots[0]?.id,
+            });
+            
+            // Log all shots with their currentVersionId status
+            Object.entries(merged).forEach(([sceneId, sceneShots]) => {
+              const withVersions = sceneShots.filter(s => s.currentVersionId).length;
+              if (withVersions < sceneShots.length) {
+                console.log(`[character-vlog:frontend] Scene ${sceneId}: ${withVersions}/${sceneShots.length} shots have currentVersionId`, {
+                  shots: sceneShots.map(s => ({
+                    id: s.id,
+                    currentVersionId: s.currentVersionId,
+                    hasVersionInState: !!updatedShotVersions[s.id],
+                  })),
+                });
+              }
+            });
+            
+            return merged;
+          });
+
+          // Use setTimeout to ensure state updates are processed before hiding modal
+          setTimeout(() => {
+            // Hide progress modal and re-enable Continue button
+            setIsGeneratingPrompts(false);
+            setCanContinue(true);
+            
+            // Mark storyboard step as completed since prompts are now generated
+            setCompletedSteps(prev => {
+              if (!prev.includes('storyboard')) {
+                console.log('[character-vlog:frontend] Marking storyboard step as completed after prompt generation');
+                return [...prev, 'storyboard'];
+              }
+              return prev;
+            });
+            
+            console.log('[character-vlog:frontend] State updates complete, modal hidden');
+          }, 100);
+
+          toast({
+            title: "All Prompts Generated",
+            description: `Successfully generated prompts for ${totalShots} shot(s) across ${processedScenes} scene(s).`,
+          });
+
+          console.log('[character-vlog:frontend] Shot versions and shots updated in state');
+
+          // Save updated shots with currentVersionId to database
+          // This is critical - without this, when tabs are switched the currentVersionId is lost
+          try {
+            console.log('[character-vlog:frontend] Saving shots with currentVersionId to database...', {
+              shotsToSave: Object.keys(updatedShots).length,
+              totalShots: Object.values(updatedShots).flat().length,
+              shotsWithVersionId: Object.values(updatedShots).flat().filter(s => s.currentVersionId).length,
+            });
+            
+            const saveResponse = await fetch(`/api/character-vlog/videos/${videoId}/step/3/settings`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+              },
+              credentials: 'include',
+              body: JSON.stringify({
+                shots: updatedShots, // Contains all shots with updated currentVersionId
+              }),
+            });
+
+            if (!saveResponse.ok) {
+              const errorText = await saveResponse.text();
+              console.error('[character-vlog:frontend] Failed to save shots with currentVersionId:', errorText);
+            } else {
+              const saveResult = await saveResponse.json();
+              console.log('[character-vlog:frontend] Successfully saved shots with currentVersionId to database:', {
+                success: saveResult.success,
+                savedShots: Object.values(updatedShots).flat().length,
+              });
+            }
+          } catch (saveError) {
+            console.error('[character-vlog:frontend] Error saving shots with currentVersionId:', saveError);
+            // Don't fail the entire operation if save fails - shots are still in state
+          }
+        } catch (error) {
+          console.error('[character-vlog:frontend] Step 3 continue failed with error:', error);
+          setIsGeneratingPrompts(false);
+          setCanContinue(true);
+          toast({
+            title: "Generation Failed",
+            description: error instanceof Error ? error.message : "Failed to generate scenes and shots. Please try again.",
+            variant: "destructive",
+          });
+        }
+      })();
+
+      // Return early - don't proceed with normal navigation since we already navigated
+      return;
     }
 
+    console.log('[character-vlog:frontend] Proceeding to next step navigation:', {
+      activeStep,
+      completedSteps,
+    });
+
     if (!completedSteps.includes(activeStep)) {
+      console.log('[character-vlog:frontend] Marking step as completed:', activeStep);
       setCompletedSteps([...completedSteps, activeStep]);
     }
     const steps: VlogStepId[] = ["script", "elements", "scenes", "storyboard", "animatic", "export"];
     const currentIndex = steps.indexOf(activeStep);
-    setDirection(1);
     const nextIndex = currentIndex + 1;
+    
+    console.log('[character-vlog:frontend] Navigation details:', {
+      currentIndex,
+      nextIndex,
+      currentStep: steps[currentIndex],
+      nextStep: steps[nextIndex],
+    });
+
+    setDirection(1);
     if (nextIndex < steps.length) {
+      console.log('[character-vlog:frontend] Navigating to step:', steps[nextIndex]);
       setCanContinue(true); // Enable continue button for the next step
       setActiveStep(steps[nextIndex]);
+    } else {
+      console.warn('[character-vlog:frontend] No next step available, at final step');
     }
   };
 
@@ -577,6 +1406,33 @@ export default function CharacterVlogMode() {
     const steps: VlogStepId[] = ["script", "elements", "scenes", "storyboard", "animatic", "export"];
     const currentIndex = steps.indexOf(activeStep);
     const targetIndex = steps.indexOf(stepId);
+    
+    // Special case: Allow navigation to storyboard if prompts exist (shotVersions has data)
+    const hasPrompts = Object.keys(shotVersions).length > 0;
+    const isStoryboardWithPrompts = stepId === 'storyboard' && hasPrompts;
+    
+    // Prevent navigation to future steps that haven't been completed
+    // Only allow:
+    // 1. Current step (redundant but safe)
+    // 2. Completed steps
+    // 3. Previous steps (going back)
+    // 4. Storyboard step if prompts exist (even if not explicitly marked as completed)
+    if (stepId !== activeStep && !completedSteps.includes(stepId) && !isStoryboardWithPrompts && targetIndex > currentIndex) {
+      console.warn('[character-vlog] Cannot navigate to future step:', stepId);
+      return; // Block navigation to future steps
+    }
+    
+    // If navigating to storyboard with prompts, ensure it's marked as completed
+    if (isStoryboardWithPrompts && !completedSteps.includes('storyboard')) {
+      setCompletedSteps(prev => {
+        if (!prev.includes('storyboard')) {
+          console.log('[character-vlog] Marking storyboard as completed (prompts exist)');
+          return [...prev, 'storyboard'];
+        }
+        return prev;
+      });
+    }
+    
     setDirection(targetIndex > currentIndex ? 1 : -1);
     setActiveStep(stepId);
   };
@@ -663,6 +1519,7 @@ export default function CharacterVlogMode() {
   const narrativeMode = referenceMode === "1F" ? "image-reference" : "start-end";
 
   return (
+    <>
     <CharacterVlogStudioLayout
       currentStep={activeStep}
       completedSteps={completedSteps}
@@ -671,7 +1528,7 @@ export default function CharacterVlogMode() {
       onNext={handleNext}
       onBack={handleBack}
       videoTitle={videoTitle}
-      isNextDisabled={false} // Always enable Continue button - validation happens in handleNext
+      isNextDisabled={isGeneratingPrompts} // Disable Continue button during prompt generation
     >
             <CharacterVlogWorkflow 
               activeStep={activeStep}
@@ -694,6 +1551,7 @@ export default function CharacterVlogMode() {
               scenes={scenes}
               shots={shots}
               shotVersions={shotVersions}
+              shotInheritanceMap={shotInheritanceMap}
               characters={characters}
         locations={locations}
               referenceImages={referenceImages}
@@ -731,5 +1589,53 @@ export default function CharacterVlogMode() {
               onNext={handleNext}
             />
     </CharacterVlogStudioLayout>
+    
+    {/* Prompt Generation Progress Dialog */}
+    <Dialog open={isGeneratingPrompts} onOpenChange={() => {}}>
+      <DialogContent className="sm:max-w-md [&>button]:hidden">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Generating Prompts
+          </DialogTitle>
+          <DialogDescription>
+            Please wait while we generate prompts for all your scenes. This may take a few minutes.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">
+                {promptGenerationProgress.currentScene > 0 
+                  ? `Scene ${promptGenerationProgress.currentScene} of ${promptGenerationProgress.totalScenes}`
+                  : 'Preparing...'}
+              </span>
+              <span className="text-muted-foreground">
+                {promptGenerationProgress.totalShots > 0
+                  ? `${promptGenerationProgress.processedShots} / ${promptGenerationProgress.totalShots} shots`
+                  : ''}
+              </span>
+            </div>
+            <Progress 
+              value={
+                promptGenerationProgress.totalScenes > 0
+                  ? (promptGenerationProgress.currentScene / promptGenerationProgress.totalScenes) * 100
+                  : 0
+              } 
+              className="h-2"
+            />
+          </div>
+          {promptGenerationProgress.currentSceneName && (
+            <div className="text-sm text-muted-foreground">
+              <span className="font-medium">Current:</span> {promptGenerationProgress.currentSceneName}
+            </div>
+          )}
+          <div className="text-xs text-muted-foreground pt-2">
+            This process typically takes 2-4 minutes per scene. Please don't close this window.
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

@@ -10,7 +10,7 @@ import {
   videos,
   workspaceIntegrations,
   productionCampaigns,
-  campaignItems,
+  campaignVideos,
   type User,
   type UpsertUser,
   type Workspace,
@@ -33,8 +33,8 @@ import {
   type InsertWorkspaceIntegration,
   type ProductionCampaign,
   type InsertProductionCampaign,
-  type CampaignItem,
-  type InsertCampaignItem,
+  type CampaignVideo,
+  type InsertCampaignVideo,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -127,12 +127,12 @@ export interface IStorage {
   updateProductionCampaign(id: string, updates: Partial<ProductionCampaign>): Promise<ProductionCampaign>;
   deleteProductionCampaign(id: string): Promise<void>;
   
-  // Campaign Items
-  getCampaignItem(id: string): Promise<CampaignItem | undefined>;
-  getCampaignItems(campaignId: string): Promise<CampaignItem[]>;
-  createCampaignItem(item: InsertCampaignItem): Promise<CampaignItem>;
-  updateCampaignItem(id: string, updates: Partial<CampaignItem>): Promise<CampaignItem>;
-  deleteCampaignItem(id: string): Promise<void>;
+  // Campaign Videos
+  getCampaignVideo(id: string): Promise<CampaignVideo | undefined>;
+  getCampaignVideos(campaignId: string): Promise<CampaignVideo[]>;
+  createCampaignVideo(item: InsertCampaignVideo): Promise<CampaignVideo>;
+  updateCampaignVideo(id: string, updates: Partial<CampaignVideo>): Promise<CampaignVideo>;
+  deleteCampaignVideo(id: string): Promise<void>;
   
   // Account management
   deleteUserAccount(userId: string): Promise<void>;
@@ -667,38 +667,38 @@ export class MemStorage implements IStorage {
   }
 
   async deleteProductionCampaign(id: string): Promise<void> {
-    // Delete all campaign items first (cascade)
-    await db.delete(campaignItems).where(eq(campaignItems.campaignId, id));
+    // Delete all campaign videos first (cascade)
+    await db.delete(campaignVideos).where(eq(campaignVideos.campaignId, id));
     // Delete campaign
     await db.delete(productionCampaigns).where(eq(productionCampaigns.id, id));
   }
 
-  // ═══════════ CAMPAIGN ITEMS ═══════════
+  // ═══════════ CAMPAIGN VIDEOS ═══════════
 
-  async getCampaignItem(id: string): Promise<CampaignItem | undefined> {
-    const [item] = await db.select().from(campaignItems).where(eq(campaignItems.id, id));
+  async getCampaignVideo(id: string): Promise<CampaignVideo | undefined> {
+    const [item] = await db.select().from(campaignVideos).where(eq(campaignVideos.id, id));
     return item;
   }
 
-  async getCampaignItems(campaignId: string): Promise<CampaignItem[]> {
-    return db.select().from(campaignItems).where(eq(campaignItems.campaignId, campaignId));
+  async getCampaignVideos(campaignId: string): Promise<CampaignVideo[]> {
+    return db.select().from(campaignVideos).where(eq(campaignVideos.campaignId, campaignId));
   }
 
-  async createCampaignItem(item: InsertCampaignItem): Promise<CampaignItem> {
-    const [created] = await db.insert(campaignItems).values(item).returning();
+  async createCampaignVideo(item: InsertCampaignVideo): Promise<CampaignVideo> {
+    const [created] = await db.insert(campaignVideos).values(item).returning();
     return created;
   }
 
-  async updateCampaignItem(id: string, updates: Partial<CampaignItem>): Promise<CampaignItem> {
-    const [updated] = await db.update(campaignItems)
+  async updateCampaignVideo(id: string, updates: Partial<CampaignVideo>): Promise<CampaignVideo> {
+    const [updated] = await db.update(campaignVideos)
       .set({ ...updates, updatedAt: new Date() })
-      .where(eq(campaignItems.id, id))
+      .where(eq(campaignVideos.id, id))
       .returning();
     return updated;
   }
 
-  async deleteCampaignItem(id: string): Promise<void> {
-    await db.delete(campaignItems).where(eq(campaignItems.id, id));
+  async deleteCampaignVideo(id: string): Promise<void> {
+    await db.delete(campaignVideos).where(eq(campaignVideos.id, id));
   }
 
   async deleteUserAccount(userId: string): Promise<void> {

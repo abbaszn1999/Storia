@@ -99,14 +99,27 @@ export function getSupportedResolutions(modelId: string, aspectRatio: string): R
 
 /**
  * Check if model requires inputs wrapper for frame images
+ * 
+ * Runware API has two formats for frame images:
+ * 
+ * Format 1 - Standard (most models):
+ * { frameImages: [{ inputImage: "url", frame: "first" }] }
+ * 
+ * Format 2 - Inputs Wrapper (only 4 models):
+ * { inputs: { frameImages: [{ image: "url", frame: "first" }] } }
+ * 
+ * Only these 4 models use the inputs wrapper format:
+ * - Kling VIDEO 2.6 Pro
+ * - Kling VIDEO O1
+ * - Runway Gen-4 Turbo
+ * - Alibaba Wan 2.6
  */
 export function shouldUseInputsWrapper(modelAirId: string): boolean {
   const modelsRequiringInputsWrapper = [
-    "runway:1@1",      // Runway Gen-4 Turbo
-    "runway:2@1",      // Runway Gen-4 (if exists)
-    "minimax:4@1",     // Hailuo 2.3
-    "lightricks:2@0",  // LTX-2 Pro
-    "alibaba:wan@2.6", // Alibaba Wan 2.6
+    "klingai:kling-video@2.6-pro",  // Kling VIDEO 2.6 Pro
+    "klingai:kling@o1",              // Kling VIDEO O1
+    "runway:1@1",                    // Runway Gen-4 Turbo
+    "alibaba:wan@2.6",               // Alibaba Wan 2.6
   ];
   
   return modelsRequiringInputsWrapper.includes(modelAirId);
@@ -118,6 +131,160 @@ export function shouldUseInputsWrapper(modelAirId: string): boolean {
 export function supportsLastFrame(modelId: string): boolean {
   const config = getModelConfig(modelId);
   return config?.frameImageSupport?.last ?? false;
+}
+
+/**
+ * Check if model uses "image" property instead of "inputImage" in frameImages
+ * 
+ * Some models in the inputs wrapper format use "image" instead of "inputImage":
+ * - Kling VIDEO 2.6 Pro
+ * - Kling VIDEO O1
+ * - Runway Gen-4 Turbo
+ * 
+ * Alibaba Wan uses "image" but in a different structure (no frame property)
+ */
+export function usesImageProperty(modelAirId: string): boolean {
+  const modelsUsingImage = [
+    "klingai:kling-video@2.6-pro",  // Kling VIDEO 2.6 Pro
+    "klingai:kling@o1",              // Kling VIDEO O1
+    "runway:1@1",                    // Runway Gen-4 Turbo
+  ];
+  return modelsUsingImage.includes(modelAirId);
+}
+
+/**
+ * Build frameImages payload based on model's API format
+ * 
+ * Handles three formats:
+ * 1. Standard: { frameImages: [{ inputImage: "url", frame: "first" }] }
+ * 2. Inputs wrapper with image: { inputs: { frameImages: [{ image: "url", frame: "first" }] } }
+ * 3. Alibaba Wan: { inputs: { frameImages: [{ image: "url" }] } }
+ */
+export function buildFrameImagesPayload(
+  startFrameUrl: string,
+  endFrameUrl: string | undefined,
+  modelAirId: string,
+  modelId: string
+): Record<string, any> {
+  const useInputsWrapper = shouldUseInputsWrapper(modelAirId);
+  const useImageProp = usesImageProperty(modelAirId);
+  const isAlibabaWan = modelAirId === "alibaba:wan@2.6";
+  const supportsLast = supportsLastFrame(modelId);
+
+  if (useInputsWrapper) {
+    // Format 2: Inputs wrapper
+    if (isAlibabaWan) {
+      // Alibaba Wan: array of objects with { image: "url" } (no frame property)
+      const frames: Array<{ image: string }> = [{ image: startFrameUrl }];
+      if (endFrameUrl && supportsLast) {
+        frames.push({ image: endFrameUrl });
+      }
+      return { inputs: { frameImages: frames } };
+    } else if (useImageProp) {
+      // Kling 2.6, O1, Runway: array of objects with { image: "url", frame: "first" }
+      const frames: Array<{ image: string; frame: string }> = [
+        { image: startFrameUrl, frame: "first" }
+      ];
+      if (endFrameUrl && supportsLast) {
+        frames.push({ image: endFrameUrl, frame: "last" });
+      }
+      return { inputs: { frameImages: frames } };
+    } else {
+      // Should not happen, but handle gracefully
+      const frames: Array<{ inputImage: string; frame: string }> = [
+        { inputImage: startFrameUrl, frame: "first" }
+      ];
+      if (endFrameUrl && supportsLast) {
+        frames.push({ inputImage: endFrameUrl, frame: "last" });
+      }
+      return { inputs: { frameImages: frames } };
+    }
+  } else {
+    // Format 1: Standard (Seedance, KlingAI 2.1/2.5, PixVerse, Veo, Hailuo, Sora)
+    const frames: Array<{ inputImage: string; frame: string }> = [
+      { inputImage: startFrameUrl, frame: "first" }
+    ];
+    if (endFrameUrl && supportsLast) {
+      frames.push({ inputImage: endFrameUrl, frame: "last" });
+    }
+    return { frameImages: frames };
+  }
+}
+
+/**
+ * Clamp duration to model's supported values
+ * Returns the closest supported duration
+ */
+export function clampDuration(duration: number, modelId: string): number {
+  const config = getModelConfig(modelId);
+  if (!config) return duration;
+
+  const durations = config.durations;
+  if (durations.includes(duration)) {
+    return duration;
+  }
+
+  // Find closest supported duration
+  return durations.reduce((closest, current) => {
+    return Math.abs(current - duration) < Math.abs(closest - duration)
+      ? current
+      : closest;
+  });
+}
+
+/**
+ * Get provider settings for a video model
+ * Returns default provider settings from config with optional overrides for style preservation
+ * 
+ * @param modelId - The model ID (e.g., "seedance-1.5-pro")
+ * @param hasFrameImages - Whether frame images are being used (for style preservation)
+ * @returns Provider settings object or undefined
+ */
+export function getVideoModelProviderSettings(
+  modelId: string,
+  hasFrameImages: boolean = false
+): Record<string, Record<string, any>> | undefined {
+  const config = getModelConfig(modelId);
+  if (!config?.providerSettings) {
+    return undefined;
+  }
+
+  // Clone provider settings to avoid mutating config
+  const providerSettings: Record<string, Record<string, any>> = {};
+  
+  for (const [provider, settings] of Object.entries(config.providerSettings)) {
+    providerSettings[provider] = { ...settings };
+    
+    // Style preservation overrides
+    if (hasFrameImages) {
+      // Veo: Disable enhancePrompt when using frame images to preserve visual style
+      if (provider === "google" && "enhancePrompt" in settings) {
+        providerSettings[provider].enhancePrompt = false;
+      }
+      
+      // Seedance: Enable cameraFixed when using frame images to maintain visual consistency
+      if (provider === "bytedance" && "cameraFixed" in settings) {
+        providerSettings[provider].cameraFixed = true;
+      }
+    }
+  }
+
+  return Object.keys(providerSettings).length > 0 ? providerSettings : undefined;
+}
+
+/**
+ * Check if model should omit width/height dimensions in payload
+ * 
+ * Some models derive output dimensions from the input image and don't accept explicit dimensions:
+ * - Kling VIDEO O1: Dimensions inferred from frame
+ * 
+ * Note: KlingAI 2.1 and 2.5 DO support explicit dimensions, they were incorrectly listed before
+ */
+export function shouldOmitDimensions(modelAirId: string): boolean {
+  const modelsWithoutDimensions = [
+    "klingai:kling@o1",  // Kling VIDEO O1: dimensions inferred from frame
+  ];
+  return modelsWithoutDimensions.includes(modelAirId);
 }
 
 /**

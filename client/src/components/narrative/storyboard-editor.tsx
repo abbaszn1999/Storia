@@ -19,7 +19,6 @@ import { cn } from "@/lib/utils";
 import type { Character } from "@shared/schema";
 import type { Scene, Shot, ReferenceImage } from "@/types/storyboard";
 import type { NarrativeShotVersion } from "@/types/narrative-storyboard";
-import { VOICE_LIBRARY } from "@/constants/voice-library";
 import {
   DndContext,
   closestCenter,
@@ -97,6 +96,25 @@ const VIDEO_MODEL_DURATIONS: { [key: string]: number[] } = {
   "alibaba-wan-2.6": [5, 10, 15],
 };
 
+/**
+ * Find the nearest supported duration when video model changes
+ * @param currentDuration - The current duration value
+ * @param supportedDurations - Array of durations supported by the new model
+ * @returns The nearest supported duration
+ */
+function findNearestDuration(currentDuration: number, supportedDurations: number[]): number {
+  if (!supportedDurations || supportedDurations.length === 0) {
+    return currentDuration; // Fallback to current if no supported durations
+  }
+  if (supportedDurations.includes(currentDuration)) {
+    return currentDuration; // Current duration is supported
+  }
+  // Find the nearest duration
+  return supportedDurations.reduce((nearest, duration) =>
+    Math.abs(duration - currentDuration) < Math.abs(nearest - currentDuration) ? duration : nearest
+  );
+}
+
 const SHOT_TYPES = [
   "Extreme Close-up",
   "Close-up",
@@ -153,8 +171,6 @@ interface StoryboardEditorProps {
   referenceImages: ReferenceImage[];
   characters: Character[];
   locations?: Array<{ id: string; name: string; description?: string }>;
-  voiceActorId: string | null;
-  voiceOverEnabled: boolean;
   continuityLocked: boolean;
   continuityGroups: { [sceneId: string]: any[] };
   isCommerceMode?: boolean;
@@ -165,10 +181,8 @@ interface StoryboardEditorProps {
   videoModel?: string; // Default video model from step1Data
   videoResolution?: string;
   aspectRatio?: string;
-  onVoiceActorChange: (voiceActorId: string) => void;
-  onVoiceOverToggle: (enabled: boolean) => void;
-  onGenerateShot: (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => void;
-  onRegenerateShot: (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => void;
+  onGenerateShot: (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => Promise<void>;
+  onRegenerateShot: (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => Promise<void>;
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
   onUpdateShotVersion?: (shotId: string, versionId: string, updates: Partial<NarrativeShotVersion>) => void;
   onUpdateScene?: (sceneId: string, updates: Partial<Scene>) => void;
@@ -198,7 +212,6 @@ interface SortableShotCardProps {
   isGenerating: boolean;
   isGeneratingStart?: boolean;
   isGeneratingEnd?: boolean;
-  voiceOverEnabled: boolean;
   narrativeMode: "image-reference" | "start-end" | "auto";
   characters: Character[];
   locations?: Array<{ id: string; name: string; description?: string }>;
@@ -209,10 +222,10 @@ interface SortableShotCardProps {
   isStartFrameInherited?: boolean;
   availableImageModels: Array<{ name: string; label: string; description: string }>;
   availableVideoModels: Array<{ name: string; label: string; description: string }>;
-  onSelectShot: (shot: Shot) => void;
+  onSelectShot: (shot: Shot, frame?: "start" | "end") => void;
   onExpandImage?: (imageUrl: string) => void;
-  onGenerateShot: (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => void;
-  onRegenerateShot: (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => void;
+  onGenerateShot: (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => Promise<void>;
+  onRegenerateShot: (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => Promise<void>;
   onUpdatePrompt: (shotId: string, prompt: string) => void;
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
   onUpdateShotVersion?: (shotId: string, versionId: string, updates: Partial<NarrativeShotVersion>) => void;
@@ -224,6 +237,8 @@ interface SortableShotCardProps {
   onAnimateShot?: (shotId: string) => void;
   isGeneratingVideo?: boolean;
   shotsCount: number;
+  shotVersions?: NarrativeShotVersion[];  // All versions for this shot (for thumbnails)
+  onSelectVersion?: (shotId: string, versionId: string) => void;  // Select a version
 }
 
 // Helper function to parse prompt text and identify @ tags
@@ -556,7 +571,6 @@ function SortableShotCard({
   isGenerating,
   isGeneratingStart = false,
   isGeneratingEnd = false,
-  voiceOverEnabled,
   narrativeMode,
   characters,
   locations = [],
@@ -582,6 +596,8 @@ function SortableShotCard({
   onAnimateShot,
   isGeneratingVideo = false,
   shotsCount,
+  shotVersions = [],
+  onSelectVersion,
 }: SortableShotCardProps) {
   const {
     attributes,
@@ -929,6 +945,53 @@ function SortableShotCard({
           <Badge className="bg-background/80 text-foreground border-0">
             # {shotIndex + 1}
           </Badge>
+          
+          {/* Version Thumbnails - Show last 3 regenerated versions (exclude edit versions) */}
+          {(() => {
+            // Filter out edit versions (those with editedFromVersionId) - only show regenerated versions
+            const regeneratedVersions = shotVersions.filter(v => !(v as any).editedFromVersionId);
+            
+            if (regeneratedVersions.length <= 1) return null;
+            
+            return (
+              <div className="flex items-center gap-0.5 ml-1">
+                {regeneratedVersions
+                  .slice(-3) // Get last 3 regenerated versions
+                  .map((v, idx) => {
+                    const thumbUrl = v.imageUrl || v.startFrameUrl || v.endFrameUrl;
+                    const isActive = v.id === version?.id;
+                    
+                    if (!thumbUrl) return null;
+                    
+                    return (
+                      <button
+                        key={v.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onSelectVersion && !isActive) {
+                            onSelectVersion(shot.id, v.id);
+                          }
+                        }}
+                        className={cn(
+                          "w-6 h-6 rounded overflow-hidden border-2 transition-all hover:scale-110",
+                          isActive 
+                            ? "border-purple-500 ring-1 ring-purple-500/50" 
+                            : "border-white/20 hover:border-white/50 opacity-70 hover:opacity-100"
+                        )}
+                        title={`Version ${v.versionNumber || idx + 1}${isActive ? ' (active)' : ''}`}
+                      >
+                        <img 
+                          src={thumbUrl} 
+                          alt={`v${v.versionNumber || idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    );
+                  })}
+              </div>
+            );
+          })()}
+          
           {/* Speed Profile Badge (Commerce Mode) */}
           {shot.speedProfile && (
             <Badge 
@@ -951,7 +1014,7 @@ function SortableShotCard({
           )}
         </div>
         <div className="absolute top-2 right-2 flex items-center gap-1">
-          {displayImageUrl && (
+          {displayImageUrl && activeTab === "image" && (
             <>
               {onExpandImage && (
                 <Button
@@ -1385,7 +1448,14 @@ function SortableShotCard({
                     size="sm"
                     variant="outline"
                     className="flex-1 border-white/10 hover:bg-white/5"
-                    onClick={() => onSelectShot(shot)}
+                    onClick={() => {
+                      // Pass the current activeFrame when opening edit dialog (for start-end mode)
+                      if (effectiveMode === "start-end" && activeFrame) {
+                        onSelectShot(shot, activeFrame);
+                      } else {
+                        onSelectShot(shot);
+                      }
+                    }}
                     disabled={(() => {
                       // Check if the specific active frame is generating
                       if (effectiveMode === "start-end" && activeFrame) {
@@ -1556,7 +1626,35 @@ function SortableShotCard({
                   <Label className="text-xs text-muted-foreground">Video Model</Label>
                   <Select
                     value={shot.videoModel || "scene-default"}
-                    onValueChange={(value) => onUpdateShot(shot.id, { videoModel: value === "scene-default" ? null : value })}
+                    onValueChange={(value) => {
+                      const newVideoModel = value === "scene-default" ? null : value;
+                      onUpdateShot(shot.id, { videoModel: newVideoModel });
+                      
+                      // Auto-adjust duration when video model changes
+                      const currentDuration = version?.videoDuration;
+                      if (currentDuration) {
+                        // Determine the new effective model ID
+                        const newEffectiveModelId = newVideoModel 
+                          ? getModelId(newVideoModel)
+                          : sceneModel 
+                            ? getModelId(sceneModel) 
+                            : defaultVideoModel 
+                              ? getModelId(defaultVideoModel) 
+                              : null;
+                        
+                        if (newEffectiveModelId && VIDEO_MODEL_DURATIONS[newEffectiveModelId]) {
+                          const supportedDurations = VIDEO_MODEL_DURATIONS[newEffectiveModelId];
+                          if (!supportedDurations.includes(currentDuration)) {
+                            const nearestDuration = findNearestDuration(currentDuration, supportedDurations);
+                            onUpdateVideoDuration(shot.id, nearestDuration);
+                            toast({
+                              title: "Duration Adjusted",
+                              description: `Duration changed from ${currentDuration}s to ${nearestDuration}s (supported by ${newEffectiveModelId})`,
+                            });
+                          }
+                        }
+                      }
+                    }}
                   >
                     <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-video-model-${shot.id}`}>
                       <SelectValue />
@@ -1577,7 +1675,7 @@ function SortableShotCard({
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Duration</Label>
                   <Select
-                    value={version?.videoDuration?.toString() || ""}
+                    value={version?.videoDuration?.toString() || shot.duration?.toString() || ""}
                     onValueChange={(value) => onUpdateVideoDuration(shot.id, parseInt(value))}
                     disabled={(() => {
                       const effectiveModelId = getEffectiveVideoModelId();
@@ -1681,8 +1779,6 @@ export function StoryboardEditor({
   referenceImages,
   characters,
   locations = [],
-  voiceActorId,
-  voiceOverEnabled,
   continuityLocked,
   continuityGroups,
   isCommerceMode = false,
@@ -1692,8 +1788,6 @@ export function StoryboardEditor({
   videoModel: defaultVideoModel,
   videoResolution: defaultVideoResolution,
   aspectRatio: defaultAspectRatio = "16:9",
-  onVoiceActorChange,
-  onVoiceOverToggle,
   onGenerateShot,
   onRegenerateShot,
   onUpdateShot,
@@ -1716,15 +1810,12 @@ export function StoryboardEditor({
   const [activeCategory, setActiveCategory] = useState<"prompt" | "clothes" | "remove" | "expression" | "figure" | "camera" | "effects" | "variations" | null>(null);
   const [selectedCharacterId, setSelectedCharacterId] = useState<string>("");
   const [activeFrameInDialog, setActiveFrameInDialog] = useState<"start" | "end">("start");
+  const [frameToEdit, setFrameToEdit] = useState<"start" | "end" | null>(null); // Track which frame was active when opening edit dialog
   const [localShots, setLocalShots] = useState(shots);
-  const [playingVoice, setPlayingVoice] = useState<string | null>(null);
-  const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
   const [showEnhancementDialog, setShowEnhancementDialog] = useState(false);
   const [dontRemindAgain, setDontRemindAgain] = useState(false);
-  const [compareMode, setCompareMode] = useState(false);
-  const [compareVersions, setCompareVersions] = useState<string[]>([]);
-  const [syncedPlaying, setSyncedPlaying] = useState(false);
   const [previewVersions, setPreviewVersions] = useState<Record<string, string>>({});
+  const [localVersionCache, setLocalVersionCache] = useState<Record<string, NarrativeShotVersion[]>>({}); // Cache for newly created versions
   const [editReferenceImages, setEditReferenceImages] = useState<Array<{ id: string; url: string; name: string }>>([]);
   const [selectedEditingModel, setSelectedEditingModel] = useState<string>("nano-banana");
   const [isEditing, setIsEditing] = useState(false);
@@ -1734,8 +1825,6 @@ export function StoryboardEditor({
   const [cameraWideAngle, setCameraWideAngle] = useState(false);
   const [viewMode, setViewMode] = useState<"cards" | "timeline">("cards");
   const [timelinePlayhead, setTimelinePlayhead] = useState(0);
-  const video1Ref = useRef<HTMLVideoElement>(null);
-  const video2Ref = useRef<HTMLVideoElement>(null);
   const editReferenceInputRef = useRef<HTMLInputElement>(null);
   // Track generating state by shot ID and frame type (e.g., "shotId:start" or "shotId:end")
   const [generatingShots, setGeneratingShots] = useState<Set<string>>(new Set());
@@ -1743,7 +1832,14 @@ export function StoryboardEditor({
   // Video generation state
   const [generatingVideos, setGeneratingVideos] = useState<Set<string>>(new Set());
   const [videoGenerationTasks, setVideoGenerationTasks] = useState<Record<string, string>>({}); // shotId -> taskId
+  // Scene-level animation state (tracks which scenes are being batch-animated)
+  const [animatingScenes, setAnimatingScenes] = useState<Set<string>>(new Set());
+  // Scene-level image generation state (tracks which scenes are running "Generate All Images")
+  const [generatingScenesAll, setGeneratingScenesAll] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+  
+  // Refs to prevent stale closures in async callbacks (e.g., video polling)
+  const onUpdateShotVersionRef = useRef(onUpdateShotVersion);
   
   // Model lists fetched from API
   const [videoModels, setVideoModels] = useState<Array<{ name: string; label: string; description: string; durations?: number[] }>>([]);
@@ -1811,18 +1907,24 @@ export function StoryboardEditor({
       
       // Initialize active frame based on available frames in start-end mode
       if (narrativeMode === "start-end") {
-        const version = shotVersions[selectedShot.id]?.find(v => v.id === selectedShot.currentVersionId);
-        if (version) {
-          // If start frame exists, default to start; otherwise use end if available
-          if (version.startFrameUrl) {
-            setActiveFrameInDialog("start");
-          } else if (version.endFrameUrl) {
-            setActiveFrameInDialog("end");
+        // If frameToEdit is set (from clicking Edit Image), use that frame
+        if (frameToEdit) {
+          setActiveFrameInDialog(frameToEdit);
+          setFrameToEdit(null); // Reset after using
+        } else {
+          const version = shotVersions[selectedShot.id]?.find(v => v.id === selectedShot.currentVersionId);
+          if (version) {
+            // If start frame exists, default to start; otherwise use end if available
+            if (version.startFrameUrl) {
+              setActiveFrameInDialog("start");
+            } else if (version.endFrameUrl) {
+              setActiveFrameInDialog("end");
+            }
           }
         }
       }
     }
-  }, [selectedShot?.id, selectedShot?.currentVersionId, narrativeMode, shotVersions]);
+  }, [selectedShot?.id, selectedShot?.currentVersionId, narrativeMode, shotVersions, frameToEdit]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1839,18 +1941,38 @@ export function StoryboardEditor({
   const generatedCount = allShots.filter((s) => s.currentVersionId).length;
   const totalCount = allShots.length;
 
+  // Ref to prevent stale closures in async callbacks (e.g., video polling)
+  const allShotsRef = useRef(allShots);
+  
+  // Keep refs in sync with current values
+  useEffect(() => {
+    allShotsRef.current = allShots;
+  }, [allShots]);
+  
+  useEffect(() => {
+    onUpdateShotVersionRef.current = onUpdateShotVersion;
+  }, [onUpdateShotVersion]);
+
   // Helper to get current version of a shot
   const getShotVersion = (shot: Shot): NarrativeShotVersion | null => {
     if (!shot.currentVersionId) return null;
-    const versions = shotVersions[shot.id] || [];
-    return versions.find((v) => v.id === shot.currentVersionId) || null;
+    // Merge prop versions with local cache (same as getPreviewedVersion)
+    // This ensures newly created versions (e.g., from Edit Image) are found
+    const propVersions = shotVersions[shot.id] || [];
+    const cachedVersions = localVersionCache[shot.id] || [];
+    const allVersions = [...propVersions, ...cachedVersions.filter(cv => !propVersions.find(pv => pv.id === cv.id))];
+    return allVersions.find((v) => v.id === shot.currentVersionId) || null;
   };
 
   // Helper to get the version being previewed (or active version if no preview)
   const getPreviewedVersion = (shot: Shot): NarrativeShotVersion | null => {
-    const versions = shotVersions[shot.id] || [];
+    // Merge prop versions with local cache
+    const propVersions = shotVersions[shot.id] || [];
+    const cachedVersions = localVersionCache[shot.id] || [];
+    // Combine and deduplicate by ID (cache takes precedence for same ID)
+    const allVersions = [...propVersions, ...cachedVersions.filter(cv => !propVersions.find(pv => pv.id === cv.id))];
     const previewVersionId = previewVersions[shot.id] || shot.currentVersionId;
-    return versions.find(v => v.id === previewVersionId) || null;
+    return allVersions.find(v => v.id === previewVersionId) || null;
   };
 
   // Wrapper handlers that track loading state by frame type
@@ -1888,7 +2010,8 @@ export function StoryboardEditor({
   const isShotConnectedToNext = (sceneId: string, shotIndex: number): boolean => {
     if (narrativeMode !== "start-end" || !continuityLocked) return false;
     
-    const sceneGroups = continuityGroups[sceneId] || [];
+    // Only consider approved groups - filter out proposed and declined groups
+    const sceneGroups = (continuityGroups[sceneId] || []).filter(g => g.status === "approved");
     const sceneShots = localShots[sceneId] || [];
     
     if (shotIndex >= sceneShots.length - 1) return false; // Last shot can't connect to next
@@ -1914,7 +2037,8 @@ export function StoryboardEditor({
   const isShotStandalone = (sceneId: string, shotIndex: number): boolean => {
     if (narrativeMode !== "start-end" || !continuityLocked) return false;
     
-    const sceneGroups = continuityGroups[sceneId] || [];
+    // Only consider approved groups - filter out proposed and declined groups
+    const sceneGroups = (continuityGroups[sceneId] || []).filter(g => g.status === "approved");
     const sceneShots = localShots[sceneId] || [];
     const currentShot = sceneShots[shotIndex];
     
@@ -1935,7 +2059,8 @@ export function StoryboardEditor({
   const isShotPartOfConnection = (sceneId: string, shotIndex: number): boolean => {
     if (narrativeMode !== "start-end" || !continuityLocked) return false;
     
-    const sceneGroups = continuityGroups[sceneId] || [];
+    // Only consider approved groups - filter out proposed and declined groups
+    const sceneGroups = (continuityGroups[sceneId] || []).filter(g => g.status === "approved");
     const sceneShots = localShots[sceneId] || [];
     const currentShot = sceneShots[shotIndex];
     
@@ -1954,7 +2079,8 @@ export function StoryboardEditor({
   const getNextConnectedShot = (sceneId: string, shotIndex: number): Shot | null => {
     if (narrativeMode !== "start-end" || !continuityLocked) return null;
     
-    const sceneGroups = continuityGroups[sceneId] || [];
+    // Only consider approved groups - filter out proposed and declined groups
+    const sceneGroups = (continuityGroups[sceneId] || []).filter(g => g.status === "approved");
     const sceneShots = localShots[sceneId] || [];
     
     if (shotIndex >= sceneShots.length - 1) return null; // Last shot has no next
@@ -1980,7 +2106,8 @@ export function StoryboardEditor({
   const getPreviousConnectedShot = (sceneId: string, shotIndex: number): Shot | null => {
     if (narrativeMode !== "start-end" || !continuityLocked || shotIndex === 0) return null;
     
-    const sceneGroups = continuityGroups[sceneId] || [];
+    // Only consider approved groups - filter out proposed and declined groups
+    const sceneGroups = (continuityGroups[sceneId] || []).filter(g => g.status === "approved");
     const sceneShots = localShots[sceneId] || [];
     
     const currentShot = sceneShots[shotIndex];
@@ -2004,7 +2131,8 @@ export function StoryboardEditor({
   const isShotStartFrameInherited = (sceneId: string, shotIndex: number): boolean => {
     if (narrativeMode !== "start-end" || !continuityLocked || shotIndex === 0) return false;
     
-    const sceneGroups = continuityGroups[sceneId] || [];
+    // Only consider approved groups - filter out proposed and declined groups
+    const sceneGroups = (continuityGroups[sceneId] || []).filter(g => g.status === "approved");
     const sceneShots = localShots[sceneId] || [];
     
     const currentShot = sceneShots[shotIndex];
@@ -2060,6 +2188,10 @@ export function StoryboardEditor({
 
   // Generate all images for a scene sequentially (frame by frame)
   const handleGenerateSceneImages = async (sceneId: string) => {
+    // Mark this scene as generating
+    setGeneratingScenesAll(prev => new Set(prev).add(sceneId));
+    
+    try {
     const sceneShots = localShots[sceneId] || [];
     if (sceneShots.length === 0) {
       toast({
@@ -2070,10 +2202,26 @@ export function StoryboardEditor({
       return;
     }
 
-    const sceneGroups = continuityGroups[sceneId] || [];
+      // Only consider approved groups - filter out proposed and declined groups
+      const sceneGroups = (continuityGroups[sceneId] || []).filter(g => g.status === "approved");
+      
+      // Build a map of shot ID to its previous shot in the same group (for dependency tracking)
+      const previousShotInGroup: Record<string, string> = {};
+      for (const group of sceneGroups) {
+        if (group.shotIds && group.shotIds.length > 1) {
+          for (let i = 1; i < group.shotIds.length; i++) {
+            previousShotInGroup[group.shotIds[i]] = group.shotIds[i - 1];
+          }
+        }
+      }
     
     // Determine which shots need generation and in what order
-    const shotsToGenerate: Array<{ shot: Shot; frame?: 'start' | 'end' }> = [];
+      // Include dependency info for connected shots
+      const shotsToGenerate: Array<{ 
+        shot: Shot; 
+        frame?: 'start' | 'end';
+        dependsOnShotId?: string; // For connected shots, the previous shot whose end frame must exist
+      }> = [];
     
     for (const shot of sceneShots) {
       const version = getShotVersion(shot);
@@ -2104,16 +2252,22 @@ export function StoryboardEditor({
         // Start-end mode
         if (isInGroup && shotIndexInGroup > 0) {
           // Not first in group: start frame is inherited, only generate end frame
+            // This shot depends on the previous shot in the group having its end frame
+            const prevShotId = previousShotInGroup[shot.id];
           if (!version || !version.endFrameUrl) {
-            shotsToGenerate.push({ shot, frame: 'end' });
+              shotsToGenerate.push({ shot, frame: 'end', dependsOnShotId: prevShotId });
           }
         } else {
           // First in group or standalone: generate start frame first, then end frame
-          if (!version || !version.startFrameUrl) {
+            const needsStart = !version || !version.startFrameUrl;
+            const needsEnd = !version || !version.endFrameUrl;
+            
+            if (needsStart) {
             shotsToGenerate.push({ shot, frame: 'start' });
           }
-          // Add end frame if start exists but end doesn't
-          if (version && version.startFrameUrl && !version.endFrameUrl) {
+            // Also add end frame if it doesn't exist
+            // Sequential generation ensures start completes before end
+            if (needsEnd) {
             shotsToGenerate.push({ shot, frame: 'end' });
           }
         }
@@ -2134,77 +2288,100 @@ export function StoryboardEditor({
     });
     
     // Generate sequentially, waiting for each to complete
+      // Track completed generations to avoid closure issues with React state
+      const completedGenerations = new Set<string>();
+      let successCount = 0;
+      let failCount = 0;
+      
+      // Pre-populate completedGenerations with frames that already exist
+      // This prevents waiting forever for frames that were generated before this batch
+      for (const shot of sceneShots) {
+        const existingVersion = getShotVersion(shot);
+        if (existingVersion) {
+          if (existingVersion.imageUrl) {
+            completedGenerations.add(shot.id);
+          }
+          if (existingVersion.startFrameUrl) {
+            completedGenerations.add(`${shot.id}:start`);
+          }
+          if (existingVersion.endFrameUrl) {
+            completedGenerations.add(`${shot.id}:end`);
+          }
+        }
+      }
+      
+      console.log('[Generate All] Pre-populated completed generations:', Array.from(completedGenerations));
+      console.log('[Generate All] Shots to generate:', shotsToGenerate.map(s => ({ shotId: s.shot.id, frame: s.frame, dependsOn: s.dependsOnShotId })));
+      
     for (let i = 0; i < shotsToGenerate.length; i++) {
-      const { shot, frame } = shotsToGenerate[i];
+        const { shot, frame, dependsOnShotId } = shotsToGenerate[i];
       const shotEffectiveMode = narrativeMode === "auto"
         ? (shot.frameMode || "image-reference")
         : narrativeMode;
       
-      try {
-        // Wait for previous generation to complete
-        if (i > 0) {
-          // Wait until previous shot is no longer generating
-          const previousShot = shotsToGenerate[i - 1];
-          const previousFrame = previousShot.frame;
-          const previousShotEffectiveMode = narrativeMode === "auto"
-            ? (previousShot.shot.frameMode || "image-reference")
-            : narrativeMode;
-          const previousGeneratingKey = previousShotEffectiveMode === "start-end" && previousFrame
-            ? `${previousShot.shot.id}:${previousFrame}`
-            : previousShot.shot.id;
-          
-          while (generatingShots.has(previousGeneratingKey)) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-          
-          // Additional wait to ensure state is fully updated
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-        
-        // Start generation using the wrapper that manages loading state
         const generatingKey = shotEffectiveMode === "start-end" && frame
           ? `${shot.id}:${frame}`
           : shot.id;
         
-        // Call the generation function (it will manage generatingShots state)
-        await handleGenerateShotWithLoading(shot.id, undefined, frame);
-        
-        // Wait for generation to complete by polling the generating state
-        // handleGenerateShotWithLoading manages the state, but we wait a bit to ensure it's updated
-        let attempts = 0;
-        const maxAttempts = 120; // 60 seconds max (500ms * 120)
-        
-        while (generatingShots.has(generatingKey) && attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          attempts++;
-          
-          // Also check if the image was actually generated (early exit if successful)
-          const currentVersion = getShotVersion(shot);
-          
-          if (currentVersion) {
-            if (shotEffectiveMode === "image-reference") {
-              if (currentVersion.imageUrl) {
-                break; // Image generated successfully
-              }
+        try {
+          // For connected shots, verify the previous shot in the group has its end frame
+          // This is critical: Shot 2 END cannot be generated until Shot 1 END exists
+          // (because Shot 2 START is inherited from Shot 1 END)
+          if (dependsOnShotId && frame === 'end') {
+            const prevGeneratingKey = `${dependsOnShotId}:end`;
+            
+            // Check if previous shot's end frame already exists (pre-populated or just generated)
+            if (completedGenerations.has(prevGeneratingKey)) {
+              console.log(`[Generate All] Dependency satisfied: ${prevGeneratingKey} already exists`);
+              // Small delay to ensure database consistency
+              await new Promise(resolve => setTimeout(resolve, 500));
             } else {
-              // Start-end mode
-              if (frame === 'start' && currentVersion.startFrameUrl) {
-                break; // Start frame generated successfully
-              } else if (frame === 'end' && currentVersion.endFrameUrl) {
-                break; // End frame generated successfully
+              // Wait for previous shot's end frame generation to complete (check our local tracker)
+              console.log(`[Generate All] Waiting for dependency: ${prevGeneratingKey}`);
+              let waitAttempts = 0;
+              const maxWaitAttempts = 240; // 2 minutes max (500ms * 240)
+              
+              while (!completedGenerations.has(prevGeneratingKey) && waitAttempts < maxWaitAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+                waitAttempts++;
               }
+              
+              if (waitAttempts >= maxWaitAttempts) {
+                console.warn(`Dependency timeout: Shot ${shot.id} waiting for shot ${dependsOnShotId} end frame`);
+                toast({
+                  title: "Dependency Error",
+                  description: `Cannot generate shot #${shot.shotNumber} end frame: previous connected shot's end frame is not ready.`,
+                  variant: "destructive",
+                });
+                failCount++;
+                continue; // Skip this shot and move to next
+              }
+              
+              // Extra delay to ensure database is updated before next generation
+              // The backend needs the previous shot's end frame URL in the database
+              await new Promise(resolve => setTimeout(resolve, 1500));
             }
           }
-        }
-        
-        if (attempts >= maxAttempts) {
-          console.warn(`Generation timeout for shot ${shot.id}, frame ${frame}`);
+          
+          // Update toast to show progress
           toast({
-            title: "Generation Timeout",
-            description: `Generation for shot #${shot.shotNumber} took too long. Continuing with next shot...`,
-            variant: "destructive",
+            title: "Generating Images",
+            description: `Generating frame ${i + 1} of ${shotsToGenerate.length}... (Shot #${shot.shotNumber} ${frame || 'image'})`,
           });
-        }
+          
+          // Call the generation function and await it
+          // handleGenerateShotWithLoading already awaits onGenerateShot which returns when API is complete
+          await handleGenerateShotWithLoading(shot.id, undefined, frame);
+          
+          // Mark this generation as complete in our local tracker
+          completedGenerations.add(generatingKey);
+          successCount++;
+          
+          // Add delay between generations to ensure:
+          // 1. Database is updated with the new image URL
+          // 2. Backend can find the previous frame when processing continuity groups
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
       } catch (error) {
         console.error(`Failed to generate frame for shot ${shot.id}:`, error);
         toast({
@@ -2212,15 +2389,27 @@ export function StoryboardEditor({
           description: `Failed to generate frame for shot #${shot.shotNumber}. Continuing with next shot...`,
           variant: "destructive",
         });
+          failCount++;
         
-        // Error handling is done by handleGenerateShotWithLoading's finally block
+          // Still mark as completed (failed) so dependent shots don't wait forever
+          completedGenerations.add(generatingKey);
+          
+          // Continue to next shot
       }
     }
     
     toast({
       title: "Generation Complete",
-      description: `Finished generating ${shotsToGenerate.length} frame(s) for scene.`,
-    });
+        description: `Finished: ${successCount} successful, ${failCount} failed out of ${shotsToGenerate.length} frame(s).`,
+      });
+    } finally {
+      // Clear generating state for this scene
+      setGeneratingScenesAll(prev => {
+        const next = new Set(prev);
+        next.delete(sceneId);
+        return next;
+      });
+    }
   };
 
   const getShotReferenceImage = (shotId: string): ReferenceImage | null => {
@@ -2292,6 +2481,61 @@ export function StoryboardEditor({
     }
   };
 
+  /**
+   * Handle scene video model change with automatic duration adjustment
+   * When scene's video model changes, adjust duration for all shots using "scene-default"
+   */
+  const handleSceneVideoModelChange = (sceneId: string, newVideoModel: string) => {
+    // Update the scene's video model
+    onUpdateScene?.(sceneId, { videoModel: newVideoModel });
+    
+    // Get supported durations for the new model
+    const supportedDurations = VIDEO_MODEL_DURATIONS[newVideoModel] || [];
+    if (supportedDurations.length === 0) {
+      return; // No durations to validate against
+    }
+    
+    // Find all shots in this scene that use "scene-default" (videoModel === null)
+    const sceneShots = shots[sceneId] || [];
+    let adjustedCount = 0;
+    
+    for (const shot of sceneShots) {
+      // Only adjust shots using scene default (no custom video model)
+      if (shot.videoModel !== null && shot.videoModel !== undefined) {
+        continue; // Shot has custom model, skip
+      }
+      
+      // Get current version for this shot
+      const version = shotVersions[shot.id]?.find(v => v.id === shot.currentVersionId)
+        || shotVersions[shot.id]?.[shotVersions[shot.id].length - 1];
+      
+      if (!version?.videoDuration) {
+        continue; // No duration set
+      }
+      
+      const currentDuration = version.videoDuration;
+      
+      // Check if current duration is supported
+      if (!supportedDurations.includes(currentDuration)) {
+        const nearestDuration = findNearestDuration(currentDuration, supportedDurations);
+        
+        // Update the version's duration
+        if (shot.currentVersionId && onUpdateShotVersion) {
+          onUpdateShotVersion(shot.id, shot.currentVersionId, { videoDuration: nearestDuration });
+          adjustedCount++;
+        }
+      }
+    }
+    
+    // Notify user if any durations were adjusted
+    if (adjustedCount > 0) {
+      toast({
+        title: "Durations Adjusted",
+        description: `${adjustedCount} shot(s) had their duration adjusted to match the new model's supported durations`,
+      });
+    }
+  };
+
   // Video generation handler
   const handleAnimateShot = async (shotId: string) => {
     const shot = allShots.find(s => s.id === shotId);
@@ -2339,7 +2583,8 @@ export function StoryboardEditor({
       let shouldInheritStartFrame = false;
       
       if (scene && narrativeMode === "start-end" && continuityLocked) {
-        const sceneGroups = continuityGroups[scene.id] || [];
+        // Only consider approved groups - filter out proposed and declined groups
+        const sceneGroups = (continuityGroups[scene.id] || []).filter(g => g.status === "approved");
         const sceneShots = localShots[scene.id] || [];
         const shotIndex = sceneShots.findIndex(s => s.id === shotId);
         
@@ -2492,9 +2737,10 @@ export function StoryboardEditor({
         
         if (status.status === "completed" && status.videoUrl) {
           // Update shot version with video URL
-          const shot = allShots.find(s => s.id === shotId);
-          if (shot?.currentVersionId && onUpdateShotVersion) {
-            onUpdateShotVersion(shotId, shot.currentVersionId, {
+          // Use refs to get LATEST values (avoid stale closure)
+          const shot = allShotsRef.current.find(s => s.id === shotId);
+          if (shot?.currentVersionId && onUpdateShotVersionRef.current) {
+            onUpdateShotVersionRef.current(shotId, shot.currentVersionId, {
               videoUrl: status.videoUrl,
               status: "completed",
             });
@@ -2566,9 +2812,184 @@ export function StoryboardEditor({
     };
   };
 
-  const handleSelectShot = (shot: Shot) => {
+  /**
+   * Animate all shots in a scene with parallel execution (concurrency limited)
+   * Uses Promise.allSettled to handle individual failures gracefully
+   */
+  const handleAnimateScene = async (sceneId: string) => {
+    const CONCURRENT_LIMIT = 3; // Process 3 shots at a time to avoid rate limits
+    
+    const sceneShots = localShots[sceneId] || [];
+    const scene = scenes.find(s => s.id === sceneId);
+    
+    if (sceneShots.length === 0) {
+      toast({
+        title: "No shots to animate",
+        description: "This scene has no shots",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Filter shots that have images ready (required for video generation)
+    const readyShots = sceneShots.filter(shot => {
+      const version = getShotVersion(shot);
+      if (!version) return false;
+      
+      // Check based on narrative mode
+      const effectiveMode = narrativeMode === "auto" 
+        ? (shot.frameMode || "image-reference")
+        : narrativeMode;
+      
+      if (effectiveMode === "image-reference") {
+        return !!version.imageUrl;
+      } else {
+        // Start-end mode: needs at least start frame (may be inherited)
+        // Check if start frame exists or can be inherited
+        const sceneShots = localShots[sceneId] || [];
+        const shotIndex = sceneShots.findIndex(s => s.id === shot.id);
+        
+        if (version.startFrameUrl) return true;
+        
+        // Check if can inherit from previous shot in continuity group
+        if (shotIndex > 0 && continuityLocked) {
+          const sceneGroups = (continuityGroups[sceneId] || []).filter(g => g.status === "approved");
+          const previousShot = sceneShots[shotIndex - 1];
+          
+          for (const group of sceneGroups) {
+            const shotIds = group.shotIds || [];
+            const prevIdx = shotIds.indexOf(previousShot.id);
+            const currIdx = shotIds.indexOf(shot.id);
+            
+            if (prevIdx !== -1 && currIdx === prevIdx + 1) {
+              // Can inherit from previous shot
+              const prevVersion = getShotVersion(previousShot);
+              return !!(prevVersion?.endFrameUrl || prevVersion?.imageUrl);
+            }
+          }
+        }
+        
+        return false;
+      }
+    });
+    
+    // Also filter out shots that already have videos (unless user wants to regenerate)
+    const shotsToAnimate = readyShots.filter(shot => {
+      const version = getShotVersion(shot);
+      return !version?.videoUrl; // Only animate shots without video
+    });
+    
+    if (shotsToAnimate.length === 0) {
+      if (readyShots.length === 0) {
+        toast({
+          title: "No shots ready",
+          description: "Generate images for shots first before animating",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "All shots animated",
+          description: "All shots in this scene already have videos",
+        });
+      }
+      return;
+    }
+    
+    // Set scene as animating
+    setAnimatingScenes(prev => new Set(prev).add(sceneId));
+    
+    toast({
+      title: "Animating Scene",
+      description: `Starting video generation for ${shotsToAnimate.length} shot(s)...`,
+    });
+    
+    const results: { shotId: string; success: boolean; error?: string }[] = [];
+    
+    try {
+      // Process in batches with concurrency limit
+      for (let i = 0; i < shotsToAnimate.length; i += CONCURRENT_LIMIT) {
+        const batch = shotsToAnimate.slice(i, i + CONCURRENT_LIMIT);
+        
+        // Show progress toast for batch
+        if (shotsToAnimate.length > CONCURRENT_LIMIT) {
+          toast({
+            title: "Processing batch",
+            description: `Animating shots ${i + 1}-${Math.min(i + CONCURRENT_LIMIT, shotsToAnimate.length)} of ${shotsToAnimate.length}...`,
+          });
+        }
+        
+        // Process batch in parallel using Promise.allSettled
+        const batchPromises = batch.map(async (shot) => {
+          try {
+            await handleAnimateShot(shot.id);
+            return { shotId: shot.id, success: true };
+          } catch (error) {
+            return { 
+              shotId: shot.id, 
+              success: false, 
+              error: error instanceof Error ? error.message : 'Unknown error' 
+            };
+          }
+        });
+        
+        const batchResults = await Promise.allSettled(batchPromises);
+        
+        batchResults.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            results.push(result.value);
+          } else {
+            // This shouldn't happen since we're catching errors inside the promise
+            results.push({ shotId: 'unknown', success: false, error: result.reason?.message });
+          }
+        });
+      }
+      
+      // Report final results
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.filter(r => !r.success).length;
+      
+      if (failCount === 0) {
+        toast({
+          title: "Scene Animation Complete",
+          description: `Successfully started video generation for ${successCount} shot(s)`,
+        });
+      } else if (successCount === 0) {
+        toast({
+          title: "Animation Failed",
+          description: `All ${failCount} shot(s) failed to animate`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Scene Animation Partial",
+          description: `${successCount} succeeded, ${failCount} failed`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('[storyboard-editor] Scene animation error:', error);
+      toast({
+        title: "Animation Error",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      // Remove scene from animating set
+      setAnimatingScenes(prev => {
+        const next = new Set(prev);
+        next.delete(sceneId);
+        return next;
+      });
+    }
+  };
+
+  const handleSelectShot = (shot: Shot, frame?: "start" | "end") => {
     setSelectedShot(shot);
     setEditPrompt(shot.description || "");
+    // Store the frame that was active when opening the dialog (for start-end mode)
+    if (frame) {
+      setFrameToEdit(frame);
+    }
   };
 
   const handleSavePrompt = () => {
@@ -2628,7 +3049,7 @@ export function StoryboardEditor({
     const version = shotVersions[selectedShot.id]?.find(v => v.id === selectedVersionId);
     
     if (!version) {
-      toast({ 
+      toast({
         title: "No version found", 
         variant: "destructive",
         description: "Please select a version to edit"
@@ -2692,14 +3113,21 @@ export function StoryboardEditor({
     
     setIsEditing(true);
     try {
-      const response = await apiRequest('POST', `/api/narrative/videos/${videoId}/shots/${selectedShot.id}/edit-image`, {
+      const requestBody: any = {
         versionId: version.id,
         editCategory: activeCategory,
         editingInstruction: instruction,
         referenceImages: editReferenceImages.map(img => img.url),
         characterId: selectedCharacterId || undefined,
         imageModel: selectedEditingModel,
-      });
+      };
+      
+      // For start-end mode, pass which frame is being edited
+      if (narrativeMode === "start-end") {
+        requestBody.activeFrame = activeFrameInDialog;
+      }
+      
+      const response = await apiRequest('POST', `/api/narrative/videos/${videoId}/shots/${selectedShot.id}/edit-image`, requestBody);
       
       const data = await response.json();
       
@@ -2712,10 +3140,20 @@ export function StoryboardEditor({
         return;
       }
       
-      // Refresh shot versions by triggering a re-fetch
-      // The parent component should handle this, but we can also update locally
-      // Set new version as preview
-      if (data.newVersionId) {
+      // Update preview to show the new version with edited image
+      if (data.newVersionId && data.version) {
+        // Add the new version to local cache so it displays immediately
+        setLocalVersionCache(prev => {
+          const shotCache = prev[selectedShot.id] || [];
+          // Remove any existing version with the same ID (shouldn't happen, but just in case)
+          const filteredCache = shotCache.filter(v => v.id !== data.newVersionId);
+          return {
+            ...prev,
+            [selectedShot.id]: [...filteredCache, data.version]
+          };
+        });
+        
+        // Set the new version as the preview
         setPreviewVersions(prev => ({
           ...prev,
           [selectedShot.id]: data.newVersionId
@@ -2761,26 +3199,6 @@ export function StoryboardEditor({
     }
   };
 
-  const handlePlayVoice = (voiceId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (playingVoice === voiceId) {
-      setPlayingVoice(null);
-    } else {
-      setPlayingVoice(voiceId);
-      const voice = VOICE_LIBRARY.find(v => v.id === voiceId);
-      if (voice?.previewUrl) {
-        const audio = new Audio(voice.previewUrl);
-        audio.play();
-        audio.onended = () => setPlayingVoice(null);
-      }
-    }
-  };
-
-  const handleSelectVoice = (voiceId: string) => {
-    onVoiceActorChange(voiceId);
-    setVoiceDropdownOpen(false);
-  };
-
   const handleEditReferenceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -2814,27 +3232,6 @@ export function StoryboardEditor({
   const handleRemoveEditReference = (id: string) => {
     setEditReferenceImages((prev) => prev.filter((img) => img.id !== id));
   };
-
-  // Synchronized playback handlers for compare mode
-  const handleSyncedPlayPause = () => {
-    if (syncedPlaying) {
-      video1Ref.current?.pause();
-      video2Ref.current?.pause();
-      setSyncedPlaying(false);
-    } else {
-      video1Ref.current?.play();
-      video2Ref.current?.play();
-      setSyncedPlaying(true);
-    }
-  };
-
-  const handleSyncedSeek = (time: number) => {
-    if (video1Ref.current) video1Ref.current.currentTime = time;
-    if (video2Ref.current) video2Ref.current.currentTime = time;
-  };
-
-  const selectedVoice = VOICE_LIBRARY.find(v => v.id === voiceActorId);
-  const selectedVoiceLabel = selectedVoice?.name || "Select voice actor";
 
   // Calculate total shots count for loading message
   const totalShotsCount = Object.values(shots).reduce((sum, sceneShots) => sum + sceneShots.length, 0);
@@ -2969,78 +3366,6 @@ export function StoryboardEditor({
           </div>
           
           <div className="flex items-center gap-3">
-            {/* Voice Actor and Voice Over - Hidden in Commerce/Logo Mode */}
-            {!isCommerceMode && !isLogoMode && (
-              <>
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm text-muted-foreground">Voice Actor</Label>
-                  <Popover open={voiceDropdownOpen} onOpenChange={setVoiceDropdownOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={voiceDropdownOpen}
-                        className="w-48 h-9 justify-between bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30"
-                        disabled={!voiceOverEnabled}
-                        data-testid="button-voice-selector"
-                      >
-                        <span className={voiceActorId ? "font-medium text-sm" : "text-muted-foreground text-sm"}>
-                          {selectedVoiceLabel}
-                        </span>
-                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                      <ScrollArea className="max-h-[300px] custom-scrollbar">
-                        <div className="p-1">
-                          {VOICE_LIBRARY.map((voice) => (
-                            <div
-                              key={voice.id}
-                              className="flex items-center gap-2 px-2 py-2 hover-elevate rounded-md cursor-pointer"
-                              onClick={() => handleSelectVoice(voice.id)}
-                              data-testid={`option-voice-${voice.id}`}
-                            >
-                              <div className="flex items-center gap-2 flex-1">
-                                {voiceActorId === voice.id && (
-                                  <Check className="h-4 w-4 text-purple-400" data-testid={`icon-selected-${voice.id}`} />
-                                )}
-                                <span className={`flex-1 text-sm ${voiceActorId === voice.id ? "font-medium" : ""}`}>
-                                  {voice.name}
-                                </span>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 shrink-0"
-                                onClick={(e) => handlePlayVoice(voice.id, e)}
-                                data-testid={`button-play-${voice.id}`}
-                              >
-                                {playingVoice === voice.id ? (
-                                  <Pause className="h-4 w-4" />
-                                ) : (
-                                  <Play className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm text-muted-foreground">Voice Over</Label>
-                  <Switch
-                    checked={voiceOverEnabled}
-                    onCheckedChange={onVoiceOverToggle}
-                    className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-purple-500 data-[state=checked]:via-pink-500 data-[state=checked]:to-purple-600 data-[state=checked]:shadow-lg data-[state=checked]:shadow-purple-500/30 data-[state=unchecked]:bg-white/[0.06]"
-                    data-testid="toggle-voice-over"
-                  />
-                </div>
-              </>
-            )}
-
           <div className="flex items-center border rounded-lg p-1 bg-white/[0.02] border-white/[0.06]">
             <Button
               size="sm"
@@ -3127,7 +3452,7 @@ export function StoryboardEditor({
                       <Label className="text-xs text-muted-foreground">Video Model</Label>
                       <Select
                         value={scene.videoModel || availableVideoModels[0]?.name || 'kling'}
-                        onValueChange={(value) => onUpdateScene?.(scene.id, { videoModel: value })}
+                        onValueChange={(value) => handleSceneVideoModelChange(scene.id, value)}
                       >
                         <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-purple-500/30" data-testid={`select-scene-video-model-${scene.id}`}>
                           <SelectValue />
@@ -3148,10 +3473,10 @@ export function StoryboardEditor({
                       onClick={async () => {
                         await handleGenerateSceneImages(scene.id);
                       }}
-                      disabled={generatingShots.size > 0}
+                      disabled={generatingScenesAll.has(scene.id)}
                       data-testid={`button-generate-scene-images-${scene.id}`}
                     >
-                      {generatingShots.size > 0 ? (
+                      {generatingScenesAll.has(scene.id) ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Generating...
@@ -3167,16 +3492,21 @@ export function StoryboardEditor({
                     <Button
                       size="sm"
                       className="w-full mt-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white"
-                      onClick={() => {
-                        toast({
-                          title: "Animate Scene",
-                          description: `Video animation for all ${sceneShots.length} shots in "${scene.title}" will be implemented in the next phase with AI video models (Kling/Veo/Runway).`,
-                        });
-                      }}
+                      onClick={() => handleAnimateScene(scene.id)}
+                      disabled={animatingScenes.has(scene.id) || generatingShots.size > 0}
                       data-testid={`button-animate-scene-${scene.id}`}
                     >
+                      {animatingScenes.has(scene.id) ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Animating...
+                        </>
+                      ) : (
+                        <>
                       <Play className="mr-2 h-4 w-4" />
                       Animate Scene's Shots
+                        </>
+                      )}
                     </Button>
 
                     <div className="text-xs text-muted-foreground pt-2">
@@ -3242,7 +3572,6 @@ export function StoryboardEditor({
                                 isGenerating={isGeneratingShot}
                                 isGeneratingStart={isGeneratingStart}
                                 isGeneratingEnd={isGeneratingEnd}
-                                voiceOverEnabled={voiceOverEnabled}
                                 narrativeMode={narrativeMode}
                                 characters={characters}
                                 locations={locations}
@@ -3268,6 +3597,8 @@ export function StoryboardEditor({
                                 onAnimateShot={handleAnimateShot}
                                 isGeneratingVideo={generatingVideos.has(shot.id)}
                                 shotsCount={sceneShots.length}
+                                shotVersions={shotVersions[shot.id] || []}
+                                onSelectVersion={onSelectVersion}
                               />
                               {/* Connection Link Icon and Add Shot Button */}
                               <div key={`connection-${shot.id}`} className="relative shrink-0 w-8 flex items-center justify-center">
@@ -3560,469 +3891,184 @@ export function StoryboardEditor({
         })}
       </div>
 
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          IMAGE EDITOR DIALOG - Professional Creative Suite Layout
+          ═══════════════════════════════════════════════════════════════════════════ */}
       {selectedShot && (
         <Dialog open={!!selectedShot} onOpenChange={() => {
           setSelectedShot(null);
-          setPreviewVersions({}); // Reset all preview state when closing
-          setCompareMode(false);
-          setCompareVersions([]);
-          setSyncedPlaying(false);
-          setEditReferenceImages([]); // Clear reference images when closing
-          setEditChange(""); // Clear edit change text
-          setActiveCategory(null); // Clear active category
-          setSelectedCharacterId(""); // Clear selected character
-          setSelectedEditingModel("nano-banana"); // Reset to default model
-          setActiveFrameInDialog("start"); // Reset to start frame
-          setCameraRotation(0); // Reset camera controls
+          setPreviewVersions({});
+          setEditReferenceImages([]);
+          setEditChange("");
+          setActiveCategory(null);
+          setSelectedCharacterId("");
+          setSelectedEditingModel("nano-banana");
+          setActiveFrameInDialog("start");
+          setFrameToEdit(null);
+          setCameraRotation(0);
           setCameraVertical(0);
           setCameraZoom(0);
           setCameraWideAngle(false);
         }}>
-          <DialogContent className="max-w-7xl h-[90vh] p-0 gap-0">
-            <div className="relative w-full h-full flex bg-background">
-              {/* Left Sidebar - Version History */}
-              <div className="w-56 border-r bg-muted/30 flex flex-col p-4">
-                <div className="mb-4">
-                  <h3 className="text-sm font-semibold mb-1">Shot {selectedShot.shotNumber}</h3>
-                  <p className="text-xs text-muted-foreground">Version History</p>
-                </div>
-                <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar">
-                  {shotVersions[selectedShot.id] && shotVersions[selectedShot.id]
-                    .sort((a, b) => a.versionNumber - b.versionNumber)
-                    .map((version) => {
-                          const isActive = version.id === selectedShot.currentVersionId;
-                      const isPreviewed = !compareMode && version.id === previewVersions[selectedShot.id];
-                      const isSelectedForCompare = compareVersions.includes(version.id);
-                      const isSelectedForEditing = !compareMode && !isPreviewed && version.id === (previewVersions[selectedShot.id] || selectedShot.currentVersionId);
-                      return (
-                        <div
-                          key={version.id}
-                          className={`relative group ${
-                            compareMode && isSelectedForCompare 
-                              ? "ring-2 ring-purple-500 rounded-md" 
-                              : isPreviewed
-                              ? "ring-2 ring-purple-500 rounded-md"
-                              : isActive
-                              ? "ring-2 ring-purple-500/50 rounded-md"
-                              : "hover-elevate cursor-pointer"
-                          }`}
-                          onClick={() => {
-                            if (compareMode) {
-                              // Toggle selection for comparison
-                              if (isSelectedForCompare) {
-                                setCompareVersions(compareVersions.filter(id => id !== version.id));
-                              } else if (compareVersions.length < 2) {
-                                setCompareVersions([...compareVersions, version.id]);
-                              } else {
-                                toast({
-                                  title: "Maximum reached",
-                                  description: "You can only compare 2 versions at a time",
-                                });
-                              }
-                            } else {
-                              // Normal mode: set as preview version for this shot (this is the version that will be edited)
-                              setPreviewVersions(prev => ({
-                                ...prev,
-                                [selectedShot.id]: version.id
-                              }));
-                              
-                              // Update active frame if needed (for start-end mode)
-                              if (narrativeMode === "start-end") {
-                                // If current active frame doesn't exist in new version, switch to available frame
-                                if (activeFrameInDialog === "start" && !version.startFrameUrl && version.endFrameUrl) {
-                                  setActiveFrameInDialog("end");
-                                } else if (activeFrameInDialog === "end" && !version.endFrameUrl && version.startFrameUrl) {
-                                  setActiveFrameInDialog("start");
-                                }
-                              }
-                            }
-                          }}
-                          data-testid={`version-thumbnail-${version.id}`}
-                        >
-                          <div className="aspect-video bg-muted rounded-md overflow-hidden">
-                            {(() => {
-                              // Priority: imageUrl > startFrameUrl > endFrameUrl
-                              const thumbnailUrl = version.imageUrl || version.startFrameUrl || version.endFrameUrl;
-                              if (thumbnailUrl) {
-                                return (
-                                  <img
-                                    src={thumbnailUrl}
-                                    alt={`v${version.versionNumber}`}
-                                    className="w-full h-full object-cover"
-                                  />
-                                );
-                              }
-                              return (
-                                <div className="flex items-center justify-center h-full">
-                                  <ImageIcon className="h-6 w-6 text-muted-foreground" />
+          <DialogContent className="max-w-[95vw] w-[1400px] h-[90vh] p-0 gap-0 bg-[hsl(240,10%,4%)] border-[hsl(240,5%,15%)]">
+            <div className="flex flex-col h-full">
+              
+              {/* ═══════════════════════════════════════════════════════════════════
+                  HEADER - Title, Frame Selector, Close
+                  ═══════════════════════════════════════════════════════════════════ */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(240,5%,15%)] bg-[hsl(240,8%,6%)]">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-white">Shot {selectedShot.shotNumber}</h2>
+                    <p className="text-xs text-muted-foreground">Image Editor</p>
                                 </div>
-                              );
-                            })()}
-                            
-                            {/* Play button overlay for video versions */}
-                            {version.videoUrl && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="bg-background/90 rounded-full p-2">
-                                  <Play className="h-4 w-4" />
-                                </div>
-                              </div>
-                            )}
                           </div>
                           
-                          {/* Top left badges */}
-                          <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
-                            <Badge variant={isActive ? "default" : "secondary"} className="text-xs h-5">
-                              {isActive ? "Active" : `v${version.versionNumber}`}
-                            </Badge>
-                            {!compareMode && isPreviewed && activeCategory && (
-                              <Badge variant="default" className="text-xs h-5 bg-cyan-500/80">
-                                Editing
-                              </Badge>
-                            )}
-                          </div>
-                          
-                          {/* Bottom left badges - Video/Image type and duration */}
-                          <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
-                            {version.videoUrl ? (
-                              <>
-                                <Badge variant="secondary" className="text-xs h-5 bg-background/90">
-                                  <Video className="h-3 w-3 mr-1" />
-                                  {version.videoDuration ? `${version.videoDuration}s` : 'Video'}
-                                </Badge>
-                              </>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs h-5 bg-background/90">
-                                <ImageIcon className="h-3 w-3 mr-1" />
-                                Image
-                              </Badge>
-                            )}
-                          </div>
-                          
-                          {!isActive && onDeleteVersion && (
+                {/* Frame Selector (Start-End Mode) */}
+                {narrativeMode === "start-end" && getPreviewedVersion(selectedShot) && (
+                  <div className="flex items-center gap-1 bg-[hsl(240,8%,10%)] rounded-lg p-1 border border-[hsl(240,5%,20%)]">
                             <Button
-                              size="icon"
-                              variant="destructive"
-                              className="absolute top-1.5 right-1.5 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDeleteVersion(selectedShot.id, version.id);
-                              }}
-                              data-testid={`button-delete-version-${version.id}`}
-                            >
-                              <X className="h-3 w-3" />
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setActiveFrameInDialog("start")}
+                      disabled={!getPreviewedVersion(selectedShot)?.startFrameUrl}
+                      className={`h-8 px-4 rounded-md transition-all ${
+                        activeFrameInDialog === "start" 
+                          ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg" 
+                          : "text-muted-foreground hover:text-white hover:bg-white/5"
+                      }`}
+                      data-testid="button-select-start-frame"
+                    >
+                      Start Frame
                             </Button>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-
-              {/* Main Content Area */}
-              <div className="relative flex-1 bg-gradient-to-br from-background via-muted/20 to-background flex flex-col">
-                {/* Compare Mode Toggle */}
-                <div className="absolute top-6 left-6 z-20">
                   <Button
-                    variant={compareMode ? "default" : "outline"}
-                    onClick={() => {
-                      setCompareMode(!compareMode);
-                      setCompareVersions([]);
-                    }}
-                    data-testid="button-toggle-compare-mode"
-                  >
-                    <Link2 className="mr-2 h-4 w-4" />
-                    {compareMode ? "Exit Compare" : "Compare Versions"}
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setActiveFrameInDialog("end")}
+                      disabled={!getPreviewedVersion(selectedShot)?.endFrameUrl}
+                      className={`h-8 px-4 rounded-md transition-all ${
+                        activeFrameInDialog === "end" 
+                          ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg" 
+                          : "text-muted-foreground hover:text-white hover:bg-white/5"
+                      }`}
+                      data-testid="button-select-end-frame"
+                    >
+                      End Frame
                   </Button>
-                </div>
-                
-                {/* Start/End Frame Selector (Start-End Mode Only) */}
-                {!compareMode && narrativeMode === "start-end" && getPreviewedVersion(selectedShot) && (
-                  <div className="absolute top-6 right-6 z-20">
-                    <div className="flex items-center gap-2 bg-background/95 backdrop-blur-md rounded-lg border shadow-lg p-1">
-                      <Button
-                        size="sm"
-                        variant={activeFrameInDialog === "start" ? "default" : "ghost"}
-                        onClick={() => setActiveFrameInDialog("start")}
-                        className={activeFrameInDialog === "start" ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white" : ""}
-                        data-testid="button-select-start-frame"
-                        disabled={!getPreviewedVersion(selectedShot)?.startFrameUrl}
-                      >
-                        Start Frame
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={activeFrameInDialog === "end" ? "default" : "ghost"}
-                        onClick={() => setActiveFrameInDialog("end")}
-                        className={activeFrameInDialog === "end" ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white" : ""}
-                        data-testid="button-select-end-frame"
-                        disabled={!getPreviewedVersion(selectedShot)?.endFrameUrl}
-                      >
-                        End Frame
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Main Image or Video */}
-                {!compareMode ? (
-                  <div className="flex-1 flex items-center justify-center p-12 pb-32">
-                    {(() => {
-                      const version = getPreviewedVersion(selectedShot);
-                      if (!version) {
-                        return (
-                          <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
-                            <ImageIcon className="h-32 w-32" />
-                            <p className="text-xl">No image generated yet</p>
-                          </div>
-                        );
-                      }
-                      
-                      // Priority: video > imageUrl > startFrameUrl > endFrameUrl
-                      if (version.videoUrl) {
-                        return (
-                          <div className="w-full max-w-4xl">
-                            <video
-                              key={version.videoUrl}
-                              src={version.videoUrl}
-                              controls
-                              className="w-full rounded-lg shadow-2xl"
-                              data-testid="video-player"
-                            />
-                          </div>
-                        );
-                      }
-                      
-                      // For image-reference mode: use imageUrl
-                      if (version.imageUrl) {
-                        return (
-                          <img
-                            src={version.imageUrl}
-                            alt="Shot"
-                            className="max-w-full max-h-full object-contain rounded-lg"
-                          />
-                        );
-                      }
-                      
-                      // For start-end mode: show frame based on activeFrameInDialog
-                      if (narrativeMode === "start-end") {
-                        const frameUrl = activeFrameInDialog === "start" 
-                          ? version.startFrameUrl 
-                          : version.endFrameUrl;
-                        
-                        if (frameUrl) {
-                          return (
-                            <img
-                              src={frameUrl}
-                              alt={`${activeFrameInDialog === "start" ? "Start" : "End"} Frame`}
-                              className="max-w-full max-h-full object-contain rounded-lg"
-                            />
-                          );
-                        }
-                      }
-                      
-                      // Fallback: try any available frame URL
-                      const fallbackUrl = version.startFrameUrl || version.endFrameUrl;
-                      if (fallbackUrl) {
-                        return (
-                          <img
-                            src={fallbackUrl}
-                            alt="Shot"
-                            className="max-w-full max-h-full object-contain rounded-lg"
-                          />
-                        );
-                      }
-                      
-                      return (
-                        <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
-                          <ImageIcon className="h-32 w-32" />
-                          <p className="text-xl">No image generated yet</p>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                ) : (
-                  /* Compare Mode View */
-                  <div className="flex-1 flex flex-col p-6 pb-32">
-                    {/* Synchronized Playback Controls */}
-                    {compareVersions.length === 2 && (
-                      <div className="flex items-center justify-center mb-4">
-                        <div className="bg-background/95 backdrop-blur-md rounded-lg border shadow-lg p-3 flex items-center gap-4">
-                          <Label className="text-sm text-muted-foreground">Synchronized Playback:</Label>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleSyncedPlayPause}
-                            data-testid="button-synced-play-pause"
-                          >
-                            {syncedPlaying ? (
-                              <>
-                                <Pause className="mr-2 h-4 w-4" />
-                                Pause Both
-                              </>
-                            ) : (
-                              <>
-                                <Play className="mr-2 h-4 w-4" />
-                                Play Both
-                              </>
-                            )}
-                          </Button>
-                        </div>
                       </div>
                     )}
-                    
-                    <div className={`flex-1 ${compareVersions.length === 2 ? 'grid grid-cols-2 gap-4' : 'flex items-center justify-center'}`}>
-                      {compareVersions.length === 0 ? (
-                        <div className="text-center text-muted-foreground">
-                          <div>
-                            <p className="text-lg mb-2">Select versions to compare</p>
-                            <p className="text-sm">Click on version thumbnails in the sidebar to select them</p>
-                          </div>
-                        </div>
-                      ) : compareVersions.length === 1 ? (
-                        /* Single Version Preview */
-                        (() => {
-                          const version = shotVersions[selectedShot!.id]?.find(v => v.id === compareVersions[0]);
-                          if (!version) return null;
-                          
-                          return (
-                            <div className="flex flex-col gap-4 max-w-4xl w-full">
-                              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                                <div className="flex items-center gap-3">
-                                  <Badge variant="secondary">
-                                    Version {version.versionNumber}
-                                  </Badge>
-                                  <span className="text-sm text-muted-foreground">
-                                    Select another version to compare side-by-side
-                                  </span>
-                                </div>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => setCompareVersions([])}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                              <div className="flex-1 flex items-center justify-center bg-background/50 rounded-lg overflow-hidden">
-                                {version.videoUrl ? (
-                                  <video
-                                    src={version.videoUrl}
-                                    controls
-                                    className="w-full rounded-lg shadow-2xl"
-                                    data-testid="compare-video-single"
-                                  />
-                                ) : version.imageUrl ? (
-                                  <img
-                                    src={version.imageUrl}
-                                    alt={`v${version.versionNumber}`}
-                                    className="w-full h-full object-contain rounded-lg"
-                                  />
-                                ) : (
-                                  <div className="flex items-center justify-center text-muted-foreground">
-                                    <ImageIcon className="h-16 w-16" />
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })()
-                      ) : (
-                        compareVersions.slice(0, 2).map((versionId, idx) => {
-                          const version = shotVersions[selectedShot!.id]?.find(v => v.id === versionId);
-                          if (!version) return null;
-                          const videoRef = idx === 0 ? video1Ref : video2Ref;
-                          
-                          return (
-                            <div key={versionId} className="flex flex-col gap-2">
-                              <div className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
-                                <Badge variant="secondary">
-                                  Version {version.versionNumber}
-                                </Badge>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    setCompareVersions(compareVersions.filter(id => id !== versionId));
-                                    setSyncedPlaying(false);
-                                  }}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                              <div className="flex-1 flex items-center justify-center bg-background/50 rounded-lg overflow-hidden">
-                                {version.videoUrl ? (
-                                  <video
-                                    ref={videoRef}
-                                    src={version.videoUrl}
-                                    controls
-                                    className="w-full h-full object-contain"
-                                    data-testid={`compare-video-${idx}`}
-                                    onPlay={() => {
-                                      if (syncedPlaying) setSyncedPlaying(true);
-                                    }}
-                                    onPause={() => {
-                                      if (syncedPlaying) setSyncedPlaying(false);
-                                    }}
-                                  />
-                                ) : version.imageUrl ? (
-                                  <img
-                                    src={version.imageUrl}
-                                    alt={`v${version.versionNumber}`}
-                                    className="w-full h-full object-contain"
-                                  />
-                                ) : (
-                                  <div className="flex items-center justify-center text-muted-foreground">
-                                    <ImageIcon className="h-16 w-16" />
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
                   </div>
-                )}
+              
+              {/* ═══════════════════════════════════════════════════════════════════
+                  MAIN CONTENT - Three Column Layout
+                  ═══════════════════════════════════════════════════════════════════ */}
+              <div className="flex flex-1 overflow-hidden">
                 
-                {/* Action Bar - Above edit toolbar, shows when viewing non-active version */}
-                {!compareMode && previewVersions[selectedShot.id] && previewVersions[selectedShot.id] !== selectedShot.currentVersionId && (
-                  <div className="absolute top-6 right-6 z-20">
-                    <Button
-                      onClick={() => {
-                        const previewedVersion = getPreviewedVersion(selectedShot);
-                        if (previewedVersion && onSelectVersion) {
-                          onSelectVersion(selectedShot.id, previewedVersion.id);
-                          // Reset preview for this shot after activating
-                          setPreviewVersions(prev => {
-                            const { [selectedShot.id]: _, ...rest } = prev;
-                            return rest;
-                          });
-                          toast({
-                            title: "Version Activated",
-                            description: `Version ${previewedVersion.versionNumber} is now active`,
-                          });
-                        }
-                      }}
-                      className="bg-primary hover:bg-primary/90"
-                      data-testid="button-set-active-version"
+                {/* ─────────────────────────────────────────────────────────────────
+                    LEFT SIDEBAR - Tool Selection
+                    ───────────────────────────────────────────────────────────────── */}
+                <div className="w-16 bg-[hsl(240,8%,6%)] border-r border-[hsl(240,5%,15%)] flex flex-col items-center py-4 gap-1">
+                  {[
+                    { id: "prompt", icon: Edit, label: "Edit" },
+                    { id: "clothes", icon: Shirt, label: "Clothes" },
+                    { id: "expression", icon: Smile, label: "Face" },
+                    { id: "figure", icon: User, label: "Pose" },
+                    { id: "camera", icon: Camera, label: "Camera" },
+                    { id: "effects", icon: Zap, label: "Effects" },
+                    { id: "remove", icon: Eraser, label: "Remove" },
+                  ].map((tool) => (
+                    <button
+                      key={tool.id}
+                      onClick={() => setActiveCategory(activeCategory === tool.id ? null : tool.id as any)}
+                      className={`relative flex flex-col items-center justify-center w-12 h-12 rounded-lg transition-all group ${
+                        activeCategory === tool.id
+                          ? "bg-gradient-to-br from-purple-600/30 to-pink-600/30 text-white"
+                          : "text-muted-foreground hover:text-white hover:bg-white/5"
+                      }`}
+                      data-testid={`button-tool-${tool.id}`}
                     >
-                      <Check className="mr-2 h-4 w-4" />
-                      Set as Active
-                    </Button>
-                  </div>
-                )}
-
-                {/* Image Editing Model Dropdown - Above context panel */}
-                {activeCategory && (
-                  <div className="absolute bottom-32 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-10">
-                    <div className="bg-background/95 backdrop-blur-md rounded-lg border shadow-2xl p-4 mb-2">
-                      <div className="space-y-2">
-                        <Label className="text-sm text-muted-foreground">Image Editing Model</Label>
+                      {activeCategory === tool.id && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-gradient-to-b from-purple-500 to-pink-500 rounded-r" />
+                      )}
+                      <tool.icon className="h-5 w-5" />
+                      <span className="text-[10px] mt-0.5 opacity-70">{tool.label}</span>
+                    </button>
+                  ))}
+                        </div>
+                
+                {/* ─────────────────────────────────────────────────────────────────
+                    CENTER - Image Canvas
+                    ───────────────────────────────────────────────────────────────── */}
+                <div className="flex-1 relative bg-[hsl(240,10%,4%)] flex items-center justify-center p-8 overflow-hidden">
+                  {/* Subtle grid pattern background */}
+                  <div className="absolute inset-0 opacity-[0.02]" style={{
+                    backgroundImage: `radial-gradient(circle at 1px 1px, white 1px, transparent 1px)`,
+                    backgroundSize: '24px 24px'
+                  }} />
+                  
+                  {(() => {
+                    const version = getPreviewedVersion(selectedShot);
+                    if (!version) {
+                          return (
+                        <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                          <div className="w-32 h-32 rounded-2xl bg-[hsl(240,8%,8%)] flex items-center justify-center">
+                            <ImageIcon className="h-16 w-16 opacity-50" />
+                                </div>
+                          <p className="text-lg font-medium">No image generated</p>
+                          <p className="text-sm opacity-60">Generate an image first to start editing</p>
+                              </div>
+                      );
+                    }
+                    
+                    // In edit image section, always show image (not video) even if video exists
+                    // Skip video display and go directly to image
+                    let imageUrl = version.imageUrl;
+                    if (narrativeMode === "start-end") {
+                      imageUrl = activeFrameInDialog === "start" 
+                        ? version.startFrameUrl 
+                        : version.endFrameUrl;
+                    }
+                    imageUrl = imageUrl || version.imageUrl || version.startFrameUrl || version.endFrameUrl;
+                    
+                    if (imageUrl) {
+                      return (
+                        <div className="relative group">
+                          <img
+                            src={imageUrl}
+                            alt="Shot"
+                            className="max-w-full max-h-[calc(90vh-280px)] object-contain rounded-xl shadow-2xl"
+                          />
+                          {/* Zoom indicator on hover */}
+                          <div className="absolute inset-0 rounded-xl ring-1 ring-white/10 pointer-events-none" />
+                            </div>
+                          );
+                    }
+                          
+                          return (
+                      <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                        <ImageIcon className="h-24 w-24 opacity-50" />
+                        <p className="text-lg">No image available</p>
+                            </div>
+                          );
+                  })()}
+                    </div>
+                
+                {/* ─────────────────────────────────────────────────────────────────
+                    RIGHT SIDEBAR - Context Panel (appears when tool selected)
+                    ───────────────────────────────────────────────────────────────── */}
+                <div className={`bg-[hsl(240,8%,6%)] border-l border-[hsl(240,5%,15%)] transition-all duration-300 overflow-hidden ${
+                  activeCategory ? "w-72" : "w-0"
+                }`}>
+                  {activeCategory && (
+                    <div className="w-72 p-4 h-full overflow-y-auto custom-scrollbar">
+                      {/* Model Selector - Always visible when editing */}
+                      <div className="mb-6">
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">AI Model</Label>
                         <Select value={selectedEditingModel} onValueChange={setSelectedEditingModel}>
-                          <SelectTrigger className="bg-background/50">
+                          <SelectTrigger className="bg-[hsl(240,8%,10%)] border-[hsl(240,5%,20%)] h-9">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-[hsl(240,8%,8%)] border-[hsl(240,5%,20%)]">
                             {editingModels.map((model) => (
                               <SelectItem key={model.name} value={model.name}>
                                 {model.label}
@@ -4030,29 +4076,26 @@ export function StoryboardEditor({
                             ))}
                           </SelectContent>
                         </Select>
-                        <p className="text-xs text-muted-foreground">
-                          Select the AI model to use for editing this image
-                        </p>
-                      </div>
-                    </div>
                   </div>
-                )}
-
-                {/* Context Panel - Appears above toolbar based on active category */}
-                {activeCategory && (
-                  <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-10">
-                    <div className="bg-background/95 backdrop-blur-md rounded-lg border shadow-2xl p-4">
+                      
+                      <div className="h-px bg-[hsl(240,5%,15%)] mb-6" />
+                      
+                      {/* Tool-specific controls */}
                       {activeCategory === "prompt" && (
-                        <div className="space-y-3">
-                          <Label className="text-sm text-muted-foreground">What would you like to change?</Label>
-                          <div className="flex items-center gap-2">
-                            <Input
+                        <div className="space-y-4">
+                          <div>
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Edit Instructions</Label>
+                            <textarea
                               value={editChange}
                               onChange={(e) => setEditChange(e.target.value)}
-                              placeholder="e.g., Make the sky darker and add dramatic lighting"
-                              className="bg-background/50 flex-1"
+                              placeholder="Describe your changes...&#10;e.g., Make the sky darker and add dramatic lighting"
+                              className="w-full h-32 bg-[hsl(240,8%,10%)] border border-[hsl(240,5%,20%)] rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/50 placeholder:text-muted-foreground/50"
                               data-testid="input-edit-change"
                             />
+                          </div>
+                          
+                          <div>
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Reference Images</Label>
                             <input
                               ref={editReferenceInputRef}
                               type="file"
@@ -4060,37 +4103,23 @@ export function StoryboardEditor({
                               multiple
                               className="hidden"
                               onChange={handleEditReferenceUpload}
-                              data-testid="input-edit-reference-upload"
                             />
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="outline"
+                            <button
                               onClick={() => editReferenceInputRef.current?.click()}
-                              className="shrink-0 bg-background/50 hover-elevate"
-                              title="Add reference image"
-                              data-testid="button-add-edit-reference"
+                              className="w-full h-20 border-2 border-dashed border-[hsl(240,5%,20%)] rounded-lg flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-purple-500/50 hover:text-white transition-colors"
                             >
-                              <ImageIcon className="h-4 w-4" />
-                            </Button>
-                          </div>
+                              <Plus className="h-5 w-5" />
+                              <span className="text-xs">Add Reference</span>
+                            </button>
+                            
                           {editReferenceImages.length > 0 && (
-                            <div className="flex flex-wrap gap-2 pt-1">
+                              <div className="flex flex-wrap gap-2 mt-3">
                               {editReferenceImages.map((img) => (
-                                <div
-                                  key={img.id}
-                                  className="relative group w-14 h-14 rounded-md overflow-hidden border bg-muted"
-                                >
-                                  <img
-                                    src={img.url}
-                                    alt={img.name}
-                                    className="w-full h-full object-cover"
-                                  />
+                                  <div key={img.id} className="relative group w-16 h-16 rounded-lg overflow-hidden border border-[hsl(240,5%,20%)]">
+                                    <img src={img.url} alt={img.name} className="w-full h-full object-cover" />
                                   <button
                                     onClick={() => handleRemoveEditReference(img.id)}
-                                    className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-background/80 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                                    title="Remove reference"
-                                    data-testid={`button-remove-edit-reference-${img.id}`}
+                                      className="absolute top-1 right-1 p-1 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
                                   >
                                     <X className="h-3 w-3" />
                                   </button>
@@ -4098,80 +4127,175 @@ export function StoryboardEditor({
                               ))}
                             </div>
                           )}
+                          </div>
                         </div>
                       )}
 
                       {(activeCategory === "clothes" || activeCategory === "expression" || activeCategory === "figure") && (
-                        <div className="space-y-3">
-                          <Label className="text-sm text-muted-foreground">Select Character</Label>
-                          <Select
-                            value={selectedCharacterId}
-                            onValueChange={setSelectedCharacterId}
-                            disabled={characters.length === 0}
-                          >
-                            <SelectTrigger className="bg-background/50">
-                              <SelectValue placeholder={characters.length === 0 ? "No characters available" : "Select a character"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {characters.map((char) => (
-                                <SelectItem key={char.id} value={char.id}>
-                                  {char.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <div className="space-y-4">
+                          <div>
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">
+                              Character
+                              {(() => {
+                                const version = getPreviewedVersion(selectedShot);
+                                let frameCharacterIds: string[] | null = null;
+                                
+                                if (version) {
+                                  if (narrativeMode === "start-end") {
+                                    if (activeFrameInDialog === "start") {
+                                      frameCharacterIds = version.startFrameCharacters || version.characters || null;
+                                    } else if (activeFrameInDialog === "end") {
+                                      frameCharacterIds = version.endFrameCharacters || version.characters || null;
+                                    }
+                                  } else {
+                                    frameCharacterIds = version.characters || null;
+                                  }
+                                }
+                                
+                                const isFiltered = frameCharacterIds && frameCharacterIds.length > 0;
+                                const totalChars = characters.length;
+                                const filteredCount = isFiltered ? (frameCharacterIds?.length ?? 0) : totalChars;
+                                
+                                if (isFiltered && filteredCount < totalChars) {
+                                  return (
+                                    <span className="ml-2 text-xs font-normal text-muted-foreground/70">
+                                      ({filteredCount} of {totalChars} in frame)
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </Label>
+                            {(() => {
+                              // Get the previewed version to check which characters are in this frame
+                              const version = getPreviewedVersion(selectedShot);
+                              let frameCharacterIds: string[] | null = null;
+                              
+                              if (version) {
+                                if (narrativeMode === "start-end") {
+                                  // For start-end mode, use frame-specific character tracking
+                                  if (activeFrameInDialog === "start") {
+                                    frameCharacterIds = version.startFrameCharacters || version.characters || null;
+                                  } else if (activeFrameInDialog === "end") {
+                                    frameCharacterIds = version.endFrameCharacters || version.characters || null;
+                                  }
+                                } else {
+                                  // For image-reference mode, use general characters
+                                  frameCharacterIds = version.characters || null;
+                                }
+                              }
+                              
+                              // Filter characters to only show those in the current frame
+                              // If no character data exists in version, show all characters (fallback for older versions)
+                              const availableCharacters = frameCharacterIds && frameCharacterIds.length > 0
+                                ? characters.filter(char => frameCharacterIds!.includes(char.id))
+                                : characters; // Fallback: show all if no tracking data exists
+                              
+                              // Debug log (can be removed later)
+                              if (process.env.NODE_ENV === 'development') {
+                                console.log('[Image Editor] Character filtering:', {
+                                  versionId: version?.id,
+                                  narrativeMode,
+                                  activeFrame: activeFrameInDialog,
+                                  frameCharacterIds,
+                                  totalCharacters: characters.length,
+                                  filteredCharacters: availableCharacters.length,
+                                });
+                              }
+                              
+                              return availableCharacters.length > 0 ? (
+                                <div className="space-y-2">
+                                  {availableCharacters.map((char) => (
+                                  <button
+                                    key={char.id}
+                                    onClick={() => setSelectedCharacterId(char.id)}
+                                    className={`w-full flex items-center gap-3 p-2 rounded-lg border transition-all overflow-hidden ${
+                                      selectedCharacterId === char.id
+                                        ? "border-purple-500 bg-purple-500/10"
+                                        : "border-[hsl(240,5%,20%)] hover:border-[hsl(240,5%,30%)]"
+                                    }`}
+                                  >
+                                    <div className="w-10 h-10 rounded-lg bg-[hsl(240,8%,10%)] flex items-center justify-center overflow-hidden shrink-0">
+                                      {char.imageUrl ? (
+                                        <img src={char.imageUrl} alt={char.name} className="w-full h-full object-cover" />
+                                      ) : (
+                                        <User className="h-5 w-5 text-muted-foreground" />
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0 text-left">
+                                      <p className="text-sm font-medium truncate">{char.name}</p>
+                                      {char.appearance && (
+                                        <p className="text-xs text-muted-foreground truncate max-w-full">{char.appearance}</p>
+                                      )}
+                                    </div>
+                                    {selectedCharacterId === char.id && (
+                                      <Check className="h-4 w-4 text-purple-500 shrink-0" />
+                                    )}
+                                  </button>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">No characters available</p>
+                              );
+                            })()}
+                          </div>
                           
                           {selectedCharacterId && (
                             <>
+                              <div className="h-px bg-[hsl(240,5%,15%)]" />
+                              
                               {activeCategory === "clothes" && (
-                                <div className="space-y-2">
-                                  <Label className="text-sm text-muted-foreground">Change clothes to:</Label>
-                                  <Input
+                                <div>
+                                  <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">New Outfit</Label>
+                                  <textarea
                                     value={editChange}
                                     onChange={(e) => setEditChange(e.target.value)}
-                                    placeholder="Enter clothing description"
-                                    className="bg-background/50"
+                                    placeholder="Describe the new clothing...&#10;e.g., Blue denim jacket with white t-shirt"
+                                    className="w-full h-24 bg-[hsl(240,8%,10%)] border border-[hsl(240,5%,20%)] rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                                     data-testid="input-clothes-change"
                                   />
                                 </div>
                               )}
                               
                               {activeCategory === "expression" && (
-                                <div className="space-y-2">
-                                  <Label className="text-sm text-muted-foreground">Change expression to:</Label>
-                                  <Select value={editChange} onValueChange={setEditChange}>
-                                    <SelectTrigger className="bg-background/50">
-                                      <SelectValue placeholder="Select expression" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="happy">Happy</SelectItem>
-                                      <SelectItem value="sad">Sad</SelectItem>
-                                      <SelectItem value="angry">Angry</SelectItem>
-                                      <SelectItem value="surprised">Surprised</SelectItem>
-                                      <SelectItem value="neutral">Neutral</SelectItem>
-                                      <SelectItem value="laughing">Laughing</SelectItem>
-                                      <SelectItem value="crying">Crying</SelectItem>
-                                    </SelectContent>
-                                  </Select>
+                                <div>
+                                  <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Expression</Label>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {["happy", "sad", "angry", "surprised", "neutral", "laughing"].map((expr) => (
+                                      <button
+                                        key={expr}
+                                        onClick={() => setEditChange(expr)}
+                                        className={`p-2 rounded-lg border text-sm capitalize transition-all ${
+                                          editChange === expr
+                                            ? "border-purple-500 bg-purple-500/10 text-white"
+                                            : "border-[hsl(240,5%,20%)] text-muted-foreground hover:text-white hover:border-[hsl(240,5%,30%)]"
+                                        }`}
+                                      >
+                                        {expr}
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
                               
                               {activeCategory === "figure" && (
-                                <div className="space-y-2">
-                                  <Label className="text-sm text-muted-foreground">Change view to:</Label>
-                                  <Select value={editChange} onValueChange={setEditChange}>
-                                    <SelectTrigger className="bg-background/50">
-                                      <SelectValue placeholder="Select view" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="front view">Front view</SelectItem>
-                                      <SelectItem value="back view">Back view</SelectItem>
-                                      <SelectItem value="side view">Side view</SelectItem>
-                                      <SelectItem value="top view">Top view</SelectItem>
-                                      <SelectItem value="low angle view">Low angle view</SelectItem>
-                                      <SelectItem value="close-up">Close-up</SelectItem>
-                                    </SelectContent>
-                                  </Select>
+                                <div>
+                                  <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Pose / View</Label>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {["front view", "back view", "side view", "close-up", "full body", "portrait"].map((view) => (
+                                      <button
+                                        key={view}
+                                        onClick={() => setEditChange(view)}
+                                        className={`p-2 rounded-lg border text-sm capitalize transition-all ${
+                                          editChange === view
+                                            ? "border-purple-500 bg-purple-500/10 text-white"
+                                            : "border-[hsl(240,5%,20%)] text-muted-foreground hover:text-white hover:border-[hsl(240,5%,30%)]"
+                                        }`}
+                                      >
+                                        {view}
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
                             </>
@@ -4180,43 +4304,44 @@ export function StoryboardEditor({
                       )}
 
                       {activeCategory === "remove" && (
-                        <div className="space-y-3">
-                          <Label className="text-sm text-muted-foreground">Remove from image:</Label>
-                          <Input
-                            value={editChange}
-                            onChange={(e) => setEditChange(e.target.value)}
-                            placeholder="Enter item to remove"
-                            className="bg-background/50"
+                        <div className="space-y-4">
+                          <div>
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Remove Object</Label>
+                            <textarea
+                              value={editChange}
+                              onChange={(e) => setEditChange(e.target.value)}
+                              placeholder="Describe what to remove...&#10;e.g., the tree in the background"
+                              className="w-full h-24 bg-[hsl(240,8%,10%)] border border-[hsl(240,5%,20%)] rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                             data-testid="input-remove-item"
                           />
+                          </div>
                         </div>
                       )}
 
                       {activeCategory === "camera" && (
                         <div className="space-y-4">
                           <div className="flex items-center justify-between">
-                            <Label className="text-sm font-medium">Camera Angle Control</Label>
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Camera Controls</Label>
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="text-xs h-7"
+                              className="h-6 px-2 text-xs text-muted-foreground hover:text-white"
                               onClick={() => {
                                 setCameraRotation(0);
                                 setCameraVertical(0);
                                 setCameraZoom(0);
                                 setCameraWideAngle(false);
                               }}
-                              data-testid="button-reset-camera"
                             >
                               <RefreshCw className="h-3 w-3 mr-1" />
                               Reset
                             </Button>
                           </div>
                           
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-xs text-muted-foreground">Rotation (Left ↔ Right)</Label>
+                          <div className="space-y-4">
+                            <div>
+                              <div className="flex justify-between mb-1">
+                                <span className="text-xs text-muted-foreground">Rotation</span>
                                 <span className="text-xs font-mono text-muted-foreground">{cameraRotation}°</span>
                               </div>
                               <input
@@ -4225,15 +4350,14 @@ export function StoryboardEditor({
                                 max="90"
                                 value={cameraRotation}
                                 onChange={(e) => setCameraRotation(Number(e.target.value))}
-                                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-                                data-testid="slider-camera-rotation"
+                                className="w-full h-1.5 bg-[hsl(240,8%,15%)] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500"
                               />
                             </div>
                             
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-xs text-muted-foreground">Vertical (Bird ↔ Worm)</Label>
-                                <span className="text-xs font-mono text-muted-foreground">{cameraVertical > 0 ? `↑${cameraVertical}` : cameraVertical < 0 ? `↓${Math.abs(cameraVertical)}` : "0"}</span>
+                            <div>
+                              <div className="flex justify-between mb-1">
+                                <span className="text-xs text-muted-foreground">Vertical</span>
+                                <span className="text-xs font-mono text-muted-foreground">{cameraVertical > 0 ? `+${cameraVertical}` : cameraVertical}</span>
                               </div>
                               <input
                                 type="range"
@@ -4242,14 +4366,13 @@ export function StoryboardEditor({
                                 step="0.1"
                                 value={cameraVertical}
                                 onChange={(e) => setCameraVertical(Number(e.target.value))}
-                                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-                                data-testid="slider-camera-vertical"
+                                className="w-full h-1.5 bg-[hsl(240,8%,15%)] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500"
                               />
                             </div>
                             
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-xs text-muted-foreground">Zoom (Wide ↔ Close-up)</Label>
+                            <div>
+                              <div className="flex justify-between mb-1">
+                                <span className="text-xs text-muted-foreground">Zoom</span>
                                 <span className="text-xs font-mono text-muted-foreground">{cameraZoom > 0 ? `+${cameraZoom}` : cameraZoom}</span>
                               </div>
                               <input
@@ -4258,41 +4381,39 @@ export function StoryboardEditor({
                                 max="10"
                                 value={cameraZoom}
                                 onChange={(e) => setCameraZoom(Number(e.target.value))}
-                                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-                                data-testid="slider-camera-zoom"
+                                className="w-full h-1.5 bg-[hsl(240,8%,15%)] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500"
                               />
                             </div>
                             
                             <div className="flex items-center justify-between py-2">
-                              <Label className="text-xs text-muted-foreground">Wide-Angle Lens</Label>
+                              <span className="text-xs text-muted-foreground">Wide-Angle Lens</span>
                               <Switch
                                 checked={cameraWideAngle}
                                 onCheckedChange={setCameraWideAngle}
-                                data-testid="switch-camera-wide-angle"
+                                className="data-[state=checked]:bg-purple-600"
                               />
                             </div>
                           </div>
                           
-                          <div className="pt-2 border-t">
-                            <Label className="text-xs text-muted-foreground mb-2 block">Quick Presets</Label>
-                            <div className="flex flex-wrap gap-1.5">
+                          <div className="h-px bg-[hsl(240,5%,15%)]" />
+                          
+                          <div>
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Presets</Label>
+                            <div className="grid grid-cols-2 gap-2">
                               {CAMERA_ANGLE_PRESETS.map((preset) => (
-                                <Button
+                                <button
                                   key={preset.id}
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-xs h-7 px-2"
                                   onClick={() => {
                                     setCameraRotation(preset.rotation);
                                     setCameraVertical(preset.vertical);
                                     setCameraZoom(preset.zoom);
                                     setCameraWideAngle(preset.wideAngle || false);
                                   }}
-                                  data-testid={`button-camera-quick-preset-${preset.id}`}
+                                  className="p-2 rounded-lg border border-[hsl(240,5%,20%)] text-xs text-muted-foreground hover:text-white hover:border-[hsl(240,5%,30%)] transition-colors"
                                 >
                                   <span className="mr-1">{preset.icon}</span>
                                   {preset.label}
-                                </Button>
+                                </button>
                               ))}
                             </div>
                           </div>
@@ -4300,139 +4421,164 @@ export function StoryboardEditor({
                       )}
 
                       {activeCategory === "effects" && (
-                        <div className="space-y-3">
-                          <Label className="text-sm text-muted-foreground">Add effects:</Label>
-                          <Select value={editChange} onValueChange={setEditChange}>
-                            <SelectTrigger className="bg-background/50">
-                              <SelectValue placeholder="Select effect" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="lightning">Lightning</SelectItem>
-                              <SelectItem value="fire">Fire</SelectItem>
-                              <SelectItem value="smoke">Smoke</SelectItem>
-                              <SelectItem value="fog">Fog</SelectItem>
-                              <SelectItem value="spotlight">Spotlight</SelectItem>
-                              <SelectItem value="rays">Light rays</SelectItem>
-                            </SelectContent>
-                          </Select>
+                        <div className="space-y-4">
+                          <div>
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Visual Effect</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {[
+                                { id: "lightning", icon: "⚡", label: "Lightning" },
+                                { id: "fire", icon: "🔥", label: "Fire" },
+                                { id: "smoke", icon: "💨", label: "Smoke" },
+                                { id: "fog", icon: "🌫️", label: "Fog" },
+                                { id: "spotlight", icon: "💡", label: "Spotlight" },
+                                { id: "rays", icon: "☀️", label: "Light Rays" },
+                              ].map((effect) => (
+                                <button
+                                  key={effect.id}
+                                  onClick={() => setEditChange(effect.id)}
+                                  className={`p-3 rounded-lg border transition-all flex flex-col items-center gap-1 ${
+                                    editChange === effect.id
+                                      ? "border-purple-500 bg-purple-500/10"
+                                      : "border-[hsl(240,5%,20%)] hover:border-[hsl(240,5%,30%)]"
+                                  }`}
+                                >
+                                  <span className="text-xl">{effect.icon}</span>
+                                  <span className="text-xs text-muted-foreground">{effect.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       )}
-                  </div>
+                    </div>
+                  )}
                 </div>
-              )}
-
-              {/* Bottom Control Bar */}
-              <div className="absolute bottom-0 left-0 right-0 p-6 flex items-center justify-center bg-card/80 backdrop-blur-md border-t">
-                {/* Category Toolbar - Centered */}
-                <div className="flex items-center gap-1 bg-muted/60 backdrop-blur-md rounded-full px-2 py-1.5 border shadow-lg">
-                  <Button
-                    size="icon"
-                    variant={activeCategory === "prompt" ? "default" : "ghost"}
-                    onClick={() => setActiveCategory("prompt")}
-                    className="rounded-full h-12 w-12"
-                    data-testid="button-category-prompt"
-                  >
-                    <Edit className="h-5 w-5" />
-                  </Button>
-                  <div className="flex items-center gap-0.5 px-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setActiveCategory("clothes")}
-                      className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "clothes" ? "bg-primary/20" : "hover-elevate"
-                      }`}
-                      data-testid="button-category-clothes"
-                    >
-                      <Shirt className="h-5 w-5 mb-0.5" />
-                      <span className="text-xs">Clothes</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setActiveCategory("remove")}
-                      className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "remove" ? "bg-primary/20" : "hover-elevate"
-                      }`}
-                      data-testid="button-category-remove"
-                    >
-                      <Eraser className="h-5 w-5 mb-0.5" />
-                      <span className="text-xs">Remove</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setActiveCategory("expression")}
-                      className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "expression" ? "bg-primary/20" : "hover-elevate"
-                      }`}
-                      data-testid="button-category-expression"
-                    >
-                      <Smile className="h-5 w-5 mb-0.5" />
-                      <span className="text-xs">Expression</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setActiveCategory("figure")}
-                      className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "figure" ? "bg-primary/20" : "hover-elevate"
-                      }`}
-                      data-testid="button-category-figure"
-                    >
-                      <User className="h-5 w-5 mb-0.5" />
-                      <span className="text-xs">Figure</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setActiveCategory("camera")}
-                      className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "camera" ? "bg-primary/20" : "hover-elevate"
-                      }`}
-                      data-testid="button-category-camera"
-                    >
-                      <Camera className="h-5 w-5 mb-0.5" />
-                      <span className="text-xs">Camera</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setActiveCategory("effects")}
-                      className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "effects" ? "bg-primary/20" : "hover-elevate"
-                      }`}
-                      data-testid="button-category-effects"
-                    >
-                      <Zap className="h-5 w-5 mb-0.5" />
-                      <span className="text-xs">Effects</span>
-                    </Button>
+              </div>
+              
+              {/* ═══════════════════════════════════════════════════════════════════
+                  FOOTER - Version Strip + Actions
+                  ═══════════════════════════════════════════════════════════════════ */}
+              <div className="border-t border-[hsl(240,5%,15%)] bg-[hsl(240,8%,6%)] px-6 py-4">
+                <div className="flex items-center gap-6">
+                  
+                  {/* Version Filmstrip */}
+                  <div className="flex-1 flex items-center gap-3 overflow-x-auto custom-scrollbar pb-1">
+                    <span className="text-xs text-muted-foreground shrink-0">Versions</span>
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const propVersions = shotVersions[selectedShot.id] || [];
+                        const cachedVersions = localVersionCache[selectedShot.id] || [];
+                        const allVersions = [...propVersions, ...cachedVersions.filter(cv => !propVersions.find(pv => pv.id === cv.id))];
+                        return allVersions.sort((a, b) => a.versionNumber - b.versionNumber);
+                      })().map((version) => {
+                        const isActive = version.id === selectedShot.currentVersionId;
+                        const isPreviewed = version.id === previewVersions[selectedShot.id];
+                        const thumbnailUrl = version.imageUrl || version.startFrameUrl || version.endFrameUrl;
+                        
+                        return (
+                          <div
+                            key={version.id}
+                            onClick={() => {
+                              setPreviewVersions(prev => ({ ...prev, [selectedShot.id]: version.id }));
+                              if (narrativeMode === "start-end") {
+                                if (activeFrameInDialog === "start" && !version.startFrameUrl && version.endFrameUrl) {
+                                  setActiveFrameInDialog("end");
+                                } else if (activeFrameInDialog === "end" && !version.endFrameUrl && version.startFrameUrl) {
+                                  setActiveFrameInDialog("start");
+                                }
+                              }
+                            }}
+                            className={`relative group shrink-0 w-20 cursor-pointer transition-all ${
+                              isPreviewed || (isActive && !previewVersions[selectedShot.id])
+                                ? "ring-2 ring-purple-500 rounded-lg scale-105"
+                                : "hover:scale-105 opacity-70 hover:opacity-100"
+                            }`}
+                            data-testid={`version-thumbnail-${version.id}`}
+                          >
+                            <div className="aspect-video bg-[hsl(240,8%,10%)] rounded-lg overflow-hidden">
+                              {thumbnailUrl ? (
+                                <img src={thumbnailUrl} alt={`v${version.versionNumber}`} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Version Number Badge */}
+                            <div className={`absolute -top-1 -left-1 text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                              isActive ? "bg-purple-600 text-white" : "bg-[hsl(240,8%,15%)] text-muted-foreground"
+                            }`}>
+                              v{version.versionNumber}
+                            </div>
+                            
+                            {/* Delete Button */}
+                            {!isActive && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (onDeleteVersion && window.confirm(`Delete version ${version.versionNumber}?`)) {
+                                    onDeleteVersion(selectedShot.id, version.id);
+                                  }
+                                }}
+                                className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X className="h-3 w-3 text-white" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-
-                {/* Re-gen Button - Absolute positioned */}
-                <div className="absolute right-6">
+                  
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-3 shrink-0">
+                    {/* Set as Active */}
+                    {previewVersions[selectedShot.id] && previewVersions[selectedShot.id] !== selectedShot.currentVersionId && (
+                    <Button
+                        onClick={() => {
+                          const previewedVersion = getPreviewedVersion(selectedShot);
+                          if (previewedVersion && onSelectVersion) {
+                            onSelectVersion(selectedShot.id, previewedVersion.id);
+                            setPreviewVersions(prev => {
+                              const { [selectedShot.id]: _, ...rest } = prev;
+                              return rest;
+                            });
+                            toast({ title: "Version Activated", description: `v${previewedVersion.versionNumber} is now active` });
+                          }
+                        }}
+                        variant="outline"
+                        className="border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
+                      >
+                        <Check className="h-4 w-4 mr-2" />
+                        Set Active
+                    </Button>
+                    )}
+                    
+                    {/* Apply Edit / Regenerate */}
                   <Button
                     onClick={handleGenerateFromDialog}
-                    disabled={isEditing}
-                    className="bg-gradient-to-r from-[hsl(269,100%,62%)] to-[hsl(286,77%,58%)] hover:from-[hsl(269,100%,57%)] hover:to-[hsl(286,77%,53%)] text-white font-semibold px-6 rounded-full shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={isEditing || !!(activeCategory && !editChange && activeCategory !== "camera")}
+                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-semibold px-6 shadow-lg shadow-purple-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
                     data-testid="button-generate-from-dialog"
                   >
-                    {isEditing ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Editing...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        {activeCategory ? "Apply Edit" : "Re-gen"}
-                      </>
-                    )}
+                      {isEditing ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                          {activeCategory ? "Apply Edit" : "Regenerate"}
+                        </>
+                      )}
                   </Button>
                 </div>
               </div>
               </div>
+              
             </div>
           </DialogContent>
         </Dialog>

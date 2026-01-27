@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Sparkles, Film, Globe, Clock, Palette, MessageSquare, FileText, Wand2, RectangleHorizontal, RectangleVertical, Square, Grid3x3, ChevronDown, ImageIcon, Video, AlertTriangle } from "lucide-react";
+import { Loader2, Sparkles, Film, Clock, Palette, MessageSquare, FileText, Wand2, RectangleHorizontal, RectangleVertical, Square, Grid3x3, ChevronDown, ImageIcon, Video, AlertTriangle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -77,11 +77,6 @@ const DURATIONS = [
   { value: "300", label: "5min" },
   { value: "600", label: "10min" },
   { value: "1200", label: "20min+" },
-];
-
-const LANGUAGES = [
-  "English", "Spanish", "French", "German", "Italian",
-  "Portuguese", "Japanese", "Korean", "Chinese", "Arabic"
 ];
 
 // All possible aspect ratios with metadata for UI display (matching ambient visual mode)
@@ -877,36 +872,6 @@ export function ScriptEditor({
                       data-testid={`button-duration-${dur.value}`}
                     >
                       {dur.label}
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Language */}
-            <Card className="bg-white/[0.02] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Globe className="w-5 h-5 text-purple-400" />
-                  <Label className="text-lg font-semibold text-white">Language</Label>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {LANGUAGES.map((lang) => (
-                    <button
-                      key={lang}
-                      onClick={() => {
-                        setLanguage(lang);
-                        onLanguageChange?.(lang);
-                      }}
-                      className={cn(
-                        "px-3 py-1.5 rounded-lg border text-xs font-medium transition-all hover-elevate",
-                        language === lang
-                          ? cn("bg-gradient-to-br border-white/20", accentClasses, "bg-opacity-20 text-white")
-                          : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70"
-                      )}
-                      data-testid={`button-language-${lang.toLowerCase()}`}
-                    >
-                      {lang}
                     </button>
                   ))}
                 </div>

@@ -3,8 +3,9 @@ import { ScriptEditor } from "@/components/narrative/script-editor";
 import { SceneBreakdown } from "@/components/narrative/scene-breakdown";
 import { WorldCast } from "@/components/narrative/world-cast";
 import { StoryboardEditor } from "@/components/narrative/storyboard-editor";
-import { AnimaticPreview } from "@/components/narrative/animatic-preview";
-import { ExportSettings, type ExportData } from "@/components/narrative/export-settings";
+import { NarrativeSoundTab } from "@/components/narrative/sound-tab";
+import { NarrativePreviewTab } from "@/components/narrative/preview-tab";
+import { NarrativeExportTab } from "@/components/narrative/export-tab";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Character } from "@shared/schema";
@@ -14,14 +15,13 @@ import type { NarrativeShotVersion } from "@/types/narrative-storyboard";
 interface NarrativeWorkflowProps {
   activeStep: string;
   videoId: string;
+  videoTitle?: string;
   workspaceId: string;
   narrativeMode: "image-reference" | "start-end" | "auto";
   script: string;
   aspectRatio: string;
   scriptModel: string;
   isGeneratingPrompts?: boolean;
-  voiceActorId: string | null;
-  voiceOverEnabled: boolean;
   // Step 1 settings
   duration: string;
   genres: string[];
@@ -47,11 +47,27 @@ interface NarrativeWorkflowProps {
     videoInstructions?: string;
     cinematicInspiration?: string;
   };
+  // Step 5 Sound data
+  step5Data?: {
+    shotsWithSFX?: Record<string, {
+      soundEffectDescription?: string;
+      soundEffectUrl?: string;
+    }>;
+    voiceId?: string;
+    voiceoverEnabled?: boolean;
+    voiceoverScript?: string;
+    voiceoverAudioUrl?: string;
+    voiceoverDuration?: number;
+    backgroundMusicEnabled?: boolean;
+    musicStyle?: string;
+    customMusicUrl?: string;
+    generatedMusicUrl?: string;
+    generatedMusicDuration?: number;
+  };
+  onStep5DataChange?: (data: Partial<NonNullable<NarrativeWorkflowProps['step5Data']>>) => void;
   onScriptChange: (script: string) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
   onScriptModelChange: (model: string) => void;
-  onVoiceActorChange: (voiceActorId: string) => void;
-  onVoiceOverToggle: (enabled: boolean) => void;
   onNumberOfScenesChange?: (scenes: number | 'auto') => void;
   onShotsPerSceneChange?: (shots: number | 'auto') => void;
   onGenresChange?: (genres: string[]) => void;
@@ -61,7 +77,7 @@ interface NarrativeWorkflowProps {
   onUserIdeaChange?: (userIdea: string) => void;
   onScenesChange: (scenes: Scene[]) => void;
   onShotsChange: (shots: { [sceneId: string]: Shot[] }) => void;
-  onShotVersionsChange: (shotVersions: { [shotId: string]: NarrativeShotVersion[] }) => void;
+  onShotVersionsChange: (shotVersions: { [shotId: string]: NarrativeShotVersion[] } | ((prev: { [shotId: string]: NarrativeShotVersion[] }) => { [shotId: string]: NarrativeShotVersion[] })) => void;
   onCharactersChange: (characters: Character[]) => void;
   onReferenceImagesChange: (referenceImages: ReferenceImage[]) => void;
   onContinuityLockedChange: (locked: boolean) => void;
@@ -81,13 +97,12 @@ interface NarrativeWorkflowProps {
 export function NarrativeWorkflow({
   activeStep,
   videoId,
+  videoTitle,
   workspaceId,
   narrativeMode,
   script,
   aspectRatio,
   scriptModel,
-  voiceActorId,
-  voiceOverEnabled,
   duration,
   genres,
   tones,
@@ -109,8 +124,6 @@ export function NarrativeWorkflow({
   onScriptChange,
   onAspectRatioChange,
   onScriptModelChange,
-  onVoiceActorChange,
-  onVoiceOverToggle,
   onNumberOfScenesChange,
   onShotsPerSceneChange,
   onGenresChange,
@@ -126,81 +139,12 @@ export function NarrativeWorkflow({
   onContinuityLockedChange,
   onContinuityGroupsChange,
   onWorldSettingsChange,
+  step5Data,
+  onStep5DataChange,
   onValidationChange,
   onNext,
 }: NarrativeWorkflowProps) {
   const { toast } = useToast();
-
-  const handleExport = (data: ExportData) => {
-    // Validation: Check platform metadata for publishing platforms
-    if (data.selectedPlatforms.length > 0) {
-      const missingMetadata: string[] = [];
-      
-      // Check if YouTube is selected and has metadata
-      if (data.selectedPlatforms.includes("youtube")) {
-        const ytMeta = data.platformMetadata.youtube;
-        if (!ytMeta || !ytMeta.title || !ytMeta.description || !ytMeta.tags) {
-          missingMetadata.push("YouTube (title, description, and tags required)");
-        }
-      }
-      
-      // Check if any social platform is selected and has shared caption
-      const socialPlatforms = data.selectedPlatforms.filter(p => p !== "youtube");
-      if (socialPlatforms.length > 0) {
-        const socialMeta = data.platformMetadata.social;
-        if (!socialMeta || !socialMeta.caption) {
-          missingMetadata.push("Social Media (caption required)");
-        }
-      }
-      
-      if (missingMetadata.length > 0) {
-        toast({
-          title: "Missing platform metadata",
-          description: `Please fill in the metadata for: ${missingMetadata.join(", ")}`,
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
-    // Validation: If platforms are selected AND scheduling, require date/time
-    if (data.selectedPlatforms.length > 0 && data.publishType === "schedule") {
-      if (!data.scheduleDate || !data.scheduleTime) {
-        toast({
-          title: "Missing schedule information",
-          description: "Please select both date and time for scheduled publishing.",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
-    // All validation passed - show success message based on action
-    if (data.selectedPlatforms.length === 0) {
-      // Just export (no publishing)
-      toast({
-        title: "Export started!",
-        description: `Your video is being exported in ${data.resolution}. You'll be notified when it's ready.`,
-      });
-    } else if (data.publishType === "instant") {
-      // Export and publish instantly
-      const platformNames = data.selectedPlatforms.join(", ");
-      toast({
-        title: "Export & Publishing!",
-        description: `Your video is being exported and will be published to ${platformNames}.`,
-      });
-    } else {
-      // Export and schedule
-      const platformNames = data.selectedPlatforms.join(", ");
-      const scheduleDateTime = `${data.scheduleDate} at ${data.scheduleTime}`;
-      toast({
-        title: "Export & Scheduled!",
-        description: `Your video will be exported and published to ${platformNames} on ${scheduleDateTime}.`,
-      });
-    }
-
-    console.log("Export data:", data);
-  };
 
   const handleGenerateShot = async (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => {
     try {
@@ -309,21 +253,20 @@ export function NarrativeWorkflow({
       
       // If shot exists in frontend but might not be in database (manually created),
       // include it in the request body so backend can use it
+      // Only include essential fields to avoid circular references or large payloads
       if (shot) {
         requestBody.shot = {
           id: shot.id,
           sceneId: shot.sceneId,
           shotNumber: shot.shotNumber,
-          description: shot.description,
+          description: shot.description || '',
           cameraMovement: shot.cameraMovement,
           shotType: shot.shotType,
-          soundEffects: shot.soundEffects,
           duration: shot.duration,
-          transition: shot.transition,
           imageModel: shot.imageModel,
           videoModel: shot.videoModel,
-          characters: shot.characters,
-          location: shot.location,
+          characters: Array.isArray(shot.characters) ? shot.characters : [],
+          location: shot.location || '',
         };
       }
       
@@ -343,19 +286,62 @@ export function NarrativeWorkflow({
         }
       }
       
-      const response = await fetch('/api/narrative/shots/generate-image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-workspace-id': workspaceId,
-        },
-        body: JSON.stringify(requestBody),
-        credentials: 'include',
-      });
+      // Validate request body can be serialized before sending
+      let requestBodyString: string;
+      try {
+        requestBodyString = JSON.stringify(requestBody);
+      } catch (jsonError) {
+        console.error('[narrative-workflow] Request body serialization error:', jsonError);
+        toast({
+          title: "Generation Failed",
+          description: "Invalid request data. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      let response: Response;
+      try {
+        // Create an AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+        
+        try {
+          response = await fetch('/api/narrative/shots/generate-image', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-workspace-id': workspaceId,
+            },
+            body: requestBodyString,
+            credentials: 'include',
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+        } catch (fetchError: any) {
+          clearTimeout(timeoutId);
+          if (fetchError.name === 'AbortError') {
+            throw new Error('Request timed out. The server may be taking too long to respond.');
+          }
+          throw fetchError;
+        }
+      } catch (fetchError) {
+        // Network error - server might be down or request failed
+        console.error('[narrative-workflow] Fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error 
+          ? fetchError.message 
+          : 'Failed to connect to server. Please check if the server is running and try again.';
+        throw new Error(errorMessage);
+      }
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || `HTTP ${response.status}: Failed to generate image`);
+        let errorData: any;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+        }
+        throw new Error(errorData.error || errorData.details || `HTTP ${response.status}: Failed to generate image`);
       }
       
       const data = await response.json();
@@ -372,8 +358,6 @@ export function NarrativeWorkflow({
       // Update shotVersions with the new or updated version
       // The backend should always return a version object, but handle cases where it might not
       if (data.version) {
-        const existingVersions = shotVersions[shotId] || [];
-        
         // Ensure version has all required fields
         const versionToUpdate = {
           ...data.version,
@@ -383,43 +367,47 @@ export function NarrativeWorkflow({
           endFrameUrl: data.endFrameUrl || data.version.endFrameUrl || null,
         };
         
-        // Check if this version already exists (when updating an existing version)
-        const versionIndex = existingVersions.findIndex(v => v.id === versionToUpdate.id);
-        const wasExisting = versionIndex >= 0;
-        
-        let updatedVersions;
-        if (wasExisting) {
-          // Update existing version in place - merge to preserve any existing fields
-          updatedVersions = existingVersions.map(v => 
-            v.id === versionToUpdate.id ? { ...v, ...versionToUpdate } : v
-          );
-        } else {
-          // Add new version
-          updatedVersions = [...existingVersions, versionToUpdate];
-        }
-        
-        // Create a new object to ensure React detects the change
-        const updatedShotVersions = {
-          ...shotVersions,
-          [shotId]: updatedVersions,
-        };
-        
-        onShotVersionsChange(updatedShotVersions);
+        // Use functional update to ensure we always have the latest state
+        // This is critical for sequential generation (Generate All Images) to prevent
+        // overwriting previous shots' images due to stale closure state
+        onShotVersionsChange((prevShotVersions: { [shotId: string]: any[] }) => {
+          const existingVersions = prevShotVersions[shotId] || [];
+          
+          // Check if this version already exists (when updating an existing version)
+          const versionIndex = existingVersions.findIndex(v => v.id === versionToUpdate.id);
+          const wasExisting = versionIndex >= 0;
+          
+          let updatedVersions;
+          if (wasExisting) {
+            // Update existing version in place - merge to preserve any existing fields
+            updatedVersions = existingVersions.map(v => 
+              v.id === versionToUpdate.id ? { ...v, ...versionToUpdate } : v
+            );
+          } else {
+            // Add new version
+            updatedVersions = [...existingVersions, versionToUpdate];
+          }
+          
+          console.log('[narrative-workflow] Updated shotVersions after generation:', {
+            shotId,
+            versionId: versionToUpdate.id,
+            hasImageUrl: !!versionToUpdate.imageUrl,
+            hasStartFrameUrl: !!versionToUpdate.startFrameUrl,
+            hasEndFrameUrl: !!versionToUpdate.endFrameUrl,
+            versionIndex,
+            wasExisting,
+          });
+          
+          return {
+            ...prevShotVersions,
+            [shotId]: updatedVersions,
+          };
+        });
         
         // Update shot's currentVersionId
         if (shot) {
           handleUpdateShot(shotId, { currentVersionId: versionToUpdate.id });
         }
-        
-        console.log('[narrative-workflow] Updated shotVersions after generation:', {
-          shotId,
-          versionId: versionToUpdate.id,
-          hasImageUrl: !!versionToUpdate.imageUrl,
-          hasStartFrameUrl: !!versionToUpdate.startFrameUrl,
-          hasEndFrameUrl: !!versionToUpdate.endFrameUrl,
-          versionIndex,
-          wasExisting,
-        });
       } else {
         // Backend didn't return version - log warning but don't fail
         console.warn('[narrative-workflow] No version returned from generate-image endpoint:', data);
@@ -605,8 +593,6 @@ export function NarrativeWorkflow({
       // Update shotVersions with the updated version
       // Handle both updating existing version and creating new one
       if (data.version) {
-        const existingVersions = shotVersions[shotId] || [];
-        
         // Ensure version has all required fields
         const versionToUpdate = {
           ...data.version,
@@ -616,43 +602,46 @@ export function NarrativeWorkflow({
           endFrameUrl: data.endFrameUrl || data.version.endFrameUrl || null,
         };
         
-        // Check if this version already exists (when updating an existing version)
-        const versionIndex = existingVersions.findIndex(v => v.id === versionToUpdate.id);
-        const wasExisting = versionIndex >= 0;
-        
-        let updatedVersions;
-        if (wasExisting) {
-          // Update existing version in place - merge to preserve any existing fields
-          updatedVersions = existingVersions.map(v => 
-            v.id === versionToUpdate.id ? { ...v, ...versionToUpdate } : v
-          );
-        } else {
-          // Add new version (shouldn't happen for regenerate, but handle it anyway)
-          updatedVersions = [...existingVersions, versionToUpdate];
-        }
-        
-        // Create a new object to ensure React detects the change
-        const updatedShotVersions = {
-          ...shotVersions,
-          [shotId]: updatedVersions,
-        };
-        
-        onShotVersionsChange(updatedShotVersions);
+        // Use functional update to ensure we always have the latest state
+        // This is critical for sequential generation to prevent overwriting previous shots' images
+        onShotVersionsChange((prevShotVersions: { [shotId: string]: any[] }) => {
+          const existingVersions = prevShotVersions[shotId] || [];
+          
+          // Check if this version already exists (when updating an existing version)
+          const versionIndex = existingVersions.findIndex(v => v.id === versionToUpdate.id);
+          const wasExisting = versionIndex >= 0;
+          
+          let updatedVersions;
+          if (wasExisting) {
+            // Update existing version in place - merge to preserve any existing fields
+            updatedVersions = existingVersions.map(v => 
+              v.id === versionToUpdate.id ? { ...v, ...versionToUpdate } : v
+            );
+          } else {
+            // Add new version (shouldn't happen for regenerate, but handle it anyway)
+            updatedVersions = [...existingVersions, versionToUpdate];
+          }
+          
+          console.log('[narrative-workflow] Updated shotVersions after regeneration:', {
+            shotId,
+            versionId: versionToUpdate.id,
+            hasImageUrl: !!versionToUpdate.imageUrl,
+            hasStartFrameUrl: !!versionToUpdate.startFrameUrl,
+            hasEndFrameUrl: !!versionToUpdate.endFrameUrl,
+            versionIndex,
+            wasExisting,
+          });
+          
+          return {
+            ...prevShotVersions,
+            [shotId]: updatedVersions,
+          };
+        });
         
         // Update shot's currentVersionId if it changed
         if (shot && shot.currentVersionId !== versionToUpdate.id) {
           handleUpdateShot(shotId, { currentVersionId: versionToUpdate.id });
         }
-        
-        console.log('[narrative-workflow] Updated shotVersions after regeneration:', {
-          shotId,
-          versionId: versionToUpdate.id,
-          hasImageUrl: !!versionToUpdate.imageUrl,
-          hasStartFrameUrl: !!versionToUpdate.startFrameUrl,
-          hasEndFrameUrl: !!versionToUpdate.endFrameUrl,
-          versionIndex,
-          wasExisting,
-        });
       } else {
         // Backend didn't return version - log warning but don't fail
         console.warn('[narrative-workflow] No version returned from regenerate endpoint:', data);
@@ -706,12 +695,26 @@ export function NarrativeWorkflow({
     );
   };
 
-  const handleUpdateScene = (sceneId: string, updates: Partial<Scene>) => {
-    onScenesChange(
-      scenes.map((scene) =>
-        scene.id === sceneId ? { ...scene, ...updates } : scene
-      )
+  const handleUpdateScene = async (sceneId: string, updates: Partial<Scene>) => {
+    // Update local state immediately for responsiveness
+    const updatedScenes = scenes.map((scene) =>
+      scene.id === sceneId ? { ...scene, ...updates } : scene
     );
+    onScenesChange(updatedScenes);
+
+    // Save to database for fields that need persistence (videoModel, imageModel)
+    if (updates.videoModel !== undefined || updates.imageModel !== undefined) {
+      try {
+        await apiRequest("PATCH", `/api/narrative/videos/${videoId}/step3`, {
+          scenes: updatedScenes,
+        });
+        console.log('[narrative-workflow] Scene updated and saved:', { sceneId, updates });
+      } catch (error) {
+        console.error('[narrative-workflow] Failed to save scene update:', error);
+        // Don't show error toast for every save - could be noisy
+        // The data is still in local state so user can continue working
+      }
+    }
   };
 
   const handleUploadShotReference = (shotId: string, file: File) => {
@@ -771,15 +774,58 @@ export function NarrativeWorkflow({
     handleUpdateShot(shotId, { currentVersionId: versionId });
   };
 
-  const handleDeleteVersion = (shotId: string, versionId: string) => {
-    // Remove the version from shotVersions
-    const versions = shotVersions[shotId] || [];
-    const filteredVersions = versions.filter(v => v.id !== versionId);
-    
-    onShotVersionsChange({
-      ...shotVersions,
-      [shotId]: filteredVersions,
-    });
+  const handleDeleteVersion = async (shotId: string, versionId: string) => {
+    try {
+      // Call API to delete the version
+      const response = await fetch(`/api/narrative/shots/${shotId}/versions/${versionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ videoId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+        throw new Error(errorData.error || `Failed to delete version: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Use renumbered versions from API response if available, otherwise filter locally
+      const updatedVersions = data.versions || shotVersions[shotId]?.filter(v => v.id !== versionId) || [];
+      
+      // If this was the current version and API returned a new currentVersionId, update the shot
+      const shot = Object.values(shots).flat().find(s => s.id === shotId);
+      if (shot && shot.currentVersionId === versionId && data.newCurrentVersionId !== undefined) {
+        // Update the shot's currentVersionId
+        const updatedShots = { ...shots };
+        Object.keys(updatedShots).forEach(sceneId => {
+          updatedShots[sceneId] = updatedShots[sceneId].map(s => 
+            s.id === shotId ? { ...s, currentVersionId: data.newCurrentVersionId } : s
+          );
+        });
+        onShotsChange(updatedShots);
+      }
+      
+      // Update shotVersions with renumbered versions
+      onShotVersionsChange({
+        ...shotVersions,
+        [shotId]: updatedVersions,
+      });
+
+      toast({
+        title: "Version Deleted",
+        description: "The version has been permanently deleted.",
+      });
+    } catch (error) {
+      console.error('Error deleting version:', error);
+      toast({
+        title: "Delete Failed",
+        description: error instanceof Error ? error.message : "Failed to delete version",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleAddScene = (afterSceneIndex: number) => {
@@ -1058,8 +1104,6 @@ export function NarrativeWorkflow({
           referenceImages={referenceImages}
           characters={characters}
           locations={worldSettings?.locations || []}
-          voiceActorId={voiceActorId}
-          voiceOverEnabled={voiceOverEnabled}
           continuityLocked={continuityLocked}
           continuityGroups={continuityGroups}
           isGeneratingPrompts={isGeneratingPrompts}
@@ -1067,8 +1111,6 @@ export function NarrativeWorkflow({
           videoModel={videoModel} // Pass from step1Data
           videoResolution={undefined} // Will be resolved from shot/scene hierarchy
           aspectRatio={aspectRatio}
-          onVoiceActorChange={onVoiceActorChange}
-          onVoiceOverToggle={onVoiceOverToggle}
           onGenerateShot={handleGenerateShot}
           onRegenerateShot={handleRegenerateShot}
           onUpdateShot={handleUpdateShot}
@@ -1087,17 +1129,38 @@ export function NarrativeWorkflow({
         />
       )}
 
-      {activeStep === "animatic" && (
-        <AnimaticPreview 
-          script={script}
+      {activeStep === "sound" && (
+        <NarrativeSoundTab
+          videoId={videoId}
           scenes={scenes}
           shots={shots}
-          onNext={onNext} 
+          shotVersions={shotVersions}
+          step5Data={step5Data}
+          script={script}
+          characters={characters}
+          genre={genres?.[0]}
+          tone={tones?.[0]}
+          language={language as 'en' | 'ar'}
+          onUpdateStep5Data={(data) => onStep5DataChange?.(data)}
+          onUpdateShot={handleUpdateShot}
         />
       )}
 
+      {(activeStep === "animatic" || activeStep === "preview") && (
+        <NarrativePreviewTab videoId={videoId} />
+      )}
+
       {activeStep === "export" && (
-        <ExportSettings onExport={handleExport} />
+        <NarrativeExportTab
+          videoId={videoId}
+          videoTitle={videoTitle}
+          duration={Object.values(shots).flat().reduce((total, shot) => total + (shot.duration || 5), 0)}
+          sceneCount={scenes.length}
+          aspectRatio={aspectRatio}
+          hasVoiceover={!!step5Data?.voiceoverAudioUrl}
+          hasMusic={!!(step5Data?.customMusicUrl || step5Data?.generatedMusicUrl)}
+          imageModel={imageModel}
+        />
       )}
     </div>
   );

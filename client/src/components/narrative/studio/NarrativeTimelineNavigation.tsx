@@ -3,10 +3,10 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Check, ChevronLeft, ChevronRight, FileText, Users, Split, Image, Play, Download, Loader2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, FileText, Users, Split, Image, Volume2, Play, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export type NarrativeStepId = "script" | "world" | "breakdown" | "storyboard" | "animatic" | "export";
+export type NarrativeStepId = "script" | "world" | "breakdown" | "storyboard" | "sound" | "preview" | "export";
 
 interface NarrativeStep {
   id: NarrativeStepId;
@@ -20,7 +20,8 @@ const NARRATIVE_STEPS: NarrativeStep[] = [
   { id: "world", label: "World & Cast", shortLabel: "World", icon: <Users className="w-5 h-5" /> },
   { id: "breakdown", label: "Breakdown", shortLabel: "Breakdown", icon: <Split className="w-5 h-5" /> },
   { id: "storyboard", label: "Storyboard", shortLabel: "Storyboard", icon: <Image className="w-5 h-5" /> },
-  { id: "animatic", label: "Animatic", shortLabel: "Animatic", icon: <Play className="w-5 h-5" /> },
+  { id: "sound", label: "Sound", shortLabel: "Sound", icon: <Volume2 className="w-5 h-5" /> },
+  { id: "preview", label: "Preview", shortLabel: "Preview", icon: <Play className="w-5 h-5" /> },
   { id: "export", label: "Export", shortLabel: "Export", icon: <Download className="w-5 h-5" /> },
 ];
 

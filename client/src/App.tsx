@@ -9,7 +9,6 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
-import { ScrollToTop } from "@/components/scroll-to-top";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2, Bell, Sun, Moon } from "lucide-react";
@@ -18,14 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 import Landing from "@/pages/landing";
-import WebsitePricing from "@/website/pages/pricing";
-import WebsiteIntegrations from "@/website/pages/integrations";
-import WebsiteStoryboard from "@/website/pages/features/storyboard";
-import WebsiteVideoGenerator from "@/website/pages/features/video-generator";
-import WebsiteStoriesGenerator from "@/website/pages/features/stories-generator";
-import WebsiteAutoProduction from "@/website/pages/features/auto-production";
-import WebsiteAssetsLibrary from "@/website/pages/features/assets-library";
-import WebsiteFeatures from "@/website/pages/features";
 import SignIn from "@/pages/auth/sign-in";
 import SignUp from "@/pages/auth/sign-up";
 import ForgotPassword from "@/pages/auth/forgot-password";
@@ -257,31 +248,6 @@ function Router() {
   }
 
   if (!isAuthenticated) {
-    // Website pages for non-authenticated users
-    if (location === "/pricing") {
-      return <WebsitePricing />;
-    }
-    if (location === "/integrations") {
-      return <WebsiteIntegrations />;
-    }
-    if (location === "/storyboard" || location === "/features/storyboard" || location === "/narrative-mode") {
-      return <WebsiteStoryboard />;
-    }
-    if (location === "/features/video-generator") {
-      return <WebsiteVideoGenerator />;
-    }
-    if (location === "/features/stories-generator") {
-      return <WebsiteStoriesGenerator />;
-    }
-    if (location === "/features/auto-production") {
-      return <WebsiteAutoProduction />;
-    }
-    if (location === "/features/assets-library") {
-      return <WebsiteAssetsLibrary />;
-    }
-    if (location === "/features") {
-      return <WebsiteFeatures />;
-    }
     return <Landing />;
   }
 
@@ -311,7 +277,6 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
-          <ScrollToTop />
           <Router />
           <Toaster />
         </TooltipProvider>

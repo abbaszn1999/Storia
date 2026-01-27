@@ -1,26 +1,41 @@
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Plus, Sparkles, Video, Zap } from "lucide-react";
-import type { ProductionCampaign } from "@/autoproduction/shared/types";
+import { useVideoCampaigns, useStoryCampaigns } from "@/autoproduction/shared/hooks";
+import type { 
+  VideoCampaign, 
+  StoryCampaign, 
+  ItemStatusEntry,
+} from "@/autoproduction/shared/types";
+import { calculateProgress } from "@/autoproduction/shared/types";
 import { format } from "date-fns";
+
+type CombinedCampaign = (VideoCampaign & { campaignType: 'video' }) | (StoryCampaign & { campaignType: 'story' });
 
 export default function CampaignHistory() {
   const [, navigate] = useLocation();
 
-  const { data: campaigns = [], isLoading } = useQuery<ProductionCampaign[]>({
-    queryKey: ["/api/autoproduction/campaigns"],
-  });
+  const { data: videoCampaigns = [], isLoading: isLoadingVideos } = useVideoCampaigns();
+  const { data: storyCampaigns = [], isLoading: isLoadingStories } = useStoryCampaigns();
+  
+  const isLoading = isLoadingVideos || isLoadingStories;
+
+  // Combine campaigns with type marker
+  const campaigns: CombinedCampaign[] = [
+    ...videoCampaigns.map(c => ({ ...c, campaignType: 'video' as const })),
+    ...storyCampaigns.map(c => ({ ...c, campaignType: 'story' as const })),
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const activeCampaigns = campaigns.filter(
-    (c) => c.status === "active" || c.status === "generating"
+    (c) => c.status === "generating"
   );
   const pausedCampaigns = campaigns.filter((c) => c.status === "paused");
   const completedCampaigns = campaigns.filter((c) => c.status === "completed");
   const draftCampaigns = campaigns.filter((c) => c.status === "draft");
+  const reviewCampaigns = campaigns.filter((c) => c.status === "review");
 
   if (isLoading) {
     return (
@@ -30,9 +45,23 @@ export default function CampaignHistory() {
     );
   }
 
-  const CampaignCard = ({ campaign }: { campaign: ProductionCampaign }) => {
-    const isStory = campaign.type === "auto-story";
+  const CampaignCard = ({ campaign }: { campaign: CombinedCampaign }) => {
+    const isStory = campaign.campaignType === 'story';
     const CampaignIcon = isStory ? Zap : Video;
+    
+    // Calculate progress from itemStatuses
+    const itemStatuses = (campaign.itemStatuses as Record<string, ItemStatusEntry>) || {};
+    const { totalItems, completedItems } = calculateProgress(itemStatuses);
+    
+    // Get settings from campaignSettings JSONB
+    const settings = (campaign.campaignSettings as Record<string, unknown>) || {};
+    const duration = (settings.duration as number) || 60;
+    const aspectRatio = (settings.aspectRatio as string) || '9:16';
+    
+    // Get template/mode
+    const templateOrMode = isStory 
+      ? (campaign as StoryCampaign).template 
+      : (campaign as VideoCampaign).videoMode;
     
     return (
       <Card
@@ -53,9 +82,9 @@ export default function CampaignHistory() {
             </CardTitle>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-xs">
-                {campaign.type === "auto-story" ? "Story" : "Video"}
+                {isStory ? "Story" : "Video"}
               </Badge>
-              <Badge variant={campaign.status === "active" ? "default" : "secondary"}>
+              <Badge variant={campaign.status === "generating" ? "default" : "secondary"}>
                 {campaign.status}
               </Badge>
             </div>
@@ -63,14 +92,9 @@ export default function CampaignHistory() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Template/Mode Info */}
-          {campaign.storyTemplate && (
-            <p className="text-sm text-muted-foreground">
-              Template: {campaign.storyTemplate}
-            </p>
-          )}
-          {campaign.videoMode && (
-            <p className="text-sm text-muted-foreground">
-              Mode: {campaign.videoMode}
+          {templateOrMode && (
+            <p className="text-sm text-muted-foreground capitalize">
+              {isStory ? 'Template' : 'Mode'}: {templateOrMode.replace(/-/g, ' ')}
             </p>
           )}
 
@@ -79,20 +103,16 @@ export default function CampaignHistory() {
             <div>
               <div className="text-muted-foreground">Items</div>
               <div className="font-semibold">
-                {campaign.itemsGenerated || 0}/{campaign.totalItems || 0}
+                {completedItems}/{totalItems}
               </div>
             </div>
             <div>
               <div className="text-muted-foreground">Duration</div>
-              <div className="font-semibold">
-                {campaign.storyDuration || campaign.duration || 0}s
-              </div>
+              <div className="font-semibold">{duration}s</div>
             </div>
             <div>
               <div className="text-muted-foreground">Ratio</div>
-              <div className="font-semibold">
-                {campaign.storyAspectRatio || campaign.aspectRatio || "9:16"}
-              </div>
+              <div className="font-semibold">{aspectRatio}</div>
             </div>
           </div>
 
@@ -127,6 +147,7 @@ export default function CampaignHistory() {
         <TabsList>
           <TabsTrigger value="all">All ({campaigns.length})</TabsTrigger>
           <TabsTrigger value="active">Active ({activeCampaigns.length})</TabsTrigger>
+          <TabsTrigger value="review">Review ({reviewCampaigns.length})</TabsTrigger>
           <TabsTrigger value="paused">Paused ({pausedCampaigns.length})</TabsTrigger>
           <TabsTrigger value="completed">Completed ({completedCampaigns.length})</TabsTrigger>
           <TabsTrigger value="draft">Draft ({draftCampaigns.length})</TabsTrigger>
@@ -163,6 +184,22 @@ export default function CampaignHistory() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {activeCampaigns.map((campaign) => (
+                <CampaignCard key={campaign.id} campaign={campaign} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="review" className="mt-6">
+          {reviewCampaigns.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16">
+                <p className="text-muted-foreground">No campaigns in review</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {reviewCampaigns.map((campaign) => (
                 <CampaignCard key={campaign.id} campaign={campaign} />
               ))}
             </div>

@@ -6,7 +6,7 @@ import { WizardLayout } from "../../shared/components/layout/wizard-layout";
 import { Step2TemplateSelection } from "../components/wizard/step-2-template-selection";
 import { Step3ContentSetup } from "../components/wizard/step-3-content-setup";
 import { Step4StyleSettings } from "../components/wizard/step-4-style-settings";
-import { useCreateCampaign } from "../../shared/hooks";
+import { useCreateStoryCampaign } from "../../shared/hooks";
 import type { StoryTemplate } from "../types";
 
 const wizardSteps = [
@@ -64,7 +64,7 @@ export default function AutoStoryCreate() {
   // Step 6: Publishing (TODO)
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
 
-  const createCampaign = useCreateCampaign();
+  const createCampaign = useCreateStoryCampaign();
 
   const handleNext = () => {
     // Validation
@@ -150,9 +150,9 @@ export default function AutoStoryCreate() {
       storyMusicVolume: musicVolume,
       
       // Scheduling
-      scheduleStartDate: scheduleStartDate || undefined,
-      scheduleEndDate: scheduleEndDate || undefined,
-      maxVideosPerDay: maxPerDay,
+      scheduleStartDate: scheduleStartDate ? new Date(scheduleStartDate) : undefined,
+      scheduleEndDate: scheduleEndDate ? new Date(scheduleEndDate) : undefined,
+      maxStoriesPerDay: maxPerDay,
       
       // Publishing
       selectedPlatforms,

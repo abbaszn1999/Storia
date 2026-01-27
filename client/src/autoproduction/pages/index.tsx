@@ -4,7 +4,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Video, Zap, Check, ArrowLeft, ArrowRight, Sparkles, Star } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 
 // Production types for Type Selection
@@ -14,7 +13,7 @@ const productionTypes = [
     name: "Auto Video",
     description: "Automatically generate complete videos with AI-powered narratives, characters, and scenes",
     icon: Video,
-    available: false,
+    available: true,
     features: ["Narrative Videos", "Character Vlogs", "Ambient Visuals", "Multi-scene production"],
     gradient: "from-blue-500/20 via-cyan-500/20 to-teal-500/20",
     iconGradient: "from-blue-500 to-cyan-500",
@@ -35,7 +34,6 @@ const productionTypes = [
 
 export default function AutoProductionHome() {
   const [, navigate] = useLocation();
-  const { toast } = useToast();
   const [productionType, setProductionType] = useState<"video" | "story">("story");
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
 
@@ -43,11 +41,7 @@ export default function AutoProductionHome() {
     if (productionType === "story") {
       navigate("/autoproduction/story/create");
     } else if (productionType === "video") {
-      toast({
-        title: "Coming Soon",
-        description: "Auto Video production is coming soon!",
-        variant: "default",
-      });
+      navigate("/autoproduction/video/create");
     }
   };
 

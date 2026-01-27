@@ -42,10 +42,6 @@ import Profile from "@/pages/profile";
 import Settings from "@/pages/settings";
 import WorkspaceSettings from "@/pages/workspace-settings";
 import Subscription from "@/pages/subscription";
-import ProductionCampaigns from "@/pages/production-old";
-import ProductionCampaignCreate from "@/pages/production-old/create";
-import ProductionCampaignReview from "@/pages/production-old/review";
-import ProductionCampaignDashboard from "@/pages/production-old/dashboard";
 import CreateShorts from "@/pages/shorts/create";
 
 // Auto Production (NEW)
@@ -56,6 +52,7 @@ import AutoStoryCreate from "@/autoproduction/auto-story/pages/create";
 import AutoStoryDashboard from "@/autoproduction/auto-story/pages/[id]/dashboard";
 import StoryDetail from "@/autoproduction/auto-story/pages/[id]/stories/[storyId]";
 import AutoVideoList from "@/autoproduction/auto-video/pages";
+import AutoVideoCreate from "@/autoproduction/auto-video/pages/create";
 import UsagePage from "@/pages/usage";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
@@ -74,7 +71,7 @@ function LoadingScreen() {
 function MainLayout() {
   const [location] = useLocation();
   const { user } = useAuth();
-  const isFullPageRoute = /^\/videos\/narrative\/[^/]+$/.test(location) || /^\/videos\/vlog\/[^/]+$/.test(location) || /^\/videos\/ambient\/[^/]+$/.test(location) || /^\/videos\/commerce\/[^/]+$/.test(location) || /^\/videos\/logo$/.test(location) || /^\/stories\/create\/[^/]+$/.test(location) || /^\/stories\/asmr$/.test(location) || /^\/stories\/[^/]+\/export$/.test(location) || /^\/shorts\/create\/[^/]+$/.test(location) || /^\/autoproduction$/.test(location) || /^\/autoproduction\/story\/create$/.test(location);
+  const isFullPageRoute = /^\/videos\/narrative\/[^/]+$/.test(location) || /^\/videos\/vlog\/[^/]+$/.test(location) || /^\/videos\/ambient\/[^/]+$/.test(location) || /^\/videos\/commerce\/[^/]+$/.test(location) || /^\/videos\/logo$/.test(location) || /^\/stories\/create\/[^/]+$/.test(location) || /^\/stories\/asmr$/.test(location) || /^\/stories\/[^/]+\/export$/.test(location) || /^\/shorts\/create\/[^/]+$/.test(location) || /^\/autoproduction$/.test(location) || /^\/autoproduction\/story\/create$/.test(location) || /^\/autoproduction\/video\/create$/.test(location);
 
   // Get user display name
   const displayName = user?.firstName && user?.lastName 
@@ -107,6 +104,7 @@ function MainLayout() {
         {/* Auto Production - Full Screen Wizards */}
         <Route path="/autoproduction" component={AutoProductionHome} />
         <Route path="/autoproduction/story/create" component={AutoStoryCreate} />
+        <Route path="/autoproduction/video/create" component={AutoVideoCreate} />
       </Switch>
     );
   }
@@ -203,12 +201,7 @@ function MainLayout() {
               <Route path="/autoproduction/story/:id" component={AutoStoryDashboard} />
               <Route path="/autoproduction/story/:id/stories/:storyId" component={StoryDetail} />
               <Route path="/autoproduction/video" component={AutoVideoList} />
-              
-              {/* Production Campaigns (OLD - Legacy) */}
-              <Route path="/production" component={ProductionCampaigns} />
-              <Route path="/production/new" component={ProductionCampaignCreate} />
-              <Route path="/production/:id/review" component={ProductionCampaignReview} />
-              <Route path="/production/:id/dashboard" component={ProductionCampaignDashboard} />
+              <Route path="/autoproduction/video/create" component={AutoVideoCreate} />
               
               {/* Assets Library */}
               <Route path="/assets">

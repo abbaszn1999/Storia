@@ -22,6 +22,7 @@ interface WizardLayoutProps {
   isSubmitting?: boolean;
   nextLabel?: string;
   campaignName?: string;
+  productionType?: 'video' | 'story';
 }
 
 export function WizardLayout({
@@ -40,6 +41,7 @@ export function WizardLayout({
   isSubmitting = false,
   nextLabel,
   campaignName = "New Campaign",
+  productionType = 'story',
 }: WizardLayoutProps) {
   const [, navigate] = useLocation();
   const currentStepIndex = steps.findIndex(s => s.number === currentStep);
@@ -82,7 +84,9 @@ export function WizardLayout({
               "bg-primary/10 border border-primary/20"
             )}>
               <Sparkles className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium text-primary">Auto Story</span>
+              <span className="text-sm font-medium text-primary">
+                {productionType === 'video' ? 'Auto Video' : 'Auto Story'}
+              </span>
             </div>
             
             <div className="h-4 w-px bg-border/50" />

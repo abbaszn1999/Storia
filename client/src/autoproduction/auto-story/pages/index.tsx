@@ -3,14 +3,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Sparkles, Zap, Loader2 } from "lucide-react";
-import { useCampaigns } from "../../shared/hooks";
+import { useStoryCampaigns } from "../../shared/hooks";
 import { StatusBadge } from "../../shared/components/ui/status-badge";
-import type { ProductionCampaign } from "../../shared/types";
+import type { 
+  StoryCampaign, 
+  StoryTopic,
+  ItemStatusEntry,
+} from "../../shared/types";
+import { calculateProgress } from "../../shared/types";
 import { format } from "date-fns";
 
 export default function AutoStoryList() {
   const [, navigate] = useLocation();
-  const { data: campaigns = [], isLoading } = useCampaigns({ type: 'auto-story' });
+  const { data: campaigns = [], isLoading } = useStoryCampaigns();
 
   if (isLoading) {
     return (
@@ -53,58 +58,73 @@ export default function AutoStoryList() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {campaigns.map((campaign: ProductionCampaign) => (
-            <Card
-              key={campaign.id}
-              className="cursor-pointer hover:shadow-lg transition-all"
-              onClick={() => navigate(`/autoproduction/story/${campaign.id}`)}
-            >
-              <CardContent className="p-6">
-                <div className="space-y-4">
-                  {/* Header */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-primary" />
-                      <h3 className="font-bold text-lg line-clamp-1">{campaign.name}</h3>
+          {campaigns.map((campaign: StoryCampaign) => {
+            // Calculate progress from itemStatuses
+            const itemStatuses = (campaign.itemStatuses as Record<string, ItemStatusEntry>) || {};
+            const storyTopics = (campaign.storyTopics as StoryTopic[]) || [];
+            const { totalItems, completedItems } = calculateProgress(itemStatuses);
+            
+            // Use storyTopics length if itemStatuses is empty
+            const displayTotal = totalItems || storyTopics.length;
+            
+            // Get settings from campaignSettings JSONB
+            const settings = (campaign.campaignSettings as Record<string, unknown>) || {};
+            const duration = (settings.duration as number) || 45;
+            const aspectRatio = (settings.aspectRatio as string) || '9:16';
+            
+            return (
+              <Card
+                key={campaign.id}
+                className="cursor-pointer hover:shadow-lg transition-all"
+                onClick={() => navigate(`/autoproduction/story/${campaign.id}`)}
+              >
+                <CardContent className="p-6">
+                  <div className="space-y-4">
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                        <h3 className="font-bold text-lg line-clamp-1">{campaign.name}</h3>
+                      </div>
+                      <StatusBadge status={campaign.status as any} />
                     </div>
-                    <StatusBadge status={campaign.status as any} />
-                  </div>
 
-                  {/* Template */}
-                  {campaign.storyTemplate && (
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {campaign.storyTemplate}
-                      </Badge>
-                    </div>
-                  )}
+                    {/* Template */}
+                    {campaign.template && (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {campaign.template.replace(/-/g, ' ')}
+                        </Badge>
+                      </div>
+                    )}
 
-                  {/* Stats */}
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <div>
-                      <div className="text-muted-foreground text-xs">Stories</div>
-                      <div className="font-semibold">
-                        {campaign.itemsGenerated || 0}/{campaign.totalItems || 0}
+                    {/* Stats */}
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <div className="text-muted-foreground text-xs">Stories</div>
+                        <div className="font-semibold">
+                          {completedItems}/{displayTotal}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground text-xs">Duration</div>
+                        <div className="font-semibold">{duration}s</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground text-xs">Ratio</div>
+                        <div className="font-semibold">{aspectRatio}</div>
                       </div>
                     </div>
-                    <div>
-                      <div className="text-muted-foreground text-xs">Duration</div>
-                      <div className="font-semibold">{campaign.storyDuration || campaign.duration}s</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground text-xs">Ratio</div>
-                      <div className="font-semibold">{campaign.storyAspectRatio || campaign.aspectRatio}</div>
-                    </div>
-                  </div>
 
-                  {/* Date */}
-                  <div className="text-xs text-muted-foreground">
-                    Created {format(new Date(campaign.createdAt), "PP")}
+                    {/* Date */}
+                    <div className="text-xs text-muted-foreground">
+                      Created {format(new Date(campaign.createdAt), "PP")}
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

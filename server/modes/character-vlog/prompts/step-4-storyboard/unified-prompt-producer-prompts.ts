@@ -378,7 +378,7 @@ Before outputting JSON, verify:
 - [ ] For linked shots: only endFramePrompt is generated (startFramePrompt is empty/null, inherited from previous)
 
 **JSON STRUCTURE:**
-- [ ] All required keys are present: shotId, imagePrompts, videoPrompt, visualContinuityNotes, negativePrompt
+- [ ] All required keys are present: shotId, imagePrompts, videoPrompt, visualContinuityNotes
 - [ ] JSON is valid (no trailing commas, proper escaping, valid syntax)
 - [ ] Empty strings "" are used for non-applicable fields (not null where string is expected)
 - [ ] Shots are in the same order as input
@@ -400,8 +400,7 @@ You MUST output ONLY this JSON object with exactly these keys:
         "end": "..." | null
       },
       "videoPrompt": "...",
-      "visualContinuityNotes": "..." | null,
-      "negativePrompt": "..."
+      "visualContinuityNotes": "..." | null
     },
     ...
   ]
@@ -409,8 +408,7 @@ You MUST output ONLY this JSON object with exactly these keys:
 
 RULES:
 - Always include all keys above for each shot
-- If a field is not applicable, use null (for imagePrompts fields and visualContinuityNotes) or "" (for negativePrompt)
-- negativePrompt can be "" if you don't need it, or specify things to avoid (e.g., "blurry, distorted, low quality, multiple faces, inconsistent lighting")
+- If a field is not applicable, use null (for imagePrompts fields and visualContinuityNotes)
 - JSON must be valid (no trailing commas, proper escaping)
 - Output ALL shots in the same order as input
 - Each image/video prompt should be ~300 words (detailed but concise, Seedream: 200-250 words)

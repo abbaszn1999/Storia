@@ -8,12 +8,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles, Globe, Clock, Palette, MessageSquare, FileText, Wand2, User, MapPin, LayoutGrid, Camera, Grid3x3, Building2, TreePine, Home, MonitorPlay, Wand, Cpu, Radio, Paintbrush, Mic, Film, RectangleHorizontal, RectangleVertical, Square } from "lucide-react";
+import { Loader2, Sparkles, Globe, Clock, Palette, MessageSquare, FileText, Wand2, User, MapPin, LayoutGrid, Camera, Grid3x3, Building2, TreePine, Home, MonitorPlay, Wand, Cpu, Radio, Paintbrush, Mic, Film, RectangleHorizontal, RectangleVertical, Square, Video } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { VIDEO_MODELS, getDefaultVideoModel, getVideoModelConfig } from "@/constants/video-models";
+import { VIDEO_MODELS, getDefaultVideoModel, getVideoModelConfig, getAvailableVideoModels } from "@/constants/video-models";
 import { IMAGE_MODELS, type ImageModelConfig } from "@/constants/image-models";
 
 interface CharacterVlogScriptEditorProps {
@@ -35,6 +35,9 @@ interface CharacterVlogScriptEditorProps {
   language?: string;
   voiceActorId?: string | null;
   voiceOverEnabled?: boolean;
+  backgroundMusicEnabled?: boolean;
+  voiceoverLanguage?: 'en' | 'ar';
+  textOverlayEnabled?: boolean;
   userPrompt?: string;
   referenceMode?: string;
   onScriptChange: (script: string) => void;
@@ -52,6 +55,9 @@ interface CharacterVlogScriptEditorProps {
   onGenresChange?: (genres: string[]) => void;
   onTonesChange?: (tones: string[]) => void;
   onLanguageChange?: (language: string) => void;
+  onBackgroundMusicEnabledChange?: (enabled: boolean) => void;
+  onVoiceoverLanguageChange?: (language: 'en' | 'ar') => void;
+  onTextOverlayEnabledChange?: (enabled: boolean) => void;
   onNext: () => void;
 }
 
@@ -164,6 +170,9 @@ export function CharacterVlogScriptEditor({
   language = "English",
   voiceActorId = null,
   voiceOverEnabled = true,
+  backgroundMusicEnabled = false,
+  voiceoverLanguage = 'en',
+  textOverlayEnabled = false,
   userPrompt: initialUserPrompt = "",
   referenceMode,
   onScriptChange, 
@@ -181,6 +190,9 @@ export function CharacterVlogScriptEditor({
   onGenresChange,
   onTonesChange,
   onLanguageChange,
+  onBackgroundMusicEnabledChange,
+  onVoiceoverLanguageChange,
+  onTextOverlayEnabledChange,
   onNext 
 }: CharacterVlogScriptEditorProps) {
   const [storyIdea, setStoryIdea] = useState(initialUserPrompt);
@@ -193,6 +205,9 @@ export function CharacterVlogScriptEditor({
   const [selectedTones, setSelectedTones] = useState<string[]>(tones.length > 0 ? tones : ["Energetic"]);
   const [languageValue, setLanguage] = useState(language);
   const [voiceOverEnabledState, setVoiceOverEnabled] = useState(voiceOverEnabled);
+  const [backgroundMusicEnabledState, setBackgroundMusicEnabled] = useState(backgroundMusicEnabled);
+  const [voiceoverLanguageState, setVoiceoverLanguage] = useState(voiceoverLanguage);
+  const [textOverlayEnabledState, setTextOverlayEnabled] = useState(textOverlayEnabled);
   const [selectedTheme, setSelectedTheme] = useState(theme);
   const [selectedNumberOfScenes, setSelectedNumberOfScenes] = useState<number | 'auto'>(numberOfScenes);
   const [selectedShotsPerScene, setSelectedShotsPerScene] = useState<number | 'auto'>(shotsPerScene);
@@ -449,45 +464,42 @@ export function CharacterVlogScriptEditor({
 
   return (
     <div className="flex w-full gap-0 overflow-hidden">
-      {/* LEFT COLUMN: ALL SETTINGS (40% width) */}
+      {/* LEFT COLUMN: ALL SETTINGS (35% width) */}
       <div
         className={cn(
-          "w-[40%] min-w-[400px] max-w-[550px] flex-shrink-0",
-          "bg-[#1a1a1a]",
+          "w-[35%] min-w-[350px] max-w-[500px] flex-shrink-0",
+          "bg-black/40 backdrop-blur-xl",
           "border-r border-white/[0.06]",
-          "flex flex-col overflow-hidden"
+          "flex flex-col overflow-hidden",
+          "max-h-[calc(100vh-12rem)]"
         )}
       >
         <ScrollArea className="flex-1 h-full">
-          <div className="p-6 space-y-6 pb-4">
+          <div className="p-6 space-y-6 pb-12">
             {/* Character Personality */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="relative p-1 rounded-md">
-                    <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
-                    <User className="w-4 h-4 text-white relative z-10" />
-                  </div>
-                  <Label className="text-lg font-semibold text-white">Character Personality</Label>
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <User className="w-4 h-4" style={{ color: '#FF4081' }} />
+                  <Label className="text-base font-semibold text-white">Personality</Label>
                 </div>
-                <p className="text-sm text-white/50">Define your character's vibe and energy</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   {PERSONALITIES.map((personality) => (
                     <button
                       key={personality.value}
                       onClick={() => handlePersonalityChange(personality.value)}
                       className={cn(
-                        "p-3 rounded-lg border text-left transition-all hover-elevate relative overflow-hidden",
+                        "p-2.5 rounded-lg border text-left transition-all hover-elevate relative overflow-hidden",
                         selectedPersonality === personality.value
                           ? "border-white/20"
-                          : "bg-[#0f0f0f] border-white/10 hover:bg-white/10"
+                          : "bg-white/5 border-white/10 hover:bg-white/10"
                       )}
                       style={selectedPersonality === personality.value ? {
                         background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
                       } : undefined}
                     >
-                      <div className="font-medium text-sm text-white">{personality.label}</div>
-                      <div className="text-xs text-white/50 mt-1">{personality.description}</div>
+                      <div className="font-medium text-xs text-white">{personality.label}</div>
+                      <div className="text-[10px] text-white/50 mt-0.5 line-clamp-1">{personality.description}</div>
                     </button>
                   ))}
                 </div>
@@ -495,14 +507,11 @@ export function CharacterVlogScriptEditor({
             </Card>
 
             {/* Narration Style */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="relative p-1 rounded-md">
-                    <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
-                    <FileText className="w-4 h-4 text-white relative z-10" />
-                  </div>
-                  <Label className="text-lg font-semibold text-white">Narration Style</Label>
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <FileText className="w-4 h-4" style={{ color: '#FF4081' }} />
+                  <Label className="text-base font-semibold text-white">Narration</Label>
                 </div>
                 <div className="space-y-2">
                   {NARRATION_STYLES.map((style) => (
@@ -513,18 +522,18 @@ export function CharacterVlogScriptEditor({
                         onNarrationStyleChange?.(style.id as "third-person" | "first-person");
                       }}
                       className={cn(
-                        "w-full text-left p-3 rounded-lg border transition-all hover-elevate relative overflow-hidden",
+                        "w-full text-left p-2.5 rounded-lg border transition-all hover-elevate relative overflow-hidden",
                         selectedNarrationStyle === style.id
                           ? "border-white/20"
-                          : "bg-[#0f0f0f] border-white/10 hover:bg-white/10"
+                          : "bg-white/5 border-white/10 hover:bg-white/10"
                       )}
                       style={selectedNarrationStyle === style.id ? {
                         background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
                       } : undefined}
                       data-testid={`button-narration-${style.id}`}
                     >
-                      <div className="font-medium text-sm text-white">{style.label}</div>
-                      <div className="text-xs text-white/50 mt-1">{style.description}</div>
+                      <div className="font-medium text-xs text-white">{style.label}</div>
+                      <div className="text-[10px] text-white/50 mt-0.5">{style.description}</div>
                     </button>
                   ))}
                 </div>
@@ -532,9 +541,12 @@ export function CharacterVlogScriptEditor({
             </Card>
 
             {/* Theme / Environment */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6 space-y-3">
-                <Label className="text-base font-semibold text-white">Theme / Environment</Label>
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <MapPin className="w-4 h-4" style={{ color: '#FF4081' }} />
+                  <Label className="text-base font-semibold text-white">Theme</Label>
+                </div>
                 <div className="grid grid-cols-4 gap-2">
                   {THEMES.map((themeOption) => {
                     const Icon = themeOption.icon;
@@ -543,10 +555,10 @@ export function CharacterVlogScriptEditor({
                         key={themeOption.value}
                         onClick={() => handleThemeChange(themeOption.value)}
                         className={cn(
-                          "p-2.5 rounded-lg border text-center transition-all hover-elevate relative overflow-hidden",
+                          "p-2 rounded-lg border text-center transition-all hover-elevate relative overflow-hidden",
                           selectedTheme === themeOption.value
                             ? "border-white/20"
-                            : "bg-[#0f0f0f] border-white/10 hover:bg-white/10"
+                            : "bg-white/5 border-white/10 hover:bg-white/10"
                         )}
                         style={selectedTheme === themeOption.value ? {
                           background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
@@ -561,85 +573,14 @@ export function CharacterVlogScriptEditor({
               </CardContent>
             </Card>
 
-            {/* Audio Layer - Voice Over & Language */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-5 space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="relative p-1 rounded-md">
-                    <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
-                    <Mic className="w-3.5 h-3.5 text-white relative z-10" />
-                  </div>
-                  <Label className="text-base font-semibold text-white">Audio Layer</Label>
-                  <span className="text-xs text-white/40">Voice narration settings</span>
-                </div>
-
-                {/* Voice Over Toggle */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm text-white/90">Voice Over</Label>
-                    <div className="inline-flex items-center bg-[#0f0f0f] rounded-lg p-1 border border-white/10">
-                      <button
-                        onClick={() => setVoiceOverEnabled(true)}
-                        className={cn(
-                          "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
-                          voiceOverEnabledState
-                            ? "bg-gradient-to-r from-[#FF4081] to-[#FF6B4A] text-white shadow-lg"
-                            : "text-white/50 hover:text-white/70"
-                        )}
-                      >
-                        On
-                      </button>
-                      <button
-                        onClick={() => setVoiceOverEnabled(false)}
-                        className={cn(
-                          "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
-                          !voiceOverEnabledState
-                            ? "bg-[#1a1a1a] text-white shadow-lg"
-                            : "text-white/50 hover:text-white/70"
-                        )}
-                      >
-                        Off
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Language Dropdown - Only shown when Voice Over is On */}
-                  {voiceOverEnabledState && (
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-white/70">Language</Label>
-                      <Select 
-                        value={languageValue} 
-                        onValueChange={(value) => {
-                          setLanguage(value);
-                          onLanguageChange?.(value);
-                      }}
-                      >
-                        <SelectTrigger className="h-9 bg-[#0f0f0f] border-white/10 text-white">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#121212] border-white/10">
-                          {LANGUAGES.map((lang) => (
-                            <SelectItem 
-                              key={lang} 
-                              value={lang}
-                              className="text-white focus:bg-[#FF4081]/20 focus:text-white"
-                            >
-                              {lang}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Target Duration */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-5">
+            {/* Duration & Language */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-white/70">Target Duration</Label>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4" style={{ color: '#FF4081' }} />
+                    <Label className="text-sm font-medium text-white/90">Duration</Label>
+                  </div>
                   <Select 
                     value={durationValue} 
                     onValueChange={(value) => {
@@ -647,10 +588,10 @@ export function CharacterVlogScriptEditor({
                       onDurationChange?.(value);
                     }}
                   >
-                    <SelectTrigger className="h-9 bg-[#0f0f0f] border-white/10 text-white">
+                    <SelectTrigger className="h-9 bg-white/5 border-white/10 text-white">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#121212] border-white/10">
+                    <SelectContent className="bg-[#0a0a0a] border-white/10">
                       {DURATIONS.map((dur) => (
                         <SelectItem 
                           key={dur.value} 
@@ -663,137 +604,30 @@ export function CharacterVlogScriptEditor({
                     </SelectContent>
                   </Select>
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Video Model */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-5 space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="relative p-1 rounded-md">
-                    <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
-                    <Film className="w-3.5 h-3.5 text-white relative z-10" />
-                  </div>
-                  <Label className="text-base font-semibold text-white">Video Model</Label>
-                  <span className="text-xs text-white/40">Animation engine</span>
-                </div>
 
                 <div className="space-y-2">
-                  <Select 
-                    value={selectedVideoModel} 
-                    onValueChange={handleVideoModelChange}
-                  >
-                    <SelectTrigger className="h-10 bg-[#0f0f0f] border-white/10 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#121212] border-white/10 max-h-[400px]">
-                      {VIDEO_MODELS.map((model) => {
-                        const maxDuration = Math.max(...model.durations);
-                        const maxResolution = model.resolutions[model.resolutions.length - 1];
-                        return (
-                          <SelectItem 
-                            key={model.value} 
-                            value={model.value}
-                            className="text-white focus:bg-[#FF4081]/20 focus:text-white py-3"
-                          >
-                            <div className="flex items-start justify-between w-full gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="font-medium text-white flex items-center gap-2">
-                                  {model.label}
-                                  {model.badge && (
-                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-white/20 text-white/70">
-                                      {model.badge}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="text-xs text-white/50 mt-0.5">
-                                  {model.provider} • {model.description}
-                                </div>
-                              </div>
-                              <div className="flex flex-col items-end gap-0.5 text-[10px] text-white/40 flex-shrink-0">
-                                <span>↑ {maxDuration}s</span>
-                                <span>{maxResolution}</span>
-                              </div>
-                            </div>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-
-                  {/* Model Info */}
-                  {selectedVideoModel && (() => {
-                    const model = VIDEO_MODELS.find(m => m.value === selectedVideoModel);
-                    if (!model) return null;
-                    
-                    return (
-                      <div className="bg-[#0f0f0f] rounded-lg p-3 space-y-1.5 border border-white/5">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-white/50">Max Duration</span>
-                          <span className="text-white font-medium">{Math.max(...model.durations)}s</span>
-                        </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-white/50">Max Resolution</span>
-                          <span className="text-white font-medium">{model.resolutions[model.resolutions.length - 1]}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-white/50">Audio Support</span>
-                          <span className={cn(
-                            "font-medium",
-                            model.hasAudio ? "text-green-400" : "text-white/40"
-                          )}>
-                            {model.hasAudio ? "Yes" : "No"}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Image Model */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-5 space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="relative p-1 rounded-md">
-                    <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
-                    <Camera className="w-3.5 h-3.5 text-white relative z-10" />
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4" style={{ color: '#FF4081' }} />
+                    <Label className="text-sm font-medium text-white/90">Language</Label>
                   </div>
-                  <Label className="text-base font-semibold text-white">Image Model</Label>
-                  <span className="text-xs text-white/40">For generating keyframes</span>
-                </div>
-
-                <div className="space-y-2">
                   <Select 
-                    value={selectedImageModel} 
-                    onValueChange={handleImageModelChange}
+                    value={languageValue} 
+                    onValueChange={(value) => {
+                      setLanguage(value);
+                      onLanguageChange?.(value);
+                    }}
                   >
-                    <SelectTrigger className="h-10 bg-[#0f0f0f] border-white/10 text-white">
+                    <SelectTrigger className="h-9 bg-white/5 border-white/10 text-white">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#121212] border-white/10 max-h-[400px]">
-                      {IMAGE_MODELS.map((model) => (
+                    <SelectContent className="bg-[#0a0a0a] border-white/10">
+                      {LANGUAGES.map((lang) => (
                         <SelectItem 
-                          key={model.value} 
-                          value={model.value}
-                          className="text-white focus:bg-[#FF4081]/20 focus:text-white py-3"
+                          key={lang} 
+                          value={lang}
+                          className="text-white focus:bg-[#FF4081]/20 focus:text-white"
                         >
-                          <div className="flex items-start justify-between w-full gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-white flex items-center gap-2">
-                                {model.label}
-                                {model.badge && (
-                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-white/20 text-white/70">
-                                    {model.badge}
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="text-xs text-white/50 mt-0.5">
-                                {model.provider} • {model.description}
-                              </div>
-                            </div>
-                          </div>
+                          {lang}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -802,146 +636,388 @@ export function CharacterVlogScriptEditor({
               </CardContent>
             </Card>
 
-            {/* Aspect Ratio */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-5 space-y-3">
-                <Label className="text-base font-semibold text-white">Aspect Ratio</Label>
-                <p className="text-sm text-white/50">
-                  Showing ratios compatible with both image and video models
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {(() => {
-                    const compatibleRatios = getCompatibleAspectRatios(selectedImageModel, selectedVideoModel);
-                    const ratiosToShow = ALL_ASPECT_RATIOS.filter(ratio => 
-                      compatibleRatios.includes(ratio.value)
-                    );
-                    
-                    if (ratiosToShow.length === 0) {
-                      return (
-                        <div className="col-span-3 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
-                          <p className="text-sm text-red-400">
-                            No compatible aspect ratios found for selected models.
-                          </p>
-                        </div>
-                      );
-                    }
-                    
-                    return ratiosToShow.map((ratio) => {
-                      const Icon = ratio.icon;
-                      return (
-                        <button
-                          key={ratio.value}
-                          onClick={() => handleAspectRatioChange(ratio.value)}
-                          className={cn(
-                            "p-3 rounded-lg border transition-all text-center relative overflow-hidden",
-                            selectedAspectRatio === ratio.value
-                              ? "border-white/20"
-                              : "bg-white/5 border-white/10 hover:bg-white/10"
-                          )}
-                          style={selectedAspectRatio === ratio.value ? {
-                            background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
-                          } : undefined}
+            {/* Sound Settings */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-4">
+                {/* Background Music */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Radio className="w-4 h-4" style={{ color: '#FF4081' }} />
+                      <Label className="text-sm font-medium text-white/90">Background Music</Label>
+                    </div>
+                    <div className="flex bg-white/5 rounded-lg p-1 border border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBackgroundMusicEnabled(true);
+                          onBackgroundMusicEnabledChange?.(true);
+                        }}
+                        className={cn(
+                          "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
+                          backgroundMusicEnabledState ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
+                        )}
+                      >
+                        On
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBackgroundMusicEnabled(false);
+                          onBackgroundMusicEnabledChange?.(false);
+                        }}
+                        className={cn(
+                          "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
+                          !backgroundMusicEnabledState ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
+                        )}
+                      >
+                        Off
+                      </button>
+                    </div>
+                  </div>
+                  {backgroundMusicEnabledState && (
+                    <p className="text-xs text-white/40">
+                      Background music will be generated in the Soundscape phase based on your mood and atmosphere settings.
+                    </p>
+                  )}
+                </div>
+
+                {/* Voiceover Settings */}
+                <div className="space-y-3 pt-3 border-t border-white/10">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Mic className="w-4 h-4" style={{ color: '#FF4081' }} />
+                      <Label className="text-sm font-medium text-white/90">Enable Voiceover</Label>
+                    </div>
+                    <div className="flex bg-white/5 rounded-lg p-1 border border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVoiceOverEnabled(true);
+                        }}
+                        className={cn(
+                          "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
+                          voiceOverEnabledState ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
+                        )}
+                      >
+                        On
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVoiceOverEnabled(false);
+                        }}
+                        className={cn(
+                          "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
+                          !voiceOverEnabledState ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
+                        )}
+                      >
+                        Off
+                      </button>
+                    </div>
+                  </div>
+
+                  {voiceOverEnabledState && (
+                    <div className="space-y-3">
+                      {/* Voiceover Language */}
+                      <div className="space-y-2">
+                        <Label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Language</Label>
+                        <Select 
+                          value={voiceoverLanguageState}
+                          onValueChange={(value: 'en' | 'ar') => {
+                            setVoiceoverLanguage(value);
+                            onVoiceoverLanguageChange?.(value);
+                          }}
                         >
-                          <Icon className="h-4 w-4 mx-auto mb-1 text-white" />
-                          <div className="font-semibold text-xs text-white">{ratio.label}</div>
-                          <div className="text-[9px] text-white/40">{ratio.description}</div>
-                        </button>
+                          <SelectTrigger className="h-9 bg-white/5 border-white/10 text-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#0a0a0a] border-white/10">
+                            <SelectItem 
+                              value="en"
+                              className="text-white focus:bg-[#FF4081]/20 focus:text-white"
+                            >
+                              English (US)
+                            </SelectItem>
+                            <SelectItem 
+                              value="ar"
+                              className="text-white focus:bg-[#FF4081]/20 focus:text-white"
+                            >
+                              Arabic (العربية)
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Text Overlay */}
+                      <div className="flex items-center justify-between pt-2">
+                        <Label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Text Overlay</Label>
+                        <div className="flex bg-white/5 rounded-lg p-1 border border-white/10">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTextOverlayEnabled(true);
+                              onTextOverlayEnabledChange?.(true);
+                            }}
+                            className={cn(
+                              "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
+                              textOverlayEnabledState ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
+                            )}
+                          >
+                            On
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTextOverlayEnabled(false);
+                              onTextOverlayEnabledChange?.(false);
+                            }}
+                            className={cn(
+                              "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
+                              !textOverlayEnabledState ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/60"
+                            )}
+                          >
+                            Off
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Video & Image Models */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-4">
+                {/* Generation Method & Compatibility Info */}
+                {referenceMode && (
+                  <div className="space-y-2 pb-4 border-b border-white/10">
+                    <div className="p-3 rounded-lg bg-white/5 border border-white/10">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-white/50">Generation Method:</span>
+                        <span className="text-sm font-medium text-white">
+                          {referenceMode === '1F' ? 'Image Reference Mode' : 
+                           referenceMode === '2F' ? 'Start/End Frame Mode' : 
+                           'AI Auto Mode (Start/End)'}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Show compatibility info for different modes */}
+                    {(() => {
+                      // Map reference mode to video generation mode for compatibility check
+                      const videoGenMode = referenceMode === '1F' ? 'image-reference' : 'start-end-frame';
+                      const availableModels = getAvailableVideoModels(videoGenMode);
+                      const totalModels = VIDEO_MODELS.length;
+                      
+                      // Different messages based on mode
+                      if (referenceMode === '1F') {
+                        return (
+                          <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
+                            <div className="text-blue-400 mt-0.5">ℹ️</div>
+                            <div className="flex-1 text-xs text-blue-200/90">
+                              <span className="font-semibold">{availableModels.length} of {totalModels} models compatible</span> with Image Reference mode.
+                              Models need single image support for video generation.
+                            </div>
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                            <div className="text-amber-400 mt-0.5">ℹ️</div>
+                            <div className="flex-1 text-xs text-amber-200/90">
+                              <span className="font-semibold">{availableModels.length} of {totalModels} models compatible</span> with Start/End Frame mode.
+                              Models need both start and end frame support.
+                            </div>
+                          </div>
+                        );
+                      }
+                    })()}
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Film className="w-4 h-4" style={{ color: '#FF4081' }} />
+                    <Label className="text-sm font-medium text-white/90">Video Model</Label>
+                  </div>
+                  <Select 
+                    value={selectedVideoModel} 
+                    onValueChange={handleVideoModelChange}
+                  >
+                    <SelectTrigger className="h-auto min-h-[40px] py-2 bg-white/5 border-white/10 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0a0a0a] border-white/10 max-h-[400px]">
+                      {VIDEO_MODELS.map((model) => (
+                        <SelectItem 
+                          key={model.value} 
+                          value={model.value}
+                          className="text-white focus:bg-[#FF4081]/20 focus:text-white py-2.5"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-xs">{model.label}</span>
+                            {model.badge && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-white/20 text-white/70">
+                                {model.badge}
+                              </Badge>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-4 h-4" style={{ color: '#FF4081' }} />
+                    <Label className="text-sm font-medium text-white/90">Image Model</Label>
+                  </div>
+                  <Select 
+                    value={selectedImageModel} 
+                    onValueChange={handleImageModelChange}
+                  >
+                    <SelectTrigger className="h-auto min-h-[40px] py-2 bg-white/5 border-white/10 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0a0a0a] border-white/10 max-h-[400px]">
+                      {IMAGE_MODELS.map((model) => (
+                        <SelectItem 
+                          key={model.value} 
+                          value={model.value}
+                          className="text-white focus:bg-[#FF4081]/20 focus:text-white py-2.5"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-xs">{model.label}</span>
+                            {model.badge && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-white/20 text-white/70">
+                                {model.badge}
+                              </Badge>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <RectangleHorizontal className="w-4 h-4" style={{ color: '#FF4081' }} />
+                    <Label className="text-sm font-medium text-white/90">Aspect Ratio</Label>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(() => {
+                      const compatibleRatios = getCompatibleAspectRatios(selectedImageModel, selectedVideoModel);
+                      const ratiosToShow = ALL_ASPECT_RATIOS.filter(ratio => 
+                        compatibleRatios.includes(ratio.value)
                       );
-                    });
-                  })()}
+                      
+                      return ratiosToShow.map((ratio) => {
+                        const Icon = ratio.icon;
+                        return (
+                          <button
+                            key={ratio.value}
+                            onClick={() => handleAspectRatioChange(ratio.value)}
+                            className={cn(
+                              "p-2 rounded-lg border transition-all text-center relative overflow-hidden",
+                              selectedAspectRatio === ratio.value
+                                ? "border-white/20"
+                                : "bg-white/5 border-white/10 hover:bg-white/10"
+                            )}
+                            style={selectedAspectRatio === ratio.value ? {
+                              background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                            } : undefined}
+                          >
+                            <Icon className="h-3.5 w-3.5 mx-auto mb-0.5 text-white" />
+                            <div className="font-semibold text-[10px] text-white">{ratio.label}</div>
+                          </button>
+                        );
+                      });
+                    })()}
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Genres */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="relative p-1 rounded-md">
-                      <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
-                      <Palette className="w-4 h-4 text-white relative z-10" />
+            {/* Genres & Tones */}
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Palette className="w-4 h-4" style={{ color: '#FF4081' }} />
+                      <Label className="text-sm font-medium text-white/90">Genres</Label>
                     </div>
-                    <Label className="text-lg font-semibold text-white">Genres</Label>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-white/10 border-white/20 text-white/70">{selectedGenres.length}/3</Badge>
                   </div>
-                  <Badge variant="outline" className="bg-[#0f0f0f] border-white/10 text-white/70">{selectedGenres.length}/3</Badge>
+                  <div className="flex flex-wrap gap-1.5">
+                    {GENRES.map((genre) => (
+                      <button
+                        key={genre}
+                        className={cn(
+                          "px-2.5 py-1 rounded-md border text-[11px] font-medium transition-all hover-elevate relative overflow-hidden",
+                          selectedGenres.includes(genre)
+                            ? "border-white/20 text-white"
+                            : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70"
+                        )}
+                        style={selectedGenres.includes(genre) ? {
+                          background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                        } : undefined}
+                        onClick={() => toggleGenre(genre)}
+                        data-testid={`button-genre-${genre.toLowerCase()}`}
+                      >
+                        {genre}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <p className="text-sm text-white/50">Select up to 3 genres</p>
-                <div className="flex flex-wrap gap-2">
-                  {GENRES.map((genre) => (
-                    <button
-                      key={genre}
-                      className={cn(
-                        "px-3 py-1.5 rounded-lg border text-xs font-medium transition-all hover-elevate relative overflow-hidden",
-                        selectedGenres.includes(genre)
-                          ? "border-white/20 text-white"
-                          : "bg-[#0f0f0f] border-white/10 hover:bg-white/10 text-white/70"
-                      )}
-                      style={selectedGenres.includes(genre) ? {
-                        background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
-                      } : undefined}
-                      onClick={() => toggleGenre(genre)}
-                      data-testid={`button-genre-${genre.toLowerCase()}`}
-                    >
-                      {genre}
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
 
-            {/* Tones */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="relative p-1 rounded-md">
-                      <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
-                      <MessageSquare className="w-4 h-4 text-white relative z-10" />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4" style={{ color: '#FF4081' }} />
+                      <Label className="text-sm font-medium text-white/90">Tones</Label>
                     </div>
-                    <Label className="text-lg font-semibold text-white">Tones</Label>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-white/10 border-white/20 text-white/70">{selectedTones.length}/3</Badge>
                   </div>
-                  <Badge variant="outline" className="bg-[#0f0f0f] border-white/10 text-white/70">{selectedTones.length}/3</Badge>
-                </div>
-                <p className="text-sm text-white/50">Select up to 3 tones</p>
-                <div className="flex flex-wrap gap-2">
-                  {TONES.map((tone) => (
-                    <button
-                      key={tone}
-                      className={cn(
-                        "px-3 py-1.5 rounded-lg border text-xs font-medium transition-all hover-elevate relative overflow-hidden",
-                        selectedTones.includes(tone)
-                          ? "border-white/20 text-white"
-                          : "bg-[#0f0f0f] border-white/10 hover:bg-white/10 text-white/70"
-                      )}
-                      style={selectedTones.includes(tone) ? {
-                        background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
-                      } : undefined}
-                      onClick={() => toggleTone(tone)}
-                      data-testid={`button-tone-${tone.toLowerCase()}`}
-                    >
-                      {tone}
-                    </button>
-                  ))}
+                  <div className="flex flex-wrap gap-1.5">
+                    {TONES.map((tone) => (
+                      <button
+                        key={tone}
+                        className={cn(
+                          "px-2.5 py-1 rounded-md border text-[11px] font-medium transition-all hover-elevate relative overflow-hidden",
+                          selectedTones.includes(tone)
+                            ? "border-white/20 text-white"
+                            : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70"
+                        )}
+                        style={selectedTones.includes(tone) ? {
+                          background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
+                        } : undefined}
+                        onClick={() => toggleTone(tone)}
+                        data-testid={`button-tone-${tone.toLowerCase()}`}
+                      >
+                        {tone}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Structure Settings */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="relative p-1 rounded-md">
-                    <div className={cn("absolute inset-0 rounded-md bg-gradient-to-br opacity-60", accentClasses)} />
-                    <Grid3x3 className="w-4 h-4 text-white relative z-10" />
-                  </div>
-                  <Label className="text-lg font-semibold text-white">Structure Settings</Label>
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Grid3x3 className="w-4 h-4" style={{ color: '#FF4081' }} />
+                  <Label className="text-base font-semibold text-white">Structure</Label>
                 </div>
                 
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {/* Number of Scenes */}
                   <div className="space-y-2">
-                    <Label className="text-sm text-white/70">Number of Scenes</Label>
+                    <Label className="text-xs text-white/70">Scenes</Label>
                     <div className="flex gap-2">
                       <button
                         onClick={() => {
@@ -949,10 +1025,10 @@ export function CharacterVlogScriptEditor({
                           onNumberOfScenesChange?.('auto');
                         }}
                         className={cn(
-                          "px-4 py-2 rounded-lg text-sm font-medium border transition-all relative overflow-hidden",
+                          "px-3 py-1.5 rounded-md text-xs font-medium border transition-all relative overflow-hidden",
                           selectedNumberOfScenes === 'auto'
                             ? "border-white/20 text-white"
-                            : "bg-[#0f0f0f] border-white/10 text-white/70 hover:bg-white/10"
+                            : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
                         )}
                         style={selectedNumberOfScenes === 'auto' ? {
                           background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
@@ -972,16 +1048,15 @@ export function CharacterVlogScriptEditor({
                             onNumberOfScenesChange?.(val);
                           }
                         }}
-                        placeholder="Enter number"
-                        className="flex-1 bg-[#0f0f0f] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FF4081]/70 focus:ring-1 focus:ring-[#FF6B4A]/50 placeholder:text-white/30"
+                        placeholder="Number"
+                        className="flex-1 bg-white/5 border border-white/10 rounded-md px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4081]/70 focus:ring-1 focus:ring-[#FF6B4A]/50 placeholder:text-white/30"
                       />
                     </div>
-                    <p className="text-xs text-white/40">AI will determine optimal scene count if set to Auto</p>
                   </div>
 
                   {/* Shots per Scene */}
                   <div className="space-y-2">
-                    <Label className="text-sm text-white/70">Shots per Scene</Label>
+                    <Label className="text-xs text-white/70">Shots/Scene</Label>
                     <div className="flex gap-2">
                       <button
                         onClick={() => {
@@ -989,10 +1064,10 @@ export function CharacterVlogScriptEditor({
                           onShotsPerSceneChange?.('auto');
                         }}
                         className={cn(
-                          "px-4 py-2 rounded-lg text-sm font-medium border transition-all relative overflow-hidden",
+                          "px-3 py-1.5 rounded-md text-xs font-medium border transition-all relative overflow-hidden",
                           selectedShotsPerScene === 'auto'
                             ? "border-white/20 text-white"
-                            : "bg-[#0f0f0f] border-white/10 text-white/70 hover:bg-white/10"
+                            : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
                         )}
                         style={selectedShotsPerScene === 'auto' ? {
                           background: `linear-gradient(to bottom right, rgba(255, 64, 129, 0.6), rgba(255, 92, 141, 0.6), rgba(255, 107, 74, 0.6))`
@@ -1012,11 +1087,10 @@ export function CharacterVlogScriptEditor({
                             onShotsPerSceneChange?.(val);
                           }
                         }}
-                        placeholder="Enter number"
-                        className="flex-1 bg-[#0f0f0f] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FF4081]/70 focus:ring-1 focus:ring-[#FF6B4A]/50 placeholder:text-white/30"
+                        placeholder="Number"
+                        className="flex-1 bg-white/5 border border-white/10 rounded-md px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF4081]/70 focus:ring-1 focus:ring-[#FF6B4A]/50 placeholder:text-white/30"
                       />
                     </div>
-                    <p className="text-xs text-white/40">AI will vary shot count per scene if set to Auto</p>
                   </div>
                 </div>
               </CardContent>
@@ -1025,22 +1099,19 @@ export function CharacterVlogScriptEditor({
         </ScrollArea>
       </div>
 
-      {/* RIGHT COLUMN: SCRIPT GENERATION (60% width) */}
-      <div className="flex-1 relative flex flex-col overflow-hidden bg-[#1a1a1a]">
+      {/* RIGHT COLUMN: SCRIPT GENERATION (65% width) */}
+      <div className="flex-1 relative flex flex-col overflow-hidden bg-black/40 backdrop-blur-xl">
         <ScrollArea className="flex-1 h-full">
-          <div className="p-6 space-y-6 pb-4">
+          <div className="p-6 space-y-4 pb-12">
             {/* Story Idea Section */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center justify-between">
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
-                    <div className="relative p-1.5 rounded-lg">
-                      <div className={cn("absolute inset-0 rounded-lg bg-gradient-to-br opacity-60", accentClasses)} />
-                      <Sparkles className="w-4 h-4 text-white relative z-10" />
-                    </div>
-                    <h3 className="text-base font-semibold text-white">Your Vlog Idea</h3>
+                    <Sparkles className="w-4 h-4" style={{ color: '#FF4081' }} />
+                    <h3 className="text-sm font-semibold text-white">Vlog Idea</h3>
                   </div>
-                  <span className="text-xs text-white/40">{ideaCharCount} characters</span>
+                  <span className="text-[10px] text-white/40">{ideaCharCount} chars</span>
                 </div>
                 
                 <Textarea
@@ -1051,7 +1122,7 @@ export function CharacterVlogScriptEditor({
                     onUserPromptChange?.(e.target.value);
                   }}
                   className={cn(
-                    "min-h-[120px] resize-none bg-[#0f0f0f] border-white/10 text-white",
+                    "min-h-[100px] resize-none bg-white/5 border-white/10 text-white text-sm",
                     "focus:outline-none focus:border-[#FF4081]/70 focus:ring-1 focus:ring-[#FF6B4A]/50 transition-all",
                     "placeholder:text-white/30"
                   )}
@@ -1064,7 +1135,7 @@ export function CharacterVlogScriptEditor({
                   className={cn(
                     "bg-gradient-to-r w-full",
                     accentClasses,
-                    "text-white hover:opacity-90 h-auto py-2.5 rounded-lg font-medium",
+                    "text-white hover:opacity-90 h-9 rounded-lg font-medium text-sm",
                     "disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   )}
                   data-testid="button-expand-script"
@@ -1072,12 +1143,12 @@ export function CharacterVlogScriptEditor({
                   {expandScriptMutation.isPending ? (
                     <div className="flex items-center gap-2">
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Generating Script...</span>
+                      <span>Generating...</span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
                       <Wand2 className="w-4 h-4" />
-                      <span>Generate Full Script</span>
+                      <span>Generate Script</span>
                     </div>
                   )}
                 </Button>
@@ -1085,23 +1156,15 @@ export function CharacterVlogScriptEditor({
             </Card>
 
             {/* Generated Script Section */}
-            <Card className="bg-[#252525] border-white/[0.06]">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="relative p-2 rounded-lg">
-                      <div className={cn("absolute inset-0 rounded-lg bg-gradient-to-br opacity-60", accentClasses)} />
-                      <FileText className="w-5 h-5 text-white relative z-10" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-base text-white">Generated Script</h3>
-                      <p className="text-xs text-white/40">
-                        {hasGeneratedOnce ? "Edit and refine your script" : "Generate a script first"}
-                      </p>
-                    </div>
+            <Card className="bg-white/[0.02] border-white/[0.06]">
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4" style={{ color: '#FF4081' }} />
+                    <h3 className="font-semibold text-sm text-white">Generated Script</h3>
                   </div>
                   {hasGeneratedOnce && (
-                    <div className="flex items-center gap-4 text-xs text-white/40">
+                    <div className="flex items-center gap-2 text-[10px] text-white/40">
                       <span>{scriptCharCount} chars</span>
                       <span>•</span>
                       <span>{wordCount} words</span>
@@ -1109,14 +1172,14 @@ export function CharacterVlogScriptEditor({
                   )}
                 </div>
 
-                <div className="relative rounded-lg border border-white/10 bg-white/[0.02] overflow-hidden min-h-[300px]">
+                <div className="relative rounded-lg border border-white/10 bg-white/[0.02] overflow-hidden min-h-[400px]">
                   <Textarea
                     value={generatedScript}
                     onChange={(e) => handleGeneratedScriptChange(e.target.value)}
                     placeholder={hasGeneratedOnce ? "Edit your AI-generated script here..." : "Generate a script from your vlog idea first. The AI-generated script will appear here and you can edit it."}
                     disabled={!hasGeneratedOnce}
                     className={cn(
-                      "w-full h-full min-h-[300px] bg-transparent border-0 p-5 text-[15px] leading-relaxed",
+                      "w-full h-full min-h-[400px] bg-transparent border-0 p-4 text-sm leading-relaxed",
                       "focus:outline-none focus:ring-0 resize-none",
                       "placeholder:text-white/20 text-white/90",
                       "scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"

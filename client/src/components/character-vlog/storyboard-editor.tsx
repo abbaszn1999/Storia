@@ -19,6 +19,8 @@ import type { Character, Location } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 import { MentionTextarea } from "./mention-textarea";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
+import { VIDEO_MODELS as VIDEO_MODEL_CONFIGS, getVideoModelConfig, getAvailableVideoModels, isModelCompatible } from "@/constants/video-models";
+import { IMAGE_MODELS as IMAGE_MODEL_CONFIGS, getImageModelConfig, getDefaultImageModel } from "@/constants/image-models";
 import {
   DndContext,
   closestCenter,
@@ -37,29 +39,28 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-const VIDEO_MODELS = [
-  "Kling AI",
-  "Runway Gen-4",
-  "Luma Dream Machine",
-  "Pika 2.0",
-  "Veo 2",
-  "Minimax",
-];
+// Use actual video model values from config
+const VIDEO_MODELS = VIDEO_MODEL_CONFIGS.map(m => m.value);
 
-const IMAGE_MODELS = [
-  "Flux",
-  "Midjourney",
-  "Nano Banana",
-  "GPT Image",
-];
+// Get display label for a video model value
+const getVideoModelLabel = (value: string): string => {
+  const config = getVideoModelConfig(value);
+  return config?.label || value;
+};
 
-const VIDEO_MODEL_DURATIONS: { [key: string]: number[] } = {
-  "Kling AI": [5, 10],
-  "Runway Gen-4": [5, 10],
-  "Luma Dream Machine": [5],
-  "Pika 2.0": [3],
-  "Veo 2": [8],
-  "Minimax": [6],
+// Get durations for a video model
+const getVideoModelDurations = (value: string): number[] => {
+  const config = getVideoModelConfig(value);
+  return config?.durations || [5, 10];
+};
+
+// Use actual image model values from config
+const IMAGE_MODELS = IMAGE_MODEL_CONFIGS.map(m => m.value);
+
+// Get display label for an image model value
+const getImageModelLabel = (value: string): string => {
+  const config = getImageModelConfig(value);
+  return config?.label || value;
 };
 
 const LIGHTING_OPTIONS = [
@@ -169,16 +170,25 @@ interface StoryboardEditorProps {
   referenceImages: ReferenceImage[];
   characters: Character[];
   locations: Location[];
-  voiceActorId: string | null;
+  voiceActorId?: string | null;  // Optional - voice selection moved to Step 5
   voiceOverEnabled: boolean;
+  backgroundMusicEnabled: boolean;
+  voiceoverLanguage: 'en' | 'ar';
+  textOverlayEnabled: boolean;
   continuityLocked: boolean;
   continuityGroups: { [sceneId: string]: any[] };
   isCommerceMode?: boolean;
   isLogoMode?: boolean;
   isCharacterVlogMode?: boolean;
-  onVoiceActorChange: (voiceActorId: string) => void;
+  step1ImageModel?: string;  // Image model from Step 1 (fallback for scene dropdowns)
+  step1VideoModel?: string;  // Video model from Step 1 (fallback for scene dropdowns)
+  onVoiceActorChange?: (voiceActorId: string) => void;  // Optional - voice selection moved to Step 5
   onVoiceOverToggle: (enabled: boolean) => void;
+  onBackgroundMusicEnabledChange: (enabled: boolean) => void;
+  onVoiceoverLanguageChange: (language: 'en' | 'ar') => void;
+  onTextOverlayEnabledChange: (enabled: boolean) => void;
   onGenerateShot: (shotId: string) => void;
+  onGenerateSingleImage?: (shotId: string) => Promise<void>;  // Generate image for single shot
   onRegenerateShot: (shotId: string) => void;
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
   onUpdateShotVersion?: (shotId: string, versionId: string, updates: Partial<ShotVersion>) => void;
@@ -192,6 +202,13 @@ interface StoryboardEditorProps {
   onAddShot?: (sceneId: string, afterShotIndex: number) => void;
   onDeleteScene?: (sceneId: string) => void;
   onDeleteShot?: (shotId: string) => void;
+  onGenerateSceneImages?: (sceneId: string) => Promise<void>;  // Batch image generation for scene shots
+  isGeneratingImages?: boolean;  // True when batch image generation is in progress
+  generatingShotIds?: Set<string>;  // Shot IDs currently being generated
+  onGenerateSceneVideos?: (sceneId: string) => Promise<void>;  // Batch video generation for scene shots
+  isGeneratingVideos?: boolean;  // True when batch video generation is in progress
+  generatingVideoShotIds?: Set<string>;  // Shot IDs currently generating videos
+  onGenerateSingleVideo?: (shotId: string) => void;  // Generate/regenerate video for single shot
   onNext: () => void;
 }
 
@@ -345,17 +362,39 @@ function SortableShotCard({
   }, [version, activeFrame, narrativeMode, isConnectedToPrevious, previousShotVersion?.endFramePrompt, previousShotVersion?.endFrameUrl]);
 
   // Auto-sync: Watch previousShotVersion?.endFrameUrl and update current shot's start frame display
+  // ONLY if the start frame was actually inherited (not independently generated)
   useEffect(() => {
     if (isConnectedToPrevious && previousShotVersion?.endFrameUrl && narrativeMode === "start-end" && activeFrame === "start") {
-      // Previous shot's end frame was generated/regenerated - update current shot's start frame
-      if (onUpdateShotVersion && version) {
-        onUpdateShotVersion(shot.id, version.id, {
-          startFrameUrl: previousShotVersion.endFrameUrl,
-        });
+      // Check if this shot's start frame was actually inherited (marked in inheritance map)
+      // If the shot has its own generated start frame, DON'T overwrite it
+      const wasInherited = shotInheritedPrompt; // This indicates the start frame is meant to be inherited
+      
+      if (wasInherited && onUpdateShotVersion && version) {
+        // Only sync if the frame was inherited AND current start frame is missing or matches previous end frame
+        // This prevents overwriting independently generated start frames
+        const shouldSync = !version.startFrameUrl || version.startFrameUrl === previousShotVersion.endFrameUrl;
+        
+        if (shouldSync) {
+          console.log('[storyboard-editor] Auto-syncing inherited start frame from previous shot:', {
+            shotId: shot.id,
+            previousEndFrame: previousShotVersion.endFrameUrl,
+            currentStartFrame: version.startFrameUrl,
+          });
+          
+          onUpdateShotVersion(shot.id, version.id, {
+            startFrameUrl: previousShotVersion.endFrameUrl,
+          });
+        } else {
+          console.log('[storyboard-editor] Skipping auto-sync - shot has its own generated start frame:', {
+            shotId: shot.id,
+            currentStartFrame: version.startFrameUrl,
+            previousEndFrame: previousShotVersion.endFrameUrl,
+          });
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previousShotVersion?.endFrameUrl, isConnectedToPrevious, narrativeMode, activeFrame]);
+  }, [previousShotVersion?.endFrameUrl, isConnectedToPrevious, narrativeMode, activeFrame, shotInheritedPrompt]);
 
   // Generate image for a specific frame
   const handleGenerateImage = async (frame: "start" | "end" | "image") => {
@@ -515,12 +554,19 @@ function SortableShotCard({
     setGeneratingVideo(true);
 
     try {
+      // Send current video model and duration from the UI state
+      const requestBody = {
+        videoModel: shot.videoModel || sceneModel || undefined,
+        videoDuration: version?.videoDuration || shot.duration || undefined,
+      };
+
       const response = await fetch(`/api/character-vlog/videos/${videoId}/shots/${shot.id}/generate-video`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: 'include',
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -1140,19 +1186,18 @@ function SortableShotCard({
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Duration</Label>
                   <Select
-                    value={version?.videoDuration?.toString() || ""}
+                    value={version?.videoDuration?.toString() || shot.duration?.toString() || "5"}
                     onValueChange={(value) => onUpdateVideoDuration(shot.id, parseInt(value))}
-                    disabled={!shot.videoModel && !sceneModel}
                   >
                     <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-[#FF4081]/30" data-testid={`select-video-duration-${shot.id}`}>
                       <SelectValue placeholder="Select duration" />
                     </SelectTrigger>
                     <SelectContent className="bg-black/90 border-white/[0.06]">
-                      {(shot.videoModel && VIDEO_MODEL_DURATIONS[shot.videoModel] 
-                        ? VIDEO_MODEL_DURATIONS[shot.videoModel]
-                        : sceneModel && VIDEO_MODEL_DURATIONS[sceneModel]
-                        ? VIDEO_MODEL_DURATIONS[sceneModel]
-                        : []
+                      {(shot.videoModel 
+                        ? getVideoModelDurations(shot.videoModel)
+                        : sceneModel
+                        ? getVideoModelDurations(sceneModel)
+                        : [5, 10]
                       ).map((duration) => (
                         <SelectItem key={duration} value={duration.toString()}>
                           {duration}s
@@ -1160,36 +1205,6 @@ function SortableShotCard({
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground">Sound Effects</Label>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 text-xs px-2"
-                      onClick={() => {
-                        const autoPrompt = `Ambient sounds for ${shot.shotType.toLowerCase()} shot${shot.description ? ': ' + shot.description : ''}`;
-                        onUpdateShot(shot.id, { soundEffects: autoPrompt });
-                        toast({
-                          title: "Sound effects generated",
-                          description: "Auto-generated sound effects prompt",
-                        });
-                      }}
-                      data-testid={`button-auto-generate-sound-${shot.id}`}
-                    >
-                      <Wand2 className="mr-1 h-3 w-3" />
-                      Automatically
-                    </Button>
-                  </div>
-                  <Textarea
-                    placeholder="Describe sound effects for this shot..."
-                    value={shot.soundEffects || ""}
-                    onChange={(e) => onUpdateShot(shot.id, { soundEffects: e.target.value })}
-                    className="min-h-[60px] text-xs resize-none bg-white/[0.02] border-white/[0.06] focus:border-[#FF4081]/50"
-                    data-testid={`textarea-sound-effects-${shot.id}`}
-                  />
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -1241,13 +1256,21 @@ export function StoryboardEditor({
   locations,
   voiceActorId,
   voiceOverEnabled,
+  backgroundMusicEnabled,
+  voiceoverLanguage,
+  textOverlayEnabled,
   continuityLocked,
   continuityGroups,
   isCommerceMode = false,
   isLogoMode = false,
   isCharacterVlogMode = false,
+  step1ImageModel,
+  step1VideoModel,
   onVoiceActorChange,
   onVoiceOverToggle,
+  onBackgroundMusicEnabledChange,
+  onVoiceoverLanguageChange,
+  onTextOverlayEnabledChange,
   onGenerateShot,
   onRegenerateShot,
   onUpdateShot,
@@ -1262,6 +1285,14 @@ export function StoryboardEditor({
   onAddShot,
   onDeleteScene,
   onDeleteShot,
+  onGenerateSceneImages,
+  isGeneratingImages = false,
+  generatingShotIds = new Set(),
+  onGenerateSceneVideos,
+  isGeneratingVideos = false,
+  generatingVideoShotIds = new Set(),
+  onGenerateSingleVideo,
+  onGenerateSingleImage,
   onNext,
 }: StoryboardEditorProps) {
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null);
@@ -1403,29 +1434,30 @@ export function StoryboardEditor({
   const totalCount = allShots.length;
 
   // Helper to get current version of a shot
+  // ROBUST: Falls back to latest version when currentVersionId doesn't match
+  // This handles the case where client/server version IDs are different
   const getShotVersion = (shot: Shot): ShotVersion | null => {
-    if (!shot.currentVersionId) {
-      // Debug: log when shot has no currentVersionId
-      if (shotVersions[shot.id] && shotVersions[shot.id].length > 0) {
-        console.warn(`[storyboard-editor] Shot ${shot.id} has no currentVersionId but has ${shotVersions[shot.id].length} version(s)`, {
-          shotId: shot.id,
-          currentVersionId: shot.currentVersionId,
-          availableVersions: shotVersions[shot.id].map(v => v.id),
-        });
-      }
+    const versions = shotVersions[shot.id] || [];
+    
+    // If no versions exist at all, return null
+    if (versions.length === 0) {
       return null;
     }
-    const versions = shotVersions[shot.id] || [];
-    const version = versions.find((v) => v.id === shot.currentVersionId);
-    if (!version && versions.length > 0) {
-      console.warn(`[storyboard-editor] Shot ${shot.id} currentVersionId ${shot.currentVersionId} not found in versions`, {
-        shotId: shot.id,
-        currentVersionId: shot.currentVersionId,
-        availableVersions: versions.map(v => v.id),
-        versionsCount: versions.length,
-      });
+    
+    // If shot has a currentVersionId, try to find it
+    if (shot.currentVersionId) {
+      const version = versions.find((v) => v.id === shot.currentVersionId);
+      if (version) {
+        return version;
+      }
+      // Version ID not found - this happens when client/server IDs differ
+      // Fall back to latest version instead of returning null
+      console.log(`[storyboard-editor] Shot ${shot.id} version ID mismatch (expected: ${shot.currentVersionId}), using latest version`);
     }
-    return version || null;
+    
+    // Fallback: return the LATEST version (last in array)
+    // This ensures images always display even when IDs don't match
+    return versions[versions.length - 1];
   };
 
   // Helper to get the version being previewed (or active version if no preview)
@@ -1803,7 +1835,7 @@ export function StoryboardEditor({
   };
 
   const handleSelectVoice = (voiceId: string) => {
-    onVoiceActorChange(voiceId);
+    onVoiceActorChange?.(voiceId);
     setVoiceDropdownOpen(false);
   };
 
@@ -2010,18 +2042,29 @@ export function StoryboardEditor({
                   
                   <div className="space-y-2">
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Image Model</Label>
+                      <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Image Model</Label>
                       <Select
-                        value={scene.imageModel || IMAGE_MODELS[0]}
+                        value={scene.imageModel || step1ImageModel || getDefaultImageModel().value}
                         onValueChange={(value) => onUpdateScene?.(scene.id, { imageModel: value })}
                       >
-                        <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-[#FF4081]/30" data-testid={`select-scene-image-model-${scene.id}`}>
-                          <SelectValue />
+                        <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-scene-image-model-${scene.id}`}>
+                          <SelectValue>
+                            {scene.imageModel ? getImageModelLabel(scene.imageModel) : (step1ImageModel ? getImageModelLabel(step1ImageModel) : getDefaultImageModel().label)}
+                          </SelectValue>
                         </SelectTrigger>
-                        <SelectContent className="bg-black/90 border-white/[0.06]">
-                          {IMAGE_MODELS.map((model) => (
-                            <SelectItem key={model} value={model}>
-                              {model}
+                        <SelectContent className="bg-[#0a0a0a] border-white/10">
+                          {IMAGE_MODEL_CONFIGS.filter(model => 
+                            !aspectRatio || model.aspectRatios.includes(aspectRatio)
+                          ).map((model) => (
+                            <SelectItem key={model.value} value={model.value} className="focus:bg-[#FF4081]/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-[#FF4081]/30 data-[state=checked]:to-[#FF6B4A]/30">
+                              <div className="flex items-center gap-2">
+                                <span>{model.label}</span>
+                                {model.badge && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-[#FF4081]/50 text-[#FF4081]">
+                                    {model.badge}
+                                  </Badge>
+                                )}
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -2029,18 +2072,48 @@ export function StoryboardEditor({
                     </div>
 
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Video Model</Label>
+                      <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Video Model</Label>
                       <Select
-                        value={scene.videoModel || VIDEO_MODELS[0]}
-                        onValueChange={(value) => onUpdateScene?.(scene.id, { videoModel: value })}
+                        value={scene.videoModel || step1VideoModel || VIDEO_MODELS[0]}
+                        onValueChange={(value) => {
+                          // Update scene video model
+                          onUpdateScene?.(scene.id, { videoModel: value });
+                          
+                          // Update shot durations to be compatible with new model
+                          const newModelDurations = getVideoModelDurations(value);
+                          sceneShots.forEach((shot) => {
+                            // Only update shots that don't have their own video model override
+                            if (!shot.videoModel) {
+                              const currentDuration = shot.duration || 5;
+                              if (!newModelDurations.includes(currentDuration)) {
+                                // Find nearest supported duration
+                                const nearest = newModelDurations.reduce((prev, curr) => 
+                                  Math.abs(curr - currentDuration) < Math.abs(prev - currentDuration) ? curr : prev
+                                );
+                                onUpdateShot(shot.id, { duration: nearest });
+                              }
+                            }
+                          });
+                        }}
                       >
-                        <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-[#FF4081]/30" data-testid={`select-scene-video-model-${scene.id}`}>
-                          <SelectValue />
+                        <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-scene-video-model-${scene.id}`}>
+                          <SelectValue>
+                            {scene.videoModel ? getVideoModelLabel(scene.videoModel) : getVideoModelLabel(VIDEO_MODELS[0])}
+                          </SelectValue>
                         </SelectTrigger>
-                        <SelectContent className="bg-black/90 border-white/[0.06]">
-                          {VIDEO_MODELS.map((model) => (
-                            <SelectItem key={model} value={model}>
-                              {model}
+                        <SelectContent className="bg-[#0a0a0a] border-white/10">
+                          {VIDEO_MODEL_CONFIGS.filter(model => 
+                            !aspectRatio || model.aspectRatios.includes(aspectRatio)
+                          ).map((model) => (
+                            <SelectItem key={model.value} value={model.value} className="focus:bg-[#FF4081]/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-[#FF4081]/30 data-[state=checked]:to-[#FF6B4A]/30">
+                              <div className="flex items-center gap-2">
+                                <span>{model.label}</span>
+                                {model.badge && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-[#FF4081]/50 text-[#FF4081]">
+                                    {model.badge}
+                                  </Badge>
+                                )}
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -2090,25 +2163,54 @@ export function StoryboardEditor({
                       </>
                     )}
 
-                    <Button
-                      size="sm"
-                      className="w-full mt-2 bg-gradient-to-r from-[#FF4081] to-[#FF6B4A] hover:opacity-90 text-white"
-                      onClick={() => handleAnimateScene(scene.id, scene.title || 'Scene', sceneShots.length)}
-                      disabled={generatingSceneVideos === scene.id || sceneShots.length === 0}
-                      data-testid={`button-animate-scene-${scene.id}`}
-                    >
-                      {generatingSceneVideos === scene.id ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Animating...
-                        </>
-                      ) : (
-                        <>
-                          <Play className="mr-2 h-4 w-4" />
-                          Animate Scene's Shots
-                        </>
+                    {/* Generation Buttons */}
+                    <div className="space-y-2 mt-3">
+                      {/* Generate Images Button - Scene Specific */}
+                      {onGenerateSceneImages && (
+                        <Button
+                          size="sm"
+                          className="w-full bg-white/5 border border-white/10 hover:bg-white/10 text-white"
+                          onClick={() => onGenerateSceneImages(scene.id)}
+                          disabled={sceneShots.length === 0 || isGeneratingImages}
+                          data-testid={`button-generate-scene-images-${scene.id}`}
+                        >
+                          {isGeneratingImages && sceneShots.some(s => generatingShotIds.has(s.id)) ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Generating Images...
+                            </>
+                          ) : (
+                            <>
+                              <ImageIcon className="mr-2 h-4 w-4" />
+                              Generate Scene's Images
+                            </>
+                          )}
+                        </Button>
                       )}
-                    </Button>
+
+                      {/* Generate Videos Button - Scene Specific */}
+                      {onGenerateSceneVideos && (
+                        <Button
+                          size="sm"
+                          className="w-full bg-gradient-to-r from-[#FF4081] to-[#FF6B4A] hover:opacity-90 text-white"
+                          onClick={() => onGenerateSceneVideos(scene.id)}
+                          disabled={sceneShots.length === 0 || isGeneratingVideos}
+                          data-testid={`button-generate-scene-videos-${scene.id}`}
+                        >
+                          {isGeneratingVideos && sceneShots.some(s => generatingVideoShotIds.has(s.id)) ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Generating Videos...
+                            </>
+                          ) : (
+                            <>
+                              <Play className="mr-2 h-4 w-4" />
+                              Generate Scene's Videos
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
 
                     <div className="text-xs text-muted-foreground pt-2">
                       <div>{sceneShots.length} shots</div>
@@ -2144,6 +2246,43 @@ export function StoryboardEditor({
                           // Get previous shot's version for connected shots (to inherit end frame prompt)
                           const previousShot = getPreviousConnectedShot(scene.id, shotIndex);
                           const previousShotVersion = previousShot ? getShotVersion(previousShot) : null;
+                          
+                          // Calculate per-shot narrative mode based on shot data
+                          // Priority: shot.frameMode > version prompts > global narrativeMode
+                          let shotNarrativeMode: "image-reference" | "start-end" = narrativeMode;
+                          
+                          if (shot.frameMode) {
+                            // Use explicit frameMode if set
+                            shotNarrativeMode = shot.frameMode;
+                          } else if (version) {
+                            // Infer from version data: if has imagePrompt or imageUrl, it's image-reference
+                            // If has startFramePrompt/endFramePrompt or startFrameUrl/endFrameUrl, it's start-end
+                            const hasImageData = !!(version.imagePrompt || version.imageUrl);
+                            const hasStartEndData = !!(version.startFramePrompt || version.endFramePrompt || version.startFrameUrl || version.endFrameUrl);
+                            
+                            console.log(`[storyboard-editor] Shot ${shot.id} narrative mode detection:`, {
+                              shotId: shot.id,
+                              hasFrameMode: !!shot.frameMode,
+                              hasImageData,
+                              hasStartEndData,
+                              version: {
+                                imagePrompt: !!version.imagePrompt,
+                                imageUrl: !!version.imageUrl,
+                                startFramePrompt: !!version.startFramePrompt,
+                                endFramePrompt: !!version.endFramePrompt,
+                                startFrameUrl: !!version.startFrameUrl,
+                                endFrameUrl: !!version.endFrameUrl,
+                              },
+                              globalNarrativeMode: narrativeMode,
+                              calculatedMode: hasImageData && !hasStartEndData ? "image-reference" : hasStartEndData ? "start-end" : narrativeMode,
+                            });
+                            
+                            if (hasImageData && !hasStartEndData) {
+                              shotNarrativeMode = "image-reference";
+                            } else if (hasStartEndData) {
+                              shotNarrativeMode = "start-end";
+                            }
+                          }
 
                           return (
                             <>
@@ -2151,8 +2290,8 @@ export function StoryboardEditor({
                                 key={`${shot.id}-${isConnectedToPrevious}-${previousShotVersion?.id || 'none'}`}
                                 shot={shot}
                                 shotIndex={shotIndex}
-                                sceneModel={scene.videoModel || VIDEO_MODELS[0]}
-                                sceneImageModel={scene.imageModel || IMAGE_MODELS[0]}
+                                sceneModel={scene.videoModel || step1VideoModel || VIDEO_MODELS[0]}
+                                sceneImageModel={scene.imageModel || step1ImageModel || getDefaultImageModel().value}
                                 version={version}
                                 nextShotVersion={nextShotVersion}
                                 previousShotVersion={previousShotVersion}
@@ -2161,7 +2300,7 @@ export function StoryboardEditor({
                                 referenceImage={referenceImage}
                                 isGenerating={isGenerating}
                                 voiceOverEnabled={voiceOverEnabled}
-                                narrativeMode={narrativeMode}
+                                narrativeMode={shotNarrativeMode}
                                 aspectRatio={aspectRatio}
                                 isConnectedToNext={isConnectedToNext}
                                 showEndFrame={showEndFrame}
@@ -2184,7 +2323,7 @@ export function StoryboardEditor({
                               {/* Connection Link Icon and Add Shot Button */}
                               <div className="relative shrink-0 w-8 flex items-center justify-center">
                                 {/* Connection Link Icon - Always visible when connected (Start-End Mode Only) */}
-                                {narrativeMode === "start-end" && isConnectedToNext ? (
+                                {shotNarrativeMode === "start-end" && isConnectedToNext ? (
                                   <div 
                                     className="flex items-center justify-center w-8 h-8 rounded-full text-white shadow-lg border-2 border-[#FF4081]"
                                     style={{

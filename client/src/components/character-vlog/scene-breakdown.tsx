@@ -6,6 +6,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, User, MapPin } from "lucide-react";
+import { GenerationLoading } from "@/components/character-vlog/generation-loading";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -87,6 +88,7 @@ interface VlogShot {
   description: string;
   shotType: 'image-ref' | 'start-end'; // Frames Type (1F or 2F)
   cameraShot?: string; // Shot Type (camera angle)
+  duration?: number; // Shot duration in seconds
   isLinkedToPrevious: boolean;
   referenceTags: string[];
 }
@@ -1161,6 +1163,7 @@ export function CharacterVlogSceneBreakdown({
             description: shot.description,
             shotType: savedShotType || defaultFrameType,
             cameraShot: shot.cameraShot || 'Medium Shot',
+            duration: shot.duration, // Preserve shot duration from generator
             isLinkedToPrevious: shot.isLinkedToPrevious || false,
             referenceTags: shot.referenceTags || [],
           };
@@ -1201,16 +1204,20 @@ export function CharacterVlogSceneBreakdown({
       return;
     }
 
+    // Set loading state immediately to prevent empty state flash
+    setIsGeneratingBreakdown(true);
+    
     // Small delay to ensure component is fully mounted and props are loaded
     const timer = setTimeout(() => {
       // Double-check props weren't loaded during the delay
       if (propScenes && propScenes.length > 0) {
         console.log('[scene-breakdown] Props loaded during delay, skipping auto-generation');
+        setIsGeneratingBreakdown(false);
         return;
       }
       console.log('[scene-breakdown] Auto-generating breakdown on mount');
       handleGenerateBreakdown();
-    }, 1000); // Increased delay to allow props to load
+    }, 500); // Reduced delay since we show loading state immediately
     
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1285,6 +1292,7 @@ export function CharacterVlogSceneBreakdown({
             ? shot.shotType 
             : defaultFrameType,
           cameraShot: shot.cameraShot || 'Medium Shot',
+          duration: shot.duration, // Preserve shot duration from generator
           isLinkedToPrevious: shot.isLinkedToPrevious || false,
           referenceTags: shot.referenceTags || [],
         })),
@@ -1461,6 +1469,21 @@ export function CharacterVlogSceneBreakdown({
         }));
       });
 
+      // Build shots record from scenes (separate from scenes for server compatibility)
+      const shotsToSave: { [sceneId: string]: any[] } = {};
+      scenesToSave.forEach((scene, sceneIdx) => {
+        shotsToSave[scene.id] = scene.shots.map((shot, shotIdx) => ({
+          id: shot.id,
+          sceneId: shot.sceneId,
+          shotNumber: shotIdx + 1,
+          shotType: shot.shotType || defaultFrameType,
+          description: shot.description,
+          cameraShot: shot.cameraShot || 'Medium Shot',
+          duration: shot.duration, // ✅ Include shot duration for video generation
+          referenceTags: shot.referenceTags || [],
+        }));
+      });
+
       const response = await fetch(`/api/character-vlog/videos/${videoId}/step/3/settings`, {
         method: 'PATCH',
         headers: {
@@ -1470,6 +1493,7 @@ export function CharacterVlogSceneBreakdown({
         credentials: 'include',
         body: JSON.stringify({ 
           scenes: scenesToSave,
+          shots: shotsToSave, // ✅ Include shots separately for step3Data.shots
           continuityGroups: groupsToSave,
           continuityLocked: localContinuityLocked,
         }),
@@ -1525,6 +1549,7 @@ export function CharacterVlogSceneBreakdown({
           description: shot.description,
           dialogue: '',
           cameraShot: shot.cameraShot || 'Medium Shot',
+          duration: shot.duration, // ✅ FIX: Include shot duration for video generation
         }));
       });
 
@@ -1827,21 +1852,13 @@ export function CharacterVlogSceneBreakdown({
   // Show loading state while generating breakdown
   if (isGeneratingBreakdown) {
     return (
-      <div className="text-center py-16">
-        <div className={cn("h-16 w-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br flex items-center justify-center", accentClasses)}>
-          <Loader2 className="h-8 w-8 text-white animate-spin" />
-        </div>
-        <h3 className="text-xl font-semibold text-white mb-2">Your scenes and shots are in the making</h3>
-        <p className="text-white/50 mb-8 max-w-md mx-auto">
-          AI is analyzing your script and breaking it down into scenes and shots...
-        </p>
-        <div className="mb-4 space-y-2 text-sm text-white/70">
-          <div className="flex items-center justify-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span>Analyzing Script...</span>
-          </div>
-        </div>
-      </div>
+      <GenerationLoading
+        title="Generating Scene Breakdown"
+        description="AI is analyzing your script and breaking it down into scenes and shots"
+        currentStep="Analyzing Script..."
+        progress={50}
+        showDetails={false}
+      />
     );
   }
 
@@ -1920,7 +1937,7 @@ export function CharacterVlogSceneBreakdown({
                   shotType: shot.shotType === 'image-ref' ? 'image-ref' : 'start-end',
                   description: shot.description,
                   cameraMovement: shot.cameraShot || 'Medium Shot',
-                  duration: 3,
+                  duration: shot.duration || 5, // Use actual duration from shot generator
                   createdAt: new Date(),
                   updatedAt: new Date(),
                 }))
@@ -2034,7 +2051,7 @@ export function CharacterVlogSceneBreakdown({
                               shotType: shot.shotType === 'image-ref' ? 'image-ref' : 'start-end',
                               description: shot.description,
                               cameraMovement: shot.cameraShot || 'Medium Shot',
-                              duration: 3,
+                              duration: shot.duration || 5, // Use actual duration from shot generator
                               createdAt: new Date(),
                               updatedAt: new Date(),
                             }))}
@@ -2121,6 +2138,17 @@ export function CharacterVlogSceneBreakdown({
                                     >
                                       {shot.shotType === 'start-end' ? 'Start/End Frame' : 'Single Image'}
                                     </Badge>
+                                    
+                                    {/* DURATION BADGE */}
+                                    {shot.duration && shot.duration > 0 && (
+                                      <Badge 
+                                        variant="outline" 
+                                        className="text-[10px] font-semibold px-2 py-0.5 bg-cyan-500/20 border-cyan-500/40 text-cyan-200"
+                                        title="Shot duration"
+                                      >
+                                        {shot.duration}s
+                                      </Badge>
+                                    )}
                                     
                                     <div className="flex-1" />
                                     

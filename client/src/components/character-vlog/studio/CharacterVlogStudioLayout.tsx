@@ -13,6 +13,7 @@ import { ReactNode } from "react";
 interface CharacterVlogStudioLayoutProps {
   currentStep: VlogStepId;
   completedSteps: VlogStepId[];
+  highestStepReached?: number;
   direction: number;
   onStepClick: (step: VlogStepId) => void;
   onNext: () => void;
@@ -26,6 +27,7 @@ interface CharacterVlogStudioLayoutProps {
 export function CharacterVlogStudioLayout({
   currentStep,
   completedSteps,
+  highestStepReached = 0,
   direction,
   onStepClick,
   onNext,
@@ -102,6 +104,7 @@ export function CharacterVlogStudioLayout({
       <CharacterVlogTimelineNavigation
         currentStep={currentStep}
         completedSteps={completedSteps}
+        highestStepReached={highestStepReached}
         onStepClick={onStepClick}
         onNext={onNext}
         onBack={onBack}

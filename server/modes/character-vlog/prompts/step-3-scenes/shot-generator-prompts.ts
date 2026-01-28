@@ -637,8 +637,49 @@ export function buildShotGeneratorUserPrompt(input: ShotGeneratorInput): string 
     ? 'NO continuity analysis needed (all shots are 1F, set isLinkedToPrevious: false, isFirstInGroup: false for all)'
     : 'Analyze continuity between consecutive shots as you generate them. Apply all continuity rules (Rule 0, Rule 1, Rule 2).';
 
+  // Calculate expected duration per shot for explicit guidance
+  const shotCount = input.shotsPerScene === 'auto' ? 4 : input.shotsPerScene; // Use 4 as estimate for 'auto'
+  const targetDurationPerShot = input.sceneDuration / shotCount;
+  const sortedDurations = [...input.videoModelDurations].sort((a, b) => a - b);
+  const maxAvailableDuration = sortedDurations[sortedDurations.length - 1];
+  const minAvailableDuration = sortedDurations[0];
+  
+  // Find the closest available duration to the target
+  const closestDuration = sortedDurations.reduce((prev, curr) => 
+    Math.abs(curr - targetDurationPerShot) < Math.abs(prev - targetDurationPerShot) ? curr : prev
+  );
+
   return `Analyze the following SCENE and break it down into detailed shots with
 automatic continuity analysis according to your system instructions.
+
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ CRITICAL: DURATION ALLOCATION (MUST BE FOLLOWED EXACTLY)
+═══════════════════════════════════════════════════════════════════════════════
+
+SCENE DURATION: ${input.sceneDuration} seconds
+SHOTS TO CREATE: ${input.shotsPerScene === 'auto' ? `'auto' (recommended: 2-6 shots)` : `exactly ${input.shotsPerScene}`}
+AVAILABLE DURATIONS: [${input.videoModelDurations.join(', ')}] seconds
+
+📊 EXPECTED CALCULATION:
+- Target per shot: ${input.sceneDuration} ÷ ${shotCount} = ~${targetDurationPerShot.toFixed(1)} seconds per shot
+- Closest available: ${closestDuration} seconds
+- Maximum available: ${maxAvailableDuration} seconds
+- Minimum available: ${minAvailableDuration} seconds
+
+⚡ DURATION RULES:
+1. The SUM of all shot durations MUST be approximately ${input.sceneDuration} seconds (±10% = ${(input.sceneDuration * 0.9).toFixed(0)}-${(input.sceneDuration * 1.1).toFixed(0)} seconds)
+2. Each shot MUST use a duration from [${input.videoModelDurations.join(', ')}]
+3. INTELLIGENTLY VARY durations based on shot content:
+   - Complex action/movement shots → LONGER durations (${maxAvailableDuration}s or ${closestDuration}s)
+   - Simple static/establishing shots → SHORTER durations (but still fill the scene!)
+   - Dialogue/emotional shots → MEDIUM durations
+4. DO NOT default to minimum duration (${minAvailableDuration}s) for all shots - use the FULL range to fill ${input.sceneDuration}s
+
+Example distribution for ${input.sceneDuration}s scene with ${shotCount} shots:
+- Action shot: ${maxAvailableDuration}s | Transition shot: ${closestDuration}s | Quick shot: ${Math.max(minAvailableDuration, sortedDurations[Math.floor(sortedDurations.length / 2)] || closestDuration)}s
+- Total should approximate ${input.sceneDuration}s
+
+═══════════════════════════════════════════════════════════════════════════════
 
 Scene Information:
 - Scene Name: ${input.sceneName}

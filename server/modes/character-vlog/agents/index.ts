@@ -26,5 +26,15 @@ export {
   buildStyleAnchor,
 } from './step-4-storyboard/unified-prompt-producer';
 export { generateStoryboardImage } from './step-4-storyboard/image-generator';
-
 export { generateVideo } from './step-4-storyboard/video-generator';
+
+// Step 5: Sound Phase
+export {
+  generateVoiceoverScript,
+  generateVoiceoverAudio,
+  generateBackgroundMusic,
+  generateSoundEffectPrompt,
+  generateSoundEffect,
+  calculateTotalDuration,
+  CHARACTER_VLOG_VOICES,
+} from './step-5-sound';

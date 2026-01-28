@@ -65,6 +65,25 @@ export interface PublishVideoInput {
   publishNow?: boolean;
   /** Schedule for later (ISO 8601) */
   scheduledFor?: string;
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STORIA METADATA (for calendar integration)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  /** Storia video ID (for videos from ambient, narrative, commerce, etc.) */
+  storiaVideoId?: string;
+  /** Storia story ID (for stories from problem-solution, tease-reveal, etc.) */
+  storiaStoryId?: string;
+  /** Content type: 'video' or 'story' */
+  storiaContentType?: 'video' | 'story';
+  /** Content mode (ambient, narrative, problem-solution, etc.) */
+  storiaContentMode?: string;
+  /** Thumbnail URL from BunnyCDN */
+  storiaThumbnailUrl?: string;
+  /** Duration in seconds */
+  storiaDuration?: number;
+  /** Aspect ratio */
+  storiaAspectRatio?: string;
 }
 
 export interface PublishVideoResult {

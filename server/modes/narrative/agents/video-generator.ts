@@ -6,8 +6,10 @@ import { VIDEO_MODEL_CONFIGS, getDimensions, getDefaultVideoModel } from '../../
 import {
   getModelConfig,
   validateModelSettings,
-  shouldUseInputsWrapper,
   supportsLastFrame,
+  buildFrameImagesPayload,
+  clampDuration,
+  shouldOmitDimensions,
   type ValidationResult,
 } from '../utils/video-models';
 
@@ -107,9 +109,18 @@ export async function generateVideo(
     };
   }
 
-  // Validate settings against model capabilities
+  // Get Runware model AIR ID
+  const runwareModelId = modelConfig.modelAirId;
+
+  // Clamp duration to nearest supported value
+  const clampedDuration = clampDuration(duration, modelId);
+  if (clampedDuration !== duration) {
+    console.log(`[narrative-video-generator] Adjusted duration: ${duration}s → ${clampedDuration}s for model ${modelId}`);
+  }
+
+  // Validate clamped duration against model capabilities
   const validation = validateModelSettings(modelId, {
-    duration,
+    duration: clampedDuration,
     aspectRatio,
     resolution,
   });
@@ -121,72 +132,83 @@ export async function generateVideo(
     };
   }
 
-  // Get Runware model AIR ID
-  const runwareModelId = modelConfig.modelAirId;
-
   // Get pixel dimensions (model-specific if available)
   const dimensions = getDimensions(aspectRatio, resolution, modelId);
 
   // Check if model supports audio
   const supportsAudio = modelConfig.hasAudio || false;
 
+  // Check if we have frame images (image-to-video mode)
+  const hasFrameImages = !!(mode === "image-reference" ? imageUrl : startFrameUrl);
+
+  // Validate frame images are provided
+  if (mode === "image-reference") {
+    if (!imageUrl) {
+      return {
+        taskId: "",
+        status: "failed",
+        error: "Image URL is required for image-reference mode",
+      };
+    }
+  } else {
+    // Start-end mode
+    if (!startFrameUrl) {
+      return {
+        taskId: "",
+        status: "failed",
+        error: "Start frame URL is required for start-end mode",
+      };
+    }
+  }
+
+  // Build optimized prompt for style preservation
+  const optimizedPrompt = optimizePromptForStylePreservation(videoPrompt, mode, hasFrameImages);
+
   // Build Runware payload
   const payload: Record<string, unknown> = {
     taskType: "videoInference",
     model: runwareModelId,
-    width: dimensions.width,
-    height: dimensions.height,
-    duration,
+    positivePrompt: optimizedPrompt,
+    duration: clampedDuration,
     includeCost: true,
+    deliveryMethod: "async",
   };
 
-  // Add prompt based on mode
-  if (mode === "image-reference") {
-    // Image-reference mode: use video prompt for camera movement
-    payload.positivePrompt = videoPrompt;
-  } else {
-    // Start-end mode: minimal or no prompt (motion defined by keyframe pair)
-    // Some models still benefit from a brief prompt
-    payload.positivePrompt = videoPrompt || "Smooth motion between keyframes";
+  // Only add dimensions for models that support them
+  // Models without explicit dimensions derive output from input image
+  if (!shouldOmitDimensions(runwareModelId)) {
+    payload.width = dimensions.width;
+    payload.height = dimensions.height;
   }
 
-  // Add provider-specific settings for audio generation
-  if (supportsAudio) {
-    payload.providerSettings = getAudioProviderSettings(modelId);
-  }
+  // Note: providerSettings disabled - generating videos without audio for now
+  // To enable audio later, add providerSettings to video-models.ts config and uncomment:
+  // if (supportsAudio || hasFrameImages) {
+  //   const providerSettings = getVideoModelProviderSettings(modelId, hasFrameImages);
+  //   if (providerSettings) {
+  //     payload.providerSettings = providerSettings;
+  //   }
+  // }
 
-  // Handle frame images based on mode
+  // Build and add frame images payload
   if (mode === "image-reference") {
     // Image-reference mode: single image
     if (imageUrl) {
-      handleFrameImages(payload, runwareModelId, imageUrl, null);
+      const frameImagesPayload = buildFrameImagesPayload(imageUrl, undefined, runwareModelId, modelId);
+      Object.assign(payload, frameImagesPayload);
     }
   } else {
     // Start-end mode: paired keyframes
-    if (startFrameUrl || endFrameUrl) {
-      // Check if model supports last frame
-      const supportsLast = supportsLastFrame(modelId);
-      
-      if (supportsLast && startFrameUrl && endFrameUrl) {
-        // Model supports both frames - send both
-        handleFrameImages(payload, runwareModelId, startFrameUrl, endFrameUrl);
-      } else if (startFrameUrl) {
-        // Model only supports first frame - use start frame only
-        handleFrameImages(payload, runwareModelId, startFrameUrl, null);
-        console.log(`[narrative-video-generator] Model ${modelId} doesn't support last frame, using start frame only`);
-      } else {
-        return {
-          taskId: "",
-          status: "failed",
-          error: "Start frame is required for start-end mode",
-        };
-      }
-    } else {
-      return {
-        taskId: "",
-        status: "failed",
-        error: "Frame images are required for video generation",
-      };
+    const frameImagesPayload = buildFrameImagesPayload(
+      startFrameUrl!,
+      endFrameUrl,
+      runwareModelId,
+      modelId
+    );
+    Object.assign(payload, frameImagesPayload);
+    
+    if (endFrameUrl && !supportsLastFrame(modelId)) {
+      console.log(`[narrative-video-generator] Model ${modelId} doesn't support last frame, using start frame only`);
     }
   }
 
@@ -195,11 +217,28 @@ export async function generateVideo(
       mode,
       modelId,
       model: runwareModelId,
-      dimensions,
-      duration,
+      dimensions: shouldOmitDimensions(runwareModelId) ? "inferred from frame" : dimensions,
+      duration: clampedDuration,
       audioEnabled: supportsAudio,
       hasFirstFrame: !!(mode === "image-reference" ? imageUrl : startFrameUrl),
-      hasLastFrame: !!(mode === "start-end" && endFrameUrl),
+      hasLastFrame: !!(mode === "start-end" && endFrameUrl && supportsLastFrame(modelId)),
+      promptLength: optimizedPrompt.length,
+      hasProviderSettings: !!payload.providerSettings,
+    });
+
+    // Log payload structure for debugging (without sensitive URLs)
+    const payloadWithInputs = payload as { inputs?: { frameImages?: any[] } };
+    const payloadWithFrameImages = payload as { frameImages?: any[] };
+    console.log("[narrative-video-generator] Payload structure:", {
+      taskType: payload.taskType,
+      model: payload.model,
+      duration: payload.duration,
+      width: payload.width,
+      height: payload.height,
+      hasFrameImages: !!(payloadWithFrameImages.frameImages || payloadWithInputs.inputs?.frameImages),
+      frameImagesFormat: payloadWithFrameImages.frameImages ? "standard" : payloadWithInputs.inputs?.frameImages ? "inputs-wrapper" : "none",
+      hasProviderSettings: !!payload.providerSettings,
+      promptPreview: (payload.positivePrompt as string)?.substring(0, 100) + "...",
     });
 
     const response = await callAi(
@@ -233,11 +272,18 @@ export async function generateVideo(
 
     // Check if video is ready (Runware adapter waits for completion)
     if (data?.videoURL) {
+      console.log("[narrative-video-generator] ✓ Video generated successfully:", {
+        modelId,
+        taskUUID: data.taskUUID?.substring(0, 8) + "...",
+        videoUrl: data.videoURL.substring(0, 60) + "...",
+        duration: clampedDuration,
+        cost: response.usage?.totalCostUsd || data.cost,
+      });
       return {
         taskId: data.taskUUID || "",
         status: "completed",
         videoUrl: data.videoURL,
-        videoDuration: duration, // Use requested duration (actual may differ slightly)
+        videoDuration: clampedDuration, // Use clamped duration (actual may differ slightly)
         cost: response.usage?.totalCostUsd || data.cost,
       };
     }
@@ -263,26 +309,40 @@ export async function generateVideo(
     // Fallback - try to find video URL in different locations
     const videoUrl = data?.videoURL || data?.outputURL || data?.url;
     if (videoUrl) {
+      console.log("[narrative-video-generator] ✓ Video found in fallback location");
       return {
         taskId: data?.taskUUID || "",
         status: "completed",
         videoUrl,
-        videoDuration: duration,
+        videoDuration: clampedDuration,
         cost: response.usage?.totalCostUsd || data?.cost,
       };
     }
 
+    const errorMsg = data?.error || data?.errorMessage || "No video URL in response";
+    console.error("[narrative-video-generator] ✗ Generation failed - no video URL:", {
+      modelId,
+      hasData: !!data,
+      dataKeys: data ? Object.keys(data) : [],
+      error: errorMsg,
+    });
     return {
       taskId: "",
       status: "failed",
-      error: "No video URL in response",
+      error: errorMsg,
     };
   } catch (error) {
-    console.error("[narrative-video-generator] Generation failed:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorDetails = error instanceof Error ? error.stack : String(error);
+    console.error("[narrative-video-generator] ✗ Generation exception:", {
+      modelId,
+      error: errorMessage,
+      details: errorDetails,
+    });
     return {
       taskId: "",
       status: "failed",
-      error: error instanceof Error ? error.message : "Video generation failed",
+      error: errorMessage,
     };
   }
 }
@@ -292,92 +352,63 @@ export async function generateVideo(
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Handle frame images for Runware payload
+ * Optimize prompt for style preservation
+ * 
+ * For start-end mode: Use minimal prompts focused on motion/camera, not visual style
+ * For image-reference mode: Use full prompt but ensure it complements, not overrides, the frame
+ * 
+ * @param originalPrompt - The original video prompt
+ * @param mode - The narrative mode (image-reference or start-end)
+ * @param hasFrameImages - Whether frame images are being used
+ * @returns Optimized prompt that preserves visual style from frames
  */
-function handleFrameImages(
-  payload: Record<string, unknown>,
-  runwareModelId: string,
-  firstFrameImage: string | null,
-  lastFrameImage: string | null
-): void {
-  if (!firstFrameImage && !lastFrameImage) {
-    return;
-  }
-
-  const frameImagesData: { inputImage: string; frame: "first" | "last" }[] = [];
-
-  if (firstFrameImage) {
-    frameImagesData.push({ inputImage: firstFrameImage, frame: "first" });
-  }
-  if (lastFrameImage) {
-    frameImagesData.push({ inputImage: lastFrameImage, frame: "last" });
-  }
-
-  // Models that require "inputs" wrapper for frameImages
-  const useInputsWrapper = shouldUseInputsWrapper(runwareModelId);
-  const isAlibabaWan = runwareModelId === "alibaba:wan@2.6";
-
-  if (useInputsWrapper) {
-    if (isAlibabaWan) {
-      // Alibaba Wan 2.6: array of objects with { image: "url" }
-      const frameImagesForAlibaba = frameImagesData.map(item => ({ image: item.inputImage }));
-      payload.inputs = { frameImages: frameImagesForAlibaba };
-    } else {
-      // Other models: array of objects with { inputImage, frame }
-      payload.inputs = { frameImages: frameImagesData };
+function optimizePromptForStylePreservation(
+  originalPrompt: string,
+  mode: "image-reference" | "start-end",
+  hasFrameImages: boolean
+): string {
+  if (!originalPrompt || originalPrompt.trim().length === 0) {
+    // Default minimal prompt for start-end mode
+    if (mode === "start-end") {
+      return "Smooth motion between keyframes";
     }
-  } else {
-    payload.frameImages = frameImagesData;
-  }
-}
-
-/**
- * Get audio provider settings for models that support native audio
- */
-function getAudioProviderSettings(modelId: string): Record<string, Record<string, any>> | undefined {
-  if (modelId === "seedance-1.5-pro") {
-    return {
-      bytedance: {
-        audio: true,
-        cameraFixed: false,
-      },
-    };
-  } else if (modelId === "kling-video-2.6-pro") {
-    return {
-      klingai: {
-        sound: true,
-        cfgScale: 0.5,
-      },
-    };
-  } else if (modelId === "veo-3.0" || modelId === "veo-3-fast" || modelId === "veo-3.1" || modelId === "veo-3.1-fast") {
-    return {
-      google: {
-        generateAudio: true,
-        enhancePrompt: true,
-      },
-    };
-  } else if (modelId === "pixverse-v5.5") {
-    return {
-      pixverse: {
-        audio: true,
-        thinking: "auto",
-      },
-    };
-  } else if (modelId === "ltx-2-pro") {
-    return {
-      lightricks: {
-        generateAudio: true,
-        fps: 25,
-      },
-    };
-  } else if (modelId === "alibaba-wan-2.6") {
-    return {
-      alibaba: {
-        audio: true,
-      },
-    };
+    return "Smooth camera movement";
   }
 
-  return undefined;
+  // For start-end mode with frames, focus on motion/camera, minimize visual descriptions
+  if (mode === "start-end" && hasFrameImages) {
+    // Extract motion and camera instructions, remove visual style descriptions
+    // This is a simple heuristic - in production, you might use AI to parse and optimize
+    const prompt = originalPrompt.trim();
+    
+    // If prompt is very short, it's likely already focused on motion
+    if (prompt.length < 100) {
+      return prompt;
+    }
+    
+    // For longer prompts, try to focus on motion keywords
+    // Common motion/camera keywords: track, pan, zoom, dolly, crane, tilt, rotate, move, follow, etc.
+    const motionKeywords = [
+      "track", "pan", "zoom", "dolly", "crane", "tilt", "rotate", "move", "follow",
+      "camera", "motion", "smooth", "slow", "fast", "gradual", "steady", "glide"
+    ];
+    
+    const hasMotionKeywords = motionKeywords.some(keyword => 
+      prompt.toLowerCase().includes(keyword.toLowerCase())
+    );
+    
+    if (hasMotionKeywords) {
+      // Prompt seems motion-focused, use as-is but truncate if too long
+      return prompt.length > 300 ? prompt.substring(0, 300) + "..." : prompt;
+    }
+    
+    // Prompt might be describing visual style - use minimal default
+    console.log("[narrative-video-generator] Prompt appears to describe visual style, using minimal motion prompt for style preservation");
+    return "Smooth motion between keyframes";
+  }
+
+  // For image-reference mode, use full prompt but ensure it's motion-focused
+  // Frame defines the "what", prompt defines the "how" (motion)
+  return originalPrompt;
 }
 

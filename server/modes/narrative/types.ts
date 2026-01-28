@@ -147,3 +147,146 @@ export interface ShotComposerOutput {
   cost?: number;
 }
 
+/**
+ * Step 5: Sound Data
+ * Contains all sound-related settings including SFX, voiceover, and background music
+ */
+export interface Step5Data {
+  // Sound Effects per shot
+  shotsWithSFX: Record<string, {
+    soundEffectDescription?: string;
+    soundEffectUrl?: string;
+  }>;
+  
+  // Voiceover
+  voiceId?: string;
+  voiceoverEnabled: boolean;
+  voiceoverScript?: string;
+  voiceoverAudioUrl?: string;
+  voiceoverDuration?: number;
+  
+  // Background Music
+  backgroundMusicEnabled: boolean;
+  musicStyle?: MusicStyle;
+  customMusicUrl?: string;
+  generatedMusicUrl?: string;
+  generatedMusicDuration?: number;
+}
+
+/**
+ * Music style options for background music generation
+ */
+export type MusicStyle = 
+  | 'cinematic'
+  | 'upbeat'
+  | 'calm'
+  | 'dramatic'
+  | 'mysterious'
+  | 'epic'
+  | 'romantic'
+  | 'suspenseful'
+  | 'inspirational'
+  | 'melancholic';
+
+/**
+ * Sound Effect Prompt Generator Input
+ */
+export interface NarrativeSoundEffectPromptInput {
+  shot: {
+    id: string;
+    shotNumber: number;
+    shotType: string;
+    description?: string | null;
+    cameraMovement: string;
+    duration: number;
+  };
+  scene: {
+    id: string;
+    sceneNumber: number;
+    title: string;
+    description?: string | null;
+  };
+  script?: string;
+  characters?: Array<{ id: string; name: string; description?: string }>;
+  locations?: Array<{ id: string; name: string; description?: string }>;
+  genre?: string;
+  tone?: string;
+}
+
+/**
+ * Sound Effect Generator Input
+ */
+export interface NarrativeSoundEffectGeneratorInput {
+  videoUrl: string;
+  prompt: string;
+  duration: number;
+  videoId: string;
+  shotId: string;
+  sceneId: string;
+  userId: string;
+  workspaceId: string;
+  workspaceName: string;
+  videoTitle: string;
+}
+
+/**
+ * Voiceover Script Generator Input
+ */
+export interface NarrativeVoiceoverScriptInput {
+  script: string;
+  scenes: Array<{
+    id: string;
+    sceneNumber: number;
+    title: string;
+    description?: string | null;
+    duration?: number | null;
+  }>;
+  shots: Record<string, Array<{
+    id: string;
+    shotNumber: number;
+    description?: string | null;
+    duration: number;
+  }>>;
+  totalDuration: number;
+  language: 'en' | 'ar';
+  characters?: Array<{ id: string; name: string; description?: string }>;
+  genre?: string;
+  tone?: string;
+}
+
+/**
+ * Voiceover Audio Generator Input
+ */
+export interface NarrativeVoiceoverAudioInput {
+  script: string;
+  voiceId: string;
+  language: 'en' | 'ar';
+  videoId: string;
+  userId: string;
+  workspaceId: string;
+  workspaceName: string;
+  videoTitle: string;
+}
+
+/**
+ * Background Music Generator Input
+ */
+export interface NarrativeBackgroundMusicInput {
+  musicStyle: MusicStyle;
+  totalDuration: number;
+  genre?: string;
+  tone?: string;
+  script?: string;
+  scenes?: Array<{
+    id: string;
+    sceneNumber: number;
+    title: string;
+    description?: string | null;
+  }>;
+  videoId: string;
+  userId: string;
+  workspaceId: string;
+  workspaceName: string;
+  videoTitle: string;
+}
+

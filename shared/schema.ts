@@ -172,18 +172,8 @@ export const locations = pgTable("locations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const contentCalendar = pgTable("content_calendar", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
-  videoId: varchar("video_id").references(() => videos.id),
-  storyId: varchar("story_id").references(() => stories.id),
-  title: text("title").notNull(),
-  scheduledDate: timestamp("scheduled_date").notNull(),
-  platform: text("platform").notNull(),
-  status: text("status").default("scheduled").notNull(),
-  publishedUrl: text("published_url"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+// NOTE: content_calendar table has been removed - Late.dev is now the single source of truth
+// See server/calendar/ for the new calendar implementation
 
 export const workspaceIntegrations = pgTable("workspace_integrations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -250,156 +240,90 @@ export const insertUploadSchema = createInsertSchema(uploads).omit({
   createdAt: true,
 });
 
-export const insertContentCalendarSchema = createInsertSchema(contentCalendar).omit({
-  id: true,
-  createdAt: true,
-});
-
 export const insertWorkspaceIntegrationSchema = createInsertSchema(workspaceIntegrations).omit({
   id: true,
   createdAt: true,
 });
 
-// Auto Production Campaign tables
-export const productionCampaigns = pgTable("production_campaigns", {
+// ═══════════════════════════════════════════════════════════════
+// AUTO PRODUCTION CAMPAIGN TABLES
+// ═══════════════════════════════════════════════════════════════
+
+// Video Campaigns - for Auto Video feature
+export const videoCampaigns = pgTable("video_campaigns", {
+  // Core (5)
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
   name: text("name").notNull(),
-  storyIdeas: text("story_ideas").array().notNull(), // Array of story ideas - each becomes one video
-  status: text("status").default("draft").notNull(), // draft, generating_concepts, review, in_progress, paused, completed, cancelled
-  automationMode: text("automation_mode").default("manual").notNull(), // manual (requires approval), auto (fully automated)
-  
-  // Video mode and narrative mode selection
-  videoMode: text("video_mode").default("narrative").notNull(), // narrative, character_vlog, video_podcast
-  narrativeMode: text("narrative_mode").notNull(), // image-reference or start-end-frame (for narrative and character_vlog modes)
-  narrationStyle: text("narration_style"), // third-person or first-person (for character_vlog mode)
-  mainCharacterId: text("main_character_id"), // Primary character for character_vlog mode
-  
-  // Video settings
-  aspectRatio: text("aspect_ratio").default("16:9").notNull(),
-  duration: integer("duration").default(60).notNull(), // Target duration in seconds
-  language: text("language").default("en").notNull(),
-  artStyle: text("art_style"),
-  styleReferenceImageUrl: text("style_reference_image_url"), // User can provide style reference instead of art style
-  tone: text("tone").notNull(),
-  genre: text("genre").notNull(),
-  targetAudience: text("target_audience"),
-  resolution: text("resolution").default("1080p").notNull(), // 720p, 1080p, 4k
-  
-  // AI generation toggles and settings
-  animateImages: boolean("animate_images").default(true).notNull(), // Whether to animate images with video model
-  hasVoiceOver: boolean("has_voice_over").default(true).notNull(),
-  hasSoundEffects: boolean("has_sound_effects").default(true).notNull(),
-  hasBackgroundMusic: boolean("has_background_music").default(true).notNull(),
-  
-  // Scheduling
+  status: text("status").default("draft"), // draft, generating, paused, review, completed, cancelled
+
+  // Tracking - Hybrid Approach (4)
+  videoIdeas: jsonb("video_ideas").default([]),           // [{idea: string, index: number}, ...]
+  itemStatuses: jsonb("item_statuses").default({}),       // {"0": {status, videoId, error}, ...}
+  itemSchedules: jsonb("item_schedules").default({}),     // {"0": {scheduledDate, publishedDate}, ...}
+  generatedVideoIds: text("generated_video_ids").array(), // For fast queries
+
+  // Settings (2)
+  videoMode: text("video_mode").notNull(),                // 'narrative' | 'character_vlog' | 'ambient_visual'
+  campaignSettings: jsonb("campaign_settings").default({}), // All mode-specific defaults
+
+  // Scheduling (5)
+  automationMode: text("automation_mode").default("manual"),
   scheduleStartDate: timestamp("schedule_start_date"),
   scheduleEndDate: timestamp("schedule_end_date"),
-  preferredPublishHours: jsonb("preferred_publish_hours").default([]).notNull(), // Array of hours (0-23) or "AI" for AI-suggested
-  maxVideosPerDay: integer("max_videos_per_day").default(1).notNull(),
-  distributionPattern: text("distribution_pattern").default("even").notNull(), // even, custom
-  
-  // Publishing
-  selectedPlatforms: jsonb("selected_platforms").default([]).notNull(), // Array of platform IDs
-  
-  // Auto Shorts settings (for Narrative and Character Vlog modes)
-  autoShortsEnabled: boolean("auto_shorts_enabled").default(false).notNull(),
-  shortsPerVideo: integer("shorts_per_video").default(3), // 1-5 shorts per video
-  shortsHookTypes: jsonb("shorts_hook_types").default(["emotional", "action", "reveal", "dramatic"]), // emotional, action, reveal, humor, dramatic
-  shortsMinConfidence: integer("shorts_min_confidence").default(75), // 50-95%
-  autoPublishShorts: boolean("auto_publish_shorts").default(true),
-  shortsPlatforms: jsonb("shorts_platforms").default([]), // youtube_shorts, tiktok, instagram_reels, facebook_reels
-  shortsScheduleMode: text("shorts_schedule_mode").default("with_main"), // with_main or staggered
-  shortsStaggerHours: integer("shorts_stagger_hours").default(4), // Hours between shorts publications (1-24)
-  
-  // AI model settings
-  scripterModel: text("scripter_model"),
-  imageModel: text("image_model"),
-  videoModel: text("video_model"),
-  imageCustomInstructions: text("image_custom_instructions"),
-  videoCustomInstructions: text("video_custom_instructions"),
-  voiceModel: text("voice_model"),
-  voiceActorId: text("voice_actor_id"),
-  
-  // Stories mode settings
-  storyTemplate: text("story_template"), // problem-solution, tease-reveal, before-after, myth-busting, asmr-sensory
-  storyTemplateType: text("story_template_type"), // narrative or direct (ASMR)
-  storyTopics: text("story_topics").array(), // Array of topics for narrative templates
-  storyMediaType: text("story_media_type"), // static (images with transitions) or animated (AI video clips)
-  storyTransition: text("story_transition"), // fade, zoom, slide, dissolve, pan (only for static media type)
-  storyVoiceProfile: text("story_voice_profile"), // Voice selection for stories
-  storyBackgroundMusicTrack: text("story_background_music_track"),
-  storyVoiceVolume: integer("story_voice_volume").default(80),
-  storyMusicVolume: integer("story_music_volume").default(40),
-  
-  // ASMR-specific settings
-  asmrCategory: text("asmr_category"), // food, hands, nature, art, unboxing
-  asmrMaterial: text("asmr_material"), // Material/texture for sound generation
-  asmrPrompts: text("asmr_prompts").array(), // Visual prompts for ASMR videos
-  asmrVideoModel: text("asmr_video_model"),
-  asmrIsLoopable: boolean("asmr_is_loopable").default(false),
-  asmrSoundIntensity: integer("asmr_sound_intensity").default(50), // 0-100
-  
-  // Ambient Video mode settings
-  ambientCategory: text("ambient_category"), // nature, weather, urban, cozy, abstract, cosmic, underwater, seasonal
-  ambientMoods: jsonb("ambient_moods").default([]), // Array of moods (max 3): Relaxing, Meditative, etc.
-  ambientAnimationMode: text("ambient_animation_mode"), // "animate" or "smooth-image"
-  ambientVoiceOverLanguage: text("ambient_voice_over_language"), // English, Spanish, etc.
-  
-  // Ambient Flow Design settings
-  ambientPacing: integer("ambient_pacing").default(30), // 0-100
-  ambientSegmentCount: integer("ambient_segment_count").default(3), // 1, 3, 5, 7, 10
-  ambientTransitionStyle: text("ambient_transition_style"), // crossfade, dissolve, drift, match-cut, morph, wipe
-  ambientVariationType: text("ambient_variation_type"), // evolving, angles, elements, zoom
-  ambientCameraMotion: text("ambient_camera_motion"), // static, slow-pan, gentle-drift, orbit, push-in, pull-out, parallax, float
-  ambientLoopMode: text("ambient_loop_mode"), // seamless, one-way, boomerang, fade-loop
-  ambientVisualRhythm: text("ambient_visual_rhythm"), // constant, breathing, building, wave
-  ambientEnableParallax: boolean("ambient_enable_parallax").default(false),
-  
-  // Progress tracking
-  videosGenerated: integer("videos_generated").default(0).notNull(),
-  videosPublished: integer("videos_published").default(0).notNull(),
-  
+  preferredPublishHours: jsonb("preferred_publish_hours").default([]),
+  maxVideosPerDay: integer("max_videos_per_day").default(1),
+
+  // Publishing (1)
+  selectedPlatforms: jsonb("selected_platforms").default([]),
+
+  // Timestamps (2)
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const campaignVideos = pgTable("campaign_videos", {
+// Story Campaigns - for Auto Story feature
+export const storyCampaigns = pgTable("story_campaigns", {
+  // Core (5)
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  campaignId: varchar("campaign_id").notNull().references(() => productionCampaigns.id),
-  videoId: varchar("video_id").references(() => videos.id),
-  
-  // Generated concept
-  title: text("title").notNull(),
-  conceptDescription: text("concept_description").notNull(),
-  script: text("script"),
-  orderIndex: integer("order_index").notNull(),
-  
-  // Status tracking
-  status: text("status").default("pending").notNull(), // pending, generating, review_required, approved, in_production, completed, failed, cancelled
-  generationProgress: integer("generation_progress").default(0).notNull(), // 0-100%
-  
-  // Scheduling
-  scheduledPublishDate: timestamp("scheduled_publish_date"),
-  actualPublishDate: timestamp("actual_publish_date"),
-  
-  // Metadata
-  metadata: jsonb("metadata"), // Platform-specific metadata
-  errorMessage: text("error_message"),
-  
+  userId: varchar("user_id").notNull().references(() => users.id),
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
+  name: text("name").notNull(),
+  status: text("status").default("draft"), // draft, generating, paused, review, completed, cancelled
+
+  // Tracking - Hybrid Approach (4)
+  storyTopics: jsonb("story_topics").default([]),         // [{topic: string, index: number}, ...]
+  itemStatuses: jsonb("item_statuses").default({}),       // {"0": {status, storyId, error}, ...}
+  itemSchedules: jsonb("item_schedules").default({}),     // {"0": {scheduledDate, publishedDate}, ...}
+  generatedStoryIds: text("generated_story_ids").array(), // For fast queries
+
+  // Settings (2)
+  template: text("template").notNull(),                   // 'problem-solution' | 'tease-reveal' | 'before-after' | 'myth-busting'
+  campaignSettings: jsonb("campaign_settings").default({}), // All template-specific defaults
+
+  // Scheduling (5)
+  automationMode: text("automation_mode").default("manual"),
+  scheduleStartDate: timestamp("schedule_start_date"),
+  scheduleEndDate: timestamp("schedule_end_date"),
+  preferredPublishHours: jsonb("preferred_publish_hours").default([]),
+  maxStoriesPerDay: integer("max_stories_per_day").default(1),
+
+  // Publishing (1)
+  selectedPlatforms: jsonb("selected_platforms").default([]),
+
+  // Timestamps (2)
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const insertProductionCampaignSchema = createInsertSchema(productionCampaigns).omit({
+export const insertVideoCampaignSchema = createInsertSchema(videoCampaigns).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-  videosGenerated: true,
-  videosPublished: true,
 });
 
-export const insertCampaignVideoSchema = createInsertSchema(campaignVideos).omit({
+export const insertStoryCampaignSchema = createInsertSchema(storyCampaigns).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -423,11 +347,9 @@ export type InsertBrandkit = z.infer<typeof insertBrandkitSchema>;
 export type Brandkit = typeof brandkits.$inferSelect;
 export type InsertUpload = z.infer<typeof insertUploadSchema>;
 export type Upload = typeof uploads.$inferSelect;
-export type InsertContentCalendar = z.infer<typeof insertContentCalendarSchema>;
-export type ContentCalendarItem = typeof contentCalendar.$inferSelect;
 export type InsertWorkspaceIntegration = z.infer<typeof insertWorkspaceIntegrationSchema>;
 export type WorkspaceIntegration = typeof workspaceIntegrations.$inferSelect;
-export type InsertProductionCampaign = z.infer<typeof insertProductionCampaignSchema>;
-export type ProductionCampaign = typeof productionCampaigns.$inferSelect;
-export type InsertCampaignVideo = z.infer<typeof insertCampaignVideoSchema>;
-export type CampaignVideo = typeof campaignVideos.$inferSelect;
+export type InsertVideoCampaign = z.infer<typeof insertVideoCampaignSchema>;
+export type VideoCampaign = typeof videoCampaigns.$inferSelect;
+export type InsertStoryCampaign = z.infer<typeof insertStoryCampaignSchema>;
+export type StoryCampaign = typeof storyCampaigns.$inferSelect;

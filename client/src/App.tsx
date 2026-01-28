@@ -42,11 +42,17 @@ import Profile from "@/pages/profile";
 import Settings from "@/pages/settings";
 import WorkspaceSettings from "@/pages/workspace-settings";
 import Subscription from "@/pages/subscription";
-import ProductionCampaigns from "@/pages/production";
-import ProductionCampaignCreate from "@/pages/production/create";
-import ProductionCampaignReview from "@/pages/production/review";
-import ProductionCampaignDashboard from "@/pages/production/dashboard";
 import CreateShorts from "@/pages/shorts/create";
+
+// Auto Production (NEW)
+import AutoProductionHome from "@/autoproduction/pages";
+import CampaignHistory from "@/autoproduction/pages/campaigns";
+import AutoStoryList from "@/autoproduction/auto-story/pages";
+import AutoStoryCreate from "@/autoproduction/auto-story/pages/create";
+import AutoStoryDashboard from "@/autoproduction/auto-story/pages/[id]/dashboard";
+import StoryDetail from "@/autoproduction/auto-story/pages/[id]/stories/[storyId]";
+import AutoVideoList from "@/autoproduction/auto-video/pages";
+import AutoVideoCreate from "@/autoproduction/auto-video/pages/create";
 import UsagePage from "@/pages/usage";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
@@ -65,7 +71,7 @@ function LoadingScreen() {
 function MainLayout() {
   const [location] = useLocation();
   const { user } = useAuth();
-  const isFullPageRoute = /^\/videos\/narrative\/[^/]+$/.test(location) || /^\/videos\/vlog\/[^/]+$/.test(location) || /^\/videos\/ambient\/[^/]+$/.test(location) || /^\/videos\/commerce\/[^/]+$/.test(location) || /^\/videos\/logo$/.test(location) || /^\/stories\/create\/[^/]+$/.test(location) || /^\/stories\/asmr$/.test(location) || /^\/stories\/[^/]+\/export$/.test(location) || /^\/shorts\/create\/[^/]+$/.test(location);
+  const isFullPageRoute = /^\/videos\/narrative\/[^/]+$/.test(location) || /^\/videos\/vlog\/[^/]+$/.test(location) || /^\/videos\/ambient\/[^/]+$/.test(location) || /^\/videos\/commerce\/[^/]+$/.test(location) || /^\/videos\/logo$/.test(location) || /^\/stories\/create\/[^/]+$/.test(location) || /^\/stories\/asmr$/.test(location) || /^\/stories\/[^/]+\/export$/.test(location) || /^\/shorts\/create\/[^/]+$/.test(location) || /^\/autoproduction$/.test(location) || /^\/autoproduction\/story\/create$/.test(location) || /^\/autoproduction\/video\/create$/.test(location);
 
   // Get user display name
   const displayName = user?.firstName && user?.lastName 
@@ -94,6 +100,11 @@ function MainLayout() {
         <Route path="/stories/asmr" component={ASMRGenerator} />
         <Route path="/stories/:storyType/export" component={StoryPreviewExport} />
         <Route path="/shorts/create/:videoId" component={CreateShorts} />
+        
+        {/* Auto Production - Full Screen Wizards */}
+        <Route path="/autoproduction" component={AutoProductionHome} />
+        <Route path="/autoproduction/story/create" component={AutoStoryCreate} />
+        <Route path="/autoproduction/video/create" component={AutoVideoCreate} />
       </Switch>
     );
   }
@@ -182,11 +193,15 @@ function MainLayout() {
               <Route path="/usage" component={UsagePage} />
               <Route path="/calendar" component={Calendar} />
               
-              {/* Production Campaigns */}
-              <Route path="/production" component={ProductionCampaigns} />
-              <Route path="/production/new" component={ProductionCampaignCreate} />
-              <Route path="/production/:id/review" component={ProductionCampaignReview} />
-              <Route path="/production/:id/dashboard" component={ProductionCampaignDashboard} />
+              {/* Auto Production (NEW) */}
+              <Route path="/autoproduction" component={AutoProductionHome} />
+              <Route path="/autoproduction/campaigns" component={CampaignHistory} />
+              <Route path="/autoproduction/story" component={AutoStoryList} />
+              <Route path="/autoproduction/story/create" component={AutoStoryCreate} />
+              <Route path="/autoproduction/story/:id" component={AutoStoryDashboard} />
+              <Route path="/autoproduction/story/:id/stories/:storyId" component={StoryDetail} />
+              <Route path="/autoproduction/video" component={AutoVideoList} />
+              <Route path="/autoproduction/video/create" component={AutoVideoCreate} />
               
               {/* Assets Library */}
               <Route path="/assets">

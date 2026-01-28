@@ -20,6 +20,7 @@ export interface ImageEditorInput {
   referenceImages?: string[];  // Optional reference images (character, location, style refs)
   characterId?: string;  // For character-specific edits
   characterName?: string;  // Character name for context
+  characterAppearance?: string;  // Character appearance description for identification
   shotId: string;
   videoId: string;
   aspectRatio: string;
@@ -77,25 +78,43 @@ function getDimensions(aspectRatio: string, imageModel: string): { width: number
 function buildEditingPrompt(
   category: string,
   instruction: string,
-  characterName?: string
+  characterName?: string,
+  characterAppearance?: string
 ): string {
   switch (category) {
     case "prompt":
       return instruction;
     case "clothes":
-      return characterName 
-        ? `Change ${characterName}'s clothes to: ${instruction}`
-        : `Change the character's clothes to: ${instruction}`;
+      // Build character identifier if appearance is available
+      const characterIdentifier = characterAppearance 
+        ? `${characterName || "the character"} (${characterAppearance})`
+        : characterName || "the character";
+      
+      // The instruction already contains "Change [character]'s clothes to: [description]"
+      // Just wrap it with editing context and preservation instructions
+      return `Edit the existing image: ${instruction}. Identify ${characterIdentifier} in the scene and change only their clothing. Keep the same scene, background, composition, camera angle, lighting, all other characters, and all other elements unchanged.`;
     case "remove":
-      return `Remove ${instruction} from the image`;
+      // Build a highly specific removal prompt that targets only the mentioned object
+      // Use precise language to avoid removing similar objects or related elements
+      const removalTarget = instruction.trim();
+      
+      return `Remove ONLY the specific ${removalTarget} from the image. Be extremely precise: identify and remove ONLY the exact ${removalTarget} mentioned, nothing else. Preserve all other objects, elements, characters, background, scenery, lighting, composition, and details exactly as they are. Do not remove any similar objects, related items, or anything else. Only remove the specific ${removalTarget} and seamlessly fill the area where it was removed with appropriate background that matches the surrounding scene. Keep everything else completely unchanged.`;
     case "expression":
-      return characterName
-        ? `Change ${characterName}'s expression to: ${instruction}`
-        : `Change the character's expression to: ${instruction}`;
+      // Build character identifier if appearance is available
+      const expressionIdentifier = characterAppearance 
+        ? `${characterName || "the character"} (${characterAppearance})`
+        : characterName || "the character";
+      
+      // The instruction already contains "Change [character]'s expression to: [description]"
+      return `Edit the existing image: ${instruction}. Identify ${expressionIdentifier} in the scene and change only their facial expression. Keep the same scene, background, composition, camera angle, lighting, all other characters, and all other elements unchanged.`;
     case "figure":
-      return characterName
-        ? `Change ${characterName}'s view to: ${instruction}`
-        : `Change the character's view to: ${instruction}`;
+      // Build character identifier if appearance is available
+      const figureIdentifier = characterAppearance 
+        ? `${characterName || "the character"} (${characterAppearance})`
+        : characterName || "the character";
+      
+      // The instruction already contains "Change [character]'s view to: [description]"
+      return `Edit the existing image: ${instruction}. Identify ${figureIdentifier} in the scene and change only their pose/view. Keep the same scene, background, composition, camera angle, lighting, all other characters, and all other elements unchanged.`;
     case "effects":
       return `Add ${instruction} effect to the image`;
     default:
@@ -113,6 +132,7 @@ async function editImage(
   width: number,
   height: number,
   model: string,
+  editCategory?: string,
   userId?: string,
   workspaceId?: string
 ): Promise<{ imageUrl: string; cost?: number }> {
@@ -131,8 +151,17 @@ async function editImage(
   const supportsNegativePrompt = modelConfig?.supportsNegativePrompt ?? false;
 
   // Build the payload for image-to-image editing
-  // The original image should be included as the first reference image
+  // CRITICAL: The original image MUST be the first reference image for image-to-image editing to work
+  // This is the image that will be edited/modified
   const allReferenceImages = [originalImageUrl, ...referenceImages];
+
+  // Log for debugging
+  console.log('[agent-4.3:image-editor] Image-to-image editing:', {
+    originalImageUrl,
+    referenceImagesCount: referenceImages.length,
+    totalReferenceImagesCount: allReferenceImages.length,
+    firstImageIsOriginal: allReferenceImages[0] === originalImageUrl,
+  });
 
   const payload: Record<string, any> = {
     taskType: "imageInference",
@@ -147,8 +176,14 @@ async function editImage(
 
   // Only include negativePrompt if the model supports it
   if (supportsNegativePrompt) {
-    // Use a default negative prompt for editing to maintain quality
-    payload.negativePrompt = "blurry, low quality, distorted, watermark, text, logo, cropped, out of frame, bad composition";
+    // Use category-specific negative prompts for better results
+    if (editCategory === "remove") {
+      // For removal, emphasize preserving all other objects and elements
+      payload.negativePrompt = "removing other objects, deleting multiple items, changing background, altering scene, modifying other elements, removing similar objects, deleting related items, blurry, low quality, distorted, watermark, text, logo, cropped, out of frame, bad composition, incomplete removal, artifacts";
+    } else {
+      // Default negative prompt for other editing operations
+      payload.negativePrompt = "blurry, low quality, distorted, watermark, text, logo, cropped, out of frame, bad composition";
+    }
   }
 
   // For image-to-image editing, we typically want lower strength to preserve original
@@ -220,6 +255,7 @@ export async function editStoryboardImage(
     editCategory,
     referenceImages = [],
     characterName,
+    characterAppearance,
     shotId,
     videoId,
     aspectRatio,
@@ -259,8 +295,19 @@ export async function editStoryboardImage(
     const editingPrompt = buildEditingPrompt(
       editCategory,
       editingInstruction,
-      characterName
+      characterName,
+      characterAppearance
     );
+
+    // Log removal operations with extra detail for debugging
+    if (editCategory === "remove") {
+      console.log("[agent-4.3:image-editor] Removal operation:", {
+        removalTarget: editingInstruction.trim(),
+        fullPrompt: editingPrompt.substring(0, 200) + "...",
+        shotId,
+        videoId,
+      });
+    }
 
     // Get dimensions for aspect ratio and image model
     const dimensions = getDimensions(aspectRatio, imageModel);
@@ -273,6 +320,7 @@ export async function editStoryboardImage(
       dimensions.width,
       dimensions.height,
       imageModel,
+      editCategory, // Pass category for category-specific negative prompts
       userId,
       workspaceId
     );

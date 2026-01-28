@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { callAi } from "../../ai/service";
 import { VIDEO_MODEL_CONFIGS } from "../../ai/config/video-models";
 import { getDimensions } from "../../ai/config/video-models";
-import { bunnyStorage } from "../../storage/bunny-storage";
+import { bunnyStorage, buildVideoModePath } from "../../storage/bunny-storage";
 import { storage } from "../../storage";
 import type { LogoGenerateRequest } from "./types";
 
@@ -89,6 +89,7 @@ export async function generateLogoAnimation(
 
   try {
     // Generate video using VEO 3.1
+    // VEO 3.1 video generation can take 8-15 minutes depending on complexity
     const response = await callAi({
       provider: "runware",
       model: "veo-3.1",
@@ -96,8 +97,8 @@ export async function generateLogoAnimation(
       payload: [videoPayload],
       runware: {
         deliveryMethod: "async",
-        pollIntervalMs: 3000,
-        timeoutMs: 300000, // 5 minutes
+        pollIntervalMs: 5000, // Poll every 5 seconds (was 3)
+        timeoutMs: 900000, // 15 minutes (was 5 minutes)
       },
     });
 
@@ -131,24 +132,32 @@ export async function generateLogoAnimation(
     // Upload video to Bunny CDN
     const videoBuffer = await fetch(videoUrl).then(r => r.arrayBuffer()).then(b => Buffer.from(b));
     
-    // Build path: {userId}/{workspace}/Videos/Logo_Animation/{projectName}/final.mp4
-    // Clean function to sanitize path components (same as bunny-storage.ts)
-    const clean = (str: string) => str.replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "_");
-    const cleanTitle = clean(request.title);
-    const cleanWorkspace = clean(workspace.name);
-    const timestamp = Date.now();
-    const projectFolder = `${cleanTitle}_${timestamp}`;
-    const videoPath = `${userId}/${cleanWorkspace}/Videos/Logo_Animation/${projectFolder}/final.mp4`;
+    // Build path using buildVideoModePath for consistency with other modes
+    // Path: {userId}/{workspaceName}/video_mode/logo-animation/{projectName}_{YYYYMMDD}/Rendered/Final/logo-animation.mp4
+    const dateLabel = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const videoPath = buildVideoModePath({
+      userId,
+      workspaceName: workspace.name,
+      toolMode: "logo-animation",
+      projectName: request.title,
+      subFolder: "Final",
+      filename: "logo-animation.mp4",
+      dateLabel,
+    });
     
     await bunnyStorage.uploadFile(videoPath, videoBuffer, "video/mp4");
     const finalVideoUrl = bunnyStorage.getPublicUrl(videoPath);
+
+    // Clean function to get project folder for database
+    const clean = (str: string) => str.replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "_");
+    const projectFolder = `video_mode/logo-animation/${clean(request.title)}_${dateLabel}`;
 
     // Save to database as a story
     const story = await storage.createStory({
       userId,
       workspaceId: request.workspaceId,
       projectName: request.title,
-      projectFolder: `Videos/Logo_Animation/${projectFolder}`,
+      projectFolder,
       storyMode: "logo-animation",
       videoUrl: finalVideoUrl,
       duration: request.duration,

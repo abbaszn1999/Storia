@@ -55,8 +55,8 @@ const assetNavItems = [
 ];
 
 const productionNavItems = [
-  { title: "New Campaign", url: "/production/new", icon: Plus },
-  { title: "Campaign History", url: "/production", icon: Archive },
+  { title: "New Campaign", url: "/autoproduction", icon: Plus },
+  { title: "Campaign History", url: "/autoproduction/campaigns", icon: Archive },
 ];
 
 export function AppSidebar() {
@@ -189,17 +189,19 @@ export function AppSidebar() {
                               : "text-sidebar-foreground/70 hover:bg-sidebar-accent/80 hover:text-sidebar-foreground"
                           )}
                         >
-                          <Link 
+                          <Link
                             href={item.url}
                             onClick={() => {
-                              // إغلاق الـ sidebar عند الضغط على New Campaign
-                              if (item.url === "/production/new") {
-                                setOpen(false);
-                              }
+                              setOpen(false);
                             }}
                           >
                             <item.icon />
                             <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
+                            {(item as any).badge && (
+                              <span className="ml-auto text-xs px-1.5 py-0.5 bg-muted rounded">
+                                {(item as any).badge}
+                              </span>
+                            )}
                           </Link>
                         </SidebarMenuButton>
                       </motion.div>

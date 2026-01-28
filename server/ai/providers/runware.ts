@@ -8,8 +8,8 @@ import type { AiProviderAdapter } from "./base-provider";
 import { registerProvider } from "./base-provider";
 import type { AiRequest } from "../types";
 
-const DEFAULT_POLL_INTERVAL_MS = 2000;
-const DEFAULT_POLL_TIMEOUT_MS = 120000;
+const DEFAULT_POLL_INTERVAL_MS = 3000; // 3 seconds
+const DEFAULT_POLL_TIMEOUT_MS = 600000; // 10 minutes (video generation can take a while)
 const RUNWARE_DEFAULT_BASE = "https://api.runware.ai/v1";
 
 function trimTrailingSlash(url: string | undefined): string {

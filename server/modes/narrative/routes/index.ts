@@ -16,6 +16,9 @@ import { VIDEO_MODEL_CONFIGS, getAvailableVideoModels, getDefaultVideoModel } fr
 import { resolveVideoSettings } from '../utils/video-models';
 import { callAi } from '../../../ai/service';
 
+// Import modular routers
+import previewRouter from './preview';
+
 const DEBUG_LOG_PATH = join(process.cwd(), '.cursor', 'debug.log');
 function debugLog(location: string, message: string, data: any, hypothesisId: string) {
   try {
@@ -42,6 +45,9 @@ function debugLog(location: string, message: string, data: any, hypothesisId: st
 }
 
 const router = Router();
+
+// Mount modular routers
+router.use(previewRouter);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TEMPORARY REFERENCE IMAGE STORAGE (Memory)
@@ -576,6 +582,73 @@ router.patch('/videos/:id/step4', isAuthenticated, async (req: Request, res: Res
     console.error('[narrative:routes] Step4 data save error:', error);
     res.status(500).json({ 
       error: 'Failed to save step4 data',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * PATCH /api/narrative/videos/:id/step5
+ * Save step5Data (sound settings: SFX descriptions, voiceover, music)
+ * 
+ * This is called with debouncing from the frontend to auto-save sound settings.
+ */
+router.patch('/videos/:id/step5', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const step5Updates = req.body;
+
+    console.log('[narrative:routes] Saving step5 data:', { 
+      videoId: id, 
+      shotsWithSFXCount: step5Updates.shotsWithSFX ? Object.keys(step5Updates.shotsWithSFX).length : 0,
+      voiceoverEnabled: step5Updates.voiceoverEnabled,
+      backgroundMusicEnabled: step5Updates.backgroundMusicEnabled,
+    });
+
+    // Get existing video
+    const existingVideo = await storage.getVideo(id);
+    if (!existingVideo) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Merge existing step5Data with new data
+    const existingStep5 = (existingVideo.step5Data as Record<string, any>) || {};
+    
+    // Deep merge for shotsWithSFX to preserve existing URLs when only updating descriptions
+    const mergedShotsWithSFX = {
+      ...existingStep5.shotsWithSFX,
+      ...step5Updates.shotsWithSFX,
+    };
+    
+    // For each shot, merge the properties (preserving URLs when only description is updated)
+    if (step5Updates.shotsWithSFX) {
+      for (const shotId of Object.keys(step5Updates.shotsWithSFX)) {
+        mergedShotsWithSFX[shotId] = {
+          ...existingStep5.shotsWithSFX?.[shotId],
+          ...step5Updates.shotsWithSFX[shotId],
+        };
+      }
+    }
+
+    const updatedStep5Data = {
+      ...existingStep5,
+      ...step5Updates,
+      shotsWithSFX: mergedShotsWithSFX,
+    };
+
+    // Update video with step5Data
+    await storage.updateVideo(id, { step5Data: updatedStep5Data });
+
+    res.json({ success: true, step5Data: updatedStep5Data });
+  } catch (error) {
+    console.error('[narrative:routes] Step5 data save error:', error);
+    res.status(500).json({ 
+      error: 'Failed to save step5 data',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
@@ -1381,25 +1454,34 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
           }
         }
 
-        // Fetch video model from step2Data to get available durations
-        if (video?.step2Data && typeof video.step2Data === 'object') {
+        // Fetch video model from step1Data (script page selection) to get available durations
+        // Priority: step1Data.videoModel > step2Data.videoModel > first scene's videoModel
+        let videoModelId: string | undefined;
+        
+        if (video.step1Data && typeof video.step1Data === 'object') {
+          const step1Data = video.step1Data as any;
+          if (step1Data.videoModel) {
+            videoModelId = step1Data.videoModel;
+            console.log('[narrative:routes] Using videoModel from step1Data:', videoModelId);
+          }
+        }
+        
+        // Fallback to step2Data or first scene's videoModel
+        if (!videoModelId && video.step2Data && typeof video.step2Data === 'object') {
           const step2Data = video.step2Data as any;
-          // Video model might be stored in step2Data or we need to get it from video model config
-          // For now, we'll get it from VIDEO_MODEL_CONFIGS based on a default or stored model
-          // Check if there's a videoModel in step2Data or step3Data
-          const videoModelId = step2Data.videoModel || (video.step3Data as any)?.scenes?.[0]?.videoModel;
+          videoModelId = step2Data.videoModel || (video.step3Data as any)?.scenes?.[0]?.videoModel;
+        }
 
-          if (videoModelId) {
-            // Import video model config
-            const { VIDEO_MODEL_CONFIGS } = await import('../../../ai/config/video-models');
-            const modelConfig = VIDEO_MODEL_CONFIGS[videoModelId];
-            if (modelConfig && modelConfig.durations) {
-              availableDurations = modelConfig.durations;
-              console.log('[narrative:routes] Using available durations from video model:', {
-                videoModelId,
-                availableDurations,
-              });
-            }
+        if (videoModelId) {
+          // Import video model config
+          const { VIDEO_MODEL_CONFIGS } = await import('../../../ai/config/video-models');
+          const modelConfig = VIDEO_MODEL_CONFIGS[videoModelId];
+          if (modelConfig && modelConfig.durations) {
+            availableDurations = modelConfig.durations;
+            console.log('[narrative:routes] Using available durations from video model:', {
+              videoModelId,
+              availableDurations,
+            });
           }
         }
       }
@@ -1913,15 +1995,26 @@ router.post('/prompts/generate', isAuthenticated, async (req: Request, res: Resp
       anchor?: string;
       negativeStyle?: string;
       refImageUrl?: string;
+      artStyle?: string;
     } | undefined;
+    
+    // Always include artStyle if it's not 'none'
+    const effectiveArtStyle = artStyle && artStyle !== 'none' ? artStyle : undefined;
     
     if (artStyle === 'none' && styleReference && styleReference.length > 0) {
       styleReferenceObj = {
         refImageUrl: styleReference[0],
+        artStyle: effectiveArtStyle,
       };
     } else if (cinematicInspiration) {
       styleReferenceObj = {
         anchor: cinematicInspiration,
+        artStyle: effectiveArtStyle,
+      };
+    } else if (effectiveArtStyle) {
+      // Even without cinematicInspiration or styleReference, pass artStyle
+      styleReferenceObj = {
+        artStyle: effectiveArtStyle,
       };
     }
     
@@ -2033,6 +2126,12 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    
+    // Ensure response is not already sent
+    if (res.headersSent) {
+      console.warn('[narrative:routes] Response already sent, skipping');
+      return;
+    }
 
     const { 
       shotId, 
@@ -2099,9 +2198,18 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
         ...(endFramePrompt !== undefined && { endFramePrompt }),
         ...(negativePrompt !== undefined && { negativePrompt }),
       };
+      
+      // CRITICAL: Re-fetch latest step4Data before saving prompts to prevent race conditions
+      const latestVideoForPrompts = await storage.getVideo(videoId);
+      const latestStep4DataForPrompts = (latestVideoForPrompts?.step4Data as Record<string, any>) || {};
+      const latestPromptsForPrompts = latestStep4DataForPrompts.prompts || {};
+      
+      // Merge the updated prompts for this shot with the latest data
+      latestPromptsForPrompts[shotId] = prompts[shotId];
+      
       step4Data = {
-        ...step4Data,
-        prompts,
+        ...latestStep4DataForPrompts,
+        prompts: latestPromptsForPrompts,
       };
       
       // Save updated prompts to database before generating
@@ -2191,9 +2299,11 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
     }
 
     // Get image model (will be updated below to use per-frame settings from currentVersion)
-    // Priority: request override > version per-frame > shot-level > scene-level > default
+    // Priority: request override > version per-frame > shot-level > scene-level > step1Data > default
     // Note: currentVersion will be available later after shotVersions are retrieved
-    let imageModel = requestImageModel || foundShot.imageModel || foundScene.imageModel || 'nano-banana';
+    // Get default image model from step1Data (script page selection)
+    const defaultImageModelFromStep1 = step1Data.imageModel || 'nano-banana';
+    let imageModel = requestImageModel || foundShot.imageModel || foundScene.imageModel || defaultImageModelFromStep1;
 
     // Collect reference images
     const referenceImages: string[] = [];
@@ -2267,8 +2377,9 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
     // Priority: request override > version per-frame > shot-level > scene-level > default
     if (!requestImageModel && currentVersion && narrativeMode === 'start-end') {
       // Determine which frame is being generated (use frameType if set, otherwise infer from frame)
+      // Note: frameType may not be fully determined yet (start-and-end is set later), so we check frame directly
       const isGeneratingStartFrame = frame === 'start' || frameType === 'start-only';
-      const isGeneratingEndFrame = frame === 'end' || frameType === 'end-only' || frameType === 'start-and-end';
+      const isGeneratingEndFrame = frame === 'end' || frameType === 'end-only';
       
       // Use per-frame image model if available
       if (isGeneratingStartFrame && currentVersion.startFrameImageModel) {
@@ -2291,7 +2402,7 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       selectedModel: imageModel,
       source: requestImageModel ? 'request' 
         : (currentVersion?.startFrameImageModel && (frame === 'start' || frameType === 'start-only')) ? 'version-start-frame'
-        : (currentVersion?.endFrameImageModel && (frame === 'end' || frameType === 'end-only' || frameType === 'start-and-end')) ? 'version-end-frame'
+        : (currentVersion?.endFrameImageModel && (frame === 'end' || frameType === 'end-only')) ? 'version-end-frame'
         : foundShot.imageModel ? 'shot' 
         : foundScene.imageModel ? 'scene' 
         : 'default',
@@ -2314,20 +2425,32 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
           // Not first in group - get previous shot's frame
           previousShotId = group.shotIds[shotIndex - 1];
           
-          // Get previous shot's version from step4Data.shotVersions
-          const previousShotVersions = previousShotId ? (shotVersions[previousShotId] || []) : [];
+          // CRITICAL: Re-fetch latest shotVersions from database to get the most recent data
+          // During "Generate All Images", previous shots may have just finished and saved
+          const freshVideoForPrev = await storage.getVideo(videoId);
+          const freshStep4Data = (freshVideoForPrev?.step4Data as Record<string, any>) || {};
+          const freshShotVersions = freshStep4Data.shotVersions || {};
+          
+          // Get previous shot's version from freshly fetched shotVersions
+          const previousShotVersions = previousShotId ? (freshShotVersions[previousShotId] || []) : [];
           
           // Get the latest version (most recent is last in array)
           previousVersion = previousShotVersions.length > 0 
             ? previousShotVersions[previousShotVersions.length - 1] 
             : null;
           
-          // Validation: Check if previous shot has generated frames (for continuity groups)
+          // SOFT CHECK: Log warning if previous shot doesn't have frames, but don't block
+          // This allows "Generate All Images" to work even if previous shot hasn't finished
+          // The generation will proceed without the reference image for continuity
           if (narrativeMode === 'start-end' || narrativeMode === 'auto') {
             if (!previousVersion || (!previousVersion.endFrameUrl && !previousVersion.startFrameUrl && !previousVersion.imageUrl)) {
-              return res.status(400).json({ 
-                error: `Cannot generate this shot: previous shot (${previousShotId}) must have generated frames first. Please generate frames for all previous shots in the continuity group before generating this shot.` 
+              console.warn('[narrative:routes] Previous shot has no frames yet:', {
+                currentShotId: shotId,
+                previousShotId,
+                hasVersion: !!previousVersion,
+                message: 'Continuing generation without continuity reference image',
               });
+              // Don't return 400 - allow generation to proceed without reference
             }
           }
           
@@ -2364,11 +2487,19 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       const hasInheritedStartFrame = isInContinuityGroup && previousVersion && 
         (previousVersion.endFrameUrl || previousVersion.startFrameUrl || previousVersion.imageUrl);
       
-      // End frame generation requires either own start frame OR inherited start frame
+      // SOFT CHECK: Log warning but allow generation to proceed
+      // This enables "Generate All Images" to work even if previous shot failed
+      // The generation will proceed without the start frame reference for visual consistency
       if (!hasOwnStartFrame && !hasInheritedStartFrame) {
-        return res.status(400).json({ 
-          error: 'Cannot generate end frame: start frame must be generated first. Please generate the start frame (or the previous shot\'s end frame for connected shots) before generating the end frame.' 
+        console.warn('[narrative:routes] End frame generation without start frame reference:', {
+          shotId,
+          hasOwnStartFrame,
+          hasInheritedStartFrame,
+          isInContinuityGroup,
+          hasPreviousVersion: !!previousVersion,
+          message: 'Proceeding with generation - visual consistency may be affected',
         });
+        // Don't return 400 - allow generation to proceed
       }
     }
 
@@ -2466,17 +2597,32 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
     };
 
     // Call Agent 4.2
-    const result = await NarrativeAgents.generateStoryboardImage(
-      agentInput,
-      userId,
-      workspaceId
-    );
+    let result;
+    try {
+      result = await NarrativeAgents.generateStoryboardImage(
+        agentInput,
+        userId,
+        workspaceId
+      );
+    } catch (agentError) {
+      console.error('[narrative:routes] Agent 4.2 error:', agentError);
+      if (!res.headersSent) {
+        return res.status(500).json({ 
+          error: 'Image generation agent failed',
+          details: agentError instanceof Error ? agentError.message : 'Unknown agent error'
+        });
+      }
+      return;
+    }
 
     if (result.error) {
-      return res.status(500).json({ 
-        error: result.error,
-        details: 'Image generation failed'
-      });
+      if (!res.headersSent) {
+        return res.status(500).json({ 
+          error: result.error,
+          details: 'Image generation failed'
+        });
+      }
+      return;
     }
 
     // Get workspace for Bunny path
@@ -2496,6 +2642,49 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
     // Create or update shot version
     // Reuse shotVersions from earlier (line 2224) - no need to redeclare
     const existingVersions = shotVersions[shotId] || [];
+    
+    // Extract character IDs that appear in this frame
+    // Priority: 1) shot.characters array, 2) character mentions in prompt text
+    const extractCharacterIds = (promptText?: string): string[] => {
+      const characterIds: string[] = [];
+      const allCharacters = step2Data.characters || [];
+      
+      // Method 1: Extract from shot.characters array (if available)
+      if (foundShot.characters && Array.isArray(foundShot.characters)) {
+        for (const charName of foundShot.characters) {
+          const cleanName = charName.replace(/^@\{?([^}]+)\}?$/, '$1');
+          const character = allCharacters.find((c: any) => c.name === cleanName);
+          if (character && character.id) {
+            characterIds.push(character.id);
+          }
+        }
+      }
+      
+      // Method 2: Extract from prompt text by matching character names
+      if (promptText && characterIds.length === 0) {
+        for (const character of allCharacters) {
+          if (character.name && promptText.includes(character.name)) {
+            if (!characterIds.includes(character.id)) {
+              characterIds.push(character.id);
+            }
+          }
+        }
+      }
+      
+      return characterIds;
+    };
+    
+    // Determine which prompt to use for character extraction based on frame type
+    let promptForCharacterExtraction: string | undefined;
+    if (frame === 'start' || frameType === 'start-only') {
+      promptForCharacterExtraction = shotPrompts.startFramePrompt || shotPrompts.imagePrompt;
+    } else if (frame === 'end' || frameType === 'end-only') {
+      promptForCharacterExtraction = shotPrompts.endFramePrompt || shotPrompts.imagePrompt;
+    } else {
+      promptForCharacterExtraction = shotPrompts.imagePrompt;
+    }
+    
+    const extractedCharacterIds = extractCharacterIds(promptForCharacterExtraction);
     
     let newVersionId: string;
     let versionNumber: number;
@@ -2520,6 +2709,30 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
         ? result.endFrameUrl
         : existingVersion.endFrameUrl;
       
+      // Update character IDs based on which frame was generated
+      let updatedCharacters = existingVersion.characters || [];
+      let updatedStartFrameCharacters = existingVersion.startFrameCharacters || [];
+      let updatedEndFrameCharacters = existingVersion.endFrameCharacters || [];
+      
+      if (frame === 'start' || frameType === 'start-only') {
+        // Start frame was generated - update start frame characters
+        updatedStartFrameCharacters = extractedCharacterIds.length > 0 ? extractedCharacterIds : existingVersion.startFrameCharacters || [];
+        // Also update general characters if this is the first frame or if no general characters exist
+        if (!existingVersion.characters || existingVersion.characters.length === 0) {
+          updatedCharacters = extractedCharacterIds;
+        }
+      } else if (frame === 'end' || frameType === 'end-only') {
+        // End frame was generated - update end frame characters
+        updatedEndFrameCharacters = extractedCharacterIds.length > 0 ? extractedCharacterIds : existingVersion.endFrameCharacters || [];
+        // Also update general characters if no general characters exist
+        if (!existingVersion.characters || existingVersion.characters.length === 0) {
+          updatedCharacters = extractedCharacterIds;
+        }
+      } else {
+        // General image (image-reference mode) - update general characters
+        updatedCharacters = extractedCharacterIds.length > 0 ? extractedCharacterIds : existingVersion.characters || [];
+      }
+      
       newVersion = {
         ...existingVersion,
         imageUrl: result.imageUrl || existingVersion.imageUrl,
@@ -2541,6 +2754,10 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
         endFrameSteps: endFrameSteps !== undefined ? endFrameSteps : existingVersion.endFrameSteps,
         startFrameStrength: startFrameStrength !== undefined ? startFrameStrength : existingVersion.startFrameStrength,
         endFrameStrength: endFrameStrength !== undefined ? endFrameStrength : existingVersion.endFrameStrength,
+        // Update character tracking
+        characters: updatedCharacters.length > 0 ? updatedCharacters : null,
+        startFrameCharacters: updatedStartFrameCharacters.length > 0 ? updatedStartFrameCharacters : null,
+        endFrameCharacters: updatedEndFrameCharacters.length > 0 ? updatedEndFrameCharacters : null,
         // Ensure status is updated to completed if generation succeeded
         status: "completed",
         needsRerender: false,
@@ -2551,6 +2768,27 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       // Create new version
       newVersionId = `version-${shotId}-${Date.now()}`;
       versionNumber = existingVersions.length + 1;
+      
+      // Determine character IDs for this new version based on frame type
+      let versionCharacters: string[] | null = null;
+      let startFrameChars: string[] | null = null;
+      let endFrameChars: string[] | null = null;
+      
+      if (frame === 'start' || frameType === 'start-only') {
+        startFrameChars = extractedCharacterIds.length > 0 ? extractedCharacterIds : null;
+        versionCharacters = extractedCharacterIds.length > 0 ? extractedCharacterIds : null;
+      } else if (frame === 'end' || frameType === 'end-only') {
+        endFrameChars = extractedCharacterIds.length > 0 ? extractedCharacterIds : null;
+        versionCharacters = extractedCharacterIds.length > 0 ? extractedCharacterIds : null;
+      } else {
+        // General image (image-reference mode) or start-and-end
+        versionCharacters = extractedCharacterIds.length > 0 ? extractedCharacterIds : null;
+        if (frameType === 'start-and-end') {
+          // For start-and-end, both frames might have same characters initially
+          startFrameChars = extractedCharacterIds.length > 0 ? extractedCharacterIds : null;
+          endFrameChars = extractedCharacterIds.length > 0 ? extractedCharacterIds : null;
+        }
+      }
       
       newVersion = {
         id: newVersionId,
@@ -2575,6 +2813,10 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
         endFrameSteps: endFrameSteps ?? null,
         startFrameStrength: startFrameStrength ?? null,
         endFrameStrength: endFrameStrength ?? null,
+        // Character tracking
+        characters: versionCharacters,
+        startFrameCharacters: startFrameChars,
+        endFrameCharacters: endFrameChars,
         status: "completed",
         needsRerender: false,
         createdAt: new Date().toISOString(),
@@ -2587,15 +2829,34 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
     // The newVersion object already has the correct URLs set from lines 2239-2249 or 2257-2269
     // For existing versions, preservation is already handled at lines 2231-2237
 
-    // Update shotVersions in step4Data
-    shotVersions[shotId] = existingVersions;
-    const updatedStep4Data = {
-      ...step4Data,
-      shotVersions,
-    };
+    // CRITICAL: Re-fetch the latest step4Data from database to prevent race conditions
+    // During image generation (10-30+ seconds), other requests may have updated other shots
+    // We must merge with the latest data, not overwrite with stale data
+    try {
+      const latestVideo = await storage.getVideo(videoId);
+      const latestStep4Data = (latestVideo?.step4Data as Record<string, any>) || {};
+      const latestShotVersions = latestStep4Data.shotVersions || {};
+      
+      // Only update this specific shot's versions, preserving all other shots' data
+      latestShotVersions[shotId] = existingVersions;
+      
+      const updatedStep4Data = {
+        ...latestStep4Data,
+        shotVersions: latestShotVersions,
+      };
 
-    // Save to database
-    await storage.updateVideo(videoId, { step4Data: updatedStep4Data });
+      // Save to database
+      await storage.updateVideo(videoId, { step4Data: updatedStep4Data });
+      
+      console.log('[narrative:routes] Saved with race-condition protection:', {
+        shotId,
+        totalShotsInVersions: Object.keys(latestShotVersions).length,
+      });
+    } catch (dbError) {
+      console.error('[narrative:routes] Database save error:', dbError);
+      // Continue anyway - image was generated successfully, just couldn't save to DB
+      // Log warning but don't fail the request
+    }
 
     console.log('[narrative:routes] Storyboard image generated successfully:', {
       shotId,
@@ -2607,20 +2868,30 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       usingRunwareUrls: true,
     });
 
-    res.json({
-      imageUrl: newVersion.imageUrl,
-      startFrameUrl: newVersion.startFrameUrl,
-      endFrameUrl: newVersion.endFrameUrl,
-      shotVersionId: newVersion.id,
-      version: newVersion,
-      cost: result.cost,
-    });
+    // Ensure response hasn't been sent already
+    if (!res.headersSent) {
+      res.json({
+        imageUrl: newVersion.imageUrl,
+        startFrameUrl: newVersion.startFrameUrl,
+        endFrameUrl: newVersion.endFrameUrl,
+        shotVersionId: newVersion.id,
+        version: newVersion,
+        cost: result.cost,
+      });
+    } else {
+      console.warn('[narrative:routes] Response already sent, cannot send success response');
+    }
   } catch (error) {
     console.error('[narrative:routes] Storyboard image generation error:', error);
-    res.status(500).json({ 
-      error: 'Failed to generate storyboard image',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
+    // Only send error response if headers haven't been sent
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Failed to generate storyboard image',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } else {
+      console.error('[narrative:routes] Cannot send error response - headers already sent');
+    }
   }
 });
 
@@ -2643,6 +2914,7 @@ router.post('/videos/:videoId/shots/:shotId/edit-image', isAuthenticated, async 
       referenceImages = [],
       characterId,
       imageModel,
+      activeFrame, // For start-end mode: "start" or "end"
     } = req.body;
 
     const workspaceId = req.headers["x-workspace-id"] as string | undefined;
@@ -2688,25 +2960,57 @@ router.post('/videos/:videoId/shots/:shotId/edit-image', isAuthenticated, async 
       return res.status(404).json({ error: 'Version not found' });
     }
 
-    // Get the original image URL (for image-reference mode, use imageUrl; for start-end, use appropriate frame)
-    const originalImageUrl = versionToEdit.imageUrl || versionToEdit.startFrameUrl || versionToEdit.endFrameUrl;
+    // Get the original image URL based on mode and active frame
+    let originalImageUrl: string | null | undefined;
+    if (activeFrame === "start") {
+      originalImageUrl = versionToEdit.startFrameUrl;
+    } else if (activeFrame === "end") {
+      originalImageUrl = versionToEdit.endFrameUrl;
+    } else {
+      // Fallback: for image-reference mode, use imageUrl; otherwise try startFrameUrl or endFrameUrl
+      originalImageUrl = versionToEdit.imageUrl || versionToEdit.startFrameUrl || versionToEdit.endFrameUrl;
+    }
+    
     if (!originalImageUrl) {
-      return res.status(400).json({ error: 'No image found in the selected version' });
+      let detailsMessage: string;
+      if (activeFrame) {
+        detailsMessage = `The selected version does not have a ${activeFrame} frame`;
+      } else {
+        detailsMessage = 'The selected version does not have an image';
+      }
+      return res.status(400).json({ 
+        error: 'No image found in the selected version',
+        details: detailsMessage
+      });
     }
 
-    // Get character name if characterId is provided
+    // Get character name and appearance if characterId is provided
     let characterName: string | undefined;
+    let characterAppearance: string | undefined;
     if (characterId) {
       const characters = step2Data.characters || [];
       const character = characters.find((c: any) => c.id === characterId);
       characterName = character?.name;
+      characterAppearance = character?.appearance;
     }
 
     // Collect reference images (character, location, style refs from step2Data)
+    // IMPORTANT: The originalImageUrl is passed separately to the agent, which will prepend it to referenceImages
+    // So we only collect additional reference images here (character, style, etc.)
     const allReferenceImages: string[] = [...referenceImages];
     
-    // Add character reference images if characterId is provided
-    if (characterId) {
+    // For character-specific edits, include character image as SECOND reference
+    // (after original shot image) to help identify which character to edit
+    // The original shot image remains the primary/base image for editing
+    if (characterId && (editCategory === "clothes" || editCategory === "expression" || editCategory === "figure")) {
+      const characters = step2Data.characters || [];
+      const character = characters.find((c: any) => c.id === characterId);
+      if (character?.imageUrl) {
+        // Add character image as identification reference (will be after original image in final array)
+        allReferenceImages.push(character.imageUrl);
+      }
+    } else if (characterId) {
+      // For non-character-specific edits, include character image normally
       const characters = step2Data.characters || [];
       const character = characters.find((c: any) => c.id === characterId);
       if (character?.imageUrl) {
@@ -2722,7 +3026,20 @@ router.post('/videos/:videoId/shots/:shotId/edit-image', isAuthenticated, async 
       allReferenceImages.push(step2Data.artStyleImageUrl);
     }
 
+    // Log for debugging
+    console.log('[narrative:routes] Image editing request:', {
+      shotId,
+      versionId,
+      originalImageUrl,
+      activeFrame,
+      characterId,
+      characterName,
+      referenceImagesCount: allReferenceImages.length,
+      editCategory,
+    });
+
     // Call Agent 4.3: Image Editor
+    // The agent will prepend originalImageUrl to allReferenceImages when calling the API
     const editResult = await NarrativeAgents.editImage(
       {
         originalImageUrl,
@@ -2731,6 +3048,7 @@ router.post('/videos/:videoId/shots/:shotId/edit-image', isAuthenticated, async 
         referenceImages: allReferenceImages,
         characterId,
         characterName,
+        characterAppearance,
         shotId,
         videoId,
         aspectRatio,
@@ -2751,14 +3069,33 @@ router.post('/videos/:videoId/shots/:shotId/edit-image', isAuthenticated, async 
     const newVersionId = `version-${shotId}-${Date.now()}`;
     const versionNumber = existingVersions.length + 1;
 
-    // Determine which frame URL to update based on the original version
+    // Determine which frame URL to update based on activeFrame (for start-end mode) or original version structure
+    let imageUrl: string | null = null;
+    let startFrameUrl: string | null = null;
+    let endFrameUrl: string | null = null;
+    
+    if (activeFrame === "start") {
+      // Editing start frame - update startFrameUrl only
+      startFrameUrl = editResult.editedImageUrl;
+      endFrameUrl = versionToEdit.endFrameUrl || null;
+    } else if (activeFrame === "end") {
+      // Editing end frame - update endFrameUrl only
+      startFrameUrl = versionToEdit.startFrameUrl || null;
+      endFrameUrl = editResult.editedImageUrl;
+    } else {
+      // Image-reference mode - update imageUrl
+      imageUrl = versionToEdit.imageUrl ? editResult.editedImageUrl : null;
+      startFrameUrl = versionToEdit.startFrameUrl || null;
+      endFrameUrl = versionToEdit.endFrameUrl || null;
+    }
+    
     const newVersion: any = {
       id: newVersionId,
       shotId,
       versionNumber,
-      imageUrl: versionToEdit.imageUrl ? editResult.editedImageUrl : null, // Update if original had imageUrl
-      startFrameUrl: versionToEdit.startFrameUrl ? editResult.editedImageUrl : null, // Update if original had startFrameUrl
-      endFrameUrl: versionToEdit.endFrameUrl ? editResult.editedImageUrl : null, // Update if original had endFrameUrl
+      imageUrl,
+      startFrameUrl,
+      endFrameUrl,
       // Copy prompts from original version
       imagePrompt: versionToEdit.imagePrompt,
       startFramePrompt: versionToEdit.startFramePrompt,
@@ -2787,12 +3124,20 @@ router.post('/videos/:videoId/shots/:shotId/edit-image', isAuthenticated, async 
     };
 
     existingVersions.push(newVersion);
-    shotVersions[shotId] = existingVersions;
+
+    // CRITICAL: Re-fetch the latest step4Data to prevent race conditions
+    // During image editing, other requests may have updated other shots
+    const latestVideoForEdit = await storage.getVideo(videoId);
+    const latestStep4DataForEdit = (latestVideoForEdit?.step4Data as Record<string, any>) || {};
+    const latestShotVersionsForEdit = latestStep4DataForEdit.shotVersions || {};
+    
+    // Only update this specific shot's versions, preserving all other shots' data
+    latestShotVersionsForEdit[shotId] = existingVersions;
 
     // Update step4Data
     const updatedStep4Data = {
-      ...step4Data,
-      shotVersions,
+      ...latestStep4DataForEdit,
+      shotVersions: latestShotVersionsForEdit,
     };
 
     // Save to database
@@ -2827,9 +3172,6 @@ router.post('/videos/:videoId/shots/:shotId/edit-image', isAuthenticated, async 
  */
 router.patch('/shots/:shotId/versions/:versionId', isAuthenticated, async (req: Request, res: Response) => {
   try {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2317',message:'Route hit',data:{method:req.method,path:req.path,params:req.params,query:req.query},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     const userId = getCurrentUserId(req);
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -2855,13 +3197,6 @@ router.patch('/shots/:shotId/versions/:versionId', isAuthenticated, async (req: 
       endFrameStrength,
     } = req.body;
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2324',message:'Parsed params',data:{shotId,versionId,versionIdLength:versionId?.length,versionIdType:typeof versionId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2328',message:'Request body prompts',data:{hasImagePrompt:!!imagePrompt,imagePromptPreview:imagePrompt?.substring?.(0,80),hasVideoPrompt:!!videoPrompt,reqBodyKeys:Object.keys(req.body)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'Z9'})}).catch(()=>{});
-    // #endregion
-
     if (!shotId || !versionId) {
       return res.status(400).json({ error: 'shotId and versionId are required' });
     }
@@ -2878,18 +3213,12 @@ router.patch('/shots/:shotId/versions/:versionId', isAuthenticated, async (req: 
 
     // Get videoId from request body or find it from shot
     const { videoId } = req.body;
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2349',message:'Checking videoId',data:{hasVideoId:!!videoId,videoId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-    // #endregion
     if (!videoId) {
       return res.status(400).json({ error: 'videoId is required' });
     }
 
     // Fetch video from database
     const video = await storage.getVideo(videoId);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2356',message:'Video fetched',data:{hasVideo:!!video,hasStep4Data:!!video?.step4Data},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-    // #endregion
     if (!video) {
       return res.status(404).json({ error: 'Video not found' });
     }
@@ -2898,24 +3227,15 @@ router.patch('/shots/:shotId/versions/:versionId', isAuthenticated, async (req: 
     const step4Data = (video.step4Data as Record<string, any>) || {};
     const shotVersions = step4Data.shotVersions || {};
     const existingVersions = shotVersions[shotId] || [];
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2363',message:'Checking versions',data:{versionsCount:existingVersions.length,versionIds:existingVersions.map((v:any)=>v.id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
-    // #endregion
 
     // Find the version to update
     const versionIndex = existingVersions.findIndex((v: any) => v.id === versionId);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2366',message:'Version search result',data:{versionIndex,searchingFor:versionId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-    // #endregion
     if (versionIndex === -1) {
       return res.status(404).json({ error: 'Version not found' });
     }
 
     // Update the version with new prompt values
     const existingVersion = existingVersions[versionIndex];
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2386',message:'Before update',data:{existingImagePrompt:existingVersion?.imagePrompt?.substring?.(0,50),newImagePrompt:imagePrompt?.substring?.(0,80),imagePromptUndefined:imagePrompt===undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ZA'})}).catch(()=>{});
-    // #endregion
     const updatedVersion = {
       ...existingVersion,
       ...(imagePrompt !== undefined && { imagePrompt }),
@@ -2935,23 +3255,21 @@ router.patch('/shots/:shotId/versions/:versionId', isAuthenticated, async (req: 
       ...(startFrameStrength !== undefined && { startFrameStrength }),
       ...(endFrameStrength !== undefined && { endFrameStrength }),
     };
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2396',message:'After update',data:{updatedImagePrompt:updatedVersion?.imagePrompt?.substring?.(0,80)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ZB'})}).catch(()=>{});
-    // #endregion
 
     existingVersions[versionIndex] = updatedVersion;
-    shotVersions[shotId] = existingVersions;
+
+    // CRITICAL: Re-fetch latest step4Data to prevent race conditions
+    // During this request, other requests may have updated other shots
+    const latestVideoForPatch = await storage.getVideo(videoId);
+    const latestStep4DataForPatch = (latestVideoForPatch?.step4Data as Record<string, any>) || {};
+    const latestShotVersionsForPatch = latestStep4DataForPatch.shotVersions || {};
+    const latestPromptsForPatch = latestStep4DataForPatch.prompts || {};
     
-    // #region agent log
-    const promptCheck1 = updatedVersion.imagePrompt;
-    const promptCheck2 = existingVersions[versionIndex]?.imagePrompt;
-    const promptCheck3 = shotVersions[shotId]?.[versionIndex]?.imagePrompt;
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2405',message:'After array assignment',data:{promptCheck1:promptCheck1?.substring?.(0,80),promptCheck2:promptCheck2?.substring?.(0,80),promptCheck3:promptCheck3?.substring?.(0,80),areEqual:promptCheck1===promptCheck2&&promptCheck2===promptCheck3},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ZC'})}).catch(()=>{});
-    // #endregion
+    // Only update this specific shot's data, preserving all other shots' data
+    latestShotVersionsForPatch[shotId] = existingVersions;
 
     // CRITICAL: Also update step4Data.prompts[shotId] because generate-image endpoint reads from there
-    const prompts = step4Data.prompts || {};
-    const shotPrompts = prompts[shotId] || {};
+    const shotPrompts = latestPromptsForPatch[shotId] || {};
     const updatedShotPrompts = {
       ...shotPrompts,
       ...(imagePrompt !== undefined && { imagePrompt }),
@@ -2960,30 +3278,17 @@ router.patch('/shots/:shotId/versions/:versionId', isAuthenticated, async (req: 
       ...(endFramePrompt !== undefined && { endFramePrompt }),
       ...(negativePrompt !== undefined && { negativePrompt }),
     };
-    prompts[shotId] = updatedShotPrompts;
+    latestPromptsForPatch[shotId] = updatedShotPrompts;
 
     // Update step4Data
     const updatedStep4Data = {
-      ...step4Data,
-      shotVersions,
-      prompts,
+      ...latestStep4DataForPatch,
+      shotVersions: latestShotVersionsForPatch,
+      prompts: latestPromptsForPatch,
     };
-    
-    // #region agent log
-    const finalPrompt = updatedStep4Data?.shotVersions?.[shotId]?.[versionIndex]?.imagePrompt;
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2415',message:'After step4Data spread',data:{finalPrompt:finalPrompt?.substring?.(0,80),updatedVersionPrompt:updatedVersion.imagePrompt?.substring?.(0,80)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ZD'})}).catch(()=>{});
-    // #endregion
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2385',message:'About to save to database',data:{videoId,hasUpdatedStep4Data:!!updatedStep4Data,shotVersionsKeys:Object.keys(shotVersions),versionId,updatedVersionImagePrompt:updatedVersion.imagePrompt?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-    // #endregion
 
     // Save to database
     await storage.updateVideo(videoId, { step4Data: updatedStep4Data });
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2392',message:'Database save completed',data:{videoId,shotId,versionId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
-    // #endregion
 
     // Verify the save by reading back from database
     const savedVideo = await storage.getVideo(videoId);
@@ -2991,29 +3296,163 @@ router.patch('/shots/:shotId/versions/:versionId', isAuthenticated, async (req: 
     const savedShotVersions = savedStep4Data?.shotVersions || {};
     const savedVersions = savedShotVersions[shotId] || [];
     const savedVersion = savedVersions.find((v: any) => v.id === versionId);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2400',message:'Verifying database save',data:{hasSavedVideo:!!savedVideo,hasSavedStep4Data:!!savedStep4Data,hasSavedShotVersions:!!savedShotVersions[shotId],savedVersionsCount:savedVersions.length,hasSavedVersion:!!savedVersion,savedVersionImagePrompt:savedVersion?.imagePrompt?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'T'})}).catch(()=>{});
-    // #endregion
 
     console.log('[narrative:routes] Shot version prompts updated successfully:', {
       shotId,
       versionId,
     });
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2399',message:'About to send response',data:{success:true,versionId:updatedVersion.id,imagePrompt:updatedVersion.imagePrompt?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-    // #endregion
     res.json({
       success: true,
       version: updatedVersion,
     });
   } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3122497d-bbea-4a92-b13d-2af25bc0650e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'routes/index.ts:2404',message:'Error caught',data:{errorMessage:error instanceof Error ? error.message : String(error),errorStack:error instanceof Error ? error.stack : undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
-    // #endregion
     console.error('[narrative:routes] Shot version update error:', error);
     res.status(500).json({ 
       error: 'Failed to update shot version',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * DELETE /api/narrative/shots/:shotId/versions/:versionId
+ * Delete a shot version
+ */
+router.delete('/shots/:shotId/versions/:versionId', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { shotId, versionId } = req.params;
+    const { videoId } = req.body;
+
+    if (!shotId || !versionId) {
+      return res.status(400).json({ error: 'shotId and versionId are required' });
+    }
+
+    if (!videoId) {
+      return res.status(400).json({ error: 'videoId is required' });
+    }
+
+    console.log('[narrative:routes] Deleting shot version:', {
+      shotId,
+      versionId,
+      videoId,
+    });
+
+    // Fetch video from database
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Get step4Data
+    const step4Data = (video.step4Data as Record<string, any>) || {};
+    const shotVersions = step4Data.shotVersions || {};
+    const existingVersions = shotVersions[shotId] || [];
+
+    // Find the version to delete
+    const versionIndex = existingVersions.findIndex((v: any) => v.id === versionId);
+    if (versionIndex === -1) {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+
+    // Check if this is the current version for the shot
+    // Shots are stored in step3Data, so we need to get them from there
+    const step3Data = (video.step3Data as Record<string, any>) || {};
+    const allShots = Object.values(step3Data.shots || {}).flat() as any[];
+    const shot = allShots.find((s: any) => s.id === shotId);
+    const isCurrentVersion = shot?.currentVersionId === versionId;
+
+    // Remove the version from the array
+    let updatedVersions = existingVersions.filter((v: any) => v.id !== versionId);
+    
+    // Renumber all remaining versions sequentially (1, 2, 3, ...)
+    // Sort by current versionNumber first to maintain order
+    updatedVersions = updatedVersions
+      .sort((a: any, b: any) => a.versionNumber - b.versionNumber)
+      .map((version: any, index: number) => ({
+        ...version,
+        versionNumber: index + 1,
+      }));
+    
+    // Update shotVersions
+    shotVersions[shotId] = updatedVersions;
+    
+    // If this was the current version, update the shot's currentVersionId in step3Data
+    let newCurrentVersionId: string | null | undefined = undefined;
+    if (isCurrentVersion && shot) {
+      // Set to the last remaining version, or null if no versions left
+      newCurrentVersionId = updatedVersions.length > 0 
+        ? updatedVersions[updatedVersions.length - 1].id 
+        : null;
+      
+      // CRITICAL: Re-fetch latest step3Data to prevent race conditions
+      const latestVideoForStep3 = await storage.getVideo(videoId);
+      const latestStep3Data = (latestVideoForStep3?.step3Data as Record<string, any>) || {};
+      
+      // Update the shot in step3Data
+      const shotsByScene = latestStep3Data.shots || {};
+      for (const sceneId in shotsByScene) {
+        const sceneShots = shotsByScene[sceneId] || [];
+        const shotIndex = sceneShots.findIndex((s: any) => s.id === shotId);
+        if (shotIndex >= 0) {
+          shotsByScene[sceneId][shotIndex] = {
+            ...sceneShots[shotIndex],
+            currentVersionId: newCurrentVersionId,
+          };
+          break;
+        }
+      }
+      
+      // Save updated step3Data
+      await storage.updateVideo(videoId, { step3Data: latestStep3Data });
+      
+      console.log('[narrative:routes] Updated shot currentVersionId:', {
+        shotId,
+        oldCurrentVersionId: versionId,
+        newCurrentVersionId,
+      });
+    }
+
+    // CRITICAL: Re-fetch latest step4Data to prevent race conditions
+    const latestVideoForDelete = await storage.getVideo(videoId);
+    const latestStep4DataForDelete = (latestVideoForDelete?.step4Data as Record<string, any>) || {};
+    const latestShotVersionsForDelete = latestStep4DataForDelete.shotVersions || {};
+    
+    // Only update this specific shot's versions, preserving all other shots' data
+    latestShotVersionsForDelete[shotId] = updatedVersions;
+
+    // Update step4Data
+    const updatedStep4Data = {
+      ...latestStep4DataForDelete,
+      shotVersions: latestShotVersionsForDelete,
+    };
+
+    // Save to database
+    await storage.updateVideo(videoId, { step4Data: updatedStep4Data });
+
+    console.log('[narrative:routes] Shot version deleted successfully:', {
+      shotId,
+      versionId,
+      remainingVersions: updatedVersions.length,
+      renumberedVersions: updatedVersions.map((v: any) => ({ id: v.id, versionNumber: v.versionNumber })),
+    });
+
+    res.json({
+      success: true,
+      message: 'Version deleted successfully',
+      remainingVersions: updatedVersions.length,
+      versions: updatedVersions, // Return renumbered versions for frontend update
+      newCurrentVersionId: isCurrentVersion ? (updatedVersions.length > 0 ? updatedVersions[updatedVersions.length - 1].id : null) : undefined,
+    });
+  } catch (error) {
+    console.error('[narrative:routes] Shot version delete error:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete shot version',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
@@ -3462,6 +3901,499 @@ router.post('/video/finalize', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Video finalization error:', error);
     res.status(500).json({ error: 'Failed to finalize video' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SOUND ROUTES (Step 5)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+import { 
+  generateNarrativeSoundEffectPrompt,
+  generateNarrativeSoundEffect,
+  generateNarrativeVoiceoverScript,
+  generateNarrativeVoiceoverAudio,
+  generateNarrativeBackgroundMusic,
+  NARRATIVE_VOICES,
+} from '../agents/sound';
+
+/**
+ * Get available voices for narrative voiceover
+ */
+router.get('/videos/voices', (_req: Request, res: Response) => {
+  res.json(NARRATIVE_VOICES);
+});
+
+/**
+ * Recommend sound effect description for a shot
+ */
+router.post('/videos/:id/shots/:shotId/sound-effect/recommend', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { id: videoId, shotId } = req.params;
+    const { sceneId } = req.body;
+    const userId = getCurrentUserId(req);
+
+    // Get video data
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Get step3Data for shots/scenes
+    const step3Data = (video.step3Data as any) || {};
+    const step2Data = (video.step2Data as any) || {};
+    const step1Data = (video.step1Data as any) || {};
+    
+    // Find the scene and shot
+    const scenes = step3Data.scenes || [];
+    const scene = scenes.find((s: any) => s.id === sceneId);
+    if (!scene) {
+      return res.status(404).json({ error: 'Scene not found' });
+    }
+
+    const sceneShots = step3Data.shots?.[sceneId] || [];
+    const shot = sceneShots.find((s: any) => s.id === shotId);
+    if (!shot) {
+      return res.status(404).json({ error: 'Shot not found' });
+    }
+
+    // Generate SFX prompt recommendation
+    const result = await generateNarrativeSoundEffectPrompt(
+      {
+        shot: {
+          id: shot.id,
+          shotNumber: shot.shotNumber,
+          shotType: shot.shotType,
+          description: shot.description,
+          cameraMovement: shot.cameraMovement,
+          duration: shot.duration,
+        },
+        scene: {
+          id: scene.id,
+          sceneNumber: scene.sceneNumber,
+          title: scene.title,
+          description: scene.description,
+        },
+        script: step1Data.script,
+        characters: step2Data.characters,
+        locations: step2Data.locations,
+        genre: step1Data.genres?.[0],
+        tone: step1Data.tones?.[0],
+      },
+      userId,
+      video.workspaceId
+    );
+
+    res.json({ prompt: result.prompt, cost: result.cost });
+  } catch (error) {
+    console.error('[narrative:routes] SFX recommendation error:', error);
+    res.status(500).json({ 
+      error: 'Failed to recommend sound effect',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * Generate sound effect for a shot
+ */
+router.post('/videos/:id/shots/:shotId/sound-effect/generate', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { id: videoId, shotId } = req.params;
+    const { sceneId, description } = req.body;
+    const userId = getCurrentUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    if (!description) {
+      return res.status(400).json({ error: 'Sound effect description is required' });
+    }
+
+    // Get video data
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Get shot version to get video URL
+    const step4Data = (video.step4Data as any) || {};
+    const step3Data = (video.step3Data as any) || {};
+    const shotVersions = step4Data.shotVersions?.[shotId] || [];
+    
+    // Get the scene shots to find the shot
+    const sceneShots = step3Data.shots?.[sceneId] || [];
+    const shot = sceneShots.find((s: any) => s.id === shotId);
+    if (!shot) {
+      return res.status(404).json({ error: 'Shot not found' });
+    }
+
+    // Get the current version with video URL
+    const currentVersionId = shot.currentVersionId;
+    const currentVersion = shotVersions.find((v: any) => v.id === currentVersionId) || shotVersions[shotVersions.length - 1];
+    
+    if (!currentVersion?.videoUrl) {
+      return res.status(400).json({ error: 'Shot must have a generated video before creating sound effects' });
+    }
+
+    // Get workspace name
+    const workspaces = await storage.getWorkspacesByUserId(userId);
+    const workspace = workspaces.find((w: any) => w.id === video.workspaceId);
+    const workspaceName = workspace?.name || 'default';
+
+    // Generate the sound effect
+    const result = await generateNarrativeSoundEffect({
+      videoUrl: currentVersion.videoUrl,
+      prompt: description,
+      duration: shot.duration,
+      videoId,
+      videoTitle: video.title || 'Untitled',
+      shotId,
+      sceneId,
+      userId,
+      workspaceId: video.workspaceId,
+      workspaceName,
+    });
+
+    // IMPORTANT: Re-fetch video to get latest step5Data to avoid race conditions
+    // Multiple SFX generations may complete simultaneously, and we need the current state
+    const freshVideo = await storage.getVideo(videoId);
+    const freshStep5Data = (freshVideo?.step5Data as any) || {};
+    const existingShotsWithSFX = freshStep5Data.shotsWithSFX || {};
+    
+    // Deep merge - preserve ALL existing shot SFX data, only update this shot
+    const updatedShotsWithSFX = {
+      ...existingShotsWithSFX,
+      [shotId]: {
+        soundEffectDescription: description,
+        soundEffectUrl: result.audioUrl,
+      },
+    };
+
+    await storage.updateVideo(videoId, {
+      step5Data: {
+        ...freshStep5Data,
+        shotsWithSFX: updatedShotsWithSFX,
+      },
+    });
+
+    res.json({ 
+      audioUrl: result.audioUrl,
+      cost: result.cost,
+    });
+  } catch (error) {
+    console.error('[narrative:routes] SFX generation error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate sound effect',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * Generate voiceover script
+ */
+router.post('/videos/:id/voiceover/generate-script', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { id: videoId } = req.params;
+    const { language = 'en' } = req.body;
+    const userId = getCurrentUserId(req);
+
+    // Get video data
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    const step1Data = (video.step1Data as any) || {};
+    const step2Data = (video.step2Data as any) || {};
+    const step3Data = (video.step3Data as any) || {};
+
+    // Calculate total duration
+    const scenes = step3Data.scenes || [];
+    let totalDuration = 0;
+    for (const scene of scenes) {
+      const sceneShots = step3Data.shots?.[scene.id] || [];
+      for (const shot of sceneShots) {
+        totalDuration += shot.duration || 4;
+      }
+    }
+
+    // Build shots record
+    const shotsRecord: Record<string, Array<{
+      id: string;
+      shotNumber: number;
+      description?: string | null;
+      duration: number;
+    }>> = {};
+    for (const scene of scenes) {
+      const sceneShots = step3Data.shots?.[scene.id] || [];
+      shotsRecord[scene.id] = sceneShots.map((s: any) => ({
+        id: s.id,
+        shotNumber: s.shotNumber,
+        description: s.description,
+        duration: s.duration || 4,
+      }));
+    }
+
+    // Generate the script
+    const result = await generateNarrativeVoiceoverScript(
+      {
+        script: step1Data.script || '',
+        scenes: scenes.map((s: any) => ({
+          id: s.id,
+          sceneNumber: s.sceneNumber,
+          title: s.title,
+          description: s.description,
+          duration: null,
+        })),
+        shots: shotsRecord,
+        totalDuration,
+        language: language as 'en' | 'ar',
+        characters: step2Data.characters,
+        genre: step1Data.genres?.[0],
+        tone: step1Data.tones?.[0],
+      },
+      userId,
+      video.workspaceId
+    );
+
+    // Save to step5Data
+    const step5Data = (video.step5Data as any) || {};
+    await storage.updateVideo(videoId, {
+      step5Data: {
+        ...step5Data,
+        voiceoverScript: result.script,
+      },
+    });
+
+    res.json({ 
+      script: result.script,
+      estimatedDuration: result.estimatedDuration,
+      cost: result.cost,
+    });
+  } catch (error) {
+    console.error('[narrative:routes] Voiceover script generation error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate voiceover script',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * Generate voiceover audio
+ */
+router.post('/videos/:id/voiceover/generate-audio', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { id: videoId } = req.params;
+    const { script, voiceId, language = 'en' } = req.body;
+    const userId = getCurrentUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    if (!script) {
+      return res.status(400).json({ error: 'Script is required' });
+    }
+    if (!voiceId) {
+      return res.status(400).json({ error: 'Voice ID is required' });
+    }
+
+    // Get video data
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Get workspace name
+    const workspaces = await storage.getWorkspacesByUserId(userId);
+    const workspace = workspaces.find((w: any) => w.id === video.workspaceId);
+    const workspaceName = workspace?.name || 'default';
+
+    // Generate the audio
+    const result = await generateNarrativeVoiceoverAudio({
+      script,
+      voiceId,
+      language: language as 'en' | 'ar',
+      videoId,
+      videoTitle: video.title || 'Untitled',
+      userId,
+      workspaceId: video.workspaceId,
+      workspaceName,
+    });
+
+    // Save to step5Data
+    const step5Data = (video.step5Data as any) || {};
+    await storage.updateVideo(videoId, {
+      step5Data: {
+        ...step5Data,
+        voiceoverScript: script,
+        voiceoverAudioUrl: result.audioUrl,
+        voiceoverDuration: result.duration,
+        voiceId,
+      },
+    });
+
+    res.json({ 
+      audioUrl: result.audioUrl,
+      duration: result.duration,
+      cost: result.cost,
+    });
+  } catch (error) {
+    console.error('[narrative:routes] Voiceover audio generation error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate voiceover audio',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * Generate background music
+ */
+router.post('/videos/:id/music/generate', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { id: videoId } = req.params;
+    const { musicStyle = 'cinematic' } = req.body;
+    const userId = getCurrentUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID is required' });
+    }
+
+    // Get video data
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    const step1Data = (video.step1Data as any) || {};
+    const step3Data = (video.step3Data as any) || {};
+
+    // Calculate total duration
+    const scenes = step3Data.scenes || [];
+    let totalDuration = 0;
+    for (const scene of scenes) {
+      const sceneShots = step3Data.shots?.[scene.id] || [];
+      for (const shot of sceneShots) {
+        totalDuration += shot.duration || 4;
+      }
+    }
+
+    // Get workspace name
+    const workspaces = await storage.getWorkspacesByUserId(userId);
+    const workspace = workspaces.find((w: any) => w.id === video.workspaceId);
+    const workspaceName = workspace?.name || 'default';
+
+    // Generate the music
+    const result = await generateNarrativeBackgroundMusic({
+      musicStyle,
+      totalDuration,
+      genre: step1Data.genres?.[0],
+      tone: step1Data.tones?.[0],
+      script: step1Data.script,
+      scenes: scenes.map((s: any) => ({
+        id: s.id,
+        sceneNumber: s.sceneNumber,
+        title: s.title,
+        description: s.description,
+      })),
+      videoId,
+      videoTitle: video.title || 'Untitled',
+      userId,
+      workspaceId: video.workspaceId,
+      workspaceName,
+    });
+
+    // Save to step5Data
+    const step5Data = (video.step5Data as any) || {};
+    await storage.updateVideo(videoId, {
+      step5Data: {
+        ...step5Data,
+        generatedMusicUrl: result.musicUrl,
+        generatedMusicDuration: result.duration,
+        musicStyle,
+      },
+    });
+
+    res.json({ 
+      musicUrl: result.musicUrl,
+      duration: result.duration,
+      style: result.style,
+      cost: result.cost,
+    });
+  } catch (error) {
+    console.error('[narrative:routes] Music generation error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate background music',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * Delete generated music
+ */
+router.delete('/videos/:id/music/generated', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { id: videoId } = req.params;
+
+    // Get video data
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Remove music from step5Data
+    const step5Data = (video.step5Data as any) || {};
+    await storage.updateVideo(videoId, {
+      step5Data: {
+        ...step5Data,
+        generatedMusicUrl: null,
+        generatedMusicDuration: null,
+      },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[narrative:routes] Music deletion error:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete generated music',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * Get music status
+ */
+router.get('/videos/:id/music/status', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { id: videoId } = req.params;
+
+    // Get video data
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    const step5Data = (video.step5Data as any) || {};
+    
+    res.json({
+      hasGeneratedMusic: !!step5Data.generatedMusicUrl,
+      generatedMusicUrl: step5Data.generatedMusicUrl || null,
+      generatedMusicDuration: step5Data.generatedMusicDuration || null,
+      musicStyle: step5Data.musicStyle || null,
+    });
+  } catch (error) {
+    console.error('[narrative:routes] Music status error:', error);
+    res.status(500).json({ 
+      error: 'Failed to get music status',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 

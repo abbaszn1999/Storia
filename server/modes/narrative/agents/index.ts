@@ -210,6 +210,7 @@ export interface PromptEngineerInput {
     anchor?: string;  // Text description (if available)
     negativeStyle?: string;
     refImageUrl?: string;  // Style reference image URL
+    artStyle?: string;  // e.g., "cinematic", "anime", "vintage", "3d-render"
   };
   generationTargets: {
     imageModel: string;  // e.g., "flux-2-dev", "nano-banana", "seedream-4.0"

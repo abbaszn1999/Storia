@@ -266,6 +266,49 @@ export interface LateCreatePostResponse {
 }
 
 /**
+ * Update post request (partial update)
+ * Only draft, scheduled, failed, and partial posts can be edited
+ */
+export interface LateUpdatePostInput {
+  /** Post content/description */
+  content?: string;
+  /** Title (for YouTube) */
+  title?: string;
+  /** Media items */
+  mediaItems?: LateMediaItem[];
+  /** Target platforms */
+  platforms?: LatePostPlatform[];
+  /** Schedule time (ISO 8601) */
+  scheduledFor?: string;
+  /** Publish immediately */
+  publishNow?: boolean;
+  /** Save as draft */
+  isDraft?: boolean;
+  /** Timezone (IANA format) */
+  timezone?: string;
+  /** Tags/keywords (for YouTube) */
+  tags?: string[];
+  /** Hashtags */
+  hashtags?: string[];
+  /** Mentions */
+  mentions?: string[];
+  /** Enable crossposting */
+  crosspostingEnabled?: boolean;
+  /** Custom metadata */
+  metadata?: Record<string, any>;
+  /** TikTok-specific settings */
+  tiktokSettings?: LateTikTokSettings;
+}
+
+/**
+ * Update post response
+ */
+export interface LateUpdatePostResponse {
+  post: LatePost;
+  message: string;
+}
+
+/**
  * List posts response
  */
 export interface LateListPostsResponse {
@@ -367,6 +410,25 @@ export interface StoriaPublishInput {
   /** Publish immediately or schedule */
   publishNow?: boolean;
   scheduledFor?: string;
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STORIA METADATA (for calendar integration)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  /** Storia video ID (for videos from ambient, narrative, commerce, etc.) */
+  storiaVideoId?: string;
+  /** Storia story ID (for stories from problem-solution, tease-reveal, etc.) */
+  storiaStoryId?: string;
+  /** Content type: 'video' or 'story' */
+  storiaContentType?: 'video' | 'story';
+  /** Content mode (ambient, narrative, problem-solution, etc.) */
+  storiaContentMode?: string;
+  /** Thumbnail URL from BunnyCDN */
+  storiaThumbnailUrl?: string;
+  /** Duration in seconds */
+  storiaDuration?: number;
+  /** Aspect ratio */
+  storiaAspectRatio?: string;
 }
 
 /**

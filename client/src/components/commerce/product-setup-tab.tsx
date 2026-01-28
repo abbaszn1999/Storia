@@ -53,7 +53,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -352,7 +351,6 @@ export function ProductSetupTab({
 }: ProductSetupTabProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
-  const { toast } = useToast();
   
   // Local state for visual intensity slider to ensure it updates correctly
   const [localVisualIntensity, setLocalVisualIntensity] = useState<number>(
@@ -1553,12 +1551,8 @@ export function ProductSetupTab({
                               const filesToUpload = Array.from(files).slice(0, maxAllowed);
                               
                               if (files.length > maxAllowed) {
-                    toast({
-                                  title: "Too many images",
-                                  description: `You can only upload up to ${maxAllowed} more image(s). Only the first ${maxAllowed} will be uploaded.`,
-                      variant: "destructive",
-                    });
-                  }
+                                console.warn(`[ProductSetup] Too many images. Only uploading first ${maxAllowed}`);
+                              }
                               
                               setIsUploading(true);
                               setUploadingType('ai_mode');

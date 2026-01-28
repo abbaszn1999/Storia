@@ -1,0 +1,144 @@
+/* Website Fonts */
+
+/* Miriam Libre - For Headings */
+@import url('https://fonts.googleapis.com/css2?family=Miriam+Libre:wght@400;700&display=swap');
+
+/* Aeonik - For Body Text */
+@font-face {
+  font-family: 'Aeonik';
+  src: url('/fonts/fonnts.com-Aeonik-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Aeonik';
+  src: url('/fonts/fonnts.com-Aeonik-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Website-specific CSS Variables */
+:root {
+  --font-website-heading: 'Miriam Libre', Georgia, serif;
+  --font-website-body: 'Aeonik', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Website Container Styles */
+.website {
+  font-family: var(--font-website-body);
+}
+
+/* Headings - Miriam Libre */
+.website h1,
+.website h2,
+.website h3,
+.website h4,
+.website h5,
+.website h6,
+.website-heading {
+  font-family: var(--font-website-heading);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Body Text - Inter (Aeonik alternative) */
+.website p,
+.website span,
+.website a,
+.website li,
+.website label,
+.website input,
+.website button,
+.website-body {
+  font-family: var(--font-website-body);
+}
+
+/* Specific heading sizes with proper line-height */
+.website h1 {
+  line-height: 1.1;
+}
+
+.website h2 {
+  line-height: 1.15;
+}
+
+.website h3 {
+  line-height: 1.2;
+}
+
+/* Navigation text */
+.website nav,
+.website-nav {
+  font-family: var(--font-website-body);
+  font-weight: 500;
+}
+
+/* Button text */
+.website button,
+.website .btn {
+  font-family: var(--font-website-body);
+  font-weight: 600;
+}
+
+/* Footer text */
+.website footer {
+  font-family: var(--font-website-body);
+}
+
+/* Utility classes for manual font application - highest specificity */
+.website .font-heading,
+.font-heading {
+  font-family: var(--font-website-heading) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+}
+
+.website .font-body,
+.font-body {
+  font-family: var(--font-website-body) !important;
+}
+
+/* Smooth text rendering */
+.website {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Selection color */
+.website ::selection {
+  background-color: hsl(269 100% 62% / 0.3);
+  color: white;
+}
+
+/* Focus styles for accessibility */
+.website :focus-visible {
+  outline: 2px solid hsl(269 100% 62%);
+  outline-offset: 2px;
+}
+
+/* Smooth scrolling */
+.website {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar for website */
+.website::-webkit-scrollbar {
+  width: 8px;
+}
+
+.website::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.website::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.website::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}

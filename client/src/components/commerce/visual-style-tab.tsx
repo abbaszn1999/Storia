@@ -6,7 +6,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useToast } from "@/hooks/use-toast";
 import { 
   Lightbulb,
   Sparkles,
@@ -153,7 +152,6 @@ export function VisualStyleTab({
   onCampaignObjectiveChange,
   onCtaTextChange,
 }: VisualStyleTabProps) {
-  const { toast } = useToast();
   const [beatsGenerated, setBeatsGenerated] = useState(false);
   const [isGeneratingSpark, setIsGeneratingSpark] = useState(false);
   const [isGeneratingBeats, setIsGeneratingBeats] = useState(false);
@@ -223,12 +221,12 @@ export function VisualStyleTab({
   // Handlers
   const handleGenerateBeats = async () => {
     if (!videoId) {
-      toast({ title: "Error", description: "Video ID is required for generating beats", variant: "destructive" });
+      console.error('[VisualStyle] Video ID is required for generating beats');
       return;
     }
 
     if (!campaignSpark || campaignSpark.trim().length < 10) {
-      toast({ title: "Error", description: "Creative Spark is required. Please fill in the Creative Spark field first.", variant: "destructive" });
+      console.error('[VisualStyle] Creative Spark is required');
       return;
     }
 
@@ -268,16 +266,9 @@ export function VisualStyleTab({
       setBeatsGenerated(true);
       window.dispatchEvent(new CustomEvent('beatsGenerated'));
       
-      toast({
-        title: "Visual Beats Generated",
-        description: `AI has generated ${visualBeatsResult.length} visual beat(s) for your campaign`,
-      });
+      console.log('[VisualStyle] Visual beats generated:', visualBeatsResult.length);
     } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to generate visual beats",
-        variant: "destructive",
-      });
+      console.error('[VisualStyle] Failed to generate visual beats:', error);
     } finally {
       setIsGeneratingBeats(false);
     }
@@ -285,7 +276,7 @@ export function VisualStyleTab({
 
   const handleGenerateCreativeSpark = async () => {
     if (!videoId) {
-      toast({ title: "Error", description: "Video ID is required for AI Recommend", variant: "destructive" });
+      console.error('[VisualStyle] Video ID is required for AI Recommend');
       return;
     }
 
@@ -309,16 +300,9 @@ export function VisualStyleTab({
 
       onCampaignSparkChange(responseData.creative_spark);
       
-      toast({
-        title: "Creative Spark Generated",
-        description: "AI has generated a creative spark for your campaign.",
-      });
+      console.log('[VisualStyle] Creative spark generated');
     } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to generate creative spark",
-        variant: "destructive",
-      });
+      console.error('[VisualStyle] Failed to generate creative spark:', error);
     } finally {
       setIsGeneratingSpark(false);
     }

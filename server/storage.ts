@@ -8,8 +8,9 @@ import {
   brandkits,
   uploads,
   videos,
-  contentCalendar,
   workspaceIntegrations,
+  videoCampaigns,
+  storyCampaigns,
   type User,
   type UpsertUser,
   type Workspace,
@@ -28,14 +29,15 @@ import {
   type InsertBrandkit,
   type Upload,
   type InsertUpload,
-  type ContentCalendarItem,
-  type InsertContentCalendar,
   type WorkspaceIntegration,
   type InsertWorkspaceIntegration,
+  type VideoCampaign,
+  type InsertVideoCampaign,
+  type StoryCampaign,
+  type InsertStoryCampaign,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
-import { randomUUID } from "crypto";
 
 export interface IStorage {
   // User operations
@@ -96,8 +98,8 @@ export interface IStorage {
   updateUpload(id: string, updates: Partial<Upload>): Promise<Upload>;
   deleteUpload(id: string): Promise<void>;
   
-  getContentCalendarByWorkspaceId(workspaceId: string): Promise<ContentCalendarItem[]>;
-  createContentCalendarItem(item: InsertContentCalendar): Promise<ContentCalendarItem>;
+  // NOTE: Content calendar methods removed - Late.dev is now the single source of truth
+  // See server/calendar/ for the new calendar implementation
   
   getWorkspaceIntegrations(workspaceId: string): Promise<WorkspaceIntegration[]>;
   getWorkspaceIntegration(workspaceId: string, platform: string): Promise<WorkspaceIntegration | undefined>;
@@ -118,6 +120,22 @@ export interface IStorage {
   getIntegrationByLateAccountId(lateAccountId: string): Promise<WorkspaceIntegration | undefined>;
   getLateIntegrations(workspaceId: string): Promise<WorkspaceIntegration[]>;
   
+  // Video Campaigns (Auto Video)
+  getVideoCampaign(id: string): Promise<VideoCampaign | undefined>;
+  getVideoCampaignsByUserId(userId: string): Promise<VideoCampaign[]>;
+  getVideoCampaignsByWorkspaceId(workspaceId: string): Promise<VideoCampaign[]>;
+  createVideoCampaign(campaign: InsertVideoCampaign): Promise<VideoCampaign>;
+  updateVideoCampaign(id: string, updates: Partial<VideoCampaign>): Promise<VideoCampaign>;
+  deleteVideoCampaign(id: string): Promise<void>;
+  
+  // Story Campaigns (Auto Story)
+  getStoryCampaign(id: string): Promise<StoryCampaign | undefined>;
+  getStoryCampaignsByUserId(userId: string): Promise<StoryCampaign[]>;
+  getStoryCampaignsByWorkspaceId(workspaceId: string): Promise<StoryCampaign[]>;
+  createStoryCampaign(campaign: InsertStoryCampaign): Promise<StoryCampaign>;
+  updateStoryCampaign(id: string, updates: Partial<StoryCampaign>): Promise<StoryCampaign>;
+  deleteStoryCampaign(id: string): Promise<void>;
+  
   // Account management
   deleteUserAccount(userId: string): Promise<void>;
 }
@@ -131,8 +149,8 @@ export class MemStorage implements IStorage {
   private locations: Map<string, Location>;
   private voices: Map<string, Voice>;
   private uploads: Map<string, Upload>;
-  private contentCalendar: Map<string, ContentCalendarItem>;
   // workspaceIntegrations now uses PostgreSQL directly (not in-memory)
+  // NOTE: contentCalendar removed - Late.dev is now the single source of truth
 
   constructor() {
     this.users = new Map();
@@ -143,7 +161,6 @@ export class MemStorage implements IStorage {
     this.locations = new Map();
     this.voices = new Map();
     this.uploads = new Map();
-    this.contentCalendar = new Map();
     // workspaceIntegrations uses PostgreSQL directly
   }
 
@@ -255,7 +272,7 @@ export class MemStorage implements IStorage {
     await db.delete(locations).where(eq(locations.workspaceId, id));
     await db.delete(voices).where(eq(voices.workspaceId, id));
     await db.delete(uploads).where(eq(uploads.workspaceId, id));
-    await db.delete(contentCalendar).where(eq(contentCalendar.workspaceId, id));
+    // NOTE: content_calendar table removed - scheduled posts are now managed via Late.dev
     await db.delete(workspaceIntegrations).where(eq(workspaceIntegrations.workspaceId, id));
     await db.delete(stories).where(eq(stories.workspaceId, id));
     await db.delete(videos).where(eq(videos.workspaceId, id));
@@ -510,24 +527,8 @@ export class MemStorage implements IStorage {
     await db.delete(uploads).where(eq(uploads.id, id));
   }
 
-  async getContentCalendarByWorkspaceId(workspaceId: string): Promise<ContentCalendarItem[]> {
-    return Array.from(this.contentCalendar.values()).filter((c) => c.workspaceId === workspaceId);
-  }
-
-  async createContentCalendarItem(insertItem: InsertContentCalendar): Promise<ContentCalendarItem> {
-    const id = randomUUID();
-    const item: ContentCalendarItem = {
-      ...insertItem,
-      id,
-      videoId: insertItem.videoId ?? null,
-      storyId: insertItem.storyId ?? null,
-      status: insertItem.status ?? "scheduled",
-      publishedUrl: insertItem.publishedUrl ?? null,
-      createdAt: new Date(),
-    };
-    this.contentCalendar.set(id, item);
-    return item;
-  }
+  // NOTE: Content calendar methods removed - Late.dev is now the single source of truth
+  // See server/calendar/ for the new calendar implementation
 
   // ========== WORKSPACE INTEGRATIONS - PostgreSQL Storage ==========
   
@@ -643,6 +644,70 @@ export class MemStorage implements IStorage {
     );
   }
 
+  // ═══════════ VIDEO CAMPAIGNS (Auto Video) ═══════════
+
+  async getVideoCampaign(id: string): Promise<VideoCampaign | undefined> {
+    const [campaign] = await db.select().from(videoCampaigns).where(eq(videoCampaigns.id, id));
+    return campaign;
+  }
+
+  async getVideoCampaignsByUserId(userId: string): Promise<VideoCampaign[]> {
+    return db.select().from(videoCampaigns).where(eq(videoCampaigns.userId, userId));
+  }
+
+  async getVideoCampaignsByWorkspaceId(workspaceId: string): Promise<VideoCampaign[]> {
+    return db.select().from(videoCampaigns).where(eq(videoCampaigns.workspaceId, workspaceId));
+  }
+
+  async createVideoCampaign(campaign: InsertVideoCampaign): Promise<VideoCampaign> {
+    const [created] = await db.insert(videoCampaigns).values(campaign).returning();
+    return created;
+  }
+
+  async updateVideoCampaign(id: string, updates: Partial<VideoCampaign>): Promise<VideoCampaign> {
+    const [updated] = await db.update(videoCampaigns)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(videoCampaigns.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteVideoCampaign(id: string): Promise<void> {
+    await db.delete(videoCampaigns).where(eq(videoCampaigns.id, id));
+  }
+
+  // ═══════════ STORY CAMPAIGNS (Auto Story) ═══════════
+
+  async getStoryCampaign(id: string): Promise<StoryCampaign | undefined> {
+    const [campaign] = await db.select().from(storyCampaigns).where(eq(storyCampaigns.id, id));
+    return campaign;
+  }
+
+  async getStoryCampaignsByUserId(userId: string): Promise<StoryCampaign[]> {
+    return db.select().from(storyCampaigns).where(eq(storyCampaigns.userId, userId));
+  }
+
+  async getStoryCampaignsByWorkspaceId(workspaceId: string): Promise<StoryCampaign[]> {
+    return db.select().from(storyCampaigns).where(eq(storyCampaigns.workspaceId, workspaceId));
+  }
+
+  async createStoryCampaign(campaign: InsertStoryCampaign): Promise<StoryCampaign> {
+    const [created] = await db.insert(storyCampaigns).values(campaign).returning();
+    return created;
+  }
+
+  async updateStoryCampaign(id: string, updates: Partial<StoryCampaign>): Promise<StoryCampaign> {
+    const [updated] = await db.update(storyCampaigns)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(storyCampaigns.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteStoryCampaign(id: string): Promise<void> {
+    await db.delete(storyCampaigns).where(eq(storyCampaigns.id, id));
+  }
+
   async deleteUserAccount(userId: string): Promise<void> {
     // Get all workspaces for this user
     const userWorkspaces = await this.getWorkspacesByUserId(userId);
@@ -687,11 +752,7 @@ export class MemStorage implements IStorage {
         this.uploads.delete(upload.id);
       }
       
-      // Delete content calendar items
-      const calendar = await this.getContentCalendarByWorkspaceId(workspace.id);
-      for (const item of calendar) {
-        this.contentCalendar.delete(item.id);
-      }
+      // NOTE: Content calendar cleanup not needed - Late.dev manages scheduled posts
       
       // Delete workspace integrations from PostgreSQL
       const integrations = await this.getWorkspaceIntegrations(workspace.id);

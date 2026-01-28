@@ -489,6 +489,13 @@ export function ExportTab({
           return { platform: apiPlatform }; // Return object with platform property
         }),
         metadata: {}, // Initialize metadata as empty object
+        // Storia metadata for calendar integration
+        storiaVideoId: videoId,
+        storiaContentType: 'video',
+        storiaContentMode: 'ambient',
+        storiaThumbnailUrl: thumbnailUrl || undefined,
+        storiaDuration: duration,
+        storiaAspectRatio: aspectRatio,
       };
       
       if (hasYouTube) {
@@ -540,7 +547,7 @@ export function ExportTab({
     } finally {
       setIsPublishing(false);
     }
-  }, [exportUrl, selectedPlatforms, currentWorkspace, hasYouTube, youtubeTitle, youtubeDescription, socialCaption, publishType, scheduleDate, scheduleTime, videoTitle, toast]);
+  }, [exportUrl, selectedPlatforms, currentWorkspace, hasYouTube, youtubeTitle, youtubeDescription, socialCaption, publishType, scheduleDate, scheduleTime, videoTitle, toast, videoId, thumbnailUrl, duration, aspectRatio]);
   
   const canPublish = selectedPlatforms.length > 0 && 
     exportUrl &&

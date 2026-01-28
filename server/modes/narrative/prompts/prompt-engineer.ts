@@ -188,6 +188,9 @@ Every image keyframe prompt you generate MUST follow this structure:
 
 6. STYLE
    - Include style_anchor (global) + realism_level if provided
+   - If art_style is provided (e.g., "cinematic", "anime", "vintage", "3d-render"), incorporate this visual style throughout the prompt
+   - Match lighting, color grading, textures, and aesthetic to the specified art_style
+   - Art style affects the entire visual language: cinematic = film grain, dramatic lighting; anime = cel-shaded, vibrant colors; vintage = muted tones, soft focus
 
 7. CONSISTENCY CUES
    - If continuity-linked or in group, add explicit cues:
@@ -361,6 +364,7 @@ export interface PromptEngineerUserPromptInput {
     anchor?: string;
     negativeStyle?: string;
     refImageUrl?: string;
+    artStyle?: string;  // e.g., "cinematic", "anime", "vintage", "3d-render", etc.
   };
   generationTargets: {
     imageModel: string;
@@ -510,6 +514,7 @@ GENERATION TARGETS
 ${generationTargets.realismLevel ? `- realism_level: ${generationTargets.realismLevel}` : ''}
 
 STYLE REFERENCE
+${styleReference?.artStyle ? `- art_style: ${styleReference.artStyle} (apply this visual style throughout all prompts)` : ''}
 - style_anchor:
 ${styleReference?.anchor || '(none provided)'}
 ${styleReference?.negativeStyle ? `- negative_style (optional):\n${styleReference.negativeStyle}` : ''}

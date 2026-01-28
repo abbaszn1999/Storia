@@ -1,74 +1,179 @@
-import { useState, useMemo } from "react";
-import { Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
+// Content Calendar Page
+// ═══════════════════════════════════════════════════════════════════════════
+// Displays scheduled posts from Late.dev with list and month views
+// Late.dev is the single source of truth - no local database table
+
+import { useState, useMemo, useCallback } from "react";
+import { Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CalendarItem } from "@/components/calendar-item";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
+import { format, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { useWorkspace } from "@/contexts/workspace-context";
+import { useToast } from "@/hooks/use-toast";
+import { 
+  useCalendarPosts, 
+  useCancelPost, 
+  useRetryPost,
+  type CalendarPost,
+} from "@/features/calendar";
+import { CalendarMonthView } from "@/features/calendar/components/calendar-month-view";
+import { RescheduleModal } from "@/features/calendar/components/reschedule-modal";
 
-const calendarItems = [
-  {
-    title: "Summer Product Launch",
-    scheduledDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3),
-    platform: "youtube",
-    status: "scheduled",
-  },
-  {
-    title: "Behind the Scenes",
-    scheduledDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 5),
-    platform: "instagram",
-    status: "scheduled",
-  },
-  {
-    title: "Product Demo Shorts",
-    scheduledDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
-    platform: "tiktok",
-    status: "scheduled",
-  },
-  {
-    title: "Customer Success Story",
-    scheduledDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2),
-    platform: "facebook",
-    status: "published",
-    publishedUrl: "https://facebook.com/example",
-  },
-  {
-    title: "Weekly Tips & Tricks",
-    scheduledDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 10),
-    platform: "youtube",
-    status: "scheduled",
-  },
-  {
-    title: "Product Features Highlight",
-    scheduledDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14),
-    platform: "instagram",
-    status: "scheduled",
-  },
-];
-
-const platformColors: Record<string, string> = {
-  youtube: "bg-red-500",
-  instagram: "bg-pink-500",
-  tiktok: "bg-primary",
-  facebook: "bg-blue-500",
-};
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function Calendar() {
+  const { currentWorkspace } = useWorkspace();
+  const { toast } = useToast();
+  
   const [view, setView] = useState("list");
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
+  const [selectedPostForReschedule, setSelectedPostForReschedule] = useState<CalendarPost | null>(null);
 
-  const monthDays = useMemo(() => {
-    const start = startOfWeek(startOfMonth(currentMonth));
-    const end = endOfWeek(endOfMonth(currentMonth));
-    return eachDayOfInterval({ start, end });
+  // Calculate date range for the current month view
+  const dateRange = useMemo(() => {
+    const start = startOfMonth(currentMonth);
+    const end = endOfMonth(currentMonth);
+    return {
+      dateFrom: start.toISOString(),
+      dateTo: end.toISOString(),
+    };
   }, [currentMonth]);
 
-  const getItemsForDate = (date: Date) => {
-    return calendarItems.filter(item => isSameDay(item.scheduledDate, date));
-  };
+  // Fetch calendar posts from Late.dev
+  const { 
+    data, 
+    isLoading, 
+    error,
+    refetch,
+  } = useCalendarPosts(
+    currentWorkspace?.id,
+    view === "month" ? dateRange : {}, // Only filter by date for month view
+    { enabled: !!currentWorkspace }
+  );
+
+  const posts = data?.posts || [];
+
+  // Mutations
+  const cancelMutation = useCancelPost(currentWorkspace?.id);
+  const retryMutation = useRetryPost(currentWorkspace?.id);
+
+  // Handlers
+  const handleCancel = useCallback(async (postId: string) => {
+    if (!confirm("Are you sure you want to cancel this scheduled post?")) return;
+    
+    try {
+      await cancelMutation.mutateAsync(postId);
+      toast({
+        title: "Post canceled",
+        description: "The scheduled post has been canceled.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to cancel",
+        description: error.message || "An error occurred",
+        variant: "destructive",
+      });
+    }
+  }, [cancelMutation, toast]);
+
+  const handleRetry = useCallback(async (postId: string) => {
+    try {
+      await retryMutation.mutateAsync(postId);
+      toast({
+        title: "Retry initiated",
+        description: "The post is being retried.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to retry",
+        description: error.message || "An error occurred",
+        variant: "destructive",
+      });
+    }
+  }, [retryMutation, toast]);
+
+  const handleReschedule = useCallback((postId: string) => {
+    const post = posts.find(p => p._id === postId);
+    if (post) {
+      setSelectedPostForReschedule(post);
+      setRescheduleModalOpen(true);
+    }
+  }, [posts]);
+
+  const handleViewDetails = useCallback((postId: string) => {
+    // TODO: Navigate to post details or open modal
+    console.log("View details:", postId);
+  }, []);
+
+  const handleDayClick = useCallback((date: Date) => {
+    // TODO: Could open a day detail view or filter to that day
+    console.log("Day clicked:", date);
+  }, []);
+
+  const handlePostClick = useCallback((postId: string) => {
+    handleViewDetails(postId);
+  }, [handleViewDetails]);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[50vh]">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <p className="text-muted-foreground">Loading calendar...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-[50vh]">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <AlertCircle className="h-8 w-8 text-destructive" />
+          <div>
+            <p className="font-medium">Failed to load calendar</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {error instanceof Error ? error.message : "An error occurred"}
+            </p>
+          </div>
+          <Button variant="outline" onClick={() => refetch()}>
+            Try again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // No workspace selected
+  if (!currentWorkspace) {
+    return (
+      <div className="flex items-center justify-center h-[50vh]">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <CalendarIcon className="h-8 w-8 text-muted-foreground" />
+          <div>
+            <p className="font-medium">No workspace selected</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Please select a workspace to view your content calendar.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Content Calendar</h1>
@@ -82,21 +187,48 @@ export default function Calendar() {
         </Button>
       </div>
 
+      {/* Tabs */}
       <Tabs value={view} onValueChange={setView}>
         <TabsList>
           <TabsTrigger value="list" data-testid="tab-list">List View</TabsTrigger>
           <TabsTrigger value="month" data-testid="tab-month">Month View</TabsTrigger>
         </TabsList>
 
+        {/* List View */}
         <TabsContent value="list" className="space-y-4 mt-6">
-          {calendarItems.map((item, i) => (
-            <CalendarItem key={i} {...item} />
-          ))}
+          {posts.length === 0 ? (
+            <div className="text-center py-12 border border-dashed rounded-lg">
+              <CalendarIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="font-semibold text-lg">No scheduled content</h3>
+              <p className="text-muted-foreground mt-1 mb-4">
+                Schedule your first video or story to see it here.
+              </p>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Schedule Content
+              </Button>
+            </div>
+          ) : (
+            posts.map((post) => (
+              <CalendarItem 
+                key={post._id} 
+                post={post}
+                onCancel={handleCancel}
+                onRetry={handleRetry}
+                onReschedule={handleReschedule}
+                onViewDetails={handleViewDetails}
+              />
+            ))
+          )}
         </TabsContent>
 
+        {/* Month View */}
         <TabsContent value="month" className="mt-6 space-y-4">
+          {/* Month navigation */}
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-semibold">{format(currentMonth, "MMMM yyyy")}</h2>
+            <h2 className="text-2xl font-semibold">
+              {format(currentMonth, "MMMM yyyy")}
+            </h2>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -125,64 +257,29 @@ export default function Calendar() {
             </div>
           </div>
 
-          <div className="border border-border rounded-lg overflow-hidden">
-            <div className="grid grid-cols-7 bg-muted">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
-                <div key={day} className="p-3 text-center text-sm font-medium border-b border-border">
-                  {day}
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7">
-              {monthDays.map((day, index) => {
-                const items = getItemsForDate(day);
-                const isCurrentMonth = isSameMonth(day, currentMonth);
-                const isToday = isSameDay(day, new Date());
-
-                return (
-                  <div
-                    key={index}
-                    className={`min-h-32 p-2 border-b border-r border-border ${
-                      !isCurrentMonth ? "bg-muted/30" : ""
-                    } ${isToday ? "bg-primary/5" : ""}`}
-                    data-testid={`calendar-day-${format(day, "yyyy-MM-dd")}`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span
-                        className={`text-sm font-medium ${
-                          !isCurrentMonth ? "text-muted-foreground" : ""
-                        } ${isToday ? "text-primary font-bold" : ""}`}
-                      >
-                        {format(day, "d")}
-                      </span>
-                      {isToday && (
-                        <Badge variant="secondary" className="h-5 px-1.5 text-xs">
-                          Today
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      {items.map((item, i) => (
-                        <div
-                          key={i}
-                          className="text-xs p-1.5 rounded bg-card border border-border hover-elevate cursor-pointer"
-                          data-testid={`calendar-item-${format(day, "yyyy-MM-dd")}-${i}`}
-                        >
-                          <div className="flex items-center gap-1 mb-1">
-                            <div className={`h-2 w-2 rounded-full ${platformColors[item.platform]}`} />
-                            <span className="font-medium truncate">{item.title}</span>
-                          </div>
-                          <span className="text-muted-foreground capitalize">{item.platform}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          {/* Calendar grid */}
+          <CalendarMonthView
+            posts={posts}
+            currentMonth={currentMonth}
+            onDayClick={handleDayClick}
+            onPostClick={handlePostClick}
+          />
         </TabsContent>
       </Tabs>
+
+      {/* Reschedule Modal */}
+      {currentWorkspace && (
+        <RescheduleModal
+          open={rescheduleModalOpen}
+          onOpenChange={setRescheduleModalOpen}
+          workspaceId={currentWorkspace.id}
+          post={selectedPostForReschedule}
+          onSuccess={() => {
+            refetch();
+            setSelectedPostForReschedule(null);
+          }}
+        />
+      )}
     </div>
   );
 }

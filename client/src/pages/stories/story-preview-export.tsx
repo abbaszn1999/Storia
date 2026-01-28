@@ -348,6 +348,12 @@ export default function StoryPreviewExport() {
         scheduledFor: publishType === 'schedule' && scheduleDate && scheduleTime
           ? new Date(`${scheduleDate}T${scheduleTime}`).toISOString()
           : undefined,
+        // Storia metadata for calendar integration
+        storiaStoryId: exportData.storyId,
+        storiaContentType: 'story',
+        storiaContentMode: exportData.storyType || 'asmr',
+        storiaDuration: exportData.duration,
+        storiaAspectRatio: exportData.aspectRatio,
       };
       
       // Call Late.dev API

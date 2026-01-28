@@ -25,7 +25,6 @@ import {
   Check
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
 import type { BeatPrompt } from "@/types/commerce";
 import type { BeatStatus } from "@/types/commerce";
 
@@ -119,7 +118,6 @@ export function BeatCardPremium({
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'prompt' | 'audio'>('prompt');
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { toast } = useToast();
 
   const isLocked = status === 'locked';
   const isGenerating = status === 'generating';
@@ -135,10 +133,9 @@ export function BeatCardPremium({
     try {
       await navigator.clipboard.writeText(editedPrompt);
       setCopied(true);
-      toast({ title: "Copied", description: "Prompt copied to clipboard" });
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast({ title: "Error", description: "Failed to copy", variant: "destructive" });
+      console.error('[BeatCard] Failed to copy prompt');
     }
   };
 
@@ -150,10 +147,9 @@ export function BeatCardPremium({
     setIsSaving(true);
     try {
       await onPromptUpdate(beat.beatId, editedPrompt);
-      toast({ title: "Saved", description: "Prompt updated successfully" });
       setShowPromptModal(false);
     } catch (error) {
-      toast({ title: "Error", description: "Failed to save", variant: "destructive" });
+      console.error('[BeatCard] Failed to save prompt:', error);
     } finally {
       setIsSaving(false);
     }

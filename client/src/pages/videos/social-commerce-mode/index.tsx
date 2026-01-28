@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SocialCommerceWorkflow } from "@/components/social-commerce-workflow";
 import { SocialCommerceStudioLayout, type CommerceStepId } from "@/components/commerce/studio";
 import { StepResetWarningDialog } from "@/components/social-commerce/step-reset-warning-dialog";
-import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { Character, Video } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
@@ -24,7 +23,6 @@ export default function SocialCommerceMode() {
   const params = useParams<{ id?: string }>();
   const searchParams = useSearch();
   const urlParams = new URLSearchParams(searchParams);
-  const { toast } = useToast();
   const { currentWorkspace, isLoading: isWorkspaceLoading } = useWorkspace();
   
   const initialVideoId = params.id || urlParams.get("id") || "new";
@@ -917,11 +915,6 @@ export default function SocialCommerceMode() {
         console.log('[SocialCommerce] Video created:', video.id);
       } catch (error) {
         console.error('Failed to create video:', error);
-        toast({
-          title: "Error",
-          description: "Failed to create video. Please try again.",
-          variant: "destructive",
-        });
         creationAttempted.current = false; // Allow retry
       } finally {
         setIsCreating(false);
@@ -929,7 +922,7 @@ export default function SocialCommerceMode() {
     };
     
     createVideoProject();
-  }, [isNewVideo, workspaceId, urlTitle, toast]);
+  }, [isNewVideo, workspaceId, urlTitle]);
 
   // Auto-save character and material settings to step2Data when they change
   useEffect(() => {
@@ -1042,11 +1035,7 @@ export default function SocialCommerceMode() {
   ) => {
     try {
       if (!currentWorkspace?.id || !videoId) {
-        toast({
-          title: "Cannot upload",
-          description: "Workspace or video not ready",
-          variant: "destructive",
-        });
+        console.error('[SocialCommerce] Cannot upload: Workspace or video not ready');
         return;
       }
 
@@ -1280,16 +1269,9 @@ export default function SocialCommerceMode() {
       }
 
       // Image uploaded successfully
-      toast({
-        title: "Image uploaded",
-        description: "Product image saved successfully",
-      });
+      console.log('[SocialCommerce] Image uploaded successfully');
     } catch (error) {
       console.error('Upload error:', error);
-      toast({
-        title: "Upload failed",
-        variant: "destructive",
-      });
     }
   };
 
@@ -1382,12 +1364,7 @@ export default function SocialCommerceMode() {
       setIsPromptPreviewOpen(true);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to generate prompt";
-      console.error('[Generate Prompt] Error:', error);
-      toast({
-        title: "Prompt generation failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      console.error('[Generate Prompt] Error:', error, errorMessage);
       throw error;
     }
   };
@@ -1484,21 +1461,13 @@ export default function SocialCommerceMode() {
       // Close preview dialog
       setIsPromptPreviewOpen(false);
 
-      // Show success toast
-      toast({
-        title: "Composite generated",
-        description: "AI composite image created successfully",
-      });
+      // Composite generated successfully
+      console.log('[SocialCommerce] Composite generated successfully');
 
       return data.compositeUrl;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to generate composite image";
-      console.error('[Generate Image] Error:', error);
-      toast({
-        title: "Generation failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      console.error('[Generate Image] Error:', error, errorMessage);
       throw error;
     }
   };
@@ -1592,11 +1561,8 @@ export default function SocialCommerceMode() {
           // Don't throw - composite was generated successfully
         }
         
-        // Show success toast
-        toast({
-          title: "Composite generated",
-          description: "Composite image created successfully",
-        });
+        // Composite generated successfully
+        console.log('[SocialCommerce] Composite generated successfully');
         
         return data.compositeUrl;
       } else {
@@ -1694,23 +1660,15 @@ export default function SocialCommerceMode() {
           // Don't throw - composite was generated successfully
         }
         
-        // Show success toast
-        toast({
-          title: "Composite generated",
-          description: "AI composite image created successfully",
-        });
+        // Composite generated successfully
+        console.log('[SocialCommerce] Composite generated successfully');
         
         return data.compositeUrl;
       }
     } catch (error) {
-      // Show error toast with more details
+      // Log error
       const errorMessage = error instanceof Error ? error.message : "Failed to generate composite image";
-      console.error('[Composite Generate] Error:', error);
-      toast({
-        title: "Generation failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      console.error('[Composite Generate] Error:', error, errorMessage);
       throw error; // Re-throw to let component handle it
     }
   };
@@ -2001,17 +1959,9 @@ export default function SocialCommerceMode() {
         }
       }
 
-      toast({
-        title: "Image deleted",
-        description: "Product image removed successfully",
-      });
+      console.log('[SocialCommerce] Image deleted successfully');
     } catch (error) {
       console.error('Delete product image error:', error);
-      toast({
-        title: "Delete failed",
-        description: error instanceof Error ? error.message : "Could not delete image",
-        variant: "destructive",
-      });
       // State remains unchanged - item still visible in UI
     }
   };
@@ -2075,11 +2025,7 @@ export default function SocialCommerceMode() {
   const handleStepClick = (step: CommerceStepId) => {
     // Prevent access to voiceover step if disabled
     if (step === "voiceover" && !voiceOverEnabled) {
-      toast({
-        title: "Voiceover Disabled",
-        description: "Please enable voiceover in Step 1 to access this step.",
-        variant: "destructive",
-      });
+      console.warn('[SocialCommerce] Voiceover is disabled');
       return;
     }
 
@@ -2116,11 +2062,7 @@ export default function SocialCommerceMode() {
   // Extract Agent 5.2 generation logic to reusable function
   const generateVoiceoverScripts = async (shouldAdvance: boolean = false) => {
     if (videoId === "new") {
-      toast({
-        title: "Error",
-        description: "Video not created yet. Please refresh the page.",
-        variant: "destructive",
-      });
+      console.error('[SocialCommerce] Video not created yet');
       return;
     }
 
@@ -2130,12 +2072,6 @@ export default function SocialCommerceMode() {
       console.log('[SocialCommerce] Starting voiceover script generation (Agent 5.2)...', {
         videoId,
         url: `/api/social-commerce/videos/${videoId}/step/3/generate-voiceover-scripts`,
-      });
-      
-      // Show loading toast
-      toast({
-        title: "Generating Voiceover Scripts",
-        description: "Agent 5.2 is generating voiceover scripts for all beats...",
       });
       
       let response: Response;
@@ -2183,10 +2119,7 @@ export default function SocialCommerceMode() {
         });
       }
 
-      toast({
-        title: "Voiceover Scripts Generated",
-        description: `Successfully generated voiceover scripts for ${data.beatCount} beat(s).`,
-      });
+      console.log('[SocialCommerce] Voiceover scripts generated for', data.beatCount, 'beats');
 
       // Advance to next step if requested
       if (shouldAdvance) {
@@ -2209,11 +2142,6 @@ export default function SocialCommerceMode() {
       }
     } catch (error) {
       console.error('[SocialCommerce] Failed to generate voiceover scripts:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to generate voiceover scripts. Please try again.",
-        variant: "destructive",
-      });
     } finally {
       setIsCreating(false);
     }
@@ -2222,11 +2150,7 @@ export default function SocialCommerceMode() {
   // Extract Agent 5.1 generation logic to reusable function
   const generateBeatPrompts = async (shouldAdvance: boolean = false) => {
     if (videoId === "new") {
-      toast({
-        title: "Error",
-        description: "Video not created yet. Please refresh the page.",
-        variant: "destructive",
-      });
+      console.error('[SocialCommerce] Video not created yet');
       return;
     }
 
@@ -2236,12 +2160,6 @@ export default function SocialCommerceMode() {
       console.log('[SocialCommerce] Starting prompt generation (Agent 5.1 only)...', {
         videoId,
         url: `/api/social-commerce/videos/${videoId}/step/3/generate-prompts`,
-      });
-      
-      // Show loading toast
-      toast({
-        title: "Generating Prompts",
-        description: "Agent 5.1 (Visual Prompts) is generating beat prompts...",
       });
       
       let promptsResponse: Response;
@@ -2298,12 +2216,9 @@ export default function SocialCommerceMode() {
         throw new Error('Failed to parse server response. Please try again.');
       }
 
-      // Show success message
+      // Log success
       const beatCount = promptsData.beatCount || 0;
-      toast({
-        title: "Prompts Generated",
-        description: `Agent 5.1 (Prompts) completed for ${beatCount} ${beatCount === 1 ? 'beat' : 'beats'}`,
-      });
+      console.log('[SocialCommerce] Prompts generated for', beatCount, 'beats');
 
       // Save beatPrompts to state (voiceoverScripts will be in Tab 4)
       if (promptsData.step3Data) {
@@ -2366,11 +2281,7 @@ export default function SocialCommerceMode() {
         errorTitle = "Connection Error";
       }
       
-      toast({
-        title: errorTitle,
-        description: errorMessage,
-        variant: "destructive",
-      });
+      console.error('[SocialCommerce]', errorTitle, ':', errorMessage);
       
       // Reset trigger ref on error so user can retry
       agent51TriggeredRef.current = false;
@@ -2413,22 +2324,14 @@ export default function SocialCommerceMode() {
       }
       
       if (videoId === "new") {
-        toast({
-          title: "Error",
-          description: "Video not created yet. Please refresh the page.",
-          variant: "destructive",
-        });
+        console.error('[SocialCommerce] Video not created yet');
         return;
       }
       
       // Validate required fields before proceeding
       const durationNum = parseInt(duration, 10) as 12 | 24 | 36;
       if (!duration || !DURATION_OPTIONS.includes(durationNum)) {
-        toast({
-          title: "Duration Required",
-          description: "Please select a duration (12, 24, or 36 seconds) to continue",
-          variant: "destructive",
-        });
+        console.warn('[SocialCommerce] Duration required (12, 24, or 36 seconds)');
         return;
       }
       
@@ -2504,10 +2407,7 @@ export default function SocialCommerceMode() {
           currentStep: updatedVideo.currentStep,
         });
         
-        toast({
-          title: "Step 1 Completed",
-          description: "Setup data saved successfully.",
-        });
+        console.log('[SocialCommerce] Step 1 completed');
         
         // Mark step as completed and advance
         if (!completedSteps.includes(activeStep)) {
@@ -2518,11 +2418,6 @@ export default function SocialCommerceMode() {
       } catch (error) {
         console.error('[SocialCommerce] Failed to save step 1:', error);
         setIsTransitioning(false); // Reset transition state on error
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to save step 1. Please try again.",
-          variant: "destructive",
-        });
       } finally {
         setIsCreating(false);
       }
@@ -2543,11 +2438,7 @@ export default function SocialCommerceMode() {
       }
       
       if (videoId === "new") {
-        toast({
-          title: "Error",
-          description: "Video not created yet. Please refresh the page.",
-          variant: "destructive",
-        });
+        console.error('[SocialCommerce] Video not created yet');
         return;
       }
       
@@ -2578,10 +2469,7 @@ export default function SocialCommerceMode() {
           step2Data: data.step2Data,
         });
         
-        toast({
-          title: "Step 2 Completed",
-          description: "Creative Spark & Beats data saved successfully.",
-        });
+        console.log('[SocialCommerce] Step 2 completed');
         
         // Mark step as completed and advance
         if (!completedSteps.includes(activeStep)) {
@@ -2592,11 +2480,6 @@ export default function SocialCommerceMode() {
       } catch (error) {
         console.error('[SocialCommerce] Tab 2 error:', error);
         setIsTransitioning(false); // Reset transition state on error
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to save step 2",
-          variant: "destructive",
-        });
       } finally {
         setIsCreating(false);
       }
@@ -2651,11 +2534,7 @@ export default function SocialCommerceMode() {
     // ═══════════════════════════════════════════════════════════════════════════
     if (activeStep === "voiceover") {
       if (videoId === "new") {
-        toast({
-          title: "Error",
-          description: "Video not created yet. Please refresh the page.",
-          variant: "destructive",
-        });
+        console.error('[SocialCommerce] Video not created yet');
         return;
       }
 
@@ -2684,10 +2563,7 @@ export default function SocialCommerceMode() {
           currentStep: updatedVideo.currentStep,
         });
         
-        toast({
-          title: "Step 4 Completed",
-          description: "Voiceover data saved successfully.",
-        });
+        console.log('[SocialCommerce] Step 4 completed');
 
         // Mark step as completed and advance
         if (!completedSteps.includes(activeStep)) {
@@ -2698,11 +2574,6 @@ export default function SocialCommerceMode() {
       } catch (error) {
         console.error('[SocialCommerce] Failed to save step 4:', error);
         setIsTransitioning(false);
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to save step 4. Please try again.",
-          variant: "destructive",
-        });
       } finally {
         setIsCreating(false);
       }
@@ -2714,11 +2585,7 @@ export default function SocialCommerceMode() {
     // ═══════════════════════════════════════════════════════════════════════════
     if (activeStep === "animatic") {
       if (videoId === "new") {
-        toast({
-          title: "Error",
-          description: "Video not created yet. Please refresh the page.",
-          variant: "destructive",
-        });
+        console.error('[SocialCommerce] Video not created yet');
         return;
       }
 
@@ -2743,10 +2610,7 @@ export default function SocialCommerceMode() {
           completedSteps: updatedVideo.completedSteps,
         });
         
-        toast({
-          title: "Step 5 Completed",
-          description: "Animatic review completed successfully.",
-        });
+        console.log('[SocialCommerce] Step 5 completed');
 
         // Mark step as completed and advance
         if (!completedSteps.includes(activeStep)) {
@@ -2757,11 +2621,6 @@ export default function SocialCommerceMode() {
       } catch (error) {
         console.error('[SocialCommerce] Failed to save step 5:', error);
         setIsTransitioning(false);
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to save step 5. Please try again.",
-          variant: "destructive",
-        });
       } finally {
         setIsCreating(false);
       }
@@ -2773,11 +2632,7 @@ export default function SocialCommerceMode() {
     // ═══════════════════════════════════════════════════════════════════════════
     if (activeStep === "export") {
       if (videoId === "new") {
-        toast({
-          title: "Error",
-          description: "Video not created yet. Please refresh the page.",
-          variant: "destructive",
-        });
+        console.error('[SocialCommerce] Video not created yet');
         return;
       }
 
@@ -2803,10 +2658,7 @@ export default function SocialCommerceMode() {
           status: updatedVideo.status,
         });
         
-        toast({
-          title: "Video Completed! 🎉",
-          description: "All steps completed successfully. Your video is ready!",
-        });
+        console.log('[SocialCommerce] Video completed! 🎉');
 
         // Mark step as completed
         if (!completedSteps.includes(activeStep)) {
@@ -2817,11 +2669,6 @@ export default function SocialCommerceMode() {
       } catch (error) {
         console.error('[SocialCommerce] Failed to complete step 6:', error);
         setIsTransitioning(false);
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to complete step 6. Please try again.",
-          variant: "destructive",
-        });
       } finally {
         setIsCreating(false);
       }
@@ -2957,10 +2804,7 @@ export default function SocialCommerceMode() {
       setStepSnapshots(new Map()); // Clear all snapshots
       setShowResetWarning(false);
 
-      toast({
-        title: "Video Reset",
-        description: "Future steps have been cleared. You can now continue with your changes.",
-      });
+      console.log('[SocialCommerce] Video reset - future steps cleared');
 
       // If there's pending navigation, handle it
       if (pendingNavigation) {
@@ -2981,11 +2825,6 @@ export default function SocialCommerceMode() {
       }
     } catch (error) {
       console.error('[SocialCommerce] Failed to reset video:', error);
-      toast({
-        title: "Error",
-        description: "Failed to reset video. Please try again.",
-        variant: "destructive",
-      });
     } finally {
       setIsCreating(false);
     }

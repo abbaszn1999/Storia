@@ -44,5 +44,9 @@ export interface NarrativeShotVersion extends ShotVersion {
   endFrameReferenceImageId?: string | null;
   startFrameShotType?: string | null;
   endFrameShotType?: string | null;
+  // Character tracking - which characters appear in this version/frame
+  characters?: string[] | null; // Array of character IDs present in this version
+  startFrameCharacters?: string[] | null; // Characters in start frame (for start-end mode)
+  endFrameCharacters?: string[] | null; // Characters in end frame (for start-end mode)
 }
 

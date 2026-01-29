@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { FileText, Palette, Calendar, Share2, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/contexts/workspace-context";
 import { WizardLayout } from "../../shared/components/layout/wizard-layout";
 import { Step2TemplateSelection } from "../components/wizard/step-2-template-selection";
 import { Step3ContentSetup } from "../components/wizard/step-3-content-setup";
@@ -20,6 +21,7 @@ const wizardSteps = [
 export default function AutoStoryCreate() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { currentWorkspace } = useWorkspace();
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
 
@@ -110,6 +112,7 @@ export default function AutoStoryCreate() {
     const data = {
       type: 'auto-story',
       name: campaignName,
+      workspaceId: currentWorkspace?.id,
       
       // Story settings
       storyTemplate: template,

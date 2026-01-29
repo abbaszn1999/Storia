@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Music, Mic, Waves, Sparkles, Upload, Play, Pause, Clock, Trash2, Loader2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Music, Mic, Waves, Sparkles, Upload, Play, Pause, Clock, Trash2, Loader2, ChevronDown } from "lucide-react";
 import { motion } from "framer-motion";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import type { AmbientMusicStyle } from "./types";
-import { ELEVENLABS_VOICES, getVoicesByLanguage } from "@/constants/elevenlabs-voices";
+import { ELEVENLABS_VOICES, getVoicesByLanguage, type ElevenLabsVoice } from "@/constants/elevenlabs-voices";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -75,12 +76,22 @@ export function Step4Soundscape({
   const { toast } = useToast();
   const musicInputRef = useRef<HTMLInputElement>(null);
   const musicPreviewRef = useRef<HTMLAudioElement>(null);
+  const voicePreviewRef = useRef<HTMLAudioElement>(null);
   const [isUploadingMusic, setIsUploadingMusic] = useState(false);
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+  const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
 
   // Get voices based on selected language
   const availableVoices = getVoicesByLanguage(voiceLanguage as 'ar' | 'en');
   const selectedVoice = ELEVENLABS_VOICES.find(v => v.id === voiceId);
+
+  // Set default voice when voiceover is enabled and no voice is selected
+  useEffect(() => {
+    if (voiceoverEnabled && !voiceId && availableVoices.length > 0) {
+      onVoiceIdChange(availableVoices[0].id);
+    }
+  }, [voiceoverEnabled, voiceId, availableVoices, onVoiceIdChange]);
 
   // Format duration as MM:SS
   const formatDuration = (seconds: number): string => {
@@ -172,6 +183,54 @@ export function Step4Soundscape({
     }
   };
 
+  // Handle voice preview (matching original ambient workflow)
+  const handlePlayVoice = (voice: ElevenLabsVoice, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    // If already playing this voice, stop it
+    if (playingVoiceId === voice.id) {
+      if (voicePreviewRef.current) {
+        voicePreviewRef.current.pause();
+        voicePreviewRef.current.currentTime = 0;
+      }
+      setPlayingVoiceId(null);
+      return;
+    }
+    
+    // Stop any currently playing audio
+    if (voicePreviewRef.current) {
+      voicePreviewRef.current.pause();
+      voicePreviewRef.current.currentTime = 0;
+    }
+    
+    // Create and play new audio
+    const audio = new Audio(voice.previewUrl);
+    voicePreviewRef.current = audio;
+    
+    audio.play().catch(error => {
+      console.error('[Step4Soundscape] Error playing voice preview:', error);
+      toast({
+        title: "Preview Failed",
+        description: "Could not play voice preview",
+        variant: "destructive",
+      });
+      setPlayingVoiceId(null);
+    });
+    
+    audio.onended = () => {
+      setPlayingVoiceId(null);
+      voicePreviewRef.current = null;
+    };
+    
+    audio.onerror = () => {
+      console.error('[Step4Soundscape] Error loading voice preview');
+      setPlayingVoiceId(null);
+      voicePreviewRef.current = null;
+    };
+    
+    setPlayingVoiceId(voice.id);
+  };
+
   return (
     <div className="space-y-8 w-full">
       {/* Page Title */}
@@ -231,44 +290,105 @@ export function Step4Soundscape({
                 </Select>
               </div>
 
-              {/* Voice Selection */}
+              {/* Voice Selection - Using Popover like original ambient mode */}
               <div className="space-y-2">
                 <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Voice Selection</label>
-                <Select value={voiceId} onValueChange={onVoiceIdChange}>
-                  <SelectTrigger className="bg-white/5 border-white/10 h-auto py-3">
-                    <SelectValue placeholder="Select a voice">
-                      {selectedVoice && (
-                        <div className="flex flex-col items-start">
-                          <span className="font-medium">{selectedVoice.name}</span>
-                          <span className="text-xs text-white/50">{selectedVoice.collection} • {selectedVoice.descriptionEn}</span>
-                        </div>
-                      )}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableVoices.map((voice) => (
-                      <SelectItem key={voice.id} value={voice.id}>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{voice.name}</span>
-                          <span className="text-xs text-muted-foreground">{voice.collection} • {voice.descriptionEn}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={voiceDropdownOpen} onOpenChange={setVoiceDropdownOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={voiceDropdownOpen}
+                      className="w-full h-12 justify-between bg-white/5 border-white/10 text-white hover:bg-white/10"
+                    >
+                      <span className={selectedVoice ? "font-medium" : "text-muted-foreground"}>
+                        {selectedVoice ? selectedVoice.name : "Select a voice..."}
+                      </span>
+                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[500px] p-0 bg-[#0a0a0a]/95 backdrop-blur-xl border-white/10" align="start">
+                    <div className="max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                      <div className="p-1">
+                        {availableVoices.length === 0 ? (
+                          <div className="p-4 text-center text-sm text-white/50">
+                            No voices available for {voiceLanguage === 'ar' ? 'Arabic' : 'English'}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="px-3 py-2 border-b border-white/10">
+                              <p className="text-xs text-white/50">
+                                {availableVoices.length} voice{availableVoices.length > 1 ? 's' : ''} available
+                              </p>
+                            </div>
+                            {availableVoices.map((voice) => (
+                              <div
+                                key={voice.id}
+                                className={cn(
+                                  "flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors",
+                                  selectedVoice?.id === voice.id
+                                    ? "bg-gradient-to-r from-violet-500/30 to-pink-500/30 text-white"
+                                    : "hover:bg-white/5 text-white/70"
+                                )}
+                                onClick={() => {
+                                  onVoiceIdChange(voice.id);
+                                  setVoiceDropdownOpen(false);
+                                }}
+                              >
+                                <div className="flex-1 min-w-0 mr-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-sm truncate">{voice.name}</span>
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-white/10 border-white/20 text-white/70">
+                                      {voice.gender}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-xs text-white/50 mt-0.5 truncate">{voice.descriptionEn}</p>
+                                  <p className="text-[10px] text-white/40 mt-0.5">{voice.collection} • {voice.useCase}</p>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0 shrink-0"
+                                  onClick={(e) => handlePlayVoice(voice, e)}
+                                >
+                                  {playingVoiceId === voice.id ? (
+                                    <Pause className="h-4 w-4 text-violet-400" />
+                                  ) : (
+                                    <Play className="h-4 w-4 text-white/50 hover:text-violet-400" />
+                                  )}
+                                </Button>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                {selectedVoice && (
+                  <p className="text-xs text-white/50 mt-1">
+                    {selectedVoice.collection} • {selectedVoice.useCase} • {selectedVoice.descriptionEn}
+                  </p>
+                )}
               </div>
 
-              {/* Narration Theme */}
+              {/* Narration Theme - Required field matching original */}
               <div className="space-y-2">
-                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">Narration Theme</label>
+                <label className="text-xs text-white/50 uppercase tracking-wider font-semibold">
+                  Narration Theme <span className="text-red-400">*</span>
+                </label>
                 <p className="text-xs text-white/30">This will guide the AI to generate the narration</p>
                 <Textarea
-                  placeholder="Describe the tone and style of narration you want..."
+                  placeholder="Describe what the voiceover narration should be about... (e.g., 'A meditation guiding the viewer through a peaceful forest journey, focusing on breath and present moment awareness')"
                   value={voiceoverScript}
                   onChange={(e) => onVoiceoverScriptChange(e.target.value)}
-                  rows={3}
+                  rows={4}
                   className="bg-white/5 border-white/10 resize-none"
+                  required
                 />
+                <p className="text-xs text-white/40">
+                  This will guide the AI to generate narration that matches your vision.
+                </p>
               </div>
             </div>
           )}

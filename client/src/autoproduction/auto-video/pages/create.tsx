@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Video, Sparkles, Palette, Waves, CalendarClock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/contexts/workspace-context";
 import { WizardLayout } from "../../shared/components/layout/wizard-layout";
 import { Step1ModeSelection } from "../components/wizard/shared/step-1-mode-selection";
 import { Step2ContentSetup } from "../components/wizard/modes/ambient/step-2-content-setup";
@@ -55,6 +56,7 @@ const wizardSteps = [
 export default function AutoVideoCreate() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { currentWorkspace } = useWorkspace();
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
 
@@ -190,8 +192,43 @@ export default function AutoVideoCreate() {
   const selectedModeConfig = VIDEO_MODES.find((m) => m.id === videoMode);
   const isModeAvailable = selectedModeConfig?.available ?? false;
 
+  // Check if current step is valid and can proceed
+  const canProceedFromCurrentStep = () => {
+    if (currentStep === 1) {
+      return isModeAvailable;
+    }
+    
+    if (currentStep === 2) {
+      if (!campaignName.trim()) return false;
+      const validIdeas = videoIdeas.filter((t) => t.trim());
+      return validIdeas.length > 0;
+    }
+    
+    if (currentStep === 4) {
+      // If voiceover is enabled, narration theme is required
+      if (voiceoverEnabled && !voiceoverStory.trim()) {
+        return false;
+      }
+      return true;
+    }
+    
+    if (currentStep === 5) {
+      if (automationMode === 'continuous') {
+        return !!scheduleStartDate;
+      }
+      if (automationMode === 'scheduled') {
+        const validIdeasForSchedule = videoIdeas.filter((t) => t.trim());
+        const scheduledCount = Object.values(topicSchedules).filter(Boolean).length;
+        return scheduledCount >= validIdeasForSchedule.length;
+      }
+      return true;
+    }
+    
+    return true;
+  };
+
   const handleNext = () => {
-    // Validation
+    // Validation with error messages
     if (currentStep === 1) {
       if (!isModeAvailable) {
         toast({
@@ -217,6 +254,18 @@ export default function AutoVideoCreate() {
         toast({
           title: "Validation Error",
           description: "Please add at least one video idea.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    if (currentStep === 4) {
+      // Validate voiceover narration theme if voiceover is enabled
+      if (voiceoverEnabled && !voiceoverStory.trim()) {
+        toast({
+          title: "Validation Error",
+          description: "Please provide a narration theme for the voiceover.",
           variant: "destructive",
         });
         return;
@@ -346,6 +395,7 @@ export default function AutoVideoCreate() {
 
     const data = {
       name: campaignName,
+      workspaceId: currentWorkspace?.id,
       videoMode,
       
       // Video ideas
@@ -568,7 +618,7 @@ export default function AutoVideoCreate() {
       onBack={handleBack}
       onNext={handleNext}
       canGoBack={currentStep > 1}
-      canGoNext={isModeAvailable || currentStep === 1}
+      canGoNext={canProceedFromCurrentStep()}
       isFirstStep={currentStep === 1}
       isLastStep={currentStep === wizardSteps.length}
       isSubmitting={createCampaign.isPending}

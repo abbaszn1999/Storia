@@ -11,3 +11,5 @@ export {
   useUpdateVideoCampaign,
   useDeleteVideoCampaign,
 } from '../../shared/hooks';
+
+export * from './useBatchGeneration';

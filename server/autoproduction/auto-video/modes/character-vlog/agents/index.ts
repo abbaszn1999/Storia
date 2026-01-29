@@ -1,15 +1,21 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * AUTO-VIDEO SERVICES
+ * CHARACTER-VLOG MODE AGENTS
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
- * Core services for auto-video campaign orchestration.
- * Each mode has its own agents under auto-video/modes/{mode}/agents.
+ * Mode-specific agents for character-vlog video generation.
+ * 
+ * TODO: Implement vlog-specific agent flow
  */
 
-export * from './batch-processor';
-export * from './mode-delegator';
-export * from './scheduler-service';
+import type { VlogSettings, VideoGenerationResult } from '../../types';
 
-// Future exports:
-// export * from './publisher-service';
+export async function generateVlogVideoFromIdea(
+  idea: string,
+  settings: VlogSettings,
+  userId: string,
+  workspaceId: string
+): Promise<VideoGenerationResult> {
+  console.log('[vlog:agents] Starting generation for:', idea);
+  throw new Error('Vlog agent not yet implemented');
+}

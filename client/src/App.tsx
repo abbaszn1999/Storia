@@ -53,6 +53,7 @@ import AutoStoryDashboard from "@/autoproduction/auto-story/pages/[id]/dashboard
 import StoryDetail from "@/autoproduction/auto-story/pages/[id]/stories/[storyId]";
 import AutoVideoList from "@/autoproduction/auto-video/pages";
 import AutoVideoCreate from "@/autoproduction/auto-video/pages/create";
+import AutoVideoDashboard from "@/autoproduction/auto-video/pages/[id]/dashboard";
 import UsagePage from "@/pages/usage";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
@@ -202,6 +203,7 @@ function MainLayout() {
               <Route path="/autoproduction/story/:id/stories/:storyId" component={StoryDetail} />
               <Route path="/autoproduction/video" component={AutoVideoList} />
               <Route path="/autoproduction/video/create" component={AutoVideoCreate} />
+              <Route path="/autoproduction/video/:id" component={AutoVideoDashboard} />
               
               {/* Assets Library */}
               <Route path="/assets">

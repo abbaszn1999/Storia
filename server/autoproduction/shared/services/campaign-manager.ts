@@ -25,10 +25,15 @@ import type {
 export async function createVideoCampaign(data: InsertVideoCampaign): Promise<VideoCampaign> {
   console.log('[campaign-manager] Creating video campaign:', data.name);
   
-  const campaign = await storage.createVideoCampaign({
+  // Sanitize date fields - convert strings to Date objects or null
+  const sanitizedData = {
     ...data,
     status: 'draft',
-  });
+    scheduleStartDate: parseDate(data.scheduleStartDate),
+    scheduleEndDate: parseDate(data.scheduleEndDate),
+  };
+  
+  const campaign = await storage.createVideoCampaign(sanitizedData);
   
   console.log('[campaign-manager] ✓ Video campaign created:', campaign.id);
   return campaign;
@@ -48,7 +53,16 @@ export async function updateVideoCampaign(
   id: string,
   data: Partial<VideoCampaign>
 ): Promise<VideoCampaign> {
-  return await storage.updateVideoCampaign(id, data);
+  // Sanitize date fields if present
+  const sanitizedData = { ...data };
+  if ('scheduleStartDate' in data) {
+    sanitizedData.scheduleStartDate = parseDate(data.scheduleStartDate);
+  }
+  if ('scheduleEndDate' in data) {
+    sanitizedData.scheduleEndDate = parseDate(data.scheduleEndDate);
+  }
+  
+  return await storage.updateVideoCampaign(id, sanitizedData);
 }
 
 /**
@@ -100,10 +114,15 @@ export async function listVideoCampaignsByWorkspace(
 export async function createStoryCampaign(data: InsertStoryCampaign): Promise<StoryCampaign> {
   console.log('[campaign-manager] Creating story campaign:', data.name);
   
-  const campaign = await storage.createStoryCampaign({
+  // Sanitize date fields - convert strings to Date objects or null
+  const sanitizedData = {
     ...data,
     status: 'draft',
-  });
+    scheduleStartDate: parseDate(data.scheduleStartDate),
+    scheduleEndDate: parseDate(data.scheduleEndDate),
+  };
+  
+  const campaign = await storage.createStoryCampaign(sanitizedData);
   
   console.log('[campaign-manager] ✓ Story campaign created:', campaign.id);
   return campaign;
@@ -123,7 +142,16 @@ export async function updateStoryCampaign(
   id: string,
   data: Partial<StoryCampaign>
 ): Promise<StoryCampaign> {
-  return await storage.updateStoryCampaign(id, data);
+  // Sanitize date fields if present
+  const sanitizedData = { ...data };
+  if ('scheduleStartDate' in data) {
+    sanitizedData.scheduleStartDate = parseDate(data.scheduleStartDate);
+  }
+  if ('scheduleEndDate' in data) {
+    sanitizedData.scheduleEndDate = parseDate(data.scheduleEndDate);
+  }
+  
+  return await storage.updateStoryCampaign(id, sanitizedData);
 }
 
 /**
@@ -189,4 +217,22 @@ export function calculateCampaignProgress(itemStatuses: Record<string, { status:
     pending: statuses.filter(s => s.status === 'pending').length,
     inProgress: statuses.filter(s => s.status === 'generating').length,
   };
+}
+
+/**
+ * Parse a date value to a Date object or null
+ * Handles: Date objects, ISO strings, null, undefined
+ */
+function parseDate(value: Date | string | null | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
 }

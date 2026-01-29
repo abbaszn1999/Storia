@@ -89,6 +89,18 @@ export interface BatchProgress {
   currentProgress?: number;
 }
 
+// Campaign item (individual video or story in a campaign)
+export interface CampaignItem {
+  id: string;
+  sourceIdea: string; // Original topic/idea from campaign
+  title?: string;
+  status: ItemStatus | 'approved' | 'rejected';
+  orderIndex: number;
+  previewUrl?: string;
+  generationProgress?: number; // 0-100
+  error?: string;
+}
+
 // Helper function to calculate progress from itemStatuses
 export function calculateProgress(itemStatuses: Record<string, ItemStatusEntry>): {
   progress: number;

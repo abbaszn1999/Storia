@@ -1,15 +1,11 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * AUTO-VIDEO SERVICES
+ * AMBIENT-VISUAL MODE SERVICES
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
- * Core services for auto-video campaign orchestration.
- * Each mode has its own agents under auto-video/modes/{mode}/agents.
+ * Service exports for ambient-visual mode in auto-video campaigns.
  */
 
-export * from './batch-processor';
-export * from './mode-delegator';
-export * from './scheduler-service';
-
-// Future exports:
-// export * from './publisher-service';
+export * from './video-initializer';
+export * from './step-data-generator';
+export * from './agent-orchestrator';

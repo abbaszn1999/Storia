@@ -1705,15 +1705,27 @@ export function StoryboardEditor({
 
   const handleUpdateVideoPrompt = (shotId: string, prompt: string) => {
     const shot = allShots.find(s => s.id === shotId);
-    if (shot?.currentVersionId && onUpdateShotVersion) {
-      onUpdateShotVersion(shotId, shot.currentVersionId, { videoPrompt: prompt });
+    if (!shot) return;
+    
+    // Get version ID from currentVersionId or latest version in the array
+    const versions = shotVersions[shotId] || [];
+    const versionId = shot.currentVersionId || (versions.length > 0 ? versions[versions.length - 1].id : null);
+    
+    if (versionId && onUpdateShotVersion) {
+      onUpdateShotVersion(shotId, versionId, { videoPrompt: prompt });
     }
   };
 
   const handleUpdateVideoDuration = (shotId: string, duration: number) => {
     const shot = allShots.find(s => s.id === shotId);
-    if (shot?.currentVersionId && onUpdateShotVersion) {
-      onUpdateShotVersion(shotId, shot.currentVersionId, { videoDuration: duration });
+    if (!shot) return;
+    
+    // Get version ID from currentVersionId or latest version in the array
+    const versions = shotVersions[shotId] || [];
+    const versionId = shot.currentVersionId || (versions.length > 0 ? versions[versions.length - 1].id : null);
+    
+    if (versionId && onUpdateShotVersion) {
+      onUpdateShotVersion(shotId, versionId, { videoDuration: duration });
     }
   };
 

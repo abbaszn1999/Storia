@@ -97,6 +97,7 @@ interface CharacterVlogWorkflowProps {
   onReferenceImagesChange: (referenceImages: ReferenceImage[]) => void;
   onContinuityLockedChange: (locked: boolean) => void;
   onContinuityGroupsChange: (groups: { [sceneId: string]: any[] }) => void;
+  onSceneGeneratingChange?: (isGenerating: boolean) => void;  // Notify parent when scene generation starts/ends
   onMainCharacterChange: (character: Character | null) => void;
   onWorldSettingsChange: (settings: { 
     artStyle: string; 
@@ -180,6 +181,7 @@ export function CharacterVlogWorkflow({
   onReferenceImagesChange,
   onContinuityLockedChange,
   onContinuityGroupsChange,
+  onSceneGeneratingChange,
   onMainCharacterChange,
   onWorldSettingsChange,
   onNext,
@@ -209,7 +211,8 @@ export function CharacterVlogWorkflow({
   // Debounced auto-save for step3Data (scenes/shots) when models change
   const debouncedSaveStep3Data = useCallback((
     scenesToSave: Scene[],
-    shotsToSave: { [sceneId: string]: Shot[] }
+    shotsToSave: { [sceneId: string]: Shot[] },
+    shotVersionsToSave?: { [shotId: string]: ShotVersion[] }
   ) => {
     // Clear existing timer
     if (step3SaveTimerRef.current) {
@@ -227,6 +230,7 @@ export function CharacterVlogWorkflow({
         console.log('[CharacterVlogWorkflow] Auto-saving step3Data (scenes/shots)...', {
           scenesCount: scenesToSave.length,
           shotsCount: Object.keys(shotsToSave).length,
+          shotVersionsCount: shotVersionsToSave ? Object.keys(shotVersionsToSave).length : 0,
           sampleScene: scenesToSave[0],
         });
         
@@ -242,6 +246,7 @@ export function CharacterVlogWorkflow({
             shots: shotsToSave,
             continuityGroups,
             continuityLocked,
+            ...(shotVersionsToSave && { shotVersions: shotVersionsToSave }),
           }),
         });
         
@@ -849,18 +854,28 @@ export function CharacterVlogWorkflow({
   };
 
   const handleUpdateShotVersion = (shotId: string, versionId: string, updates: Partial<ShotVersion>) => {
-    onShotVersionsChange(
-      Object.fromEntries(
-        Object.entries(shotVersions).map(([sid, versions]) => [
-          sid,
-          versions.map((version) =>
-            version.id === versionId && sid === shotId
-              ? { ...version, ...updates }
-              : version
-          ),
-        ])
-      )
+    const updatedShotVersions = Object.fromEntries(
+      Object.entries(shotVersions).map(([sid, versions]) => [
+        sid,
+        versions.map((version) =>
+          version.id === versionId && sid === shotId
+            ? { ...version, ...updates }
+            : version
+        ),
+      ])
     );
+    
+    onShotVersionsChange(updatedShotVersions);
+    
+    // Trigger debounced save when videoDuration or videoModel changes
+    if (updates.videoDuration !== undefined || updates.videoModel !== undefined) {
+      console.log('[CharacterVlogWorkflow] Shot version updated, triggering auto-save:', {
+        shotId,
+        versionId,
+        updates,
+      });
+      debouncedSaveStep3Data(scenes, shots, updatedShotVersions);
+    }
   };
 
   const handleUpdateScene = (sceneId: string, updates: Partial<Scene>) => {
@@ -1223,6 +1238,7 @@ export function CharacterVlogWorkflow({
           }}
           onContinuityGroupsChange={onContinuityGroupsChange}
           onContinuityLockedChange={onContinuityLockedChange}
+          onGeneratingChange={onSceneGeneratingChange}
           onNext={onNext}
         />
       )}

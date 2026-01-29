@@ -166,7 +166,7 @@ export function ElementsTab({
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [newCharacter, setNewCharacter] = useState({ name: "", age: "", role: "", personality: "", appearance: "" });
-  const [characterReferenceImages, setCharacterReferenceImages] = useState<string[]>([]);
+  const [characterReferenceImages, setCharacterReferenceImages] = useState<Array<{ tempId: string; previewUrl: string }>>([]);
   const [generatedCharacterImage, setGeneratedCharacterImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedArtStyle, setSelectedArtStyle] = useState(artStyle);
@@ -1277,13 +1277,13 @@ export function ElementsTab({
         );
         onCharactersChange(updatedCharacters);
         
-        const updatedRefs = characterReferenceImages.map((url, idx) => ({
+        const updatedRefs = characterReferenceImages.map((img, idx) => ({
           id: `ref-${editingCharacter.id}-${idx}`,
           videoId,
           shotId: null,
           characterId: editingCharacter.id,
           type: "character" as const,
-          imageUrl: url,
+          imageUrl: img.previewUrl,
           description: null,
           createdAt: new Date(),
         }));
@@ -1340,13 +1340,13 @@ export function ElementsTab({
 
         onCharactersChange([...characters, character]);
         
-        const newRefs = characterReferenceImages.map((url, idx) => ({
+        const newRefs = characterReferenceImages.map((img, idx) => ({
           id: `ref-${savedCharacter.id}-${idx}`,
           videoId,
           shotId: null,
           characterId: savedCharacter.id,
           type: "character" as const,
-          imageUrl: url,
+          imageUrl: img.previewUrl,
           description: null,
           createdAt: new Date(),
         }));
@@ -1396,7 +1396,7 @@ export function ElementsTab({
     setIsAddCharacterOpen(true);
   };
 
-  const handleUploadCharacterReference = (file: File) => {
+  const handleUploadCharacterReference = async (file: File) => {
     if (characterReferenceImages.length >= MAX_CHARACTER_REFERENCES) {
       toast({
         title: "Maximum Reached",
@@ -1406,12 +1406,38 @@ export function ElementsTab({
       return;
     }
 
-    const url = URL.createObjectURL(file);
-    setCharacterReferenceImages([...characterReferenceImages, url]);
-    toast({
-      title: "Reference Uploaded",
-      description: "Character reference image added.",
-    });
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/character-vlog/upload-reference', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload reference image');
+      }
+
+      const data = await response.json();
+      setCharacterReferenceImages([...characterReferenceImages, {
+        tempId: data.tempId,
+        previewUrl: data.previewUrl,
+      }]);
+      
+      toast({
+        title: "Reference Uploaded",
+        description: "Character reference image added.",
+      });
+    } catch (error) {
+      console.error('[elements-tab] Reference upload error:', error);
+      toast({
+        title: "Upload Failed",
+        description: error instanceof Error ? error.message : "Failed to upload reference image.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleRemoveCharacterReference = (index: number) => {
@@ -1526,9 +1552,9 @@ export function ElementsTab({
         ? styleRefs[0].imageUrl 
         : undefined;
 
-      // Get reference images
-      const referenceImages = characterReferenceImages.length > 0 
-        ? characterReferenceImages 
+      // Extract temp IDs from character reference images
+      const referenceTempIds = characterReferenceImages.length > 0 
+        ? characterReferenceImages.map(img => img.tempId) 
         : undefined;
 
       console.log('[elements-tab] Generating character image:', {
@@ -1539,7 +1565,7 @@ export function ElementsTab({
         artStyle: selectedArtStyle,
         hasWorldDescription: !!selectedWorldDescription,
         hasStyleReference: !!styleReferenceImage,
-        referenceImageCount: referenceImages?.length || 0,
+        referenceTempIdCount: referenceTempIds?.length || 0,
       });
 
       const response = await fetch(`/api/character-vlog/characters/${characterId}/generate-image`, {
@@ -1559,7 +1585,7 @@ export function ElementsTab({
           styleReferenceImage: styleReferenceImage,
           worldDescription: selectedWorldDescription || undefined,
           // Note: model is always 'nano-banana' for character images (hardcoded in backend)
-          referenceImages: referenceImages,
+          referenceTempIds: referenceTempIds,
         }),
       });
 
@@ -2667,10 +2693,10 @@ export function ElementsTab({
                   </Label>
                   {characterReferenceImages.length > 0 && (
                     <div className="grid grid-cols-3 gap-2 mb-2">
-                      {characterReferenceImages.map((url, index) => (
-                        <div key={index} className="relative aspect-square rounded-lg border border-white/10 bg-muted">
+                      {characterReferenceImages.map((img, index) => (
+                        <div key={img.tempId} className="relative aspect-square rounded-lg border border-white/10 bg-muted">
                           <div className="absolute inset-0 rounded-lg overflow-hidden">
-                            <img src={url} alt={`Reference ${index + 1}`} className="h-full w-full object-cover" />
+                            <img src={img.previewUrl} alt={`Reference ${index + 1}`} className="h-full w-full object-cover" />
                           </div>
                           <Button
                             size="icon"

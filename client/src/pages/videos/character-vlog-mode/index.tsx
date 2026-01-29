@@ -564,6 +564,9 @@ export default function CharacterVlogMode() {
   
   // Prompt generation progress state
   const [isGeneratingPrompts, setIsGeneratingPrompts] = useState(false);
+  
+  // Scene generation state (from scene-breakdown component)
+  const [isGeneratingScenes, setIsGeneratingScenes] = useState(false);
 
   // Auto-mark storyboard as completed if prompts exist (shotVersions has data)
   useEffect(() => {
@@ -1622,7 +1625,7 @@ export default function CharacterVlogMode() {
       onNext={handleNext}
       onBack={handleBack}
       videoTitle={videoTitle}
-      isNextDisabled={isGeneratingPrompts} // Disable Continue button during prompt generation
+      isNextDisabled={isGeneratingPrompts || isGeneratingScenes} // Disable Continue button during generation
     >
             <CharacterVlogWorkflow 
               activeStep={activeStep}
@@ -1683,6 +1686,7 @@ export default function CharacterVlogMode() {
               onReferenceImagesChange={setReferenceImages}
               onContinuityLockedChange={setContinuityLocked}
               onContinuityGroupsChange={setContinuityGroups}
+              onSceneGeneratingChange={setIsGeneratingScenes}
               onMainCharacterChange={setMainCharacter}
               onWorldSettingsChange={setWorldSettings}
               // Step 5 Sound props

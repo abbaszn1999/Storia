@@ -19,7 +19,7 @@ import {
   generateLocationImage as generateLocationImageAgent,
   type LocationImageInput as LocationImageInputAgent,
 } from '../../../assets/locations/agents/location-image-generator';
-import { upload } from './shared';
+import { upload, tempUploads, getTempUpload, deleteTempUpload } from './shared';
 import soundGenerationRouter from './sound-generation';
 
 const router = Router();
@@ -674,6 +674,83 @@ router.post('/upload-style-reference', isAuthenticated, upload.single('file'), a
   } catch (error) {
     console.error('[character-vlog:routes] Style reference upload error:', error);
     res.status(500).json({ error: 'Failed to upload style reference image' });
+  }
+});
+
+/**
+ * POST /api/character-vlog/upload-reference
+ * Upload a reference image to temporary memory storage
+ * 
+ * Returns a tempId and base64 preview URL for immediate display.
+ * Images are stored in memory only - lost on page refresh.
+ * On image generation, images are uploaded to Bunny CDN permanently.
+ */
+router.post('/upload-reference', isAuthenticated, upload.single('file'), async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const file = (req as any).file;
+    if (!file) {
+      return res.status(400).json({ error: 'No file provided' });
+    }
+
+    // Generate unique temp ID
+    const tempId = randomUUID();
+
+    // Store in memory
+    tempUploads.set(tempId, {
+      buffer: file.buffer,
+      mimetype: file.mimetype,
+      originalName: file.originalname,
+      uploadedAt: Date.now(),
+    });
+
+    // Create base64 preview URL for immediate display
+    const base64 = file.buffer.toString('base64');
+    const previewUrl = `data:${file.mimetype};base64,${base64}`;
+
+    console.log('[character-vlog:routes] Reference image uploaded to temp storage:', {
+      tempId,
+      originalName: file.originalname,
+      size: `${(file.buffer.length / 1024).toFixed(1)}KB`,
+    });
+
+    res.json({
+      tempId,
+      previewUrl,
+    });
+  } catch (error) {
+    console.error('[character-vlog:routes] Reference upload error:', error);
+    res.status(500).json({ error: 'Failed to upload reference image' });
+  }
+});
+
+/**
+ * DELETE /api/character-vlog/upload-reference/:tempId
+ * Remove a temporary reference image from memory
+ */
+router.delete('/upload-reference/:tempId', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { tempId } = req.params;
+    
+    if (tempUploads.has(tempId)) {
+      tempUploads.delete(tempId);
+      console.log('[character-vlog:routes] Temp reference deleted:', tempId);
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'Temp upload not found' });
+    }
+  } catch (error) {
+    console.error('[character-vlog:routes] Delete temp reference error:', error);
+    res.status(500).json({ error: 'Failed to delete reference image' });
   }
 });
 
@@ -2144,7 +2221,7 @@ router.patch('/videos/:id/step/3/settings', isAuthenticated, async (req: Request
     }
 
     const { id: videoId } = req.params;
-    const { scenes, shots, continuityGroups, continuityLocked } = req.body as {
+    const { scenes, shots, continuityGroups, continuityLocked, shotVersions } = req.body as {
       scenes?: Array<{
         id: string;
         name: string;
@@ -2156,6 +2233,7 @@ router.patch('/videos/:id/step/3/settings', isAuthenticated, async (req: Request
       shots?: Record<string, any[]>;
       continuityGroups?: Record<string, any[]>;
       continuityLocked?: boolean;
+      shotVersions?: Record<string, any[]>;
     };
 
     if (!videoId) {
@@ -2267,9 +2345,50 @@ router.patch('/videos/:id/step/3/settings', isAuthenticated, async (req: Request
       updatedStep3Data.shots = cleanedShots;
     }
 
+    // Prepare step4Data update if shotVersions are provided
+    let step4DataUpdate: any = undefined;
+    if (shotVersions && Object.keys(shotVersions).length > 0) {
+      const existingStep4Data = (video.step4Data as Step4Data) || {};
+      const existingVersions = existingStep4Data.shotVersions || {};
+      
+      // Merge incoming shotVersions with existing, preserving fields not in the update
+      const mergedVersions: Record<string, any[]> = { ...existingVersions };
+      for (const [shotId, versions] of Object.entries(shotVersions)) {
+        if (existingVersions[shotId]) {
+          // Merge each version by ID
+          mergedVersions[shotId] = existingVersions[shotId].map((existingVersion: any) => {
+            const incomingVersion = versions.find((v: any) => v.id === existingVersion.id);
+            if (incomingVersion) {
+              return { ...existingVersion, ...incomingVersion };
+            }
+            return existingVersion;
+          });
+          // Add any new versions that don't exist yet
+          versions.forEach((v: any) => {
+            if (!mergedVersions[shotId].find((ev: any) => ev.id === v.id)) {
+              mergedVersions[shotId].push(v);
+            }
+          });
+        } else {
+          mergedVersions[shotId] = versions;
+        }
+      }
+      
+      step4DataUpdate = {
+        ...existingStep4Data,
+        shotVersions: mergedVersions,
+      };
+      
+      console.log('[character-vlog:routes] Updating shotVersions in step4Data:', {
+        updatedShotIds: Object.keys(shotVersions).length,
+        totalShotVersions: Object.keys(mergedVersions).length,
+      });
+    }
+
     // Update video in database
     await storage.updateVideo(videoId, {
       step3Data: updatedStep3Data,
+      ...(step4DataUpdate && { step4Data: step4DataUpdate }),
     });
 
     // Log what was saved including currentVersionId status
@@ -2743,9 +2862,12 @@ router.post('/characters/:characterId/generate-image', isAuthenticated, async (r
       age,
       artStyleDescription, 
       styleReferenceImage, 
+      styleReferenceTempId,  // New: temp ID for style reference
       worldDescription, 
       // model is ignored - always uses 'nano-banana' for character images
-      referenceImages 
+      referenceImages,  // Legacy: direct URLs (deprecated)
+      referenceTempIds,  // New: temp IDs to convert to CDN URLs
+      videoId,  // Required for Bunny CDN path building
     } = req.body;
 
     if (!name || !appearance) {
@@ -2770,14 +2892,118 @@ router.post('/characters/:characterId/generate-image', isAuthenticated, async (r
     // Character image generation always uses nano-banana (hardcoded)
     const characterImageModel = 'nano-banana';
 
+    // Convert reference temp IDs to CDN URLs
+    const finalReferenceImages: string[] = [];
+    
+    // Get workspace info for building Bunny paths
+    let workspace = null;
+    if (videoId && bunnyStorage.isBunnyConfigured()) {
+      try {
+        const video = await storage.getVideo(videoId);
+        if (video) {
+          const workspaces = await storage.getWorkspacesByUserId(userId);
+          workspace = workspaces.find(w => w.id === video.workspaceId);
+        }
+      } catch (err) {
+        console.warn('[character-vlog:routes] Failed to get workspace for CDN upload:', err);
+      }
+    }
+
+    // Process referenceTempIds (new approach - upload to CDN)
+    if (referenceTempIds && referenceTempIds.length > 0 && workspace && bunnyStorage.isBunnyConfigured()) {
+      console.log('[character-vlog:routes] Converting reference temp IDs to CDN URLs:', referenceTempIds.length);
+      for (let i = 0; i < referenceTempIds.length; i++) {
+        const tempId = referenceTempIds[i];
+        const tempFile = getTempUpload(tempId);
+        
+        if (tempFile) {
+          try {
+            const extensionMap: Record<string, string> = {
+              'image/jpeg': 'jpg',
+              'image/jpg': 'jpg',
+              'image/png': 'png',
+              'image/webp': 'webp',
+            };
+            const extension = extensionMap[tempFile.mimetype] || 'png';
+            const filename = `ref${i + 1}_${Date.now()}.${extension}`;
+            
+            const bunnyPath = buildVideoModePath({
+              userId,
+              workspaceName: workspace.name,
+              toolMode: 'vlog',
+              projectName: 'Characters',
+              subFolder: `${characterId}/references`,
+              filename,
+            });
+            
+            const cdnUrl = await bunnyStorage.uploadFile(bunnyPath, tempFile.buffer, tempFile.mimetype);
+            finalReferenceImages.push(cdnUrl);
+            deleteTempUpload(tempId);
+            
+            console.log('[character-vlog:routes] Reference image uploaded to CDN:', {
+              tempId: tempId.substring(0, 8),
+              cdnUrl: cdnUrl.substring(0, 50) + '...',
+            });
+          } catch (uploadErr) {
+            console.error('[character-vlog:routes] Failed to upload reference to CDN:', uploadErr);
+          }
+        } else {
+          console.warn('[character-vlog:routes] Temp upload not found:', tempId);
+        }
+      }
+    }
+    
+    // Fallback: If using legacy referenceImages (direct URLs) and no temp IDs processed
+    if (finalReferenceImages.length === 0 && referenceImages && referenceImages.length > 0) {
+      // Filter out blob URLs which won't work with Runware
+      const validUrls = referenceImages.filter((url: string) => 
+        url && !url.startsWith('blob:') && (url.startsWith('http') || url.startsWith('data:'))
+      );
+      finalReferenceImages.push(...validUrls);
+    }
+
+    // Process styleReferenceTempId if provided
+    let finalStyleReferenceImage = styleReferenceImage;
+    if (styleReferenceTempId && workspace && bunnyStorage.isBunnyConfigured()) {
+      const tempFile = getTempUpload(styleReferenceTempId);
+      if (tempFile) {
+        try {
+          const extensionMap: Record<string, string> = {
+            'image/jpeg': 'jpg',
+            'image/jpg': 'jpg',
+            'image/png': 'png',
+            'image/webp': 'webp',
+          };
+          const extension = extensionMap[tempFile.mimetype] || 'png';
+          const filename = `style_ref_${Date.now()}.${extension}`;
+          
+          const bunnyPath = buildVideoModePath({
+            userId,
+            workspaceName: workspace.name,
+            toolMode: 'vlog',
+            projectName: 'Characters',
+            subFolder: `${characterId}/style`,
+            filename,
+          });
+          
+          finalStyleReferenceImage = await bunnyStorage.uploadFile(bunnyPath, tempFile.buffer, tempFile.mimetype);
+          deleteTempUpload(styleReferenceTempId);
+          
+          console.log('[character-vlog:routes] Style reference uploaded to CDN');
+        } catch (uploadErr) {
+          console.error('[character-vlog:routes] Failed to upload style reference to CDN:', uploadErr);
+        }
+      }
+    }
+
     console.log('[character-vlog:routes] Generating character image:', {
       characterId,
       name,
       hasPersonality: !!personality,
       hasArtStyle: !!artStyleDescription,
       hasWorldDescription: !!worldDescription,
-      hasStyleReference: !!styleReferenceImage,
-      referenceImageCount: referenceImages?.length || 0,
+      hasStyleReference: !!finalStyleReferenceImage,
+      referenceImageCount: finalReferenceImages.length,
       model: characterImageModel, // Always nano-banana for characters
     });
 
@@ -2788,8 +3014,8 @@ router.post('/characters/:characterId/generate-image', isAuthenticated, async (r
       personality: personalityForAgent, // Required by agent
       artStyleDescription: finalArtStyleDescription || undefined,
       model: characterImageModel, // Always nano-banana for character images
-      referenceImages: referenceImages || [],
-      styleReferenceImage: styleReferenceImage || undefined,
+      referenceImages: finalReferenceImages,
+      styleReferenceImage: finalStyleReferenceImage || undefined,
     };
 
     // Call existing character image generator

@@ -91,6 +91,7 @@ const TONES = [
 const DURATIONS = [
   { value: "30", label: "30s" },
   { value: "60", label: "1min" },
+  { value: "120", label: "2min" },
   { value: "180", label: "3min" },
   { value: "300", label: "5min" },
   { value: "600", label: "10min" },

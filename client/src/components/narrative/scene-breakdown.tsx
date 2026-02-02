@@ -45,6 +45,7 @@ interface SceneBreakdownProps {
   tone?: string;  // Video tone
   characters?: Array<{ id: string; name: string; description?: string }>;  // Available characters
   locations?: Array<{ id: string; name: string; description?: string }>;  // Available locations
+  onValidationChange?: (canContinue: boolean) => void;  // Called when validation state changes
   onScenesGenerated?: (scenes: Scene[], shots: { [sceneId: string]: Shot[] }, shotVersions?: { [shotId: string]: NarrativeShotVersion[] }) => void;
   onScenesChange?: (scenes: Scene[]) => void;
   onShotsChange?: (shots: { [sceneId: string]: Shot[] }) => void;
@@ -80,6 +81,7 @@ export function SceneBreakdown({
   onContinuityLocked,
   onContinuityLockedChange,
   onContinuityGroupsChange,
+  onValidationChange,
   onNext 
 }: SceneBreakdownProps) {
   const { toast } = useToast();
@@ -93,6 +95,17 @@ export function SceneBreakdown({
   const [synopsis, setSynopsis] = useState<string>(script ? script.substring(0, 200) : "");
   const [isGeneratingContinuity, setIsGeneratingContinuity] = useState(false);
   const [localContinuityLocked, setLocalContinuityLocked] = useState(continuityLocked);
+
+  // Validation: Can continue if we have at least one scene with at least one shot
+  const hasScenes = scenes.length > 0;
+  const shotCount = Object.values(shots).flat().length;
+  const hasShots = shotCount > 0;
+  const canContinue = hasScenes && hasShots;
+
+  // Notify parent when validation state changes
+  useEffect(() => {
+    onValidationChange?.(canContinue);
+  }, [canContinue, onValidationChange]);
   
   // Refs for shot elements to measure their positions (per scene)
   const shotRefsMap = useRef<{ [sceneId: string]: React.RefObject<(HTMLDivElement | null)[]> }>({});

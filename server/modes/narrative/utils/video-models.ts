@@ -273,6 +273,103 @@ export function getVideoModelProviderSettings(
 }
 
 /**
+ * Get provider settings to disable audio generation for video models
+ * 
+ * Some video models generate audio by default (Veo 3, Seedance 1.5, Kling 2.6, etc.)
+ * This function returns provider settings that explicitly disable audio.
+ * 
+ * NOTE: Different providers use different parameter names for audio:
+ * - Google Veo: generateAudio
+ * - ByteDance Seedance 1.5: audio
+ * - KlingAI 2.6 Pro: sound
+ * - PixVerse: generateAudio
+ * - Lightricks LTX-2: generateAudio
+ * - Alibaba Wan: generateAudio
+ * 
+ * @param modelAirId - The Runware model AIR ID (e.g., "google:3@0")
+ * @param modelId - The friendly model ID (e.g., "veo-3.0")
+ * @returns Provider settings with audio disabled, or undefined if model doesn't support audio
+ */
+export function getProviderSettingsWithAudioDisabled(
+  modelAirId: string,
+  modelId: string
+): Record<string, Record<string, any>> | undefined {
+  const config = getModelConfig(modelId);
+  
+  // If model doesn't have audio, no need for provider settings to disable it
+  if (!config?.hasAudio) {
+    return undefined;
+  }
+
+  // Extract provider from AIR ID (e.g., "google:3@0" -> "google")
+  const provider = modelAirId.split(":")[0];
+  
+  // Provider-specific settings to disable audio
+  // Each provider uses different parameter names!
+  switch (provider) {
+    case "google":
+      // Google Veo models: generateAudio controls audio generation
+      return {
+        google: {
+          generateAudio: false,
+        },
+      };
+    
+    case "lightricks":
+      // LTX-2 Pro: generateAudio controls audio generation
+      return {
+        lightricks: {
+          generateAudio: false,
+        },
+      };
+    
+    case "bytedance":
+      // Seedance 1.5 Pro: "audio" parameter (not generateAudio!)
+      return {
+        bytedance: {
+          audio: false,
+        },
+      };
+    
+    case "pixverse":
+      // PixVerse v5.5: generateAudio controls background music/sound effects/dialogue
+      return {
+        pixverse: {
+          generateAudio: false,
+        },
+      };
+    
+    case "klingai":
+      // Kling VIDEO 2.6 Pro: "sound" parameter (not generateAudio!)
+      return {
+        klingai: {
+          sound: false,
+        },
+      };
+    
+    case "alibaba":
+      // Alibaba Wan 2.6: generateAudio controls native audio
+      return {
+        alibaba: {
+          generateAudio: false,
+        },
+      };
+    
+    case "minimax":
+      // Hailuo 2.3: May have audio support
+      return {
+        minimax: {
+          generateAudio: false,
+        },
+      };
+    
+    default:
+      // Unknown provider - return undefined (no audio settings needed)
+      return undefined;
+  }
+}
+
+/**
  * Check if model should omit width/height dimensions in payload
  * 
  * Some models derive output dimensions from the input image and don't accept explicit dimensions:

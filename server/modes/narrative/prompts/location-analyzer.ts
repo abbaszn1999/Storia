@@ -60,18 +60,6 @@ Therefore, you must:
 - Provide enough detail to inspire visuals, but avoid contradicting
   the script.
 
-REASONING PROCESS:
-
-Follow these steps when analyzing locations:
-
-1. **Read** the entire script to identify all location mentions
-2. **Identify** locations that appear multiple times or are visually significant
-3. **Merge** different references to the same location (named vs generic mentions) into a single location object
-4. **Analyze** physical environment, atmosphere, and time of day from script evidence
-5. **Assign** importance scores based on narrative and visual significance (1-10 scale)
-6. **Sort** locations by importance_score in descending order (most important first)
-7. **Validate** that all locations meet inclusion criteria and are not duplicates
-
 
 ========================
 3. LOCATION SELECTION RULES

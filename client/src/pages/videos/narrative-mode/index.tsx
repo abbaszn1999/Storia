@@ -57,6 +57,8 @@ export default function NarrativeMode() {
   const [script, setScript] = useState("");
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [scriptModel, setScriptModel] = useState("gpt-4o");
+  const [voiceActorId, setVoiceActorId] = useState<string | null>(null);
+  const [voiceOverEnabled, setVoiceOverEnabled] = useState(true);
   // Step 1 settings
   const [duration, setDuration] = useState("60");
   const [genres, setGenres] = useState<string[]>(["Adventure"]);
@@ -92,27 +94,6 @@ export default function NarrativeMode() {
     cinematicInspiration: "",
   });
 
-  // Step 5 Sound data
-  const [step5Data, setStep5Data] = useState<{
-    shotsWithSFX?: Record<string, {
-      soundEffectDescription?: string;
-      soundEffectUrl?: string;
-    }>;
-    voiceId?: string;
-    voiceoverEnabled?: boolean;
-    voiceoverScript?: string;
-    voiceoverAudioUrl?: string;
-    voiceoverDuration?: number;
-    backgroundMusicEnabled?: boolean;
-    musicStyle?: string;
-    customMusicUrl?: string;
-    generatedMusicUrl?: string;
-    generatedMusicDuration?: number;
-  }>({
-    voiceoverEnabled: true,
-    backgroundMusicEnabled: true,
-  });
-
   // Restore state from existing video - ONLY run once on initial load
   useEffect(() => {
     if (existingVideo) {
@@ -139,6 +120,8 @@ export default function NarrativeMode() {
           script?: string; 
           aspectRatio?: string;
           scriptModel?: string;
+          voiceActorId?: string;
+          voiceOverEnabled?: boolean;
           duration?: number;
           genres?: string[];
           tones?: string[];
@@ -160,6 +143,8 @@ export default function NarrativeMode() {
         if (step1.script) setScript(step1.script);
         if (step1.aspectRatio) setAspectRatio(step1.aspectRatio);
         if (step1.scriptModel) setScriptModel(step1.scriptModel);
+        if (step1.voiceActorId) setVoiceActorId(step1.voiceActorId);
+        if (step1.voiceOverEnabled !== undefined) setVoiceOverEnabled(step1.voiceOverEnabled);
         
         // Restore settings
         if (step1.duration !== undefined) setDuration(String(step1.duration));
@@ -199,11 +184,10 @@ export default function NarrativeMode() {
         2: "world", 
         3: "breakdown",
         4: "storyboard",
-        5: "sound",
-        6: "preview",
-        7: "export"
+        5: "animatic",
+        6: "export"
       };
-      const allSteps: NarrativeStepId[] = ["script", "world", "breakdown", "storyboard", "sound", "preview", "export"];
+      const allSteps: NarrativeStepId[] = ["script", "world", "breakdown", "storyboard", "animatic", "export"];
       
       // Restore completed steps (convert numeric to string if needed)
       let restoredCompletedSteps: NarrativeStepId[] = [];
@@ -480,27 +464,6 @@ export default function NarrativeMode() {
           setReferenceImages(step4.referenceImages);
         }
       }
-      
-      // Restore step5 data (sound settings)
-      if (existingVideo.step5Data && typeof existingVideo.step5Data === 'object') {
-        const step5 = existingVideo.step5Data as {
-          shotsWithSFX?: Record<string, {
-            soundEffectDescription?: string;
-            soundEffectUrl?: string;
-          }>;
-          voiceId?: string;
-          voiceoverEnabled?: boolean;
-          voiceoverScript?: string;
-          voiceoverAudioUrl?: string;
-          voiceoverDuration?: number;
-          backgroundMusicEnabled?: boolean;
-          musicStyle?: string;
-          customMusicUrl?: string;
-          generatedMusicUrl?: string;
-          generatedMusicDuration?: number;
-        };
-        setStep5Data(step5);
-      }
     }
   }, [existingVideo]);
 
@@ -511,15 +474,14 @@ export default function NarrativeMode() {
       return;
     }
 
-    // Convert step IDs to numbers for storage (1, 2, 3, 4, 5, 6, 7)
+    // Convert step IDs to numbers for storage (1, 2, 3, 4, 5, 6)
     const stepToNumberMap: { [key in NarrativeStepId]: number } = {
       "script": 1,
       "world": 2,
       "breakdown": 3,
       "storyboard": 4,
-      "sound": 5,
-      "preview": 6,
-      "export": 7
+      "animatic": 5,
+      "export": 6
     };
 
     const currentStepNumber = stepToNumberMap[newCurrentStep];
@@ -654,70 +616,8 @@ export default function NarrativeMode() {
     }
   };
 
-  // Save Step 5 data to database (called with debouncing for auto-save)
-  const saveStep5Data = async (data: typeof step5Data) => {
-    if (!videoId || videoId === 'new') {
-      console.warn('[NarrativePage] Cannot save step5 data - no valid videoId');
-      return;
-    }
-
-    console.log('[NarrativePage] Saving step5 data:', {
-      videoId,
-      shotsWithSFXCount: data.shotsWithSFX ? Object.keys(data.shotsWithSFX).length : 0,
-      voiceoverEnabled: data.voiceoverEnabled,
-      backgroundMusicEnabled: data.backgroundMusicEnabled,
-    });
-
-    try {
-      const response = await fetch(`/api/narrative/videos/${videoId}/step5`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('[NarrativePage] Step5 data save failed:', errorData);
-        return;
-      }
-
-      console.log('[NarrativePage] Step5 data saved successfully');
-    } catch (error) {
-      console.error('[NarrativePage] Step5 data save error:', error);
-    }
-  };
-
-  // Debounced auto-save for step5Data (1 second delay)
-  const step5DataRef = useRef(step5Data);
-  const step5SaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  step5DataRef.current = step5Data;
-
-  useEffect(() => {
-    // Skip if we haven't initialized yet or no valid videoId
-    if (!videoId || videoId === 'new') return;
-    // Skip on initial mount (hasRestoredRef helps track this)
-    if (!hasRestoredRef.current) return;
-    
-    // Clear any pending save
-    if (step5SaveTimeoutRef.current) {
-      clearTimeout(step5SaveTimeoutRef.current);
-    }
-
-    // Debounce save by 1 second
-    step5SaveTimeoutRef.current = setTimeout(() => {
-      saveStep5Data(step5DataRef.current);
-    }, 1000);
-
-    return () => {
-      if (step5SaveTimeoutRef.current) {
-        clearTimeout(step5SaveTimeoutRef.current);
-      }
-    };
-  }, [step5Data, videoId]);
-
   const handleStepClick = (step: NarrativeStepId) => {
-    const steps: NarrativeStepId[] = ["script", "world", "breakdown", "storyboard", "sound", "preview", "export"];
+    const steps: NarrativeStepId[] = ["script", "world", "breakdown", "storyboard", "animatic", "export"];
     const currentIndex = steps.indexOf(activeStep);
     const newIndex = steps.indexOf(step);
     setDirection(newIndex > currentIndex ? 1 : -1);
@@ -728,7 +628,7 @@ export default function NarrativeMode() {
   };
 
   const handleNext = async () => {
-    const steps: NarrativeStepId[] = ["script", "world", "breakdown", "storyboard", "sound", "preview", "export"];
+    const steps: NarrativeStepId[] = ["script", "world", "breakdown", "storyboard", "animatic", "export"];
     const currentIndex = steps.indexOf(activeStep);
     const nextIndex = currentIndex + 1;
     
@@ -1065,48 +965,6 @@ export default function NarrativeMode() {
         // If prompts already exist, skip generation and proceed directly
       }
 
-      // If we're on the "preview" step, call continue-to-export API to create step7Data
-      if (activeStep === "preview") {
-        try {
-          console.log('[NarrativePage] Transitioning from preview to export...');
-          const response = await fetch(`/api/narrative/videos/${videoId}/step/preview/continue-to-export`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              volumes: {
-                master: 1,
-                sfx: 0.8,
-                voiceover: 0.9,
-                music: 0.3,
-              },
-            }),
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-            console.error('[NarrativePage] Export transition failed:', errorData);
-            toast({
-              title: "Export Transition Failed",
-              description: errorData.error || "Failed to prepare for export. Please try again.",
-              variant: "destructive",
-            });
-            return;
-          }
-
-          const result = await response.json();
-          console.log('[NarrativePage] Export transition successful:', result);
-        } catch (error) {
-          console.error('[NarrativePage] Export transition error:', error);
-          toast({
-            title: "Export Error",
-            description: "Failed to prepare for export. Please try again.",
-            variant: "destructive",
-          });
-          return;
-        }
-      }
-
       // Mark current step as completed
       const newCompletedSteps = completedSteps.includes(activeStep) 
         ? completedSteps 
@@ -1125,7 +983,7 @@ export default function NarrativeMode() {
   };
 
   const handleBack = () => {
-    const steps: NarrativeStepId[] = ["script", "world", "breakdown", "storyboard", "sound", "preview", "export"];
+    const steps: NarrativeStepId[] = ["script", "world", "breakdown", "storyboard", "animatic", "export"];
     const currentIndex = steps.indexOf(activeStep);
     const prevIndex = currentIndex - 1;
     
@@ -1252,13 +1110,14 @@ export default function NarrativeMode() {
       <NarrativeWorkflow 
         activeStep={activeStep}
         videoId={videoId}
-        videoTitle={videoTitle}
         workspaceId={workspaceId}
         narrativeMode={narrativeMode}
         script={script}
         isGeneratingPrompts={isGeneratingPrompts}
         aspectRatio={aspectRatio}
         scriptModel={scriptModel}
+        voiceActorId={voiceActorId}
+        voiceOverEnabled={voiceOverEnabled}
         duration={duration}
         genres={genres}
         tones={tones}
@@ -1279,6 +1138,8 @@ export default function NarrativeMode() {
         onScriptChange={setScript}
         onAspectRatioChange={setAspectRatio}
         onScriptModelChange={setScriptModel}
+        onVoiceActorChange={setVoiceActorId}
+        onVoiceOverToggle={setVoiceOverEnabled}
         onNumberOfScenesChange={setNumberOfScenes}
         onShotsPerSceneChange={setShotsPerScene}
         onGenresChange={setGenres}
@@ -1294,10 +1155,6 @@ export default function NarrativeMode() {
         onContinuityLockedChange={setContinuityLocked}
         onContinuityGroupsChange={setContinuityGroups}
         onWorldSettingsChange={setWorldSettings}
-        step5Data={step5Data}
-        onStep5DataChange={(updates) => {
-          setStep5Data(prev => ({ ...prev, ...updates }));
-        }}
         onValidationChange={setCanContinue}
         onNext={handleNext}
       />

@@ -55,6 +55,12 @@ import { useToast } from "@/hooks/use-toast";
 import type { Scene, Shot, ShotVersion } from "@/types/storyboard";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
 
+// Language options
+const LANGUAGES = [
+  { value: "en", label: "English" },
+  { value: "ar", label: "Arabic (العربية)" },
+];
+
 // Music style options
 const MUSIC_STYLES = [
   { value: 'cinematic', label: 'Cinematic', description: 'Epic orchestral score' },
@@ -462,6 +468,11 @@ export function NarrativeSoundTab({
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
   const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Voiceover language state - convert from prop if needed
+  const [voiceoverLanguage, setVoiceoverLanguage] = useState<'en' | 'ar'>(
+    language === 'en' || language === 'ar' ? language : 'en'
+  );
 
   // Music state
   const [backgroundMusicEnabled, setBackgroundMusicEnabled] = useState(step5Data.backgroundMusicEnabled ?? true);
@@ -511,6 +522,13 @@ export function NarrativeSoundTab({
     if (step5Data.generatedMusicDuration) setGeneratedMusicDuration(step5Data.generatedMusicDuration);
   }, [step5Data]);
 
+  // Sync voiceoverLanguage with language prop
+  useEffect(() => {
+    if (language === 'en' || language === 'ar') {
+      setVoiceoverLanguage(language);
+    }
+  }, [language]);
+
   // Get version for a shot
   const getShotVersion = (shot: Shot): ShotVersion | null => {
     const versions = shotVersions[shot.id];
@@ -543,7 +561,7 @@ export function NarrativeSoundTab({
       const response = await fetch(`/api/narrative/videos/${videoId}/voiceover/generate-script`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ language }),
+        body: JSON.stringify({ language: voiceoverLanguage }),
       });
       
       if (!response.ok) {
@@ -597,7 +615,7 @@ export function NarrativeSoundTab({
         body: JSON.stringify({ 
           script: voiceoverScript,
           voiceId,
-          language,
+          language: voiceoverLanguage,
         }),
       });
       
@@ -1066,9 +1084,46 @@ export function NarrativeSoundTab({
 
             {voiceoverEnabled && (
               <>
+                {/* Language Selector */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Language</Label>
+                  <Select
+                    value={voiceoverLanguage}
+                    onValueChange={(value: 'en' | 'ar') => {
+                      setVoiceoverLanguage(value);
+                      // Reset voice selection if current voice doesn't match new language
+                      if (voiceId) {
+                        const currentVoice = VOICE_LIBRARY.find(v => v.id === voiceId);
+                        if (currentVoice && currentVoice.language !== value) {
+                          // Auto-select first voice of the new language
+                          const firstVoice = VOICE_LIBRARY.find(v => v.language === value);
+                          if (firstVoice) {
+                            setVoiceId(firstVoice.id);
+                            onUpdateStep5Data({ voiceId: firstVoice.id });
+                          } else {
+                            setVoiceId('');
+                            onUpdateStep5Data({ voiceId: '' });
+                          }
+                        }
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-white/[0.02] border-white/[0.06]">
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LANGUAGES.map((lang) => (
+                        <SelectItem key={lang.value} value={lang.value}>
+                          {lang.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Voice Selector */}
                 <div className="space-y-2">
-                  <Label className="text-sm">Voice Actor ({VOICE_LIBRARY.length} voices available)</Label>
+                  <Label className="text-sm">Voice Actor ({VOICE_LIBRARY.filter(v => v.language === voiceoverLanguage).length} voices available)</Label>
                   <Popover open={voiceDropdownOpen} onOpenChange={setVoiceDropdownOpen}>
                     <PopoverTrigger asChild>
                       <Button
@@ -1088,10 +1143,10 @@ export function NarrativeSoundTab({
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[450px] p-0" align="start">
-                      {/* Header showing total count */}
+                      {/* Header showing filtered count */}
                       <div className="px-3 py-2 border-b border-white/10 bg-white/[0.02]">
                         <p className="text-xs text-white/60">
-                          {VOICE_LIBRARY.length} voices available • Scroll to see all
+                          {VOICE_LIBRARY.filter(v => v.language === voiceoverLanguage).length} {voiceoverLanguage === 'en' ? 'English' : 'Arabic'} voices available • Scroll to see all
                         </p>
                       </div>
                       <div 
@@ -1099,57 +1154,7 @@ export function NarrativeSoundTab({
                         style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.2) transparent' }}
                       >
                         <div className="p-1">
-                          {/* English Voices */}
-                          <div className="px-2 py-1.5 text-xs font-semibold text-pink-400 border-b border-white/10 mb-1 sticky top-0 bg-[#0a0a0a] z-10">
-                            🇺🇸 English Voices ({VOICE_LIBRARY.filter(v => v.language === 'en').length})
-                          </div>
-                          {VOICE_LIBRARY.filter(v => v.language === 'en').map((voice) => (
-                            <div
-                              key={voice.id}
-                              className={`flex items-center gap-2 px-2 py-2 hover:bg-white/5 rounded-md cursor-pointer ${voiceId === voice.id ? 'bg-pink-500/10 border border-pink-500/30' : ''}`}
-                              onClick={() => {
-                                setVoiceId(voice.id);
-                                onUpdateStep5Data({ voiceId: voice.id });
-                                setVoiceDropdownOpen(false);
-                              }}
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  {voiceId === voice.id && (
-                                    <Check className="h-3.5 w-3.5 text-pink-400 shrink-0" />
-                                  )}
-                                  <span className={`text-sm ${voiceId === voice.id ? "font-medium text-pink-300" : ""}`}>
-                                    {voice.name}
-                                  </span>
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-white/5 border-white/20">
-                                    {voice.gender === 'male' ? '♂' : voice.gender === 'female' ? '♀' : '◎'}
-                                  </Badge>
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-purple-500/10 border-purple-500/30 text-purple-300">
-                                    {voice.style}
-                                  </Badge>
-                                </div>
-                                <p className="text-[11px] text-white/40 mt-0.5 truncate">{voice.description}</p>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className={`h-7 w-7 shrink-0 ${playingVoice === voice.id ? 'text-pink-400 bg-pink-500/20' : ''}`}
-                                onClick={(e) => handlePlayVoice(voice.id, e)}
-                              >
-                                {playingVoice === voice.id ? (
-                                  <Pause className="h-3.5 w-3.5" />
-                                ) : (
-                                  <Play className="h-3.5 w-3.5" />
-                                )}
-                              </Button>
-                            </div>
-                          ))}
-                          
-                          {/* Arabic Voices */}
-                          <div className="px-2 py-1.5 text-xs font-semibold text-pink-400 border-b border-white/10 mb-1 mt-2 sticky top-0 bg-[#0a0a0a] z-10">
-                            🇸🇦 Arabic Voices ({VOICE_LIBRARY.filter(v => v.language === 'ar').length})
-                          </div>
-                          {VOICE_LIBRARY.filter(v => v.language === 'ar').map((voice) => (
+                          {VOICE_LIBRARY.filter(v => v.language === voiceoverLanguage).map((voice) => (
                             <div
                               key={voice.id}
                               className={`flex items-center gap-2 px-2 py-2 hover:bg-white/5 rounded-md cursor-pointer ${voiceId === voice.id ? 'bg-pink-500/10 border border-pink-500/30' : ''}`}

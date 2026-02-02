@@ -88,18 +88,6 @@ VIDEO PARAMETERS
 • Genre: ${genre}
 ${tone ? `• Tone: ${tone}` : ''}
 
-REASONING PROCESS:
-
-Follow these steps when breaking down the script:
-
-1. **Read** the entire script to understand narrative flow and story structure
-2. **Identify** natural scene divisions (location changes, time shifts, major story beats)
-3. **Match** script characters to provided @{CharacterName} tags from World & Cast
-4. **Match** script locations to provided @{LocationName} tags from World & Cast
-5. **Allocate** duration across scenes proportionally based on content importance
-6. **Generate** scene summaries with script excerpts, titles, and character/location assignments
-7. **Validate** all scenes have required fields and proper character/location linking
-
 ═══════════════════════════════════════════════════════════════════════════════
 REFERENCE TAGGING SYSTEM
 ═══════════════════════════════════════════════════════════════════════════════

@@ -81,6 +81,7 @@ router.post('/videos/:id/voiceover/generate-script', isAuthenticated, async (req
 
     const step1Data = video.step1Data as Step1Data;
     const step3Data = video.step3Data as Step3Data;
+    const step4Data = video.step4Data as Step4Data;
 
     // Validate voiceover is enabled
     if (!step1Data?.voiceOverEnabled) {
@@ -97,10 +98,11 @@ router.post('/videos/:id/voiceover/generate-script', isAuthenticated, async (req
       return res.status(400).json({ error: 'No scenes found. Please complete the Scenes phase first.' });
     }
 
-    // Calculate total duration (no loops in character vlog)
+    // Calculate total duration using version durations when available (no loops in character vlog)
     const scenes = step3Data.scenes;
     const shots = step3Data.shots || {};
-    const totalDuration = calculateTotalDuration(scenes, shots);
+    const shotVersions = step4Data?.shotVersions;
+    const totalDuration = calculateTotalDuration(scenes, shots, shotVersions);
 
     if (totalDuration === 0) {
       return res.status(400).json({ error: 'No shots found or total duration is zero' });
@@ -114,6 +116,13 @@ router.post('/videos/:id/voiceover/generate-script', isAuthenticated, async (req
     });
 
     // Build input for voiceover script generator
+    // Helper to get effective duration for a shot (from version if available)
+    const getEffectiveShotDuration = (shotId: string, fallbackDuration: number) => {
+      const versions = shotVersions?.[shotId];
+      const latestVersion = versions && versions.length > 0 ? versions[versions.length - 1] : null;
+      return (latestVersion as any)?.actualDuration || (latestVersion as any)?.videoDuration || fallbackDuration;
+    };
+
     const input: VoiceoverScriptGeneratorInput = {
       language: step1Data.voiceoverLanguage || 'en',
       script: step1Data.script,
@@ -131,7 +140,7 @@ router.post('/videos/:id/voiceover/generate-script', isAuthenticated, async (req
           (sceneShots as any[]).map((shot: any, idx: number) => ({
             id: shot.id,
             shotNumber: idx + 1,
-            duration: shot.duration,
+            duration: getEffectiveShotDuration(shot.id, shot.duration),
             description: shot.description,
           })),
         ])
@@ -407,16 +416,18 @@ router.post('/videos/:id/music/generate', isAuthenticated, async (req: Request, 
 
     const step1Data = video.step1Data as Step1Data;
     const step3Data = video.step3Data as Step3Data;
+    const step4Data = video.step4Data as Step4Data;
 
     // Validate music is enabled
     if (!step1Data?.backgroundMusicEnabled) {
       return res.status(400).json({ error: 'Background music is not enabled for this video' });
     }
 
-    // Calculate total duration (no loops in character vlog)
+    // Calculate total duration using version durations when available (no loops in character vlog)
     const scenes = step3Data?.scenes || [];
     const shots = step3Data?.shots || {};
-    const totalDuration = calculateTotalDuration(scenes, shots);
+    const shotVersions = step4Data?.shotVersions;
+    const totalDuration = calculateTotalDuration(scenes, shots, shotVersions);
 
     if (totalDuration === 0) {
       return res.status(400).json({ error: 'No shots found or total duration is zero' });
@@ -592,11 +603,17 @@ router.post('/videos/:id/sound-effects/:shotId/generate-prompt', isAuthenticated
       shotDescription: targetShot.description?.substring(0, 50),
     });
 
+    // Get version duration from step4Data if available
+    const step4Data = video.step4Data as Step4Data;
+    const shotVersions = step4Data?.shotVersions?.[shotId] || [];
+    const latestVersion = shotVersions[shotVersions.length - 1] as ShotVersion | undefined;
+    const effectiveDuration = latestVersion?.actualDuration || latestVersion?.videoDuration || targetShot.duration || 4;
+
     // Build input for prompt generator
     const input: SoundEffectPromptGeneratorInput = {
       shotDescription: targetShot.description || '',
       shotType: targetShot.shotType,
-      duration: targetShot.duration || 4,
+      duration: effectiveDuration,
       sceneTitle: targetScene?.title || targetScene?.name,
       sceneDescription: targetScene?.description,
       theme: step1Data?.theme,
@@ -798,11 +815,14 @@ router.post('/videos/:id/sound-effects/:shotId/generate-audio', isAuthenticated,
     await storage.updateVideo(id, { step5Data: markGeneratingStep5Data });
 
     try {
+      // Use version's actual duration (from generated video) or fall back to shot.duration
+      const effectiveDuration = latestVersion?.actualDuration || latestVersion?.videoDuration || targetShot.duration || 4;
+
       // Build input for audio generator
       const input: SoundEffectGeneratorInput = {
         videoUrl: shotVideoUrl,
         prompt: promptToUse,
-        duration: targetShot.duration || 4,
+        duration: effectiveDuration,
         videoId: id,
         videoTitle: video.title || 'untitled',
         videoCreatedAt: video.createdAt,

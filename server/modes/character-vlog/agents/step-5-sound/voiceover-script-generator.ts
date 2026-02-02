@@ -108,20 +108,29 @@ export async function generateVoiceoverScript(
  * Calculate total video duration from scenes and shots.
  * Unlike ambient mode, character vlog has no loop multipliers.
  * 
+ * Uses version durations (actualDuration or videoDuration) when available,
+ * falling back to shot.duration for shots without versions.
+ * 
  * @param scenes - Array of scenes
  * @param shots - Record of shots keyed by sceneId
+ * @param shotVersions - Optional record of shot versions keyed by shotId
  * @returns Total duration in seconds
  */
 export function calculateTotalDuration(
   scenes: Array<{ id: string }>,
-  shots: Record<string, Array<{ duration: number }>>
+  shots: Record<string, Array<{ id: string; duration: number }>>,
+  shotVersions?: Record<string, Array<{ actualDuration?: number; videoDuration?: number }>>
 ): number {
   let totalDuration = 0;
 
   for (const scene of scenes) {
     const sceneShots = shots[scene.id] || [];
     for (const shot of sceneShots) {
-      totalDuration += shot.duration;
+      // Use version's actual duration if available, otherwise fall back to shot.duration
+      const versions = shotVersions?.[shot.id];
+      const latestVersion = versions && versions.length > 0 ? versions[versions.length - 1] : null;
+      const effectiveDuration = latestVersion?.actualDuration || latestVersion?.videoDuration || shot.duration;
+      totalDuration += effectiveDuration;
     }
   }
 

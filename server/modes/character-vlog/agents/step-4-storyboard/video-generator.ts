@@ -219,6 +219,68 @@ function shouldOmitDimensions(modelAirId: string): boolean {
   return modelsWithoutDimensions.includes(modelAirId);
 }
 
+/**
+ * Build providerSettings to disable audio generation
+ * 
+ * Audio is ALWAYS disabled for character vlog videos because:
+ * - Sound effects are generated separately using MMAudio
+ * - Voiceover is generated separately using ElevenLabs
+ * - Background music is generated separately
+ * 
+ * Each provider has different parameter names for audio control.
+ */
+function buildAudioDisabledProviderSettings(modelAirId: string): Record<string, any> | undefined {
+  // Audio is always disabled (false) for character vlog
+  const enableAudio = false;
+  
+  if (modelAirId === "bytedance:seedance@1.5-pro") {
+    // Seedance 1.5 Pro (ByteDance) - Uses 'audio' parameter
+    return {
+      bytedance: {
+        audio: enableAudio,
+      },
+    };
+  } else if (modelAirId.startsWith("google:3@")) {
+    // Google Veo models - Use 'generateAudio' parameter
+    return {
+      google: {
+        generateAudio: enableAudio,
+      },
+    };
+  } else if (modelAirId.startsWith("lightricks:")) {
+    // LTX-2 Pro - Uses 'generateAudio' parameter
+    return {
+      lightricks: {
+        generateAudio: enableAudio,
+      },
+    };
+  } else if (modelAirId.startsWith("pixverse:")) {
+    // PixVerse models - Use 'audio' parameter
+    return {
+      pixverse: {
+        audio: enableAudio,
+      },
+    };
+  } else if (modelAirId === "klingai:kling-video@2.6-pro") {
+    // Kling VIDEO 2.6 Pro - Uses 'sound' parameter
+    return {
+      klingai: {
+        sound: enableAudio,
+      },
+    };
+  } else if (modelAirId.startsWith("alibaba:")) {
+    // Alibaba Wan models - Use 'audio' parameter
+    return {
+      alibaba: {
+        audio: enableAudio,
+      },
+    };
+  }
+  
+  // Models without audio support don't need providerSettings
+  return undefined;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN GENERATION FUNCTION
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -367,11 +429,19 @@ export async function generateVideo(
       payload.height = dimensions.height;
     }
 
+    // Add provider settings to disable audio generation
+    // Audio is disabled by default - character vlog generates audio separately
+    const providerSettings = buildAudioDisabledProviderSettings(modelAirId);
+    if (providerSettings) {
+      payload.providerSettings = providerSettings;
+    }
+
     console.log('[character-vlog:video-generator] Payload built:', {
       taskUUID: taskUUID.substring(0, 8) + '...',
       model: modelAirId,
       duration: matchedDuration,
       hasDimensions: !shouldOmitDimensions(modelAirId),
+      audioDisabled: !!providerSettings,
       promptLength: input.videoPrompt.length,
     });
 

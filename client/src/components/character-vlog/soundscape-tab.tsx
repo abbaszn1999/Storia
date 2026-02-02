@@ -71,6 +71,8 @@ interface ShotVersion {
   startFrameUrl?: string | null;
   endFrameUrl?: string | null;
   videoUrl?: string | null;
+  videoDuration?: number;
+  actualDuration?: number;
 }
 
 // Voice type
@@ -317,7 +319,7 @@ function ShotPreviewCard({
             # {shot.shotNumber || shotIndex + 1}
           </Badge>
           <Badge variant="outline" className="bg-black/60 backdrop-blur-sm text-white/70 border-white/20">
-            {shot.duration}s
+            {version?.actualDuration || version?.videoDuration || shot.duration}s
           </Badge>
         </div>
       </div>
@@ -428,8 +430,12 @@ function SceneRow({
   getShotVersion: (shot: VlogShot) => ShotVersion | null;
   onSoundEffectUpdate: (shotId: string, updates: Partial<ShotSoundEffect>) => void;
 }) {
-  // Calculate scene duration
-  const sceneDuration = sceneShots.reduce((total, shot) => total + shot.duration, 0);
+  // Calculate scene duration using version durations when available
+  const sceneDuration = sceneShots.reduce((total, shot) => {
+    const version = getShotVersion(shot);
+    const effectiveDuration = version?.actualDuration || version?.videoDuration || shot.duration;
+    return total + effectiveDuration;
+  }, 0);
   
   // Count shots with sound effects in this scene
   const shotsWithSfx = sceneShots.filter(shot => soundEffects[shot.id]?.audioUrl).length;
@@ -592,13 +598,17 @@ export function SoundscapeTab({
     });
   };
 
-  // Calculate total video duration (no loops in character vlog)
+  // Calculate total video duration using version durations when available (no loops in character vlog)
   const calculateTotalVideoDuration = () => {
     let total = 0;
     for (const scene of scenes) {
       const sceneShots = shots[scene.id] || [];
       for (const shot of sceneShots) {
-        total += shot.duration;
+        // Use version's actual/video duration if available, fallback to shot.duration
+        const versions = shotVersions[shot.id];
+        const latestVersion = versions && versions.length > 0 ? versions[versions.length - 1] : null;
+        const effectiveDuration = latestVersion?.actualDuration || latestVersion?.videoDuration || shot.duration;
+        total += effectiveDuration;
       }
     }
     return total;

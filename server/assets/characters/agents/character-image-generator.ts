@@ -44,8 +44,9 @@ const PORTRAIT_DIMENSIONS = {
 // Default negative prompt for character portraits (configurable per request)
 export const DEFAULT_CHARACTER_NEGATIVE_PROMPT = 
   "blurry, low quality, distorted face, extra limbs, watermark, text, " +
-  "multiple characters, cropped, out of frame, bad anatomy, deformed, " +
-  "disfigured, mutated, ugly, duplicate, morbid, mutilated";
+  "cropped, out of frame, bad anatomy, deformed, " +
+  "disfigured, mutated, ugly, duplicate, morbid, mutilated, " +
+  "missing angles, repeated angles, incomplete grid, inconsistent character";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PROMPT CONSTRUCTION
@@ -53,6 +54,7 @@ export const DEFAULT_CHARACTER_NEGATIVE_PROMPT =
 
 /**
  * Build the character portrait prompt using the enhanced template
+ * Now generates a 3x3 grid 360 model sheet for character consistency
  */
 function buildCharacterPrompt(input: CharacterImageInput): string {
   const { name, appearance, personality, artStyleDescription } = input;
@@ -69,8 +71,11 @@ function buildCharacterPrompt(input: CharacterImageInput): string {
     prompt += `\n${artStyleDescription}`;
   }
 
-  // Layers 4-6: Composition, Lighting, and Quality (static)
-  prompt += `\nSquare 1:1 waist-up composition, character centered in the frame, facing slightly toward the viewer with a natural pose that reflects their personality. Professional portrait photography, shallow depth of field with razor-sharp focus on the character's face, creamy smooth bokeh background. Soft studio lighting with gentle key light, subtle fill light, and subtle rim light creating clean, flattering illumination with clear detail in face, hair, and clothing. Minimal, uncluttered neutral studio background with a soft gradient, cinematic but simple composition, 8K ultra-detailed, professional photography, studio quality, magazine editorial quality, high-resolution, finely detailed, consistent character design, award-winning portrait photography.`;
+  // Layer 4: 3x3 Grid 360 Model Sheet for Character Consistency
+  prompt += `\nCreate a 3x3 grid 360 model sheet. Stick strictly to the angles provided. DO NOT DOUBLE AN ANGLE. Do not forgot an angle. Here's the angle asked: Front angle - 3/4 left - 3/4 right - left side - right side - Chin up - Chin down - Back - Full body shot with clothes.`;
+
+  // Layers 5-6: Lighting and Quality (adjusted for model sheet)
+  prompt += `\nProfessional character model sheet, clean white or neutral studio background, consistent lighting across all angles, soft studio lighting with gentle key light and subtle rim light, clear detail in face, hair, and clothing across all views. 8K ultra-detailed, professional photography, studio quality, high-resolution, finely detailed, consistent character design, reference sheet for animation/production.`;
 
   return prompt;
 }

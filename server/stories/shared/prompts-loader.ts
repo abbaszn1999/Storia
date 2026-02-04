@@ -4,7 +4,7 @@
  * is deployed as a single bundle (no separate prompt files on disk).
  */
 
-export type StoryModeForPrompts = "problem-solution" | "before-after" | "myth-busting" | "tease-reveal";
+export type StoryModeForPrompts = "problem-solution" | "before-after" | "myth-busting" | "tease-reveal" | "auto-asmr";
 
 // problem-solution (shared/ is under stories/, so one level up = stories/)
 import * as psMusic from "../problem-solution/prompts/music-prompts";
@@ -42,53 +42,78 @@ import * as trTransition from "../tease-reveal/prompts/transition-prompts";
 import * as trImage from "../tease-reveal/prompts/image-prompts";
 import * as trVideo from "../tease-reveal/prompts/video-prompts";
 
-const musicByMode: Record<StoryModeForPrompts, typeof psMusic> = {
+// auto-asmr
+import * as asmrMusic from "../auto-asmr/prompts/music-prompts";
+import * as asmrIdea from "../auto-asmr/prompts/idea-prompts";
+import * as asmrScene from "../auto-asmr/prompts/scene-prompts";
+import * as asmrStoryboard from "../auto-asmr/prompts/storyboard-prompts";
+import * as asmrTransition from "../auto-asmr/prompts/transition-prompts";
+import * as asmrImage from "../auto-asmr/prompts/image-prompts";
+import * as asmrVideo from "../auto-asmr/prompts/video-prompts";
+
+// Union types so all mode modules are accepted (they have compatible-but-different exports)
+type MusicPromptsModule = typeof psMusic | typeof baMusic | typeof mbMusic | typeof trMusic | typeof asmrMusic;
+type IdeaPromptsModule = typeof psIdea | typeof baIdea | typeof mbIdea | typeof trIdea | typeof asmrIdea;
+type ScenePromptsModule = typeof psScene | typeof baScene | typeof mbScene | typeof trScene | typeof asmrScene;
+type StoryboardPromptsModule = typeof psStoryboard | typeof baStoryboard | typeof mbStoryboard | typeof trStoryboard | typeof asmrStoryboard;
+type TransitionPromptsModule = typeof psTransition | typeof baTransition | typeof mbTransition | typeof trTransition | typeof asmrTransition;
+type ImagePromptsModule = typeof psImage | typeof baImage | typeof mbImage | typeof trImage | typeof asmrImage;
+type VideoPromptsModule = typeof psVideo | typeof baVideo | typeof mbVideo | typeof trVideo | typeof asmrVideo;
+
+const musicByMode: Record<StoryModeForPrompts, MusicPromptsModule> = {
   "problem-solution": psMusic,
   "before-after": baMusic,
   "myth-busting": mbMusic,
   "tease-reveal": trMusic,
+  "auto-asmr": asmrMusic,
 };
 
-const ideaByMode: Record<StoryModeForPrompts, typeof psIdea> = {
+const ideaByMode: Record<StoryModeForPrompts, IdeaPromptsModule> = {
   "problem-solution": psIdea,
   "before-after": baIdea,
   "myth-busting": mbIdea,
   "tease-reveal": trIdea,
+  "auto-asmr": asmrIdea,
 };
 
-const sceneByMode: Record<StoryModeForPrompts, typeof psScene> = {
+const sceneByMode: Record<StoryModeForPrompts, ScenePromptsModule> = {
   "problem-solution": psScene,
   "before-after": baScene,
   "myth-busting": mbScene,
   "tease-reveal": trScene,
+  "auto-asmr": asmrScene,
 };
 
-const storyboardByMode: Record<StoryModeForPrompts, typeof psStoryboard> = {
+const storyboardByMode: Record<StoryModeForPrompts, StoryboardPromptsModule> = {
   "problem-solution": psStoryboard,
   "before-after": baStoryboard,
   "myth-busting": mbStoryboard,
   "tease-reveal": trStoryboard,
+  "auto-asmr": asmrStoryboard,
 };
 
-const transitionByMode: Record<StoryModeForPrompts, typeof psTransition> = {
+const transitionByMode: Record<StoryModeForPrompts, TransitionPromptsModule> = {
   "problem-solution": psTransition,
   "before-after": baTransition,
   "myth-busting": mbTransition,
   "tease-reveal": trTransition,
+  "auto-asmr": asmrTransition,
 };
 
-const imageByMode: Record<StoryModeForPrompts, typeof psImage> = {
+const imageByMode: Record<StoryModeForPrompts, ImagePromptsModule> = {
   "problem-solution": psImage,
   "before-after": baImage,
   "myth-busting": mbImage,
   "tease-reveal": trImage,
+  "auto-asmr": asmrImage,
 };
 
-const videoByMode: Record<StoryModeForPrompts, typeof psVideo> = {
+const videoByMode: Record<StoryModeForPrompts, VideoPromptsModule> = {
   "problem-solution": psVideo,
   "before-after": baVideo,
   "myth-busting": mbVideo,
   "tease-reveal": trVideo,
+  "auto-asmr": asmrVideo,
 };
 
 export function getMusicPrompts(mode: StoryModeForPrompts) {

@@ -5,12 +5,13 @@ import { fileURLToPath } from "url";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth, authRoutes } from "./auth";
+import { getTempDir } from "./stories/shared/services/ffmpeg-helpers";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-// Serve merged video files from /temp folder
-app.use("/temp", express.static(path.join(__dirname, "../temp"), {
+// Serve merged video files from writable temp directory (same dir used by video-merger, etc.)
+app.use("/temp", express.static(getTempDir(), {
   maxAge: "1h", // Cache for 1 hour
   setHeaders: (res) => {
     res.setHeader("Content-Type", "video/mp4");

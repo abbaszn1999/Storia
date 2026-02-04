@@ -14,7 +14,15 @@ ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 ffmpeg.setFfprobePath(ffprobeInstaller.path);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TEMP_DIR = path.join(__dirname, "../../../../temp");
+
+// Use a writeable temp directory in all environments
+// - In Render (and similar hosts) `/tmp` is guaranteed writeable
+// - Locally we keep using a project-relative `temp` folder
+const TEMP_DIR =
+  process.env.TEMP_DIR ||
+  (process.env.RENDER
+    ? "/tmp/storia-temp"
+    : path.join(__dirname, "../../../../temp"));
 
 // Ensure temp directory exists
 if (!existsSync(TEMP_DIR)) {

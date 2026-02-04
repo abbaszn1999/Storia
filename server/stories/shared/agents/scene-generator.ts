@@ -1,6 +1,8 @@
 import { callTextModel } from "../../../ai/service";
 import { getVideoModelConstraints, getDefaultVideoModel } from "../../../ai/config";
 import type { StoryMode } from "./idea-generator";
+import { getScenePrompts } from "../prompts-loader";
+import type { StoryModeForPrompts } from "../prompts-loader";
 
 const SCENE_CONFIG = {
   provider: "openai" as const,
@@ -22,11 +24,10 @@ const SCENE_LIMITS = {
  * @returns generateScenes function configured for the specified mode
  */
 export async function createSceneGenerator(mode: StoryMode) {
-  // Dynamic imports for mode-specific prompts and types
-  const promptsModule = await import(`../../${mode}/prompts/scene-prompts`);
-  // All story modes use the same types from shared
+  const modeForPrompts = mode as StoryModeForPrompts;
+  const promptsModule = getScenePrompts(modeForPrompts);
   const typesModule = await import(`../types`);
-  
+
   const {
     buildSceneBreakdownSystemPrompt,
     buildSceneUserPrompt,

@@ -26,6 +26,8 @@ import { runwareModelIdMap } from "../../../ai/config";
 import { requiresMatchingDimensions, getVideoDimensionsForImageGeneration } from "../../../ai/config/index";
 import { getImageDimensions, getImageModelConfig } from "../../../ai/config";
 import type { StoryMode } from "./idea-generator";
+import { getImagePrompts } from "../prompts-loader";
+import type { StoryModeForPrompts } from "../prompts-loader";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -78,11 +80,10 @@ function chunkArray<T>(array: T[], chunkSize: number): T[][] {
  * @returns generateImages function configured for the specified mode
  */
 export async function createImageGenerator(mode: StoryMode) {
-  // Dynamic imports for mode-specific prompts and types
-  const imagePromptsModule = await import(`../../${mode}/prompts/image-prompts`);
-  // All story modes use the same types from shared
+  const modeForPrompts = mode as StoryModeForPrompts;
+  const imagePromptsModule = getImagePrompts(modeForPrompts);
   const typesModule = await import(`../types`);
-  
+
   const { enhanceImagePrompt } = imagePromptsModule;
   
   // Types will be inferred from usage

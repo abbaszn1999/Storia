@@ -11,6 +11,8 @@ import { createMusicGenerator } from "../agents/music-generator";
 import { createVideoGenerator } from "../agents/video-generator";
 import { requiresMatchingDimensions, getVideoDimensionsForImageGeneration } from "../../../ai/config/index";
 import { createVideoExporter } from "../agents/video-exporter";
+import { getMusicPrompts } from "../prompts-loader";
+import type { StoryModeForPrompts } from "../prompts-loader";
 import { storage } from "../../../storage";
 import * as bunnyStorage from "../../../storage/bunny-storage";
 import { buildStoryModePath, deleteFile } from "../../../storage/bunny-storage";
@@ -92,12 +94,12 @@ function extractModeFromRequest(req: Request, fallbackMode: string): string {
 
 export async function createStoryModeRouter(mode: StoryMode) {
   const router = Router();
-  
-  // Dynamic imports for mode-specific prompts
-  const musicPromptsModule = await import(`../../${mode}/prompts/music-prompts`);
+  const modeForPrompts = mode as StoryModeForPrompts;
+
+  // Mode-specific prompts (static imports via loader so bundle includes them)
+  const musicPromptsModule = getMusicPrompts(modeForPrompts);
   const { isValidMusicStyle } = musicPromptsModule;
-  // MusicStyle type will be inferred from usage
-  
+
   // Create agent functions for this mode
   const generateStory = await createIdeaGenerator(mode);
   const generateScenes = await createSceneGenerator(mode);

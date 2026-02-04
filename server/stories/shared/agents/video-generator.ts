@@ -24,6 +24,8 @@ import { runwareModelIdMap } from "../../../ai/config";
 import { getDimensions, VIDEO_MODEL_CONFIGS } from "../../../ai/config";
 import { randomUUID } from "crypto";
 import type { StoryMode } from "./idea-generator";
+import { getVideoPrompts } from "../prompts-loader";
+import type { StoryModeForPrompts } from "../prompts-loader";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -105,11 +107,10 @@ function findClosestDuration(
  * @returns generateVideos function configured for the specified mode
  */
 export async function createVideoGenerator(mode: StoryMode) {
-  // Dynamic imports for mode-specific prompts and types
-  const videoPromptsModule = await import(`../../${mode}/prompts/video-prompts`);
-  // All story modes use the same types from shared
+  const modeForPrompts = mode as StoryModeForPrompts;
+  const videoPromptsModule = getVideoPrompts(modeForPrompts);
   const typesModule = await import(`../types`);
-  
+
   const {
     buildVideoPrompt,
     getDefaultVideoPrompt,

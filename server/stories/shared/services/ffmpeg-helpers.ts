@@ -8,6 +8,7 @@ import { Readable } from "stream";
 import { randomUUID } from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
+import os from "os";
 
 // Set FFmpeg and FFprobe paths
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -15,14 +16,10 @@ ffmpeg.setFfprobePath(ffprobeInstaller.path);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Use a writeable temp directory in all environments
-// - In Render (and similar hosts) `/tmp` is guaranteed writeable
-// - Locally we keep using a project-relative `temp` folder
+// Use OS temp directory by default (works locally and on Render)
+// Can be overridden via TEMP_DIR if needed.
 const TEMP_DIR =
-  process.env.TEMP_DIR ||
-  (process.env.RENDER
-    ? "/tmp/storia-temp"
-    : path.join(__dirname, "../../../../temp"));
+  process.env.TEMP_DIR || path.join(os.tmpdir(), "storia-temp");
 
 // Ensure temp directory exists
 if (!existsSync(TEMP_DIR)) {

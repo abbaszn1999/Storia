@@ -9,13 +9,15 @@ import { Readable } from "stream";
 import { randomUUID } from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
+import os from "os";
 import type { LoopMultiplier } from "../types";
 
 // Set FFmpeg path
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TEMP_DIR = path.join(__dirname, "../../../../temp");
+const TEMP_DIR =
+  process.env.TEMP_DIR || path.join(os.tmpdir(), "storia-temp");
 
 // Ensure temp directory exists
 if (!existsSync(TEMP_DIR)) {

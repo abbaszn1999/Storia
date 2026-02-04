@@ -10,6 +10,9 @@ import { getTempDir } from "./stories/shared/services/ffmpeg-helpers";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
+// Required behind reverse proxies (Render, etc.) so req.secure is true over HTTPS and session cookies are set
+app.set("trust proxy", 1);
+
 // Serve merged video files from writable temp directory (same dir used by video-merger, etc.)
 app.use("/temp", express.static(getTempDir(), {
   maxAge: "1h", // Cache for 1 hour

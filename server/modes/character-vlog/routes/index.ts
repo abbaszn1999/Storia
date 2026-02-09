@@ -389,7 +389,6 @@ router.post('/script/generate', isAuthenticated, async (req: Request, res: Respo
       genres: allSettings.genres || [],
       tones: allSettings.tones || [],
       language: allSettings.language,
-      voiceActorId: allSettings.voiceActorId || null,
       voiceOverEnabled: allSettings.voiceOverEnabled !== undefined ? allSettings.voiceOverEnabled : true,
       
       // User's original prompt (preserved)
@@ -4691,7 +4690,7 @@ router.post('/videos/:videoId/shots/:shotId/edit-image', isAuthenticated, async 
       const characters = step2Data.characters || [];
       const character = characters.find((c: any) => c.id === characterId);
       characterName = character?.name;
-      characterAppearance = character?.appearance;
+      characterAppearance = character?.appearance ?? undefined;
     }
 
     // Collect reference images (character, location, style refs from step2Data)
@@ -5811,7 +5810,7 @@ router.post('/videos/:id/export/start-render', isAuthenticated, async (req: Requ
         transition: 'fade',
         soundEffectDescription: null,
         soundEffectUrl: null,
-        cameraMovement: shot.cameraMovement || shot.cameraShot || null,
+        cameraMovement: shot.cameraMovement || shot.cameraShot || undefined,
       }));
     }
 
@@ -5852,15 +5851,18 @@ router.post('/videos/:id/export/start-render', isAuthenticated, async (req: Requ
     }
 
     // Get volume settings
-    const step6Volumes = step6Data?.volumes || {
+    const step6Volumes: Step6VolumeSettings = step6Data?.volumes || {
       master: 1,
       sfx: 0.8,
       voiceover: 1,
       music: 0.5,
     };
     const volumes: VolumeSettings = {
-      ...step6Volumes,
-      ambient: 0,
+      master: step6Volumes.master,
+      sfx: step6Volumes.sfx,
+      voiceover: step6Volumes.voiceover,
+      music: step6Volumes.music,
+      ambient: 0, // Not used in character vlog mode
     };
 
     // Build output settings (final quality - 1080p)

@@ -120,7 +120,7 @@ router.post('/videos/:id/voiceover/generate-script', isAuthenticated, async (req
     const getEffectiveShotDuration = (shotId: string, fallbackDuration: number) => {
       const versions = shotVersions?.[shotId];
       const latestVersion = versions && versions.length > 0 ? versions[versions.length - 1] : null;
-      return (latestVersion as any)?.actualDuration || (latestVersion as any)?.videoDuration || fallbackDuration;
+      return (latestVersion as any)?.actualDuration || fallbackDuration;
     };
 
     const input: VoiceoverScriptGeneratorInput = {
@@ -607,7 +607,7 @@ router.post('/videos/:id/sound-effects/:shotId/generate-prompt', isAuthenticated
     const step4Data = video.step4Data as Step4Data;
     const shotVersions = step4Data?.shotVersions?.[shotId] || [];
     const latestVersion = shotVersions[shotVersions.length - 1] as ShotVersion | undefined;
-    const effectiveDuration = latestVersion?.actualDuration || latestVersion?.videoDuration || targetShot.duration || 4;
+    const effectiveDuration = latestVersion?.actualDuration || targetShot.duration || 4;
 
     // Build input for prompt generator
     const input: SoundEffectPromptGeneratorInput = {
@@ -816,7 +816,7 @@ router.post('/videos/:id/sound-effects/:shotId/generate-audio', isAuthenticated,
 
     try {
       // Use version's actual duration (from generated video) or fall back to shot.duration
-      const effectiveDuration = latestVersion?.actualDuration || latestVersion?.videoDuration || targetShot.duration || 4;
+      const effectiveDuration = latestVersion?.actualDuration || targetShot.duration || 4;
 
       // Build input for audio generator
       const input: SoundEffectGeneratorInput = {

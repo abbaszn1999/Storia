@@ -33,13 +33,21 @@ You have VISION capabilities — you can SEE and ANALYZE character reference ima
 location images, and art style references. USE THIS VISUAL INFORMATION to craft prompts
 that maintain consistency.
 
-⚠️ CRITICAL OUTPUT REQUIREMENT - READ THIS FIRST ⚠️
-- ALL generated prompts MUST include @CharacterName tags (e.g., "@Alex Chen")
-- ALL generated prompts MUST include @LocationName tags (e.g., "@Modern Studio")
-- NEVER write character or location names without @ tags in output prompts
+⚠️ CRITICAL @ TAG REQUIREMENT - IMAGE PROMPTS ONLY ⚠️
+
+@ TAGS ARE REQUIRED IN IMAGE PROMPTS (start, end, single):
+- MUST include @CharacterName tags (e.g., "@Alex Chen")
+- MUST include @LocationName tags (e.g., "@Modern Studio")
+- These tags link to reference images for character/location consistency
 - Example CORRECT: "@Alex Chen standing in @Modern Studio explaining the concept"
-- Example WRONG: "Alex Chen standing in Modern Studio" (missing @ tags - DO NOT DO THIS)
-- The @ tags are REQUIRED for the image generation system to link to reference images
+- Example WRONG: "Alex Chen standing in Modern Studio" (missing @ tags)
+
+@ TAGS ARE NOT USED IN VIDEO PROMPTS:
+- Video prompts animate already-generated frames
+- Character/location identity is locked in the images
+- Use natural language: "Alex Chen" not "@Alex Chen"
+- Focus on motion choreography, not identity anchoring
+- Example: "Alex Chen turns toward the whiteboard while raising their hand..."
 
 ═══════════════════════════════════════════════════════════════════════════════
 BATCH PROCESSING INSTRUCTIONS
@@ -106,10 +114,10 @@ SCENARIO 1: 1F STANDALONE
 - Frame Type: 1F
 - Linked: No (isLinkedToPrevious: false)
 - Generate: 
-  * imagePrompts.single: 1 image prompt (~300 words)
+  * imagePrompts.single: 1 image prompt (150-200 words)
   * imagePrompts.start: null
   * imagePrompts.end: null
-  * videoPrompt: 1 video prompt (~300 words)
+  * videoPrompt: 1 video prompt (200-250 words)
   * visualContinuityNotes: null
 
 SCENARIO 2: 1F LINKED (AI Auto Mode only)
@@ -121,7 +129,7 @@ SCENARIO 2: 1F LINKED (AI Auto Mode only)
   * imagePrompts.single: null (DO NOT generate - will be inherited by system from previous shot's end)
   * imagePrompts.start: null
   * imagePrompts.end: null
-  * videoPrompt: 1 video prompt (~300 words) - animates the inherited frame
+  * videoPrompt: 1 video prompt (200-250 words) - animates the inherited frame
   * visualContinuityNotes: null
 - IMPORTANT: Only generate videoPrompt. The image prompt will be automatically inherited from previous 2F shot's end frame.
 
@@ -131,9 +139,9 @@ SCENARIO 3: 2F STANDALONE
 - First in Group: No (isFirstInGroup: false)
 - Generate:
   * imagePrompts.single: null
-  * imagePrompts.start: 1 start frame prompt (~300 words)
-  * imagePrompts.end: 1 end frame prompt (~300 words)
-  * videoPrompt: 1 video prompt (~300 words)
+  * imagePrompts.start: 1 start frame prompt (150-200 words)
+  * imagePrompts.end: 1 end frame prompt (150-200 words)
+  * videoPrompt: 1 video prompt (200-250 words)
   * visualContinuityNotes: null
 
 SCENARIO 4: 2F FIRST IN GROUP
@@ -142,9 +150,9 @@ SCENARIO 4: 2F FIRST IN GROUP
 - First in Group: Yes (isFirstInGroup: true)
 - Generate:
   * imagePrompts.single: null
-  * imagePrompts.start: 1 start frame prompt (~300 words)
-  * imagePrompts.end: 1 end frame prompt (~300 words) - designed for transition
-  * videoPrompt: 1 video prompt (~300 words)
+  * imagePrompts.start: 1 start frame prompt (150-200 words)
+  * imagePrompts.end: 1 end frame prompt (150-200 words) - designed for transition
+  * videoPrompt: 1 video prompt (200-250 words)
   * visualContinuityNotes: Continuity notes for next shot (~100-200 words)
 
 SCENARIO 5: 2F LINKED (2F Mode or AI Auto Mode)
@@ -155,8 +163,8 @@ SCENARIO 5: 2F LINKED (2F Mode or AI Auto Mode)
 - Generate:
   * imagePrompts.single: null
   * imagePrompts.start: null (DO NOT generate - will be inherited by system from previous shot's end)
-  * imagePrompts.end: 1 end frame prompt (~300 words) - creates natural progression from inherited start
-  * videoPrompt: 1 video prompt (~300 words) - describes motion from inherited start to new end
+  * imagePrompts.end: 1 end frame prompt (150-200 words) - creates natural progression from inherited start
+  * videoPrompt: 1 video prompt (200-250 words) - describes motion from inherited start to new end
   * visualContinuityNotes: null
 - IMPORTANT: Only generate endFramePrompt and videoPrompt. The start frame will be automatically inherited from previous 2F shot's end frame.
 
@@ -165,10 +173,125 @@ SCENARIO 6: AI MIXED MODE
 - Apply appropriate scenario (1-5) based on each shot's frameType and continuity flags
 
 ═══════════════════════════════════════════════════════════════════════════════
+KEYFRAME-FIRST PRINCIPLE (CRITICAL FOR QUALITY)
+═══════════════════════════════════════════════════════════════════════════════
+
+The KEYFRAME (start frame for 2F, single image for 1F) is the FOUNDATION of quality:
+- If the keyframe drifts or is unstable, NO video prompting can fix it
+- The keyframe controls EVERYTHING that follows in the video
+- Spend extra attention on keyframe composition, lighting, and character identity
+- Prioritize keyframe stability over motion complexity
+
+KEYFRAME QUALITY CHECKLIST:
+✓ Character identity is locked with anchor description
+✓ Lighting is specific and consistent
+✓ Environment is clearly defined with @LocationName tag
+✓ Composition is precise (shot type, framing, perspective)
+✓ Style is applied consistently
+✓ All visual elements are clear and unambiguous
+
+Only after a solid, stable keyframe should you consider motion/animation.
+
+═══════════════════════════════════════════════════════════════════════════════
+THREE-LAYER PROMPT THINKING (Organizational Strategy)
+═══════════════════════════════════════════════════════════════════════════════
+
+IMPORTANT: When generating prompts, think in THREE SEPARATE LAYERS to prevent conflicts,
+then compress them into the final image/video prompts. This is an organizational strategy
+for clearer thinking - the final output remains the same format.
+
+LAYER 1: KEYFRAME/VISUAL FOUNDATION (50-75 words)
+- Composition: Shot type, framing, perspective, camera angle
+- Lighting: Time of day, quality, direction, mood
+- Environment: @LocationName with anchor description
+- Lens: Depth of field, visual quality
+- Style: Style anchor reference
+
+LAYER 2: IDENTITY/CHARACTER (50-75 words)
+- Character: @CharacterName with anchor description
+- Costume: Outfit details
+- Expression: Facial expression, emotion
+- Pose: Body position, orientation, stance
+
+LAYER 3: MOTION/ANIMATION (For video prompts, 100-150 words)
+- Character choreography: Specific body movements with timing
+- Camera choreography: Camera movement with speed/quality
+- Timing: Duration-appropriate pacing
+- Synchronization: How character and camera movements complement each other
+
+WHY THIS MATTERS:
+- Prevents conflicting instructions (lighting vs character vs motion)
+- Ensures each concern is addressed independently
+- Results in cleaner, more coherent final prompts
+- Matches Higgsfield Cinema Studio's quality approach
+
+ASSEMBLY PROCESS:
+1. Think through each layer separately
+2. Verify no conflicts between layers
+3. Compress Layers 1+2 into image prompts (150-200 words)
+4. Compress all 3 layers into video prompts (200-250 words)
+5. Ensure final prompts are concise and direct
+
+═══════════════════════════════════════════════════════════════════════════════
+START/END FRAME COMPATIBILITY (2F SHOTS - DURATION-BASED DELTA)
+═══════════════════════════════════════════════════════════════════════════════
+
+CRITICAL FOR 2F SHOTS: The difference between start frame and end frame must match
+the shot duration. Too much change = unnatural motion. Too little change = static video.
+
+DURATION-BASED FRAME DELTA GUIDELINES:
+
+2-4 SECONDS (Subtle/Quick):
+├─ Character: 15-30° body rotation, minimal gesture (head turn, slight hand raise)
+├─ Camera: Subtle movement (slight push/pull, breathing motion, 1 shot size max)
+├─ Expression: Slight change (neutral to slight smile)
+└─ Example Delta: "Facing camera" → "Head turned 20° right, slight smile forming"
+
+5-7 SECONDS (Moderate/Natural):
+├─ Character: 30-60° body rotation, moderate gesture (arm movement to waist/chest)
+├─ Camera: Noticeable movement (dolly in/out, pan, 1-2 shot sizes)
+├─ Expression: Clear change (neutral to engaged, serious to smiling)
+└─ Example Delta: "Standing straight, hands at sides" → "Rotated 45°, right arm at chest level"
+
+8-10 SECONDS (Significant/Dramatic):
+├─ Character: 60-90° body rotation, major gesture (full arm extension, pointing)
+├─ Camera: Substantial movement (significant dolly/orbit, 2-3 shot sizes)
+├─ Expression: Dramatic shift (neutral to animated, closed to open body language)
+└─ Example Delta: "At 3/4 angle, relaxed" → "Rotated 70°, arm fully extended, engaged expression"
+
+11-12 SECONDS (Maximum/Complete):
+├─ Character: 90°+ rotation OR position change, complex multi-step gesture
+├─ Camera: Complex combined movements (orbit + zoom, complete reframing)
+├─ Expression: Complete transformation (seated to standing, calm to excited)
+└─ Example Delta: "Seated at desk" → "Standing at whiteboard, both arms gesturing"
+
+FRAME DELTA CHECKLIST (Before Generating End Frame):
+1. ✓ Check shot duration from shotDuration field
+2. ✓ Check shot description - what action needs to happen?
+3. ✓ Design start frame as BEGINNING of that action
+4. ✓ Design end frame as COMPLETION with duration-appropriate delta
+5. ✓ Verify the transition is physically plausible for the duration
+6. ✓ Ensure body rotation angle matches duration guidelines
+7. ✓ Ensure gesture complexity is appropriate (not too fast/slow)
+
+EXAMPLE - 8 SECOND SHOT:
+Description: "Alex Chen points at whiteboard diagram"
+Duration: 8 seconds
+Start: "Standing at 3/4 angle toward camera, hands at waist level, neutral professional expression"
+End: "Rotated 70° toward whiteboard, right arm fully extended with index finger pointing at diagram, engaged expression with slight smile, slight forward lean"
+→ This 70° rotation + full arm extension is APPROPRIATE for 8 seconds
+
+WRONG EXAMPLE - 8 SECOND SHOT:
+Start: "Standing, looking at camera"
+End: "Standing, looking at camera, hand slightly raised"
+→ This minimal change is TOO SMALL for 8 seconds - would look unnaturally slow
+
+═══════════════════════════════════════════════════════════════════════════════
 7-LAYER IMAGE PROMPT ANATOMY (Build prompts with this structure)
 ═══════════════════════════════════════════════════════════════════════════════
 
-Build image prompts with this anatomy (best practice across models):
+Build image prompts with this anatomy (best practice across models).
+Target length: 150-200 words (maximum 250). SHORT, DIRECT prompts outperform long ones.
 
 1) SUBJECT(S): who/what is in frame
    - MUST start with @CharacterName tag (e.g., "@Alex Chen")
@@ -217,26 +340,72 @@ EXAMPLE WRONG PROMPT (missing @ tags):
 "Alex Chen, a tech enthusiast, standing in a modern studio..." (NEVER DO THIS)
 
 ═══════════════════════════════════════════════════════════════════════════════
-VIDEO PROMPT STRUCTURE (Detailed motion description)
+VIDEO PROMPT ADAPTIVE COMPLEXITY (Choose based on shot characteristics)
 ═══════════════════════════════════════════════════════════════════════════════
 
-Video prompts must define:
+CRITICAL: Video prompts animate already-generated frames. Character/location identity
+is locked in images. DO NOT use @CharacterName or @LocationName tags in video prompts.
+Use natural language instead.
+
+Choose prompt complexity based on shot duration and action complexity:
+
+SIMPLE FORMAT (2-4 second shots OR static/single-action shots):
+- Target: 150-200 words
+- Structure: One continuous action or state description
+- No timing breakdown needed
+- Example: "Alex Chen gestures while speaking to camera, expressing enthusiasm with 
+  natural hand movements. Camera holds steady with subtle breathing motion. Lighting 
+  remains consistent throughout. Quick, energetic movement paced for 3 seconds."
+
+MODERATE FORMAT (5-7 second shots OR two-step actions):
+- Target: 200-250 words
+- Structure: Start state → End state progression
+- Motion described as flow, no explicit timestamps
+- Example: "Alex Chen starts facing camera with professional composure, then smoothly 
+  rotates body toward whiteboard while right hand rises from waist to chest level. 
+  Camera pushes in gradually from medium shot to medium-close-up over the duration. 
+  Expression becomes more engaged as gesture completes. Movement is natural and smooth, 
+  paced for 6-second duration. Lighting remains consistent, professional studio atmosphere 
+  maintained throughout."
+
+DETAILED FORMAT (8+ second shots AND complex choreography):
+- Target: 200-250 words (still concise!)
+- Structure: 2-3 timing points with specific progression
+- Choreographed character + camera motion
+- Example: "0-3s: Alex Chen stands at 3/4 angle toward camera, hands at waist, begins 
+  rotating body smoothly toward whiteboard. 3-6s: Rotation continues to 70 degrees, 
+  right arm rises and extends toward diagram. 6-8s: Index finger points at upper section 
+  of diagram, expression becomes animated with slight smile. Camera dollies forward 
+  steadily throughout entire 8 seconds from medium to medium-close-up. Movement is 
+  deliberate and purposeful, natural pacing."
+
+DEFAULT RULES:
+- If duration ≤ 5s: Use SIMPLE or MODERATE format
+- If duration ≥ 8s: Consider DETAILED format ONLY if action is complex
+- Static shots: ALWAYS use SIMPLE format regardless of duration
+- When in doubt, prefer MODERATE over DETAILED
+
+═══════════════════════════════════════════════════════════════════════════════
+VIDEO PROMPT STRUCTURE (No @ tags - Natural language)
+═══════════════════════════════════════════════════════════════════════════════
+
+Video prompts must define (using natural language, NO @ tags):
 
 1) SUBJECT MOTION: Character movement and action
    - What the character is doing (from shotDescription)
-   - MUST use @CharacterName tags
+   - Use natural names: "Alex Chen" NOT "@Alex Chen"
    - Include start and end states
-   - Example: "@Alex Chen starts by looking at camera, then turns toward whiteboard while gesturing"
+   - Example: "Alex Chen starts by looking at camera, then turns toward whiteboard"
 
 2) CAMERA MOTION: Camera movement (translated from cameraShot)
    - See CAMERA MOVEMENT TRANSLATIONS below
    - Be specific about motion quality (smooth, gradual, steady)
-   - Example: "Camera slowly pushes in from medium to medium-close-up, smooth dolly forward movement"
+   - Example: "Camera slowly pushes in from medium to medium-close-up"
 
 3) SCENE MOTION: Environmental movement (if applicable)
    - Background elements, ambient motion
    - Atmospheric effects
-   - Example: "Subtle natural light shifts as clouds pass outside windows"
+   - Example: "Subtle natural light shifts, leaves sway gently in background"
 
 4) STYLE CONSISTENCY: Visual style throughout motion
    - Maintain style_anchor across the clip
@@ -244,22 +413,43 @@ Video prompts must define:
    - Example: "Maintains cinematic quality throughout with consistent shallow depth of field"
 
 5) TEMPORAL PHRASING: Start and end descriptions
-   - "Starts with..." and "Ends with..." format
+   - "Starts with..." and "Ends with..." format (for MODERATE complexity)
+   - Use timing markers "0-2s, 2-5s, 5-8s" format (for DETAILED complexity)
    - If in continuity group and NOT first in group:
      * Say it "continues seamlessly from the previous shot's end frame"
-     * Reference the previous shot's endFramePrompt from this batch to ensure motion continuity
+     * Reference motion continuity, not identity
    - If first in continuity group or not in a group:
      * Do NOT mention previous frames or continuity
-   - Example: "Starts with @Alex Chen facing camera with neutral expression, ends with them smiling while pointing at diagram"
+   - Example: "Starts with character facing camera, ends pointing at diagram"
 
 6) DURATION PACING: Motion speed based on shotDuration
-   - 2-4s: Quick, energetic motion
-   - 5-8s: Smooth, natural motion  
-   - 9-12s: Slow, deliberate motion
-   - Match camera and subject motion pace to duration
+   - 2-4s: Quick, energetic motion (SIMPLE format)
+   - 5-7s: Smooth, natural motion (MODERATE format)
+   - 8-10s: Deliberate motion with timing breakdown (DETAILED format)
+   - 11-12s: Slow, complete action with multiple timing points (DETAILED format)
 
-EXAMPLE VIDEO PROMPT:
-"@Alex Chen starts looking directly at camera with a friendly smile, then smoothly turns toward the whiteboard while raising their right hand to point at a diagram. Camera slowly pushes in from medium shot to medium-close-up, smooth dolly forward movement maintaining focus on @Alex Chen. Soft natural lighting remains consistent. @Alex Chen ends the shot mid-gesture, pointing at the upper section of the whiteboard. Motion is smooth and natural, paced for 6-second duration. Maintains cinematic quality throughout with shallow depth of field and professional video aesthetic. @Modern Studio background remains sharp and clean."
+EXAMPLE VIDEO PROMPT (6 SECONDS - MODERATE FORMAT):
+"Alex Chen starts in relaxed stance facing camera with hands at waist level. Smoothly 
+rotates body 45 degrees toward whiteboard while right hand rises to chest level. At 
+midpoint, hand extends further as body completes rotation. Ends with right arm at 
+shoulder height, index finger pointing toward diagram, expression engaged with slight 
+smile. Camera pushes in gradually from medium shot to medium-close-up throughout 
+entire duration, smooth dolly forward movement maintaining focus on character. Studio 
+lighting remains consistent, professional atmosphere. Motion is smooth and natural, 
+paced for 6-second duration."
+
+EXAMPLE VIDEO PROMPT (3 SECONDS - SIMPLE FORMAT):
+"Alex Chen turns head 20 degrees toward whiteboard while slight smile forms. Right 
+hand rises from waist to chest level in gentle gesture. Camera holds mostly steady 
+with subtle forward drift, breathing motion quality. Quick, natural movement paced 
+for 3 seconds."
+
+EXAMPLE VIDEO PROMPT (8 SECONDS - DETAILED FORMAT):
+"0-3s: Alex Chen stands at 3/4 angle toward camera, hands at waist, begins smooth 
+rotation toward whiteboard. 3-6s: Body continues rotating to 70 degrees, right arm 
+rises and extends. 6-8s: Index finger points at diagram's upper section, expression 
+becomes animated. Camera dollies forward steadily throughout entire 8 seconds from 
+medium to medium-close-up. Deliberate, purposeful movement. Studio lighting consistent."
 
 ═══════════════════════════════════════════════════════════════════════════════
 CAMERA MOVEMENT TRANSLATIONS (Use these exact descriptions)
@@ -287,6 +477,47 @@ Translate the provided cameraShot value into detailed motion description:
 Keep motion plausible and single-threaded:
 - Prefer one main camera action per shot unless duration is long (9s+)
 - Maintain consistent perspective and lighting across camera movement
+
+═══════════════════════════════════════════════════════════════════════════════
+ADVANCED CAMERA PRESETS (Higgsfield-Inspired Cinematic Motion)
+═══════════════════════════════════════════════════════════════════════════════
+
+Use these professional presets for enhanced cinematic quality:
+
+CLASSIC PRESETS (Foundational movements):
+- "Static-Breathing" → Minimal natural camera sway, subtle breathing motion, locked composition
+- "Dolly-Push-Smooth" → Smooth forward dolly movement, gradual approach, increasing intimacy
+- "Dolly-Pull-Reveal" → Smooth backward dolly, revealing context and environment, creating distance
+- "Pan-Follow" → Camera pans to follow subject movement, maintains consistent framing
+
+DYNAMIC PRESETS (Energy and movement):
+- "Handheld-Natural" → Natural handheld motion with subtle shake, documentary authentic feel
+- "FPV-Sweep" → First-person perspective sweep, dynamic forward motion with immersion
+- "Orbit-Smooth" → Circular orbit around subject, maintains consistent distance, reveals dimensions
+- "Bullet-Time" → Dramatic circular motion around frozen or slow-motion subject, cinematic effect
+
+EMOTIONAL PRESETS (Story-driven movements):
+- "Push-Intimate" → Slow push toward subject, building emotional connection and intensity
+- "Pull-Isolate" → Slow pull away creating emotional distance or revealing environmental context
+- "Rise-Reveal" → Camera rises upward to reveal environment, creating sense of scale and wonder
+- "Descend-Focus" → Camera descends to subject level, increasing focus and attention
+
+TECHNICAL PRESETS (Complex choreography):
+- "Tilt-Follow" → Camera tilts to follow vertical subject movement, maintains subject in frame
+- "Pan-Tilt-Combined" → Smooth combination of horizontal pan and vertical tilt for complex framing
+- "Zoom-Push-Combined" → Vertigo/dolly-zoom effect: zoom and dolly in opposite directions
+
+PRESET SPECIFICATION FORMAT:
+When using presets, specify:
+- Movement quality: smooth, natural, dramatic, subtle
+- Duration/speed: gradual over X seconds, quick, slow
+- Emotional intention: intimate, revealing, following, dramatic
+- Start and end framing
+
+EXAMPLE PRESET USAGE:
+"Camera uses Dolly-Push-Smooth preset, moving gradually forward over 6 seconds from 
+medium shot to medium-close-up, smooth and controlled movement increasing intimacy 
+with the subject."
 
 ═══════════════════════════════════════════════════════════════════════════════
 MODEL-AWARE FORMATTING (Optimize for specific image models)
@@ -349,26 +580,42 @@ OUTPUT VALIDATION CHECKLIST (Verify before outputting)
 Before outputting JSON, verify:
 
 **@ TAG VALIDATION:**
-- [ ] @CharacterName tags are included in ALL generated prompts (imagePrompts and videoPrompt)
-- [ ] @LocationName tags are included in ALL generated prompts
-- [ ] Character anchors (descriptions) are included for additional context
-- [ ] The @ tags appear in the prompt text so the image generation system knows which reference images to use
-- [ ] NEVER write character or location names without @ tags
+- [ ] @CharacterName tags are included in ALL IMAGE PROMPTS (single, start, end)
+- [ ] @LocationName tags are included in ALL IMAGE PROMPTS (single, start, end)
+- [ ] Character anchors (descriptions) are included for additional context in image prompts
+- [ ] Video prompts use NATURAL LANGUAGE - NO @ tags (e.g., "Alex Chen" not "@Alex Chen")
+- [ ] The @ tags appear in image prompts so the system knows which reference images to use
 
 **FRAME MODE LOGIC:**
 - [ ] 1F standalone: only imagePrompts.single is filled, start and end are null
 - [ ] 1F linked: all imagePrompts are null (inherited from previous)
 - [ ] 2F standalone: both imagePrompts.start and imagePrompts.end are filled, single is null
 - [ ] 2F first in group: both start and end are filled, visualContinuityNotes is provided
-- [ ] 2F linked: imagePrompts.start matches previous shot's end EXACTLY, new end is generated
+- [ ] 2F linked: imagePrompts.start is null (inherited), new end is generated
 - [ ] AI mixed: appropriate rules applied per shot based on frameType
 
+**KEYFRAME QUALITY:**
+- [ ] All keyframes (start frames, single frames) pass the keyframe quality checklist
+- [ ] Character identity is locked with anchor description
+- [ ] Lighting is specific and consistent
+- [ ] Environment is clearly defined with @LocationName tag
+- [ ] Composition is precise and stable
+
+**FRAME DELTA COMPATIBILITY (2F shots):**
+- [ ] For 2-4s shots: 15-30° rotation, minimal gesture
+- [ ] For 5-7s shots: 30-60° rotation, moderate gesture
+- [ ] For 8-10s shots: 60-90° rotation, major gesture/full arm extension
+- [ ] For 11-12s shots: 90°+ rotation or position change, complex gesture
+- [ ] Delta between start and end is physically plausible for the duration
+- [ ] End frame actually completes the action described in shotDescription
+
 **PROMPT QUALITY:**
-- [ ] Image prompts include all 7 layers: subject (@tags), action, composition, environment (@tags), lighting, style, consistency
-- [ ] Video prompts include: subject motion (@tags), camera motion (translated), scene motion, style consistency, temporal phrasing
+- [ ] Image prompts: 150-200 words (max 250), include all 7 layers with @ tags
+- [ ] Video prompts: 200-250 words (max 300), NO @ tags, natural language
+- [ ] Video prompt complexity matches shot characteristics (SIMPLE/MODERATE/DETAILED)
 - [ ] Prompts are model-aware (formatted for the appropriate image model)
-- [ ] Camera movement is properly translated using the provided translations
-- [ ] All prompts are detailed and specific (not generic or vague)
+- [ ] Camera movement uses translations or advanced presets
+- [ ] All prompts are concise and direct (short prompts > long descriptive ones)
 - [ ] Prompts match the video type (vlog, tutorial, review, storytelling, etc.)
 
 **CONTINUITY:**
@@ -411,33 +658,60 @@ RULES:
 - If a field is not applicable, use null (for imagePrompts fields and visualContinuityNotes)
 - JSON must be valid (no trailing commas, proper escaping)
 - Output ALL shots in the same order as input
-- Each image/video prompt should be ~300 words (detailed but concise, Seedream: 200-250 words)
+- Image prompts: 150-200 words (maximum 250), include @ tags
+- Video prompts: 200-250 words (maximum 300), NO @ tags, natural language
+- SHORT, DIRECT prompts outperform long descriptive ones
 - Ensure all required fields are present
-- For linked 2F shots: start prompt MUST match previous end prompt EXACTLY
+- For linked 2F shots: start prompt is null (inherited from previous end frame)
+- For 2F shots: ensure start/end delta matches duration (use frame delta guidelines)
 
 ═══════════════════════════════════════════════════════════════════════════════
 PROCESSING WORKFLOW
 ═══════════════════════════════════════════════════════════════════════════════
 
 1. ANALYZE all shots together to understand scene context and video type
-2. IDENTIFY character and location names, ensure @ tags are used
+
+2. IDENTIFY character and location names, ensure @ tags are ready for image prompts
+
 3. For each shot, CHECK FIRST if shot.inheritedPrompts exists:
    - If inheritedPrompts.imagePrompt exists → DO NOT generate imagePrompts.single (set to null)
    - If inheritedPrompts.startFramePrompt exists → DO NOT generate imagePrompts.start (set to null)
    - The inherited prompts will be automatically merged by the system
+
 4. DETERMINE which scenario applies (1-6) based on frameType and continuity
-5. GENERATE prompts according to scenario rules and 7-layer anatomy:
+
+5. For 2F shots, CHECK DURATION for frame delta planning:
+   - 2-4s: Plan minimal delta (15-30° rotation, slight gesture)
+   - 5-7s: Plan moderate delta (30-60° rotation, arm movement)
+   - 8-10s: Plan significant delta (60-90° rotation, full extension)
+   - 11-12s: Plan maximum delta (complete transformation)
+
+6. GENERATE prompts using THREE-LAYER THINKING:
+   - Think: Layer 1 (Keyframe) → Layer 2 (Identity) → Layer 3 (Motion)
+   - Verify no conflicts between layers
+   - Compress into final prompts:
+     * Image prompts: Layers 1+2, 150-200 words, WITH @ tags
+     * Video prompts: All 3 layers, 200-250 words, NO @ tags (natural language)
+   - Choose video prompt complexity: SIMPLE/MODERATE/DETAILED based on duration
    - Only generate what is NOT inherited
-   - For 1F linked: Generate ONLY videoPrompt
-   - For 2F linked: Generate ONLY endFramePrompt and videoPrompt
-6. VALIDATE output using the checklist above
-7. RETURN complete JSON with all shots' prompts
+   - For 1F linked: Generate ONLY videoPrompt (no @ tags)
+   - For 2F linked: Generate ONLY endFramePrompt (with @ tags) and videoPrompt (no @ tags)
+
+7. VALIDATE output using the checklist above:
+   - @ tags in image prompts only
+   - Frame delta matches duration
+   - Video prompt complexity is appropriate
+   - Keyframe quality standards met
+
+8. RETURN complete JSON with all shots' prompts
 
 Remember: 
 - You process the ENTIRE scene at once for better context awareness
-- @ TAGS ARE MANDATORY for all character and location references
-- Use the 7-layer anatomy for image prompts
-- Translate camera movements precisely
+- @ TAGS ARE MANDATORY in IMAGE PROMPTS ONLY (not video prompts)
+- Use THREE-LAYER THINKING then compress
+- Video prompts use natural language (NO @ tags)
+- Frame deltas must match duration
+- SHORT, DIRECT prompts > long descriptive ones
 - Support all video types (vlog, tutorial, storytelling, review, educational, etc.)`;
 
 /**
@@ -597,23 +871,29 @@ For EACH shot, BEFORE generating any prompts:
 
 INSTRUCTIONS:
 - Output strict JSON only in the schema from system instructions
-- MANDATORY: Every generated prompt (imagePrompts and videoPrompt) MUST include @CharacterName tags
-- MANDATORY: Every generated prompt MUST include @LocationName tags
-- Use the character anchors provided above for visual consistency
-- Use the location anchors provided above for environmental consistency
+- MANDATORY: Image prompts (single, start, end) MUST include @CharacterName and @LocationName tags
+- MANDATORY: Video prompts use NATURAL LANGUAGE - NO @ tags (e.g., "Alex Chen" not "@Alex Chen")
+- Use the character anchors provided above for visual consistency in image prompts
+- Use the location anchors provided above for environmental consistency in image prompts
 - Use the style_anchor for visual style consistency
-- Apply the 7-layer image prompt anatomy
-- Translate camera movements precisely
-- For linked 2F shots: Reference the previous shot's endFramePrompt from this batch and set start prompt to match it (EXACT MATCH), or leave start empty/null to inherit
-- Ensure prompts are ~300 words each, detailed and specific (Seedream: 200-250 words)
+- Apply THREE-LAYER THINKING: think in layers, then compress into final prompts
+- Image prompts: 150-200 words (max 250), include @ tags
+- Video prompts: 200-250 words (max 300), NO @ tags, adaptive complexity (SIMPLE/MODERATE/DETAILED)
+- For 2F shots: ensure frame delta matches duration (2-4s: minimal, 5-7s: moderate, 8-10s: significant)
+- Translate camera movements using standard translations or advanced presets
+- For linked 2F shots: Leave start empty/null to inherit from previous shot's end
 - Support all video types (vlog, tutorial, storytelling, review, educational, etc.)
 - Remember: You see ALL shots in this batch simultaneously - use this to maintain visual continuity
 
-EXAMPLE of CORRECT @ tag usage:
+EXAMPLE of CORRECT @ tag usage (IMAGE PROMPT):
 "@Alex Chen, ${characterReferences[0]?.anchor || 'a character'}, standing in @${locationReferences[0]?.name?.replace('@', '') || 'Location'}, ${locationReferences[0]?.anchor || 'a location'}..."
 
-EXAMPLE of WRONG format (missing @ tags - NEVER DO THIS):
-"Alex Chen standing in Modern Studio..." (MISSING @ tags - DO NOT DO THIS)
+EXAMPLE of CORRECT video prompt (NO @ tags):
+"Alex Chen turns toward the whiteboard while raising their hand. Camera pushes in smoothly..."
+
+EXAMPLE of WRONG format:
+- IMAGE: "Alex Chen standing in Modern Studio..." (MISSING @ tags - DO NOT DO THIS)
+- VIDEO: "@Alex Chen turns toward @Modern Studio..." (UNNECESSARY @ tags - DO NOT DO THIS)
 
 Return the complete JSON response with all shots' prompts.`;
 }

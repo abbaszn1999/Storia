@@ -251,13 +251,23 @@ export interface SceneGeneratorInput {
 
 /**
  * Output from scene generator
+ * Enhanced with entity tracking and script grounding
  */
 export interface SceneGeneratorOutput {
   scenes: Array<{
+    id: number;                      // Numeric scene index starting from 1
     name: string;                    // Format: "Scene {number}: {Title}"
     description: string;             // 2-3 sentence scene summary (30-80 words)
     duration: number;                // Estimated duration in seconds
+    charactersFromList: string[];    // Character names from input primaryCharacter/secondaryCharacters
+    otherCharacters: string[];       // Character labels not in input lists (e.g., "Barista", "Old man")
+    locations: string[];             // Location names from input locations list
+    characterMentionsRaw: string[];  // Exact phrases from scriptExcerpt referring to characters
+    locationMentionsRaw: string[];   // Exact phrases from scriptExcerpt referring to places
+    mood: string[];                  // 2-4 short adjectives describing emotional/visual tone
+    scriptExcerpt: string;           // Exact portion of original script for this scene
   }>;
+  totalEstimatedDuration: number;    // Sum of all scene durations
   cost?: number;
 }
 
@@ -268,18 +278,19 @@ export interface SceneGeneratorOutput {
 /**
  * Input for shot generation (AI agent)
  * Fields that will be sent to the AI for shot breakdown
+ * Enhanced with scene entity data from Scene Generator
  */
 export interface ShotGeneratorInput {
   sceneName: string;                  // Scene name from Agent 3.1 (e.g., "Scene 1: The Morning Rush")
   sceneDescription: string;           // Scene description from Agent 3.1
   sceneDuration: number;              // Scene duration in seconds (PRIMARY constraint)
-  script: string;                     // Full story script
+  script: string;                     // Full story script (for overall context)
   characters: Array<{                 // Available characters (primary + secondary)
     name: string;
     description: string;
     personality?: string;              // Only for primary character
   }>;
-  locations: Array<{                 // Available locations
+  locations: Array<{                 // Available locations from Elements step
     name: string;
     description: string;
     details?: string;
@@ -291,6 +302,15 @@ export interface ShotGeneratorInput {
   videoModelDurations: number[];      // Available durations for the video model
   targetDuration: number;              // Target video duration in seconds (context)
   shotsPerScene: number | 'auto';     // Shots per scene (number or 'auto')
+  
+  // Scene entity data from Agent 3.1 (Scene Generator) - for grounding
+  sceneId?: number;                   // Scene index (1-based)
+  scriptExcerpt?: string;             // Exact portion of script for this scene (PRIMARY focus)
+  mood?: string[];                    // Scene mood adjectives
+  charactersFromList?: string[];      // Characters from input lists that appear in this scene
+  otherCharacters?: string[];         // Other characters in scene not from input lists
+  sceneLocations?: string[];          // Locations from input list that appear in this scene
+  locationMentionsRaw?: string[];     // Raw location mentions from script
 }
 
 /**
@@ -312,20 +332,21 @@ export interface ContinuityGroup {
 
 /**
  * Output from shot generator
+ * With dual tagging: indexed tags in referenceTags, canonical names in description
  */
 export interface ShotGeneratorOutput {
   shots: Array<{
     name: string;                     // Format: "Shot {sceneNumber}.{shotNumber}: {Title}"
-    description: string;              // Detailed visual description (50-300 words)
+    description: string;              // Detailed visual description with @CanonicalName anchors
     shotType: '1F' | '2F';            // Frame type: "1F" (single image) or "2F" (start/end frames)
-    cameraShot: string;                // Camera angle from 10 preset options
-    referenceTags: string[];           // Character and location tags (e.g., ["@PrimaryCharacter", "@Location1"])
-    duration: number;                  // Duration from videoModelDurations array
-    isLinkedToPrevious?: boolean;      // Deprecated - kept for backward compatibility during migration
-    isFirstInGroup?: boolean;          // Deprecated - kept for backward compatibility during migration
+    cameraShot: string;               // Camera angle from 10 preset options
+    referenceTags: string[];          // Indexed tags (e.g., ["@PrimaryCharacter", "@Location1"])
+    duration: number;                 // Duration from videoModelDurations array
+    isLinkedToPrevious: boolean;      // Whether this shot links to the previous shot for continuity
+    isFirstInGroup: boolean;          // Whether this shot is the first in a continuity group
   }>;
   continuityGroups?: Array<{
-    shotIndices: number[]; // 0-based indices to map to shot IDs in routes
+    shotIndices: number[];            // 0-based indices to map to shot IDs in routes
     description: string;
     transitionType: string;
   }>;

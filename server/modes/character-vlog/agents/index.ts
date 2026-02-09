@@ -26,6 +26,7 @@ export {
   buildStyleAnchor,
 } from './step-4-storyboard/unified-prompt-producer';
 export { generateStoryboardImage } from './step-4-storyboard/image-generator';
+export { editStoryboardImage } from './step-4-storyboard/image-editor';
 export { generateVideo } from './step-4-storyboard/video-generator';
 
 // Step 5: Sound Phase

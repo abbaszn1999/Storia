@@ -245,7 +245,6 @@ function parseShotResponse(rawOutput: string): ShotGeneratorOutput {
         cameraShot: shot.cameraShot,
         referenceTags: shot.referenceTags,
         duration: shot.duration,
-        // Keep flags for group conversion, but they're deprecated
         isLinkedToPrevious: shot.isLinkedToPrevious,
         isFirstInGroup: shot.isFirstInGroup,
       };

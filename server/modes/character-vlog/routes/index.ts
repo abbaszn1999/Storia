@@ -5,7 +5,7 @@ import { storage } from '../../../storage';
 import { CHARACTER_VLOG_CONFIG } from '../config';
 import { isAuthenticated, getCurrentUserId } from '../../../auth';
 import { bunnyStorage, buildVideoModePath } from '../../../storage/bunny-storage';
-import { generateScript, analyzeCharacters, analyzeLocations, generateScenes, generateShots, generatePromptsForScene, buildCharacterAnchors, buildLocationAnchors, buildStyleAnchor, generateStoryboardImage, generateVideo } from '../agents';
+import { generateScript, analyzeCharacters, analyzeLocations, generateScenes, generateShots, generatePromptsForScene, buildCharacterAnchors, buildLocationAnchors, buildStyleAnchor, generateStoryboardImage, editStoryboardImage, generateVideo } from '../agents';
 import type { Step1Data, Step2Data, Step3Data, Step4Data, Step5Data, Step6Data, Step7Data, ReferenceModeCode, ScriptGeneratorInput, CharacterAnalyzerInput, LocationAnalyzerInput, SceneGeneratorInput, ShotGeneratorInput, UnifiedPromptProducerSceneInput, VlogScene, VlogShot, ShotVersion, VolumeSettings as Step6VolumeSettings } from '../types';
 import { buildShotstackTimeline, getShotstackClient, isShotstackConfigured, type TimelineBuilderInput, type TimelineScene, type TimelineShot, type TimelineShotVersion, type VolumeSettings, type OutputSettings } from '../../../integrations/shotstack';
 import { convertReferenceModeToCode } from '../types';
@@ -1420,6 +1420,8 @@ router.post('/shots/generate', isAuthenticated, async (req: Request, res: Respon
     });
 
     // Build shot generator input
+    // Note: For standalone shot generation, scene entity data may not be available
+    // if scenes were created before the entity tracking upgrade
     const generatorInput: ShotGeneratorInput = {
       sceneName: scene.name || scene.title || '',
       sceneDescription: scene.description || '',
@@ -1434,6 +1436,14 @@ router.post('/shots/generate', isAuthenticated, async (req: Request, res: Respon
       videoModelDurations,
       targetDuration: duration,
       shotsPerScene,
+      // Scene entity data (may be undefined for legacy scenes)
+      sceneId: (scene as any).sceneId,
+      scriptExcerpt: (scene as any).scriptExcerpt,
+      mood: (scene as any).mood,
+      charactersFromList: (scene as any).charactersFromList,
+      otherCharacters: (scene as any).otherCharacters,
+      sceneLocations: (scene as any).sceneLocations,
+      locationMentionsRaw: (scene as any).locationMentionsRaw,
     };
 
     // Call shot generator agent
@@ -1446,6 +1456,7 @@ router.post('/shots/generate', isAuthenticated, async (req: Request, res: Respon
       shotCount: result.shots.length,
       totalDuration: result.shots.reduce((sum, shot) => sum + shot.duration, 0),
       sceneDuration: scene.duration,
+      hasSceneEntityData: !!(scene as any).scriptExcerpt,
       cost: result.cost,
     });
 
@@ -1604,6 +1615,7 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
     const sceneResult = await generateScenes(sceneGeneratorInput, userId, workspaceId);
 
     // Convert generated scenes to ambient-visual compatible format
+    // Preserve entity tracking fields for shot generation
     const timestamp = Date.now();
     const now = new Date();
     const generatedScenes = sceneResult.scenes.map((scene, index) => ({
@@ -1616,6 +1628,15 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
       duration: scene.duration || null,
       actType: (index === 0 ? 'hook' : index === sceneResult.scenes.length - 1 ? 'outro' : 'main') as 'hook' | 'intro' | 'main' | 'outro' | 'custom',
       createdAt: now,
+      // Entity tracking fields from Agent 3.1 (for shot generation)
+      sceneId: scene.id,
+      charactersFromList: scene.charactersFromList,
+      otherCharacters: scene.otherCharacters,
+      sceneLocations: scene.locations,
+      characterMentionsRaw: scene.characterMentionsRaw,
+      locationMentionsRaw: scene.locationMentionsRaw,
+      mood: scene.mood,
+      scriptExcerpt: scene.scriptExcerpt,
     }));
 
     console.log('[character-vlog:routes] Scenes generated:', { count: generatedScenes.length });
@@ -1669,6 +1690,14 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
         videoModelDurations,
         targetDuration: duration,
         shotsPerScene,
+        // Scene entity data from Agent 3.1 (for grounding)
+        sceneId: (scene as any).sceneId,
+        scriptExcerpt: (scene as any).scriptExcerpt,
+        mood: (scene as any).mood,
+        charactersFromList: (scene as any).charactersFromList,
+        otherCharacters: (scene as any).otherCharacters,
+        sceneLocations: (scene as any).sceneLocations,
+        locationMentionsRaw: (scene as any).locationMentionsRaw,
       };
 
       const shotResult = await generateShots(shotGeneratorInput, userId, workspaceId);
@@ -1679,9 +1708,10 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
         hasContinuityGroups: !!shotResult.continuityGroups,
         continuityGroupsLength: shotResult.continuityGroups?.length || 0,
         referenceMode,
+        hasSceneEntityData: !!(scene as any).scriptExcerpt,
         firstShotFlags: shotResult.shots[0] ? {
-          isLinkedToPrevious: (shotResult.shots[0] as any).isLinkedToPrevious,
-          isFirstInGroup: (shotResult.shots[0] as any).isFirstInGroup,
+          isLinkedToPrevious: shotResult.shots[0].isLinkedToPrevious,
+          isFirstInGroup: shotResult.shots[0].isFirstInGroup,
           shotType: shotResult.shots[0].shotType,
         } : null,
       });
@@ -1976,6 +2006,7 @@ router.patch('/videos/:id/step/3/continue', isAuthenticated, async (req: Request
       const sceneResult = await generateScenes(sceneGeneratorInput, userId, workspaceId);
       
       // Convert generated scenes to ambient-visual compatible format
+      // Preserve entity tracking fields for shot generation
       const timestamp = Date.now();
       const now = new Date();
       scenes = sceneResult.scenes.map((scene, index) => ({
@@ -1988,6 +2019,15 @@ router.patch('/videos/:id/step/3/continue', isAuthenticated, async (req: Request
         duration: scene.duration || null,
         actType: index === 0 ? 'hook' : index === sceneResult.scenes.length - 1 ? 'outro' : 'main' as const,
         createdAt: now,
+        // Entity tracking fields from Agent 3.1 (for shot generation)
+        sceneId: scene.id,
+        charactersFromList: scene.charactersFromList,
+        otherCharacters: scene.otherCharacters,
+        sceneLocations: scene.locations,
+        characterMentionsRaw: scene.characterMentionsRaw,
+        locationMentionsRaw: scene.locationMentionsRaw,
+        mood: scene.mood,
+        scriptExcerpt: scene.scriptExcerpt,
       }));
 
       console.log('[character-vlog:routes] Scenes generated:', { count: scenes.length });
@@ -2039,6 +2079,14 @@ router.patch('/videos/:id/step/3/continue', isAuthenticated, async (req: Request
           videoModelDurations,
           targetDuration: duration,
           shotsPerScene,
+          // Scene entity data from Agent 3.1 (for grounding)
+          sceneId: (scene as any).sceneId,
+          scriptExcerpt: (scene as any).scriptExcerpt,
+          mood: (scene as any).mood,
+          charactersFromList: (scene as any).charactersFromList,
+          otherCharacters: (scene as any).otherCharacters,
+          sceneLocations: (scene as any).sceneLocations,
+          locationMentionsRaw: (scene as any).locationMentionsRaw,
         };
 
         const shotResult = await generateShots(shotGeneratorInput, userId, workspaceId);
@@ -4547,6 +4595,271 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
   }
 });
 
+/**
+ * POST /api/character-vlog/videos/:videoId/shots/:shotId/edit-image
+ * Edit a storyboard image based on user instructions (Agent 4.3)
+ */
+router.post('/videos/:videoId/shots/:shotId/edit-image', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { videoId, shotId } = req.params;
+    const {
+      versionId,
+      editCategory,
+      editingInstruction,
+      referenceImages = [],
+      characterId,
+      imageModel,
+      activeFrame, // For start-end mode: "start" or "end"
+    } = req.body;
+
+    const workspaceId = req.headers["x-workspace-id"] as string | undefined;
+
+    if (!versionId || !editCategory || !editingInstruction || !imageModel) {
+      return res.status(400).json({ 
+        error: 'Missing required fields',
+        required: ['versionId', 'editCategory', 'editingInstruction', 'imageModel']
+      });
+    }
+
+    console.log('[character-vlog:routes] Editing image (Agent 4.3):', {
+      videoId,
+      shotId,
+      versionId,
+      editCategory,
+      model: imageModel,
+      userId,
+      workspaceId,
+    });
+
+    // Fetch video from database
+    const video = await storage.getVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Get step data
+    const step1Data = (video.step1Data as Step1Data) || {};
+    const step2Data = (video.step2Data as Step2Data) || {};
+    const step4Data = (video.step4Data as any) || { shots: {}, shotVersions: {} };
+
+    // Get aspect ratio from step1Data
+    const aspectRatio = step1Data.aspectRatio || '16:9';
+
+    // Get shot versions
+    const shotVersions = step4Data.shotVersions || {};
+    const existingVersions = shotVersions[shotId] || [];
+
+    // Find the version to edit
+    const versionToEdit = existingVersions.find((v: any) => v.id === versionId);
+    if (!versionToEdit) {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+
+    // Get the original image URL based on mode and active frame
+    let originalImageUrl: string | null | undefined;
+    if (activeFrame === "start") {
+      originalImageUrl = versionToEdit.startFrameUrl;
+    } else if (activeFrame === "end") {
+      originalImageUrl = versionToEdit.endFrameUrl;
+    } else {
+      // Fallback: for image-reference mode, use imageUrl; otherwise try startFrameUrl or endFrameUrl
+      originalImageUrl = versionToEdit.imageUrl || versionToEdit.startFrameUrl || versionToEdit.endFrameUrl;
+    }
+    
+    if (!originalImageUrl) {
+      let detailsMessage: string;
+      if (activeFrame) {
+        detailsMessage = `The selected version does not have a ${activeFrame} frame`;
+      } else {
+        detailsMessage = 'The selected version does not have an image';
+      }
+      return res.status(400).json({ 
+        error: 'No image found in the selected version',
+        details: detailsMessage
+      });
+    }
+
+    // Get character name and appearance if characterId is provided
+    let characterName: string | undefined;
+    let characterAppearance: string | undefined;
+    if (characterId) {
+      const characters = step2Data.characters || [];
+      const character = characters.find((c: any) => c.id === characterId);
+      characterName = character?.name;
+      characterAppearance = character?.appearance;
+    }
+
+    // Collect reference images (character, location, style refs from step2Data)
+    // IMPORTANT: The originalImageUrl is passed separately to the agent, which will prepend it to referenceImages
+    // So we only collect additional reference images here (character, style, etc.)
+    const allReferenceImages: string[] = [...referenceImages];
+    
+    // For character-specific edits, include character image as SECOND reference
+    // (after original shot image) to help identify which character to edit
+    // The original shot image remains the primary/base image for editing
+    if (characterId && (editCategory === "clothes" || editCategory === "expression" || editCategory === "figure")) {
+      const characters = step2Data.characters || [];
+      const character = characters.find((c: any) => c.id === characterId);
+      if (character?.imageUrl) {
+        // Add character image as identification reference (will be after original image in final array)
+        allReferenceImages.push(character.imageUrl);
+      }
+    } else if (characterId) {
+      // For non-character-specific edits, include character image normally
+      const characters = step2Data.characters || [];
+      const character = characters.find((c: any) => c.id === characterId);
+      if (character?.imageUrl) {
+        allReferenceImages.push(character.imageUrl);
+      }
+    }
+
+    // Add location reference images
+    const locations = step2Data.locations || [];
+    for (const location of locations) {
+      if (location.imageUrl) {
+        allReferenceImages.push(location.imageUrl);
+      }
+    }
+
+    // Add style reference if available
+    if (step2Data.styleReferenceImageUrl) {
+      allReferenceImages.push(step2Data.styleReferenceImageUrl);
+    }
+
+    // Log for debugging
+    console.log('[character-vlog:routes] Image editing request:', {
+      shotId,
+      versionId,
+      originalImageUrl,
+      activeFrame,
+      characterId,
+      characterName,
+      referenceImagesCount: allReferenceImages.length,
+      editCategory,
+    });
+
+    // Call Agent 4.3: Image Editor
+    // The agent will prepend originalImageUrl to allReferenceImages when calling the API
+    const editResult = await editStoryboardImage(
+      {
+        originalImageUrl,
+        editingInstruction,
+        editCategory,
+        referenceImages: allReferenceImages,
+        characterId,
+        characterName,
+        characterAppearance,
+        shotId,
+        videoId,
+        aspectRatio,
+        imageModel,
+      },
+      userId,
+      workspaceId
+    );
+
+    if (editResult.error) {
+      return res.status(400).json({ 
+        error: 'Image editing failed',
+        details: editResult.error
+      });
+    }
+
+    // Create new version with edited image
+    const newVersionId = `version-${shotId}-${Date.now()}`;
+    const versionNumber = existingVersions.length + 1;
+
+    // Determine which frame URL to update based on activeFrame (for start-end mode) or original version structure
+    let imageUrl: string | null = null;
+    let startFrameUrl: string | null = null;
+    let endFrameUrl: string | null = null;
+    
+    if (activeFrame === "start") {
+      // Editing start frame - update startFrameUrl only
+      startFrameUrl = editResult.editedImageUrl;
+      endFrameUrl = versionToEdit.endFrameUrl || null;
+    } else if (activeFrame === "end") {
+      // Editing end frame - update endFrameUrl only
+      startFrameUrl = versionToEdit.startFrameUrl || null;
+      endFrameUrl = editResult.editedImageUrl;
+    } else {
+      // Image-reference mode - update imageUrl
+      imageUrl = versionToEdit.imageUrl ? editResult.editedImageUrl : null;
+      startFrameUrl = versionToEdit.startFrameUrl || null;
+      endFrameUrl = versionToEdit.endFrameUrl || null;
+    }
+    
+    const newVersion: any = {
+      id: newVersionId,
+      shotId,
+      versionNumber,
+      imageUrl,
+      startFrameUrl,
+      endFrameUrl,
+      // Copy prompts from original version
+      imagePrompt: versionToEdit.imagePrompt,
+      startFramePrompt: versionToEdit.startFramePrompt,
+      endFramePrompt: versionToEdit.endFramePrompt,
+      videoPrompt: versionToEdit.videoPrompt,
+      status: "completed",
+      needsRerender: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      // Store editing metadata
+      editedFromVersionId: versionId,
+      editCategory,
+      editingInstruction,
+      editingModel: imageModel,
+    };
+
+    existingVersions.push(newVersion);
+
+    // CRITICAL: Re-fetch the latest step4Data to prevent race conditions
+    // During image editing, other requests may have updated other shots
+    const latestVideoForEdit = await storage.getVideo(videoId);
+    const latestStep4DataForEdit = (latestVideoForEdit?.step4Data as any) || { shots: {}, shotVersions: {} };
+    const latestShotVersionsForEdit = latestStep4DataForEdit.shotVersions || {};
+    
+    // Only update this specific shot's versions, preserving all other shots' data
+    latestShotVersionsForEdit[shotId] = existingVersions;
+
+    // Update step4Data
+    const updatedStep4Data = {
+      ...latestStep4DataForEdit,
+      shotVersions: latestShotVersionsForEdit,
+    };
+
+    // Save to database
+    await storage.updateVideo(videoId, { step4Data: updatedStep4Data });
+
+    console.log('[character-vlog:routes] Image edited successfully:', {
+      shotId,
+      originalVersionId: versionId,
+      newVersionId: newVersion.id,
+      hasEditedImage: !!editResult.editedImageUrl,
+      cost: editResult.cost,
+    });
+
+    res.json({
+      editedImageUrl: editResult.editedImageUrl,
+      newVersionId: newVersion.id,
+      version: newVersion,
+      cost: editResult.cost,
+    });
+  } catch (error) {
+    console.error('[character-vlog:routes] Image editing error:', error);
+    res.status(500).json({ 
+      error: 'Failed to edit image',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // VIDEO GENERATION ROUTES - AGENT 4.3
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -4745,9 +5058,22 @@ router.post('/videos/:id/shots/:shotId/generate-video', isAuthenticated, async (
       // Generation failed
       console.error('[character-vlog:routes] Video generation failed:', result.error);
       
-      return res.status(500).json({
+      // Check if this is a content moderation error (Google Veo rejection)
+      const errorDetails = result.error?.details || '';
+      const isContentModerationError = 
+        errorDetails.includes('invalidProviderContent') ||
+        errorDetails.includes('content moderation') ||
+        errorDetails.includes('usage guidelines') ||
+        errorDetails.includes('Child safety');
+      
+      // Use 422 for content moderation errors, 500 for other failures
+      const statusCode = isContentModerationError ? 422 : 500;
+      
+      return res.status(statusCode).json({
         success: false,
-        error: result.error,
+        error: result.error?.message || 'Video generation failed',
+        details: result.error?.details || 'Unknown error',
+        isContentModerationError,
       });
     }
 

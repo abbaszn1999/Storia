@@ -21,6 +21,17 @@ import SignIn from "@/pages/auth/sign-in";
 import SignUp from "@/pages/auth/sign-up";
 import ForgotPassword from "@/pages/auth/forgot-password";
 import Dashboard from "@/pages/dashboard";
+
+// Website pages
+import Home from "@/website/pages/home";
+import FeaturesPage from "@/website/pages/features";
+import PricingPage from "@/website/pages/pricing";
+import IntegrationsPage from "@/website/pages/integrations";
+import StoryboardPage from "@/website/pages/features/storyboard";
+import VideoGeneratorPage from "@/website/pages/features/video-generator";
+import StoriesGeneratorPage from "@/website/pages/features/stories-generator";
+import AutoProductionPage from "@/website/pages/features/auto-production";
+import AssetsLibraryPage from "@/website/pages/features/assets-library";
 import Videos from "@/pages/videos";
 import NarrativeMode from "@/pages/videos/narrative-mode";
 import CharacterVlogMode from "@/pages/videos/character-vlog-mode";
@@ -233,6 +244,33 @@ function Router() {
 
   if (isLoading) {
     return <LoadingScreen />;
+  }
+
+  // Website routes (public pages - accessible to everyone when not authenticated)
+  const isWebsiteRoute = location.startsWith("/features") || 
+    location === "/pricing" || 
+    location === "/integrations" ||
+    location === "/blog";
+
+  if (isWebsiteRoute) {
+    return (
+      <Switch>
+        <Route path="/features" component={FeaturesPage} />
+        <Route path="/features/storyboard" component={StoryboardPage} />
+        <Route path="/features/video-generator" component={VideoGeneratorPage} />
+        <Route path="/features/stories-generator" component={StoriesGeneratorPage} />
+        <Route path="/features/auto-production" component={AutoProductionPage} />
+        <Route path="/features/assets-library" component={AssetsLibraryPage} />
+        <Route path="/pricing" component={PricingPage} />
+        <Route path="/integrations" component={IntegrationsPage} />
+        <Route component={FeaturesPage} />
+      </Switch>
+    );
+  }
+
+  // Show website home page only for unauthenticated users
+  if (!isAuthenticated && location === "/") {
+    return <Home />;
   }
 
   if (location === "/auth/sign-in") {

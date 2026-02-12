@@ -1516,6 +1516,9 @@ router.post('/videos/:id/creative-spark/generate', isAuthenticated, async (req: 
     // Import agent dynamically
     const { generateCreativeSpark } = await import('../agents/tab-2/creative-concept-catalyst');
 
+    // Resolve product image URL with priority (composite > hero > legacy), same as Agent 5.1
+    const productImageUrl = resolveProductImageUrl(step1Data);
+
     // Use raw user inputs (no Agent 1.1/2.1 dependencies)
     const sparkInput = {
       // Strategic context (generated from user inputs)
@@ -1531,6 +1534,7 @@ router.post('/videos/:id/creative-spark/generate', isAuthenticated, async (req: 
       productionLevel: step1Data.productionLevel,
       characterMode: undefined,
       character_profile: undefined,
+      productImageUrl: productImageUrl || undefined,
     };
 
     console.log('[social-commerce] Spark input prepared:', {
@@ -1538,6 +1542,7 @@ router.post('/videos/:id/creative-spark/generate', isAuthenticated, async (req: 
       targetAudience: sparkInput.targetAudience,
       productTitle: sparkInput.productTitle,
       duration: sparkInput.duration,
+      hasProductImage: !!productImageUrl,
     });
 
     const sparkOutput = await generateCreativeSpark(sparkInput, userId, video.workspaceId);
@@ -1626,17 +1631,17 @@ router.post('/step/2/generate-beats', isAuthenticated, async (req: Request, res:
       return res.status(400).json({ error: 'Tab 1 must be completed first.' });
     }
 
-    // Get creative spark from step2Data or step3Data (backward compatibility), otherwise use campaignSpark
+    // Prefer user's current input (req.body) when valid; otherwise fall back to stored value
     let creativeSpark: string;
-    if (step2Data?.creativeSpark?.creative_spark) {
+    if (campaignSpark && typeof campaignSpark === 'string' && campaignSpark.trim().length >= 10) {
+      creativeSpark = campaignSpark.trim();
+      console.log('[social-commerce] Using campaignSpark from request (user edits)');
+    } else if (step2Data?.creativeSpark?.creative_spark) {
       creativeSpark = step2Data.creativeSpark.creative_spark;
       console.log('[social-commerce] Using creative spark from step2Data');
     } else if (step3Data?.creativeSpark?.creative_spark) {
       creativeSpark = step3Data.creativeSpark.creative_spark;
       console.log('[social-commerce] Using creative spark from step3Data (backward compatibility)');
-    } else if (campaignSpark && campaignSpark.trim().length >= 10) {
-      creativeSpark = campaignSpark;
-      console.log('[social-commerce] Using campaignSpark as creative spark');
     } else {
       return res.status(400).json({ error: 'Creative spark is required. Please fill in the Creative Spark field or use AI Recommend first.' });
     }
@@ -1689,6 +1694,9 @@ router.post('/step/2/generate-beats', isAuthenticated, async (req: Request, res:
       imageMode = 'hero';
     }
 
+    // Resolve product image URL with priority (composite > hero > legacy), same as Agent 5.1
+    const productImageUrl = resolveProductImageUrl(step1Data);
+
     const narrativeInput = {
       creative_spark: creativeSpark,
       campaignSpark: campaignSpark || '',
@@ -1711,6 +1719,7 @@ router.post('/step/2/generate-beats', isAuthenticated, async (req: Request, res:
       compositeElements,
       // NEW: Pacing
       pacingOverride: step1Data.pacingOverride,
+      productImageUrl: productImageUrl || undefined,
     };
 
     console.log('[social-commerce] Calling Agent 3.2 with:', {
@@ -1720,6 +1729,7 @@ router.post('/step/2/generate-beats', isAuthenticated, async (req: Request, res:
       imageMode: narrativeInput.imageMode,
       hasCompositeElements: !!narrativeInput.compositeElements,
       pacingOverride: narrativeInput.pacingOverride,
+      hasProductImage: !!productImageUrl,
     });
 
     const narrativeOutput = await createNarrative(narrativeInput, userId, video.workspaceId);
@@ -1858,10 +1868,52 @@ router.patch('/videos/:id/step/2/continue', isAuthenticated, async (req: Request
     const creativeSparkOutput = existingStep2Data?.creativeSpark || existingStep3Data?.creativeSpark;
     const creativeSpark = creativeSparkOutput?.creative_spark || campaignSpark;
 
+    // ═══════════════════════════════════════════════════════════════
+    // Handle edited visual beats (if provided in request)
+    // ═══════════════════════════════════════════════════════════════
+    
+    let narrativeToSave = narrativeOutput;
+    
+    // If edited beats are provided, validate and use them to overwrite stored beats
+    if (requestData.visualBeats && Array.isArray(requestData.visualBeats) && requestData.visualBeats.length > 0) {
+      // Validate beat count matches expected (duration / 12)
+      const expectedBeatCount = Math.ceil(step1Data.duration / 12);
+      if (requestData.visualBeats.length === expectedBeatCount) {
+        // Validate beat structure
+        const isValid = requestData.visualBeats.every((beat: any) => 
+          beat.beatId && 
+          (beat.beatId === 'beat1' || beat.beatId === 'beat2' || beat.beatId === 'beat3') &&
+          typeof beat.beatName === 'string' &&
+          typeof beat.beatDescription === 'string' &&
+          beat.duration === 12
+        );
+        
+        if (isValid) {
+          // Overwrite narrative.visual_beats with edited beats
+          narrativeToSave = {
+            ...narrativeOutput,
+            visual_beats: requestData.visualBeats,
+          };
+          console.log('[social-commerce] Using edited visual beats from request:', {
+            beatCount: requestData.visualBeats.length,
+            beatIds: requestData.visualBeats.map((b: any) => b.beatId),
+          });
+        } else {
+          console.warn('[social-commerce] Invalid visual beats structure, using stored beats');
+        }
+      } else {
+        console.warn('[social-commerce] Visual beats count mismatch, using stored beats:', {
+          expected: expectedBeatCount,
+          received: requestData.visualBeats.length,
+        });
+      }
+    }
+
     console.log('[social-commerce] Saving Tab 2 data:', {
       hasCreativeSpark: !!creativeSpark,
-      hasNarrative: !!narrativeOutput,
-      beatCount: narrativeOutput.visual_beats.length,
+      hasNarrative: !!narrativeToSave,
+      beatCount: narrativeToSave.visual_beats.length,
+      usingEditedBeats: !!(requestData.visualBeats && Array.isArray(requestData.visualBeats) && requestData.visualBeats.length > 0),
     });
 
     // ═══════════════════════════════════════════════════════════════
@@ -1873,7 +1925,7 @@ router.patch('/videos/:id/step/2/continue', isAuthenticated, async (req: Request
         creative_spark: creativeSpark,
         cost: 0, // No cost if manually entered
       },
-      narrative: narrativeOutput,
+      narrative: narrativeToSave,
       uiInputs: {
         visualPreset: requestData.visualPreset || '',
         campaignSpark: creativeSpark,
@@ -2263,6 +2315,19 @@ router.post('/videos/:id/step/3/generate-prompts', isAuthenticated, async (req: 
       cost: beatPromptOutput.cost,
     });
 
+    // Overwrite beatName with input — Agent 5.1 often puts "name — description" into beatName;
+    // cards must show only the short beat name from Tab 2.
+    const correctedBeatPrompts = beatPromptOutput.beat_prompts.map((bp: any) => {
+      const inputBeat = visualBeats.find((b: any) => b.beatId === bp.beatId);
+      return {
+        ...bp,
+        beatName: (inputBeat?.beatName != null && typeof inputBeat.beatName === 'string')
+          ? inputBeat.beatName
+          : bp.beatName,
+      };
+    });
+    const beatPromptsToSave = { ...beatPromptOutput, beat_prompts: correctedBeatPrompts };
+
     // ═══════════════════════════════════════════════════════════════════════════
     // SAVE TO DATABASE (step3Data - migrated from step5Data)
     // ═══════════════════════════════════════════════════════════════════════════
@@ -2270,7 +2335,7 @@ router.post('/videos/:id/step/3/generate-prompts', isAuthenticated, async (req: 
 
     const step3DataToSave: Step3Data = {
       ...(video.step3Data || {}),
-      beatPrompts: beatPromptOutput,
+      beatPrompts: beatPromptsToSave,
       // voiceoverScripts will be saved in Tab 4 (Agent 5.2)
     };
 

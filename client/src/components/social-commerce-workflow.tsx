@@ -140,6 +140,18 @@ interface SocialCommerceWorkflowProps {
     beat2: string;
     beat3: string;
   };
+  editedVisualBeats?: Array<{
+    beatId: 'beat1' | 'beat2' | 'beat3';
+    beatName: string;
+    beatDescription: string;
+    duration: 12;
+  }> | null;
+  onEditedVisualBeatsChange?: (beats: Array<{
+    beatId: 'beat1' | 'beat2' | 'beat3';
+    beatName: string;
+    beatDescription: string;
+    duration: 12;
+  }>) => void;
   // Campaign Intelligence (Tab 1 & 3)
   targetAudience: string;
   campaignObjective: string;
@@ -414,6 +426,7 @@ export function SocialCommerceWorkflow({
   visualPreset,
   campaignSpark,
   visualBeats,
+  editedVisualBeats,
   // Removed: environmentBrandPrimaryColor, environmentBrandSecondaryColor (no longer used)
   targetAudience,
   campaignObjective,
@@ -484,6 +497,7 @@ export function SocialCommerceWorkflow({
   onVisualPresetChange,
   onCampaignSparkChange,
   onVisualBeatsChange,
+  onEditedVisualBeatsChange,
   onTargetAudienceChange,
   onCampaignObjectiveChange,
   onCtaTextChange,
@@ -1566,6 +1580,8 @@ export function SocialCommerceWorkflow({
           onVisualBeatsChange={onVisualBeatsChange}
           onCampaignObjectiveChange={onCampaignObjectiveChange}
           onCtaTextChange={onCtaTextChange}
+          editedVisualBeats={editedVisualBeats}
+          onEditedVisualBeatsChange={onEditedVisualBeatsChange}
           onNext={onNext}
         />
       )}

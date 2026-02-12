@@ -1,18 +1,28 @@
+import { useState, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { Button } from "@/components/ui/button";
 import { CharacterVlogScriptEditor } from "@/components/character-vlog/script-editor";
 import { CharacterVlogSceneBreakdown } from "@/components/character-vlog/scene-breakdown";
 import { ElementsTab } from "@/components/character-vlog/elements-tab";
 import { StoryboardEditor } from "@/components/character-vlog/storyboard-editor";
+import { SoundscapeTab } from "@/components/character-vlog/soundscape-tab";
 import { AnimaticPreview } from "@/components/character-vlog/animatic-preview";
-import { ExportSettings, type ExportData } from "@/components/character-vlog/export-settings";
+import { PreviewTab, type PreviewTabRef } from "@/components/character-vlog/preview";
+import { ExportTab } from "@/components/character-vlog/export-tab";
 import { useToast } from "@/hooks/use-toast";
 import type { Character, Location } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
+
+// Ref type for parent components to access workflow methods
+export interface CharacterVlogWorkflowRef {
+  getCurrentVolumes: () => { master: number; sfx: number; voiceover: number; music: number } | null;
+}
 
 interface CharacterVlogWorkflowProps {
   activeStep: string;
   videoId: string;
   workspaceId: string;
+  // Ref to access workflow methods (like getCurrentVolumes)
+  workflowRef?: React.RefObject<CharacterVlogWorkflowRef | null>;
   narrativeMode: "image-reference" | "start-end";
   referenceMode: "1F" | "2F" | "AI";
   script: string;
@@ -21,8 +31,10 @@ interface CharacterVlogWorkflowProps {
   videoModel: string;
   imageModel: string;
   narrationStyle: "third-person" | "first-person";
-  voiceActorId: string | null;
   voiceOverEnabled: boolean;
+  backgroundMusicEnabled: boolean;
+  voiceoverLanguage: 'en' | 'ar';
+  textOverlayEnabled: boolean;
   theme: string;
   numberOfScenes: number | 'auto';
   shotsPerScene: number | 'auto';
@@ -45,14 +57,29 @@ interface CharacterVlogWorkflowProps {
     imageInstructions?: string;
     videoInstructions?: string;
   };
+  // Step 5 Sound data
+  voiceoverScript?: string;
+  voiceoverAudioUrl?: string;
+  voiceoverDuration?: number;
+  selectedVoiceId?: string;
+  soundEffects?: Record<string, { prompt?: string; audioUrl?: string; duration?: number; isGenerating?: boolean }>;
+  generatedMusicUrl?: string;
+  generatedMusicDuration?: number;
+  onVoiceoverScriptChange?: (script: string) => void;
+  onVoiceoverAudioGenerated?: (audioUrl: string, duration: number) => void;
+  onMusicGenerated?: (musicUrl: string, duration: number) => void;
+  onVoiceChange?: (voiceId: string) => void;
+  onSoundEffectsUpdate?: (soundEffects: Record<string, { prompt?: string; audioUrl?: string; duration?: number; isGenerating?: boolean }>) => void;
   onScriptChange: (script: string) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
   onScriptModelChange: (model: string) => void;
   onVideoModelChange: (model: string) => void;
   onImageModelChange: (model: string) => void;
   onNarrationStyleChange: (style: "third-person" | "first-person") => void;
-  onVoiceActorChange: (voiceActorId: string) => void;
   onVoiceOverToggle: (enabled: boolean) => void;
+  onBackgroundMusicEnabledChange: (enabled: boolean) => void;
+  onVoiceoverLanguageChange: (language: 'en' | 'ar') => void;
+  onTextOverlayEnabledChange: (enabled: boolean) => void;
   onThemeChange: (theme: string) => void;
   onNumberOfScenesChange: (scenes: number | 'auto') => void;
   onShotsPerSceneChange: (shots: number | 'auto') => void;
@@ -70,6 +97,7 @@ interface CharacterVlogWorkflowProps {
   onReferenceImagesChange: (referenceImages: ReferenceImage[]) => void;
   onContinuityLockedChange: (locked: boolean) => void;
   onContinuityGroupsChange: (groups: { [sceneId: string]: any[] }) => void;
+  onSceneGeneratingChange?: (isGenerating: boolean) => void;  // Notify parent when scene generation starts/ends
   onMainCharacterChange: (character: Character | null) => void;
   onWorldSettingsChange: (settings: { 
     artStyle: string; 
@@ -86,6 +114,7 @@ export function CharacterVlogWorkflow({
   activeStep,
   videoId,
   workspaceId,
+  workflowRef,
   narrativeMode,
   referenceMode,
   script,
@@ -94,8 +123,10 @@ export function CharacterVlogWorkflow({
   videoModel,
   imageModel,
   narrationStyle,
-  voiceActorId,
   voiceOverEnabled,
+  backgroundMusicEnabled,
+  voiceoverLanguage,
+  textOverlayEnabled,
   theme,
   numberOfScenes,
   shotsPerScene,
@@ -111,14 +142,28 @@ export function CharacterVlogWorkflow({
   continuityGroups,
   mainCharacter,
   worldSettings,
+  voiceoverScript,
+  voiceoverAudioUrl,
+  voiceoverDuration,
+  selectedVoiceId,
+  soundEffects,
+  generatedMusicUrl,
+  generatedMusicDuration,
+  onVoiceoverScriptChange,
+  onVoiceoverAudioGenerated,
+  onMusicGenerated,
+  onVoiceChange,
+  onSoundEffectsUpdate,
   onScriptChange,
   onAspectRatioChange,
   onScriptModelChange,
   onVideoModelChange,
   onImageModelChange,
   onNarrationStyleChange,
-  onVoiceActorChange,
   onVoiceOverToggle,
+  onBackgroundMusicEnabledChange,
+  onVoiceoverLanguageChange,
+  onTextOverlayEnabledChange,
   onThemeChange,
   onNumberOfScenesChange,
   onShotsPerSceneChange,
@@ -136,73 +181,571 @@ export function CharacterVlogWorkflow({
   onReferenceImagesChange,
   onContinuityLockedChange,
   onContinuityGroupsChange,
+  onSceneGeneratingChange,
   onMainCharacterChange,
   onWorldSettingsChange,
   onNext,
 }: CharacterVlogWorkflowProps) {
   const { toast } = useToast();
+  const [isGeneratingImages, setIsGeneratingImages] = useState(false);
+  const [generatingShotIds, setGeneratingShotIds] = useState<Set<string>>(new Set());
+  const [isGeneratingVideos, setIsGeneratingVideos] = useState(false);
+  const [generatingVideoShotIds, setGeneratingVideoShotIds] = useState<Set<string>>(new Set());
+  
+  // Timer ref for debounced auto-save
+  const step3SaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Ref to PreviewTab for getting volumes
+  const previewTabRef = useRef<PreviewTabRef>(null);
+  
+  // Expose methods to parent via workflowRef
+  useImperativeHandle(workflowRef, () => ({
+    getCurrentVolumes: () => {
+      if (previewTabRef.current?.getCurrentVolumes) {
+        return previewTabRef.current.getCurrentVolumes();
+      }
+      return null;
+    },
+  }), []);
 
-  const handleExport = (data: ExportData) => {
-    if (data.selectedPlatforms.length > 0) {
-      const missingMetadata: string[] = [];
+  // Debounced auto-save for step3Data (scenes/shots) when models change
+  const debouncedSaveStep3Data = useCallback((
+    scenesToSave: Scene[],
+    shotsToSave: { [sceneId: string]: Shot[] },
+    shotVersionsToSave?: { [shotId: string]: ShotVersion[] }
+  ) => {
+    // Clear existing timer
+    if (step3SaveTimerRef.current) {
+      clearTimeout(step3SaveTimerRef.current);
+    }
+    
+    // Skip if no videoId or new video
+    if (!videoId || videoId === 'new') {
+      return;
+    }
+    
+    // Set new timer - save after 2 seconds of no changes
+    step3SaveTimerRef.current = setTimeout(async () => {
+      try {
+        console.log('[CharacterVlogWorkflow] Auto-saving step3Data (scenes/shots)...', {
+          scenesCount: scenesToSave.length,
+          shotsCount: Object.keys(shotsToSave).length,
+          shotVersionsCount: shotVersionsToSave ? Object.keys(shotVersionsToSave).length : 0,
+          sampleScene: scenesToSave[0],
+        });
+        
+        const response = await fetch(`/api/character-vlog/videos/${videoId}/step/3/settings`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            scenes: scenesToSave,
+            shots: shotsToSave,
+            continuityGroups,
+            continuityLocked,
+            ...(shotVersionsToSave && { shotVersions: shotVersionsToSave }),
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('[CharacterVlogWorkflow] Auto-save failed:', errorData);
+          throw new Error(errorData.error || 'Failed to save step3Data');
+        }
+        
+        console.log('[CharacterVlogWorkflow] Step3Data auto-saved successfully');
+      } catch (error) {
+        console.error('[CharacterVlogWorkflow] Step3Data auto-save error:', error);
+      }
+    }, 1000); // Auto-save after 1 second of no changes
+  }, [videoId, workspaceId, continuityGroups, continuityLocked]);
+
+  // Single image generation for one shot (prompts must already exist)
+  const handleGenerateSingleImage = async (shotId: string) => {
+    setGeneratingShotIds(prev => new Set(prev).add(shotId));
+    
+    try {
+      // Find the shot to get its sceneId
+      const shot = Object.values(shots).flat().find(s => s.id === shotId);
+      if (!shot) {
+        throw new Error('Shot not found');
+      }
       
-      if (data.selectedPlatforms.includes("youtube")) {
-        const ytMeta = data.platformMetadata.youtube;
-        if (!ytMeta || !ytMeta.title || !ytMeta.description || !ytMeta.tags) {
-          missingMetadata.push("YouTube (title, description, and tags required)");
+      // Find the scene to get the imageModel (if set)
+      const scene = scenes.find(s => s.id === shot.sceneId);
+      const sceneImageModel = scene?.imageModel || null;
+      
+      // Generate images based on reference mode (prompts must already exist)
+      // 1F mode (image-reference): generate single "image" frame
+      // 2F mode (start-end): generate "start" and "end" frames
+      const framesToGenerate = referenceMode === '1F' ? ['image'] : ['start', 'end'];
+      
+      for (const frame of framesToGenerate) {
+        console.log(`Generating ${frame} frame for shot:`, shotId, 'with model:', sceneImageModel || 'step1 default');
+        const response = await fetch('/api/character-vlog/shots/generate-image', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            shotId,
+            videoId,
+            frame, // "image" for 1F mode, "start"/"end" for 2F mode
+            ...(sceneImageModel && { imageModel: sceneImageModel }), // Only include if explicitly set
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Failed to generate image' }));
+          throw new Error(errorData.error || 'Failed to generate image');
         }
       }
       
-      const socialPlatforms = data.selectedPlatforms.filter(p => p !== "youtube");
-      if (socialPlatforms.length > 0) {
-        const socialMeta = data.platformMetadata.social;
-        if (!socialMeta || !socialMeta.caption) {
-          missingMetadata.push("Social Media (caption required)");
+      // Refresh shot versions from server to update UI with generated images
+      if (videoId) {
+        try {
+          console.log('[CharacterVlogWorkflow] Fetching fresh shot versions after single image generation...');
+          const videoResponse = await fetch(`/api/videos/${videoId}`, {
+            credentials: 'include',
+            headers: workspaceId ? { 'x-workspace-id': workspaceId } : {},
+          });
+
+          if (videoResponse.ok) {
+            const video = await videoResponse.json();
+            
+            // Update local state with new shot versions that have image URLs
+            if (video.step4Data?.shotVersions) {
+              console.log('[CharacterVlogWorkflow] ✅ Received fresh shot versions after single generation');
+              
+              // Deep clone to ensure React detects ALL changes (including nested arrays)
+              const freshShotVersions = JSON.parse(JSON.stringify(video.step4Data.shotVersions));
+              onShotVersionsChange(freshShotVersions);
+            }
+          }
+        } catch (error) {
+          console.error('[CharacterVlogWorkflow] ❌ Failed to refresh shot versions:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Image generation error:', error);
+      toast({
+        title: "Image Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate image",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setGeneratingShotIds(prev => {
+        const next = new Set(prev);
+        next.delete(shotId);
+        return next;
+      });
+    }
+  };
+
+  // Batch image generation for all shots in a specific scene
+  const handleGenerateSceneImages = async (sceneId: string) => {
+    if (!videoId) {
+      toast({
+        title: "Error",
+        description: "Video ID is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Find the scene to get the imageModel (if set)
+    const scene = scenes.find(s => s.id === sceneId);
+    const sceneImageModel = scene?.imageModel || null;
+
+    // Identify which shots need image generation (skip shots that already have images)
+    const sceneShots = shots[sceneId] || [];
+    const shotsNeedingImages: string[] = [];
+    
+    for (const shot of sceneShots) {
+      const versions = shotVersions[shot.id];
+      if (!versions || versions.length === 0) {
+        // No version exists yet, needs generation
+        shotsNeedingImages.push(shot.id);
+        continue;
+      }
+      
+      const latestVersion = versions[versions.length - 1];
+      
+      // Check what images are needed based on reference mode
+      let needsImage = false;
+      if (referenceMode === '1F') {
+        // 1F mode: needs single image
+        needsImage = !latestVersion.imageUrl;
+      } else {
+        // 2F mode: needs both start and end frames
+        // Skip if BOTH frames already exist (continuity logic handled by backend)
+        needsImage = !latestVersion.startFrameUrl || !latestVersion.endFrameUrl;
+      }
+      
+      if (needsImage) {
+        shotsNeedingImages.push(shot.id);
+      }
+    }
+    
+    if (shotsNeedingImages.length === 0) {
+      toast({
+        title: "Already Complete",
+        description: "All shots in this scene already have images.",
+      });
+      return;
+    }
+    
+    // Set generating state for shots that need images
+    setGeneratingShotIds(new Set(shotsNeedingImages));
+    setIsGeneratingImages(true);
+    
+    toast({
+      title: "Generating Scene Images",
+      description: `Starting image generation for ${shotsNeedingImages.length} of ${sceneShots.length} shots...`,
+    });
+
+    try {
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log('🎬 BATCH IMAGE GENERATION STARTED');
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log(`Scene ID: ${sceneId}`);
+      console.log(`Total shots to generate: ${shotsNeedingImages.length}`);
+      console.log(`Shot IDs: ${shotsNeedingImages.join(', ')}`);
+      console.log(`Reference Mode: ${referenceMode}`);
+      console.log('═══════════════════════════════════════════════════════════════════');
+      
+      // Generate each shot sequentially
+      for (let i = 0; i < shotsNeedingImages.length; i++) {
+        const shotId = shotsNeedingImages[i];
+        console.log(`\n📸 Generating shot ${i + 1}/${shotsNeedingImages.length}: ${shotId}`);
+        
+        // Generate images for this shot (respects continuity data)
+        const framesToGenerate = referenceMode === '1F' ? ['image'] : ['start', 'end'];
+        console.log(`   Frames to generate: ${framesToGenerate.join(', ')}`);
+        
+        for (const frame of framesToGenerate) {
+          console.log(`   🔄 Generating ${frame} frame...`);
+          const response = await fetch('/api/character-vlog/shots/generate-image', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              shotId,
+              videoId,
+              frame,
+              ...(sceneImageModel && { imageModel: sceneImageModel }), // Only include if explicitly set
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error(`   ❌ FAILED to generate ${frame} frame for shot ${shotId}:`, errorData);
+            // Continue with next shot instead of failing completely
+          } else {
+            // Wait for response to ensure backend has saved the image URL
+            const data = await response.json();
+            console.log(`   ✅ SUCCESS: Generated ${frame} frame for shot ${shotId}`);
+            console.log(`      Version ID: ${data.shotVersionId || data.version?.id || 'N/A'}`);
+            console.log(`      Has image URL: ${!!(data.imageUrl || data.startFrameUrl || data.endFrameUrl)}`);
+          }
+        }
+        
+        console.log(`   ✔️  Completed shot ${shotId}`);
+        
+        // Remove from generating set after this shot completes
+        setGeneratingShotIds(prev => {
+          const next = new Set(prev);
+          next.delete(shotId);
+          return next;
+        });
+      }
+      
+      console.log('\n═══════════════════════════════════════════════════════════════════');
+      console.log('✅ ALL IMAGES GENERATED - Starting data refresh...');
+      console.log('═══════════════════════════════════════════════════════════════════');
+      
+      // Wait a bit longer to ensure all database writes have completed
+      console.log('\n⏳ Waiting for database writes to complete...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      if (videoId) {
+        try {
+          console.log('\n🔄 Fetching updated data from server...');
+          console.log(`   Video ID: ${videoId}`);
+          const videoResponse = await fetch(`/api/videos/${videoId}`, {
+            credentials: 'include',
+            headers: workspaceId ? { 'x-workspace-id': workspaceId } : {},
+          });
+
+          if (videoResponse.ok) {
+            console.log('   ✅ Server response received');
+            const video = await videoResponse.json();
+            console.log('   📦 Video data parsed');
+            
+            // Update with shot versions from server (includes newly generated images)
+            if (video.step4Data?.shotVersions) {
+              console.log('\n📊 Processing shot versions from server:');
+              console.log(`   Total shots in database: ${Object.keys(video.step4Data.shotVersions).length}`);
+              console.log(`   Shots just generated: ${shotsNeedingImages.length}`);
+              
+              // DON'T merge with potentially stale closure - use fresh data from server!
+              // The server has the complete, correct state with all prompts and images
+              const freshShotVersions: { [shotId: string]: ShotVersion[] } = {};
+              
+              console.log('\n🔄 Cloning shot versions from server...');
+              // Deep clone ALL shot versions from server (not just the generated ones)
+              // This prevents the React closure stale state bug
+              Object.keys(video.step4Data.shotVersions).forEach(shotId => {
+                const versions = video.step4Data.shotVersions[shotId];
+                if (Array.isArray(versions) && versions.length > 0) {
+                  freshShotVersions[shotId] = versions.map((v: any) => ({
+                    ...v,
+                    createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
+                  }));
+                  
+                  // Log details for generated shots
+                  if (shotsNeedingImages.includes(shotId)) {
+                    const latestVersion = versions[versions.length - 1];
+                    console.log(`\n   📸 Shot ${shotId}:`);
+                    console.log(`      Version ID: ${latestVersion.id}`);
+                    console.log(`      Images: ${latestVersion?.imageUrl ? '✓ image' : ''}${latestVersion?.startFrameUrl ? ' ✓ start' : ''}${latestVersion?.endFrameUrl ? ' ✓ end' : ''}`);
+                    console.log(`      Prompts: ${latestVersion?.imagePrompt ? '✓ image' : ''}${latestVersion?.startFramePrompt ? ' ✓ start' : ''}${latestVersion?.endFramePrompt ? ' ✓ end' : ''}${latestVersion?.videoPrompt ? ' ✓ video' : ''}`);
+                  }
+                }
+              });
+              
+              console.log('\n🔄 Updating shotVersions state...');
+              // Replace entire state with fresh data from server
+              // The storyboard-editor will automatically use the latest version
+              // (No need to sync currentVersionId - the fallback handles it!)
+              onShotVersionsChange(freshShotVersions);
+              
+              console.log('\n═══════════════════════════════════════════════════════════════════');
+              console.log('✅ BATCH GENERATION COMPLETE!');
+              console.log('═══════════════════════════════════════════════════════════════════');
+              console.log(`✓ Generated ${shotsNeedingImages.length} shots`);
+              console.log(`✓ Updated ${Object.keys(freshShotVersions).length} shot versions`);
+              console.log('✓ All prompts preserved');
+              console.log('✓ All images ready to display');
+              console.log('═══════════════════════════════════════════════════════════════════');
+            } else {
+              console.warn('[CharacterVlogWorkflow] ⚠️ No shotVersions in response');
+            }
+          } else {
+            console.error('[CharacterVlogWorkflow] ❌ Failed to fetch video:', videoResponse.status);
+          }
+        } catch (error) {
+          console.error('[CharacterVlogWorkflow] ❌ Failed to refresh shot versions:', error);
         }
       }
       
-      if (missingMetadata.length > 0) {
-        toast({
-          title: "Missing platform metadata",
-          description: `Please fill in the metadata for: ${missingMetadata.join(", ")}`,
-          variant: "destructive",
-        });
-        return;
+      toast({
+        title: "Scene Images Generated",
+        description: `Successfully generated images for ${shotsNeedingImages.length} shots.`,
+      });
+    } catch (error) {
+      console.error('[CharacterVlogWorkflow] Scene image generation error:', error);
+      toast({
+        title: "Scene Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate images for the scene",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingImages(false);
+      setGeneratingShotIds(new Set());
+    }
+  };
+
+  // Batch video generation for all shots in a specific scene
+  const handleGenerateSceneVideos = async (sceneId: string) => {
+    if (!videoId) {
+      toast({
+        title: "Error",
+        description: "Video ID is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Identify which shots need video generation (have images but no videos)
+    const sceneShots = shots[sceneId] || [];
+    const shotsNeedingVideos: string[] = [];
+    
+    for (const shot of sceneShots) {
+      const versions = shotVersions[shot.id];
+      if (!versions || versions.length === 0) continue;
+      
+      const latestVersion = versions[versions.length - 1];
+      
+      // Check if shot has required images but no video based on mode
+      let hasRequiredImages: boolean;
+      if (referenceMode === '1F') {
+        hasRequiredImages = !!latestVersion.imageUrl;
+      } else {
+        // 2F mode: needs both frames
+        hasRequiredImages = !!(latestVersion.startFrameUrl && latestVersion.endFrameUrl);
+      }
+      
+      const hasVideo = !!latestVersion.videoUrl;
+      
+      // Need video if we have images but no video
+      if (hasRequiredImages && !hasVideo) {
+        shotsNeedingVideos.push(shot.id);
       }
     }
+    
+    if (shotsNeedingVideos.length === 0) {
+      toast({
+        title: "Already Complete",
+        description: "All shots in this scene already have videos, or are missing images.",
+      });
+      return;
+    }
+    
+    // Set generating state for shots that need videos
+    setGeneratingVideoShotIds(new Set(shotsNeedingVideos));
+    setIsGeneratingVideos(true);
+    
+    toast({
+      title: "Generating Scene Videos",
+      description: `Starting video generation for ${shotsNeedingVideos.length} of ${sceneShots.length} shots...`,
+    });
 
-    if (data.selectedPlatforms.length > 0 && data.publishType === "schedule") {
-      if (!data.scheduleDate || !data.scheduleTime) {
-        toast({
-          title: "Missing schedule information",
-          description: "Please select both date and time for scheduled publishing.",
-          variant: "destructive",
+    try {
+      // Generate each shot sequentially
+      for (const shotId of shotsNeedingVideos) {
+        const response = await fetch(`/api/character-vlog/videos/${videoId}/shots/${shotId}/generate-video`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+          },
+          credentials: 'include',
+          body: JSON.stringify({}), // No body needed - params are in URL
         });
-        return;
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error(`Failed to generate video for shot ${shotId}:`, errorData);
+          // Continue with next shot instead of failing completely
+        }
+        
+        // Remove from generating set after this shot completes
+        setGeneratingVideoShotIds(prev => {
+          const next = new Set(prev);
+          next.delete(shotId);
+          return next;
+        });
       }
-    }
+      
+      // Refresh shot versions from server to update UI with generated videos
+      if (videoId) {
+        try {
+          const videoResponse = await fetch(`/api/videos/${videoId}`, {
+            credentials: 'include',
+            headers: workspaceId ? { 'x-workspace-id': workspaceId } : {},
+          });
 
-    if (data.selectedPlatforms.length === 0) {
+          if (videoResponse.ok) {
+            const video = await videoResponse.json();
+            
+            // Update local state with new shot versions that have video URLs
+            if (video.step4Data?.shotVersions) {
+              console.log('[CharacterVlogWorkflow] Updating shotVersions from server after video generation:', {
+                shotVersionsCount: Object.keys(video.step4Data.shotVersions).length,
+              });
+              onShotVersionsChange(video.step4Data.shotVersions);
+            }
+          }
+        } catch (error) {
+          console.error('[CharacterVlogWorkflow] Failed to refresh shot versions:', error);
+        }
+      }
+      
       toast({
-        title: "Export started!",
-        description: `Your character vlog is being exported in ${data.resolution}. You'll be notified when it's ready.`,
+        title: "Scene Videos Generated",
+        description: `Successfully generated videos for ${shotsNeedingVideos.length} shots.`,
       });
-    } else if (data.publishType === "instant") {
-      const platformNames = data.selectedPlatforms.join(", ");
+    } catch (error) {
+      console.error('[CharacterVlogWorkflow] Scene video generation error:', error);
       toast({
-        title: "Export & Publishing!",
-        description: `Your character vlog is being exported and will be published to ${platformNames}.`,
+        title: "Scene Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate videos for the scene",
+        variant: "destructive",
       });
-    } else {
-      const platformNames = data.selectedPlatforms.join(", ");
-      const scheduleDateTime = `${data.scheduleDate} at ${data.scheduleTime}`;
+    } finally {
+      setIsGeneratingVideos(false);
+      setGeneratingVideoShotIds(new Set());
+    }
+  };
+
+  // Single video generation for one shot
+  const handleGenerateSingleVideo = async (shotId: string) => {
+    setGeneratingVideoShotIds(prev => new Set(prev).add(shotId));
+    
+    try {
+      const response = await fetch(`/api/character-vlog/videos/${videoId}/shots/${shotId}/generate-video`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({}), // No body needed - params are in URL
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to generate video' }));
+        throw new Error(errorData.error || 'Failed to generate video');
+      }
+
+      // Refresh shot versions from server to update UI with generated video
+      if (videoId) {
+        try {
+          const videoResponse = await fetch(`/api/videos/${videoId}`, {
+            credentials: 'include',
+            headers: workspaceId ? { 'x-workspace-id': workspaceId } : {},
+          });
+
+          if (videoResponse.ok) {
+            const video = await videoResponse.json();
+            
+            if (video.step4Data?.shotVersions) {
+              console.log('[CharacterVlogWorkflow] Updating shotVersions after single video generation');
+              onShotVersionsChange(video.step4Data.shotVersions);
+            }
+          }
+        } catch (error) {
+          console.error('[CharacterVlogWorkflow] Failed to refresh shot versions:', error);
+        }
+      }
+
       toast({
-        title: "Export & Scheduled!",
-        description: `Your character vlog will be exported and published to ${platformNames} on ${scheduleDateTime}.`,
+        title: "Video Generated",
+        description: "Video generated successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Video Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate video",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingVideoShotIds(prev => {
+        const next = new Set(prev);
+        next.delete(shotId);
+        return next;
       });
     }
-
-    console.log("Export data:", data);
   };
 
   const handleGenerateShot = async (shotId: string) => {
@@ -311,26 +854,46 @@ export function CharacterVlogWorkflow({
   };
 
   const handleUpdateShotVersion = (shotId: string, versionId: string, updates: Partial<ShotVersion>) => {
-    onShotVersionsChange(
-      Object.fromEntries(
-        Object.entries(shotVersions).map(([sid, versions]) => [
-          sid,
-          versions.map((version) =>
-            version.id === versionId && sid === shotId
-              ? { ...version, ...updates }
-              : version
-          ),
-        ])
-      )
+    const updatedShotVersions = Object.fromEntries(
+      Object.entries(shotVersions).map(([sid, versions]) => [
+        sid,
+        versions.map((version) =>
+          version.id === versionId && sid === shotId
+            ? { ...version, ...updates }
+            : version
+        ),
+      ])
     );
+    
+    onShotVersionsChange(updatedShotVersions);
+    
+    // Trigger debounced save when videoDuration or videoModel changes
+    if (updates.videoDuration !== undefined || updates.videoModel !== undefined) {
+      console.log('[CharacterVlogWorkflow] Shot version updated, triggering auto-save:', {
+        shotId,
+        versionId,
+        updates,
+      });
+      debouncedSaveStep3Data(scenes, shots, updatedShotVersions);
+    }
   };
 
   const handleUpdateScene = (sceneId: string, updates: Partial<Scene>) => {
-    onScenesChange(
-      scenes.map((scene) =>
-        scene.id === sceneId ? { ...scene, ...updates } : scene
-      )
+    const newScenes = scenes.map((scene) =>
+      scene.id === sceneId ? { ...scene, ...updates } : scene
     );
+    
+    onScenesChange(newScenes);
+    
+    // Trigger debounced save for model changes
+    if (updates.imageModel !== undefined || updates.videoModel !== undefined) {
+      debouncedSaveStep3Data(newScenes, shots);
+      console.log('[CharacterVlogWorkflow] Scene model changed, triggering auto-save:', {
+        sceneId,
+        imageModel: updates.imageModel,
+        videoModel: updates.videoModel,
+      });
+    }
   };
 
   const handleUploadShotReference = (shotId: string, file: File) => {
@@ -566,6 +1129,12 @@ export function CharacterVlogWorkflow({
           onGenresChange={onGenresChange}
           onTonesChange={onTonesChange}
           onLanguageChange={onLanguageChange}
+          backgroundMusicEnabled={backgroundMusicEnabled}
+          voiceoverLanguage={voiceoverLanguage}
+          textOverlayEnabled={textOverlayEnabled}
+          onBackgroundMusicEnabledChange={onBackgroundMusicEnabledChange}
+          onVoiceoverLanguageChange={onVoiceoverLanguageChange}
+          onTextOverlayEnabledChange={onTextOverlayEnabledChange}
           onNext={onNext}
         />
       )}
@@ -656,7 +1225,7 @@ export function CharacterVlogWorkflow({
                   cameraMovement: shot.cameraShot || "Static",
                   shotType: shot.shotType || "image-ref", // ✅ FIX: Preserve frame type (image-ref/start-end), not camera shot
                   soundEffects: null,
-                  duration: 3,
+                  duration: shot.duration || 5, // ✅ FIX: Use actual duration from shot generator
                   transition: "cut",
                   imageModel: null,
                   videoModel: null,
@@ -669,6 +1238,7 @@ export function CharacterVlogWorkflow({
           }}
           onContinuityGroupsChange={onContinuityGroupsChange}
           onContinuityLockedChange={onContinuityLockedChange}
+          onGeneratingChange={onSceneGeneratingChange}
           onNext={onNext}
         />
       )}
@@ -711,13 +1281,19 @@ export function CharacterVlogWorkflow({
           referenceImages={referenceImages}
           characters={characters}
           locations={locations}
-          voiceActorId={voiceActorId}
           voiceOverEnabled={voiceOverEnabled}
+          backgroundMusicEnabled={backgroundMusicEnabled}
+          voiceoverLanguage={voiceoverLanguage}
+          textOverlayEnabled={textOverlayEnabled}
           continuityLocked={continuityLocked}
           continuityGroups={continuityGroups}
           isCharacterVlogMode={true}
-          onVoiceActorChange={onVoiceActorChange}
+          step1ImageModel={imageModel}
+          step1VideoModel={videoModel}
           onVoiceOverToggle={onVoiceOverToggle}
+          onBackgroundMusicEnabledChange={onBackgroundMusicEnabledChange}
+          onVoiceoverLanguageChange={onVoiceoverLanguageChange}
+          onTextOverlayEnabledChange={onTextOverlayEnabledChange}
           onGenerateShot={handleGenerateShot}
           onRegenerateShot={handleRegenerateShot}
           onUpdateShot={handleUpdateShot}
@@ -732,21 +1308,60 @@ export function CharacterVlogWorkflow({
           onAddShot={handleAddShot}
           onDeleteScene={handleDeleteScene}
           onDeleteShot={handleDeleteShot}
+          onGenerateSceneImages={handleGenerateSceneImages}
+          isGeneratingImages={isGeneratingImages}
+          generatingShotIds={generatingShotIds}
+          onGenerateSceneVideos={handleGenerateSceneVideos}
+          isGeneratingVideos={isGeneratingVideos}
+          generatingVideoShotIds={generatingVideoShotIds}
+          onGenerateSingleVideo={handleGenerateSingleVideo}
+          onGenerateSingleImage={handleGenerateSingleImage}
           onNext={onNext}
         />
       )}
 
       {activeStep === "animatic" && (
-        <AnimaticPreview 
-          script={script}
+        <SoundscapeTab
+          videoId={videoId}
           scenes={scenes}
           shots={shots}
-          onNext={onNext} 
+          shotVersions={shotVersions}
+          voiceoverEnabled={voiceOverEnabled}
+          voiceoverLanguage={voiceoverLanguage}
+          voiceoverScript={voiceoverScript}
+          voiceoverAudioUrl={voiceoverAudioUrl}
+          voiceoverDuration={voiceoverDuration}
+          selectedVoiceId={selectedVoiceId}
+          soundEffects={soundEffects}
+          backgroundMusicEnabled={backgroundMusicEnabled}
+          generatedMusicUrl={generatedMusicUrl}
+          generatedMusicDuration={generatedMusicDuration}
+          onVoiceoverScriptChange={onVoiceoverScriptChange}
+          onVoiceoverAudioGenerated={onVoiceoverAudioGenerated}
+          onMusicGenerated={onMusicGenerated}
+          onVoiceChange={onVoiceChange}
+          onSoundEffectsUpdate={onSoundEffectsUpdate}
+        />
+      )}
+
+      {activeStep === "preview" && (
+        <PreviewTab
+          ref={previewTabRef}
+          videoId={videoId}
         />
       )}
 
       {activeStep === "export" && (
-        <ExportSettings onExport={handleExport} />
+        <ExportTab
+          videoId={videoId}
+          videoTitle={script.split('\n')[0]?.slice(0, 50) || 'Character Vlog'}
+          duration={Object.values(shots).flat().reduce((total, shot) => total + (shot.duration || 5), 0)}
+          sceneCount={scenes.length}
+          aspectRatio={aspectRatio}
+          hasVoiceover={voiceOverEnabled && !!voiceoverAudioUrl}
+          hasMusic={backgroundMusicEnabled && !!generatedMusicUrl}
+          imageModel={imageModel}
+        />
       )}
     </div>
   );

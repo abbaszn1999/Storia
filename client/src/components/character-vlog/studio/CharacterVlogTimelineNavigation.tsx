@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 interface CharacterVlogTimelineNavigationProps {
   currentStep: VlogStepId;
   completedSteps: VlogStepId[];
+  highestStepReached?: number;
   onStepClick: (step: VlogStepId) => void;
   onNext: () => void;
   onBack: () => void;
@@ -20,6 +21,7 @@ interface CharacterVlogTimelineNavigationProps {
 export function CharacterVlogTimelineNavigation({
   currentStep,
   completedSteps,
+  highestStepReached = 0,
   onStepClick,
   onNext,
   onBack,
@@ -31,26 +33,26 @@ export function CharacterVlogTimelineNavigation({
   const isLastStep = currentIndex === VLOG_STEPS.length - 1;
 
   const getStepStatus = (stepId: VlogStepId) => {
+    const stepIndex = VLOG_STEPS.findIndex(s => s.id === stepId);
     if (completedSteps.includes(stepId)) return 'completed';
     if (stepId === currentStep) return 'active';
-    const stepIndex = VLOG_STEPS.findIndex(s => s.id === stepId);
-    if (stepIndex < currentIndex) return 'completed';
+    // Mark all steps up to highestStepReached as completed (visually)
+    if (stepIndex < currentIndex || stepIndex <= highestStepReached) return 'completed';
     return 'upcoming';
   };
 
   const canNavigateTo = (stepId: VlogStepId) => {
-    // Only allow navigation to:
-    // 1. The current step (user is already there)
-    // 2. Completed steps (steps that have been completed via Continue button)
-    // Future steps that haven't been completed are disabled
+    const stepIndex = VLOG_STEPS.findIndex(s => s.id === stepId);
+    
+    // Always allow navigation to:
+    // 1. Current step
+    // 2. Any step up to the highest step ever reached
+    // 3. Completed steps
     if (stepId === currentStep) return true;
+    if (stepIndex <= highestStepReached) return true; // Any step up to highest reached
     if (completedSteps.includes(stepId)) return true;
     
-    // Check if it's a previous step (should be completed)
-    const stepIndex = VLOG_STEPS.findIndex(s => s.id === stepId);
-    if (stepIndex < currentIndex) return true; // Allow going back to previous steps
-    
-    // Future steps are not clickable
+    // Future steps beyond highest reached are not clickable
     return false;
   };
 

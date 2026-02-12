@@ -1,4 +1,6 @@
 import { callTextModel } from "../../../ai/service";
+import { getIdeaPrompts } from "../prompts-loader";
+import type { StoryModeForPrompts } from "../prompts-loader";
 
 // Type for mode parameter
 export type StoryMode = "problem-solution" | "before-after" | "myth-busting" | "tease-reveal" | "auto-asmr";
@@ -72,11 +74,10 @@ function cleanStoryText(story: string): string {
  * @returns generateStory function configured for the specified mode
  */
 export async function createIdeaGenerator(mode: StoryMode) {
-  // Dynamic imports for mode-specific prompts and types
-  const promptsModule = await import(`../../${mode}/prompts/idea-prompts`);
-  // All story modes use the same types from shared
+  const modeForPrompts = mode as StoryModeForPrompts;
+  const promptsModule = getIdeaPrompts(modeForPrompts);
   const typesModule = await import(`../types`);
-  
+
   const { STORY_WRITER_SYSTEM_PROMPT, buildStoryUserPrompt } = promptsModule;
   
   // Types will be inferred from usage (any for now since we can't extract types from require)

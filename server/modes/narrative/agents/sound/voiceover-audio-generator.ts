@@ -15,6 +15,7 @@ import { writeFileSync, readFileSync, unlinkSync, existsSync, mkdirSync } from "
 import { randomUUID } from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
+import os from "os";
 import type { NarrativeVoiceoverAudioInput } from "../../types";
 
 const VOICEOVER_AUDIO_CONFIG = {
@@ -78,7 +79,8 @@ function getElevenLabsVoiceId(voiceId: string): string {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TEMP_DIR = path.join(__dirname, "../../../../../temp");
+const TEMP_DIR =
+  process.env.TEMP_DIR || path.join(os.tmpdir(), "storia-temp");
 
 // Ensure temp directory exists
 if (!existsSync(TEMP_DIR)) {

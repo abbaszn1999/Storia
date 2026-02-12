@@ -64,12 +64,8 @@ const UNIFIED_PROMPT_PRODUCER_OUTPUT_SCHEMA = {
             type: ["string", "null"],
             description: "Continuity notes for next shot (only for isFirstInGroup: true)",
           },
-          negativePrompt: {
-            type: "string",
-            description: "Things to avoid in generation (e.g., 'blurry, distorted, low quality')",
-          },
         },
-        required: ["shotId", "imagePrompts", "videoPrompt", "visualContinuityNotes", "negativePrompt"],
+        required: ["shotId", "imagePrompts", "videoPrompt", "visualContinuityNotes"],
         additionalProperties: false,
       },
       minItems: 1,
@@ -298,11 +294,6 @@ function parsePromptResponse(
         throw new Error(`Shot ${index + 1} has invalid "visualContinuityNotes" (must be string or null)`);
       }
 
-      // Validate negativePrompt
-      if (typeof shot.negativePrompt !== "string") {
-        throw new Error(`Shot ${index + 1} has invalid "negativePrompt" (must be string)`);
-      }
-
       // Validate explicit inheritance: If inheritedPrompts exists, AI should NOT have generated those fields
       // The routes will merge inherited prompts after this function returns
       if (inputShot.inheritedPrompts) {
@@ -346,7 +337,6 @@ function parsePromptResponse(
         },
         videoPrompt: shot.videoPrompt,
         visualContinuityNotes: shot.visualContinuityNotes || null,
-        negativePrompt: shot.negativePrompt || "",
       };
     });
 

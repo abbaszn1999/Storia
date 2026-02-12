@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useSearch } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CharacterVlogStudioLayout, type VlogStepId } from "@/components/character-vlog/studio";
-import { CharacterVlogWorkflow } from "@/components/character-vlog/workflow";
+import { CharacterVlogWorkflow, type CharacterVlogWorkflowRef } from "@/components/character-vlog/workflow";
 import { CharacterVlogModeSelector } from "@/components/character-vlog/reference-mode-selector";
+import { GenerationLoading } from "@/components/character-vlog/generation-loading";
 import { getDefaultVideoModel } from "@/constants/video-models";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/contexts/workspace-context";
@@ -20,6 +21,9 @@ export default function CharacterVlogMode() {
   const { toast } = useToast();
   const { currentWorkspace, isLoading: isWorkspaceLoading } = useWorkspace();
   const queryClient = useQueryClient();
+  
+  // Ref to access workflow methods (like getCurrentVolumes for preview)
+  const workflowRef = useRef<CharacterVlogWorkflowRef | null>(null);
   
   const initialVideoId = params.id || urlParams.get("id") || "new";
   const isNewVideo = initialVideoId === "new";
@@ -91,10 +95,14 @@ export default function CharacterVlogMode() {
         if (step1.aspectRatio) setAspectRatio(step1.aspectRatio);
         if (step1.videoModel) setVideoModel(step1.videoModel);
         if (step1.imageModel) setImageModel(step1.imageModel);
-        if (step1.voiceActorId !== undefined && step1.voiceActorId !== null) setVoiceActorId(step1.voiceActorId);
         if (step1.voiceOverEnabled !== undefined) setVoiceOverEnabled(step1.voiceOverEnabled);
         if (step1.numberOfScenes !== undefined) setNumberOfScenes(step1.numberOfScenes);
         if (step1.shotsPerScene !== undefined) setShotsPerScene(step1.shotsPerScene);
+        
+        // Load sound settings
+        if (step1.backgroundMusicEnabled !== undefined) setBackgroundMusicEnabled(step1.backgroundMusicEnabled);
+        if (step1.voiceoverLanguage !== undefined) setVoiceoverLanguage(step1.voiceoverLanguage);
+        if (step1.textOverlayEnabled !== undefined) setTextOverlayEnabled(step1.textOverlayEnabled);
       }
       
       // Restore step2Data
@@ -471,6 +479,18 @@ export default function CharacterVlogMode() {
         setVideoTitle(existingVideo.title);
       }
       
+      // Load step5Data (Sound)
+      if (existingVideo.step5Data && typeof existingVideo.step5Data === 'object') {
+        const step5 = existingVideo.step5Data as any;
+        if (step5.voiceoverScript) setVoiceoverScript(step5.voiceoverScript);
+        if (step5.voiceoverAudioUrl) setVoiceoverAudioUrl(step5.voiceoverAudioUrl);
+        if (step5.voiceoverDuration) setVoiceoverDuration(step5.voiceoverDuration);
+        if (step5.voiceId) setSelectedVoiceId(step5.voiceId);
+        if (step5.soundEffects) setSoundEffects(step5.soundEffects);
+        if (step5.generatedMusicUrl) setGeneratedMusicUrl(step5.generatedMusicUrl);
+        if (step5.generatedMusicDuration) setGeneratedMusicDuration(step5.generatedMusicDuration);
+      }
+      
       if (existingVideo.currentStep) {
         const stepMap: Record<number, VlogStepId> = {
           1: 'script',
@@ -478,15 +498,17 @@ export default function CharacterVlogMode() {
           3: 'scenes',
           4: 'storyboard',
           5: 'animatic',
-          6: 'export',
+          6: 'preview',
+          7: 'export',
         };
         const stepId = stepMap[existingVideo.currentStep];
         if (stepId) {
           setActiveStep(stepId);
           // Mark all previous steps as completed when loading an existing video
           // This ensures users can navigate back but not forward to uncompleted steps
-          const steps: VlogStepId[] = ["script", "elements", "scenes", "storyboard", "animatic", "export"];
+          const steps: VlogStepId[] = ["script", "elements", "scenes", "storyboard", "animatic", "preview", "export"];
           const currentIndex = steps.indexOf(stepId);
+          setHighestStepReached(currentIndex); // Track highest step reached
           const previousSteps = steps.slice(0, currentIndex);
           setCompletedSteps(previousSteps);
         }
@@ -496,6 +518,7 @@ export default function CharacterVlogMode() {
 
   const [activeStep, setActiveStep] = useState<VlogStepId>("script");
   const [completedSteps, setCompletedSteps] = useState<VlogStepId[]>([]);
+  const [highestStepReached, setHighestStepReached] = useState<number>(0); // Track furthest step visited
   const [direction, setDirection] = useState(1);
   const [canContinue, setCanContinue] = useState(true); // Enable Continue button by default for all steps
   const [script, setScript] = useState("");
@@ -504,12 +527,25 @@ export default function CharacterVlogMode() {
   const [videoModel, setVideoModel] = useState(getDefaultVideoModel().value);
   const [imageModel, setImageModel] = useState("nano-banana");
   const [narrationStyle, setNarrationStyle] = useState<"third-person" | "first-person">("first-person");
-  const [voiceActorId, setVoiceActorId] = useState<string | null>(null);
   const [voiceOverEnabled, setVoiceOverEnabled] = useState(true);
   const [theme, setTheme] = useState("urban");
   const [numberOfScenes, setNumberOfScenes] = useState<number | 'auto'>('auto');
   const [shotsPerScene, setShotsPerScene] = useState<number | 'auto'>('auto');
+  
+  // Sound settings (Step 1)
+  const [backgroundMusicEnabled, setBackgroundMusicEnabled] = useState(false);
+  const [voiceoverLanguage, setVoiceoverLanguage] = useState<'en' | 'ar'>('en');
+  const [textOverlayEnabled, setTextOverlayEnabled] = useState(false);
   const [characterPersonality, setCharacterPersonality] = useState("energetic");
+  
+  // Step 5 Sound data
+  const [voiceoverScript, setVoiceoverScript] = useState<string>("");
+  const [voiceoverAudioUrl, setVoiceoverAudioUrl] = useState<string | undefined>();
+  const [voiceoverDuration, setVoiceoverDuration] = useState<number | undefined>();
+  const [selectedVoiceId, setSelectedVoiceId] = useState<string | undefined>();
+  const [soundEffects, setSoundEffects] = useState<Record<string, { prompt?: string; audioUrl?: string; duration?: number; isGenerating?: boolean }>>({});
+  const [generatedMusicUrl, setGeneratedMusicUrl] = useState<string | undefined>();
+  const [generatedMusicDuration, setGeneratedMusicDuration] = useState<number | undefined>();
   const [userPrompt, setUserPrompt] = useState("");
   const [duration, setDuration] = useState("60");
   const [genres, setGenres] = useState<string[]>([]);
@@ -528,6 +564,9 @@ export default function CharacterVlogMode() {
   
   // Prompt generation progress state
   const [isGeneratingPrompts, setIsGeneratingPrompts] = useState(false);
+  
+  // Scene generation state (from scene-breakdown component)
+  const [isGeneratingScenes, setIsGeneratingScenes] = useState(false);
 
   // Auto-mark storyboard as completed if prompts exist (shotVersions has data)
   useEffect(() => {
@@ -765,8 +804,11 @@ export default function CharacterVlogMode() {
             genres,
             tones,
             language,
-            voiceActorId,
             voiceOverEnabled,
+            // Sound settings
+            backgroundMusicEnabled,
+            voiceoverLanguage,
+            textOverlayEnabled,
             // Script content
             userPrompt,
             script,
@@ -870,7 +912,7 @@ export default function CharacterVlogMode() {
       });
 
       // Navigate to Step 4 immediately and show progress modal
-      const steps: VlogStepId[] = ["script", "elements", "scenes", "storyboard", "animatic", "export"];
+      const steps: VlogStepId[] = ["script", "elements", "scenes", "storyboard", "animatic", "preview", "export"];
       const nextIndex = steps.indexOf(activeStep) + 1;
       if (nextIndex < steps.length) {
         const nextStep = steps[nextIndex];
@@ -1362,6 +1404,60 @@ export default function CharacterVlogMode() {
       return;
     }
 
+    // Handle preview step - save volumes and trigger export when continuing to export
+    if (activeStep === "preview") {
+      try {
+        const volumes = workflowRef.current?.getCurrentVolumes?.();
+        if (videoId && videoId !== "new") {
+          // Save volumes first
+          if (volumes) {
+            const saveResponse = await fetch(`/api/character-vlog/videos/${videoId}/preview/save-volumes`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+              },
+              credentials: 'include',
+              body: JSON.stringify({ volumes }),
+            });
+
+            if (saveResponse.ok) {
+              console.log('[character-vlog:index] Volumes saved before export:', volumes);
+            } else {
+              console.warn('[character-vlog:index] Failed to save volumes, continuing anyway');
+            }
+          }
+          
+          // Trigger continue-to-7 to initialize export and create step7Data
+          console.log('[character-vlog:index] Triggering continue-to-7...');
+          const continueResponse = await fetch(`/api/character-vlog/videos/${videoId}/step/6/continue-to-7`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+            },
+            credentials: 'include',
+            body: JSON.stringify({ volumes }),
+          });
+
+          if (continueResponse.ok) {
+            console.log('[character-vlog:index] Successfully transitioned to export phase');
+          } else {
+            const errorData = await continueResponse.json().catch(() => ({}));
+            console.warn('[character-vlog:index] Failed to initialize export:', errorData.error);
+            toast({
+              title: "Export Warning",
+              description: "Could not fully initialize export. Please try again if issues occur.",
+              variant: "destructive",
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[character-vlog:index] Error during preview to export transition:', error);
+        // Continue anyway - the export tab will handle errors gracefully
+      }
+    }
+
     console.log('[character-vlog:frontend] Proceeding to next step navigation:', {
       activeStep,
       completedSteps,
@@ -1371,7 +1467,7 @@ export default function CharacterVlogMode() {
       console.log('[character-vlog:frontend] Marking step as completed:', activeStep);
       setCompletedSteps([...completedSteps, activeStep]);
     }
-    const steps: VlogStepId[] = ["script", "elements", "scenes", "storyboard", "animatic", "export"];
+    const steps: VlogStepId[] = ["script", "elements", "scenes", "storyboard", "animatic", "preview", "export"];
     const currentIndex = steps.indexOf(activeStep);
     const nextIndex = currentIndex + 1;
     
@@ -1387,13 +1483,17 @@ export default function CharacterVlogMode() {
       console.log('[character-vlog:frontend] Navigating to step:', steps[nextIndex]);
       setCanContinue(true); // Enable continue button for the next step
       setActiveStep(steps[nextIndex]);
+      // Update highest step reached
+      if (nextIndex > highestStepReached) {
+        setHighestStepReached(nextIndex);
+      }
     } else {
       console.warn('[character-vlog:frontend] No next step available, at final step');
     }
   };
 
   const handleBack = () => {
-    const steps: VlogStepId[] = ["script", "elements", "scenes", "storyboard", "animatic", "export"];
+    const steps: VlogStepId[] = ["script", "elements", "scenes", "storyboard", "animatic", "preview", "export"];
     const currentIndex = steps.indexOf(activeStep);
     setDirection(-1);
     const prevIndex = currentIndex - 1;
@@ -1403,36 +1503,32 @@ export default function CharacterVlogMode() {
   };
 
   const handleStepClick = (stepId: VlogStepId) => {
-    const steps: VlogStepId[] = ["script", "elements", "scenes", "storyboard", "animatic", "export"];
+    const steps: VlogStepId[] = ["script", "elements", "scenes", "storyboard", "animatic", "preview", "export"];
     const currentIndex = steps.indexOf(activeStep);
     const targetIndex = steps.indexOf(stepId);
     
-    // Special case: Allow navigation to storyboard if prompts exist (shotVersions has data)
+    // Allow navigation to:
+    // 1. Current step
+    // 2. Any step up to the highest step reached
+    // 3. Completed steps
+    // 4. Storyboard if prompts exist
     const hasPrompts = Object.keys(shotVersions).length > 0;
     const isStoryboardWithPrompts = stepId === 'storyboard' && hasPrompts;
+    const isWithinReached = targetIndex <= highestStepReached;
+    const isCompletedStep = completedSteps.includes(stepId);
     
-    // Prevent navigation to future steps that haven't been completed
-    // Only allow:
-    // 1. Current step (redundant but safe)
-    // 2. Completed steps
-    // 3. Previous steps (going back)
-    // 4. Storyboard step if prompts exist (even if not explicitly marked as completed)
-    if (stepId !== activeStep && !completedSteps.includes(stepId) && !isStoryboardWithPrompts && targetIndex > currentIndex) {
-      console.warn('[character-vlog] Cannot navigate to future step:', stepId);
-      return; // Block navigation to future steps
+    // Only block navigation to steps beyond what's been reached
+    if (!isWithinReached && !isCompletedStep && !isStoryboardWithPrompts) {
+      console.warn('[character-vlog] Cannot navigate to unreached step:', stepId);
+      return;
     }
     
     // If navigating to storyboard with prompts, ensure it's marked as completed
     if (isStoryboardWithPrompts && !completedSteps.includes('storyboard')) {
-      setCompletedSteps(prev => {
-        if (!prev.includes('storyboard')) {
-          console.log('[character-vlog] Marking storyboard as completed (prompts exist)');
-          return [...prev, 'storyboard'];
-        }
-        return prev;
-      });
+      setCompletedSteps(prev => [...prev, 'storyboard']);
     }
     
+    console.log('[character-vlog] Navigating to step:', stepId, { targetIndex, highestStepReached });
     setDirection(targetIndex > currentIndex ? 1 : -1);
     setActiveStep(stepId);
   };
@@ -1507,7 +1603,7 @@ export default function CharacterVlogMode() {
     return (
       <CharacterVlogModeSelector 
         onSelectMode={handleReferenceModeSelect}
-        title="Narrative Mode"
+        title="Character Mode"
         description="Choose how to generate your video animations"
         creatingMode={creatingMode}
       />
@@ -1523,17 +1619,19 @@ export default function CharacterVlogMode() {
     <CharacterVlogStudioLayout
       currentStep={activeStep}
       completedSteps={completedSteps}
+      highestStepReached={highestStepReached}
       direction={direction}
       onStepClick={handleStepClick}
       onNext={handleNext}
       onBack={handleBack}
       videoTitle={videoTitle}
-      isNextDisabled={isGeneratingPrompts} // Disable Continue button during prompt generation
+      isNextDisabled={isGeneratingPrompts || isGeneratingScenes} // Disable Continue button during generation
     >
             <CharacterVlogWorkflow 
               activeStep={activeStep}
               videoId={videoId}
               workspaceId={workspaceId || ''}
+              workflowRef={workflowRef}
               narrativeMode={narrativeMode}
               referenceMode={referenceMode}
               script={script}
@@ -1542,7 +1640,6 @@ export default function CharacterVlogMode() {
               videoModel={videoModel}
               imageModel={imageModel}
               narrationStyle={narrationStyle}
-              voiceActorId={voiceActorId}
               voiceOverEnabled={voiceOverEnabled}
         theme={theme}
         numberOfScenes={numberOfScenes}
@@ -1565,8 +1662,13 @@ export default function CharacterVlogMode() {
               onVideoModelChange={setVideoModel}
               onImageModelChange={setImageModel}
               onNarrationStyleChange={setNarrationStyle}
-              onVoiceActorChange={setVoiceActorId}
               onVoiceOverToggle={setVoiceOverEnabled}
+              backgroundMusicEnabled={backgroundMusicEnabled}
+              voiceoverLanguage={voiceoverLanguage}
+              textOverlayEnabled={textOverlayEnabled}
+              onBackgroundMusicEnabledChange={setBackgroundMusicEnabled}
+              onVoiceoverLanguageChange={setVoiceoverLanguage}
+              onTextOverlayEnabledChange={setTextOverlayEnabled}
         onThemeChange={setTheme}
         onNumberOfScenesChange={setNumberOfScenes}
         onShotsPerSceneChange={setShotsPerScene}
@@ -1584,58 +1686,57 @@ export default function CharacterVlogMode() {
               onReferenceImagesChange={setReferenceImages}
               onContinuityLockedChange={setContinuityLocked}
               onContinuityGroupsChange={setContinuityGroups}
+              onSceneGeneratingChange={setIsGeneratingScenes}
               onMainCharacterChange={setMainCharacter}
               onWorldSettingsChange={setWorldSettings}
+              // Step 5 Sound props
+              voiceoverScript={voiceoverScript}
+              voiceoverAudioUrl={voiceoverAudioUrl}
+              voiceoverDuration={voiceoverDuration}
+              selectedVoiceId={selectedVoiceId}
+              soundEffects={soundEffects}
+              generatedMusicUrl={generatedMusicUrl}
+              generatedMusicDuration={generatedMusicDuration}
+              onVoiceoverScriptChange={setVoiceoverScript}
+              onVoiceoverAudioGenerated={(audioUrl, duration) => {
+                setVoiceoverAudioUrl(audioUrl);
+                setVoiceoverDuration(duration);
+              }}
+              onSoundEffectsUpdate={setSoundEffects}
+              onMusicGenerated={(musicUrl, duration) => {
+                setGeneratedMusicUrl(musicUrl);
+                setGeneratedMusicDuration(duration);
+              }}
+              onVoiceChange={setSelectedVoiceId}
               onNext={handleNext}
             />
     </CharacterVlogStudioLayout>
     
-    {/* Prompt Generation Progress Dialog */}
-    <Dialog open={isGeneratingPrompts} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-md [&>button]:hidden">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Generating Prompts
-          </DialogTitle>
-          <DialogDescription>
-            Please wait while we generate prompts for all your scenes. This may take a few minutes.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">
-                {promptGenerationProgress.currentScene > 0 
-                  ? `Scene ${promptGenerationProgress.currentScene} of ${promptGenerationProgress.totalScenes}`
-                  : 'Preparing...'}
-              </span>
-              <span className="text-muted-foreground">
-                {promptGenerationProgress.totalShots > 0
-                  ? `${promptGenerationProgress.processedShots} / ${promptGenerationProgress.totalShots} shots`
-                  : ''}
-              </span>
-            </div>
-            <Progress 
-              value={
-                promptGenerationProgress.totalScenes > 0
-                  ? (promptGenerationProgress.currentScene / promptGenerationProgress.totalScenes) * 100
-                  : 0
-              } 
-              className="h-2"
-            />
-          </div>
-          {promptGenerationProgress.currentSceneName && (
-            <div className="text-sm text-muted-foreground">
-              <span className="font-medium">Current:</span> {promptGenerationProgress.currentSceneName}
-            </div>
-          )}
-          <div className="text-xs text-muted-foreground pt-2">
-            This process typically takes 2-4 minutes per scene. Please don't close this window.
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+    {/* Prompt Generation Progress - Beautiful Loading Screen */}
+    {isGeneratingPrompts && (
+      <GenerationLoading
+        title="Generating Storyboard"
+        description="Creating detailed prompts for your scenes and shots"
+        currentStep={
+          promptGenerationProgress.currentSceneName 
+            ? promptGenerationProgress.currentSceneName
+            : promptGenerationProgress.currentScene > 0
+              ? `Scene ${promptGenerationProgress.currentScene} of ${promptGenerationProgress.totalScenes}`
+              : undefined
+        }
+        progress={
+          promptGenerationProgress.totalScenes > 0
+            ? (promptGenerationProgress.currentScene / promptGenerationProgress.totalScenes) * 100
+            : 5
+        }
+        showDetails={promptGenerationProgress.totalShots > 0}
+        details={{
+          current: promptGenerationProgress.processedShots,
+          total: promptGenerationProgress.totalShots,
+          label: "shots"
+        }}
+      />
+    )}
     </>
   );
 }

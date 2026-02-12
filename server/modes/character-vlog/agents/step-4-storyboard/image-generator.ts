@@ -20,7 +20,6 @@ export interface StoryboardImageInput {
   imagePrompt: string | null; // For 1F mode
   startFramePrompt: string | null; // For 2F mode (null if inherited)
   endFramePrompt: string | null; // For 2F mode
-  negativePrompt?: string;
   referenceImages: string[]; // Character + location + style refs
   aspectRatio: string;
   imageModel: string;
@@ -46,13 +45,6 @@ export interface StoryboardImageOutput {
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════════════
-
-// Default negative prompt for storyboard images
-const DEFAULT_STORYBOARD_NEGATIVE_PROMPT = 
-  "blurry, low quality, distorted, extra limbs, watermark, text, " +
-  "cropped, out of frame, bad anatomy, deformed, disfigured, " +
-  "mutated, ugly, duplicate, morbid, mutilated, oversaturated, " +
-  "underexposed, overexposed, bad lighting, inconsistent style";
 
 // Aspect ratio to dimensions mapping
 // Based on common model capabilities (nano-banana, flux-2-dev, etc.)
@@ -86,7 +78,6 @@ function getDimensions(aspectRatio: string): { width: number; height: number } {
  */
 async function generateSingleImage(
   prompt: string,
-  negativePrompt: string,
   referenceImages: string[],
   width: number,
   height: number,
@@ -109,7 +100,6 @@ async function generateSingleImage(
     taskType: "imageInference",
     model: runwareModelId,
     positivePrompt: prompt,
-    negativePrompt,
     width,
     height,
     numberResults: 1,
@@ -183,7 +173,6 @@ export async function generateStoryboardImage(
     imagePrompt,
     startFramePrompt,
     endFramePrompt,
-    negativePrompt,
     referenceImages,
     aspectRatio,
     imageModel,
@@ -192,9 +181,6 @@ export async function generateStoryboardImage(
 
   // Get dimensions for aspect ratio
   const dimensions = getDimensions(aspectRatio);
-
-  // Use provided negative prompt or default
-  const finalNegativePrompt = negativePrompt || DEFAULT_STORYBOARD_NEGATIVE_PROMPT;
 
   // Generate a version ID (will be created/updated by the API endpoint)
   const shotVersionId = `version-${shotId}-${Date.now()}`;
@@ -240,7 +226,6 @@ export async function generateStoryboardImage(
 
       const result = await generateSingleImage(
         imagePrompt,
-        finalNegativePrompt,
         referenceImages,
         dimensions.width,
         dimensions.height,
@@ -276,7 +261,6 @@ export async function generateStoryboardImage(
 
         const startResult = await generateSingleImage(
           startFramePrompt,
-          finalNegativePrompt,
           referenceImages,
           dimensions.width,
           dimensions.height,
@@ -307,7 +291,6 @@ export async function generateStoryboardImage(
 
         const endResult = await generateSingleImage(
           endFramePrompt,
-          finalNegativePrompt,
           endReferenceImages,
           dimensions.width,
           dimensions.height,

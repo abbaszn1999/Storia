@@ -40,25 +40,7 @@ interface Step3StyleSettingsProps {
   imageCustomInstructions: string;
   onImageCustomInstructionsChange: (value: string) => void;
   
-  // Video Animation Mode settings
-  videoModel: string;
-  onVideoModelChange: (value: string) => void;
-  videoResolution: string;
-  onVideoResolutionChange: (value: string) => void;
-  motionPrompt: string;
-  onMotionPromptChange: (value: string) => void;
 }
-
-const VIDEO_MODELS = [
-  { value: 'kling-1.6', label: 'Kling 1.6', description: 'Smooth motion' },
-  { value: 'seedance-1.5-pro', label: 'Seedance 1.5 Pro', description: 'High quality' },
-  { value: 'runway-gen3', label: 'Runway Gen-3', description: 'High fidelity' },
-];
-
-const VIDEO_RESOLUTION_OPTIONS = [
-  { value: '720p', label: '720p', description: 'HD' },
-  { value: '1080p', label: '1080p', description: 'Full HD' },
-];
 
 export function Step3StyleSettings({
   animationMode,
@@ -72,12 +54,6 @@ export function Step3StyleSettings({
   onReferenceImagesChange,
   imageCustomInstructions,
   onImageCustomInstructionsChange,
-  videoModel,
-  onVideoModelChange,
-  videoResolution,
-  onVideoResolutionChange,
-  motionPrompt,
-  onMotionPromptChange,
 }: Step3StyleSettingsProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -343,74 +319,6 @@ export function Step3StyleSettings({
         </Card>
       </motion.div>
 
-      {/* Video Model & Motion (for video-animation mode only) */}
-      <AnimatePresence>
-        {animationMode === 'video-animation' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card className="relative overflow-hidden group hover:shadow-xl transition-all duration-300">
-              <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <CardContent className="relative z-10 p-6 space-y-4">
-                <Label className="text-lg font-semibold text-white">Video Generation</Label>
-                <p className="text-sm text-white/50">Model and motion settings for AI video generation</p>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs">Video Model</Label>
-                    <Select value={videoModel} onValueChange={onVideoModelChange}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {VIDEO_MODELS.map((model) => (
-                          <SelectItem key={model.value} value={model.value}>
-                            {model.label} - {model.description}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs">Video Resolution</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {VIDEO_RESOLUTION_OPTIONS.map((option) => (
-                        <Card
-                          key={option.value}
-                          className={`cursor-pointer transition-all duration-300 ${
-                            videoResolution === option.value
-                              ? 'border-cyan-500 bg-cyan-500/10'
-                              : 'hover:border-cyan-500/50'
-                          }`}
-                          onClick={() => onVideoResolutionChange(option.value)}
-                        >
-                          <CardContent className="p-2 text-center">
-                            <div className={`text-xs font-medium ${videoResolution === option.value ? 'text-cyan-500' : ''}`}>
-                              {option.label}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs">Motion Prompt (Optional)</Label>
-                  <Input
-                    placeholder="e.g., Slow zoom, gentle pan, subtle camera movement..."
-                    value={motionPrompt}
-                    onChange={(e) => onMotionPromptChange(e.target.value)}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Custom Image Instructions — matches original title, subtitle, and note */}
       <motion.div

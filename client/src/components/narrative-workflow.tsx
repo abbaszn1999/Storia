@@ -681,9 +681,11 @@ export function NarrativeWorkflow({
 
   const handleUpdateShotVersion = (shotId: string, versionId: string, updates: Partial<NarrativeShotVersion>) => {
     // Update local state only - API save happens on Generate/Regenerate button click
-    onShotVersionsChange(
+    // Use functional update to ensure we always have the latest state
+    // This is critical for video polling to prevent overwriting other shots' videos due to stale closure state
+    onShotVersionsChange((prevShotVersions: { [shotId: string]: NarrativeShotVersion[] }) =>
       Object.fromEntries(
-        Object.entries(shotVersions).map(([sid, versions]) => [
+        Object.entries(prevShotVersions).map(([sid, versions]) => [
           sid,
           versions.map((version) =>
             version.id === versionId && sid === shotId
@@ -1060,6 +1062,7 @@ export function NarrativeWorkflow({
             name: l.name,
             description: l.description || undefined,
           })) || []}
+          onValidationChange={onValidationChange}
           onScenesGenerated={(newScenes, newShots, newShotVersions) => {
             onScenesChange(newScenes);
             onShotsChange(newShots);

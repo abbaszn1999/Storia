@@ -1,5 +1,7 @@
 import { callTextModel } from "../../../ai/service";
 import type { StoryMode } from "./idea-generator";
+import { getStoryboardPrompts, getTransitionPrompts } from "../prompts-loader";
+import type { StoryModeForPrompts } from "../prompts-loader";
 
 const STORYBOARD_CONFIG = {
   provider: "openai" as const,
@@ -32,12 +34,11 @@ const VALIDATION = {
  * @returns enhanceStoryboard function configured for the specified mode
  */
 export async function createStoryboardEnhancer(mode: StoryMode) {
-  // Dynamic imports for mode-specific prompts and types
-  const storyboardPromptsModule = await import(`../../${mode}/prompts/storyboard-prompts`);
-  const transitionPromptsModule = await import(`../../${mode}/prompts/transition-prompts`);
-  // All story modes use the same types from shared
+  const modeForPrompts = mode as StoryModeForPrompts;
+  const storyboardPromptsModule = getStoryboardPrompts(modeForPrompts);
+  const transitionPromptsModule = getTransitionPrompts(modeForPrompts);
   const typesModule = await import(`../types`);
-  
+
   const {
     buildStoryboardEnhancerSystemPrompt,
     buildStoryboardUserPrompt,

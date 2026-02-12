@@ -28,6 +28,8 @@
 import { callAi } from "../../../ai/service";
 import { bunnyStorage, buildStoryModePath } from "../../../storage/bunny-storage";
 import type { StoryMode } from "./idea-generator";
+import { getMusicPrompts } from "../prompts-loader";
+import type { StoryModeForPrompts } from "../prompts-loader";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -40,9 +42,9 @@ import type { StoryMode } from "./idea-generator";
  * @returns generateMusic function configured for the specified mode
  */
 export async function createMusicGenerator(mode: StoryMode) {
-  // Dynamic imports for mode-specific prompts and types
-  const musicPromptsModule = await import(`../../${mode}/prompts/music-prompts`);
-  
+  const modeForPrompts = mode as StoryModeForPrompts;
+  const musicPromptsModule = getMusicPrompts(modeForPrompts);
+
   const {
     buildMusicPrompt,
     calculateMusicDuration,

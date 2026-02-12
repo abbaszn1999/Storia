@@ -15,10 +15,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Loader2, Sparkles, RefreshCw, Upload, Video, Image as ImageIcon, Edit, GripVertical, X, Volume2, Plus, Zap, Smile, User, Camera, Wand2, History, Settings2, ChevronRight, ChevronDown, Shirt, Eraser, Trash2, Play, Pause, Check, Link2, LayoutGrid, Clock, ArrowRight, Film } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { apiRequest } from "@/lib/queryClient";
 import type { Character, Location } from "@shared/schema";
 import type { Scene, Shot, ShotVersion, ReferenceImage } from "@/types/storyboard";
 import { MentionTextarea } from "./mention-textarea";
 import { VOICE_LIBRARY } from "@/constants/voice-library";
+import { VIDEO_MODELS as VIDEO_MODEL_CONFIGS, getVideoModelConfig, getAvailableVideoModels, isModelCompatible } from "@/constants/video-models";
+import { IMAGE_MODELS as IMAGE_MODEL_CONFIGS, getImageModelConfig, getDefaultImageModel } from "@/constants/image-models";
 import {
   DndContext,
   closestCenter,
@@ -37,29 +40,47 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-const VIDEO_MODELS = [
-  "Kling AI",
-  "Runway Gen-4",
-  "Luma Dream Machine",
-  "Pika 2.0",
-  "Veo 2",
-  "Minimax",
-];
+// Use actual video model values from config
+const VIDEO_MODELS = VIDEO_MODEL_CONFIGS.map(m => m.value);
 
+// Get display label for a video model value
+const getVideoModelLabel = (value: string): string => {
+  const config = getVideoModelConfig(value);
+  return config?.label || value;
+};
+
+// Get durations for a video model
+const getVideoModelDurations = (value: string): number[] => {
+  const config = getVideoModelConfig(value);
+  return config?.durations || [5, 10];
+};
+
+// Comprehensive list of all available image models (matching narrative mode)
 const IMAGE_MODELS = [
-  "Flux",
-  "Midjourney",
-  "Nano Banana",
-  "GPT Image",
+  { name: "flux-2-dev", label: "FLUX.2 Dev", description: "Open weights release with full architectural control" },
+  { name: "flux-2-pro", label: "FLUX.2 Pro", description: "Production-ready with robust reference-image editing" },
+  { name: "flux-2-flex", label: "FLUX.2 Flex", description: "Strongest text rendering accuracy in FLUX family" },
+  { name: "flux-2-max", label: "FLUX.2 Max", description: "Pinnacle of FLUX.2 family with professional-grade visual intelligence" },
+  { name: "openai-gpt-image-1", label: "GPT Image 1", description: "GPT-4o architecture for high-fidelity images" },
+  { name: "openai-gpt-image-1.5", label: "GPT Image 1.5", description: "Newest flagship powering ChatGPT Images" },
+  { name: "runway-gen-4-image", label: "Runway Gen-4 Image", description: "High-fidelity with advanced stylistic control" },
+  { name: "runway-gen-4-image-turbo", label: "Runway Gen-4 Image Turbo", description: "Faster variant for rapid iterations" },
+  { name: "kling-image-o1", label: "Kling IMAGE O1", description: "High-control for consistent character handling" },
+  { name: "ideogram-3.0", label: "Ideogram 3.0", description: "Design-level generation with sharper text rendering" },
+  { name: "nano-banana", label: "Nano Banana (Gemini Flash 2.5)", description: "Rapid, interactive workflows with multi-image fusion" },
+  { name: "nano-banana-2-pro", label: "Nano Banana 2 Pro (Gemini 3 Pro)", description: "Professional-grade with advanced text rendering" },
+  { name: "seedream-4.0", label: "Seedream 4.0", description: "Ultra-fast 2K/4K rendering with sequential image capabilities" },
+  { name: "seedream-4.5", label: "Seedream 4.5", description: "Production-focused with fixed face distortion" },
+  { name: "google-imagen-3.0", label: "Google Imagen 3.0", description: "High-quality images with advanced prompt understanding" },
+  { name: "google-imagen-4.0-ultra", label: "Google Imagen 4.0 Ultra", description: "Most advanced Google image model" },
+  { name: "midjourney-v7", label: "Midjourney V7", description: "Cinematic style with artistic and photorealistic capabilities" },
+  { name: "riverflow-2-max", label: "Riverflow 2 Max", description: "Maximum detail with high-quality output" },
 ];
 
-const VIDEO_MODEL_DURATIONS: { [key: string]: number[] } = {
-  "Kling AI": [5, 10],
-  "Runway Gen-4": [5, 10],
-  "Luma Dream Machine": [5],
-  "Pika 2.0": [3],
-  "Veo 2": [8],
-  "Minimax": [6],
+// Get display label for an image model value
+const getImageModelLabel = (value: string): string => {
+  const model = IMAGE_MODELS.find(m => m.name === value);
+  return model?.label || value;
 };
 
 const LIGHTING_OPTIONS = [
@@ -169,16 +190,25 @@ interface StoryboardEditorProps {
   referenceImages: ReferenceImage[];
   characters: Character[];
   locations: Location[];
-  voiceActorId: string | null;
+  voiceActorId?: string | null;  // Optional - voice selection moved to Step 5
   voiceOverEnabled: boolean;
+  backgroundMusicEnabled: boolean;
+  voiceoverLanguage: 'en' | 'ar';
+  textOverlayEnabled: boolean;
   continuityLocked: boolean;
   continuityGroups: { [sceneId: string]: any[] };
   isCommerceMode?: boolean;
   isLogoMode?: boolean;
   isCharacterVlogMode?: boolean;
-  onVoiceActorChange: (voiceActorId: string) => void;
+  step1ImageModel?: string;  // Image model from Step 1 (fallback for scene dropdowns)
+  step1VideoModel?: string;  // Video model from Step 1 (fallback for scene dropdowns)
+  onVoiceActorChange?: (voiceActorId: string) => void;  // Optional - voice selection moved to Step 5
   onVoiceOverToggle: (enabled: boolean) => void;
+  onBackgroundMusicEnabledChange: (enabled: boolean) => void;
+  onVoiceoverLanguageChange: (language: 'en' | 'ar') => void;
+  onTextOverlayEnabledChange: (enabled: boolean) => void;
   onGenerateShot: (shotId: string) => void;
+  onGenerateSingleImage?: (shotId: string) => Promise<void>;  // Generate image for single shot
   onRegenerateShot: (shotId: string) => void;
   onUpdateShot: (shotId: string, updates: Partial<Shot>) => void;
   onUpdateShotVersion?: (shotId: string, versionId: string, updates: Partial<ShotVersion>) => void;
@@ -192,6 +222,13 @@ interface StoryboardEditorProps {
   onAddShot?: (sceneId: string, afterShotIndex: number) => void;
   onDeleteScene?: (sceneId: string) => void;
   onDeleteShot?: (shotId: string) => void;
+  onGenerateSceneImages?: (sceneId: string) => Promise<void>;  // Batch image generation for scene shots
+  isGeneratingImages?: boolean;  // True when batch image generation is in progress
+  generatingShotIds?: Set<string>;  // Shot IDs currently being generated
+  onGenerateSceneVideos?: (sceneId: string) => Promise<void>;  // Batch video generation for scene shots
+  isGeneratingVideos?: boolean;  // True when batch video generation is in progress
+  generatingVideoShotIds?: Set<string>;  // Shot IDs currently generating videos
+  onGenerateSingleVideo?: (shotId: string) => void;  // Generate/regenerate video for single shot
   onNext: () => void;
 }
 
@@ -345,17 +382,39 @@ function SortableShotCard({
   }, [version, activeFrame, narrativeMode, isConnectedToPrevious, previousShotVersion?.endFramePrompt, previousShotVersion?.endFrameUrl]);
 
   // Auto-sync: Watch previousShotVersion?.endFrameUrl and update current shot's start frame display
+  // ONLY if the start frame was actually inherited (not independently generated)
   useEffect(() => {
     if (isConnectedToPrevious && previousShotVersion?.endFrameUrl && narrativeMode === "start-end" && activeFrame === "start") {
-      // Previous shot's end frame was generated/regenerated - update current shot's start frame
-      if (onUpdateShotVersion && version) {
-        onUpdateShotVersion(shot.id, version.id, {
-          startFrameUrl: previousShotVersion.endFrameUrl,
-        });
+      // Check if this shot's start frame was actually inherited (marked in inheritance map)
+      // If the shot has its own generated start frame, DON'T overwrite it
+      const wasInherited = shotInheritedPrompt; // This indicates the start frame is meant to be inherited
+      
+      if (wasInherited && onUpdateShotVersion && version) {
+        // Only sync if the frame was inherited AND current start frame is missing or matches previous end frame
+        // This prevents overwriting independently generated start frames
+        const shouldSync = !version.startFrameUrl || version.startFrameUrl === previousShotVersion.endFrameUrl;
+        
+        if (shouldSync) {
+          console.log('[storyboard-editor] Auto-syncing inherited start frame from previous shot:', {
+            shotId: shot.id,
+            previousEndFrame: previousShotVersion.endFrameUrl,
+            currentStartFrame: version.startFrameUrl,
+          });
+          
+          onUpdateShotVersion(shot.id, version.id, {
+            startFrameUrl: previousShotVersion.endFrameUrl,
+          });
+        } else {
+          console.log('[storyboard-editor] Skipping auto-sync - shot has its own generated start frame:', {
+            shotId: shot.id,
+            currentStartFrame: version.startFrameUrl,
+            previousEndFrame: previousShotVersion.endFrameUrl,
+          });
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previousShotVersion?.endFrameUrl, isConnectedToPrevious, narrativeMode, activeFrame]);
+  }, [previousShotVersion?.endFrameUrl, isConnectedToPrevious, narrativeMode, activeFrame, shotInheritedPrompt]);
 
   // Generate image for a specific frame
   const handleGenerateImage = async (frame: "start" | "end" | "image") => {
@@ -515,17 +574,32 @@ function SortableShotCard({
     setGeneratingVideo(true);
 
     try {
+      // Send current video model and duration from the UI state
+      const requestBody = {
+        videoModel: shot.videoModel || sceneModel || undefined,
+        videoDuration: version?.videoDuration || shot.duration || undefined,
+      };
+
       const response = await fetch(`/api/character-vlog/videos/${videoId}/shots/${shot.id}/generate-video`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: 'include',
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
         console.error('[storyboard-editor] Video generation failed:', errorData);
+        
+        // Check if this is a content moderation error
+        if (errorData.isContentModerationError || response.status === 422) {
+          throw new Error(
+            `Content Moderation: ${errorData.error || 'The video model rejected this content due to safety guidelines. Try using a different video model or adjusting the prompt.'}`
+          );
+        }
+        
         throw new Error(errorData.error?.message || errorData.error || "Failed to generate video");
       }
 
@@ -998,8 +1072,8 @@ function SortableShotCard({
                         Scene Default {sceneImageModel ? `(${sceneImageModel})` : ""}
                       </SelectItem>
                       {IMAGE_MODELS.map((model) => (
-                        <SelectItem key={model} value={model}>
-                          {model}
+                        <SelectItem key={model.name} value={model.name}>
+                          {model.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1140,19 +1214,18 @@ function SortableShotCard({
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Duration</Label>
                   <Select
-                    value={version?.videoDuration?.toString() || ""}
+                    value={version?.videoDuration?.toString() || shot.duration?.toString() || "5"}
                     onValueChange={(value) => onUpdateVideoDuration(shot.id, parseInt(value))}
-                    disabled={!shot.videoModel && !sceneModel}
                   >
                     <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-[#FF4081]/30" data-testid={`select-video-duration-${shot.id}`}>
                       <SelectValue placeholder="Select duration" />
                     </SelectTrigger>
                     <SelectContent className="bg-black/90 border-white/[0.06]">
-                      {(shot.videoModel && VIDEO_MODEL_DURATIONS[shot.videoModel] 
-                        ? VIDEO_MODEL_DURATIONS[shot.videoModel]
-                        : sceneModel && VIDEO_MODEL_DURATIONS[sceneModel]
-                        ? VIDEO_MODEL_DURATIONS[sceneModel]
-                        : []
+                      {(shot.videoModel 
+                        ? getVideoModelDurations(shot.videoModel)
+                        : sceneModel
+                        ? getVideoModelDurations(sceneModel)
+                        : [5, 10]
                       ).map((duration) => (
                         <SelectItem key={duration} value={duration.toString()}>
                           {duration}s
@@ -1160,36 +1233,6 @@ function SortableShotCard({
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground">Sound Effects</Label>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 text-xs px-2"
-                      onClick={() => {
-                        const autoPrompt = `Ambient sounds for ${shot.shotType.toLowerCase()} shot${shot.description ? ': ' + shot.description : ''}`;
-                        onUpdateShot(shot.id, { soundEffects: autoPrompt });
-                        toast({
-                          title: "Sound effects generated",
-                          description: "Auto-generated sound effects prompt",
-                        });
-                      }}
-                      data-testid={`button-auto-generate-sound-${shot.id}`}
-                    >
-                      <Wand2 className="mr-1 h-3 w-3" />
-                      Automatically
-                    </Button>
-                  </div>
-                  <Textarea
-                    placeholder="Describe sound effects for this shot..."
-                    value={shot.soundEffects || ""}
-                    onChange={(e) => onUpdateShot(shot.id, { soundEffects: e.target.value })}
-                    className="min-h-[60px] text-xs resize-none bg-white/[0.02] border-white/[0.06] focus:border-[#FF4081]/50"
-                    data-testid={`textarea-sound-effects-${shot.id}`}
-                  />
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -1241,13 +1284,21 @@ export function StoryboardEditor({
   locations,
   voiceActorId,
   voiceOverEnabled,
+  backgroundMusicEnabled,
+  voiceoverLanguage,
+  textOverlayEnabled,
   continuityLocked,
   continuityGroups,
   isCommerceMode = false,
   isLogoMode = false,
   isCharacterVlogMode = false,
+  step1ImageModel,
+  step1VideoModel,
   onVoiceActorChange,
   onVoiceOverToggle,
+  onBackgroundMusicEnabledChange,
+  onVoiceoverLanguageChange,
+  onTextOverlayEnabledChange,
   onGenerateShot,
   onRegenerateShot,
   onUpdateShot,
@@ -1262,13 +1313,25 @@ export function StoryboardEditor({
   onAddShot,
   onDeleteScene,
   onDeleteShot,
+  onGenerateSceneImages,
+  isGeneratingImages = false,
+  generatingShotIds = new Set(),
+  onGenerateSceneVideos,
+  isGeneratingVideos = false,
+  generatingVideoShotIds = new Set(),
+  onGenerateSingleVideo,
+  onGenerateSingleImage,
   onNext,
 }: StoryboardEditorProps) {
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null);
+  const [activeEditFrame, setActiveEditFrame] = useState<"start" | "end">("start");
   const [editPrompt, setEditPrompt] = useState("");
   const [editChange, setEditChange] = useState("");
   const [activeCategory, setActiveCategory] = useState<"prompt" | "clothes" | "remove" | "expression" | "figure" | "camera" | "effects" | "variations" | null>(null);
   const [selectedCharacterId, setSelectedCharacterId] = useState<string>("");
+  const [selectedEditingModel, setSelectedEditingModel] = useState<string>("nano-banana");
+  const [isEditing, setIsEditing] = useState(false);
+  const [localVersionCache, setLocalVersionCache] = useState<{ [shotId: string]: ShotVersion[] }>({});
   const [localShots, setLocalShots] = useState(shots);
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
@@ -1289,6 +1352,13 @@ export function StoryboardEditor({
   const video2Ref = useRef<HTMLVideoElement>(null);
   const editReferenceInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Filter available image models for editing (only select models support editing)
+  const editingModels = IMAGE_MODELS.filter(model => 
+    ['nano-banana', 'nano-banana-2-pro', 'flux-2-pro', 'openai-gpt-image-1', 
+     'openai-gpt-image-1.5', 'runway-gen-4-image', 'runway-gen-4-image-turbo', 
+     'kling-image-o1'].includes(model.name)
+  );
 
   // Sync localShots with incoming shots prop to reflect updates
   useEffect(() => {
@@ -1403,40 +1473,227 @@ export function StoryboardEditor({
   const totalCount = allShots.length;
 
   // Helper to get current version of a shot
+  // ROBUST: Falls back to latest version when currentVersionId doesn't match
+  // This handles the case where client/server version IDs are different
   const getShotVersion = (shot: Shot): ShotVersion | null => {
-    if (!shot.currentVersionId) {
-      // Debug: log when shot has no currentVersionId
-      if (shotVersions[shot.id] && shotVersions[shot.id].length > 0) {
-        console.warn(`[storyboard-editor] Shot ${shot.id} has no currentVersionId but has ${shotVersions[shot.id].length} version(s)`, {
-          shotId: shot.id,
-          currentVersionId: shot.currentVersionId,
-          availableVersions: shotVersions[shot.id].map(v => v.id),
-        });
-      }
+    const versions = shotVersions[shot.id] || [];
+    
+    // If no versions exist at all, return null
+    if (versions.length === 0) {
       return null;
     }
-    const versions = shotVersions[shot.id] || [];
-    const version = versions.find((v) => v.id === shot.currentVersionId);
-    if (!version && versions.length > 0) {
-      console.warn(`[storyboard-editor] Shot ${shot.id} currentVersionId ${shot.currentVersionId} not found in versions`, {
-        shotId: shot.id,
-        currentVersionId: shot.currentVersionId,
-        availableVersions: versions.map(v => v.id),
-        versionsCount: versions.length,
-      });
+    
+    // If shot has a currentVersionId, try to find it
+    if (shot.currentVersionId) {
+      const version = versions.find((v) => v.id === shot.currentVersionId);
+      if (version) {
+        return version;
+      }
+      // Version ID not found - this happens when client/server IDs differ
+      // Fall back to latest version instead of returning null
+      console.log(`[storyboard-editor] Shot ${shot.id} version ID mismatch (expected: ${shot.currentVersionId}), using latest version`);
     }
-    return version || null;
+    
+    // Fallback: return the LATEST version (last in array)
+    // This ensures images always display even when IDs don't match
+    return versions[versions.length - 1];
   };
 
   // Helper to get the version being previewed (or active version if no preview)
   const getPreviewedVersion = (shot: Shot): ShotVersion | null => {
     const versions = shotVersions[shot.id] || [];
+    const cachedVersions = localVersionCache[shot.id] || [];
+    const allVersions = [...versions, ...cachedVersions.filter(cv => !versions.find(pv => pv.id === cv.id))];
     const previewId = previewVersions[shot.id];
     if (previewId) {
-      const preview = versions.find((v) => v.id === previewId);
+      const preview = allVersions.find((v) => v.id === previewId);
       if (preview) return preview;
     }
     return getShotVersion(shot);
+  };
+
+  // Helper: Build editing instruction based on category
+  const buildEditingInstruction = (
+    category: string | null,
+    editChange: string,
+    selectedCharacterId: string,
+    characters: Character[]
+  ): string => {
+    const char = selectedCharacterId ? characters.find(c => c.id === selectedCharacterId) : null;
+    
+    switch (category) {
+      case "prompt":
+        return editChange;
+      case "clothes":
+        return char 
+          ? `Change ${char.name}'s clothes to: ${editChange}`
+          : `Change the character's clothes to: ${editChange}`;
+      case "remove":
+        return `Remove ${editChange} from the image`;
+      case "expression":
+        return char
+          ? `Change ${char.name}'s expression to: ${editChange}`
+          : `Change the character's expression to: ${editChange}`;
+      case "figure":
+        return char
+          ? `Change ${char.name}'s view to: ${editChange}`
+          : `Change the character's view to: ${editChange}`;
+      case "effects":
+        return `Add ${editChange} effect to the image`;
+      case "camera":
+        // Camera category doesn't need text change, it uses rotation/zoom values
+        return `Adjust camera: rotation ${cameraRotation}°, vertical ${cameraVertical}, zoom ${cameraZoom}${cameraWideAngle ? ', wide-angle lens' : ''}`;
+      default:
+        return editChange;
+    }
+  };
+
+  /**
+   * Handle image editing API call
+   */
+  const handleEditImage = async () => {
+    if (!selectedShot) return;
+    
+    // Get selected version (from previewVersions or default to active)
+    const selectedVersionId = previewVersions[selectedShot.id] || selectedShot.currentVersionId;
+    const versions = shotVersions[selectedShot.id] || [];
+    const cachedVersions = localVersionCache[selectedShot.id] || [];
+    const allVersions = [...versions, ...cachedVersions.filter(cv => !versions.find(pv => pv.id === cv.id))];
+    const version = allVersions.find(v => v.id === selectedVersionId);
+    
+    if (!version) {
+      toast({
+        title: "No version found", 
+        variant: "destructive",
+        description: "Please select a version to edit"
+      });
+      return;
+    }
+
+    // Get the image URL based on mode and active frame
+    let imageUrl: string | null | undefined;
+    if (narrativeMode === "start-end") {
+      // For start-end mode, use the frame that's currently active in the dialog
+      imageUrl = activeEditFrame === "start" 
+        ? version.startFrameUrl 
+        : version.endFrameUrl;
+    } else {
+      // For image-reference mode, use imageUrl
+      imageUrl = version.imageUrl;
+    }
+    
+    if (!imageUrl) {
+      toast({ 
+        title: "No image to edit", 
+        variant: "destructive",
+        description: narrativeMode === "start-end" 
+          ? `The selected version doesn't have a ${activeEditFrame} frame`
+          : "The selected version doesn't have an image"
+      });
+      return;
+    }
+    
+    if (!selectedEditingModel) {
+      toast({ 
+        title: "Please select an editing model", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    if (!activeCategory) {
+      toast({ 
+        title: "Please select an editing category", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    // Camera category doesn't require editChange text
+    if (activeCategory !== "camera" && !editChange.trim()) {
+      toast({ 
+        title: "Please provide editing instructions", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    const instruction = buildEditingInstruction(
+      activeCategory,
+      editChange,
+      selectedCharacterId,
+      characters
+    );
+    
+    setIsEditing(true);
+    try {
+      const requestBody: any = {
+        versionId: version.id,
+        editCategory: activeCategory,
+        editingInstruction: instruction,
+        referenceImages: editReferenceImages.map(img => img.url),
+        characterId: selectedCharacterId || undefined,
+        imageModel: selectedEditingModel,
+      };
+      
+      // For start-end mode, pass which frame is being edited
+      if (narrativeMode === "start-end") {
+        requestBody.activeFrame = activeEditFrame;
+      }
+      
+      const response = await apiRequest('POST', `/api/character-vlog/videos/${videoId}/shots/${selectedShot.id}/edit-image`, requestBody);
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        toast({ 
+          title: "Edit failed", 
+          description: data.error,
+          variant: "destructive" 
+        });
+        return;
+      }
+      
+      // Update preview to show the new version with edited image
+      if (data.newVersionId && data.version) {
+        // Add the new version to local cache so it displays immediately
+        setLocalVersionCache(prev => {
+          const shotCache = prev[selectedShot.id] || [];
+          // Remove any existing version with the same ID (shouldn't happen, but just in case)
+          const filteredCache = shotCache.filter(v => v.id !== data.newVersionId);
+          return {
+            ...prev,
+            [selectedShot.id]: [...filteredCache, data.version]
+          };
+        });
+        
+        // Set the new version as the preview
+        setPreviewVersions(prev => ({
+          ...prev,
+          [selectedShot.id]: data.newVersionId
+        }));
+      }
+      
+      toast({ 
+        title: "Image edited successfully",
+        description: `New version ${data.version?.versionNumber || ''} created`
+      });
+      
+      // Clear edit inputs
+      setEditChange("");
+      setEditReferenceImages([]);
+      setActiveCategory(null);
+      setSelectedCharacterId("");
+    } catch (error: any) {
+      console.error('[character-vlog:storyboard-editor] Image editing error:', error);
+      toast({ 
+        title: "Edit failed", 
+        description: error.message || "Unknown error occurred",
+        variant: "destructive" 
+      });
+    } finally {
+      setIsEditing(false);
+    }
   };
 
   // Helper: Check if a shot is connected to the next shot in Start-End Frame mode
@@ -1673,15 +1930,27 @@ export function StoryboardEditor({
 
   const handleUpdateVideoPrompt = (shotId: string, prompt: string) => {
     const shot = allShots.find(s => s.id === shotId);
-    if (shot?.currentVersionId && onUpdateShotVersion) {
-      onUpdateShotVersion(shotId, shot.currentVersionId, { videoPrompt: prompt });
+    if (!shot) return;
+    
+    // Get version ID from currentVersionId or latest version in the array
+    const versions = shotVersions[shotId] || [];
+    const versionId = shot.currentVersionId || (versions.length > 0 ? versions[versions.length - 1].id : null);
+    
+    if (versionId && onUpdateShotVersion) {
+      onUpdateShotVersion(shotId, versionId, { videoPrompt: prompt });
     }
   };
 
   const handleUpdateVideoDuration = (shotId: string, duration: number) => {
     const shot = allShots.find(s => s.id === shotId);
-    if (shot?.currentVersionId && onUpdateShotVersion) {
-      onUpdateShotVersion(shotId, shot.currentVersionId, { videoDuration: duration });
+    if (!shot) return;
+    
+    // Get version ID from currentVersionId or latest version in the array
+    const versions = shotVersions[shotId] || [];
+    const versionId = shot.currentVersionId || (versions.length > 0 ? versions[versions.length - 1].id : null);
+    
+    if (versionId && onUpdateShotVersion) {
+      onUpdateShotVersion(shotId, versionId, { videoDuration: duration });
     }
   };
 
@@ -1803,7 +2072,7 @@ export function StoryboardEditor({
   };
 
   const handleSelectVoice = (voiceId: string) => {
-    onVoiceActorChange(voiceId);
+    onVoiceActorChange?.(voiceId);
     setVoiceDropdownOpen(false);
   };
 
@@ -2010,18 +2279,29 @@ export function StoryboardEditor({
                   
                   <div className="space-y-2">
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Image Model</Label>
+                      <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Image Model</Label>
                       <Select
-                        value={scene.imageModel || IMAGE_MODELS[0]}
+                        value={scene.imageModel || step1ImageModel || getDefaultImageModel().value}
                         onValueChange={(value) => onUpdateScene?.(scene.id, { imageModel: value })}
                       >
-                        <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-[#FF4081]/30" data-testid={`select-scene-image-model-${scene.id}`}>
-                          <SelectValue />
+                        <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-scene-image-model-${scene.id}`}>
+                          <SelectValue>
+                            {scene.imageModel ? getImageModelLabel(scene.imageModel) : (step1ImageModel ? getImageModelLabel(step1ImageModel) : getDefaultImageModel().label)}
+                          </SelectValue>
                         </SelectTrigger>
-                        <SelectContent className="bg-black/90 border-white/[0.06]">
-                          {IMAGE_MODELS.map((model) => (
-                            <SelectItem key={model} value={model}>
-                              {model}
+                        <SelectContent className="bg-[#0a0a0a] border-white/10">
+                          {IMAGE_MODEL_CONFIGS.filter(model => 
+                            !aspectRatio || model.aspectRatios.includes(aspectRatio)
+                          ).map((model) => (
+                            <SelectItem key={model.value} value={model.value} className="focus:bg-[#FF4081]/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-[#FF4081]/30 data-[state=checked]:to-[#FF6B4A]/30">
+                              <div className="flex items-center gap-2">
+                                <span>{model.label}</span>
+                                {model.badge && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-[#FF4081]/50 text-[#FF4081]">
+                                    {model.badge}
+                                  </Badge>
+                                )}
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -2029,18 +2309,48 @@ export function StoryboardEditor({
                     </div>
 
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Video Model</Label>
+                      <Label className="text-xs text-white/50 uppercase tracking-wider font-medium">Video Model</Label>
                       <Select
-                        value={scene.videoModel || VIDEO_MODELS[0]}
-                        onValueChange={(value) => onUpdateScene?.(scene.id, { videoModel: value })}
+                        value={scene.videoModel || step1VideoModel || VIDEO_MODELS[0]}
+                        onValueChange={(value) => {
+                          // Update scene video model
+                          onUpdateScene?.(scene.id, { videoModel: value });
+                          
+                          // Update shot durations to be compatible with new model
+                          const newModelDurations = getVideoModelDurations(value);
+                          sceneShots.forEach((shot) => {
+                            // Only update shots that don't have their own video model override
+                            if (!shot.videoModel) {
+                              const currentDuration = shot.duration || 5;
+                              if (!newModelDurations.includes(currentDuration)) {
+                                // Find nearest supported duration
+                                const nearest = newModelDurations.reduce((prev, curr) => 
+                                  Math.abs(curr - currentDuration) < Math.abs(prev - currentDuration) ? curr : prev
+                                );
+                                onUpdateShot(shot.id, { duration: nearest });
+                              }
+                            }
+                          });
+                        }}
                       >
-                        <SelectTrigger className="h-8 text-xs bg-white/[0.02] border-white/[0.06] hover:border-[#FF4081]/30" data-testid={`select-scene-video-model-${scene.id}`}>
-                          <SelectValue />
+                        <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10" data-testid={`select-scene-video-model-${scene.id}`}>
+                          <SelectValue>
+                            {scene.videoModel ? getVideoModelLabel(scene.videoModel) : getVideoModelLabel(VIDEO_MODELS[0])}
+                          </SelectValue>
                         </SelectTrigger>
-                        <SelectContent className="bg-black/90 border-white/[0.06]">
-                          {VIDEO_MODELS.map((model) => (
-                            <SelectItem key={model} value={model}>
-                              {model}
+                        <SelectContent className="bg-[#0a0a0a] border-white/10">
+                          {VIDEO_MODEL_CONFIGS.filter(model => 
+                            !aspectRatio || model.aspectRatios.includes(aspectRatio)
+                          ).map((model) => (
+                            <SelectItem key={model.value} value={model.value} className="focus:bg-[#FF4081]/20 focus:text-white data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-[#FF4081]/30 data-[state=checked]:to-[#FF6B4A]/30">
+                              <div className="flex items-center gap-2">
+                                <span>{model.label}</span>
+                                {model.badge && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-[#FF4081]/50 text-[#FF4081]">
+                                    {model.badge}
+                                  </Badge>
+                                )}
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -2090,25 +2400,54 @@ export function StoryboardEditor({
                       </>
                     )}
 
-                    <Button
-                      size="sm"
-                      className="w-full mt-2 bg-gradient-to-r from-[#FF4081] to-[#FF6B4A] hover:opacity-90 text-white"
-                      onClick={() => handleAnimateScene(scene.id, scene.title || 'Scene', sceneShots.length)}
-                      disabled={generatingSceneVideos === scene.id || sceneShots.length === 0}
-                      data-testid={`button-animate-scene-${scene.id}`}
-                    >
-                      {generatingSceneVideos === scene.id ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Animating...
-                        </>
-                      ) : (
-                        <>
-                          <Play className="mr-2 h-4 w-4" />
-                          Animate Scene's Shots
-                        </>
+                    {/* Generation Buttons */}
+                    <div className="space-y-2 mt-3">
+                      {/* Generate Images Button - Scene Specific */}
+                      {onGenerateSceneImages && (
+                        <Button
+                          size="sm"
+                          className="w-full bg-white/5 border border-white/10 hover:bg-white/10 text-white"
+                          onClick={() => onGenerateSceneImages(scene.id)}
+                          disabled={sceneShots.length === 0 || isGeneratingImages}
+                          data-testid={`button-generate-scene-images-${scene.id}`}
+                        >
+                          {isGeneratingImages && sceneShots.some(s => generatingShotIds.has(s.id)) ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Generating Images...
+                            </>
+                          ) : (
+                            <>
+                              <ImageIcon className="mr-2 h-4 w-4" />
+                              Generate Scene's Images
+                            </>
+                          )}
+                        </Button>
                       )}
-                    </Button>
+
+                      {/* Generate Videos Button - Scene Specific */}
+                      {onGenerateSceneVideos && (
+                        <Button
+                          size="sm"
+                          className="w-full bg-gradient-to-r from-[#FF4081] to-[#FF6B4A] hover:opacity-90 text-white"
+                          onClick={() => onGenerateSceneVideos(scene.id)}
+                          disabled={sceneShots.length === 0 || isGeneratingVideos}
+                          data-testid={`button-generate-scene-videos-${scene.id}`}
+                        >
+                          {isGeneratingVideos && sceneShots.some(s => generatingVideoShotIds.has(s.id)) ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Generating Videos...
+                            </>
+                          ) : (
+                            <>
+                              <Play className="mr-2 h-4 w-4" />
+                              Generate Scene's Videos
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
 
                     <div className="text-xs text-muted-foreground pt-2">
                       <div>{sceneShots.length} shots</div>
@@ -2144,6 +2483,43 @@ export function StoryboardEditor({
                           // Get previous shot's version for connected shots (to inherit end frame prompt)
                           const previousShot = getPreviousConnectedShot(scene.id, shotIndex);
                           const previousShotVersion = previousShot ? getShotVersion(previousShot) : null;
+                          
+                          // Calculate per-shot narrative mode based on shot data
+                          // Priority: shot.frameMode > version prompts > global narrativeMode
+                          let shotNarrativeMode: "image-reference" | "start-end" = narrativeMode;
+                          
+                          if (shot.frameMode) {
+                            // Use explicit frameMode if set
+                            shotNarrativeMode = shot.frameMode;
+                          } else if (version) {
+                            // Infer from version data: if has imagePrompt or imageUrl, it's image-reference
+                            // If has startFramePrompt/endFramePrompt or startFrameUrl/endFrameUrl, it's start-end
+                            const hasImageData = !!(version.imagePrompt || version.imageUrl);
+                            const hasStartEndData = !!(version.startFramePrompt || version.endFramePrompt || version.startFrameUrl || version.endFrameUrl);
+                            
+                            console.log(`[storyboard-editor] Shot ${shot.id} narrative mode detection:`, {
+                              shotId: shot.id,
+                              hasFrameMode: !!shot.frameMode,
+                              hasImageData,
+                              hasStartEndData,
+                              version: {
+                                imagePrompt: !!version.imagePrompt,
+                                imageUrl: !!version.imageUrl,
+                                startFramePrompt: !!version.startFramePrompt,
+                                endFramePrompt: !!version.endFramePrompt,
+                                startFrameUrl: !!version.startFrameUrl,
+                                endFrameUrl: !!version.endFrameUrl,
+                              },
+                              globalNarrativeMode: narrativeMode,
+                              calculatedMode: hasImageData && !hasStartEndData ? "image-reference" : hasStartEndData ? "start-end" : narrativeMode,
+                            });
+                            
+                            if (hasImageData && !hasStartEndData) {
+                              shotNarrativeMode = "image-reference";
+                            } else if (hasStartEndData) {
+                              shotNarrativeMode = "start-end";
+                            }
+                          }
 
                           return (
                             <>
@@ -2151,8 +2527,8 @@ export function StoryboardEditor({
                                 key={`${shot.id}-${isConnectedToPrevious}-${previousShotVersion?.id || 'none'}`}
                                 shot={shot}
                                 shotIndex={shotIndex}
-                                sceneModel={scene.videoModel || VIDEO_MODELS[0]}
-                                sceneImageModel={scene.imageModel || IMAGE_MODELS[0]}
+                                sceneModel={scene.videoModel || step1VideoModel || VIDEO_MODELS[0]}
+                                sceneImageModel={scene.imageModel || step1ImageModel || getDefaultImageModel().value}
                                 version={version}
                                 nextShotVersion={nextShotVersion}
                                 previousShotVersion={previousShotVersion}
@@ -2161,7 +2537,7 @@ export function StoryboardEditor({
                                 referenceImage={referenceImage}
                                 isGenerating={isGenerating}
                                 voiceOverEnabled={voiceOverEnabled}
-                                narrativeMode={narrativeMode}
+                                narrativeMode={shotNarrativeMode}
                                 aspectRatio={aspectRatio}
                                 isConnectedToNext={isConnectedToNext}
                                 showEndFrame={showEndFrame}
@@ -2184,7 +2560,7 @@ export function StoryboardEditor({
                               {/* Connection Link Icon and Add Shot Button */}
                               <div className="relative shrink-0 w-8 flex items-center justify-center">
                                 {/* Connection Link Icon - Always visible when connected (Start-End Mode Only) */}
-                                {narrativeMode === "start-end" && isConnectedToNext ? (
+                                {shotNarrativeMode === "start-end" && isConnectedToNext ? (
                                   <div 
                                     className="flex items-center justify-center w-8 h-8 rounded-full text-white shadow-lg border-2 border-[#FF4081]"
                                     style={{
@@ -2483,365 +2859,210 @@ export function StoryboardEditor({
       </div>
 
       {selectedShot && (
-        <Dialog open={!!selectedShot} onOpenChange={() => {
-          setSelectedShot(null);
-          setPreviewVersions({}); // Reset all preview state when closing
-          setCompareMode(false);
-          setCompareVersions([]);
-          setSyncedPlaying(false);
-          setEditReferenceImages([]); // Clear reference images when closing
-          setEditChange(""); // Clear edit change text
-          setCameraRotation(0); // Reset camera controls
-          setCameraVertical(0);
-          setCameraZoom(0);
-          setCameraWideAngle(false);
+        <Dialog open={!!selectedShot} onOpenChange={(open) => {
+          if (!open) {
+            setSelectedShot(null);
+            setActiveEditFrame("start");
+            setPreviewVersions({});
+            setCompareMode(false);
+            setCompareVersions([]);
+            setSyncedPlaying(false);
+            setEditReferenceImages([]);
+            setEditChange("");
+            setActiveCategory(null);
+            setSelectedCharacterId("");
+            setIsEditing(false);
+            setCameraRotation(0);
+            setCameraVertical(0);
+            setCameraZoom(0);
+            setCameraWideAngle(false);
+          }
         }}>
-          <DialogContent className="max-w-7xl h-[90vh] p-0 gap-0">
-            <div className="relative w-full h-full flex bg-background">
-              {/* Left Sidebar - Version History */}
-              <div className="w-56 border-r bg-muted/30 flex flex-col p-4">
-                <div className="mb-4">
-                  <h3 className="text-sm font-semibold mb-1">Shot {selectedShot.shotNumber}</h3>
-                  <p className="text-xs text-muted-foreground">Version History</p>
-                </div>
-                <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar">
-                  {shotVersions[selectedShot.id] && shotVersions[selectedShot.id]
-                    .sort((a, b) => a.versionNumber - b.versionNumber)
-                    .map((version) => {
-                      const isActive = version.id === selectedShot.currentVersionId;
-                      const isPreviewed = !compareMode && version.id === previewVersions[selectedShot.id];
-                      const isSelectedForCompare = compareVersions.includes(version.id);
-                      return (
-                        <div
-                          key={version.id}
-                          className={`relative group ${
-                            compareMode && isSelectedForCompare 
-                              ? "ring-2 ring-[#FF4081] rounded-md" 
-                              : isPreviewed
-                              ? "ring-2 ring-[#FF4081] rounded-md"
-                              : isActive
-                              ? "ring-2 ring-[#FF4081]/50 rounded-md"
-                              : "hover-elevate cursor-pointer"
-                          }`}
-                          onClick={() => {
-                            if (compareMode) {
-                              // Toggle selection for comparison
-                              if (isSelectedForCompare) {
-                                setCompareVersions(compareVersions.filter(id => id !== version.id));
-                              } else if (compareVersions.length < 2) {
-                                setCompareVersions([...compareVersions, version.id]);
-                              } else {
-                                toast({
-                                  title: "Maximum reached",
-                                  description: "You can only compare 2 versions at a time",
-                                });
-                              }
-                            } else {
-                              // Normal mode: set as preview version for this shot
-                              setPreviewVersions(prev => ({
-                                ...prev,
-                                [selectedShot.id]: version.id
-                              }));
-                            }
-                          }}
-                          data-testid={`version-thumbnail-${version.id}`}
-                        >
-                          <div className="aspect-video bg-muted rounded-md overflow-hidden">
-                            {version.imageUrl ? (
-                              <img
-                                src={version.imageUrl}
-                                alt={`v${version.versionNumber}`}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex items-center justify-center h-full">
-                                <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                              </div>
-                            )}
-                            
-                            {/* Play button overlay for video versions */}
-                            {version.videoUrl && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="bg-background/90 rounded-full p-2">
-                                  <Play className="h-4 w-4" />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Top left badges */}
-                          <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
-                            <Badge variant={isActive ? "default" : "secondary"} className="text-xs h-5">
-                              {isActive ? "Active" : `v${version.versionNumber}`}
-                            </Badge>
-                          </div>
-                          
-                          {/* Bottom left badges - Video/Image type and duration */}
-                          <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
-                            {version.videoUrl ? (
-                              <>
-                                <Badge variant="secondary" className="text-xs h-5 bg-background/90">
-                                  <Video className="h-3 w-3 mr-1" />
-                                  {version.videoDuration ? `${version.videoDuration}s` : 'Video'}
-                                </Badge>
-                              </>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs h-5 bg-background/90">
-                                <ImageIcon className="h-3 w-3 mr-1" />
-                                Image
-                              </Badge>
-                            )}
-                          </div>
-                          
-                          {!isActive && onDeleteVersion && (
-                            <Button
-                              size="icon"
-                              variant="destructive"
-                              className="absolute top-1.5 right-1.5 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDeleteVersion(selectedShot.id, version.id);
-                              }}
-                              data-testid={`button-delete-version-${version.id}`}
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-
-              {/* Main Content Area */}
-              <div className="relative flex-1 bg-gradient-to-br from-background via-muted/20 to-background flex flex-col">
-                {/* Compare Mode Toggle */}
-                <div className="absolute top-6 left-6 z-20">
-                  <Button
-                    variant={compareMode ? "default" : "outline"}
-                    onClick={() => {
-                      setCompareMode(!compareMode);
-                      setCompareVersions([]);
-                    }}
-                    data-testid="button-toggle-compare-mode"
-                  >
-                    <Link2 className="mr-2 h-4 w-4" />
-                    {compareMode ? "Exit Compare" : "Compare Versions"}
-                  </Button>
+          <DialogContent className="max-w-[95vw] w-[1400px] h-[90vh] p-0 gap-0 bg-[hsl(240,10%,4%)] border-[hsl(240,5%,15%)]">
+            <div className="flex flex-col h-full">
+              
+              {/* ═══════════════════════════════════════════════════════════════════
+                  HEADER - Title, Frame Selector, Close
+                  ═══════════════════════════════════════════════════════════════════ */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(240,5%,15%)] bg-[hsl(240,8%,6%)]">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-white">Shot {selectedShot.shotNumber}</h2>
+                    <p className="text-xs text-muted-foreground">Image Editor</p>
+                  </div>
                 </div>
                 
-                {/* Main Image or Video */}
-                {!compareMode ? (
-                  <div className="flex-1 flex items-center justify-center p-12 pb-32">
-                    {getPreviewedVersion(selectedShot)?.videoUrl ? (
-                      <video
-                        key={getPreviewedVersion(selectedShot)!.videoUrl}
-                        src={getPreviewedVersion(selectedShot)!.videoUrl!}
-                        controls
-                        className="max-w-full max-h-full rounded-lg shadow-2xl object-contain"
-                        style={{ maxHeight: "80vh" }}
-                        data-testid="video-player"
-                      />
-                    ) : getPreviewedVersion(selectedShot)?.imageUrl ? (
-                      <img
-                        src={getPreviewedVersion(selectedShot)!.imageUrl!}
-                        alt="Shot"
-                        className="max-w-full max-h-full object-contain rounded-lg"
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
-                        <ImageIcon className="h-32 w-32" />
-                        <p className="text-xl">No image generated yet</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* Compare Mode View */
-                  <div className="flex-1 flex flex-col p-6 pb-32">
-                    {/* Synchronized Playback Controls */}
-                    {compareVersions.length === 2 && (
-                      <div className="flex items-center justify-center mb-4">
-                        <div className="bg-background/95 backdrop-blur-md rounded-lg border shadow-lg p-3 flex items-center gap-4">
-                          <Label className="text-sm text-muted-foreground">Synchronized Playback:</Label>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleSyncedPlayPause}
-                            data-testid="button-synced-play-pause"
-                          >
-                            {syncedPlaying ? (
-                              <>
-                                <Pause className="mr-2 h-4 w-4" />
-                                Pause Both
-                              </>
-                            ) : (
-                              <>
-                                <Play className="mr-2 h-4 w-4" />
-                                Play Both
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className={`flex-1 ${compareVersions.length === 2 ? 'grid grid-cols-2 gap-4' : 'flex items-center justify-center'}`}>
-                      {compareVersions.length === 0 ? (
-                        <div className="text-center text-muted-foreground">
-                          <div>
-                            <p className="text-lg mb-2">Select versions to compare</p>
-                            <p className="text-sm">Click on version thumbnails in the sidebar to select them</p>
-                          </div>
-                        </div>
-                      ) : compareVersions.length === 1 ? (
-                        /* Single Version Preview */
-                        (() => {
-                          const version = shotVersions[selectedShot!.id]?.find(v => v.id === compareVersions[0]);
-                          if (!version) return null;
-                          
-                          return (
-                            <div className="flex flex-col gap-4 max-w-4xl w-full">
-                              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                                <div className="flex items-center gap-3">
-                                  <Badge variant="secondary">
-                                    Version {version.versionNumber}
-                                  </Badge>
-                                  <span className="text-sm text-muted-foreground">
-                                    Select another version to compare side-by-side
-                                  </span>
-                                </div>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => setCompareVersions([])}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                              <div className="flex-1 flex items-center justify-center bg-background/50 rounded-lg overflow-hidden">
-                                {version.videoUrl ? (
-                                  <video
-                                    src={version.videoUrl}
-                                    controls
-                                    className="w-full h-full rounded-lg shadow-2xl object-contain"
-                                    data-testid="compare-video-single"
-                                  />
-                                ) : version.imageUrl ? (
-                                  <img
-                                    src={version.imageUrl}
-                                    alt={`v${version.versionNumber}`}
-                                    className="w-full h-full object-contain rounded-lg"
-                                  />
-                                ) : (
-                                  <div className="flex items-center justify-center text-muted-foreground">
-                                    <ImageIcon className="h-16 w-16" />
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })()
-                      ) : (
-                        compareVersions.slice(0, 2).map((versionId, idx) => {
-                          const version = shotVersions[selectedShot!.id]?.find(v => v.id === versionId);
-                          if (!version) return null;
-                          const videoRef = idx === 0 ? video1Ref : video2Ref;
-                          
-                          return (
-                            <div key={versionId} className="flex flex-col gap-2">
-                              <div className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
-                                <Badge variant="secondary">
-                                  Version {version.versionNumber}
-                                </Badge>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    setCompareVersions(compareVersions.filter(id => id !== versionId));
-                                    setSyncedPlaying(false);
-                                  }}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                              <div className="flex-1 flex items-center justify-center bg-background/50 rounded-lg overflow-hidden">
-                                {version.videoUrl ? (
-                                  <video
-                                    ref={videoRef}
-                                    src={version.videoUrl}
-                                    controls
-                                    className="w-full h-full object-contain"
-                                    data-testid={`compare-video-${idx}`}
-                                    onPlay={() => {
-                                      if (syncedPlaying) setSyncedPlaying(true);
-                                    }}
-                                    onPause={() => {
-                                      if (syncedPlaying) setSyncedPlaying(false);
-                                    }}
-                                  />
-                                ) : version.imageUrl ? (
-                                  <img
-                                    src={version.imageUrl}
-                                    alt={`v${version.versionNumber}`}
-                                    className="w-full h-full object-contain"
-                                  />
-                                ) : (
-                                  <div className="flex items-center justify-center text-muted-foreground">
-                                    <ImageIcon className="h-16 w-16" />
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Action Bar - Above edit toolbar, shows when viewing non-active version */}
-                {!compareMode && previewVersions[selectedShot.id] && previewVersions[selectedShot.id] !== selectedShot.currentVersionId && (
-                  <div className="absolute top-6 right-6 z-20">
+                {/* Frame Selector (Start-End Mode) */}
+                {narrativeMode === "start-end" && getPreviewedVersion(selectedShot) && (
+                  <div className="flex items-center gap-1 bg-[hsl(240,8%,10%)] rounded-lg p-1 border border-[hsl(240,5%,20%)]">
                     <Button
-                      onClick={() => {
-                        const previewedVersion = getPreviewedVersion(selectedShot);
-                        if (previewedVersion && onSelectVersion) {
-                          onSelectVersion(selectedShot.id, previewedVersion.id);
-                          // Reset preview for this shot after activating
-                          setPreviewVersions(prev => {
-                            const { [selectedShot.id]: _, ...rest } = prev;
-                            return rest;
-                          });
-                          toast({
-                            title: "Version Activated",
-                            description: `Version ${previewedVersion.versionNumber} is now active`,
-                          });
-                        }
-                      }}
-                      className="bg-primary hover:bg-primary/90"
-                      data-testid="button-set-active-version"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setActiveEditFrame("start")}
+                      disabled={!getPreviewedVersion(selectedShot)?.startFrameUrl}
+                      className={`h-8 px-4 rounded-md transition-all ${
+                        activeEditFrame === "start" 
+                          ? "bg-gradient-to-r from-[#FF4081] to-[#FF6B4A] text-white shadow-lg" 
+                          : "text-muted-foreground hover:text-white hover:bg-white/5"
+                      }`}
+                      data-testid="button-select-start-frame"
                     >
-                      <Check className="mr-2 h-4 w-4" />
-                      Set as Active
+                      Start Frame
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setActiveEditFrame("end")}
+                      disabled={!getPreviewedVersion(selectedShot)?.endFrameUrl}
+                      className={`h-8 px-4 rounded-md transition-all ${
+                        activeEditFrame === "end" 
+                          ? "bg-gradient-to-r from-[#FF4081] to-[#FF6B4A] text-white shadow-lg" 
+                          : "text-muted-foreground hover:text-white hover:bg-white/5"
+                      }`}
+                      data-testid="button-select-end-frame"
+                    >
+                      End Frame
                     </Button>
                   </div>
                 )}
-
-                {/* Context Panel - Appears above toolbar based on active category */}
-                {activeCategory && (
-                  <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-10">
-                    <div className="bg-background/95 backdrop-blur-md rounded-lg border shadow-2xl p-4">
+              </div>
+              
+              {/* ═══════════════════════════════════════════════════════════════════
+                  MAIN CONTENT - Three Column Layout
+                  ═══════════════════════════════════════════════════════════════════ */}
+              <div className="flex flex-1 overflow-hidden">
+                
+                {/* ─────────────────────────────────────────────────────────────────
+                    LEFT SIDEBAR - Tool Selection
+                    ───────────────────────────────────────────────────────────────── */}
+                <div className="w-16 bg-[hsl(240,8%,6%)] border-r border-[hsl(240,5%,15%)] flex flex-col items-center py-4 gap-1">
+                  {[
+                    { id: "prompt", icon: Edit, label: "Edit" },
+                    { id: "clothes", icon: Shirt, label: "Clothes" },
+                    { id: "expression", icon: Smile, label: "Face" },
+                    { id: "figure", icon: User, label: "Pose" },
+                    { id: "camera", icon: Camera, label: "Camera" },
+                    { id: "effects", icon: Zap, label: "Effects" },
+                    { id: "remove", icon: Eraser, label: "Remove" },
+                  ].map((tool) => (
+                    <button
+                      key={tool.id}
+                      onClick={() => setActiveCategory(activeCategory === tool.id ? null : tool.id as any)}
+                      className={`relative flex flex-col items-center justify-center w-12 h-12 rounded-lg transition-all group ${
+                        activeCategory === tool.id
+                          ? "bg-gradient-to-br from-[#FF4081]/30 to-[#FF6B4A]/30 text-white"
+                          : "text-muted-foreground hover:text-white hover:bg-white/5"
+                      }`}
+                      data-testid={`button-tool-${tool.id}`}
+                    >
+                      {activeCategory === tool.id && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-gradient-to-b from-[#FF4081] to-[#FF6B4A] rounded-r" />
+                      )}
+                      <tool.icon className="h-5 w-5" />
+                      <span className="text-[10px] mt-0.5 opacity-70">{tool.label}</span>
+                    </button>
+                  ))}
+                </div>
+                
+                {/* ─────────────────────────────────────────────────────────────────
+                    CENTER - Image Canvas
+                    ───────────────────────────────────────────────────────────────── */}
+                <div className="flex-1 relative bg-[hsl(240,10%,4%)] flex items-center justify-center p-8 overflow-hidden">
+                  {/* Subtle grid pattern background */}
+                  <div className="absolute inset-0 opacity-[0.02]" style={{
+                    backgroundImage: `radial-gradient(circle at 1px 1px, white 1px, transparent 1px)`,
+                    backgroundSize: '24px 24px'
+                  }} />
+                  
+                  {(() => {
+                    const version = getPreviewedVersion(selectedShot);
+                    if (!version) {
+                      return (
+                        <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                          <div className="w-32 h-32 rounded-2xl bg-[hsl(240,8%,8%)] flex items-center justify-center">
+                            <ImageIcon className="h-16 w-16 opacity-50" />
+                          </div>
+                          <p className="text-lg font-medium">No image generated</p>
+                          <p className="text-sm opacity-60">Generate an image first to start editing</p>
+                        </div>
+                      );
+                    }
+                    
+                    // In edit image section, always show image (not video) even if video exists
+                    let imageUrl = version.imageUrl;
+                    if (narrativeMode === "start-end") {
+                      imageUrl = activeEditFrame === "start" 
+                        ? version.startFrameUrl 
+                        : version.endFrameUrl;
+                    }
+                    imageUrl = imageUrl || version.imageUrl || version.startFrameUrl || version.endFrameUrl;
+                    
+                    if (imageUrl) {
+                      return (
+                        <div className="relative group">
+                          <img
+                            src={imageUrl}
+                            alt="Shot"
+                            className="max-w-full max-h-[calc(90vh-280px)] object-contain rounded-xl shadow-2xl"
+                          />
+                          {/* Zoom indicator on hover */}
+                          <div className="absolute inset-0 rounded-xl ring-1 ring-white/10 pointer-events-none" />
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                        <ImageIcon className="h-24 w-24 opacity-50" />
+                        <p className="text-lg">No image available</p>
+                      </div>
+                    );
+                  })()}
+                </div>
+                
+                {/* ─────────────────────────────────────────────────────────────────
+                    RIGHT SIDEBAR - Context Panel (appears when tool selected)
+                    ───────────────────────────────────────────────────────────────── */}
+                <div className={`bg-[hsl(240,8%,6%)] border-l border-[hsl(240,5%,15%)] transition-all duration-300 overflow-hidden ${
+                  activeCategory ? "w-72" : "w-0"
+                }`}>
+                  {activeCategory && (
+                    <div className="w-72 p-4 h-full overflow-y-auto custom-scrollbar">
+                      {/* Model Selector - Always visible when editing */}
+                      <div className="mb-6">
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">AI Model</Label>
+                        <Select value={selectedEditingModel} onValueChange={setSelectedEditingModel}>
+                          <SelectTrigger className="bg-[hsl(240,8%,10%)] border-[hsl(240,5%,20%)] h-9">
+                            <SelectValue placeholder="Select a model" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[hsl(240,8%,8%)] border-[hsl(240,5%,20%)]">
+                            {editingModels.map((model) => (
+                              <SelectItem key={model.name} value={model.name}>
+                                {model.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="h-px bg-[hsl(240,5%,15%)] mb-6" />
+                      
+                      {/* Tool-specific controls */}
                       {activeCategory === "prompt" && (
-                        <div className="space-y-3">
-                          <Label className="text-sm text-muted-foreground">What would you like to change?</Label>
-                          <div className="flex items-center gap-2">
-                            <Input
+                        <div className="space-y-4">
+                          <div>
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Edit Instructions</Label>
+                            <textarea
                               value={editChange}
                               onChange={(e) => setEditChange(e.target.value)}
-                              placeholder="e.g., Make the sky darker and add dramatic lighting"
-                              className="bg-background/50 flex-1"
+                              placeholder="Describe your changes...&#10;e.g., Make the sky darker and add dramatic lighting"
+                              className="w-full h-32 bg-[hsl(240,8%,10%)] border border-[hsl(240,5%,20%)] rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#FF4081]/50 placeholder:text-muted-foreground/50"
                               data-testid="input-edit-change"
                             />
+                          </div>
+                          
+                          <div>
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Reference Images</Label>
                             <input
                               ref={editReferenceInputRef}
                               type="file"
@@ -2849,116 +3070,153 @@ export function StoryboardEditor({
                               multiple
                               className="hidden"
                               onChange={handleEditReferenceUpload}
-                              data-testid="input-edit-reference-upload"
                             />
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="outline"
+                            <button
                               onClick={() => editReferenceInputRef.current?.click()}
-                              className="shrink-0 bg-background/50 hover-elevate"
-                              title="Add reference image"
-                              data-testid="button-add-edit-reference"
+                              className="w-full h-20 border-2 border-dashed border-[hsl(240,5%,20%)] rounded-lg flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-[#FF4081]/50 hover:text-white transition-colors"
                             >
-                              <ImageIcon className="h-4 w-4" />
-                            </Button>
+                              <Plus className="h-5 w-5" />
+                              <span className="text-xs">Add Reference</span>
+                            </button>
+                            
+                            {editReferenceImages.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                {editReferenceImages.map((img) => (
+                                  <div key={img.id} className="relative group w-16 h-16 rounded-lg overflow-hidden border border-[hsl(240,5%,20%)]">
+                                    <img src={img.url} alt={img.name} className="w-full h-full object-cover" />
+                                    <button
+                                      onClick={() => handleRemoveEditReference(img.id)}
+                                      className="absolute top-1 right-1 p-1 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                          {editReferenceImages.length > 0 && (
-                            <div className="flex flex-wrap gap-2 pt-1">
-                              {editReferenceImages.map((img) => (
-                                <div
-                                  key={img.id}
-                                  className="relative group w-14 h-14 rounded-md overflow-hidden border bg-muted"
-                                >
-                                  <img
-                                    src={img.url}
-                                    alt={img.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                  <button
-                                    onClick={() => handleRemoveEditReference(img.id)}
-                                    className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-background/80 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                                    title="Remove reference"
-                                    data-testid={`button-remove-edit-reference-${img.id}`}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       )}
 
                       {(activeCategory === "clothes" || activeCategory === "expression" || activeCategory === "figure") && (
-                        <div className="space-y-3">
-                          <Label className="text-sm text-muted-foreground">Select Character</Label>
-                          <Select
-                            value={selectedCharacterId}
-                            onValueChange={setSelectedCharacterId}
-                            disabled={characters.length === 0}
-                          >
-                            <SelectTrigger className="bg-background/50">
-                              <SelectValue placeholder={characters.length === 0 ? "No characters available" : "Select a character"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {characters.map((char) => (
-                                <SelectItem key={char.id} value={char.id}>
-                                  {char.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <div className="space-y-4">
+                          <div>
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">
+                              Character
+                            </Label>
+                            {(() => {
+                              const version = getPreviewedVersion(selectedShot);
+                              let frameCharacterIds: string[] | null = null;
+                              
+                              if (version) {
+                                if (narrativeMode === "start-end") {
+                                  if (activeEditFrame === "start") {
+                                    frameCharacterIds = version.startFrameCharacters || version.characters || null;
+                                  } else if (activeEditFrame === "end") {
+                                    frameCharacterIds = version.endFrameCharacters || version.characters || null;
+                                  }
+                                } else {
+                                  frameCharacterIds = version.characters || null;
+                                }
+                              }
+                              
+                              const availableCharacters = frameCharacterIds && frameCharacterIds.length > 0
+                                ? characters.filter(char => frameCharacterIds!.includes(char.id))
+                                : characters;
+                              
+                              return availableCharacters.length > 0 ? (
+                                <div className="space-y-2">
+                                  {availableCharacters.map((char) => (
+                                    <button
+                                      key={char.id}
+                                      onClick={() => setSelectedCharacterId(char.id)}
+                                      className={`w-full flex items-center gap-3 p-2 rounded-lg border transition-all overflow-hidden ${
+                                        selectedCharacterId === char.id
+                                          ? "border-[#FF4081] bg-[#FF4081]/10"
+                                          : "border-[hsl(240,5%,20%)] hover:border-[hsl(240,5%,30%)]"
+                                      }`}
+                                    >
+                                      <div className="w-10 h-10 rounded-lg bg-[hsl(240,8%,10%)] flex items-center justify-center overflow-hidden shrink-0">
+                                        {char.imageUrl ? (
+                                          <img src={char.imageUrl} alt={char.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                          <User className="h-5 w-5 text-muted-foreground" />
+                                        )}
+                                      </div>
+                                      <div className="flex-1 min-w-0 text-left">
+                                        <p className="text-sm font-medium truncate">{char.name}</p>
+                                        {char.appearance && (
+                                          <p className="text-xs text-muted-foreground truncate max-w-full">{char.appearance}</p>
+                                        )}
+                                      </div>
+                                      {selectedCharacterId === char.id && (
+                                        <Check className="h-4 w-4 text-[#FF4081] shrink-0" />
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">No characters available</p>
+                              );
+                            })()}
+                          </div>
                           
                           {selectedCharacterId && (
                             <>
+                              <div className="h-px bg-[hsl(240,5%,15%)]" />
+                              
                               {activeCategory === "clothes" && (
-                                <div className="space-y-2">
-                                  <Label className="text-sm text-muted-foreground">Change clothes to:</Label>
-                                  <Input
-                                    placeholder="Enter clothing description"
-                                    className="bg-background/50"
+                                <div>
+                                  <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">New Outfit</Label>
+                                  <textarea
+                                    value={editChange}
+                                    onChange={(e) => setEditChange(e.target.value)}
+                                    placeholder="Describe the new clothing...&#10;e.g., Blue denim jacket with white t-shirt"
+                                    className="w-full h-24 bg-[hsl(240,8%,10%)] border border-[hsl(240,5%,20%)] rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#FF4081]/50"
                                     data-testid="input-clothes-change"
                                   />
                                 </div>
                               )}
                               
                               {activeCategory === "expression" && (
-                                <div className="space-y-2">
-                                  <Label className="text-sm text-muted-foreground">Change expression to:</Label>
-                                  <Select>
-                                    <SelectTrigger className="bg-background/50">
-                                      <SelectValue placeholder="Select expression" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="happy">Happy</SelectItem>
-                                      <SelectItem value="sad">Sad</SelectItem>
-                                      <SelectItem value="angry">Angry</SelectItem>
-                                      <SelectItem value="surprised">Surprised</SelectItem>
-                                      <SelectItem value="neutral">Neutral</SelectItem>
-                                      <SelectItem value="laughing">Laughing</SelectItem>
-                                      <SelectItem value="crying">Crying</SelectItem>
-                                    </SelectContent>
-                                  </Select>
+                                <div>
+                                  <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Expression</Label>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {["happy", "sad", "angry", "surprised", "neutral", "laughing"].map((expr) => (
+                                      <button
+                                        key={expr}
+                                        onClick={() => setEditChange(expr)}
+                                        className={`p-2 rounded-lg border text-sm capitalize transition-all ${
+                                          editChange === expr
+                                            ? "border-[#FF4081] bg-[#FF4081]/10 text-white"
+                                            : "border-[hsl(240,5%,20%)] text-muted-foreground hover:text-white hover:border-[hsl(240,5%,30%)]"
+                                        }`}
+                                      >
+                                        {expr}
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
                               
                               {activeCategory === "figure" && (
-                                <div className="space-y-2">
-                                  <Label className="text-sm text-muted-foreground">Change view to:</Label>
-                                  <Select>
-                                    <SelectTrigger className="bg-background/50">
-                                      <SelectValue placeholder="Select view" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="front">Front view</SelectItem>
-                                      <SelectItem value="back">Back view</SelectItem>
-                                      <SelectItem value="side">Side view</SelectItem>
-                                      <SelectItem value="top">Top view</SelectItem>
-                                      <SelectItem value="low">Low angle view</SelectItem>
-                                      <SelectItem value="closeup">Close-up</SelectItem>
-                                    </SelectContent>
-                                  </Select>
+                                <div>
+                                  <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Pose / View</Label>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {["front view", "back view", "side view", "close-up", "full body", "portrait"].map((view) => (
+                                      <button
+                                        key={view}
+                                        onClick={() => setEditChange(view)}
+                                        className={`p-2 rounded-lg border text-sm capitalize transition-all ${
+                                          editChange === view
+                                            ? "border-[#FF4081] bg-[#FF4081]/10 text-white"
+                                            : "border-[hsl(240,5%,20%)] text-muted-foreground hover:text-white hover:border-[hsl(240,5%,30%)]"
+                                        }`}
+                                      >
+                                        {view}
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
                             </>
@@ -2967,41 +3225,44 @@ export function StoryboardEditor({
                       )}
 
                       {activeCategory === "remove" && (
-                        <div className="space-y-3">
-                          <Label className="text-sm text-muted-foreground">Remove from image:</Label>
-                          <Input
-                            placeholder="Enter item to remove"
-                            className="bg-background/50"
-                            data-testid="input-remove-item"
-                          />
+                        <div className="space-y-4">
+                          <div>
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Remove Object</Label>
+                            <textarea
+                              value={editChange}
+                              onChange={(e) => setEditChange(e.target.value)}
+                              placeholder="Describe what to remove...&#10;e.g., the tree in the background"
+                              className="w-full h-24 bg-[hsl(240,8%,10%)] border border-[hsl(240,5%,20%)] rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#FF4081]/50"
+                              data-testid="input-remove-item"
+                            />
+                          </div>
                         </div>
                       )}
 
                       {activeCategory === "camera" && (
                         <div className="space-y-4">
                           <div className="flex items-center justify-between">
-                            <Label className="text-sm font-medium">Camera Angle Control</Label>
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Camera Controls</Label>
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="text-xs h-7"
+                              className="h-6 px-2 text-xs text-muted-foreground hover:text-white"
                               onClick={() => {
                                 setCameraRotation(0);
                                 setCameraVertical(0);
                                 setCameraZoom(0);
                                 setCameraWideAngle(false);
                               }}
-                              data-testid="button-reset-camera"
                             >
                               <RefreshCw className="h-3 w-3 mr-1" />
                               Reset
                             </Button>
                           </div>
                           
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-xs text-muted-foreground">Rotation (Left ↔ Right)</Label>
+                          <div className="space-y-4">
+                            <div>
+                              <div className="flex justify-between mb-1">
+                                <span className="text-xs text-muted-foreground">Rotation</span>
                                 <span className="text-xs font-mono text-muted-foreground">{cameraRotation}°</span>
                               </div>
                               <input
@@ -3010,15 +3271,14 @@ export function StoryboardEditor({
                                 max="90"
                                 value={cameraRotation}
                                 onChange={(e) => setCameraRotation(Number(e.target.value))}
-                                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-                                data-testid="slider-camera-rotation"
+                                className="w-full h-1.5 bg-[hsl(240,8%,15%)] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#FF4081]"
                               />
                             </div>
                             
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-xs text-muted-foreground">Vertical (Bird ↔ Worm)</Label>
-                                <span className="text-xs font-mono text-muted-foreground">{cameraVertical > 0 ? `↑${cameraVertical}` : cameraVertical < 0 ? `↓${Math.abs(cameraVertical)}` : "0"}</span>
+                            <div>
+                              <div className="flex justify-between mb-1">
+                                <span className="text-xs text-muted-foreground">Vertical</span>
+                                <span className="text-xs font-mono text-muted-foreground">{cameraVertical > 0 ? `+${cameraVertical}` : cameraVertical}</span>
                               </div>
                               <input
                                 type="range"
@@ -3027,14 +3287,13 @@ export function StoryboardEditor({
                                 step="0.1"
                                 value={cameraVertical}
                                 onChange={(e) => setCameraVertical(Number(e.target.value))}
-                                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-                                data-testid="slider-camera-vertical"
+                                className="w-full h-1.5 bg-[hsl(240,8%,15%)] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#FF4081]"
                               />
                             </div>
                             
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-xs text-muted-foreground">Zoom (Wide ↔ Close-up)</Label>
+                            <div>
+                              <div className="flex justify-between mb-1">
+                                <span className="text-xs text-muted-foreground">Zoom</span>
                                 <span className="text-xs font-mono text-muted-foreground">{cameraZoom > 0 ? `+${cameraZoom}` : cameraZoom}</span>
                               </div>
                               <input
@@ -3043,37 +3302,37 @@ export function StoryboardEditor({
                                 max="10"
                                 value={cameraZoom}
                                 onChange={(e) => setCameraZoom(Number(e.target.value))}
-                                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-                                data-testid="slider-camera-zoom"
+                                className="w-full h-1.5 bg-[hsl(240,8%,15%)] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#FF4081]"
                               />
                             </div>
                             
                             <div className="flex items-center justify-between py-2">
-                              <Label className="text-xs text-muted-foreground">Wide-Angle Lens</Label>
+                              <span className="text-xs text-muted-foreground">Wide-Angle Lens</span>
                               <Switch
                                 checked={cameraWideAngle}
                                 onCheckedChange={setCameraWideAngle}
-                                data-testid="switch-camera-wide-angle"
+                                className="data-[state=checked]:bg-[#FF4081]"
                               />
                             </div>
                           </div>
                           
-                          <div className="pt-2 border-t">
-                            <Label className="text-xs text-muted-foreground mb-2 block">Quick Presets</Label>
+                          <div className="h-px bg-[hsl(240,5%,15%)]" />
+                          
+                          <div>
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Quick Presets</Label>
                             <div className="flex flex-wrap gap-1.5">
                               {CAMERA_ANGLE_PRESETS.map((preset) => (
                                 <Button
                                   key={preset.id}
                                   size="sm"
                                   variant="outline"
-                                  className="text-xs h-7 px-2"
                                   onClick={() => {
                                     setCameraRotation(preset.rotation);
                                     setCameraVertical(preset.vertical);
                                     setCameraZoom(preset.zoom);
                                     setCameraWideAngle(preset.wideAngle || false);
                                   }}
-                                  data-testid={`button-camera-quick-preset-${preset.id}`}
+                                  className="h-7 px-2 text-xs border-[hsl(240,5%,20%)] hover:border-[#FF4081]/50"
                                 >
                                   <span className="mr-1">{preset.icon}</span>
                                   {preset.label}
@@ -3085,129 +3344,164 @@ export function StoryboardEditor({
                       )}
 
                       {activeCategory === "effects" && (
-                        <div className="space-y-3">
-                          <Label className="text-sm text-muted-foreground">Add effects:</Label>
-                          <Select>
-                            <SelectTrigger className="bg-background/50">
-                              <SelectValue placeholder="Select effect" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="lightning">Lightning</SelectItem>
-                              <SelectItem value="fire">Fire</SelectItem>
-                              <SelectItem value="smoke">Smoke</SelectItem>
-                              <SelectItem value="fog">Fog</SelectItem>
-                              <SelectItem value="spotlight">Spotlight</SelectItem>
-                              <SelectItem value="rays">Light rays</SelectItem>
-                            </SelectContent>
-                          </Select>
+                        <div className="space-y-4">
+                          <div>
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Visual Effect</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {[
+                                { id: "lightning", icon: "⚡", label: "Lightning" },
+                                { id: "fire", icon: "🔥", label: "Fire" },
+                                { id: "smoke", icon: "💨", label: "Smoke" },
+                                { id: "fog", icon: "🌫️", label: "Fog" },
+                                { id: "spotlight", icon: "💡", label: "Spotlight" },
+                                { id: "rays", icon: "☀️", label: "Light Rays" },
+                              ].map((effect) => (
+                                <button
+                                  key={effect.id}
+                                  onClick={() => setEditChange(effect.id)}
+                                  className={`p-3 rounded-lg border transition-all flex flex-col items-center gap-1 ${
+                                    editChange === effect.id
+                                      ? "border-[#FF4081] bg-[#FF4081]/10"
+                                      : "border-[hsl(240,5%,20%)] hover:border-[hsl(240,5%,30%)]"
+                                  }`}
+                                >
+                                  <span className="text-xl">{effect.icon}</span>
+                                  <span className="text-xs text-muted-foreground">{effect.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       )}
-                  </div>
-                </div>
-              )}
-
-              {/* Bottom Control Bar */}
-              <div className="absolute bottom-0 left-0 right-0 p-6 flex items-center justify-center bg-card/80 backdrop-blur-md border-t">
-                {/* Category Toolbar - Centered */}
-                <div className="flex items-center gap-1 bg-muted/60 backdrop-blur-md rounded-full px-2 py-1.5 border shadow-lg">
-                  <Button
-                    size="icon"
-                    variant={activeCategory === "prompt" ? "default" : "ghost"}
-                    onClick={() => setActiveCategory("prompt")}
-                    className="rounded-full h-12 w-12"
-                    data-testid="button-category-prompt"
-                  >
-                    <Edit className="h-5 w-5" />
-                  </Button>
-                  <div className="flex items-center gap-0.5 px-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setActiveCategory("clothes")}
-                      className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "clothes" ? "bg-primary/20" : "hover-elevate"
-                      }`}
-                      data-testid="button-category-clothes"
-                    >
-                      <Shirt className="h-5 w-5 mb-0.5" />
-                      <span className="text-xs">Clothes</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setActiveCategory("remove")}
-                      className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "remove" ? "bg-primary/20" : "hover-elevate"
-                      }`}
-                      data-testid="button-category-remove"
-                    >
-                      <Eraser className="h-5 w-5 mb-0.5" />
-                      <span className="text-xs">Remove</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setActiveCategory("expression")}
-                      className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "expression" ? "bg-primary/20" : "hover-elevate"
-                      }`}
-                      data-testid="button-category-expression"
-                    >
-                      <Smile className="h-5 w-5 mb-0.5" />
-                      <span className="text-xs">Expression</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setActiveCategory("figure")}
-                      className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "figure" ? "bg-primary/20" : "hover-elevate"
-                      }`}
-                      data-testid="button-category-figure"
-                    >
-                      <User className="h-5 w-5 mb-0.5" />
-                      <span className="text-xs">Figure</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setActiveCategory("camera")}
-                      className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "camera" ? "bg-primary/20" : "hover-elevate"
-                      }`}
-                      data-testid="button-category-camera"
-                    >
-                      <Camera className="h-5 w-5 mb-0.5" />
-                      <span className="text-xs">Camera</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setActiveCategory("effects")}
-                      className={`flex-col h-14 px-3 rounded-lg ${
-                        activeCategory === "effects" ? "bg-primary/20" : "hover-elevate"
-                      }`}
-                      data-testid="button-category-effects"
-                    >
-                      <Zap className="h-5 w-5 mb-0.5" />
-                      <span className="text-xs">Effects</span>
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Re-gen Button - Absolute positioned */}
-                <div className="absolute right-6">
-                  <Button
-                    onClick={handleGenerateFromDialog}
-                    className="bg-gradient-to-r from-[hsl(269,100%,62%)] to-[hsl(286,77%,58%)] hover:from-[hsl(269,100%,57%)] hover:to-[hsl(286,77%,53%)] text-white font-semibold px-6 rounded-full shadow-lg"
-                    data-testid="button-generate-from-dialog"
-                  >
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Re-gen
-                  </Button>
+                    </div>
+                  )}
                 </div>
               </div>
+              
+              {/* ═══════════════════════════════════════════════════════════════════
+                  FOOTER - Version Strip + Actions
+                  ═══════════════════════════════════════════════════════════════════ */}
+              <div className="border-t border-[hsl(240,5%,15%)] bg-[hsl(240,8%,6%)] px-6 py-4">
+                <div className="flex items-center gap-6">
+                  
+                  {/* Version Filmstrip */}
+                  <div className="flex-1 flex items-center gap-3 overflow-x-auto custom-scrollbar pb-1">
+                    <span className="text-xs text-muted-foreground shrink-0">Versions</span>
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const propVersions = shotVersions[selectedShot.id] || [];
+                        const cachedVersions = localVersionCache[selectedShot.id] || [];
+                        const allVersions = [...propVersions, ...cachedVersions.filter(cv => !propVersions.find(pv => pv.id === cv.id))];
+                        return allVersions.sort((a, b) => a.versionNumber - b.versionNumber);
+                      })().map((version) => {
+                        const isActive = version.id === selectedShot.currentVersionId;
+                        const isPreviewed = version.id === previewVersions[selectedShot.id];
+                        const thumbnailUrl = version.imageUrl || version.startFrameUrl || version.endFrameUrl;
+                        
+                        return (
+                          <div
+                            key={version.id}
+                            onClick={() => {
+                              setPreviewVersions(prev => ({ ...prev, [selectedShot.id]: version.id }));
+                              if (narrativeMode === "start-end") {
+                                if (activeEditFrame === "start" && !version.startFrameUrl && version.endFrameUrl) {
+                                  setActiveEditFrame("end");
+                                } else if (activeEditFrame === "end" && !version.endFrameUrl && version.startFrameUrl) {
+                                  setActiveEditFrame("start");
+                                }
+                              }
+                            }}
+                            className={`relative group shrink-0 w-20 cursor-pointer transition-all ${
+                              isPreviewed || (isActive && !previewVersions[selectedShot.id])
+                                ? "ring-2 ring-[#FF4081] rounded-lg scale-105"
+                                : "hover:scale-105 opacity-70 hover:opacity-100"
+                            }`}
+                            data-testid={`version-thumbnail-${version.id}`}
+                          >
+                            <div className="aspect-video bg-[hsl(240,8%,10%)] rounded-lg overflow-hidden">
+                              {thumbnailUrl ? (
+                                <img src={thumbnailUrl} alt={`v${version.versionNumber}`} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Version Number Badge */}
+                            <div className={`absolute -top-1 -left-1 text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                              isActive ? "bg-[#FF4081] text-white" : "bg-[hsl(240,8%,15%)] text-muted-foreground"
+                            }`}>
+                              v{version.versionNumber}
+                            </div>
+                            
+                            {/* Delete Button */}
+                            {!isActive && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (onDeleteVersion && window.confirm(`Delete version ${version.versionNumber}?`)) {
+                                    onDeleteVersion(selectedShot.id, version.id);
+                                  }
+                                }}
+                                className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X className="h-3 w-3 text-white" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-3 shrink-0">
+                    {/* Set as Active */}
+                    {previewVersions[selectedShot.id] && previewVersions[selectedShot.id] !== selectedShot.currentVersionId && (
+                      <Button
+                        onClick={() => {
+                          const previewedVersion = getPreviewedVersion(selectedShot);
+                          if (previewedVersion && onSelectVersion) {
+                            onSelectVersion(selectedShot.id, previewedVersion.id);
+                            setPreviewVersions(prev => {
+                              const { [selectedShot.id]: _, ...rest } = prev;
+                              return rest;
+                            });
+                            toast({ title: "Version Activated", description: `v${previewedVersion.versionNumber} is now active` });
+                          }
+                        }}
+                        variant="outline"
+                        className="border-[#FF4081]/50 text-[#FF4081] hover:bg-[#FF4081]/10"
+                      >
+                        <Check className="h-4 w-4 mr-2" />
+                        Set Active
+                      </Button>
+                    )}
+                    
+                    {/* Apply Edit / Regenerate */}
+                    <Button
+                      onClick={handleEditImage}
+                      disabled={isEditing || !!(activeCategory && !editChange && activeCategory !== "camera")}
+                      className="bg-gradient-to-r from-[#FF4081] to-[#FF6B4A] hover:from-[#FF3070] to-[#FF5A3A] text-white font-semibold px-6 shadow-lg shadow-[#FF4081]/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                      data-testid="button-apply-edit"
+                    >
+                      {isEditing ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          {activeCategory ? "Apply Edit" : "Regenerate"}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </div>
+              
             </div>
           </DialogContent>
         </Dialog>

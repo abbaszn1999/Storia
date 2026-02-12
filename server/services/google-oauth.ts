@@ -37,6 +37,12 @@ export function verifyState(state: string): boolean {
 }
 
 function getRedirectUri(): string {
+  // Production (Render, etc.) - use APP_URL for custom domain
+  const appUrl = process.env.APP_URL;
+  if (appUrl) {
+    return `${appUrl.replace(/\/$/, '')}/api/auth/google/callback`;
+  }
+  // Replit (legacy)
   if (process.env.REPLIT_DEPLOYMENT === '1') {
     const domains = process.env.REPLIT_DOMAINS?.split(',');
     if (domains && domains.length > 0) {

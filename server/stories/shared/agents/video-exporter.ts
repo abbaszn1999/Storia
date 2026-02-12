@@ -31,6 +31,8 @@ import {
 } from "../services/ffmpeg-helpers";
 import { burnSubtitles } from "../services/subtitle-generator";
 import type { StoryMode } from "./idea-generator";
+import { getMusicPrompts } from "../prompts-loader";
+import type { StoryModeForPrompts } from "../prompts-loader";
 
 const TEMP_DIR = getTempDir();
 
@@ -41,11 +43,10 @@ const TEMP_DIR = getTempDir();
  * @returns exportFinalVideo and remixVideo functions configured for the specified mode
  */
 export async function createVideoExporter(mode: StoryMode) {
-  // Dynamic imports for mode-specific prompts and types
-  const musicPromptsModule = await import(`../../${mode}/prompts/music-prompts`);
-  // All story modes use the same types from shared
+  const modeForPrompts = mode as StoryModeForPrompts;
+  const musicPromptsModule = getMusicPrompts(modeForPrompts);
   const typesModule = await import(`../types`);
-  
+
   const { isValidMusicStyle } = musicPromptsModule;
   const { createMusicGenerator } = await import("./music-generator");
   const generateMusic = await createMusicGenerator(mode);

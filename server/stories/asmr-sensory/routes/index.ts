@@ -9,6 +9,7 @@
 import { Router, type Request, type Response } from "express";
 import path from "path";
 import { fileURLToPath } from "url";
+import os from "os";
 import fs from "fs/promises";
 import {
   // Agent 1: Idea Generator
@@ -38,7 +39,7 @@ import {
 } from "../config";
 import { mergeVideoAudio, cleanupMergedFile, mergeAndUploadVideo } from "../services/video-merger";
 import { loopAndServeVideo } from "../services/video-looper";
-import { createReadStream, statSync, writeFileSync, unlinkSync, existsSync } from "fs";
+import { createReadStream, statSync, writeFileSync, unlinkSync, existsSync, mkdirSync } from "fs";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import type {
@@ -52,14 +53,14 @@ import { isAuthenticated, getCurrentUserId } from "../../../auth";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const TEMP_DIR = path.join(__dirname, "../../../../temp");
+const TEMP_DIR = process.env.TEMP_DIR || path.join(os.tmpdir(), "storia-temp");
 
 // Set FFmpeg path
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 // Ensure temp directory exists
 if (!existsSync(TEMP_DIR)) {
-  fs.mkdir(TEMP_DIR, { recursive: true }).catch(() => {});
+  mkdirSync(TEMP_DIR, { recursive: true });
 }
 
 /**

@@ -269,6 +269,7 @@ interface WorldCastProps {
 
 const VIDEO_STYLES = [
   { id: "none", name: "None", imageUrl: null },
+  { id: "realistic", name: "Realistic", imageUrl: null },
   { id: "cinematic", name: "Cinematic", imageUrl: cinematicImg },
   { id: "vintage", name: "Vintage", imageUrl: vintageImg },
   { id: "storybook", name: "Storybook", imageUrl: storybookImg },

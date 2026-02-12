@@ -37,7 +37,7 @@ import {
   type InsertStoryCampaign,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // User operations
@@ -57,6 +57,7 @@ export interface IStorage {
   
   getVideosByWorkspaceId(workspaceId: string): Promise<Video[]>;
   getVideo(id: string): Promise<Video | undefined>;
+  getVideosByIds(ids: string[]): Promise<Video[]>;
   createVideo(video: InsertVideo): Promise<Video>;
   updateVideo(id: string, video: Partial<Video>): Promise<Video>;
   deleteVideo(id: string): Promise<void>;
@@ -292,6 +293,11 @@ export class MemStorage implements IStorage {
   async getVideo(id: string): Promise<Video | undefined> {
     const [video] = await db.select().from(videos).where(eq(videos.id, id));
     return video;
+  }
+
+  async getVideosByIds(ids: string[]): Promise<Video[]> {
+    if (ids.length === 0) return [];
+    return db.select().from(videos).where(inArray(videos.id, ids));
   }
 
   async createVideo(insertVideo: InsertVideo): Promise<Video> {

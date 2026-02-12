@@ -77,7 +77,7 @@ async function pollRunwareTasks({
     await sleep(intervalMs);
     
     // Retry logic للتعامل مع network errors
-    let res;
+    let res: Response | undefined;
     let retryAttempt = 0;
     
     while (retryAttempt < maxRetryAttempts) {
@@ -130,6 +130,11 @@ async function pollRunwareTasks({
           throw fetchError;
         }
       }
+    }
+
+    // If res is still undefined after all retries, throw an error
+    if (!res) {
+      throw new Error("Runware polling request failed: no response after all retry attempts");
     }
 
     if (!res.ok) {

@@ -416,12 +416,17 @@ function SoundscapeShotCard({
                   // Use default prompt if no description is provided
                   const prompt = shot.soundEffectDescription?.trim() || "Generate a Soundeffect for The Following Video";
                   
+                  // Use shot duration from database (planned duration) as the primary source
+                  // This ensures SFX matches the intended duration, not the AI-generated video duration
+                  const sfxDuration = shot.duration || version?.videoDuration;
+                  
                   const response = await fetch(`/api/ambient-visual/videos/${videoId}/shots/${shot.id}/sound-effect/generate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({
                       prompt: prompt,
+                      duration: sfxDuration,
                       previousSoundEffectUrl: oldSoundEffectUrl || undefined,
                     }),
                   });
@@ -874,12 +879,18 @@ export function SoundscapeTab({
         
         const prompt = shot.soundEffectDescription?.trim() || "Generate a Soundeffect for The Following Video";
         
+        // Use shot duration from database (planned duration) as the primary source
+        // This ensures SFX matches the intended duration, not the AI-generated video duration
+        const version = getShotVersion(shot);
+        const sfxDuration = shot.duration || version?.videoDuration;
+        
         const response = await fetch(`/api/ambient-visual/videos/${videoId}/shots/${shot.id}/sound-effect/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
             prompt: prompt,
+            duration: sfxDuration,
             previousSoundEffectUrl: shot.soundEffectUrl || undefined,
           }),
         });

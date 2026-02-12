@@ -1599,8 +1599,20 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
       ...step3Data,
     };
 
-    // Update video with step3Data
-    await storage.updateVideo(videoId, { step3Data: updatedStep3Data });
+    // IMPORTANT: Clear step4Data.prompts when breakdown is regenerated
+    // Old prompts correspond to old shot IDs that no longer exist
+    // This ensures prompts will be regenerated for the new shots when user clicks Continue
+    const existingStep4 = (existingVideo.step4Data as Record<string, any>) || {};
+    const updatedStep4Data = {
+      ...existingStep4,
+      prompts: {}, // Clear old prompts - they no longer match the new shots
+      // Keep shotVersions since they might still be valid for some shots (user may have just modified one scene)
+    };
+
+    // Update video with step3Data AND clear step4Data.prompts
+    await storage.updateVideo(videoId, { step3Data: updatedStep3Data, step4Data: updatedStep4Data });
+    
+    console.log('[narrative:routes] Cleared step4Data.prompts since breakdown was regenerated');
 
     const totalCost = (sceneResult.cost || 0) + shotResult.totalCost;
     const totalShots = Object.values(shots).flat().length;
@@ -2542,29 +2554,35 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
     }
 
     // Validate that required prompts exist for the requested frame type
-    // For manually created shots, we use fallback prompts, so validation is more lenient
+    // Use shot description as fallback if no prompt is available
     if (frameType === "start-only" || frameType === "start-and-end") {
       if (!shotPrompts.startFramePrompt || shotPrompts.startFramePrompt.trim() === "") {
-        // For manually created shots, use shot description as fallback
-        if (isManuallyCreatedShot && foundShot.description) {
+        // Use shot description as fallback for any shot
+        if (foundShot.description) {
           shotPrompts.startFramePrompt = foundShot.description;
           console.log('[narrative:routes] Using shot description as fallback for start frame prompt');
         } else {
           return res.status(400).json({ 
-            error: 'Start frame prompt is required but not found. Please generate prompts first using Agent 4.1.' 
+            error: 'Start frame prompt is required but not found. Please enter a prompt or generate prompts using Agent 4.1.' 
           });
         }
       }
     }
     if (frameType === "end-only" || frameType === "start-and-end") {
       if (!shotPrompts.endFramePrompt || shotPrompts.endFramePrompt.trim() === "") {
-        // For manually created shots, use shot description as fallback
-        if (isManuallyCreatedShot && foundShot.description) {
+        // Try fallbacks in order: startFramePrompt -> shot description -> error
+        // This allows users to generate end frames without running Agent 4.1 first
+        if (shotPrompts.startFramePrompt && shotPrompts.startFramePrompt.trim() !== "") {
+          // Use start frame prompt as base for end frame (same scene, different moment)
+          shotPrompts.endFramePrompt = shotPrompts.startFramePrompt;
+          console.log('[narrative:routes] Using start frame prompt as fallback for end frame prompt');
+        } else if (foundShot.description) {
+          // Use shot description as fallback
           shotPrompts.endFramePrompt = foundShot.description;
           console.log('[narrative:routes] Using shot description as fallback for end frame prompt');
         } else {
           return res.status(400).json({ 
-            error: 'End frame prompt is required but not found. Please generate prompts first using Agent 4.1.' 
+            error: 'End frame prompt is required but not found. Please enter a prompt or generate prompts using Agent 4.1.' 
           });
         }
       }

@@ -1,10 +1,15 @@
 /**
- * TODO: Auto Video Services
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * AUTO-VIDEO SERVICES
+ * ═══════════════════════════════════════════════════════════════════════════════
  * 
- * Core services for video generation:
- * - video-generator.ts
- * - batch-processor.ts
- * - concept-creator.ts
+ * Core services for auto-video campaign orchestration.
+ * Each mode has its own agents under auto-video/modes/{mode}/agents.
  */
 
-// Placeholder - to be implemented
+export * from './batch-processor';
+export * from './mode-delegator';
+export * from './scheduler-service';
+
+// Future exports:
+// export * from './publisher-service';

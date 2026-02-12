@@ -245,7 +245,6 @@ function parseShotResponse(rawOutput: string): ShotGeneratorOutput {
         cameraShot: shot.cameraShot,
         referenceTags: shot.referenceTags,
         duration: shot.duration,
-        // Keep flags for group conversion, but they're deprecated
         isLinkedToPrevious: shot.isLinkedToPrevious,
         isFirstInGroup: shot.isFirstInGroup,
       };
@@ -362,22 +361,86 @@ export async function generateShots(
       }
     }
     
-    // Validate duration distribution
-    const totalDuration = parsed.shots.reduce((sum, shot) => sum + shot.duration, 0);
-    const durationDiff = Math.abs(totalDuration - input.sceneDuration);
+    // Validate and FIX duration distribution
+    let totalDuration = parsed.shots.reduce((sum, shot) => sum + shot.duration, 0);
     const durationTolerance = input.sceneDuration * 0.1; // ±10%
-    if (durationDiff > durationTolerance) {
-      console.warn(
-        `[character-vlog:shot-generator] Duration mismatch: sceneDuration ${input.sceneDuration}s, total ${totalDuration}s (diff: ${durationDiff}s, tolerance: ±${durationTolerance}s)`
-      );
-    }
     
-    // Validate durations are from allowed array
-    const invalidDurations = parsed.shots.filter(s => !input.videoModelDurations.includes(s.duration));
-    if (invalidDurations.length > 0) {
+    // First, fix any invalid durations (not in allowed array)
+    const sortedDurations = [...input.videoModelDurations].sort((a, b) => a - b);
+    const maxDuration = sortedDurations[sortedDurations.length - 1];
+    const minDuration = sortedDurations[0];
+    
+    parsed.shots = parsed.shots.map(shot => {
+      if (!input.videoModelDurations.includes(shot.duration)) {
+        // Find closest valid duration
+        const closestDuration = sortedDurations.reduce((prev, curr) => 
+          Math.abs(curr - shot.duration) < Math.abs(prev - shot.duration) ? curr : prev
+        );
+        console.log(`[character-vlog:shot-generator] Fixing invalid duration: ${shot.name} ${shot.duration}s → ${closestDuration}s`);
+        return { ...shot, duration: closestDuration };
+      }
+      return shot;
+    });
+    
+    // Recalculate total after fixing invalid durations
+    totalDuration = parsed.shots.reduce((sum, shot) => sum + shot.duration, 0);
+    
+    // If total duration is significantly off, scale durations proportionally
+    // This preserves the AI's relative duration choices (longer/shorter shots) while hitting target
+    if (Math.abs(totalDuration - input.sceneDuration) > durationTolerance) {
       console.warn(
-        `[character-vlog:shot-generator] Warning: Some shots have invalid durations (not in videoModelDurations):`,
-        invalidDurations.map(s => `${s.name}: ${s.duration}s`)
+        `[character-vlog:shot-generator] Duration mismatch detected: sceneDuration ${input.sceneDuration}s, total ${totalDuration}s. Auto-correcting with proportional scaling...`
+      );
+      
+      // Calculate scale factor to match scene duration
+      const scaleFactor = input.sceneDuration / totalDuration;
+      
+      // Scale each shot's duration proportionally, snapping to valid durations
+      // This preserves relative differences (e.g., action shot longer than static shot)
+      let accumulatedDuration = 0;
+      parsed.shots = parsed.shots.map((shot, index) => {
+        const isLastShot = index === parsed.shots.length - 1;
+        
+        if (isLastShot) {
+          // Last shot gets remaining duration to hit exact target (closest valid)
+          const remainingDuration = input.sceneDuration - accumulatedDuration;
+          const closestToRemaining = sortedDurations.reduce((prev, curr) => 
+            Math.abs(curr - remainingDuration) < Math.abs(prev - remainingDuration) ? curr : prev
+          );
+          if (closestToRemaining !== shot.duration) {
+            console.log(`[character-vlog:shot-generator] Scaled: ${shot.name} ${shot.duration}s → ${closestToRemaining}s (last shot, filling to target)`);
+          }
+          return { ...shot, duration: closestToRemaining };
+        } else {
+          // Scale this shot's duration proportionally
+          const scaledDuration = shot.duration * scaleFactor;
+          
+          // Find closest valid duration that doesn't exceed remaining budget
+          const remainingBudget = input.sceneDuration - accumulatedDuration;
+          const minNeededForRemaining = minDuration * (parsed.shots.length - index - 1);
+          const maxAllowed = Math.min(remainingBudget - minNeededForRemaining, maxDuration);
+          
+          // Find best valid duration within constraints
+          const validOptions = sortedDurations.filter(d => d <= maxAllowed);
+          const closestValid = validOptions.length > 0
+            ? validOptions.reduce((prev, curr) => 
+                Math.abs(curr - scaledDuration) < Math.abs(prev - scaledDuration) ? curr : prev
+              )
+            : minDuration; // Fallback to minimum if no valid options
+          
+          accumulatedDuration += closestValid;
+          
+          if (closestValid !== shot.duration) {
+            console.log(`[character-vlog:shot-generator] Scaled: ${shot.name} ${shot.duration}s → ${closestValid}s (target: ${scaledDuration.toFixed(1)}s)`);
+          }
+          return { ...shot, duration: closestValid };
+        }
+      });
+      
+      // Final validation
+      const newTotalDuration = parsed.shots.reduce((sum, shot) => sum + shot.duration, 0);
+      console.log(
+        `[character-vlog:shot-generator] Duration scaling complete: ${totalDuration}s → ${newTotalDuration}s (target: ${input.sceneDuration}s)`
       );
     }
     
@@ -423,11 +486,15 @@ export async function generateShots(
       console.log('[character-vlog:shot-generator] Skipping continuity groups (referenceMode is 1F)');
     }
 
+    // Calculate final duration difference for logging
+    const finalTotalDuration = parsed.shots.reduce((sum, shot) => sum + shot.duration, 0);
+    const finalDurationDiff = Math.abs(finalTotalDuration - input.sceneDuration);
+    
     console.log('[character-vlog:shot-generator] Shots generated:', {
       shotCount: parsed.shots.length,
-      totalDuration,
+      totalDuration: finalTotalDuration,
       sceneDuration: input.sceneDuration,
-      durationDiff,
+      durationDiff: finalDurationDiff,
       continuityGroupsCount: continuityGroups.length,
       cost: parsed.cost || response.usage?.totalCostUsd,
     });

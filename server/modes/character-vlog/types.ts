@@ -86,8 +86,12 @@ export interface Step1Data {
   genres?: string[];
   tones?: string[];
   language?: string;
-  voiceActorId?: string | null;
   voiceOverEnabled?: boolean;
+  
+  // Sound settings
+  backgroundMusicEnabled?: boolean;
+  voiceoverLanguage?: 'en' | 'ar';
+  textOverlayEnabled?: boolean;
   
   // Script content
   userPrompt?: string;  // User's original idea/prompt
@@ -247,13 +251,23 @@ export interface SceneGeneratorInput {
 
 /**
  * Output from scene generator
+ * Enhanced with entity tracking and script grounding
  */
 export interface SceneGeneratorOutput {
   scenes: Array<{
+    id: number;                      // Numeric scene index starting from 1
     name: string;                    // Format: "Scene {number}: {Title}"
     description: string;             // 2-3 sentence scene summary (30-80 words)
     duration: number;                // Estimated duration in seconds
+    charactersFromList: string[];    // Character names from input primaryCharacter/secondaryCharacters
+    otherCharacters: string[];       // Character labels not in input lists (e.g., "Barista", "Old man")
+    locations: string[];             // Location names from input locations list
+    characterMentionsRaw: string[];  // Exact phrases from scriptExcerpt referring to characters
+    locationMentionsRaw: string[];   // Exact phrases from scriptExcerpt referring to places
+    mood: string[];                  // 2-4 short adjectives describing emotional/visual tone
+    scriptExcerpt: string;           // Exact portion of original script for this scene
   }>;
+  totalEstimatedDuration: number;    // Sum of all scene durations
   cost?: number;
 }
 
@@ -264,18 +278,19 @@ export interface SceneGeneratorOutput {
 /**
  * Input for shot generation (AI agent)
  * Fields that will be sent to the AI for shot breakdown
+ * Enhanced with scene entity data from Scene Generator
  */
 export interface ShotGeneratorInput {
   sceneName: string;                  // Scene name from Agent 3.1 (e.g., "Scene 1: The Morning Rush")
   sceneDescription: string;           // Scene description from Agent 3.1
   sceneDuration: number;              // Scene duration in seconds (PRIMARY constraint)
-  script: string;                     // Full story script
+  script: string;                     // Full story script (for overall context)
   characters: Array<{                 // Available characters (primary + secondary)
     name: string;
     description: string;
     personality?: string;              // Only for primary character
   }>;
-  locations: Array<{                 // Available locations
+  locations: Array<{                 // Available locations from Elements step
     name: string;
     description: string;
     details?: string;
@@ -287,6 +302,15 @@ export interface ShotGeneratorInput {
   videoModelDurations: number[];      // Available durations for the video model
   targetDuration: number;              // Target video duration in seconds (context)
   shotsPerScene: number | 'auto';     // Shots per scene (number or 'auto')
+  
+  // Scene entity data from Agent 3.1 (Scene Generator) - for grounding
+  sceneId?: number;                   // Scene index (1-based)
+  scriptExcerpt?: string;             // Exact portion of script for this scene (PRIMARY focus)
+  mood?: string[];                    // Scene mood adjectives
+  charactersFromList?: string[];      // Characters from input lists that appear in this scene
+  otherCharacters?: string[];         // Other characters in scene not from input lists
+  sceneLocations?: string[];          // Locations from input list that appear in this scene
+  locationMentionsRaw?: string[];     // Raw location mentions from script
 }
 
 /**
@@ -308,20 +332,21 @@ export interface ContinuityGroup {
 
 /**
  * Output from shot generator
+ * With dual tagging: indexed tags in referenceTags, canonical names in description
  */
 export interface ShotGeneratorOutput {
   shots: Array<{
     name: string;                     // Format: "Shot {sceneNumber}.{shotNumber}: {Title}"
-    description: string;              // Detailed visual description (50-300 words)
+    description: string;              // Detailed visual description with @CanonicalName anchors
     shotType: '1F' | '2F';            // Frame type: "1F" (single image) or "2F" (start/end frames)
-    cameraShot: string;                // Camera angle from 10 preset options
-    referenceTags: string[];           // Character and location tags (e.g., ["@PrimaryCharacter", "@Location1"])
-    duration: number;                  // Duration from videoModelDurations array
-    isLinkedToPrevious?: boolean;      // Deprecated - kept for backward compatibility during migration
-    isFirstInGroup?: boolean;          // Deprecated - kept for backward compatibility during migration
+    cameraShot: string;               // Camera angle from 10 preset options
+    referenceTags: string[];          // Indexed tags (e.g., ["@PrimaryCharacter", "@Location1"])
+    duration: number;                 // Duration from videoModelDurations array
+    isLinkedToPrevious: boolean;      // Whether this shot links to the previous shot for continuity
+    isFirstInGroup: boolean;          // Whether this shot is the first in a continuity group
   }>;
   continuityGroups?: Array<{
-    shotIndices: number[]; // 0-based indices to map to shot IDs in routes
+    shotIndices: number[];            // 0-based indices to map to shot IDs in routes
     description: string;
     transitionType: string;
   }>;
@@ -466,7 +491,6 @@ export interface UnifiedPromptProducerSceneOutput {
     };
     videoPrompt: string;
     visualContinuityNotes: string | null;
-    negativePrompt: string;  // Things to avoid in generation
   }>;
   cost?: number;
 }
@@ -499,7 +523,7 @@ export interface ShotVersion {
   startFramePrompt: string | null;
   endFramePrompt: string | null;
   videoPrompt: string | null;
-  negativePrompt: string | null;
+  negativePrompt?: string | null;  // Deprecated - no longer generated
   
   // Metadata
   status: 'pending' | 'generated' | 'failed';
@@ -528,7 +552,7 @@ export interface Step4Data {
     };
     videoPrompt: string;
     visualContinuityNotes: string | null;
-    negativePrompt: string;  // Things to avoid in generation
+    negativePrompt?: string;  // Deprecated - no longer generated
     isInherited?: boolean;    // For shared frame optimization
   }>;  // Keyed by shotId
   
@@ -539,7 +563,343 @@ export interface Step4Data {
   scenes?: any[];
 }
 
-// Placeholder for future step data types
-// export interface Step5Data { ... }
-// export interface Step6Data { ... }
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 5: SOUND/ANIMATIC DATA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Language options for voiceover
+export type VoiceoverLanguage = 'en' | 'ar';
+
+// Background music style options (matches ambient mode)
+export type MusicStyle = 'cinematic' | 'upbeat' | 'calm' | 'corporate' | 'electronic' | 'emotional' | 'inspiring';
+
+// Voiceover status tracking
+export type VoiceoverStatus = 'pending' | 'script_generated' | 'audio_generated';
+
+/**
+ * Sound effect data stored per-shot
+ */
+export interface ShotSoundEffect {
+  prompt?: string;              // Sound effect description/prompt
+  audioUrl?: string;            // CDN URL of generated sound effect audio
+  duration?: number;            // Audio duration in seconds
+  isGenerating?: boolean;       // Currently generating
+}
+
+/**
+ * Step 5: Sound/Animatic data - Voiceover, sound effects, and background music
+ */
+export interface Step5Data {
+  // Voiceover data (from Agent 5.1 and 5.2)
+  voiceoverScript?: string;       // Generated/edited narration script
+  voiceoverAudioUrl?: string;     // CDN URL of generated audio
+  voiceoverDuration?: number;     // Audio duration in seconds
+  voiceoverStatus?: VoiceoverStatus;
+  voiceId?: string;               // Selected ElevenLabs voice ID
+  
+  // Sound Effects data (from Agent 5.3 and 5.4b) - stored per shot
+  soundEffects?: Record<string, ShotSoundEffect>;  // Keyed by shotId
+  
+  // Background Music data (from Agent 5.4)
+  generatedMusicUrl?: string;     // CDN URL of AI-generated music
+  generatedMusicDuration?: number; // Music duration in seconds
+  generatedMusicStyle?: MusicStyle; // Style used for generation
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOICEOVER SCRIPT GENERATOR - AI INPUT/OUTPUT (Agent 5.1)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for voiceover script generation (Agent 5.1)
+ * Uses the existing script from Step 1 and shot durations to create timed narration
+ */
+export interface VoiceoverScriptGeneratorInput {
+  // Language setting
+  language: VoiceoverLanguage;    // 'en' | 'ar'
+  
+  // Script from Step 1
+  script: string;                 // User's story script
+  
+  // Duration context (calculated from shots, no loops)
+  totalDuration: number;          // Total video duration in seconds
+  
+  // Scene and shot context (for timing alignment)
+  scenes: Array<{
+    id: string;
+    sceneNumber: number;
+    title: string;
+    description?: string | null;
+    duration?: number | null;
+  }>;
+  shots: Record<string, Array<{
+    id: string;
+    shotNumber: number;
+    duration: number;
+    description?: string | null;
+  }>>;
+  
+  // Character context
+  characterPersonality?: string;
+  narrationStyle?: 'first-person' | 'third-person';
+}
+
+export interface VoiceoverScriptGeneratorOutput {
+  script: string;                  // Generated narration text with timing
+  estimatedDuration: number;       // Estimated speaking time in seconds
+  cost?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOICEOVER AUDIO GENERATOR - AI INPUT/OUTPUT (Agent 5.2)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for voiceover audio generation (Agent 5.2)
+ * Converts approved text to audio using ElevenLabs TTS
+ */
+export interface VoiceoverAudioGeneratorInput {
+  // Script to convert
+  script: string;                  // Approved voiceover text
+  
+  // Voice settings
+  voiceId: string;                 // Selected ElevenLabs voice ID
+  language: VoiceoverLanguage;     // For model selection
+  
+  // Video context (for CDN path)
+  videoId: string;
+  videoTitle: string;
+  videoCreatedAt?: Date | string;  // Video creation date for path
+  
+  // User context (for CDN path)
+  userId: string;
+  workspaceId: string;
+  workspaceName: string;
+}
+
+export interface VoiceoverAudioGeneratorOutput {
+  audioUrl: string;                // CDN URL of generated audio
+  duration: number;                // Actual audio duration in seconds
+  cost?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BACKGROUND MUSIC GENERATOR - AI INPUT/OUTPUT (Agent 5.4)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for background music generation (Agent 5.4)
+ * Generates AI background music using ElevenLabs Music API
+ */
+export interface BackgroundMusicGeneratorInput {
+  // Music style (from Step 1)
+  musicStyle: MusicStyle;
+  
+  // Atmosphere context (from Step 1)
+  theme?: string;
+  characterPersonality?: string;
+  genres?: string[];
+  tones?: string[];
+  
+  // Duration (calculated from scenes/shots, no loops)
+  totalDuration: number;           // Total video duration in seconds
+  
+  // Scene context (for musical narrative)
+  scenes?: Array<{
+    sceneNumber: number;
+    title: string;
+    description?: string | null;
+  }>;
+  
+  // Video context (for CDN path)
+  videoId: string;
+  videoTitle: string;
+  videoCreatedAt?: Date | string;  // Video creation date for path
+  
+  // User context (for CDN path)
+  userId: string;
+  workspaceId: string;
+  workspaceName: string;
+}
+
+export interface BackgroundMusicGeneratorOutput {
+  musicUrl: string;                // CDN URL of generated music
+  duration: number;                // Actual music duration in seconds
+  style: MusicStyle;               // Style used for generation
+  cost?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SOUND EFFECT PROMPT GENERATOR - AI INPUT/OUTPUT (Agent 5.3)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for sound effect prompt generation (Agent 5.3)
+ * Uses shot description and video context to recommend sound effects
+ */
+export interface SoundEffectPromptGeneratorInput {
+  // Shot context
+  shotDescription: string;         // Description of what happens in the shot
+  shotType?: string;               // Camera shot type (close-up, wide, etc.)
+  duration: number;                // Shot duration in seconds
+  
+  // Scene context
+  sceneTitle?: string;
+  sceneDescription?: string;
+  
+  // Video context
+  theme?: string;                  // Overall video theme
+  characterPersonality?: string;   // Character personality for appropriate SFX
+}
+
+export interface SoundEffectPromptGeneratorOutput {
+  prompt: string;                  // Recommended sound effect description
+  cost?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SOUND EFFECT GENERATOR - AI INPUT/OUTPUT (Agent 5.4b)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Input for sound effect generation (Agent 5.4b)
+ * Uses MMAudio to generate audio synchronized with video
+ */
+export interface SoundEffectGeneratorInput {
+  // Video source (required)
+  videoUrl: string;                // URL of the shot video
+  
+  // Sound effect description (required)
+  prompt: string;                  // What sounds to generate
+  
+  // Generation parameters (optional)
+  duration?: number;               // Audio duration in seconds (1-30)
+  numSteps?: number;               // Inference steps (1-50)
+  cfgStrength?: number;            // Guidance strength (1-10)
+  seed?: number;                   // For reproducibility
+  
+  // Video context (for CDN path)
+  videoId: string;
+  videoTitle: string;
+  videoCreatedAt?: Date | string;
+  
+  // Shot context
+  shotId: string;
+  sceneId: string;
+  
+  // User context (for CDN path)
+  userId: string;
+  workspaceId: string;
+  workspaceName: string;
+}
+
+export interface SoundEffectGeneratorOutput {
+  audioUrl: string;                // CDN URL of generated sound effect
+  duration: number;                // Audio duration in seconds
+  fileSize?: number;               // File size in bytes
+  cost?: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 6: PREVIEW/EXPORT DATA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Audio track stored in timeline
+ */
+export interface TimelineAudioTrack {
+  id: string;
+  src: string;
+  start: number;
+  duration: number;
+  volume: number;
+  fadeIn?: boolean;
+  fadeOut?: boolean;
+  order?: number;
+  shotId?: string;              // For SFX: which shot this belongs to
+}
+
+/**
+ * Volume settings for audio mixing
+ */
+export interface VolumeSettings {
+  master: number;
+  sfx: number;
+  voiceover: number;
+  music: number;
+}
+
+/**
+ * Final render state
+ */
+export interface FinalRenderState {
+  id: string;
+  status: 'pending' | 'queued' | 'rendering' | 'done' | 'failed';
+  url?: string;
+  thumbnailUrl?: string;
+  progress?: number;
+  error?: string;
+  startedAt?: Date | string;
+  completedAt?: Date | string;
+}
+
+/**
+ * Step 6: Preview/Export data - Timeline configuration and render state
+ */
+export interface Step6Data {
+  // Timeline structure for Shotstack rendering
+  timeline?: {
+    scenes: VlogScene[];
+    shots: Record<string, VlogShot[]>;
+    audioTracks: {
+      voiceover?: TimelineAudioTrack;
+      music?: TimelineAudioTrack;
+      sfx: TimelineAudioTrack[];
+    };
+  };
+  
+  // Volume settings from preview mixer
+  volumes?: VolumeSettings;
+  
+  // Final render state
+  finalRender?: FinalRenderState;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 7: EXPORT DATA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Step 7: Export data - Final render state and export URLs
+ * Aligned with ambient-visual Step7Data structure for consistency
+ */
+export interface Step7Data {
+  // Render identification
+  renderId?: string;                 // Shotstack render ID
+  
+  // Render status tracking
+  // 'uploading' prevents multiple Bunny uploads while large file upload is in progress
+  renderStatus: 'pending' | 'queued' | 'fetching' | 'rendering' | 'saving' | 'uploading' | 'done' | 'failed';
+  renderProgress: number;            // 0-100 percentage
+  
+  // Final export URLs (after Bunny CDN upload)
+  exportUrl?: string;                // Final video URL on Bunny CDN
+  thumbnailUrl?: string;             // Thumbnail URL on Bunny CDN
+  
+  // Export settings
+  resolution: string;                // '720p' | '1080p' | '4k'
+  format: string;                    // 'mp4'
+  
+  // Video metadata
+  duration: number;                  // Total duration in seconds
+  aspectRatio?: string;              // '16:9', '9:16', etc.
+  sceneCount?: number;               // Number of scenes
+  
+  // Timestamps
+  startedAt?: string;                // ISO timestamp when render started
+  completedAt?: string;              // ISO timestamp when render completed
+  
+  // Error handling
+  error?: string;                    // Error message if failed
+}
 

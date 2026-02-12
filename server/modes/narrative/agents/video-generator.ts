@@ -10,6 +10,7 @@ import {
   buildFrameImagesPayload,
   clampDuration,
   shouldOmitDimensions,
+  getProviderSettingsWithAudioDisabled,
   type ValidationResult,
 } from '../utils/video-models';
 
@@ -181,14 +182,15 @@ export async function generateVideo(
     payload.height = dimensions.height;
   }
 
-  // Note: providerSettings disabled - generating videos without audio for now
-  // To enable audio later, add providerSettings to video-models.ts config and uncomment:
-  // if (supportsAudio || hasFrameImages) {
-  //   const providerSettings = getVideoModelProviderSettings(modelId, hasFrameImages);
-  //   if (providerSettings) {
-  //     payload.providerSettings = providerSettings;
-  //   }
-  // }
+  // Disable audio generation for models that support native audio
+  // We generate audio separately in the Sound tab (voiceover, SFX, music)
+  if (supportsAudio) {
+    const providerSettings = getProviderSettingsWithAudioDisabled(runwareModelId, modelId);
+    if (providerSettings) {
+      payload.providerSettings = providerSettings;
+      console.log(`[narrative-video-generator] Disabled native audio for model ${modelId}`);
+    }
+  }
 
   // Build and add frame images payload
   if (mode === "image-reference") {

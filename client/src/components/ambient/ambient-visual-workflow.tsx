@@ -672,22 +672,26 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
         validationResults.loopLocked = loopSettingsLocked;
       }
       
-      // Check voiceover
+      // Check voiceover - use sessionVoiceoverUrl if available (generated during session), 
+      // otherwise fall back to initialStep5Data (loaded from database)
       if (voiceoverEnabled) {
-        validationResults.voiceoverGenerated = !!(step5Data?.voiceoverAudioUrl && 
-                                                   typeof step5Data.voiceoverAudioUrl === 'string' && 
-                                                   step5Data.voiceoverAudioUrl.trim().length > 0);
+        const voiceoverUrl = sessionVoiceoverUrl || step5Data?.voiceoverAudioUrl;
+        validationResults.voiceoverGenerated = !!(voiceoverUrl && 
+                                                   typeof voiceoverUrl === 'string' && 
+                                                   voiceoverUrl.trim().length > 0);
       }
       
-      // Check music
+      // Check music - use sessionMusicUrl if available (generated during session),
+      // otherwise fall back to initialStep5Data (loaded from database)
       if (backgroundMusicEnabled) {
         const hasCustomMusic = !!(step2DataMusic?.hasCustomMusic && 
                                step2DataMusic?.customMusicUrl && 
                                typeof step2DataMusic.customMusicUrl === 'string' && 
                                step2DataMusic.customMusicUrl.trim().length > 0);
-        const hasGeneratedMusic = !!(step5Data?.generatedMusicUrl && 
-                                  typeof step5Data.generatedMusicUrl === 'string' && 
-                                  step5Data.generatedMusicUrl.trim().length > 0);
+        const generatedMusicUrl = sessionMusicUrl || step5Data?.generatedMusicUrl;
+        const hasGeneratedMusic = !!(generatedMusicUrl && 
+                                  typeof generatedMusicUrl === 'string' && 
+                                  generatedMusicUrl.trim().length > 0);
         validationResults.musicGenerated = hasCustomMusic || hasGeneratedMusic;
       }
       
@@ -711,10 +715,14 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
       console.log('[AmbientWorkflow] Post-restoration validation (Step 5):', {
         ...validationResults,
         isValid,
+        sessionVoiceoverUrl: !!sessionVoiceoverUrl,
+        sessionMusicUrl: !!sessionMusicUrl,
+        initialVoiceoverUrl: !!step5Data?.voiceoverAudioUrl,
+        initialMusicUrl: !!step5Data?.generatedMusicUrl,
       });
       onValidationChange?.(isValid);
     }
-  }, [step5Initialized, activeStep, loopMode, loopSettingsLocked, voiceoverEnabled, backgroundMusicEnabled, shots, initialStep5Data, initialStep2Data]);
+  }, [step5Initialized, activeStep, loopMode, loopSettingsLocked, voiceoverEnabled, backgroundMusicEnabled, shots, initialStep5Data, initialStep2Data, sessionVoiceoverUrl, sessionMusicUrl]);
 
   // Restore Step 5 (Soundscape) data - loop counts, lock state
   // This MUST run after step4 is initialized
@@ -2510,8 +2518,17 @@ export const AmbientVisualWorkflow = forwardRef<AmbientVisualWorkflowRef, Ambien
           shot.id === shotId ? { ...shot, ...updates } : shot
         );
       }
-      // Trigger debounced save for model changes (Step 4)
-      if (updates.imageModel !== undefined || updates.videoModel !== undefined) {
+      // Trigger debounced save for composition changes (Step 4)
+      // This includes all fields editable in the composition phase
+      if (
+        updates.imageModel !== undefined || 
+        updates.videoModel !== undefined ||
+        updates.duration !== undefined ||
+        updates.shotType !== undefined ||
+        updates.cameraMovement !== undefined ||
+        updates.transition !== undefined ||
+        updates.description !== undefined
+      ) {
         debouncedSaveStep4Settings(scenes, newShots);
       }
       // Save soundscape changes (but NOT loopCount - that's saved on lock)

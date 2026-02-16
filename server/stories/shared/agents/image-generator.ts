@@ -742,8 +742,8 @@ export async function createImageGenerator(mode: StoryMode) {
   
   const failedResults = allResults.filter((r) => r.status === "failed");
   
-  if (failedResults.length > 0 && failedResults.length <= scenes.length / 2) {
-    // Only retry if less than half failed (otherwise likely systemic issue)
+  if (failedResults.length > 0) {
+    // Always retry failed images individually — content moderation on one image can kill entire batch
     console.log(`[${mode}:image-generator] Retrying ${failedResults.length} failed image(s)...`);
     
     const retriedResults = await retryFailedImages(failedResults, sceneMap, {

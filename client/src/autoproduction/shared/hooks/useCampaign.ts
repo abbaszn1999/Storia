@@ -81,10 +81,11 @@ export function useDeleteVideoCampaign() {
 // ═══════════════════════════════════════════════════════════════
 
 // Fetch story campaign by ID
-export function useStoryCampaign(id: string | undefined) {
+export function useStoryCampaign(id: string | undefined, options?: { refetchInterval?: number | false }) {
   return useQuery<StoryCampaign>({
     queryKey: [`/api/autoproduction/story-campaigns/${id}`],
     enabled: !!id,
+    refetchInterval: options?.refetchInterval,
   });
 }
 
@@ -160,7 +161,7 @@ export function useStartBatchGeneration(campaignId: string) {
   
   return useMutation({
     mutationFn: async () => {
-      const res = await apiRequest('POST', `/api/autoproduction/auto-story/${campaignId}/generate-batch`);
+      const res = await apiRequest('POST', `/api/autoproduction/story/${campaignId}/generate`);
       return await res.json();
     },
     onSuccess: () => {
@@ -172,7 +173,7 @@ export function useStartBatchGeneration(campaignId: string) {
 // Get batch progress
 export function useBatchProgress(campaignId: string | undefined, enabled = true) {
   return useQuery({
-    queryKey: [`/api/autoproduction/auto-story/${campaignId}/batch-progress`],
+    queryKey: [`/api/autoproduction/story/${campaignId}/progress`],
     enabled: !!campaignId && enabled,
     refetchInterval: 2000, // Poll every 2 seconds during generation
   });
@@ -184,7 +185,7 @@ export function useCancelBatchGeneration(campaignId: string) {
   
   return useMutation({
     mutationFn: async () => {
-      const res = await apiRequest('POST', `/api/autoproduction/auto-story/${campaignId}/cancel-batch`);
+      const res = await apiRequest('POST', `/api/autoproduction/story/${campaignId}/cancel-batch`);
       return await res.json();
     },
     onSuccess: () => {
@@ -198,9 +199,9 @@ export function useCancelBatchGeneration(campaignId: string) {
 // ═══════════════════════════════════════════════════════════════
 
 // Generic campaign hooks - kept for backward compatibility
-export function useCampaign(id: string | undefined) {
+export function useCampaign(id: string | undefined, options?: { refetchInterval?: number | false }) {
   // Default to story campaign for backward compatibility
-  return useStoryCampaign(id);
+  return useStoryCampaign(id, options);
 }
 
 export function useCampaigns(filters?: { type?: 'auto-video' | 'auto-story'; status?: string }) {

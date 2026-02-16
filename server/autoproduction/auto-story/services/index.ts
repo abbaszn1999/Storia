@@ -1,2 +1,2 @@
-export * from './story-generator';
+export * from './story-orchestrator';
 export * from './batch-processor';

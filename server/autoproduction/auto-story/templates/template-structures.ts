@@ -34,6 +34,14 @@ export const TEMPLATE_STRUCTURES: Record<string, TemplateStructure> = {
     maxScenes: 7,
     optimalSceneCount: 4,
   },
+  'auto-asmr': {
+    id: 'auto-asmr',
+    name: 'ASMR & Sensory',
+    stages: ['Intro Ambience', 'Sensory Build', 'Peak Immersion', 'Fade Out'],
+    minScenes: 3,
+    maxScenes: 10,
+    optimalSceneCount: 5,
+  },
 };
 
 export function getTemplateStructure(template: string): TemplateStructure | undefined {

@@ -78,15 +78,19 @@ export interface StoryCampaignWithProgress extends StoryCampaign {
 // Batch progress tracking
 export interface BatchProgress {
   campaignId: string;
+  status: string;
   total: number;
   completed: number;
   failed: number;
   inProgress: number;
   pending: number;
-  currentIndex?: number;
-  currentTopic?: string;
-  currentStage?: GenerationStage;
-  currentProgress?: number;
+  itemStatuses?: Record<string, any>;
+  currentItem?: {
+    index: number;
+    topic: string;
+    stage: string;
+    progress: number;
+  };
 }
 
 // Campaign item (individual video or story in a campaign)

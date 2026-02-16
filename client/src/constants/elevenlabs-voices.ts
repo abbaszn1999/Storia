@@ -50,6 +50,12 @@ export const ELEVENLABS_VOICES: ElevenLabsVoice[] = [
   { id: "drMurExmkWVIH5nW8snR", name: "Khaled Alnajjar", language: "ar", gender: "male", age: "young", description: "Strong and expressive", descriptionEn: "Strong and expressive", previewUrl: "/api/social-commerce/voice-preview/drMurExmkWVIH5nW8snR", accent: "arabic", useCase: "social-media", collection: "Social Media" },
 ];
 
+// Default voice for each language (first narration voice)
+export const DEFAULT_VOICE_BY_LANGUAGE: Record<string, string> = {
+  en: 'Crm8VULvkVs5ZBDa1Ixm', // Andrea Wolff — Clear, youthful, evenly paced
+  ar: 'IES4nrmZdUBHByLBde0P', // Haytham — Energetic, warm and cheerful
+};
+
 // Helper functions
 export function getVoicesByLanguage(language: 'ar' | 'en'): ElevenLabsVoice[] {
   return ELEVENLABS_VOICES.filter(voice => voice.language === language);

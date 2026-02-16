@@ -4,9 +4,9 @@ import { CheckCircle2, Circle, Loader2 } from "lucide-react";
 import type { GenerationStage } from "../../types";
 
 interface ProgressTrackerProps {
-  current: number; // 1-10
-  total: number; // 10
-  currentStage?: GenerationStage;
+  current: number; // completed items count
+  total: number; // total items count
+  currentStage?: GenerationStage | string;
   stageProgress?: number; // 0-100
   className?: string;
 }
@@ -19,6 +19,24 @@ const stages: { id: GenerationStage; label: string }[] = [
   { id: 'composing', label: 'Composing' },
 ];
 
+/**
+ * Map server-side stage names to client GenerationStage IDs.
+ * Server sends descriptive names like 'Generating story script',
+ * 'Breaking into scenes', etc. This maps them to the 5 visual stages.
+ */
+function mapStageToId(stage: string | undefined): GenerationStage | undefined {
+  if (!stage) return undefined;
+  const lower = stage.toLowerCase();
+  if (lower.includes('script') || lower.includes('story script')) return 'script';
+  if (lower.includes('scene') || lower.includes('storyboard')) return 'scenes';
+  if (lower.includes('image') || lower.includes('video') || lower.includes('visual')) return 'visuals';
+  if (lower.includes('voiceover') || lower.includes('music') || lower.includes('audio')) return 'audio';
+  if (lower.includes('export') || lower.includes('composing') || lower.includes('final')) return 'composing';
+  // Check if it's already a valid stage ID
+  if (['script', 'scenes', 'visuals', 'audio', 'composing'].includes(stage)) return stage as GenerationStage;
+  return undefined;
+}
+
 export function ProgressTracker({
   current,
   total,
@@ -26,7 +44,8 @@ export function ProgressTracker({
   stageProgress,
   className,
 }: ProgressTrackerProps) {
-  const overallProgress = (current / total) * 100;
+  const overallProgress = total > 0 ? (current / total) * 100 : 0;
+  const mappedStage = typeof currentStage === 'string' ? mapStageToId(currentStage) : currentStage;
 
   return (
     <Card className={className}>
@@ -46,11 +65,11 @@ export function ProgressTracker({
           </div>
 
           {/* Stage Progress */}
-          {currentStage && stageProgress !== undefined && (
+          {mappedStage && stageProgress !== undefined && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium">
-                  Current Stage
+                  {typeof currentStage === 'string' && currentStage !== mappedStage ? currentStage : 'Current Stage'}
                 </span>
                 <span className="text-sm text-muted-foreground">
                   {stageProgress}%
@@ -58,8 +77,8 @@ export function ProgressTracker({
               </div>
               <div className="flex items-center gap-2">
                 {stages.map((stage, index) => {
-                  const isCompleted = stages.findIndex(s => s.id === currentStage) > index;
-                  const isCurrent = stage.id === currentStage;
+                  const isCompleted = stages.findIndex(s => s.id === mappedStage) > index;
+                  const isCurrent = stage.id === mappedStage;
                   
                   return (
                     <div 

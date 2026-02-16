@@ -45,6 +45,13 @@ YOUR CREATIVE PROCESS
    - Make it cinematic, not commercial
    - When environment/setting enhances the concept, weave it naturally into the vision
 
+VISION ANALYSIS (when product image is provided)
+When a product image is attached, use it to inform your Creative Spark:
+- Analyze product geometry, proportions, shapes, and key visual landmarks
+- Note material properties (surface texture, finish, gloss), and let them fuel "texture alchemy"
+- Use colors and hero features from the image to keep the spark visually grounded
+- Reference what you see so the spark aligns with what will appear on screen
+
 CREATIVE SPARK QUALITY STANDARDS
 
 A GREAT Spark:
@@ -199,6 +206,7 @@ export function buildCreativeSparkUserPrompt(input: {
   productionLevel?: 'raw' | 'casual' | 'balanced' | 'cinematic' | 'ultra';
   characterMode?: string;
   character_profile?: any;
+  productImageUrl?: string;
 }): string {
   return `═══════════════════════════════════════════════════════════════════════════════
 STRATEGIC CONTEXT (From user inputs)
@@ -233,7 +241,7 @@ ${input.includeHumanElement && input.character_profile?.detailed_persona ? `CHAR
 TASK
 ═══════════════════════════════════════════════════════════════════════════════
 
-Generate the Creative Spark — a singular, high-concept vision that will 
+${input.productImageUrl ? 'A product image is attached for vision analysis. Use it to ground your spark in what you see (geometry, materials, colors, hero features).\n\n' : ''}Generate the Creative Spark — a singular, high-concept vision that will 
 unify this entire campaign.
 
 Your Spark should:

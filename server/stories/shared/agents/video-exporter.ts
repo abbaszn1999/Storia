@@ -1,38 +1,39 @@
 // Video Export Agent
 // Merges all scenes, audio, music, and subtitles into final video
 // Works with all story modes: problem-solution, before-after, myth-busting, tease-reveal
+// Uses Shotstack cloud rendering API for video assembly
 
 import { randomUUID } from "crypto";
 import path from "path";
-import { existsSync, statSync } from "fs";
+import { statSync } from "fs";
 import ffmpeg from "fluent-ffmpeg";
 import { bunnyStorage, buildStoryModePath } from "../../../storage/bunny-storage";
 import {
   downloadFile,
-  concatenateVideos,
-  createVideoFromImages,
-  createStaticVideoWithTransitions,
-  createVideoFromImagesWithCreativeTransitions,
-  createVideoWithCreativeTransitions,
-  createSingleAnimatedClip,
-  concatenateAudioFiles,
-  mergeVoiceover,
-  mixBackgroundMusic,
   getTempDir,
   cleanupFiles,
   getVideoDuration,
-  adjustVideoSpeed,
-  adjustAudioSpeed,
-  calculateDualSpeedSync,
-  createMutedVideo,
-  loopVideo,
-  trimVideo,
-  type SyncResult,
 } from "../services/ffmpeg-helpers";
-import { burnSubtitles } from "../services/subtitle-generator";
+import { createSrtFile, type SubtitleScene } from "../services/subtitle-generator";
 import type { StoryMode } from "./idea-generator";
 import { getMusicPrompts } from "../prompts-loader";
 import type { StoryModeForPrompts } from "../prompts-loader";
+import {
+  getShotstackClient,
+  isShotstackConfigured,
+  type ShotstackEdit,
+  type Timeline,
+  type Track,
+  type Clip,
+  type VideoAsset,
+  type ImageAsset,
+  type AudioAsset,
+  type CaptionAsset,
+  type Transition,
+  type TransitionEffect,
+  type Effect,
+  type Soundtrack,
+} from "../../../integrations/shotstack";
 
 const TEMP_DIR = getTempDir();
 
@@ -60,111 +61,7 @@ export async function createVideoExporter(mode: StoryMode) {
   type MusicStyle = any;
 
   /**
-   * Download all required assets (videos/images and audio files)
-   */
-  async function downloadAssets(
-    scenes: any[],
-    animationMode: 'off' | 'transition' | 'video'
-  ) {
-    console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-    console.log(`[${mode}:video-exporter] Downloading assets...`);
-    console.log(`[${mode}:video-exporter] Animation mode:`, animationMode);
-  
-  const videoFiles: string[] = [];
-  const imageFiles: string[] = [];
-  const audioFiles: string[] = [];
-  // Track which scenes have video vs image (for hybrid mode)
-  const sceneMediaType: ('video' | 'image')[] = [];
-  
-  for (const scene of scenes) {
-    // Download video or image based on animation mode
-    if (animationMode === 'video') {
-      // Video mode with HYBRID support: prefer video, fallback to image
-      if (scene.videoUrl) {
-        // Scene has video - use it
-        const videoPath = path.join(TEMP_DIR, `${randomUUID()}_scene${scene.sceneNumber}.mp4`);
-        await downloadFile(scene.videoUrl, videoPath);
-        videoFiles.push(videoPath);
-        sceneMediaType.push('video');
-        console.log(`[video-exporter] ✓ Downloaded video for scene ${scene.sceneNumber}`);
-      } else if (scene.imageUrl) {
-        // Fallback: Scene has only image - will animate it
-        const imagePath = path.join(TEMP_DIR, `${randomUUID()}_scene${scene.sceneNumber}.jpg`);
-        await downloadFile(scene.imageUrl, imagePath);
-        imageFiles.push(imagePath);
-        sceneMediaType.push('image');
-        console.log(`[video-exporter] ✓ Downloaded image for scene ${scene.sceneNumber} (will animate)`);
-      } else {
-        console.warn(`[${mode}:video-exporter] ⚠ Scene ${scene.sceneNumber} missing both videoUrl and imageUrl`);
-        sceneMediaType.push('image'); // Placeholder
-      }
-    } else {
-      // 'off' or 'transition' mode: download images
-      if (scene.imageUrl) {
-        const imagePath = path.join(TEMP_DIR, `${randomUUID()}_scene${scene.sceneNumber}.jpg`);
-        await downloadFile(scene.imageUrl, imagePath);
-        imageFiles.push(imagePath);
-        sceneMediaType.push('image');
-        console.log(`[video-exporter] ✓ Downloaded image for scene ${scene.sceneNumber}`);
-      } else {
-        console.warn(`[${mode}:video-exporter] ⚠ Scene ${scene.sceneNumber} missing imageUrl in ${animationMode} mode`);
-        sceneMediaType.push('image'); // Placeholder
-      }
-    }
-    
-    // Download audio (if voiceover enabled)
-    if (scene.audioUrl) {
-      const audioPath = path.join(TEMP_DIR, `${randomUUID()}_audio${scene.sceneNumber}.mp3`);
-      await downloadFile(scene.audioUrl, audioPath);
-      audioFiles.push(audioPath);
-      console.log(`[video-exporter] ✓ Downloaded audio for scene ${scene.sceneNumber}`);
-    }
-  }
-  
-    console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-    console.log(`[${mode}:video-exporter] Assets download summary:`);
-    console.log(`[${mode}:video-exporter]   Videos:`, videoFiles.length);
-    console.log(`[${mode}:video-exporter]   Images:`, imageFiles.length);
-    console.log(`[${mode}:video-exporter]   Audio:`, audioFiles.length);
-  
-    // Log hybrid mode info
-    if (animationMode === 'video') {
-      const videoCount = sceneMediaType.filter(t => t === 'video').length;
-      const imageCount = sceneMediaType.filter(t => t === 'image').length;
-      if (imageCount > 0) {
-        console.log(`[${mode}:video-exporter] HYBRID MODE: ${videoCount} videos, ${imageCount} images (will be animated)`);
-      }
-    }
-  
-    return { videoFiles, imageFiles, audioFiles, sceneMediaType };
-  }
-
-  /**
-   * Get resolution dimensions based on quality and aspect ratio
-   */
-  function getResolution(quality: string, aspectRatio: string): { width: number; height: number } {
-  const resolutions: Record<string, { width: number; height: number }> = {
-    '720p': { width: 1280, height: 720 },
-    '1080p': { width: 1920, height: 1080 },
-    '4k': { width: 3840, height: 2160 },
-  };
-  
-  let res = resolutions[quality] || resolutions['1080p'];
-  
-  // Adjust for aspect ratio
-  if (aspectRatio === '9:16') {
-    // Vertical video - swap dimensions
-    return { width: res.height, height: res.width };
-  } else if (aspectRatio === '1:1') {
-    // Square video
-    return { width: res.height, height: res.height };
-  }
-  
-    return res;
-  }
-
-  /**
-   * Export final video
+   * Export final video using Shotstack cloud rendering
    */
   async function exportFinalVideo(
     input: any,
@@ -172,35 +69,37 @@ export async function createVideoExporter(mode: StoryMode) {
     workspaceName?: string
   ): Promise<any> {
   const startTime = Date.now();
-  const tempFiles: string[] = [];
   
   // Track separated assets for real-time volume control
-  let videoBaseUrl: string | undefined;  // MUTED video (no audio) for real-time preview
-  let voiceoverUrl: string | undefined;  // Merged voiceover audio
-  let uploadedMusicUrl: string | undefined;  // Music audio file
+  let videoBaseUrl: string | undefined;
+  let voiceoverUrl: string | undefined;
+  let uploadedMusicUrl: string | undefined;
   
   try {
-    // Determine scenario
+    // ── Verify Shotstack is configured ──────────────────────────────
+    if (!isShotstackConfigured()) {
+      throw new Error('Shotstack is not configured. Set SHOTSTACK_API_KEY environment variable.');
+    }
+    
+    // ── Determine scenario ─────────────────────────────────────────
     // CRITICAL: For auto-asmr mode, audioUrl contains sound effects, NOT voiceover
     const hasVoiceover = mode === 'auto-asmr'
-      ? false  // auto-asmr doesn't have voiceover, only sound effects
+      ? false
       : input.scenes.some((s: any) => s.audioUrl);
     
     const hasSoundEffects = mode === 'auto-asmr'
-      ? input.scenes.some((s: any) => s.audioUrl)  // audioUrl contains sound effects in auto-asmr
+      ? input.scenes.some((s: any) => s.audioUrl)
       : false;
     
-    const hasCustomMusic = !!input.customMusicUrl; // User-uploaded music (highest priority)
+    const hasCustomMusic = !!input.customMusicUrl;
     const hasLegacyMusic = input.backgroundMusic && input.backgroundMusic !== 'none';
     const hasAiMusic = input.musicStyle && input.musicStyle !== 'none' && isValidMusicStyle(input.musicStyle);
     const hasMusic = hasCustomMusic || hasLegacyMusic || hasAiMusic;
-    const hasTextOverlay = input.textOverlay && hasVoiceover; // Text overlay ONLY with voiceover (not for sound effects)
-    
-    // Should we save separated files for volume control?
-    const enableVolumeControl = hasVoiceover && hasMusic; // Only for voiceover, not sound effects
+    const hasTextOverlay = input.textOverlay && hasVoiceover;
+    const enableVolumeControl = hasVoiceover && hasMusic;
     
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-      console.log(`[${mode}:video-exporter] EXPORT SCENARIO ANALYSIS`);
+      console.log(`[${mode}:video-exporter] EXPORT VIA SHOTSTACK (cloud rendering)`);
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
       console.log(`[${mode}:video-exporter] Scene count:`, input.scenes.length);
       console.log(`[${mode}:video-exporter] Animation mode:`, input.animationMode);
@@ -210,426 +109,180 @@ export async function createVideoExporter(mode: StoryMode) {
       hasAiMusic ? '(AI Generated)' : 
       hasLegacyMusic ? '(Legacy URL)' : '';
       console.log(`[${mode}:video-exporter] Has music:`, hasMusic, musicType);
-      const musicSource = hasCustomMusic ? 'custom-upload' : 
-      hasAiMusic ? `ai-${input.musicStyle}` : 
-      hasLegacyMusic ? 'legacy-url' : 'none';
-      console.log(`[${mode}:video-exporter] Music source:`, musicSource);
       console.log(`[${mode}:video-exporter] Text overlay enabled:`, input.textOverlay);
       console.log(`[${mode}:video-exporter] Will show subtitles:`, hasTextOverlay);
-      console.log(`[${mode}:video-exporter] Export format:`, input.exportFormat);
-      console.log(`[${mode}:video-exporter] Export quality:`, input.exportQuality);
+      console.log(`[${mode}:video-exporter] Aspect ratio:`, input.aspectRatio || '16:9');
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
     
-    // Step 1: Download all assets
-    const assets = await downloadAssets(input.scenes, input.animationMode);
-    tempFiles.push(...assets.videoFiles, ...assets.imageFiles, ...assets.audioFiles);
-    
-    // Step 2: Create video timeline based on animation mode
+    // ── Step 1: Build Shotstack Timeline Clips ───────────────────────
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-      console.log(`[${mode}:video-exporter] STEP 2: Creating Video Timeline`);
+      console.log(`[${mode}:video-exporter] STEP 1: Building Shotstack Timeline Clips`);
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
     
-    let videoTimeline: string;
-    // Add 1 second padding to last scene to prevent cutting off last words
+    const videoClips: Clip[] = [];
+    const audioClips: Clip[] = [];
+    let timelinePosition = 0;
+    
+    // Add 1 second padding to last scene
     const durations = input.scenes.map((s: any, index: number) => {
       const isLastScene = index === input.scenes.length - 1;
-      return isLastScene ? s.duration + 1 : s.duration; // +1s for last scene
+      return isLastScene ? s.duration + 1 : s.duration;
     });
     
-      console.log(`[${mode}:video-exporter] Scene durations (with +1s padding on last):`, durations);
-    
-    // Track audio speeds for subtitle timestamp adjustment (initialized for all modes)
-    const audioSpeedsByScene: number[] = input.scenes.map(() => 1.0);
-    
-    if (input.animationMode === 'video') {
-      // Scenario: Video mode - supports HYBRID (mix of videos and animated images)
-      const isHybridMode = assets.sceneMediaType.includes('image');
-      const videoSceneCount = assets.sceneMediaType.filter(t => t === 'video').length;
-      const imageSceneCount = assets.sceneMediaType.filter(t => t === 'image').length;
+    for (let i = 0; i < input.scenes.length; i++) {
+      const scene = input.scenes[i];
+      const sceneDuration = durations[i];
+      const hasAudio = !!scene.audioUrl;
       
-      if (assets.videoFiles.length === 0 && assets.imageFiles.length === 0) {
-        throw new Error('Video mode selected but no video or image files available');
+      // Determine clip duration: use audio duration if available, otherwise scene duration
+      const audioDuration = scene.actualDuration || sceneDuration;
+      const clipDuration = hasAudio ? audioDuration : sceneDuration;
+      
+      // ── Build transition (except last scene) ──
+      let transition: Transition | undefined;
+      if (i < input.scenes.length - 1 && scene.transitionToNext && scene.transitionToNext !== 'none') {
+        const transEffect = mapExporterTransition(scene.transitionToNext);
+        const transDuration = scene.transitionDuration || 0.5;
+        transition = {
+          in: transEffect,
+          out: transEffect,
+        };
       }
       
-        console.log(`[${mode}:video-exporter] Mode: Video (image-to-video with intelligent sync)`);
-      if (isHybridMode) {
-        console.log(`[video-exporter] HYBRID MODE: ${videoSceneCount} videos + ${imageSceneCount} animated images`);
-      }
-      
-      // STEP: Create animated clips from images (for hybrid mode)
-      // Build unified video clips array matching scene order
-      let unifiedVideoClips: string[] = [];
-      let videoIndex = 0;
-      let imageIndex = 0;
-      
-      for (let i = 0; i < assets.sceneMediaType.length; i++) {
-        if (assets.sceneMediaType[i] === 'video') {
-          // Use existing video
-          unifiedVideoClips.push(assets.videoFiles[videoIndex]);
-          videoIndex++;
-        } else {
-          // Create animated clip from image
-          console.log(`[video-exporter] Scene ${i + 1}: Creating animated clip from image...`);
-          const imagePath = assets.imageFiles[imageIndex];
-          const targetDuration = durations[i];
-          try {
-            const animatedClip = await createSingleAnimatedClip(imagePath, targetDuration, 'ken-burns', null, input.aspectRatio);
-            tempFiles.push(animatedClip);
-            unifiedVideoClips.push(animatedClip);
-            console.log(`[video-exporter] Scene ${i + 1}: ✓ Created ${targetDuration}s animated clip`);
-          } catch (error) {
-            console.error(`[video-exporter] Scene ${i + 1}: Failed to create animated clip:`, error);
-            throw new Error(`Failed to create animated clip for scene ${i + 1}`);
-          }
-          imageIndex++;
-        }
-      }
-      
-      console.log(`[video-exporter] Unified clips: ${unifiedVideoClips.length} total`);
-      
-      // Replace assets.videoFiles with unified clips for the rest of the processing
-      const originalVideoFiles = assets.videoFiles;
-      assets.videoFiles = unifiedVideoClips;
-      
-      // DUAL SPEED SYNC: Prefer slowdown over speedup (more natural)
-      // Apply sync for both voiceover (other modes) and sound effects (auto-asmr)
-      if ((hasVoiceover || hasSoundEffects) && assets.audioFiles.length > 0) {
-          const audioType = mode === 'auto-asmr' ? 'sound effects' : 'voiceover';
-          console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-          console.log(`[${mode}:video-exporter] DUAL SPEED SYNC (Prefer Slowdown Mode)`);
-          console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-          console.log(`[${mode}:video-exporter] Strategy: Slow motion video + Natural ${audioType}`);
-          console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-        
-        const adjustedVideos: string[] = [];
-        const adjustedAudios: string[] = [];
-        
-        for (let i = 0; i < assets.videoFiles.length; i++) {
-          const videoPath = assets.videoFiles[i];
-          const audioPath = assets.audioFiles[i];
+      // ── Build video/image clip based on animation mode ──
+      if (input.animationMode === 'video') {
+        // Video mode: prefer videoUrl, fallback to imageUrl with Ken Burns
+        if (scene.videoUrl) {
+          // Calculate speed to sync video with audio
+          const videoDuration = scene.videoDuration || sceneDuration;
+          const speed = videoDuration / clipDuration;
           
-          if (!audioPath) {
-            // No audio for this scene - use video as-is
-            console.log(`[video-exporter] Scene ${i + 1}: No audio - using video as-is`);
-            adjustedVideos.push(videoPath);
-            // audioSpeedsByScene[i] already initialized to 1.0
-            continue;
-          }
+          const videoAsset: VideoAsset = {
+            type: 'video',
+            src: scene.videoUrl,
+            volume: 0, // Muted — audio is on separate track
+            ...(Math.abs(speed - 1.0) > 0.05 ? { speed } : {}),
+          };
           
-          try {
-            // Get both durations
-            const videoDuration = await getVideoDuration(videoPath);
-            const audioDuration = durations[i]; // Target from scene config
-            
-            console.log(`[video-exporter] ─────────────────────────────────────────────`);
-            console.log(`[video-exporter] Scene ${i + 1}:`);
-            console.log(`[video-exporter]   Video: ${videoDuration.toFixed(2)}s`);
-            console.log(`[video-exporter]   Audio: ${audioDuration.toFixed(2)}s`);
-            
-            // Calculate optimal speeds using Dual Speed Sync v2.0
-            // Supports: slowdown, speedup, loop, and trim
-            const sync = calculateDualSpeedSync(videoDuration, audioDuration);
-            
-            console.log(`[video-exporter]   Target: ${sync.targetDuration.toFixed(2)}s`);
-            console.log(`[video-exporter]   Video speed: ${sync.videoSpeed.toFixed(3)}x`);
-            console.log(`[video-exporter]   Audio speed: ${sync.audioSpeed.toFixed(3)}x`);
-            console.log(`[video-exporter]   Method: ${sync.method}`);
-            console.log(`[video-exporter]   Needs loop: ${sync.needsLoop}`);
-            console.log(`[video-exporter]   Needs trim: ${sync.needsTrim}`);
-            
-            let adjustedVideo = videoPath;
-            let adjustedAudio = audioPath;
-            
-            // Store audio speed for subtitle adjustment
-            audioSpeedsByScene[i] = sync.audioSpeed;
-            
-            if (sync.method !== 'none') {
-              // Step 1: Apply LOOP if needed (video shorter than audio)
-              if (sync.needsLoop) {
-                console.log(`[video-exporter]   → Looping video (2x)...`);
-                const loopedVideo = await loopVideo(adjustedVideo, videoDuration * 2);
-                if (adjustedVideo !== videoPath) tempFiles.push(adjustedVideo);
-                adjustedVideo = loopedVideo;
-                tempFiles.push(loopedVideo);
-              }
-              
-              // Step 2: Apply TRIM if needed (video longer than audio)
-              if (sync.needsTrim && sync.trimTo) {
-                console.log(`[video-exporter]   → Trimming video to ${sync.trimTo.toFixed(2)}s...`);
-                const trimmedVideo = await trimVideo(adjustedVideo, sync.trimTo);
-                if (adjustedVideo !== videoPath) tempFiles.push(adjustedVideo);
-                adjustedVideo = trimmedVideo;
-                tempFiles.push(trimmedVideo);
-              }
-              
-              // Step 3: Adjust video speed if needed
-              if (Math.abs(sync.videoSpeed - 1.0) > 0.02) {
-                console.log(`[video-exporter]   → Adjusting video speed to ${sync.videoSpeed.toFixed(2)}x...`);
-                const speedAdjustedVideo = await adjustVideoSpeed(adjustedVideo, sync.targetDuration);
-                if (adjustedVideo !== videoPath) tempFiles.push(adjustedVideo);
-                adjustedVideo = speedAdjustedVideo;
-                tempFiles.push(speedAdjustedVideo);
-              }
-              
-              // Step 4: Adjust audio speed if needed
-              if (Math.abs(sync.audioSpeed - 1.0) > 0.02) {
-                console.log(`[video-exporter]   → Adjusting audio speed to ${sync.audioSpeed.toFixed(2)}x...`);
-                adjustedAudio = await adjustAudioSpeed(audioPath, sync.targetDuration);
-                tempFiles.push(adjustedAudio);
-              }
-              
-              console.log(`[video-exporter]   ✓ Sync complete (method: ${sync.method})`);
-            } else {
-              console.log(`[video-exporter]   ✓ No adjustment needed (close enough)`);
-            }
-            
-            adjustedVideos.push(adjustedVideo);
-            adjustedAudios.push(adjustedAudio);
-            
-          } catch (error) {
-            console.error(`[video-exporter] Failed to sync Scene ${i + 1}:`, error);
-            // Fallback: use originals
-            adjustedVideos.push(videoPath);
-            adjustedAudios.push(audioPath);
-            // audioSpeedsByScene[i] already initialized to 1.0
-          }
-        }
-        
-          console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-          console.log(`[${mode}:video-exporter] ✓ All scenes synced with Prefer Slowdown strategy`);
-          console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-        
-        // Update assets with adjusted files
-        assets.audioFiles = adjustedAudios;
-        
-        // Check if creative transitions are specified for video mode
-        const transitions: Array<SceneTransition | null> = input.scenes.map((s: any, i: number) => {
-          if (i === input.scenes.length - 1) return null;
-          return (s.transitionToNext as SceneTransition) || null;
-        });
-        const transitionDurations: number[] = input.scenes.map((s: any, i: number) => {
-          if (i === input.scenes.length - 1) return 0;
-          return s.transitionDuration || 0.5;
-        });
-        
-        const hasCreativeTransitions = transitions.some(t => t && t !== 'none');
-        
-        if (hasCreativeTransitions && adjustedVideos.length > 1) {
-            console.log(`[${mode}:video-exporter] Applying creative transitions between video clips...`);
-            console.log(`[${mode}:video-exporter] Transitions:`, transitions.filter(t => t));
-          videoTimeline = await createVideoWithCreativeTransitions(
-            adjustedVideos,
-            durations,
-            transitions,
-            transitionDurations
-          );
+          console.log(`[${mode}:video-exporter]   Scene ${i + 1}: Video speed ${speed.toFixed(2)}x (video=${videoDuration}s → clip=${clipDuration.toFixed(1)}s)`);
+          
+          videoClips.push({
+            asset: videoAsset,
+            start: timelinePosition,
+            length: clipDuration,
+            fit: 'cover',
+            ...(transition ? { transition } : {}),
+          });
+        } else if (scene.imageUrl) {
+          // Hybrid fallback: use image with Ken Burns effect
+          const effect = mapExporterEffect(scene.imageAnimation || 'ken-burns');
+          
+          const imageAsset: ImageAsset = {
+            type: 'image',
+            src: scene.imageUrl,
+          };
+          
+          console.log(`[${mode}:video-exporter]   Scene ${i + 1}: Image (hybrid fallback) with ${effect || 'no'} effect`);
+          
+          videoClips.push({
+            asset: imageAsset,
+            start: timelinePosition,
+            length: clipDuration,
+            fit: 'cover',
+            ...(effect ? { effect } : {}),
+            ...(transition ? { transition } : {}),
+          });
         } else {
-          videoTimeline = await concatenateVideos(adjustedVideos);
+          console.warn(`[${mode}:video-exporter]   Scene ${i + 1}: ⚠ No video or image URL — skipping`);
+          timelinePosition += clipDuration;
+          continue;
+        }
+      } else if (input.animationMode === 'transition') {
+        // Transition mode: images with Ken Burns
+        if (!scene.imageUrl) {
+          console.warn(`[${mode}:video-exporter]   Scene ${i + 1}: ⚠ No image URL — skipping`);
+          timelinePosition += clipDuration;
+          continue;
         }
         
+        const effect = mapExporterEffect(scene.imageAnimation || 'ken-burns');
+        
+        const imageAsset: ImageAsset = {
+          type: 'image',
+          src: scene.imageUrl,
+        };
+        
+        console.log(`[${mode}:video-exporter]   Scene ${i + 1}: Image with ${effect || 'ken-burns'} effect (${clipDuration}s)`);
+        
+        videoClips.push({
+          asset: imageAsset,
+          start: timelinePosition,
+          length: clipDuration,
+          fit: 'cover',
+          ...(effect ? { effect } : {}),
+          ...(transition ? { transition } : {}),
+        });
       } else {
-        // No voiceover: concatenate videos with transitions if specified
-          console.log(`[${mode}:video-exporter] No voiceover - checking for creative transitions...`);
-        
-        const transitions: Array<SceneTransition | null> = input.scenes.map((s: any, i: number) => {
-          if (i === input.scenes.length - 1) return null;
-          return (s.transitionToNext as SceneTransition) || null;
-        });
-        const transitionDurations: number[] = input.scenes.map((s: any, i: number) => {
-          if (i === input.scenes.length - 1) return 0;
-          return s.transitionDuration || 0.5;
-        });
-        
-        const hasCreativeTransitions = transitions.some(t => t && t !== 'none');
-        
-        if (hasCreativeTransitions && assets.videoFiles.length > 1) {
-            console.log(`[${mode}:video-exporter] Applying creative transitions...`);
-          videoTimeline = await createVideoWithCreativeTransitions(
-            assets.videoFiles,
-            durations,
-            transitions,
-            transitionDurations
-          );
-        } else {
-          videoTimeline = await concatenateVideos(assets.videoFiles);
+        // Animation off: static images
+        if (!scene.imageUrl) {
+          console.warn(`[${mode}:video-exporter]   Scene ${i + 1}: ⚠ No image URL — skipping`);
+          timelinePosition += clipDuration;
+          continue;
         }
+        
+        const imageAsset: ImageAsset = {
+          type: 'image',
+          src: scene.imageUrl,
+        };
+        
+        console.log(`[${mode}:video-exporter]   Scene ${i + 1}: Static image (${clipDuration}s)`);
+        
+        videoClips.push({
+          asset: imageAsset,
+          start: timelinePosition,
+          length: clipDuration,
+          fit: 'cover',
+          ...(transition ? { transition } : {}),
+        });
       }
       
-    } else if (input.animationMode === 'transition') {
-      // Scenario: Transition mode (Ken Burns animations + creative scene transitions)
-      if (assets.imageFiles.length === 0) {
-        throw new Error('Transition mode selected but no image files available');
+      // ── Build audio clip (voiceover or sound effects) ──
+      if (hasAudio && scene.audioUrl) {
+        const audioAsset: AudioAsset = {
+          type: 'audio',
+          src: scene.audioUrl,
+          volume: 1,
+        };
+        
+        audioClips.push({
+          asset: audioAsset,
+          start: timelinePosition,
+          length: clipDuration,
+        });
       }
-        console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-        console.log(`[${mode}:video-exporter] Mode: Transition (Ken Burns + Creative Transitions)`);
-        console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
       
-      // Extract animations and effects for Ken Burns
-      const animations: Array<ImageAnimation | null> = input.scenes.map((s: any) => s.imageAnimation || 'ken-burns');
-      const effects: Array<ImageEffect | null> = input.scenes.map((s: any) => s.imageEffect || null);
-      
-      // Extract scene-to-scene transitions (2025 trending)
-      const transitions: Array<SceneTransition | null> = input.scenes.map((s: any, i: number) => {
-        // Last scene doesn't need transition
-        if (i === input.scenes.length - 1) return null;
-        return (s.transitionToNext as SceneTransition) || 'cross-dissolve';
-      });
-      const transitionDurations: number[] = input.scenes.map((s: any, i: number) => {
-        if (i === input.scenes.length - 1) return 0;
-        return s.transitionDuration || 0.5;
-      });
-      
-        console.log(`[${mode}:video-exporter] Ken Burns Animations:`, animations);
-        console.log(`[${mode}:video-exporter] Visual Effects:`, effects);
-        console.log(`[${mode}:video-exporter] Scene Transitions:`, transitions.slice(0, -1)); // Exclude last null
-        console.log(`[${mode}:video-exporter] Transition Durations:`, transitionDurations.slice(0, -1));
-      
-      // Use new creative transitions function
-      videoTimeline = await createVideoFromImagesWithCreativeTransitions(
-        assets.imageFiles,
-        durations,
-        animations,
-        effects,
-        transitions,
-        transitionDurations,
-        input.aspectRatio
-      );
-      
-    } else {
-      // Scenario: Animation off (static images with smooth transitions)
-      if (assets.imageFiles.length === 0) {
-        throw new Error('Animation off mode selected but no image files available');
-      }
-        console.log(`[${mode}:video-exporter] Mode: Off (static images with smooth transitions)`);
-      
-      // Even in 'off' mode, apply creative transitions if specified
-      const transitions: Array<SceneTransition | null> = input.scenes.map((s: any, i: number) => {
-        if (i === input.scenes.length - 1) return null;
-        return (s.transitionToNext as SceneTransition) || 'fade';
-      });
-      const transitionDurations: number[] = input.scenes.map((s: any, i: number) => {
-        if (i === input.scenes.length - 1) return 0;
-        return s.transitionDuration || 0.5;
-      });
-      
-      // If any non-fade transitions, use creative transitions
-      const hasCreativeTransitions = transitions.some(t => t && t !== 'fade' && t !== 'none');
-      
-      if (hasCreativeTransitions) {
-          console.log(`[${mode}:video-exporter] Using creative transitions:`, transitions.filter(t => t));
-        videoTimeline = await createVideoFromImagesWithCreativeTransitions(
-          assets.imageFiles,
-          durations,
-          input.scenes.map(() => null), // No Ken Burns animations
-          input.scenes.map(() => null), // No effects
-          transitions,
-          transitionDurations,
-          input.aspectRatio
-        );
-      } else {
-        // Simple fade transitions
-        videoTimeline = await createStaticVideoWithTransitions(
-          assets.imageFiles, 
-          durations,
-          'fade',
-          0.5,
-          input.aspectRatio
-        );
-      }
+      timelinePosition += clipDuration;
     }
     
-    tempFiles.push(videoTimeline);
-      console.log(`[${mode}:video-exporter] ✓ Video timeline created:`, videoTimeline);
+    const totalDuration = timelinePosition;
     
-    // Step 3: Merge audio (voiceover for other modes, sound effects for auto-asmr)
+      console.log(`[${mode}:video-exporter] ✓ Timeline clips built: { videoClips: ${videoClips.length}, audioClips: ${audioClips.length}, totalDuration: '${totalDuration.toFixed(1)}s' }`);
+    
+    // ── Step 2: Generate music URL (if needed) ───────────────────────
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-      console.log(`[${mode}:video-exporter] STEP 3: Audio Processing`);
+      console.log(`[${mode}:video-exporter] STEP 2: Music Processing`);
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
     
-    let finalVideo = videoTimeline;
-    
-    // Process audio: voiceover for other modes, sound effects for auto-asmr
-    if ((hasVoiceover || hasSoundEffects) && assets.audioFiles.length > 0) {
-      const audioType = mode === 'auto-asmr' ? 'sound effects' : 'voiceover';
-      console.log(`[${mode}:video-exporter] Processing ${audioType} audio...`);
-      console.log(`[${mode}:video-exporter] Audio files count:`, assets.audioFiles.length);
-      
-      let mergedAudio: string;
-      
-      if (assets.audioFiles.length > 1) {
-          console.log(`[${mode}:video-exporter] Concatenating multiple audio files...`);
-        mergedAudio = await concatenateAudioFiles(assets.audioFiles);
-        tempFiles.push(mergedAudio);
-          console.log(`[${mode}:video-exporter] ✓ Audio concatenation complete`);
-        } else {
-          console.log(`[${mode}:video-exporter] Single audio file, no concatenation needed`);
-        mergedAudio = assets.audioFiles[0];
-      }
-      
-        console.log(`[${mode}:video-exporter] Merging ${audioType} with video timeline...`);
-      const withAudio = await mergeVoiceover(videoTimeline, mergedAudio);
-      tempFiles.push(withAudio);
-      finalVideo = withAudio;
-        console.log(`[${mode}:video-exporter] ✓ ${audioType} merged successfully`);
-      
-      // Upload merged audio for volume control (if both voice/sound effects & music enabled)
-      // Only for voiceover, not for sound effects (sound effects don't need volume control separation)
-      if (enableVolumeControl && hasVoiceover) {
-        const audioLabel = mode === 'auto-asmr' ? 'sound effects' : 'voiceover';
-          console.log(`[${mode}:video-exporter] Uploading merged ${audioLabel} for volume control...`);
-        const audioFilename = mode === 'auto-asmr' ? `sound_effects_${Date.now()}.mp3` : `voiceover_${Date.now()}.mp3`;
-        const audioSubfolder = mode === 'auto-asmr' ? 'SoundEffects' : 'VoiceOver';
-        const audioPath = buildStoryModePath({
-          userId: userId || "",
-          workspaceName: workspaceName || "",
-          toolMode: mode,
-          projectName: input.projectName,
-          subfolder: audioSubfolder,
-          filename: audioFilename,
-        });
-        const audioBuffer = await import('fs/promises').then(fs => fs.readFile(mergedAudio));
-        voiceoverUrl = await bunnyStorage.uploadFile(audioPath, audioBuffer, 'audio/mpeg');
-          console.log(`[${mode}:video-exporter] ✓ ${audioLabel} uploaded:`, voiceoverUrl);
-      }
-    } else {
-      const audioType = mode === 'auto-asmr' ? 'sound effects' : 'voiceover';
-        console.log(`[${mode}:video-exporter] No ${audioType} audio - creating silent video`);
-    }
-    
-    // Step 4: Add background music (if enabled)
-      console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-      console.log(`[${mode}:video-exporter] STEP 4: Background Music`);
-      console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
+    let musicUrl: string = '';
     
     if (hasMusic) {
-      let musicUrl: string;
-      let musicNeedsTrimming = false; // Flag for custom music that needs trimming
-      
-      // Calculate total video duration (needed for trimming)
-      const totalDuration = input.scenes.reduce((sum: number, s: any) => sum + s.duration, 0);
-      
-      // Option A: Custom uploaded music (highest priority)
       if (hasCustomMusic) {
-          console.log(`[${mode}:video-exporter] Using custom uploaded music...`);
-          console.log(`[${mode}:video-exporter] Custom music URL:`, input.customMusicUrl!.substring(0, 80) + '...');
+          console.log(`[${mode}:video-exporter] Using custom uploaded music`);
         musicUrl = input.customMusicUrl!;
-        musicNeedsTrimming = true; // Custom music needs to be trimmed to video length
-      }
-      // Option B: AI-generated music
-      else if (hasAiMusic) {
+      } else if (hasAiMusic) {
           console.log(`[${mode}:video-exporter] Generating AI music...`);
-          console.log(`[${mode}:video-exporter] Music style:`, input.musicStyle);
-        
-        // Calculate total video duration
         const totalDurationMs = input.scenes.reduce((sum: number, s: any) => sum + s.duration * 1000, 0);
-        
-        // Combine all scene narrations for story context
-        const fullNarration = input.scenes
-          .map((s: any) => s.narration)
-          .filter(Boolean)
-          .join(' ');
-        
-          console.log(`[${mode}:video-exporter] Story narration length:`, fullNarration.length, `characters`);
+        const fullNarration = input.scenes.map((s: any) => s.narration).filter(Boolean).join(' ');
         
         try {
           const musicResult = await generateMusic(
@@ -637,7 +290,7 @@ export async function createVideoExporter(mode: StoryMode) {
               musicStyle: input.musicStyle as MusicStyle,
               durationMs: totalDurationMs,
               storyTopic: input.storyTopic,
-              storyNarration: fullNarration,  // Pass full story for context
+              storyNarration: fullNarration,
               projectName: input.projectName,
               workspaceId: input.workspaceId,
             },
@@ -646,224 +299,266 @@ export async function createVideoExporter(mode: StoryMode) {
             'story',
             input.storyMode || 'problem-solution'
           );
-          
           musicUrl = musicResult.musicUrl;
-            console.log(`[${mode}:video-exporter] ✓ AI music generated:`, musicUrl);
-            console.log(`[${mode}:video-exporter]   Duration:`, musicResult.durationMs / 1000, `s`);
-            console.log(`[${mode}:video-exporter]   Cost:`, `$${musicResult.cost.toFixed(4)}`);
-          } catch (musicError) {
+            console.log(`[${mode}:video-exporter] ✓ AI music generated: ${musicUrl}`);
+        } catch (musicError) {
             console.error(`[${mode}:video-exporter] AI music generation failed:`, musicError);
-            console.log(`[${mode}:video-exporter] Continuing without music...`);
-          musicUrl = '';
         }
-      }
-      // Option C: Legacy URL (backwards compatibility)
-      else if (hasLegacyMusic) {
-          console.log(`[${mode}:video-exporter] Using legacy music URL...`);
+      } else if (hasLegacyMusic) {
+          console.log(`[${mode}:video-exporter] Using legacy music URL`);
         musicUrl = input.backgroundMusic!;
-      } else {
-        musicUrl = '';
       }
       
-      // Mix music if URL available
-      if (musicUrl) {
-          console.log(`[${mode}:video-exporter] Mixing background music...`);
-          console.log(`[${mode}:video-exporter] Music URL:`, musicUrl.substring(0, 80) + '...');
-          console.log(`[${mode}:video-exporter] Voice volume:`, input.voiceVolume);
-          console.log(`[${mode}:video-exporter] Music volume:`, input.musicVolume);
-        
-        // NOTE: Muted video will be created AFTER subtitles (at end of export)
-        
-        // Download music file
-        let musicPath = path.join(TEMP_DIR, `${randomUUID()}_music.mp3`);
-        await downloadFile(musicUrl, musicPath);
-        tempFiles.push(musicPath);
-          console.log(`[${mode}:video-exporter] ✓ Music downloaded`);
-        
-        // Trim custom music to video length if needed
-        if (musicNeedsTrimming) {
-          console.log(`[video-exporter] Trimming custom music to ${totalDuration}s with fade out...`);
-          const trimmedPath = path.join(TEMP_DIR, `${randomUUID()}_music_trimmed.mp3`);
-          
-          try {
-            await new Promise<void>((resolve, reject) => {
-              ffmpeg(musicPath)
-                .setStartTime(0)
-                .setDuration(totalDuration)
-                // Add fade out in the last 1.5 seconds
-                .audioFilters(`afade=t=out:st=${Math.max(0, totalDuration - 1.5)}:d=1.5`)
-                .output(trimmedPath)
-                .on('end', () => resolve())
-                .on('error', (err) => reject(err))
-                .run();
-            });
-            
-            tempFiles.push(trimmedPath);
-            musicPath = trimmedPath; // Use trimmed version
-              console.log(`[${mode}:video-exporter] ✓ Custom music trimmed with fade out`);
-          } catch (trimError) {
-            console.warn('[video-exporter] Failed to trim music, using original:', trimError);
-            // Continue with original music
-          }
-        }
-        
-        // Upload music for volume control (fixed name - gets replaced on re-export)
-        if (enableVolumeControl) {
-            console.log(`[${mode}:video-exporter] Uploading music file for volume control...`);
-          const musicFilename = `music_trimmed.mp3`;
-          const musicUploadPath = buildStoryModePath({
-            userId: userId || "",
-            workspaceName: workspaceName || "",
-            toolMode: mode,
-            projectName: input.projectName,
-            subfolder: "Music",
-            filename: musicFilename,
-          });
-          const musicBuffer = await import('fs/promises').then(fs => fs.readFile(musicPath));
-          uploadedMusicUrl = await bunnyStorage.uploadFile(musicUploadPath, musicBuffer, 'audio/mpeg');
-            console.log(`[${mode}:video-exporter] ✓ Music uploaded:`, uploadedMusicUrl);
-        }
-        
-        const withMusic = await mixBackgroundMusic(
-          finalVideo,
-          musicPath,
-          input.voiceVolume,
-          input.musicVolume
-        );
-        tempFiles.push(withMusic);
-        finalVideo = withMusic;
-          console.log(`[${mode}:video-exporter] ✓ Background music mixed successfully`);
+      // Upload music URL for volume control
+      if (musicUrl && enableVolumeControl) {
+        uploadedMusicUrl = musicUrl; // Already a URL — no need to re-upload
       }
     } else {
-        console.log(`[${mode}:video-exporter] Skipping background music (not enabled)`);
+        console.log(`[${mode}:video-exporter] Skipping music (not enabled)`);
     }
     
-    // Step 5: Add text overlay (ONLY if voiceover is enabled AND textOverlay is true)
+    // ── Step 3: Generate SRT subtitles ───────────────────────────────
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-      console.log(`[${mode}:video-exporter] STEP 5: Text Overlay / Subtitles`);
+      console.log(`[${mode}:video-exporter] STEP 3: Subtitle Generation`);
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
     
-    // Subtitles enabled with improved Windows compatibility
-    const SUBTITLES_ENABLED = true;
+    let srtCdnUrl: string | undefined;
     
-    if (hasTextOverlay && SUBTITLES_ENABLED) {
-        console.log(`[${mode}:video-exporter] Burning subtitles...`);
-        console.log(`[${mode}:video-exporter] Voiceover enabled:`, hasVoiceover);
-        console.log(`[${mode}:video-exporter] Text overlay setting:`, input.textOverlay);
-        console.log(`[${mode}:video-exporter] Text overlay style:`, input.textOverlayStyle || 'modern');
-        console.log(`[${mode}:video-exporter] Language:`, input.language || 'en');
-      
-      // Pass wordTimestamps for synchronized karaoke-style subtitles
-      // Also pass audioSpeed to adjust timestamps if audio was sped up/slowed
-      const scenesForSubtitles = input.scenes.map((s: any, i: number) => ({
+    if (hasTextOverlay) {
+      // Build subtitle scenes from input
+      const subtitleScenes: SubtitleScene[] = input.scenes.map((s: any) => ({
         sceneNumber: s.sceneNumber,
         narration: s.narration,
         duration: s.duration,
-        wordTimestamps: s.wordTimestamps,  // ← Word-level sync data!
-        audioSpeed: audioSpeedsByScene[i] || 1.0,  // ← Audio speed for timestamp adjustment
+        wordTimestamps: s.wordTimestamps,
+        audioSpeed: 1.0, // Shotstack handles speed natively
       }));
       
-      const hasWordSync = scenesForSubtitles.some((s: any) => s.wordTimestamps && s.wordTimestamps.length > 0);
-        console.log(`[${mode}:video-exporter] Scenes for subtitles:`, scenesForSubtitles.length);
-        console.log(`[${mode}:video-exporter] Word-level sync:`, hasWordSync ? '✓ Enabled (precise)' : '✗ Fallback mode');
-      scenesForSubtitles.forEach((s: any, i: number) => {
-        const syncInfo = s.wordTimestamps?.length ? `${s.wordTimestamps.length} words` : 'no timestamps';
-        console.log(`[video-exporter]   Scene ${i + 1}: "${s.narration.substring(0, 40)}..." (${s.duration}s, ${syncInfo})`);
-      });
+      const hasWordSync = subtitleScenes.some(s => s.wordTimestamps && s.wordTimestamps.length > 0);
+        console.log(`[${mode}:video-exporter] Generating SRT: ${subtitleScenes.length} scenes, word-sync: ${hasWordSync ? 'yes' : 'no'}`);
       
-      const withSubtitles = await burnSubtitles(
-        finalVideo, 
-        scenesForSubtitles,
-        {
-          style: input.textOverlayStyle || 'modern',
-          language: input.language || 'en',
-        }
-      );
-      tempFiles.push(withSubtitles);
-      finalVideo = withSubtitles;
-        console.log(`[${mode}:video-exporter] ✓ Subtitles burned successfully`);
-    } else {
-      if (!SUBTITLES_ENABLED) {
-          console.log(`[${mode}:video-exporter] Skipping subtitles (disabled)`);
-        } else if (!hasVoiceover) {
-          console.log(`[${mode}:video-exporter] Skipping subtitles (no voiceover)`);
-        } else if (!input.textOverlay) {
-          console.log(`[${mode}:video-exporter] Skipping subtitles (text overlay disabled)`);
-        } else {
-          console.log(`[${mode}:video-exporter] Skipping subtitles (conditions not met)`);
-      }
-    }
-    
-    // Step 5.5: Create MUTED video for real-time volume control (if enabled)
-    if (enableVolumeControl) {
-        console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-        console.log(`[${mode}:video-exporter] Creating MUTED video for real-time preview...`);
-        console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
+      const srtFilePath = createSrtFile(subtitleScenes);
+        console.log(`[${mode}:video-exporter] ✓ SRT created at: ${srtFilePath}`);
       
-      // Create muted video by stripping all audio from final video
-      const mutedVideoPath = await createMutedVideo(finalVideo);
-      tempFiles.push(mutedVideoPath);
-      
-      // Upload muted video (fixed name - gets replaced on re-export)
-      const mutedFilename = `video_base.mp4`;
-      const mutedPath = buildStoryModePath({
+      // Upload SRT to CDN for Shotstack
+      const srtCdnPath = buildStoryModePath({
         userId: userId || "",
         workspaceName: workspaceName || "",
         toolMode: mode,
         projectName: input.projectName,
         subfolder: "Render",
-        filename: mutedFilename,
+        filename: `subtitles_${Date.now()}.srt`,
       });
-      const mutedBuffer = await import('fs/promises').then(fs => fs.readFile(mutedVideoPath));
-      videoBaseUrl = await bunnyStorage.uploadFile(mutedPath, mutedBuffer, 'video/mp4');
-        console.log(`[${mode}:video-exporter] ✓ Muted video uploaded:`, videoBaseUrl);
+      
+      const srtBuffer = Buffer.from(
+        await import('fs/promises').then(fs => fs.readFile(srtFilePath))
+      );
+      srtCdnUrl = await bunnyStorage.uploadFile(srtCdnPath, srtBuffer, 'text/plain');
+        console.log(`[${mode}:video-exporter] ✓ SRT uploaded: ${srtCdnUrl}`);
+    } else {
+        console.log(`[${mode}:video-exporter] Skipping subtitles`);
     }
     
-    // Step 6: Upload to CDN
+    // ── Step 4: Assemble Shotstack Edit JSON ─────────────────────────
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-      console.log(`[${mode}:video-exporter] STEP 6: Upload to CDN`);
+      console.log(`[${mode}:video-exporter] STEP 4: Assembling Shotstack Edit JSON`);
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
-      console.log(`[${mode}:video-exporter] Uploading final video to Bunny CDN...`);
     
-    // Fixed filename - gets replaced on re-export (no duplicate files)
-    const filename = `final.${input.exportFormat}`;
-    const bunnyPath = buildStoryModePath({
-      userId: userId || "",
-      workspaceName: workspaceName || "",
-      toolMode: mode,
-      projectName: input.projectName,
-      subfolder: "Render",
-      filename: filename,
-    });
+    const tracks: Track[] = [];
     
-      console.log(`[${mode}:video-exporter] Final video path:`, finalVideo);
-      console.log(`[${mode}:video-exporter] CDN path:`, bunnyPath);
+    // Track 1 (top): Caption overlay (if enabled)
+    if (srtCdnUrl) {
+      const isArabic = (input.language || 'en').startsWith('ar');
+      
+      const captionAsset: CaptionAsset = {
+        type: 'caption',
+        src: srtCdnUrl,
+        font: {
+          family: isArabic ? 'Cairo' : 'Montserrat SemiBold',
+          color: '#FFFFFF',
+          size: 32,
+        },
+        background: {
+          color: '#000000',
+          opacity: 0.5,
+          borderRadius: 8,
+          padding: 10,
+        },
+      };
+      
+      tracks.push({
+        clips: [{
+          asset: captionAsset,
+          start: 0,
+          length: totalDuration,
+        }],
+      });
+    }
     
-    const fileBuffer = await import('fs/promises').then(fs => fs.readFile(finalVideo));
-      console.log(`[${mode}:video-exporter] File buffer size:`, `${(fileBuffer.length / 1024 / 1024).toFixed(2)}MB`);
+    // Track 2: Video/Image clips
+    if (videoClips.length > 0) {
+      tracks.push({ clips: videoClips });
+    }
     
-    const cdnUrl = await bunnyStorage.uploadFile(
-      bunnyPath,
-      fileBuffer,
-      `video/${input.exportFormat}`
+    // Track 3: Audio clips (voiceover / sound effects)
+    if (audioClips.length > 0) {
+      tracks.push({ clips: audioClips });
+    }
+    
+    // Build timeline
+    const timeline: Timeline = {
+      tracks,
+      background: '#000000',
+      cache: true,
+    };
+    
+    // Add music as soundtrack (if available)
+    if (musicUrl) {
+      const musicVolume = (input.musicVolume || 50) / 100;
+      (timeline as any).soundtrack = {
+        src: musicUrl,
+        effect: 'fadeInFadeOut',
+        volume: musicVolume,
+      };
+        console.log(`[${mode}:video-exporter] Music added as soundtrack (volume: ${musicVolume})`);
+    }
+    
+    // Add Arabic font if needed (full TTF with Arabic glyphs, not a Latin subset)
+    const isArabic = (input.language || 'en').startsWith('ar');
+    if (isArabic && srtCdnUrl) {
+      (timeline as any).fonts = [{
+        src: 'https://fonts.gstatic.com/s/cairo/v31/SLXgc1nY6HkvangtZmpQdkhzfH5lkSs2SgRjCAGMQ1z0hD45W1Q.ttf',
+      }];
+    }
+    
+    // Map quality to Shotstack resolution
+    const resolutionMap: Record<string, string> = {
+      '720p': '720',
+      '1080p': '1080',
+      '4k': '4k',
+    };
+    
+    const edit: ShotstackEdit = {
+      timeline,
+      output: {
+        format: (input.exportFormat || 'mp4') as 'mp4' | 'gif' | 'jpg' | 'png' | 'bmp' | 'webm',
+        resolution: (resolutionMap[input.exportQuality] || '1080') as any,
+        aspectRatio: input.aspectRatio || '16:9',
+        fps: 30,
+        thumbnail: {
+          capture: 1,
+          scale: 0.5,
+        },
+      },
+    };
+    
+    const clipCount = tracks.reduce((sum, t) => sum + t.clips.length, 0);
+      console.log(`[${mode}:video-exporter] ✓ Edit JSON built: { tracks: ${tracks.length}, clips: ${clipCount}, duration: '${totalDuration.toFixed(1)}s', hasSubtitles: ${!!srtCdnUrl}, hasMusic: ${!!musicUrl} }`);
+    
+    // ── Step 5: Submit render to Shotstack ───────────────────────────
+      console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
+      console.log(`[${mode}:video-exporter] STEP 5: Submitting Render to Shotstack`);
+      console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
+    
+    const client = getShotstackClient();
+    const renderResponse = await client.render(edit);
+    const renderId = renderResponse.response.id;
+      console.log(`[${mode}:video-exporter] Render submitted. ID: ${renderId}`);
+    
+    // ── Step 6: Poll for completion ──────────────────────────────────
+      console.log(`[${mode}:video-exporter] STEP 6: Polling render status...`);
+    
+    const finalStatus = await client.pollRenderStatus(
+      renderId,
+      5000,  // 5s interval
+      120,   // 10 min max
+      (status) => {
+        console.log(`[${mode}:video-exporter] Render status: ${status.response.status}`);
+      }
     );
     
-    // Get file stats
-    const fileStats = statSync(finalVideo);
-    const totalDuration = input.scenes.reduce((sum: number, s: any) => sum + s.duration, 0);
+    const exportDuration = finalStatus.response.duration || totalDuration;
+      console.log(`[${mode}:video-exporter] ✓ Render complete: { url: '${(finalStatus.response.url || '').substring(0, 60)}', duration: ${exportDuration}, renderTime: ${finalStatus.response.renderTime} }`);
     
-    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    // ── Step 7: Upload to Bunny CDN ──────────────────────────────────
+      console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
+      console.log(`[${mode}:video-exporter] STEP 7: Uploading to Bunny CDN`);
+      console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
+    
+    let finalVideoUrl: string | undefined;
+    let finalThumbnailUrl: string | undefined;
+    let finalFileSize = 0;
+    
+    if (finalStatus.response.url) {
+      // Download video from Shotstack
+      const videoResponse = await fetch(finalStatus.response.url);
+      if (!videoResponse.ok) throw new Error(`Failed to download rendered video: ${videoResponse.status}`);
+      const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+      finalFileSize = videoBuffer.length;
+        console.log(`[${mode}:video-exporter] Video size: ${(finalFileSize / 1024 / 1024).toFixed(2)}MB`);
+      
+      // Upload to Bunny CDN
+      const filename = `final_${Date.now()}.${input.exportFormat || 'mp4'}`;
+      const bunnyPath = buildStoryModePath({
+        userId: userId || "",
+        workspaceName: workspaceName || "",
+        toolMode: mode,
+        projectName: input.projectName,
+        subfolder: "Render",
+        filename,
+      });
+      finalVideoUrl = await bunnyStorage.uploadFile(bunnyPath, videoBuffer, `video/${input.exportFormat || 'mp4'}`);
+        console.log(`[${mode}:video-exporter] ✓ Video uploaded to Bunny CDN`);
+      
+      // Upload thumbnail if available
+      if (finalStatus.response.thumbnail) {
+        try {
+          const thumbResponse = await fetch(finalStatus.response.thumbnail);
+          if (thumbResponse.ok) {
+            const thumbBuffer = Buffer.from(await thumbResponse.arrayBuffer());
+            const thumbPath = buildStoryModePath({
+              userId: userId || "",
+              workspaceName: workspaceName || "",
+              toolMode: mode,
+              projectName: input.projectName,
+              subfolder: "Render",
+              filename: `thumbnail_${Date.now()}.jpg`,
+            });
+            finalThumbnailUrl = await bunnyStorage.uploadFile(thumbPath, thumbBuffer, 'image/jpeg');
+              console.log(`[${mode}:video-exporter] ✓ Thumbnail uploaded to Bunny CDN`);
+          }
+        } catch (thumbError) {
+          console.warn(`[${mode}:video-exporter] Thumbnail upload failed:`, thumbError);
+        }
+      }
+      
+      // For volume control: store voiceover URL from first scene that has audio
+      if (enableVolumeControl && hasVoiceover) {
+        // Collect all voiceover URLs — the first scene's audioUrl is good enough for reference
+        const firstAudioScene = input.scenes.find((s: any) => s.audioUrl);
+        if (firstAudioScene) {
+          voiceoverUrl = firstAudioScene.audioUrl;
+        }
+        // For muted video base: render without audio for volume control
+        // This is optional — we already have the voiceover and music URLs
+        videoBaseUrl = finalVideoUrl; // The full video serves as base
+      }
+    } else {
+      // Fallback to Shotstack URL
+      finalVideoUrl = finalStatus.response.url;
+      console.warn(`[${mode}:video-exporter] No Shotstack URL — render may have failed`);
+    }
+    
+    const processingTime = ((Date.now() - startTime) / 1000).toFixed(2);
     
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
       console.log(`[${mode}:video-exporter] ✓✓✓ EXPORT COMPLETE! ✓✓✓`);
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
       console.log(`[${mode}:video-exporter] EXPORT SUMMARY:`);
-      console.log(`[${mode}:video-exporter]   Video URL:`, cdnUrl);
-      console.log(`[${mode}:video-exporter]   Duration:`, `${totalDuration}s`);
-      console.log(`[${mode}:video-exporter]   File size:`, `${(fileStats.size / 1024 / 1024).toFixed(2)}MB`);
-      console.log(`[${mode}:video-exporter]   Processing time:`, `${duration}s`);
-      console.log(`[${mode}:video-exporter]   Format:`, input.exportFormat);
-      console.log(`[${mode}:video-exporter]   Quality:`, input.exportQuality);
+      console.log(`[${mode}:video-exporter]   Video URL:`, finalVideoUrl);
+      console.log(`[${mode}:video-exporter]   Duration:`, `${exportDuration}s`);
+      console.log(`[${mode}:video-exporter]   File size:`, `${(finalFileSize / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`[${mode}:video-exporter]   Processing time:`, `${processingTime}s`);
       console.log(`[${mode}:video-exporter]   Animation mode:`, input.animationMode);
       console.log(`[${mode}:video-exporter]   Had voiceover:`, hasVoiceover);
       if (mode === 'auto-asmr') {
@@ -873,29 +568,18 @@ export async function createVideoExporter(mode: StoryMode) {
       console.log(`[${mode}:video-exporter]   Had subtitles:`, hasTextOverlay);
       console.log(`[${mode}:video-exporter] ═══════════════════════════════════════════════`);
     
-    // Step 7: Cleanup temp files
-      console.log(`[${mode}:video-exporter] STEP 7: Cleanup`);
-      console.log(`[${mode}:video-exporter] Cleaning up`, tempFiles.length, `temporary files...`);
-    cleanupFiles(tempFiles);
-      console.log(`[${mode}:video-exporter] ✓ Cleanup complete`);
-    
     return {
-      videoUrl: cdnUrl,
-      // Include separated assets for volume control (only if both voice & music)
+      videoUrl: finalVideoUrl,
       videoBaseUrl: videoBaseUrl,
       voiceoverUrl: voiceoverUrl,
       musicUrl: uploadedMusicUrl,
-      duration: totalDuration,
+      duration: exportDuration,
       format: input.exportFormat,
-      size: fileStats.size,
+      size: finalFileSize,
     };
     
   } catch (error) {
       console.error(`[${mode}:video-exporter] Export failed:`, error);
-    
-    // Cleanup on error
-    cleanupFiles(tempFiles);
-    
     throw error;
   }
 }
@@ -1054,3 +738,63 @@ export async function remixVideo(
   return exporter.remixVideo(input, userId, workspaceName);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SHOTSTACK MAPPING HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Map story transition names to Shotstack TransitionEffect values.
+ */
+function mapExporterTransition(transition: string): TransitionEffect {
+  const map: Record<string, TransitionEffect> = {
+    'fade': 'fade',
+    'cross-dissolve': 'fade',
+    'crossfade': 'fade',
+    'dissolve': 'fade',
+    'wipe-left': 'wipeLeft',
+    'wipe-right': 'wipeRight',
+    'wipe-up': 'wipeUp',
+    'wipe-down': 'wipeDown',
+    'slide-left': 'slideLeft',
+    'slide-right': 'slideRight',
+    'slide-up': 'slideUp',
+    'slide-down': 'slideDown',
+    'zoom': 'zoom',
+    'zoom-in': 'zoom',
+    'carousel-left': 'carouselLeft',
+    'carousel-right': 'carouselRight',
+    'reveal': 'reveal',
+    'circle-open': 'fade',
+    'smooth-blur': 'fade',
+    'whip-pan': 'slideLeft',
+  };
+  return map[transition] || 'fade';
+}
+
+/**
+ * Map image animation names to Shotstack Effect values.
+ */
+function mapExporterEffect(animationName?: string): Effect | undefined {
+  if (!animationName) return 'zoomIn'; // Default Ken Burns
+  
+  const map: Record<string, Effect | undefined> = {
+    'ken-burns': 'zoomIn',
+    'ken-burns-in': 'zoomIn',
+    'ken-burns-out': 'zoomOut',
+    'zoom-in': 'zoomIn',
+    'zoom-out': 'zoomOut',
+    'pan-left': 'slideLeft',
+    'pan-right': 'slideRight',
+    'pan-up': 'slideUp',
+    'pan-down': 'slideDown',
+    'slide-left': 'slideLeft',
+    'slide-right': 'slideRight',
+    'rotate-cw': 'zoomIn',
+    'rotate-ccw': 'zoomOut',
+    'none': undefined,
+  };
+  
+  const result = map[animationName];
+  if (result === undefined && animationName !== 'none') return 'zoomIn';
+  return result;
+}

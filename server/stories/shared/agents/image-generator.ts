@@ -528,9 +528,11 @@ export async function createImageGenerator(mode: StoryMode) {
       isMidjourney: boolean;
       userId: string;
       workspaceId?: string;
+      usageType?: string;
+      usageMode?: string;
     }
   ): Promise<BatchResult[]> {
-  const { runwareModelId, dimensions, aspectRatio, imageStyle, styleReferenceUrl, characterReferenceUrl, imageModel, isMidjourney, userId, workspaceId } = options;
+  const { runwareModelId, dimensions, aspectRatio, imageStyle, styleReferenceUrl, characterReferenceUrl, imageModel, isMidjourney, userId, workspaceId, usageType, usageMode } = options;
   
   const retriedResults: BatchResult[] = [];
   
@@ -565,6 +567,7 @@ export async function createImageGenerator(mode: StoryMode) {
         },
         {
           skipCreditCheck: false,
+          metadata: { usageType, usageMode },
         }
       );
 
@@ -757,6 +760,8 @@ export async function createImageGenerator(mode: StoryMode) {
       isMidjourney,
       userId,
       workspaceId: input.workspaceId,
+      usageType,
+      usageMode,
     });
     
     // Update results with retried ones

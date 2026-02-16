@@ -421,7 +421,7 @@ async function executeStep1_Atmosphere(
   };
   
   // Generate mood description
-  const result = await generateMoodDescription(input, userId, workspaceId);
+  const result = await generateMoodDescription(input, userId, workspaceId, 'video', 'ambient');
   
   // Save to database
   await storage.updateVideo(videoId, {
@@ -472,7 +472,7 @@ async function executeStep3_FlowDesign(
     visualElements: step2Data.visualElements,
   };
   
-  const sceneResult = await generateScenes(sceneInput, videoId, userId, workspaceId);
+  const sceneResult = await generateScenes(sceneInput, videoId, userId, workspaceId, 'video', 'ambient');
   totalCost += sceneResult.cost || 0;
   
   console.log('[agent-orchestrator:step3] Scenes generated:', sceneResult.scenes.length);
@@ -495,7 +495,7 @@ async function executeStep3_FlowDesign(
       existingShots: allShots,
     };
     
-    const shotResult = await composeShots(shotInput, userId, workspaceId);
+    const shotResult = await composeShots(shotInput, userId, workspaceId, 'video', 'ambient');
     allShots[scene.id] = shotResult.shots;
     totalCost += shotResult.cost || 0;
     
@@ -513,7 +513,7 @@ async function executeStep3_FlowDesign(
       shots: allShots,
     };
     
-    const continuityResult = await proposeContinuity(continuityInput, userId, workspaceId);
+    const continuityResult = await proposeContinuity(continuityInput, userId, workspaceId, 'video', 'ambient');
     continuityGroups = continuityResult.continuityGroups;
     totalCost += continuityResult.cost || 0;
     
@@ -707,7 +707,7 @@ async function executeStep4_Composition(
         previousShotEndFramePrompt,
       };
       
-      const result = await generateVideoPrompts(input, userId, workspaceId);
+      const result = await generateVideoPrompts(input, userId, workspaceId, 'video', 'ambient');
       totalCost += result.cost || 0;
       
       // Store endFramePrompt for potential inheritance
@@ -1023,22 +1023,28 @@ async function executeStep5_Soundscape(
         scenes: sceneContext,
       },
       userId,
-      workspaceId
+      workspaceId,
+      'video',
+      'ambient'
     );
     totalCost += scriptResult.cost || 0;
     
     // Generate audio (using correct input type)
-    const audioResult = await generateVoiceoverAudio({
-      script: scriptResult.script,
-      voiceId: step1Data.voiceId,
-      language: step1Data.language || 'en',
-      videoId,
-      videoTitle: bunnyParams.videoTitle,
-      videoCreatedAt: video.createdAt,
-      userId,
-      workspaceId,
-      workspaceName: bunnyParams.workspaceName,
-    });
+    const audioResult = await generateVoiceoverAudio(
+      {
+        script: scriptResult.script,
+        voiceId: step1Data.voiceId,
+        language: step1Data.language || 'en',
+        videoId,
+        videoTitle: bunnyParams.videoTitle,
+        videoCreatedAt: video.createdAt,
+        userId,
+        workspaceId,
+        workspaceName: bunnyParams.workspaceName,
+      },
+      'video',
+      'ambient'
+    );
     totalCost += audioResult.cost || 0;
     
     audioAssets.voiceover = {
@@ -1088,24 +1094,30 @@ async function executeStep5_Soundscape(
               moodDescription: step1Data.moodDescription,
             },
             userId,
-            workspaceId
+            workspaceId,
+            'video',
+            'ambient'
           );
           totalCost += promptResult.cost || 0;
           
           // Generate the actual sound effect audio
-          const sfxResult = await generateSoundEffect({
-            videoUrl: latestVersion.videoUrl,
-            prompt: promptResult.prompt,
-            duration: shot.duration,
-            videoId,
-            videoTitle: bunnyParams.videoTitle,
-            videoCreatedAt: video.createdAt,
-            shotId: shot.id,
-            sceneId: scene.id,
-            userId,
-            workspaceId,
-            workspaceName: bunnyParams.workspaceName,
-          });
+          const sfxResult = await generateSoundEffect(
+            {
+              videoUrl: latestVersion.videoUrl,
+              prompt: promptResult.prompt,
+              duration: shot.duration,
+              videoId,
+              videoTitle: bunnyParams.videoTitle,
+              videoCreatedAt: video.createdAt,
+              shotId: shot.id,
+              sceneId: scene.id,
+              userId,
+              workspaceId,
+              workspaceName: bunnyParams.workspaceName,
+            },
+            'video',
+            'ambient'
+          );
           totalCost += sfxResult.cost || 0;
           
           audioAssets.soundEffects.push({
@@ -1160,22 +1172,26 @@ async function executeStep5_Soundscape(
       description: scene.description,
     }));
     
-    const musicResult = await generateBackgroundMusic({
-      musicStyle: step2Data.musicStyle,
-      mood: step1Data.mood,
-      theme: step1Data.theme,
-      timeContext: step1Data.timeContext,
-      season: step1Data.season,
-      moodDescription: step1Data.moodDescription,
-      totalDuration: musicTotalDuration,
-      scenes: sceneContext,
-      videoId,
-      videoTitle: bunnyParams.videoTitle,
-      videoCreatedAt: video.createdAt,
-      userId,
-      workspaceId,
-      workspaceName: bunnyParams.workspaceName,
-    });
+    const musicResult = await generateBackgroundMusic(
+      {
+        musicStyle: step2Data.musicStyle,
+        mood: step1Data.mood,
+        theme: step1Data.theme,
+        timeContext: step1Data.timeContext,
+        season: step1Data.season,
+        moodDescription: step1Data.moodDescription,
+        totalDuration: musicTotalDuration,
+        scenes: sceneContext,
+        videoId,
+        videoTitle: bunnyParams.videoTitle,
+        videoCreatedAt: video.createdAt,
+        userId,
+        workspaceId,
+        workspaceName: bunnyParams.workspaceName,
+      },
+      'video',
+      'ambient'
+    );
     totalCost += musicResult.cost || 0;
     
     audioAssets.music = {
@@ -1781,7 +1797,10 @@ async function executeStep8_Publish(
         console.log(`[agent-orchestrator:step8] Generating metadata for ${platform}...`);
         const metaResult = await generateSocialMetadata(
           { platform: platform as any, scriptText, duration },
-          userId
+          userId,
+          workspaceId,
+          'video',
+          'ambient'
         );
         totalCost += metaResult.cost || 0;
         

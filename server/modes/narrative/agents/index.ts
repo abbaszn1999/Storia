@@ -768,14 +768,16 @@ export class NarrativeAgents {
     },
     videoId: string,
     userId?: string,
-    workspaceId?: string
+    workspaceId?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<{
     scenes: any[];
     totalDuration: number;
     cost?: number;
   }> {
     const { generateScenes } = await import('./breakdown/scene-analyzer');
-    return generateScenes(input, videoId, userId, workspaceId);
+    return generateScenes(input, videoId, userId, workspaceId, usageType, usageMode);
   }
 
   /**
@@ -1206,7 +1208,9 @@ export class NarrativeAgents {
       effectiveMode?: "image-reference" | "start-end";  // For auto mode
     },
     userId?: string,
-    workspaceId?: string
+    workspaceId?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<{
     taskId: string;
     status: "processing" | "completed" | "failed";
@@ -1231,7 +1235,9 @@ export class NarrativeAgents {
         effectiveMode: request.effectiveMode,
       },
       userId,
-      workspaceId
+      workspaceId,
+      usageType,
+      usageMode
     );
   }
 
@@ -1403,7 +1409,9 @@ export class NarrativeAgents {
   static async generateStoryboardImage(
     input: StoryboardImageInput,
     userId?: string,
-    workspaceId?: string
+    workspaceId?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<StoryboardImageOutput> {
     console.log('[narrative:agents] Generating storyboard image (Agent 4.2):', {
       shotId: input.shotId,
@@ -1421,7 +1429,9 @@ export class NarrativeAgents {
       const result = await generateStoryboardImageAgent(
         input,
         userId,
-        workspaceId
+        workspaceId,
+        usageType,
+        usageMode
       );
 
       if (result.error) {

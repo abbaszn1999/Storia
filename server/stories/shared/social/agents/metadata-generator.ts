@@ -54,7 +54,9 @@ function parseJsonResponse(response: string): Record<string, string> {
 export async function generateSocialMetadata(
   input: SocialMetadataInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<SocialMetadataOutput> {
   const { platform, scriptText, duration } = input;
 
@@ -90,6 +92,7 @@ export async function generateSocialMetadata(
       },
       {
         expectedOutputTokens: 500,
+        metadata: { usageType, usageMode },
       }
     );
 
@@ -135,7 +138,9 @@ export async function generateSocialMetadataForPlatforms(
   scriptText: string,
   duration: number,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<Record<SocialPlatform, SocialMetadataOutput>> {
   console.log('[shared:social:metadata-generator] Generating metadata for multiple platforms:', platforms);
 
@@ -148,7 +153,9 @@ export async function generateSocialMetadataForPlatforms(
         const metadata = await generateSocialMetadata(
           { platform, scriptText, duration },
           userId,
-          workspaceId
+          workspaceId,
+          usageType,
+          usageMode
         );
         results[platform] = metadata;
       } catch (error) {

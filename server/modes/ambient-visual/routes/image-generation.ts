@@ -78,7 +78,7 @@ async function generateSingleFrameImage(
         userId,
         workspaceId,
         runware: { timeoutMs: 180000 },
-      }, { skipCreditCheck: false });
+      }, { skipCreditCheck: false, metadata: { usageType, usageMode } });
 
       const outputData = response.output as any[];
       const data = outputData[0];

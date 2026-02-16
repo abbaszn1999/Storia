@@ -381,7 +381,9 @@ function parsePromptResponse(
 export async function generatePromptsForScene(
   input: UnifiedPromptProducerSceneInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<UnifiedPromptProducerSceneOutput> {
   console.log("[character-vlog:unified-prompt-producer] Generating prompts for scene:", {
     sceneId: input.sceneId,
@@ -423,6 +425,7 @@ export async function generatePromptsForScene(
       {
         // Estimate: 45 prompts max × 450 tokens = ~20,250 tokens
         expectedOutputTokens: 25000, // Add buffer for JSON structure
+        metadata: { usageType, usageMode },
       }
     );
 

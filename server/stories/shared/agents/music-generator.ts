@@ -58,7 +58,9 @@ export async function createMusicGenerator(mode: StoryMode) {
   async function generateMusic(
     input: any,
     userId?: string,
-    workspaceName?: string
+    workspaceName?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<any> {
     const { musicStyle, durationMs, storyTopic, storyNarration, projectName, workspaceId } = input;
 
@@ -122,6 +124,7 @@ export async function createMusicGenerator(mode: StoryMode) {
         },
         {
           skipCreditCheck: false,
+          metadata: { usageType, usageMode },
         }
       );
 
@@ -194,9 +197,11 @@ export async function createMusicGenerator(mode: StoryMode) {
 export async function generateMusic(
   input: any,
   userId?: string,
-  workspaceName?: string
+  workspaceName?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<any> {
   const generator = await createMusicGenerator("problem-solution");
-  return generator(input, userId, workspaceName);
+  return generator(input, userId, workspaceName, usageType, usageMode);
 }
 

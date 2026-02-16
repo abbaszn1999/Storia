@@ -45,7 +45,9 @@ const MUSIC_CONFIG = {
  * @returns Music URL, duration, and cost
  */
 export async function generateBackgroundMusic(
-  input: BackgroundMusicGeneratorInput
+  input: BackgroundMusicGeneratorInput,
+  usageType?: string,
+  usageMode?: string
 ): Promise<BackgroundMusicGeneratorOutput> {
   const {
     musicStyle,
@@ -159,6 +161,7 @@ export async function generateBackgroundMusic(
       },
       {
         skipCreditCheck: false,
+        metadata: { usageType, usageMode },
       }
     );
 

@@ -212,6 +212,7 @@ export async function createVoiceoverGenerator(mode: StoryMode) {
         },
         {
           skipCreditCheck: false,
+          metadata: { usageType, usageMode },
         }
       );
 
@@ -338,7 +339,9 @@ export async function createVoiceoverGenerator(mode: StoryMode) {
   async function generateVoiceover(
     input: any,
     userId?: string,
-    workspaceName?: string
+    workspaceName?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<any> {
     const { scenes, voiceId, projectName } = input;
 
@@ -398,9 +401,11 @@ export async function createVoiceoverGenerator(mode: StoryMode) {
 export async function generateVoiceover(
   input: any,
   userId?: string,
-  workspaceName?: string
+  workspaceName?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<any> {
   const generator = await createVoiceoverGenerator("problem-solution");
-  return generator(input, userId, workspaceName);
+  return generator(input, userId, workspaceName, usageType, usageMode);
 }
 

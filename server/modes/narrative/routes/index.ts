@@ -2721,7 +2721,9 @@ router.post('/shots/generate-image',
       result = await NarrativeAgents.generateStoryboardImage(
         agentInput,
         userId,
-        workspaceId
+        workspaceId,
+        'video',
+        'narrative'
       );
     } catch (agentError) {
       console.error('[narrative:routes] Agent 4.2 error:', agentError);
@@ -3174,7 +3176,9 @@ router.post('/videos/:videoId/shots/:shotId/edit-image', isAuthenticated, async 
         imageModel,
       },
       userId,
-      workspaceId
+      workspaceId,
+      'video',
+      'narrative'
     );
 
     if (editResult.error) {
@@ -3891,7 +3895,9 @@ router.post('/videos/:id/shots/:shotId/animate',
         effectiveMode,
       },
       userId,
-      workspaceId
+      workspaceId,
+      'video',
+      'narrative'
     );
 
     // Update shot version with video URL if completed
@@ -4155,7 +4161,9 @@ router.post('/videos/:id/shots/:shotId/sound-effect/recommend', isAuthenticated,
         tone: step1Data.tones?.[0],
       },
       userId,
-      video.workspaceId
+      video.workspaceId,
+      'video',
+      'narrative'
     );
 
     res.json({ prompt: result.prompt, cost: result.cost });
@@ -4238,7 +4246,7 @@ router.post('/videos/:id/shots/:shotId/sound-effect/generate',
       userId,
       workspaceId: video.workspaceId,
       workspaceName,
-    });
+    }, 'video', 'narrative');
 
     // IMPORTANT: Re-fetch video to get latest step5Data to avoid race conditions
     // Multiple SFX generations may complete simultaneously, and we need the current state
@@ -4340,7 +4348,9 @@ router.post('/videos/:id/voiceover/generate-script', isAuthenticated, async (req
         tone: step1Data.tones?.[0],
       },
       userId,
-      video.workspaceId
+      video.workspaceId,
+      'video',
+      'narrative'
     );
 
     // Save to step5Data
@@ -4417,7 +4427,7 @@ router.post('/videos/:id/voiceover/generate-audio',
       userId,
       workspaceId: video.workspaceId,
       workspaceName,
-    });
+    }, 'video', 'narrative');
 
     // Save to step5Data
     const step5Data = (video.step5Data as any) || {};
@@ -4510,7 +4520,7 @@ router.post('/videos/:id/music/generate',
       userId,
       workspaceId: video.workspaceId,
       workspaceName,
-    });
+    }, 'video', 'narrative');
 
     // Save to step5Data
     const step5Data = (video.step5Data as any) || {};

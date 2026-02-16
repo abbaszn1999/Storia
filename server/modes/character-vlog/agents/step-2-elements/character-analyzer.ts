@@ -98,7 +98,9 @@ function parseCharacterAnalysisResponse(rawOutput: string): CharacterAnalyzerOut
 export async function analyzeCharacters(
   input: CharacterAnalyzerInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<CharacterAnalyzerOutput> {
   // Build the user prompt with all analysis parameters
   const userPrompt = buildCharacterAnalyzerUserPrompt(
@@ -195,6 +197,7 @@ export async function analyzeCharacters(
       },
       {
         expectedOutputTokens: 2000, // Character analysis can be detailed
+        metadata: { usageType, usageMode },
       }
     );
 

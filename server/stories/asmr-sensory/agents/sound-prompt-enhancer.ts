@@ -65,7 +65,9 @@ const SOUND_ENHANCER_CONFIG = {
 export async function enhanceSoundPrompt(
   input: SoundPromptEnhancerInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<SoundPromptEnhancerOutput> {
   const { userPrompt, visualPrompt } = input;
 
@@ -103,6 +105,7 @@ export async function enhanceSoundPrompt(
       },
       {
         expectedOutputTokens: 400,
+        metadata: { usageType, usageMode },
       }
     );
 

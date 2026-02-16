@@ -8,7 +8,7 @@ interface Step2TemplateSelectionProps {
 }
 
 export function Step2TemplateSelection({ value, onChange }: Step2TemplateSelectionProps) {
-  // Show all 6 templates (including ASMR templates with "Coming Soon")
+  // Show all 5 templates (4 narrative + auto-asmr)
   const allTemplates = STORY_TEMPLATES;
 
   return (
@@ -35,8 +35,8 @@ export function Step2TemplateSelection({ value, onChange }: Step2TemplateSelecti
       {/* Info card */}
       <div className="max-w-4xl mx-auto mt-8 p-4 bg-muted/50 rounded-lg">
         <p className="text-sm text-muted-foreground text-center">
-          Each template follows a proven narrative structure optimized for engagement.
-          Select the one that best fits your content goals. ASMR templates coming soon!
+          Each template follows a proven structure optimized for engagement.
+          Select the one that best fits your content goals.
         </p>
       </div>
     </div>

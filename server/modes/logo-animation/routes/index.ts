@@ -35,11 +35,17 @@ router.post("/generate-idea", isAuthenticated, async (req: Request, res: Respons
     }
 
     // Generate visual prompt
-    const result = await generateLogoIdea({
-      idea: idea.trim(),
-      duration: Number(duration),
-      referenceImage: referenceImage || undefined,
-    });
+    const result = await generateLogoIdea(
+      {
+        idea: idea.trim(),
+        duration: Number(duration),
+        referenceImage: referenceImage || undefined,
+      },
+      userId,
+      req.headers['x-workspace-id'] as string | undefined,
+      'video',
+      'logo-animation'
+    );
 
     res.json({
       visualPrompt: result.visualPrompt,
@@ -108,7 +114,13 @@ router.post("/generate", isAuthenticated, async (req: Request, res: Response) =>
     console.log("[logo-animation:routes] Starting video generation...");
 
     // Call generateLogoAnimation and wait for it to complete (synchronous, like stories mode)
-    const result = await generateLogoAnimation(request, userId);
+    const result = await generateLogoAnimation(
+      request,
+      userId,
+      req.headers['x-workspace-id'] as string | undefined,
+      'video',
+      'logo-animation'
+    );
 
     console.log("[logo-animation:routes] Video generation completed:", {
       taskId: result.taskId,

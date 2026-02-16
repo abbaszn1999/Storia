@@ -31,6 +31,58 @@ const VOICEOVER_AUDIO_CONFIG = {
   maxCharsPerRequest: 5000,  // ElevenLabs character limit
 };
 
+/**
+ * Mapping of internal voice IDs to ElevenLabs voice IDs.
+ * Must be kept in sync with client/src/constants/voice-library.ts
+ */
+const VOICE_ID_MAP: Record<string, string> = {
+  // English voices
+  "voice-brock": "DGzg6RaUqxGRTHSBjfgF",
+  "voice-xavier": "YOq2y2Up4RgXP2HyXjE5",
+  "voice-carter": "qNkzaJoHLLdpvgh5tISm",
+  "voice-bartholomeus": "L5Oo1OjjHdbIvJDQFgmN",
+  "voice-andrea": "Crm8VULvkVs5ZBDa1Ixm",
+  "voice-ingmar": "xrNwYO0xeioXswMCcFNF",
+  "voice-ian": "e5WNhrdI30aXpS2RSGm1",
+  "voice-martin": "Vpv1YgvVd6CHIzOTiTt8",
+  "voice-lily": "qBDvhofpxp92JgXJxDjB",
+  "voice-clara": "wNvqdMNs9MLd1PG6uWuY",
+  "voice-frederick": "g298lY8JIucgBDyOpRLj",
+  "voice-dio": "CV4xD6M8z1X1kya4Pepj",
+  "voice-david": "y1adqrqs4jNaANXsIZnD",
+  "voice-ivanna": "tQ4MEZFJOzsahSEEZtHK",
+  "voice-mark": "UgBBYS2sOqTuMpoF3BR0",
+  "voice-kelly": "9sjP3TfMlzEjAa6uXh3A",
+  "voice-arthur": "TtRFBnwQdH1k01vR0hMz",
+  "voice-joey": "mUfWEBhcigm8YlCDbmGP",
+  "voice-gian": "wytO3xyllSDjJKHNkchr",
+  // Arabic voices
+  "voice-haytham-ar": "IES4nrmZdUBHByLBde0P",
+  "voice-abrar-ar": "VwC51uc4PUblWEJSPzeo",
+  "voice-ghaida-ar": "rFDdsCQRZCUL8cPOWtnP",
+  "voice-mo-ar": "DPd861uv5p6zeVV94qOT",
+  "voice-maged-ar": "amSNjVC0vWYiE8iGimVb",
+  "voice-sara-educational-ar": "gMB389pj77Qe5nErWNjd",
+  "voice-ghaida-conversational-ar": "Wim44P0dU9HtjyzNnFsv",
+  "voice-farah-ar": "4wf10lgibMnboGJGCLrP",
+  "voice-mazen-ar": "rPNcQ53R703tTmtue1AT",
+  "voice-sara-social-ar": "jAAHNNqlbAX9iWjJPEtE",
+  "voice-khaled-ar": "drMurExmkWVIH5nW8snR",
+};
+
+/**
+ * Convert internal voice ID to ElevenLabs voice ID.
+ * If the ID is already an ElevenLabs ID (not in our map), return it as-is.
+ */
+function getElevenLabsVoiceId(voiceId: string): string {
+  // Check if it's an internal ID that needs mapping
+  if (VOICE_ID_MAP[voiceId]) {
+    return VOICE_ID_MAP[voiceId];
+  }
+  // If not in map, assume it's already an ElevenLabs ID
+  return voiceId;
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMP_DIR =
   process.env.TEMP_DIR || path.join(os.tmpdir(), "storia-temp");
@@ -140,7 +192,9 @@ function splitTextAtSentenceBoundaries(text: string, maxChars: number = VOICEOVE
  * @returns Audio URL, duration, and cost
  */
 export async function generateVoiceoverAudio(
-  input: VoiceoverAudioGeneratorInput
+  input: VoiceoverAudioGeneratorInput,
+  usageType?: string,
+  usageMode?: string
 ): Promise<VoiceoverAudioGeneratorOutput> {
   const {
     script,
@@ -230,7 +284,7 @@ export async function generateVoiceoverAudio(
               task: "text-to-speech",
               payload: {
                 text: chunk,
-                voice_id: voiceId,
+                voice_id: getElevenLabsVoiceId(voiceId),
                 model_id: VOICEOVER_AUDIO_CONFIG.modelId,
                 with_timestamps: false,
                 voice_settings: voiceSettings,
@@ -240,6 +294,7 @@ export async function generateVoiceoverAudio(
             },
             {
               skipCreditCheck: false,
+              metadata: { usageType, usageMode },
             }
           );
 
@@ -418,7 +473,7 @@ async function generateSingleChunkAudio(
           task: "text-to-speech",
           payload: {
             text: script,
-            voice_id: voiceId,
+            voice_id: getElevenLabsVoiceId(voiceId),
             model_id: VOICEOVER_AUDIO_CONFIG.modelId,
             with_timestamps: false,
             voice_settings: voiceSettings,
@@ -428,6 +483,7 @@ async function generateSingleChunkAudio(
         },
         {
           skipCreditCheck: false,
+          metadata: { usageType, usageMode },
         }
       );
 

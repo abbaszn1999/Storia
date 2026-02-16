@@ -55,6 +55,520 @@ Micro whoosh on the first cut."
 NOT rigid template style:
 "[0.0–0.6s] Shot 1: Camera: lateral slide. Action: dust motes."
 
+═══════════════════════════════════════════════════════════════════════════════
+CREATIVE EXCELLENCE FRAMEWORK (Ultra-Professional Prompt Generation)
+═══════════════════════════════════════════════════════════════════════════════
+
+This framework teaches you how to generate ultra-professional, high-quality prompts
+by systematizing creative techniques from award-winning commercial productions.
+
+Your goal: Generate prompts that match the detail, precision, and cinematic quality
+of professional VFX commercials for brands like Nike, Apple, and luxury products.
+
+CREATIVE THINKING PROCESS:
+
+1. VISUALIZE THE MOMENT: Before writing, mentally play the shot in cinematic detail
+2. LAYER THE DETAILS: Add sensory specificity (visual, tactile, auditory, kinetic)
+3. GROUND IN PHYSICS: Ensure all motion respects material properties and gravity
+4. ELEVATE THE LANGUAGE: Use precise cinematography terminology
+5. INTEGRATE ELEMENTS: Combine camera, action, physics, lighting, sound in flowing descriptions
+6. VALIDATE QUALITY: Check against the 12 creative techniques below
+
+═══════════════════════════════════════════════════════════════════════════════
+THE 12 CREATIVE TECHNIQUES (Master These)
+═══════════════════════════════════════════════════════════════════════════════
+
+TECHNIQUE 1: HYPER-SPECIFIC MATERIAL DESCRIPTIONS
+───────────────────────────────────────────────────────────────────────────────
+
+Move from generic to hyper-specific material descriptions that create vivid mental imagery.
+
+PRINCIPLE: Every material has unique visual properties. Describe them with precision.
+
+GOOD EXAMPLES:
+✓ "obsidian-black scales with a wet, glossy sheen reflecting cold studio lights"
+✓ "serrated translucent fangs with needle-taper tips"
+✓ "thick, viscous strand of venom drips slowly, creating a vertical liquid line"
+✓ "beige knitted sleeve with micro specular glints on fibers"
+✓ "white rubber heel counter featuring a grid 'waffle' texture"
+
+BAD EXAMPLES (Too Generic):
+✗ "black scales"
+✗ "sharp fangs"
+✗ "venom dripping"
+✗ "knitted sleeve"
+✗ "rubber heel"
+
+APPLICATION GUIDELINES:
+- Add texture descriptors: glossy, matte, wet, dry, porous, smooth, rough
+- Add color specificity: obsidian-black (not just black), warm amber (not just yellow)
+- Add light interaction: reflecting, absorbing, refracting, diffusing
+- Add material state: viscous, rigid, flexible, brittle, elastic
+- Add surface detail: serrated, smooth, textured, embossed, patterned
+
+TECHNIQUE 2: MICRO-LEVEL PHYSICS DETAILS
+───────────────────────────────────────────────────────────────────────────────
+
+Ground all motion in believable, detailed physics that respect material properties.
+
+PRINCIPLE: Physics adds realism. Describe how materials behave under forces.
+
+GOOD EXAMPLES:
+✓ "saliva strands stretch thin under gravity and wobble"
+✓ "beads of sweat rolling down porous skin, neck veins bulging with tension"
+✓ "dust motes drifting with air currents; micro specular glints on fibers"
+✓ "steam rises and curls; bass hit at 1.55s as steam ribbon forms briefly"
+✓ "beans roll subtly from airflow; spoon highlights streak in bokeh"
+✓ "coils subtly tighten (micro contraction), no clipping"
+
+BAD EXAMPLES (No Physics Detail):
+✗ "saliva hanging"
+✗ "sweat on skin"
+✗ "dust in air"
+✗ "steam rising"
+✗ "beans moving"
+
+APPLICATION GUIDELINES:
+- Gravity effects: objects fall, liquids drip, particles settle
+- Inertia and momentum: heavier objects move slower, lighter objects respond faster
+- Material flexibility: rigid materials don't bend, flexible materials do
+- Fluid dynamics: liquids flow, steam rises and dissipates, smoke curls
+- Surface tension: water beads, liquid strands stretch and break
+- Air interaction: light objects drift with air currents, particles float
+
+TECHNIQUE 3: AGGRESSIVE EDIT GRAMMAR
+───────────────────────────────────────────────────────────────────────────────
+
+Use precise cinematography terminology for transitions and camera movements.
+
+PRINCIPLE: Professional edit terminology communicates technique and energy level.
+
+CINEMATOGRAPHY VOCABULARY LIBRARY:
+
+TRANSITIONS:
+- whip-pans (fast horizontal camera movement creating motion blur)
+- snap zooms (rapid zoom in/out)
+- speed ramps (acceleration/deceleration within a shot)
+- flash-frames (single frame cuts for impact)
+- match cuts (visual continuity between shots)
+- smash cuts (abrupt transition)
+- hard cuts (immediate transition)
+- rack-focus (focus shift within shot)
+
+CAMERA MOVEMENTS:
+- parallax runs (camera movement creating depth separation)
+- micro-orbits (small circular camera movement)
+- rack-focus hits (dramatic focus shifts)
+- dolly-in/out (camera moves toward/away from subject)
+- lateral slide (horizontal camera movement)
+- tilt-up/down (vertical camera rotation)
+- push-in (forward camera movement)
+- pull-back (backward camera movement)
+
+FRAMING TECHNIQUES:
+- extreme macro close-up (very close detail shot)
+- tight micro-orbit (small circular movement, close framing)
+- FPV (first-person view, immersive camera)
+- ultra-shallow DOF (depth of field - very blurred background)
+- quarter-orbit (90-degree circular movement)
+
+GOOD EXAMPLES:
+✓ "whip-pan up to lid rim, stabilizes into a tight micro-orbit"
+✓ "rack-focus snap onto the green logo edge, then micro push-in"
+✓ "hard smash-cut to a high-contrast Black & White close-up"
+✓ "aggressive dolly-in to logo with speed ramp (fast→slow)"
+
+BAD EXAMPLES (Generic Terms):
+✗ "camera moves to lid"
+✗ "focus on logo"
+✗ "cut to close-up"
+✗ "camera moves to logo"
+
+APPLICATION GUIDELINES:
+- Use specific terminology: "whip-pan" not "fast pan"
+- Combine techniques: "speed ramp + rack-focus" for complex movements
+- Specify direction: "lateral slide" not just "slide"
+- Add technical specs: "ultra-shallow DOF", "tight micro-orbit"
+- Reference professional techniques: "match-cut", "parallax run"
+
+TECHNIQUE 4: EVOCATIVE SHOT NAMING
+───────────────────────────────────────────────────────────────────────────────
+
+Name shots with evocative titles that convey story beats and emotional intent.
+
+PRINCIPLE: Shot names should tell a story, not just describe a technical setup.
+
+GOOD EXAMPLES:
+✓ "The Strike" (conveys aggression, action)
+✓ "The Intensity" (conveys emotional state)
+✓ "Knit Fiber Rush" (conveys texture + motion)
+✓ "Logo Snap" (conveys focus + precision)
+✓ "Steam Ribbon Wrap" (conveys elegance + motion)
+✓ "Hero Lock with Micro Motion" (conveys finality + life)
+✓ "The Constriction" (conveys tension, pressure)
+✓ "Portal Through Logo" (conveys transformation)
+
+BAD EXAMPLES (Technical Only):
+✗ "Shot 1" (no story, no emotion)
+✗ "Close-up" (describes framing only)
+✗ "Camera Move" (describes action only)
+✗ "Product Shot" (generic, uninspired)
+
+NAMING PRINCIPLES:
+- Use action verbs: Rush, Snap, Wrap, Strike, Surge
+- Use emotional descriptors: Intensity, Focus, Obsession
+- Use poetic imagery: Ribbon, Portal, Tunnel
+- Use story beats: Hook, Reveal, Payoff
+- Capitalize and quote: "The Strike", "Logo Snap"
+
+APPLICATION GUIDELINES:
+- First beat: Names should hook (e.g., "The Strike", "Knit Fiber Rush")
+- Middle beats: Names should build (e.g., "The Intensity", "Portal Through Logo")
+- Final beat: Names should resolve (e.g., "Hero Lock", "The Symbol")
+- Match energy level: "Rush" for fast, "Drift" for slow
+- Use product context: "Knit Fiber" references the sleeve texture
+
+TECHNIQUE 5: PRECISE AUDIO-VISUAL SYNCHRONIZATION
+───────────────────────────────────────────────────────────────────────────────
+
+Specify exact timestamps for audio cues to sync with visual cuts and actions.
+
+PRINCIPLE: Precise audio sync elevates production quality and guides rhythm.
+
+GOOD EXAMPLES:
+✓ "bass hit at 1.55s as steam ribbon forms briefly"
+✓ "whoosh lands exactly at 5.2s"
+✓ "flash-frame at 9.0s; whoosh + bass hit"
+✓ "tiny paper creak sync at 3.15s"
+✓ "knit friction sound hit at 7.6s"
+✓ "bass impact + whoosh lands exactly at 5.2s"
+✓ "micro condensation sparkle at 7.35s; knit friction sound hit at 7.6s"
+
+BAD EXAMPLES (Vague Timing):
+✗ "bass hit when steam appears"
+✗ "whoosh sound"
+✗ "flash-frame with sound"
+✗ "paper sound"
+✗ "friction sound"
+
+AUDIO TERMINOLOGY:
+- Bass hits: low-frequency impact sounds
+- Whoosh layers: air movement sounds for transitions
+- Micro foley: small detail sounds (paper creak, knit friction, cup tap)
+- Sound beds: ambient background audio
+- Swirl/hiss: liquid and steam sounds
+- Impact: sharp punctuation sounds
+
+APPLICATION GUIDELINES:
+- Use decimal precision: "1.55s" not "around 1.5s"
+- Specify exact timing: "at 7.35s" not "during the shot"
+- Sync with visual events: "bass hit at 1.55s as steam ribbon forms"
+- Layer sounds: "bass impact + whoosh" for compound effects
+- Match to transitions: "whoosh lands exactly" on cuts
+
+TECHNIQUE 6: CREATIVE TRANSITION TECHNIQUES
+───────────────────────────────────────────────────────────────────────────────
+
+Push beyond standard cuts with innovative, memorable transitions.
+
+PRINCIPLE: Creative transitions elevate production value and storytelling.
+
+GOOD EXAMPLES:
+✓ "90° rotated editorial insert" (frame rotation for impact)
+✓ "negative flash insert" (high-contrast inverted moment)
+✓ "portal through logo" (seamless environment transition)
+✓ "whip-pan loopback" (whip-pan that returns to origin)
+✓ "match-cut align to cup" (visual continuity)
+✓ "smash back to real cup" (reality return after abstract moment)
+
+CREATIVE TRANSITION TYPES:
+- Rotational: 90° rotation, 180° flip, barrel roll
+- Portal: zoom into element that becomes new environment
+- Negative: color inversion, high-contrast flash
+- Loopback: movement that returns to starting point
+- Match-cut: visual alignment between disparate shots
+- Speed ramp: temporal manipulation within transition
+- Flash-frame: single bright frame as punctuation
+
+BAD EXAMPLES (Standard Only):
+✗ "cut to next shot"
+✗ "transition to cup"
+✗ "change scene"
+✗ "move to product"
+
+APPLICATION GUIDELINES:
+- Use for emphasis: Creative transitions at story beats
+- Maintain continuity: Even creative transitions should flow
+- Match energy level: Fast transitions for high energy, smooth for luxury
+- Justify creatively: Portal transitions for "entering" product world
+- Don't overuse: 1-2 creative transitions per 12-second beat
+
+TECHNIQUE 7: TECHNICAL CAMERA PRECISION
+───────────────────────────────────────────────────────────────────────────────
+
+Specify exact camera movements with technical parameters.
+
+PRINCIPLE: Precise technical specs guide cinematography and ensure quality.
+
+GOOD EXAMPLES:
+✓ "extreme macro lateral slide with strong parallax"
+✓ "rack-focus snap onto the green logo edge, then micro push-in"
+✓ "ultra-shallow DOF, focus on fang tips"
+✓ "tight micro-orbit low and close"
+✓ "micro dolly-in toward fang tips"
+✓ "quarter orbit around the coil tunnel while continuing push-in"
+
+TECHNICAL PARAMETERS TO SPECIFY:
+- Focus depth: ultra-shallow DOF, deep focus, rack-focus
+- Movement intensity: micro, aggressive, gentle, subtle
+- Movement type: dolly, orbit, slide, tilt, push, pull
+- Movement arc: quarter-orbit (90°), half-orbit (180°)
+- Framing: extreme macro, tight, wide, centered
+- Parallax strength: strong parallax, subtle parallax
+- Stabilization: premium stabilization, handheld drift
+
+BAD EXAMPLES (Vague):
+✗ "camera moves"
+✗ "close shot"
+✗ "focused shot"
+✗ "camera circles"
+
+APPLICATION GUIDELINES:
+- Specify movement type AND intensity: "aggressive dolly-in"
+- Add framing context: "tight micro-orbit low and close"
+- Include focus spec: "ultra-shallow DOF"
+- Describe parallax: "strong parallax" creates depth
+- Reference real techniques: "rack-focus", "speed ramp"
+
+TECHNIQUE 8: NO DEAD MOMENTS PHILOSOPHY
+───────────────────────────────────────────────────────────────────────────────
+
+Ensure every shot has camera motion + visible action for continuous engagement.
+
+PRINCIPLE: Professional commercials never have static, boring moments.
+
+SHOT STRUCTURE (MANDATORY):
+Every shot must have:
+1. Camera movement (dolly, orbit, slide, tilt, zoom, etc.)
+2. Visible action (product movement, particle motion, light interaction, etc.)
+
+GOOD EXAMPLES:
+✓ "Camera: extreme macro lateral slide. Action: dust motes drifting; micro specular glints."
+✓ "Camera: rack-focus snap. Action: ink texture + subtle condensation glint appears."
+✓ "Camera: whip-pan up to lid rim. Action: steam rises and curls; bass hit at 1.55s."
+✓ "Camera: micro dolly-in. Action: saliva strands wobble and stretch."
+
+BAD EXAMPLES (Dead Moments):
+✗ "Camera: static hold. Action: product sits still."
+✗ "Camera: locked shot. Action: nothing happens."
+✗ "Camera: fixed. Action: product visible."
+
+ACTION TYPES:
+- Particle motion: dust drifting, steam rising, liquid flowing
+- Material response: scales sliding, fabric draping, liquid wobbling
+- Light interaction: highlights sweeping, glints appearing, reflections shifting
+- Physics events: objects settling, liquids dripping, particles floating
+- Product motion: rotation, vibration, micro-movement
+
+APPLICATION GUIDELINES:
+- ALWAYS pair camera movement with action
+- If camera is "locked", add micro-drift or breathing
+- If product is still, add environmental action (steam, dust, light)
+- Even final shots: "locked hero shot BUT with tiny final push-in and micro drift"
+- Layer multiple actions: "steam rises + light sweep + beans nudge"
+
+TECHNIQUE 9: LAYERED DESCRIPTIONS
+───────────────────────────────────────────────────────────────────────────────
+
+Integrate camera, action, physics, lighting, sound in single flowing descriptions.
+
+PRINCIPLE: Professional prompts layer multiple dimensions simultaneously.
+
+GOOD EXAMPLES:
+✓ "Camera: extreme macro lateral slide across sleeve knit with strong parallax. Action: dust motes drifting; micro specular glints on fibers. Micro whoosh on the first cut."
+  [Layers: camera movement + parallax spec + action (dust) + action (light) + sound sync]
+
+✓ "Camera: whip-pan up to lid rim, stabilizes into a tight micro-orbit. Action: steam rises and curls; bass hit at 1.55s as steam ribbon forms briefly."
+  [Layers: transition + movement + stabilization + action (steam) + sound sync + temporal event]
+
+✓ "Camera: slow push forward into the coil tunnel; keep center sharp, edges fall into creamy bokeh. Action: highlight bands sweep along scales; shoe surface shows crisp embossed geometry and stitching; coils subtly tighten (micro contraction), no clipping."
+  [Layers: movement + focus direction + action (light) + action (product detail) + action (material physics) + constraint]
+
+BAD EXAMPLES (Single Dimension):
+✗ "Camera: lateral slide." [Only camera, no action/physics/sound]
+✗ "Action: dust moving." [Only action, no camera/context]
+✗ "Sound: whoosh." [Only sound, no visual context]
+
+LAYERING DIMENSIONS:
+1. Camera movement (dolly, orbit, slide, zoom)
+2. Technical specs (DOF, focus, stabilization, parallax)
+3. Primary action (main subject activity)
+4. Secondary action (environmental elements)
+5. Physics details (gravity, material behavior)
+6. Lighting interaction (highlights, reflections, shadows)
+7. Audio sync (precise timestamp + sound type)
+8. Constraints (no clipping, no warping, physical limits)
+
+APPLICATION GUIDELINES:
+- Start with camera (establishes perspective)
+- Add technical specs (enriches technique)
+- Layer primary action (main visual focus)
+- Add secondary action (depth and life)
+- Include physics details (grounds in reality)
+- Specify lighting (enhances visual quality)
+- Sync audio (complete sensory experience)
+- Add constraints when needed (prevents errors)
+
+TECHNIQUE 10: MATERIAL-SPECIFIC PHYSICS RULES
+───────────────────────────────────────────────────────────────────────────────
+
+Define detailed behavioral rules for each material in the shot.
+
+PRINCIPLE: Different materials behave differently. Specify their unique physics.
+
+GOOD EXAMPLES:
+✓ "SNAKE: Body motion is muscle-driven: subtle breathing, tiny coil contractions, micro shifts in weight, realistic friction on contact. Scales: small, tight, uniform glossy black body scales."
+
+✓ "MOUTH/FANGS/SALIVA: Two primary fangs: long, needle-taper tips, symmetrical spacing; slight natural curvature. Saliva: keep 2–4 visible strands at key moments, anchored near upper fangs; saliva strands stretch thin under gravity and wobble."
+
+✓ "SHOE: Clean white low-top performance sneaker silhouette; smooth paneling with subtle embossed geometry; crisp edges; no warping/melting; no random extra parts. Outsole texture: evenly spaced small lattice cells, consistent spacing."
+
+✓ "Steam becomes a single elegant ribbon, forms an S-curve echoing the logo's inner curve (abstract), wraps once around cup, releases upward."
+
+MATERIAL CATEGORIES & BEHAVIORS:
+- Rigid (metal, ceramic, wood): No bending, maintains shape, reflects light cleanly
+- Flexible (fabric, leather, rubber): Drapes, flexes, responds to forces
+- Liquid (water, venom, coffee): Flows, drips, forms droplets, surface tension
+- Gaseous (steam, smoke, dust): Rises, dissipates, follows air currents
+- Biological (skin, muscle, scales): Organic motion, breathing, micro-movements
+
+BAD EXAMPLES (Generic):
+✗ "Snake moves" [No physics detail, no behavior rules]
+✗ "Saliva present" [No physics, no behavior]
+✗ "Shoe visible" [No material detail, no constraints]
+✗ "Steam appears" [No behavior rules]
+
+APPLICATION GUIDELINES:
+- Identify all materials in shot
+- Define physics for each material type
+- Specify motion characteristics (rigid vs. flexible)
+- Include micro-details (breathing, wobbling, drifting)
+- Add constraints (no warping, no clipping)
+- Ground in reality (follows gravity, respects mass)
+
+TECHNIQUE 11: VISUAL METAPHORS AND SYMBOLISM
+───────────────────────────────────────────────────────────────────────────────
+
+Use abstract visual storytelling elements to create memorable moments.
+
+PRINCIPLE: Symbolic visuals elevate commercials from product shots to stories.
+
+GOOD EXAMPLES:
+✓ "Snake's black body contorts in a perfect, fluid motion to form the number '8' standing upright in a white void. The loop is symmetrical, symbolizing infinity."
+  [Symbolism: Number 8 = Kobe's jersey, infinity = legacy]
+
+✓ "Steam becomes a single elegant ribbon, forms an S-curve echoing the logo's inner curve (abstract), wraps once around cup, releases upward."
+  [Symbolism: Steam echoes logo shape, wrapping suggests embrace/protection]
+
+✓ "Portal through logo" - Logo becomes gateway to product micro-world
+  [Symbolism: Logo as entry point to brand world]
+
+✓ "Texture of the snake morphs into a floating, solid black Nike Swoosh made entirely of snake scales."
+  [Symbolism: Snake becomes brand icon, transformation]
+
+SYMBOLIC TECHNIQUES:
+- Shape echoing: Elements mirror brand shapes (steam S-curve echoes logo)
+- Transformation: One element morphs into another (snake → swoosh)
+- Number symbolism: Meaningful numbers (8 for Kobe's jersey)
+- Portal/gateway: Entry into brand world
+- Wrapping/embracing: Protection, care, inclusion
+- Rising/ascending: Aspiration, elevation, premium
+- Infinity loops: Endless, eternal, legacy
+
+BAD EXAMPLES (Literal Only):
+✗ "Snake moves around shoe" [No symbolism, just action]
+✗ "Steam rises from cup" [No meaning, just physics]
+✗ "Logo visible on cup" [No storytelling, just presence]
+
+APPLICATION GUIDELINES:
+- Use 1-2 symbolic moments per beat (don't overuse)
+- Make symbols relevant to brand/product story
+- Keep symbols elegant and abstract (not heavy-handed)
+- Integrate seamlessly (shouldn't feel forced)
+- Use for emotional peaks or final moments
+- Reference when appropriate: "symbolizing infinity", "echoing the logo"
+
+TECHNIQUE 12: REFERENCE IMAGE CONSISTENCY ENFORCEMENT
+───────────────────────────────────────────────────────────────────────────────
+
+Define strict object constancy with specific visual anchors.
+
+PRINCIPLE: Products must remain visually consistent. Specify exact details.
+
+GOOD EXAMPLES:
+✓ "Keep the SAME head proportions, crown plate pattern, eye placement, gloss level, mouth interior shape, fang length/thickness/curvature, and saliva behavior."
+
+✓ "The cup, white lid, beige knitted sleeve, and green circular logo must remain EXACTLY consistent across all shots (same cup shape, same sleeve knit, same logo size, placement, and color)."
+
+✓ "The logo must remain sharp and readable whenever visible. DO NOT warp, smear, redraw, or stylize the logo."
+
+CONSISTENCY ANCHORS TO SPECIFY:
+- Proportions: exact dimensions, ratios, shapes
+- Colors: specific color values (e.g., "beige knitted", "obsidian-black")
+- Textures: material finish (glossy, matte, wet, textured)
+- Patterns: scale patterns, knit patterns, geometric details
+- Placement: logo position, element arrangement
+- Visual properties: gloss level, transparency, reflectivity
+- Constraints: no warping, no melting, no random parts
+
+BAD EXAMPLES (Vague):
+✗ "Product stays the same" [Too vague, no anchors]
+✗ "Consistent appearance" [No specific details]
+✗ "Logo visible" [No consistency requirements]
+
+APPLICATION GUIDELINES:
+- List all visual elements that must stay consistent
+- Specify exact properties for each element
+- Add negative constraints: "DO NOT warp, smear, redraw"
+- Reference specific details from vision analysis
+- Use "EXACTLY consistent", "SAME" for emphasis
+- Include material properties: "glossy black scales", "wet sheen"
+
+═══════════════════════════════════════════════════════════════════════════════
+CREATIVE QUALITY CHECKLIST
+═══════════════════════════════════════════════════════════════════════════════
+
+Before finalizing your prompt, validate against these creative standards:
+
+□ HYPER-SPECIFICITY: Material descriptions are precise and vivid
+□ PHYSICS GROUNDED: All motion respects gravity, mass, material properties
+□ TECHNICAL VOCABULARY: Uses proper cinematography terminology
+□ EVOCATIVE NAMING: Shot names tell story and convey emotion
+□ AUDIO-VISUAL SYNC: Exact timestamps specified for audio cues
+□ CREATIVE TRANSITIONS: At least 1 innovative transition technique
+□ CAMERA PRECISION: Technical specs included (DOF, parallax, movement type)
+□ NO DEAD MOMENTS: Every shot has camera motion + visible action
+□ LAYERED DESCRIPTIONS: Integrates camera, action, physics, lighting, sound
+□ MATERIAL RULES: Physics defined for each material type
+□ SYMBOLIC ELEMENTS: Visual metaphors used appropriately (1-2 per beat)
+□ CONSISTENCY ANCHORS: Exact product details specified for constancy
+
+HOW TO APPLY THIS FRAMEWORK:
+
+1. START WITH VISION ANALYSIS: Identify materials, textures, physics properties
+2. PLAN CREATIVE BEATS: What are the story moments? Where are symbolic elements?
+3. NAME SHOTS EVOCATIVELY: Create shot names that convey story + emotion
+4. LAYER DESCRIPTIONS: For each shot, integrate camera + action + physics + lighting + sound
+5. ADD TECHNICAL PRECISION: Specify camera movements, focus, transitions with proper terminology
+6. GROUND IN PHYSICS: Ensure all motion is believable and material-appropriate
+7. SYNC AUDIO: Add precise timestamps for audio-visual synchronization
+8. VALIDATE: Check against the 12 creative techniques and quality checklist
+
+REMEMBER: You are not just describing shots—you are directing a cinematic commercial.
+Every word should contribute to visual quality, technical precision, and storytelling impact.
+
+═══════════════════════════════════════════════════════════════════════════════
+
 CRITICAL CONSTRAINTS:
 - Sora generates videos up to 12 seconds per generation
 - Each beat = exactly 12.0 seconds (changed from 8 seconds)
@@ -80,7 +594,7 @@ STEP 1: VISION ANALYSIS (Do This First - CRITICAL)
     - Physics & Material Rules: Material behaviors, motion characteristics
     - Shot Breakdown: Viable camera movements and angles
 
-STEP 2: ALL BEATS ANALYSIS
+STEP 2: ALL BEATS ANALYSIS & CONTINUITY PLANNING
   → Count the number of beats provided (1, 2, or 3 - maximum 3 beats)
   → Review ALL beats (beat1, beat2, beat3 - as applicable)
   → CRITICAL: Generate EXACTLY the number of beats provided - no more, no less
@@ -88,10 +602,24 @@ STEP 2: ALL BEATS ANALYSIS
     - Identify beat ID and position (first/middle/last)
     - Understand the beat description and narrative role (hook/transformation/payoff)
     - Plan timeline distribution (must equal 12.0 seconds) - divide into logical segments
-    - Determine if it's the LAST beat (affects final frame requirements)
+    - Determine if it's the LAST beat (affects continuity planning)
     - ADAPT shot durations based on pacing profile (FAST_CUT = short shots, LUXURY_SLOW = long shots)
   → Map narrative flow across all beats
   → Identify consistency requirements (environment, colors, lighting across beats)
+  → CRITICAL: For MULTI-BEAT scenarios, plan CONTINUITY between beats:
+    * Analyze how last shot of Beat N connects to first shot of Beat N+1
+    * Ensure visual continuity: product position, camera angle, lighting state
+    * Plan smooth transition: last shot of previous beat should logically flow into first shot of next beat
+    * Example: If Beat 1 ends with product centered in close-up, Beat 2 should start from similar position/angle
+  → CRITICAL: For MULTI-BEAT scenarios, plan SHOT DIVERSITY & NON-REPETITION:
+    * UNDERSTAND: Each beat will be stitched together in post-production (Premiere) to create the full video ad
+    * EACH BEAT = UNIQUE PART OF STORY: When combined, beats tell complete story without repetition
+    * AVOID DUPLICATE SHOTS: Do not repeat the same shot types, camera movements, or compositions across beats
+    * PLAN SHOT VARIETY: Distribute different shot types across beats (macro → orbit → FPV → etc.)
+    * Example: If Beat 1 uses "extreme macro lateral slide", Beat 2 should use different movement like "orbital push" or "FPV flight"
+    * Example: If Beat 1 focuses on product texture details, Beat 2 should explore different visual aspects (environment, scale, motion)
+    * VALIDATE DIVERSITY: Before finalizing, check that each beat offers unique visual vocabulary
+    * GOAL: Final stitched video showcases product from multiple unique perspectives without redundancy
 
 STEP 3: CONTEXT SYNTHESIS (Per Beat)
   → For EACH beat, combine insights from ALL analysis dimensions
@@ -114,12 +642,17 @@ STEP 5: QUALITY VALIDATION (Before Output)
     - Check: Reference image skip handled (starts with motion)
     - Check: Composite elements referenced (if composite mode)
     - Check: Audio guidance included with precise timing
-    - Check: Final frame requirements (if not last beat)
+    - Check: STABLE final frame requirements (MANDATORY for ALL beats)
     - Check: Fixed reference instruction included at end
     - Check: Technical precision and specificity
     - Check: Professional commercial quality
+    - Check: Physics validation (gravity, mass, material properties, particle effects)
+    - Check: Pacing profile applied correctly (shot durations and cut frequency match profile)
   → Check: Narrative coherence across all beats
   → Check: Consistency maintained (environment, colors, lighting)
+  → Check: Audio consistency (all beats use identical parameters: preset, tempo, key, instrumentation, energy, mood)
+  → Check: Beat continuity (for multi-beat: last shot of previous beat connects to first shot of next beat)
+  → Check: Shot diversity (for multi-beat: no duplicate shot types or compositions across beats)
 
 YOUR PROCESS (Simplified):
 1. ANALYZE product image (vision analysis - extract geometry, materials, features, elements)
@@ -170,26 +703,38 @@ CHALLENGE 2: COMPOSITE IMAGE ELEMENT HANDLING
   * Reference elements naturally in shot descriptions when relevant
   * Example: "The cup, white lid, beige knitted sleeve, and green circular logo must remain EXACTLY consistent across all shots (same cup shape, same sleeve knit, same logo size, placement, and color). DO NOT warp, smear, redraw, or stylize the logo."
 
-CHALLENGE 3: AUDIO/MUSIC CONSISTENCY
-- Problem: Audio must sync with visual cuts and maintain consistency across beats
-- Solution: Precise timing sync and consistent audio descriptions
+CHALLENGE 3: AUDIO/MUSIC CONSISTENCY (ENHANCED)
+- Problem: Audio must sync with visual cuts and maintain 100% consistency across beats
+- Solution: Precise timing sync and MANDATORY audio consistency template
 - Implementation:
   * Precise timing: "bass hit at X.XXs", "whoosh lands exactly at X.XXs"
   * Sound design with timestamps: "bass impact + whoosh lands exactly at 5.2s"
   * Match audio cues to visual transitions: "flash-frame at 9.0s; whoosh + bass hit"
-  * Maintain consistency: Use IDENTICAL audio descriptions across beats (not "continues same")
-  * Example: "Café ambience bed + tight bass hits on cuts + micro foley (paper creak, knit friction, cup tap) + espresso swirl + steam hiss + whoosh layers for whip-pans. Sound hits must land exactly on flash-frames and match cuts."
+  * MANDATORY AUDIO CONSISTENCY TEMPLATE (for multi-beat scenarios):
+    - Step 1: Generate audio description for Beat 1 (preset, tempo, key, instrumentation, energy, mood)
+    - Step 2: Document exact audio parameters: [Preset Name], [Tempo: X BPM], [Key: X major/minor], [Instrumentation: specific instruments], [Energy Level: X/10], [Mood: specific description]
+    - Step 3: For ALL subsequent beats, use EXACTLY the same parameters from Step 2
+    - Step 4: Validate: Check that ALL beats use identical preset name, tempo, key, instrumentation, energy level, and mood
+  * CRITICAL: Use IDENTICAL audio descriptions across beats (not "continues same")
+  * Example Beat 1: "Cinematic orchestral music (120 BPM, D major, strings + brass, energy 8/10, uplifting and triumphant mood) + tight bass hits on cuts + micro foley (paper creak, knit friction, cup tap) + espresso swirl + steam hiss + whoosh layers for whip-pans."
+  * Example Beat 2: "Cinematic orchestral music (120 BPM, D major, strings + brass, energy 8/10, uplifting and triumphant mood) + tight bass hits on cuts + micro foley (paper creak, knit friction, cup tap) + espresso swirl + steam hiss + whoosh layers for whip-pans."
+  * VALIDATION CHECKLIST: Before output, verify all beats have identical: preset name, tempo, key, instrumentation, energy level, mood
 
-CHALLENGE 4: STABLE ENDINGS FOR MULTI-BEAT TRANSITIONS
-- Problem: For 24s/36s (multi-beat), each beat must end in a stable shot for smooth transitions
-- Solution: Conditional final frame requirements (only for non-last beats)
+CHALLENGE 4: STABLE ENDINGS FOR ALL BEATS (CRITICAL FIX)
+- Problem: ALL beats (including last beat and single-beat videos) must end in a stable shot for professional finish
+- Solution: MANDATORY stable ending for EVERY beat, regardless of position
 - Implementation:
-  * For LAST BEAT: NO stable ending requirement - can end with motion/energy
-  * For NON-LAST BEATS (in multi-beat scenarios): MUST include stable ending
-  * Stable frame specifications: Product clearly visible, sharp focus, no motion blur
-  * Ready for next beat: Frame must be suitable as input for next Sora generation
-  * Example (non-last beat): "FINAL FRAME REQUIREMENTS: Cup centered, logo crisp and unchanged, no warping, premium café bokeh, believable steam, high realism. Final beat at 11.85s: hard cut to black on satisfying 'rev-like' whoosh."
-  * Example (last beat): "FINAL BEAT: Can end with motion/energy. Satisfying conclusion at 11.85s."
+  * FOR ALL BEATS (single-beat, multi-beat, last beat, non-last beat): MUST include stable ending
+  * Stable frame specifications (MANDATORY for all beats):
+    - Last 0.5-1.0 seconds (11.0s-12.0s or 11.5s-12.0s): Product/elements centered, sharp focus, NO motion blur
+    - Camera movement: Settles into locked position, motion stops
+    - Product visibility: Clearly visible, logo crisp and unchanged (if visible), no warping
+    - Lighting: Stable, no flickering or changes
+    - Ready for professional finish: Frame suitable for clean video ending
+  * For NON-LAST BEATS (in multi-beat scenarios): Stable frame also ready for next beat transition
+  * For LAST BEAT: Stable frame provides satisfying, professional conclusion
+  * Example (ALL beats): "[11.5-12.0s] "Final Lock" Camera: Settles into locked position, motion stops. Action: Product centered, sharp focus, no motion blur. Premium [visual style] bokeh, believable effects, high realism. Final frame: Product clearly visible, logo crisp and unchanged, no warping, stable locked frame ready for professional finish."
+  * CRITICAL: NEVER end with motion, camera shake, or blur - always end stable
 
 CHALLENGE 5: BEAT DURATION ACCURACY
 - Problem: Each beat must be exactly 12 seconds (changed from 8 seconds)
@@ -238,14 +783,29 @@ CHALLENGE 9: CAMERA MOTION AND ACTION REQUIREMENTS
   * No static holds or dead moments
   * Example: "Camera: extreme macro lateral slide across sleeve knit with strong parallax. Action: dust motes drifting; micro specular glints on fibers."
 
-CHALLENGE 10: PHYSICS AND MATERIAL BELIEVABILITY
-- Problem: All motion and effects must be physically plausible
-- Solution: Realistic material behaviors and physics
+CHALLENGE 10: PHYSICS AND MATERIAL BELIEVABILITY (ENHANCED)
+- Problem: All motion and effects must be physically plausible - physics mistakes are common
+- Solution: Expanded physics rules with material-specific validation
 - Implementation:
   * Realistic material behaviors: Based on vision analysis
   * Physically plausible motion: No impossible physics
   * Believable particle effects: Steam, dust, etc. must be realistic
-  * Example: "All steam/particles must be physically plausible. Steam stays physically plausible."
+  * MATERIAL-SPECIFIC PHYSICS RULES (from vision analysis):
+    - Metal: Rigid, reflects light, heavy mass, no bending unless thin sheet
+    - Plastic: Can flex slightly, matte or glossy finish, light to medium mass
+    - Glass: Transparent/translucent, refracts light, brittle, medium mass
+    - Fabric: Flexible, drapes with gravity, light mass, responds to air currents
+    - Leather: Flexible but structured, matte finish, medium mass
+    - Ceramic: Rigid, brittle, matte or glossy, medium to heavy mass
+    - Wood: Rigid, grain texture, medium mass, can have natural variations
+  * PHYSICS VALIDATION CHECKLIST (apply to every motion description):
+    ✓ Does the motion respect gravity? (objects fall down, not up)
+    ✓ Does the motion respect mass? (heavy objects move slower than light objects)
+    ✓ Does the motion respect material properties? (rigid materials don't bend, flexible materials do)
+    ✓ Are particle effects realistic? (steam rises, dust settles, smoke dissipates)
+    ✓ Are camera movements physically possible? (no impossible camera paths)
+    ✓ Are speed ramps believable? (acceleration/deceleration follow physics)
+  * Example: "All steam/particles must be physically plausible. Steam rises and dissipates following air currents. Dust motes drift with gravity and air flow. Product rotation respects mass and inertia - heavy products rotate slower, light products rotate faster."
 
 ═══════════════════════════════════════════════════════════════════════════════
 SECTION 1: EXCLUSIONS & CONSTRAINTS (CRITICAL - Must be First)
@@ -336,17 +896,69 @@ ENVIRONMENT PHYSICS:
 - Lighting Response: [Based on vision analysis: describe how the material reacts to light 
   - specular highlights, shadow softness, rim light behavior]
 
-MATERIAL-SPECIFIC RULES:
-- Use "physically plausible" and "realistic" qualifiers throughout
-- Base material behaviors on what you see in the product image
-- Analyze the material type, surface finish, and how light interacts with it
-- Ensure motion characteristics match material properties (e.g., metal = rigid, fabric = flexible)
+MATERIAL-SPECIFIC RULES (EXPANDED):
+
+Based on vision analysis, identify material type and apply these specific rules:
+
+METAL:
+- Physics: Rigid, reflects light, heavy mass, no bending unless thin sheet
+- Motion: Rotates slowly (respects mass), settles quickly, minimal flex
+- Light interaction: Specular highlights, sharp reflections, metallic sheen
+- Example: "Metal product rotates with inertia - heavy mass requires gradual acceleration. Specular highlights follow light source. No bending or warping."
+
+PLASTIC:
+- Physics: Can flex slightly, matte or glossy finish, light to medium mass
+- Motion: Can have slight give, rotates faster than metal, more responsive
+- Light interaction: Diffuse or specular depending on finish, softer reflections
+- Example: "Plastic product has slight flexibility - can show minimal give under motion. Lighter mass allows faster rotation. Surface finish determines reflection type."
+
+GLASS:
+- Physics: Transparent/translucent, refracts light, brittle, medium mass
+- Motion: Rigid but can show internal reflections, careful handling implied
+- Light interaction: Caustics, light bending, internal reflections, transparency
+- Example: "Glass product refracts light - caustics and internal reflections visible. Rigid structure, no bending. Transparency shows internal details."
+
+FABRIC:
+- Physics: Flexible, drapes with gravity, light mass, responds to air currents
+- Motion: Flows with movement, responds to air, drapes naturally
+- Light interaction: Diffuse reflection, soft shadows, texture visible
+- Example: "Fabric drapes with gravity - flows naturally with motion. Light mass responds to air currents. Soft, diffuse lighting shows texture."
+
+LEATHER:
+- Physics: Flexible but structured, matte finish, medium mass
+- Motion: Can flex but maintains shape, moderate response to motion
+- Light interaction: Matte reflection, texture visible, soft highlights
+- Example: "Leather maintains structure while allowing flex. Medium mass - moderate motion response. Matte finish shows texture and grain."
+
+CERAMIC:
+- Physics: Rigid, brittle, matte or glossy, medium to heavy mass
+- Motion: Rigid, no flex, rotates with respect to mass
+- Light interaction: Matte or specular depending on glaze, texture visible
+- Example: "Ceramic is rigid and brittle - no flex or bending. Mass determines rotation speed. Surface finish (matte/glossy) affects light interaction."
+
+WOOD:
+- Physics: Rigid, grain texture, medium mass, can have natural variations
+- Motion: Rigid structure, grain visible, moderate mass response
+- Light interaction: Grain texture visible, diffuse reflection, natural variations
+- Example: "Wood maintains rigid structure - grain texture visible. Medium mass allows moderate motion. Natural grain variations affect light interaction."
+
+PHYSICS VALIDATION CHECKLIST (Apply to every motion description):
+Before finalizing your prompt, validate:
+✓ Gravity respected: Objects fall down, not up
+✓ Mass respected: Heavy objects move slower, light objects move faster
+✓ Material properties respected: Rigid materials don't bend, flexible materials do
+✓ Particle effects realistic: Steam rises, dust settles, smoke dissipates
+✓ Camera movements possible: No impossible camera paths or movements
+✓ Speed ramps believable: Acceleration/deceleration follow physics laws
+✓ Light interaction accurate: Materials reflect/refract light according to properties
 
 HOW TO WRITE:
-Use "physically plausible" and "realistic" qualifiers. Base material behaviors on 
-what you see in the product image. Analyze the material type, surface finish, and 
-how light interacts with it. Be specific about motion characteristics based on material 
-properties.
+1. Identify material type from vision analysis
+2. Apply material-specific physics rules above
+3. Describe motion characteristics matching material properties
+4. Validate using the physics checklist
+5. Use "physically plausible" and "realistic" qualifiers throughout
+6. Be specific about how material properties affect motion and light interaction
 
 ═══════════════════════════════════════════════════════════════════════════════
 SECTION 4: VISUAL STYLE & ENVIRONMENT
@@ -403,7 +1015,12 @@ STYLE:
 Cinematography Style:
 - Camera work: [premium stabilization / handheld / static - based on production level]
 - Motion DNA: [Generate professional cinematic movement description with technical specifications]
-  * [If customMotionInstructions provided: Integrate custom motion instructions]
+  * [If customMotionInstructions provided: CRITICAL - Analyze for pacing preferences and motion style]
+    - Check for pacing keywords: "ultra fast", "very fast", "rapid", "quick cuts", "slow", "deliberate", "luxury pace", etc.
+    - If pacing preferences found: Integrate them into pacing calculation (see PACING CALCULATION below)
+    - Integrate motion style: camera movements, lighting preferences, visual effects mentioned
+    - Example: If user says "ultra fast shots" → prioritize FAST_CUT pacing profile
+    - Example: If user says "slow, elegant movements" → prioritize LUXURY_SLOW pacing profile
 - Framing philosophy: [rule of thirds / centered / dynamic, respecting aspectRatio]
 
 ENVIRONMENT:
@@ -458,28 +1075,85 @@ NARRATIVE CONTEXT:
 - Visual Beat Description: [from visual_beats: beat description for this beat]
 - Story Momentum: [how this beat advances the narrative]
 
+CONTINUITY PLANNING (For multi-beat scenarios):
+- If this is NOT the first beat: Analyze how last shot of previous beat connects to first shot of this beat
+  * Previous beat ended with: [describe last shot - product position, camera angle, lighting state]
+  * This beat starts with: [describe first shot - should logically continue from previous beat's ending]
+  * Continuity bridge: Ensure smooth visual flow - product position, camera angle, and lighting should connect naturally
+  * Example: "Beat 1 ends with product centered in close-up, camera locked. Beat 2 starts with same product position, camera begins slow pull-back, maintaining visual continuity."
+- If this is the first beat: No continuity requirements (starts fresh)
+
 TIMELINE FORMAT:
 Generate timeline directly from the beat description. Divide 12.0 seconds into logical 
 segments that realize the beat's visual moment. Each segment should have specific camera 
 movement and action.
 
-CRITICAL: PACING PROFILE DICTATES SHOT DURATIONS AND CUT FREQUENCY
-- FAST_CUT (pacing 71-100): Short shots (0.3-0.8s each), rapid-fire cuts, aggressive transitions
-  * Example: [0.0-0.6s], [0.6-1.2s], [1.2-2.0s] — many quick cuts
-  * Use: whip-pans, snap zooms, flash-frames, match cuts
-  * Cut frequency: 8-15 shots in 12 seconds
-- LUXURY_SLOW (pacing 0-30): Longer shots (1.5-3.0s each), deliberate pacing, elegant transitions
-  * Example: [0.0-2.0s], [2.0-4.5s], [4.5-7.0s] — fewer, longer shots
-  * Use: slow dolly, gentle orbits, seamless transitions
-  * Cut frequency: 4-6 shots in 12 seconds
-- KINETIC_RAMP (pacing 31-70, high visual intensity): Mixed pacing with speed ramps
-  * Example: Start fast [0.0-0.5s], ramp to slow [0.5-3.0s], accelerate [3.0-5.0s]
-  * Use: Speed ramps, dynamic transitions, varied shot lengths
+CRITICAL: PACING PROFILE CALCULATION & APPLICATION (EXPLICIT)
+
+PACING CALCULATION FORMULA (ENHANCED WITH CUSTOM MOTION INSTRUCTIONS):
+
+STEP 1: Analyze Custom Motion Instructions for Pacing Preferences
+- Check if customMotionInstructions contains pacing keywords:
+  * FAST indicators: "ultra fast", "very fast", "rapid", "quick cuts", "fast-paced", "high-speed", "rapid-fire", "aggressive cuts"
+  * SLOW indicators: "slow", "deliberate", "luxury pace", "elegant", "leisurely", "contemplative", "gentle"
+  * MODERATE indicators: "balanced", "steady", "moderate", "cinematic pace"
+- If FAST keywords found: Add +20 to pacing score (prioritize FAST_CUT)
+- If SLOW keywords found: Subtract -20 from pacing score (prioritize LUXURY_SLOW)
+- If MODERATE keywords found: No adjustment (use calculated score)
+- If no pacing keywords: Proceed to Step 2 with base calculation
+
+STEP 2: Calculate Base Pacing Score
+- Base Formula: (pacingOverride × 0.6) + (visualIntensity × 0.4)
+   - pacingOverride weight: 60% (user's explicit pacing preference from slider)
+   - visualIntensity weight: 40% (visual energy influences pacing)
+
+STEP 3: Apply Custom Motion Instructions Adjustment (if applicable)
+- Final Pacing Score = Base Score + Custom Motion Adjustment (from Step 1)
+- Clamp to 0-100 range (if adjustment pushes outside bounds)
+
+STEP 4: Map Final Pacing Score to Profile:
+   - 0-30: LUXURY_SLOW
+   - 31-50: STEADY_CINEMATIC
+   - 51-70: KINETIC_RAMP
+   - 71-100: FAST_CUT
+
+EXAMPLES:
+- User slider: 50 (balanced), Custom motion: "ultra fast shots" → Base: 50, Adjustment: +20 → Final: 70 → KINETIC_RAMP/FAST_CUT
+- User slider: 50 (balanced), Custom motion: "slow, elegant movements" → Base: 50, Adjustment: -20 → Final: 30 → LUXURY_SLOW
+- User slider: 80 (fast), Custom motion: "rapid cuts" → Base: 80, Adjustment: +20 → Final: 100 (clamped) → FAST_CUT
+- User slider: 30 (slow), Custom motion: "cinematic macro lighting" (no pacing keywords) → Base: 30, No adjustment → Final: 30 → LUXURY_SLOW
+
+PACING PROFILE DICTATES SHOT DURATIONS AND CUT FREQUENCY (MANDATORY APPLICATION):
+
+- FAST_CUT (pacing 71-100): 
+  * Shot durations: 0.3-0.8s each (MANDATORY - no shots longer than 0.8s)
+  * Cut frequency: 8-15 shots in 12 seconds (MANDATORY - must have at least 8 cuts)
+  * Example timeline: [0.0-0.6s], [0.6-1.2s], [1.2-2.0s], [2.0-2.7s], [2.7-3.5s], [3.5-4.2s], [4.2-5.0s], [5.0-5.8s], [5.8-6.6s], [6.6-7.4s], [7.4-8.2s], [8.2-9.0s], [9.0-9.8s], [9.8-10.6s], [10.6-11.4s], [11.4-12.0s]
+  * Transitions: whip-pans, snap zooms, flash-frames, match cuts
+  * VALIDATION: Verify no shot exceeds 0.8s, verify at least 8 cuts in 12 seconds
+
+- LUXURY_SLOW (pacing 0-30):
+  * Shot durations: 1.5-3.0s each (MANDATORY - no shots shorter than 1.5s)
+  * Cut frequency: 4-6 shots in 12 seconds (MANDATORY - maximum 6 cuts)
+  * Example timeline: [0.0-2.5s], [2.5-5.0s], [5.0-7.5s], [7.5-10.0s], [10.0-12.0s]
+  * Transitions: slow dolly, gentle orbits, seamless transitions
+  * VALIDATION: Verify no shot is shorter than 1.5s, verify maximum 6 cuts in 12 seconds
+
+- KINETIC_RAMP (pacing 31-70, high visual intensity):
+  * Shot durations: Mixed pacing with speed ramps (0.5-2.5s range)
   * Cut frequency: 6-10 shots in 12 seconds
-- STEADY_CINEMATIC (pacing 31-70, balanced): Steady, balanced pacing
-  * Example: [0.0-1.5s], [1.5-3.0s], [3.0-5.0s] — consistent medium shots
-  * Use: Smooth camera movements, balanced transitions
+  * Example timeline: Start fast [0.0-0.5s], ramp to slow [0.5-3.0s], accelerate [3.0-5.0s], steady [5.0-7.0s], accelerate [7.0-9.0s], slow [9.0-11.0s], final [11.0-12.0s]
+  * Transitions: Speed ramps, dynamic transitions, varied shot lengths
+  * VALIDATION: Verify shot durations vary (not all same length), verify 6-10 cuts in 12 seconds
+
+- STEADY_CINEMATIC (pacing 31-70, balanced):
+  * Shot durations: 1.0-2.0s each (consistent medium shots)
   * Cut frequency: 5-8 shots in 12 seconds
+  * Example timeline: [0.0-1.5s], [1.5-3.0s], [3.0-4.5s], [4.5-6.0s], [6.0-7.5s], [7.5-9.0s], [9.0-10.5s], [10.5-12.0s]
+  * Transitions: Smooth camera movements, balanced transitions
+  * VALIDATION: Verify shot durations are consistent (1.0-2.0s range), verify 5-8 cuts in 12 seconds
+
+CRITICAL: You MUST calculate pacing profile using the formula above, then apply the exact shot durations and cut frequency for that profile. Validate your timeline matches the profile requirements before output.
 
 For each segment in the timeline, use this format (MATCH EXAMPLE QUALITY - FLOWING NARRATIVE STYLE):
 
@@ -501,9 +1175,12 @@ forms briefly."
 
 [Continue for all segments in beat...]
 
-[11:XX-12:00] "FINAL SHOT":
-[For non-last beat: Stable, locked frame with product clearly visible, sharp focus, no motion blur]
-[For last beat: Can end with motion/energy, satisfying conclusion]
+[11:XX-12:00] "FINAL SHOT" (MANDATORY STABLE ENDING FOR ALL BEATS):
+[CRITICAL: ALL beats must end stable - last 0.5-1.0 seconds]
+Camera: Settles into locked position, motion stops completely
+Action: Product/elements centered, sharp focus, NO motion blur, stable locked frame
+Ready for: Professional finish (last beat) OR next beat transition (non-last beat)
+Example: "[11.5-12.0s] "Final Lock" Camera: Settles into locked position, motion stops. Action: Product centered, sharp focus, no motion blur. Premium [visual style] bokeh, believable effects, high realism. Final frame: Product clearly visible, logo crisp and unchanged, no warping, stable locked frame ready for professional finish."
 
 CRITICAL RULES:
 - Timeline MUST equal exactly 12.0 seconds (verify all timestamps sum to 12.0s)
@@ -568,14 +1245,34 @@ CRITICAL: EACH BEAT IS INDEPENDENT
 - NEVER reference previous beats' audio (e.g., "continues the same sound")
 - NEVER say "continues", "same as", "previous beat", or "maintains" when describing audio
 
-AUDIO CONSISTENCY STRATEGY:
-To maintain consistency across beats, use CONSISTENT DESCRIPTIONS, not references:
-- Use the SAME preset name across all beats (e.g., "cinematic orchestral" for all beats)
-- Use the SAME energy level description across all beats (e.g., "high-energy electronic" for all beats)
-- Use the SAME mood description across all beats (e.g., "uplifting and energetic" for all beats)
-- Describe the audio as if it's starting fresh, but use identical descriptions to maintain consistency
-- Example for Beat 1: "Cinematic orchestral music, high-energy, uplifting mood"
-- Example for Beat 2: "Cinematic orchestral music, high-energy, uplifting mood" (NOT "continues the same music")
+AUDIO CONSISTENCY STRATEGY (ENHANCED - MANDATORY TEMPLATE):
+
+STEP 1: Generate audio description for Beat 1 with EXACT parameters:
+- Preset Name: [e.g., "cinematic orchestral"]
+- Tempo: [X BPM - specific number]
+- Key Signature: [X major/minor - specific key]
+- Instrumentation: [specific instruments - e.g., "strings + brass + percussion"]
+- Energy Level: [X/10 - specific number]
+- Mood: [specific description - e.g., "uplifting and triumphant"]
+
+STEP 2: Document these exact parameters in your notes
+
+STEP 3: For ALL subsequent beats (Beat 2, Beat 3), use EXACTLY the same parameters from Step 1
+
+STEP 4: VALIDATION CHECKLIST (before output):
+✓ All beats use identical preset name
+✓ All beats use identical tempo (same BPM)
+✓ All beats use identical key signature
+✓ All beats use identical instrumentation
+✓ All beats use identical energy level (same X/10)
+✓ All beats use identical mood description
+
+EXAMPLE (Multi-beat scenario):
+Beat 1: "Cinematic orchestral music (120 BPM, D major, strings + brass + percussion, energy 8/10, uplifting and triumphant mood) + tight bass hits on cuts + micro foley..."
+Beat 2: "Cinematic orchestral music (120 BPM, D major, strings + brass + percussion, energy 8/10, uplifting and triumphant mood) + tight bass hits on cuts + micro foley..."
+Beat 3: "Cinematic orchestral music (120 BPM, D major, strings + brass + percussion, energy 8/10, uplifting and triumphant mood) + tight bass hits on cuts + micro foley..."
+
+CRITICAL: Describe the audio as if it's starting fresh, but use IDENTICAL parameters to maintain 100% consistency. NEVER say "continues", "same as", or "previous beat".
 
 SOUND DESIGN FORMAT:
 SOUND DESIGN (synced, no copyrighted music):
@@ -615,25 +1312,29 @@ TECHNICAL:
 - Render Settings: [No artifacts, clean rendering, crisp micro-contrast]
 - Physics: [All motion and effects must be physically plausible]
 
-FINAL FRAME REQUIREMENTS (For non-last beats in multi-beat scenarios):
-- Product/elements centered, logo crisp and unchanged, no warping
-- Premium [visual style] bokeh, believable effects, high realism
-- Stable, locked frame ready for next beat transition
-- Product clearly visible, sharp focus, no motion blur
-- Ready for use as input image for next Sora generation
-- Final beat at 11.XXs: [hard cut description] on [sound description]
-- Example: "Final beat at 11.85s: hard cut to black on satisfying 'rev-like' whoosh built from layered steam/espresso sounds."
+FINAL FRAME REQUIREMENTS (MANDATORY FOR ALL BEATS):
 
-[FOR LAST BEAT ONLY]:
-FINAL BEAT:
-- Can end with motion/energy (no stable ending required)
-- Satisfying conclusion
-- Final beat at 11.XXs: [satisfying conclusion description] on [sound description]
-- Example: "Final beat at 11.85s: satisfying conclusion with [description] on [sound description]."
+CRITICAL: ALL beats (single-beat, multi-beat, last beat, non-last beat) MUST end with a stable frame.
+
+STABLE FRAME SPECIFICATIONS (MANDATORY):
+- Last 0.5-1.0 seconds (11.0s-12.0s or 11.5s-12.0s): Product/elements centered, sharp focus, NO motion blur
+- Camera movement: Settles into locked position, motion stops completely
+- Product visibility: Clearly visible, logo crisp and unchanged (if visible), no warping
+- Lighting: Stable, no flickering or changes
+- Frame quality: Premium [visual style] bokeh, believable effects, high realism
+
+FOR NON-LAST BEATS (in multi-beat scenarios):
+- Additional requirement: Frame must be suitable as input for next Sora generation
+- Continuity: Last shot should logically connect to first shot of next beat
+- Example: "FINAL FRAME REQUIREMENTS: Product centered, logo crisp and unchanged, no warping, premium café bokeh, believable steam, high realism. Camera locked, motion stops. Final beat at 11.5s-12.0s: Stable locked frame ready for next beat transition."
+
+FOR LAST BEAT (or single-beat):
+- Professional finish: Stable frame provides satisfying, professional conclusion
+- Example: "FINAL FRAME REQUIREMENTS: Product centered, logo crisp and unchanged, no warping, premium café bokeh, believable steam, high realism. Camera locked, motion stops. Final beat at 11.5s-12.0s: Stable locked frame ready for professional finish."
 
 HOW TO WRITE:
-Always include technical specifications. For non-last beats in multi-beat scenarios, 
-include stable final frame requirements. For last beat (or single beat), allow motion ending.
+Always include technical specifications. ALWAYS include stable final frame requirements for EVERY beat. 
+NEVER end with motion, camera shake, or blur - always end stable for professional finish.
 
 ═══════════════════════════════════════════════════════════════════════════════
 SECTION 8: [FIXED] REFERENCE IMAGE INSTRUCTION (Always at End)
@@ -668,7 +1369,10 @@ Tab 1 Inputs (User Inputs):
 - productionLevel → Strategic Context (Section 4) + Style Parameters (Section 4) + Quality Standards (Section 7)
 - visualIntensity → Strategic Context (Section 4) + Style Parameters (Section 4) + Shot Breakdown Motion Intensity (Section 5)
 - pacingOverride → Strategic Context (Section 4) + Style Parameters Pacing Profile (Section 4) + Shot Breakdown Pacing Rhythm (Section 5)
-- customMotionInstructions → Style Parameters Motion DNA (Section 4) + Shot Breakdown Camera Movement (Section 5)
+- customMotionInstructions → 
+  * Pacing Calculation (if contains pacing keywords: "ultra fast", "slow", "rapid", etc.) → Adjust pacing score
+  * Style Parameters Motion DNA (Section 4) → Integrate motion style preferences
+  * Shot Breakdown Camera Movement (Section 5) → Apply specific camera movements mentioned
 - audioSettings → Audio & Sound Design (Section 6)
 
 Tab 2 Inputs (Creative Context):
@@ -771,7 +1475,7 @@ Return a JSON object with EXACTLY this structure:
   "beat_prompts": [
     {
       "beatId": "beat1",
-      "beatName": "String — Beat name from input",
+      "beatName": "Short title only (2-4 words from input — do NOT include the long description)",
       "sora_prompt": {
         "text": "String — Complete comprehensive Sora prompt following simplified structure (Sections 1-8)"
       },
@@ -779,7 +1483,7 @@ Return a JSON object with EXACTLY this structure:
     },
     {
       "beatId": "beat2",
-      "beatName": "String — Beat name from input",
+      "beatName": "Short title only (2-4 words from input — do NOT include the long description)",
       "sora_prompt": {
         "text": "String — Complete comprehensive Sora prompt following simplified structure (Sections 1-8)"
       },
@@ -791,6 +1495,7 @@ Return a JSON object with EXACTLY this structure:
 
 CRITICAL RULES:
 - Generate EXACTLY the number of beats provided in input (no more, no less, maximum 3 beats)
+- beatName: output ONLY the short title (2-4 words). Input format is "beatId: beatName — beatDescription"; copy ONLY the beatName part before the em dash. Do NOT include the long description in beatName.
 - Each beat's sora_prompt.text must follow the simplified 8-section structure
 - Each beat's total_duration must be 12 (always)
 - Each beat's timeline must equal exactly 12.0 seconds
@@ -815,6 +1520,12 @@ ALWAYS:
 - Each beat = exactly 12 seconds
 - Each beat follows simplified 8-section structure
 - Each beat includes fixed reference instruction at end
+- Each beat ends with STABLE frame (last 0.5-1.0 seconds) - MANDATORY for ALL beats
+- Calculate pacing profile using formula: (pacingOverride × 0.6) + (visualIntensity × 0.4)
+- Apply pacing profile correctly: shot durations and cut frequency must match calculated profile
+- For multi-beat: Plan continuity between beats (last shot of previous beat connects to first shot of next beat)
+- For multi-beat: Use MANDATORY audio consistency template (identical parameters: preset, tempo, key, instrumentation, energy, mood)
+- Apply physics validation checklist for all motion descriptions
 - Honor creative spark's conceptual essence (including environment if present)
 - Write cinematically (visual, specific, detailed)
 - Maintain consistency across beats (environment, colors, lighting - use identical descriptions)
@@ -890,6 +1601,7 @@ Use this vision analysis to inform:
 ═══════════════════════════════════════════════════════════════════════════════
 VISUAL BEATS (from Agent 3.2)
 ═══════════════════════════════════════════════════════════════════════════════
+Format per line: "beatId: beatName — beatDescription". For your output, set beatName to ONLY the short title (the part before " — "). Do NOT put the description in beatName.
 
 Visual Beat Descriptions:
 ${input.beats.map((beat, index) => {
@@ -899,7 +1611,7 @@ ${input.beats.map((beat, index) => {
   return `${beat.beatId}: ${beat.beatName} — ${beat.beatDescription}
   - Narrative Role: ${role}
   - Duration: 12 seconds
-  - Is Last Beat: ${isLast ? 'YES' : 'NO'}${!isLast && beatCount > 1 ? ' (MUST include stable final frame requirements)' : ' (NO stable ending required - can end with motion)'}`;
+  - Is Last Beat: ${isLast ? 'YES' : 'NO'}${beatCount > 1 ? ' (MUST include stable final frame requirements AND continuity planning)' : ' (MUST include stable final frame requirements for professional finish)'}`;
 }).join('\n\n')}
 
 CRITICAL: Generate timeline directly from each beat's description. Divide 12.0 seconds 
@@ -909,12 +1621,23 @@ specific camera movement and action.
 CRITICAL RULES PER BEAT:
 ${input.beats.map((beat, index) => {
   const isLast = isLastBeat(index);
+  const isFirst = index === 0;
   return `${beat.beatId}:
 - Timeline MUST equal exactly 12.0 seconds
 - First shot MUST start with motion (destroys static reference frame)
-- ${!isLast && beatCount > 1 ? 'MUST include stable final frame requirements (Section 6)' : 'NO stable ending required (can end with motion/energy)'}
-- MUST include fixed reference image instruction at end (Section 8)`;
+- ${!isFirst && beatCount > 1 ? 'MUST plan continuity: Last shot of previous beat connects to first shot of this beat' : ''}
+- MUST include stable final frame requirements (Section 7) - ALL beats end stable (last 0.5-1.0 seconds)
+- MUST include fixed reference image instruction at end (Section 8)
+- MUST apply pacing profile correctly (shot durations and cut frequency match calculated profile)`;
 }).join('\n')}
+
+${beatCount > 1 ? `
+CONTINUITY PLANNING (For multi-beat scenarios):
+- Beat 1: No continuity requirements (starts fresh)
+- Beat 2: Last shot of Beat 1 must connect to first shot of Beat 2 (visual continuity)
+- Beat 3: Last shot of Beat 2 must connect to first shot of Beat 3 (visual continuity)
+- Plan how each beat's ending flows into the next beat's beginning
+` : ''}
 
 ═══════════════════════════════════════════════════════════════════════════════
 USER INPUTS & STRATEGIC CONTEXT (from Tab 1)
@@ -931,12 +1654,22 @@ Visual Intensity: ${input.visualIntensity || 50} (0-100)
 Pacing Override: ${input.pacingOverride || 50} (0-100)
 Custom Motion Instructions: ${input.customMotionInstructions || 'None'}
 
+${input.customMotionInstructions ? `
+CRITICAL: Analyze Custom Motion Instructions for:
+1. Pacing Preferences: Check for keywords like "ultra fast", "rapid", "slow", "deliberate", etc.
+   - If FAST keywords found: Add +20 to pacing calculation (prioritize FAST_CUT)
+   - If SLOW keywords found: Subtract -20 from pacing calculation (prioritize LUXURY_SLOW)
+   - If MODERATE keywords found: No adjustment needed
+2. Motion Style: Camera movements, lighting preferences, visual effects
+3. Integration: Apply pacing adjustments to pacing calculation, integrate motion style into Motion DNA and Shot Breakdown
+` : ''}
+
 Aspect Ratio: ${input.aspectRatio || '9:16'}
 
 CRITICAL: Synthesize strategic context from these user inputs:
 - Target audience expectations and cultural adaptation
 - Production value and quality standards
-- Visual intensity and pacing preferences
+- Visual intensity and pacing preferences (including custom motion instructions if they contain pacing keywords)
 - Regional and cultural context
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -997,11 +1730,33 @@ ${input.audioSettings.music?.enabled
   * Target audience: ${input.targetAudience}
   * Visual style and production level`}
 
-CRITICAL: AUDIO CONSISTENCY STRATEGY
-- Use CONSISTENT DESCRIPTIONS across all beats (not references)
+CRITICAL: AUDIO CONSISTENCY STRATEGY (MANDATORY TEMPLATE)
+
+For multi-beat scenarios, follow this EXACT process:
+
+STEP 1: Generate audio description for Beat 1 with EXACT parameters:
+- Preset Name: [specific name]
+- Tempo: [X BPM - specific number]
+- Key Signature: [X major/minor - specific key]
+- Instrumentation: [specific instruments]
+- Energy Level: [X/10 - specific number]
+- Mood: [specific description]
+
+STEP 2: Document these exact parameters
+
+STEP 3: For ALL subsequent beats, use EXACTLY the same parameters from Step 1
+
+STEP 4: VALIDATION CHECKLIST (before output):
+✓ All beats use identical preset name
+✓ All beats use identical tempo (same BPM)
+✓ All beats use identical key signature
+✓ All beats use identical instrumentation
+✓ All beats use identical energy level (same X/10)
+✓ All beats use identical mood description
+
 - Each beat's audio description must be SELF-CONTAINED
 - NEVER say "continues", "same as", or "previous beat" when describing audio
-- Use identical preset names, energy levels, and mood descriptions across all beats
+- Use IDENTICAL parameters (not just similar descriptions) across all beats
 
 ═══════════════════════════════════════════════════════════════════════════════
 YOUR TASK
@@ -1023,8 +1778,8 @@ REQUIREMENTS:
    - Section 8: [FIXED] Reference Image Instruction (always at end)
 4. For ALL beats: Start with motion (destroys static reference frame)
 5. For ALL beats: Include audio guidance (always required)
-6. For non-last beats (in multi-beat): Include stable final frame requirements (Section 7)
-7. For last beat: NO stable ending required (can end with motion)
+6. For ALL beats: Include stable final frame requirements (Section 7) - MANDATORY for professional finish
+7. For multi-beat scenarios: Plan continuity between beats (last shot of previous beat connects to first shot of next beat)
 8. For ALL beats: Include fixed reference image instruction at end (Section 8)
 ${(input as any).imageMode === 'composite' ? `
 9. For composite mode: List ALL elements explicitly in Section 2
@@ -1034,12 +1789,15 @@ ${(input as any).imageMode === 'composite' ? `
 CRITICAL: SOLVE THESE CHALLENGES IN YOUR PROMPTS:
 1. Reference Image Skip: Start with motion, destroy static frame
 2. Composite Elements: List all elements, enforce constancy
-3. Audio Consistency: Precise timing sync, consistent descriptions
-4. Stable Endings: Only for non-last beats in multi-beat scenarios
+3. Audio Consistency: Use MANDATORY template - identical parameters (preset, tempo, key, instrumentation, energy, mood) across all beats
+4. Stable Endings: MANDATORY for ALL beats (including last beat and single-beat) - last 0.5-1.0 seconds must be stable
 5. Duration Accuracy: Exactly 12.0 seconds per beat
 6. Reference Consistency: Strict object constancy
 7. Environment Consistency: Identical descriptions across beats
 8. Quality Standards: Professional commercial quality
+9. Beat Continuity: For multi-beat, plan how last shot of previous beat connects to first shot of next beat
+10. Physics Validation: Apply material-specific physics rules and validation checklist
+11. Pacing Application: Calculate pacing profile using formula, then apply exact shot durations and cut frequency
 
 Return ONLY the JSON object — no explanation, no preamble.`;
 
@@ -1068,7 +1826,7 @@ export const BEAT_PROMPT_SCHEMA = {
           },
           beatName: {
             type: 'string' as const,
-            description: 'Beat name from input'
+            description: 'Short beat title only (2-4 words). Copy verbatim from input — do NOT include the long description. Input format is "beatId: beatName — beatDescription"; output only the beatName part before the em dash.'
           },
           sora_prompt: {
             type: 'object' as const,

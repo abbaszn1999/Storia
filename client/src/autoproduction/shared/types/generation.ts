@@ -1,26 +1,5 @@
 import type { GenerationStage, ItemStatus } from './campaign';
 
-// Progress tracking for batch generation
-export interface BatchProgress {
-  batchId?: string;
-  total: number;
-  completed: number;
-  failed: number;
-  inProgress: number;
-  pending: number;
-  currentItem?: CurrentItemProgress;
-  items: ItemProgress[];
-}
-
-// Current item being generated
-export interface CurrentItemProgress {
-  index: number;
-  topic: string;
-  stage: GenerationStage;
-  progress: number; // 0-100
-  estimatedTimeRemaining?: number; // seconds
-}
-
 // Individual item progress
 export interface ItemProgress {
   index: number;

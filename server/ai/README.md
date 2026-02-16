@@ -2,6 +2,7 @@
 
 This folder hosts the internal service that centralizes all outbound AI provider calls (OpenAI + Google Gemini + Runware). The goal is to keep every mode/agent in the project decoupled from provider-specific logic.
 
+
 ### Directory structure
 
 - `config.ts` – Loads provider/model metadata from environment variables and defines pricing metadata that the credit system can consume.

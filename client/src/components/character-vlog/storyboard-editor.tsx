@@ -264,6 +264,8 @@ interface SortableShotCardProps {
   onUpdateShotVersion?: (shotId: string, versionId: string, updates: Partial<ShotVersion>) => void;
   onDeleteShot?: (shotId: string) => void;
   shotsCount: number;
+  onGenerateSingleVideo?: (shotId: string) => void;
+  isGeneratingVideo?: boolean;
 }
 
 function SortableShotCard({ 
@@ -298,6 +300,8 @@ function SortableShotCard({
   onUpdateShotVersion,
   onDeleteShot,
   shotsCount,
+  onGenerateSingleVideo,
+  isGeneratingVideo = false,
 }: SortableShotCardProps) {
   const {
     attributes,
@@ -552,10 +556,9 @@ function SortableShotCard({
     }
   };
 
-  // Video generation for single shot
-  const [generatingVideo, setGeneratingVideo] = useState(false);
-  
-  const handleGenerateVideo = async () => {
+  // Video generation for single shot - uses parent's handler for proper state management
+  // The parent (workflow.tsx) handles server refresh after generation to avoid race conditions
+  const handleGenerateVideo = () => {
     if (!shot || !version) {
       toast({
         title: "Cannot Generate Video",
@@ -565,79 +568,22 @@ function SortableShotCard({
       return;
     }
 
-    console.log('[storyboard-editor] Starting video generation:', {
+    console.log('[storyboard-editor] Delegating video generation to parent:', {
       shotId: shot.id,
       versionId: version.id,
       hasVideoUrl: !!version.videoUrl,
     });
 
-    setGeneratingVideo(true);
-
-    try {
-      // Send current video model and duration from the UI state
-      const requestBody = {
-        videoModel: shot.videoModel || sceneModel || undefined,
-        videoDuration: version?.videoDuration || shot.duration || undefined,
-      };
-
-      const response = await fetch(`/api/character-vlog/videos/${videoId}/shots/${shot.id}/generate-video`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: 'include',
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('[storyboard-editor] Video generation failed:', errorData);
-        
-        // Check if this is a content moderation error
-        if (errorData.isContentModerationError || response.status === 422) {
-          throw new Error(
-            `Content Moderation: ${errorData.error || 'The video model rejected this content due to safety guidelines. Try using a different video model or adjusting the prompt.'}`
-          );
-        }
-        
-        throw new Error(errorData.error?.message || errorData.error || "Failed to generate video");
-      }
-
-      const data = await response.json();
-
-      console.log('[storyboard-editor] Video generation response:', {
-        hasVideoUrl: !!data.videoUrl,
-        actualDuration: data.actualDuration,
-      });
-
-      // Update shot version with generated video
-      if (!onUpdateShotVersion) {
-        console.error('[storyboard-editor] onUpdateShotVersion is not available');
-        throw new Error('onUpdateShotVersion callback is required');
-      }
-
-      const updatedVersion: Partial<ShotVersion> = {
-        videoUrl: data.videoUrl,
-        thumbnailUrl: data.thumbnailUrl,
-        actualDuration: data.actualDuration,
-        videoGenerationMetadata: data.metadata,
-      };
-
-      onUpdateShotVersion(shot.id, version.id, updatedVersion);
-
+    // Use parent's video generation handler which does proper server refresh
+    if (onGenerateSingleVideo) {
+      onGenerateSingleVideo(shot.id);
+    } else {
+      console.error('[storyboard-editor] onGenerateSingleVideo is not available');
       toast({
-        title: "Video Generated",
-        description: `Video generated successfully in ${data.actualDuration?.toFixed(1)}s.`,
-      });
-    } catch (error) {
-      console.error("[storyboard-editor] Video generation error:", error);
-      toast({
-        title: "Video Generation Failed",
-        description: error instanceof Error ? error.message : "Failed to generate video",
+        title: "Cannot Generate Video",
+        description: "Video generation handler is not available",
         variant: "destructive",
       });
-    } finally {
-      setGeneratingVideo(false);
     }
   };
 
@@ -787,7 +733,7 @@ function SortableShotCard({
               playsInline
               data-testid={`video-preview-${shot.id}`}
             />
-          ) : generatingVideo ? (
+          ) : isGeneratingVideo ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-card/40 gap-3">
               <Loader2 className="h-10 w-10 animate-spin text-[#FF4081]" />
               <p className="text-sm text-muted-foreground">Generating video...</p>
@@ -1243,10 +1189,10 @@ function SortableShotCard({
                 variant="outline"
                 className="flex-1"
                 onClick={handleGenerateVideo}
-                disabled={generatingVideo || (!version?.imageUrl && !version?.startFrameUrl)}
+                disabled={isGeneratingVideo || (!version?.imageUrl && !version?.startFrameUrl)}
                 data-testid={`button-generate-video-${shot.id}`}
               >
-                {generatingVideo ? (
+                {isGeneratingVideo ? (
                   <>
                     <Loader2 className="mr-2 h-3 w-3 animate-spin" />
                     Generating...
@@ -2556,6 +2502,8 @@ export function StoryboardEditor({
                                 onUpdateShotVersion={onUpdateShotVersion}
                                 onDeleteShot={onDeleteShot}
                                 shotsCount={sceneShots.length}
+                                onGenerateSingleVideo={onGenerateSingleVideo}
+                                isGeneratingVideo={generatingVideoShotIds?.has(shot.id) || false}
                               />
                               {/* Connection Link Icon and Add Shot Button */}
                               <div className="relative shrink-0 w-8 flex items-center justify-center">

@@ -153,7 +153,9 @@ interface VideoAnimationConnectedResponse {
 export async function generateVideoPrompts(
   input: VideoPromptEngineerInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<VideoPromptEngineerOutput> {
   const isImageTransitions = input.animationMode === 'image-transitions';
   const isImageReference = input.animationMode === 'video-animation' && 
@@ -221,6 +223,7 @@ export async function generateVideoPrompts(
       },
       {
         expectedOutputTokens: VIDEO_PROMPT_ENGINEER_CONFIG.expectedOutputTokens,
+        metadata: { usageType, usageMode },
       }
     );
 

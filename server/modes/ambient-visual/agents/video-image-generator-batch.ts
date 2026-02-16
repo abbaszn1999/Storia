@@ -184,7 +184,9 @@ function getProcessingOrder(
 export async function generateAllShotImages(
   input: VideoImageGeneratorBatchInput,
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<VideoImageGeneratorBatchOutput> {
   const {
     videoId,
@@ -277,12 +279,12 @@ export async function generateAllShotImages(
     };
 
     // Generate images for this shot
-    let result = await generateShotImages(shotInput, userId, workspaceId);
+    let result = await generateShotImages(shotInput, userId, workspaceId, usageType, usageMode);
 
     // Retry if failed
     if (result.error) {
       console.log(`[batch] Shot #${shot.shotNumber} failed, retrying...`);
-      result = await retryShotImages(shotInput, userId, workspaceId);
+      result = await retryShotImages(shotInput, userId, workspaceId, 0, usageType, usageMode);
     }
 
     // Track result

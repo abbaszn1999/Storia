@@ -95,7 +95,9 @@ function getModelCapabilities(modelId: string): {
 export async function engineerPrompt(
   input: PromptEngineerInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<PromptEngineerOutput> {
   const { idea, modelId, duration, aspectRatio } = input;
 
@@ -131,7 +133,9 @@ export async function engineerPrompt(
         userId,
         workspaceId,
       },
-
+      {
+        metadata: { usageType, usageMode },
+      }
     );
 
     const cost = response.usage?.totalCostUsd;

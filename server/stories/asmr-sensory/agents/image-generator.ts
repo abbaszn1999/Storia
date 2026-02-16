@@ -64,7 +64,9 @@ const IMAGE_MODEL_CONFIG = {
 export async function generateImage(
   input: ImageGenerationInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<ImageGenerationOutput> {
   const { prompt, aspectRatio = "16:9" } = input;
 
@@ -111,6 +113,7 @@ export async function generateImage(
       },
       {
         skipCreditCheck: false,
+        metadata: { usageType, usageMode },
       }
     );
 

@@ -837,7 +837,9 @@ async function executeStep4_Composition(
       continuityGroups: allContinuityGroups,
     },
     userId,
-    workspaceId
+    workspaceId,
+    'video',
+    'ambient'
   );
   totalCost += imageBatchResult.totalCost || 0;
   
@@ -905,7 +907,9 @@ async function executeStep4_Composition(
         shots: shotsForVideoBatch,
       },
       userId,
-      workspaceId
+      workspaceId,
+      'video',
+      'ambient'
     );
     totalCost += videoBatchResult.totalCost || 0;
     

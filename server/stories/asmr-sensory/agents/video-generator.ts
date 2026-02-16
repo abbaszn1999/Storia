@@ -48,7 +48,9 @@ function extractUuidFromUrl(urlOrUuid: string): string {
 export async function generateVideo(
   request: ASMRGenerateRequest,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<ASMRGenerateResponse> {
   const {
     modelId = getDefaultVideoModel().id,
@@ -249,6 +251,7 @@ export async function generateVideo(
       },
       {
         skipCreditCheck: false,
+        metadata: { usageType, usageMode },
       }
     );
 

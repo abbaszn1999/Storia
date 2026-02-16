@@ -137,7 +137,9 @@ export async function createStoryModeRouter(mode: StoryMode) {
           durationSeconds: durationSeconds || 30,
         },
         userId,
-        req.headers["x-workspace-id"] as string | undefined
+        req.headers["x-workspace-id"] as string | undefined,
+        'story',
+        mode
       );
 
       res.json({
@@ -215,7 +217,9 @@ export async function createStoryModeRouter(mode: StoryMode) {
           videoModel: videoModel, // Pass video model for duration constraints
         },
         userId,
-        req.headers["x-workspace-id"] as string | undefined
+        req.headers["x-workspace-id"] as string | undefined,
+        'story',
+        mode
       );
 
         console.log(`[${mode}:routes] Scenes generated successfully:`, {
@@ -346,7 +350,9 @@ router.post(
           workspaceId: workspaceId || "",
         },
         userId,
-        workspaceName
+        workspaceName,
+        'story',
+        mode
       );
 
       console.log("[${mode}:routes] Sending response with", result.scenes.length, "scenes");
@@ -611,7 +617,9 @@ router.post(
           workspaceId: workspaceId || '',
         },
         userId,
-        workspaceName
+        workspaceName,
+        'story',
+        mode
       );
 
       console.log(`[${mode}:routes] Voiceover generation complete:`, {
@@ -664,7 +672,9 @@ router.post(
           workspaceId: workspaceId || '',
         },
         userId,
-        workspaceName
+        workspaceName,
+        'story',
+        mode
       );
 
       console.log(`[${mode}:routes] Sound effects generation complete:`, {
@@ -741,7 +751,9 @@ router.post(
           workspaceId: workspaceId || "",
         },
         userId,
-        workspaceName
+        workspaceName,
+        'story',
+        mode
       );
 
       console.log('[${mode}:routes] Music generation complete:', {
@@ -811,7 +823,9 @@ router.post(
           workspaceId: workspaceId || "",
         },
         userId,
-        workspaceName
+        workspaceName,
+        'story',
+        mode
       );
 
       console.log(`[${mode}:routes] Video generation complete:`, {
@@ -931,7 +945,9 @@ router.post(
                 workspaceId: workspaceId || "",
               },
               userId,
-              workspaceName
+              workspaceName,
+              'story',
+              mode
             );
             
             if (imageResult.scenes.length > 0 && imageResult.scenes[0].status === 'generated') {
@@ -982,7 +998,9 @@ router.post(
           workspaceId: workspaceId || "",
         },
         userId,
-        workspaceName
+        workspaceName,
+        'story',
+        mode
       );
 
       if (result.scenes.length > 0 && result.scenes[0].status === 'generated') {

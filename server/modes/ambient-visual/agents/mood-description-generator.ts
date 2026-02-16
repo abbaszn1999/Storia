@@ -29,12 +29,16 @@ const MOOD_GENERATOR_CONFIG = {
  * @param input - The 15 fields from atmosphere settings (mood, theme, etc.)
  * @param userId - User ID for tracking/billing
  * @param workspaceId - Workspace ID for organization
+ * @param usageType - Type of usage for tracking (e.g., "video")
+ * @param usageMode - Mode of usage for tracking (e.g., "ambient")
  * @returns Generated mood description and cost
  */
 export async function generateMoodDescription(
   input: MoodDescriptionGeneratorInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<MoodDescriptionGeneratorOutput> {
   // Build the user prompt with all atmosphere parameters
   const userPrompt = buildMoodDescriptionUserPrompt(input);
@@ -65,6 +69,7 @@ export async function generateMoodDescription(
       },
       {
         expectedOutputTokens: 1000,
+        metadata: { usageType, usageMode },
       }
     );
 

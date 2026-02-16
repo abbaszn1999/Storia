@@ -36,7 +36,9 @@ interface SoundEffectPromptGeneratorOutput {
 export async function generateNarrativeSoundEffectPrompt(
   input: NarrativeSoundEffectPromptInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<SoundEffectPromptGeneratorOutput> {
   // Build the user prompt with all context
   const userPrompt = buildNarrativeSoundEffectPromptUserPrompt(input);
@@ -67,6 +69,7 @@ export async function generateNarrativeSoundEffectPrompt(
       },
       {
         expectedOutputTokens: 150,  // Short response expected
+        metadata: { usageType, usageMode },
       }
     );
 

@@ -172,7 +172,9 @@ export async function createIdeaGenerator(mode: StoryMode) {
   async function generateStory(
     input: StoryGeneratorInput,
     userId?: string,
-    workspaceId?: string
+    workspaceId?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<StoryGeneratorOutput> {
     const { ideaText, durationSeconds } = input;
 
@@ -215,6 +217,7 @@ export async function createIdeaGenerator(mode: StoryMode) {
       },
       {
         expectedOutputTokens: 2000,
+        metadata: { usageType, usageMode },
       }
     );
 
@@ -272,8 +275,10 @@ export async function createIdeaGenerator(mode: StoryMode) {
 export async function generateStory(
   input: any,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<any> {
   const generator = await createIdeaGenerator("problem-solution");
-  return generator(input, userId, workspaceId);
+  return generator(input, userId, workspaceId, usageType, usageMode);
 }

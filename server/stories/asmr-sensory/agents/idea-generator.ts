@@ -53,7 +53,9 @@ const IDEA_GENERATOR_CONFIG = {
 export async function generateIdea(
   input: IdeaGeneratorInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<IdeaGeneratorOutput> {
   const { userIdea, categoryId } = input;
 
@@ -89,6 +91,7 @@ export async function generateIdea(
       },
       {
         expectedOutputTokens: 400,
+        metadata: { usageType, usageMode },
       }
     );
 

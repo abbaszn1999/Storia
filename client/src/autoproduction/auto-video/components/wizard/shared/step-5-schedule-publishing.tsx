@@ -1,23 +1,27 @@
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { CalendarClock, Clock, Calendar, Repeat } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CalendarClock, Clock, Calendar, Repeat, Lock, Link2, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useSocialAccounts } from "@/components/shared/social/hooks/useSocialAccounts";
+import type { LatePlatform } from "@/lib/api/late";
 
 type AutomationMode = 'continuous' | 'scheduled';
 
 interface Platform {
   id: string;
   name: string;
-  available: boolean;
+  apiPlatform: LatePlatform;
 }
 
 const PLATFORMS: Platform[] = [
-  { id: 'youtube', name: 'YouTube', available: true },
-  { id: 'tiktok', name: 'TikTok', available: true },
-  { id: 'instagram', name: 'Instagram', available: true },
-  { id: 'facebook', name: 'Facebook', available: true },
+  { id: 'youtube', name: 'YouTube', apiPlatform: 'youtube' },
+  { id: 'tiktok', name: 'TikTok', apiPlatform: 'tiktok' },
+  { id: 'instagram', name: 'Instagram', apiPlatform: 'instagram' },
+  { id: 'facebook', name: 'Facebook', apiPlatform: 'facebook' },
 ];
 
 const AUTOMATION_MODES: { value: AutomationMode; label: string; description: string }[] = [
@@ -65,11 +69,64 @@ export function Step5SchedulePublishing({
   selectedPlatforms,
   onSelectedPlatformsChange,
 }: Step5SchedulePublishingProps) {
+  const { isLoading: isLoadingAccounts, isConnected, getConnectUrl, refetch } = useSocialAccounts();
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
+  const connectIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clear polling interval on unmount
+  useEffect(() => {
+    return () => {
+      if (connectIntervalRef.current) {
+        clearInterval(connectIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Clear connecting state when platform becomes connected
+  useEffect(() => {
+    if (connectingPlatform) {
+      const platform = PLATFORMS.find(p => p.id === connectingPlatform);
+      if (platform && isConnected(platform.apiPlatform)) {
+        if (connectIntervalRef.current) {
+          clearInterval(connectIntervalRef.current);
+          connectIntervalRef.current = null;
+        }
+        setConnectingPlatform(null);
+      }
+    }
+  }, [connectingPlatform, isConnected]);
+
   const togglePlatform = (platformId: string) => {
+    const platform = PLATFORMS.find(p => p.id === platformId);
+    if (!platform || !isConnected(platform.apiPlatform)) return;
     if (selectedPlatforms.includes(platformId)) {
       onSelectedPlatformsChange(selectedPlatforms.filter((p) => p !== platformId));
     } else {
       onSelectedPlatformsChange([...selectedPlatforms, platformId]);
+    }
+  };
+
+  const handleConnect = async (platformId: string) => {
+    const platform = PLATFORMS.find(p => p.id === platformId);
+    if (!platform) return;
+    setConnectingPlatform(platformId);
+    const url = await getConnectUrl(platform.apiPlatform);
+    if (url) {
+      window.open(url, '_blank', 'width=600,height=700');
+      // Poll for connection completion
+      connectIntervalRef.current = setInterval(async () => {
+        await refetch();
+      }, 3000);
+      // Stop polling after 2 minutes
+      setTimeout(() => {
+        if (connectIntervalRef.current) {
+          clearInterval(connectIntervalRef.current);
+          connectIntervalRef.current = null;
+        }
+        setConnectingPlatform(null);
+      }, 120000);
+    } else {
+      setConnectingPlatform(null);
     }
   };
 
@@ -79,8 +136,6 @@ export function Step5SchedulePublishing({
       [String(index)]: date,
     });
   };
-
-  const availablePlatforms = PLATFORMS.filter((p) => p.available);
   const videoCount = videoIdeas.length;
   const today = new Date().toISOString().split('T')[0];
 
@@ -305,21 +360,82 @@ export function Step5SchedulePublishing({
               {selectedPlatforms.length} selected
             </Badge>
           </div>
-          <div className="grid grid-cols-4 gap-2">
-            {availablePlatforms.map((platform) => (
-              <button
-                key={platform.id}
-                onClick={() => togglePlatform(platform.id)}
-                className={`py-2.5 px-3 rounded-lg border text-sm font-medium transition-all ${
-                  selectedPlatforms.includes(platform.id)
-                    ? 'border-pink-500 bg-gradient-to-br from-pink-500/10 to-pink-500/5 text-pink-400'
-                    : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
-                }`}
-              >
-                {platform.name}
-              </button>
-            ))}
+          {isLoadingAccounts ? (
+            <div className="flex items-center justify-center py-6 text-white/50">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              <span className="text-sm">Loading connected accounts...</span>
+            </div>
+          ) : (
+          <div className="space-y-2">
+            {PLATFORMS.map((platform) => {
+              const connected = isConnected(platform.apiPlatform);
+              const isSelected = selectedPlatforms.includes(platform.id);
+              const isConnecting = connectingPlatform === platform.id;
+              return (
+                <div
+                  key={platform.id}
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                    !connected
+                      ? 'border-white/10 bg-white/[0.02] opacity-60'
+                      : isSelected
+                        ? 'border-pink-500/40 bg-pink-500/5'
+                        : 'border-white/10 bg-white/5 hover:border-pink-500/30'
+                  }`}
+                >
+                  {/* Checkbox or Lock */}
+                  {connected ? (
+                    <button
+                      onClick={() => togglePlatform(platform.id)}
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                        isSelected
+                          ? 'bg-pink-500 border-pink-500'
+                          : 'border-white/30 hover:border-pink-500'
+                      }`}
+                    >
+                      {isSelected && (
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  ) : (
+                    <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                      <Lock className="w-4 h-4 text-white/40" />
+                    </div>
+                  )}
+
+                  {/* Platform Name */}
+                  <span className={`text-sm font-medium flex-1 ${
+                    !connected ? 'text-white/40' : 'text-white/80'
+                  }`}>
+                    {platform.name}
+                  </span>
+
+                  {/* Status / Connect Button */}
+                  {connected ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+                      Connected
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleConnect(platform.id)}
+                      disabled={isConnecting}
+                      className="h-7 px-3 text-xs gap-1.5 bg-gradient-to-r from-violet-500/10 to-pink-500/10 hover:from-violet-500/20 hover:to-pink-500/20 border-violet-500/30 text-violet-300 transition-all duration-200"
+                    >
+                      {isConnecting ? (
+                        <><Loader2 className="w-3 h-3 animate-spin" /> Connecting...</>
+                      ) : (
+                        <><Link2 className="w-3 h-3" /> Connect</>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
           </div>
+          )}
         </CardContent>
       </Card>
     </div>

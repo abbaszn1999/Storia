@@ -59,7 +59,7 @@ export interface Clip {
 /**
  * Asset types
  */
-export type Asset = VideoAsset | ImageAsset | TitleAsset | HtmlAsset | AudioAsset | LumaAsset;
+export type Asset = VideoAsset | ImageAsset | TitleAsset | HtmlAsset | AudioAsset | LumaAsset | CaptionAsset;
 
 /**
  * Video asset
@@ -70,6 +70,7 @@ export interface VideoAsset {
   trim?: number;
   volume?: number;
   volumeEffect?: 'fadeIn' | 'fadeOut' | 'fadeInFadeOut';
+  speed?: number;
   crop?: Crop;
 }
 
@@ -117,7 +118,45 @@ export interface AudioAsset {
   src: string;
   trim?: number;
   volume?: number;
+  speed?: number;
   effect?: 'fadeIn' | 'fadeOut' | 'fadeInFadeOut';
+}
+
+/**
+ * Caption/subtitle asset (burns SRT/VTT captions into video)
+ */
+export interface CaptionAsset {
+  type: 'caption';
+  src: string;
+  font?: CaptionFont;
+  background?: CaptionBackground;
+  margin?: CaptionMargin;
+  trim?: number;
+  speed?: number;
+}
+
+export interface CaptionFont {
+  family?: string;
+  color?: string;
+  opacity?: number;
+  size?: number;
+  lineHeight?: number;
+  stroke?: string;
+  strokeWidth?: number;
+}
+
+export interface CaptionBackground {
+  color?: string;
+  opacity?: number;
+  padding?: number;
+  borderRadius?: number;
+}
+
+export interface CaptionMargin {
+  top?: number;
+  bottom?: number;
+  left?: number;
+  right?: number;
 }
 
 /**

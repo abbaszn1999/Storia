@@ -42,7 +42,9 @@ interface SoundEffectGeneratorOutput {
  * @returns CDN URL of extracted audio, and cost
  */
 export async function generateNarrativeSoundEffect(
-  input: NarrativeSoundEffectGeneratorInput
+  input: NarrativeSoundEffectGeneratorInput,
+  usageType?: string,
+  usageMode?: string
 ): Promise<SoundEffectGeneratorOutput> {
   const {
     videoUrl,
@@ -108,6 +110,7 @@ export async function generateNarrativeSoundEffect(
         },
         {
           skipCreditCheck: false,
+          metadata: { usageType, usageMode },
         }
       );
 

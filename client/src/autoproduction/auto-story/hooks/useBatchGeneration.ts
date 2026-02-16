@@ -8,19 +8,21 @@ export function useStartBatchGeneration() {
   
   return useMutation({
     mutationFn: async (campaignId: string) => {
-      const res = await apiRequest('POST', `/api/autoproduction/story/${campaignId}/generate-batch`);
+      const res = await apiRequest('POST', `/api/autoproduction/story/${campaignId}/generate`);
       return await res.json();
     },
     onSuccess: (_, campaignId) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/autoproduction/story/${campaignId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/autoproduction/story-campaigns/${campaignId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/autoproduction/story/${campaignId}/progress`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/autoproduction/story/${campaignId}/stories`] });
     },
   });
 }
 
-// Track batch generation progress
+// Track batch generation progress (DB-based)
 export function useBatchProgress(campaignId: string | undefined, enabled = true) {
-  return useQuery<BatchProgress>({
-    queryKey: [`/api/autoproduction/story/${campaignId}/batch-progress`],
+  return useQuery<{ success: boolean; progress: BatchProgress }>({
+    queryKey: [`/api/autoproduction/story/${campaignId}/progress`],
     enabled: !!campaignId && enabled,
     refetchInterval: 2000, // Poll every 2 seconds
     refetchIntervalInBackground: true,
@@ -37,17 +39,35 @@ export function useCancelBatch() {
       return await res.json();
     },
     onSuccess: (_, campaignId) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/autoproduction/story/${campaignId}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/autoproduction/story/${campaignId}/batch-progress`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/autoproduction/story-campaigns/${campaignId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/autoproduction/story/${campaignId}/progress`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/autoproduction/story/${campaignId}/stories`] });
+    },
+  });
+}
+
+// Retry a single failed story
+export function useRetryStory(campaignId: string) {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (itemIndex: number) => {
+      const res = await apiRequest('POST', `/api/autoproduction/story/${campaignId}/retry/${itemIndex}`);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/autoproduction/story/${campaignId}/progress`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/autoproduction/story/${campaignId}/stories`] });
     },
   });
 }
 
 // Fetch all stories for a campaign
-export function useStories(campaignId: string | undefined) {
+export function useStories(campaignId: string | undefined, options?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: [`/api/autoproduction/story/${campaignId}/stories`],
     enabled: !!campaignId,
+    refetchInterval: options?.refetchInterval,
   });
 }
 

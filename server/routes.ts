@@ -16,6 +16,7 @@ import brandkitRoutes from "./assets/brandkits/routes";
 import uploadRoutes from "./assets/uploads/routes";
 import { registerLateRoutes } from "./integrations/late/routes";
 import { calendarRoutes } from "./calendar";
+import usageRoutes from "./routes/usage";
 import { insertWorkspaceSchema, insertWorkspaceIntegrationSchema, insertCharacterSchema, insertLocationSchema, insertVoiceSchema, insertUploadSchema } from "@shared/schema";
 import { z } from "zod";
 import { bunnyStorage } from "./storage/bunny-storage";
@@ -72,6 +73,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/voices', voiceRoutes);
   app.use('/api/brandkits', brandkitRoutes);
   app.use('/api/uploads', uploadRoutes);
+  app.use('/api/usage', usageRoutes);
   
   // Content calendar routes (uses Late.dev as single source of truth)
   app.use('/api/calendar', calendarRoutes);

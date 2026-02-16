@@ -2398,15 +2398,44 @@ router.patch('/videos/:id/step/3/settings', isAuthenticated, async (req: Request
       const existingStep4Data = (video.step4Data as Step4Data) || {};
       const existingVersions = existingStep4Data.shotVersions || {};
       
-      // Merge incoming shotVersions with existing, preserving fields not in the update
+      // Fields that should NEVER be overwritten by auto-save from frontend
+      // These are only set by generation endpoints (video/image generators)
+      const PROTECTED_FIELDS = [
+        'videoUrl', 'thumbnailUrl', 'actualDuration', 'videoGenerationMetadata',
+        'imageUrl', 'startFrameUrl', 'endFrameUrl', 'imageGenerationMetadata',
+      ];
+      
+      // Helper function to filter out undefined values AND protected fields from an object
+      const filterIncoming = (incoming: any, existing: any): any => {
+        const filtered: any = {};
+        for (const [key, value] of Object.entries(incoming)) {
+          // Skip undefined values
+          if (value === undefined) continue;
+          
+          // Skip protected fields if the existing value is valid
+          // This prevents auto-save from overwriting URLs set by generation endpoints
+          if (PROTECTED_FIELDS.includes(key) && existing[key]) {
+            continue;
+          }
+          
+          filtered[key] = value;
+        }
+        return filtered;
+      };
+      
+      // Merge incoming shotVersions with existing, preserving generated URLs
+      // CRITICAL: Generation endpoints save URLs directly to database.
+      // Auto-save from frontend should NEVER overwrite these URLs.
       const mergedVersions: Record<string, any[]> = { ...existingVersions };
       for (const [shotId, versions] of Object.entries(shotVersions)) {
         if (existingVersions[shotId]) {
-          // Merge each version by ID
+          // Merge each version by ID, protecting URL fields
           mergedVersions[shotId] = existingVersions[shotId].map((existingVersion: any) => {
             const incomingVersion = versions.find((v: any) => v.id === existingVersion.id);
             if (incomingVersion) {
-              return { ...existingVersion, ...incomingVersion };
+              // Filter incoming to exclude undefined values and protected fields
+              const filteredIncoming = filterIncoming(incomingVersion, existingVersion);
+              return { ...existingVersion, ...filteredIncoming };
             }
             return existingVersion;
           });
@@ -5017,13 +5046,30 @@ router.post('/videos/:id/shots/:shotId/generate-video', isAuthenticated, async (
     const result = await generateVideo(agentInput, userId, workspaceId);
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // SAVE VIDEO URL TO SHOT VERSION
+    // SAVE VIDEO URL TO SHOT VERSION (with race condition protection)
     // ═══════════════════════════════════════════════════════════════════════════
 
     if (result.success && result.videoUrl) {
-      // Update latest version with video URL
+      // RE-READ fresh data from database to avoid race conditions
+      // This ensures we don't overwrite concurrent updates from other requests
+      const freshVideo = await storage.getVideo(videoId);
+      if (!freshVideo) {
+        return res.status(404).json({ error: 'Video not found during save' });
+      }
+      
+      const freshStep4Data = (freshVideo.step4Data as any) || { shots: {}, shotVersions: {} };
+      const freshShotVersions = freshStep4Data.shotVersions || {};
+      const freshVersions = freshShotVersions[shotId] || [];
+      
+      // Find the version we're updating (by ID, not position)
+      const versionIndex = freshVersions.findIndex((v: any) => v.id === latestVersion.id);
+      if (versionIndex === -1) {
+        return res.status(404).json({ error: 'Version not found during save' });
+      }
+      
+      // Update only this specific version
       const updatedVersion = {
-        ...latestVersion,
+        ...freshVersions[versionIndex],
         videoUrl: result.videoUrl,
         thumbnailUrl: result.thumbnailUrl,
         actualDuration: result.actualDuration,
@@ -5031,17 +5077,16 @@ router.post('/videos/:id/shots/:shotId/generate-video', isAuthenticated, async (
         status: 'generated' as const,
         updatedAt: new Date().toISOString(),
       };
+      
+      // Update the version in the fresh array
+      freshVersions[versionIndex] = updatedVersion;
+      freshShotVersions[shotId] = freshVersions;
+      
+      // Save to database with fresh data
+      freshStep4Data.shotVersions = freshShotVersions;
+      await storage.updateVideo(videoId, { step4Data: freshStep4Data });
 
-      // Update in array
-      shotVersions[shotId] = versions.map((v: any) =>
-        v.id === latestVersion.id ? updatedVersion : v
-      );
-
-      // Save to database
-      step4Data.shotVersions = shotVersions;
-      await storage.updateVideo(videoId, { step4Data });
-
-      console.log('[character-vlog:routes] ✓ Video generated and saved:', {
+      console.log('[character-vlog:routes] ✓ Video generated and saved (race-safe):', {
         shotId: shotId.substring(0, 30) + '...',
         videoUrl: result.videoUrl.substring(0, 60) + '...',
       });

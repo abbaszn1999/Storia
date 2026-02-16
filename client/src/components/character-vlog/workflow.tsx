@@ -621,30 +621,36 @@ export function CharacterVlogWorkflow({
     });
 
     try {
-      // Generate each shot sequentially
-      for (const shotId of shotsNeedingVideos) {
-        const response = await fetch(`/api/character-vlog/videos/${videoId}/shots/${shotId}/generate-video`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
-          },
-          credentials: 'include',
-          body: JSON.stringify({}), // No body needed - params are in URL
-        });
+      // Use batch endpoint to generate all videos in parallel
+      const response = await fetch(`/api/character-vlog/videos/${videoId}/scenes/${sceneId}/generate-videos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          console.error(`Failed to generate video for shot ${shotId}:`, errorData);
-          // Continue with next shot instead of failing completely
-        }
-        
-        // Remove from generating set after this shot completes
-        setGeneratingVideoShotIds(prev => {
-          const next = new Set(prev);
-          next.delete(shotId);
-          return next;
-        });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to generate videos' }));
+        throw new Error(errorData.error || errorData.details || 'Failed to generate videos');
+      }
+
+      const result = await response.json();
+      
+      // Log results for debugging
+      console.log('[CharacterVlogWorkflow] Batch video generation results:', {
+        success: result.success,
+        total: result.summary?.total,
+        successCount: result.summary?.success,
+        failedCount: result.summary?.failed,
+      });
+
+      // Check for any failures
+      const failedShots = result.results?.filter((r: any) => !r.success) || [];
+      if (failedShots.length > 0) {
+        console.warn('[CharacterVlogWorkflow] Some shots failed to generate videos:', failedShots);
       }
       
       // Refresh shot versions from server to update UI with generated videos
@@ -660,8 +666,12 @@ export function CharacterVlogWorkflow({
             
             // Update local state with new shot versions that have video URLs
             if (video.step4Data?.shotVersions) {
-              console.log('[CharacterVlogWorkflow] Updating shotVersions from server after video generation:', {
+              console.log('[CharacterVlogWorkflow] Updating shotVersions from server after batch video generation:', {
                 shotVersionsCount: Object.keys(video.step4Data.shotVersions).length,
+                shotsWithVideos: Object.entries(video.step4Data.shotVersions)
+                  .filter(([_, versions]: [string, any]) => 
+                    versions.some((v: any) => v.videoUrl)
+                  ).length,
               });
               onShotVersionsChange(video.step4Data.shotVersions);
             }
@@ -671,10 +681,28 @@ export function CharacterVlogWorkflow({
         }
       }
       
-      toast({
-        title: "Scene Videos Generated",
-        description: `Successfully generated videos for ${shotsNeedingVideos.length} shots.`,
-      });
+      // Show appropriate toast based on results
+      const successCount = result.summary?.success || 0;
+      const failedCount = result.summary?.failed || 0;
+      
+      if (failedCount === 0) {
+        toast({
+          title: "Scene Videos Generated",
+          description: `Successfully generated videos for all ${successCount} shots.`,
+        });
+      } else if (successCount > 0) {
+        toast({
+          title: "Partial Success",
+          description: `Generated ${successCount} videos, but ${failedCount} failed. Check console for details.`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Generation Failed",
+          description: `Failed to generate videos for ${failedCount} shots.`,
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error('[CharacterVlogWorkflow] Scene video generation error:', error);
       toast({
@@ -692,6 +720,19 @@ export function CharacterVlogWorkflow({
   const handleGenerateSingleVideo = async (shotId: string) => {
     setGeneratingVideoShotIds(prev => new Set(prev).add(shotId));
     
+    // Find the shot and its version to get video model and duration
+    const sceneId = Object.keys(shots).find(sId => 
+      shots[sId]?.some(shot => shot.id === shotId)
+    );
+    const shot = sceneId ? shots[sceneId]?.find(s => s.id === shotId) : null;
+    const version = shot ? shotVersions[shotId]?.find(v => v.id === shot.currentVersionId) : null;
+    
+    // Build request body with video model and duration from shot/version
+    const requestBody = {
+      videoModel: shot?.videoModel || undefined,
+      videoDuration: version?.videoDuration || shot?.duration || undefined,
+    };
+    
     try {
       const response = await fetch(`/api/character-vlog/videos/${videoId}/shots/${shotId}/generate-video`, {
         method: 'POST',
@@ -700,13 +741,21 @@ export function CharacterVlogWorkflow({
           ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
         },
         credentials: 'include',
-        body: JSON.stringify({}), // No body needed - params are in URL
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Failed to generate video' }));
-        throw new Error(errorData.error || 'Failed to generate video');
+        throw new Error(errorData.error || errorData.details || 'Failed to generate video');
       }
+
+      const result = await response.json();
+      
+      console.log('[CharacterVlogWorkflow] Single video generation result:', {
+        success: result.success,
+        shotId,
+        hasVideoUrl: !!result.videoUrl,
+      });
 
       // Refresh shot versions from server to update UI with generated video
       if (videoId) {
@@ -720,7 +769,11 @@ export function CharacterVlogWorkflow({
             const video = await videoResponse.json();
             
             if (video.step4Data?.shotVersions) {
-              console.log('[CharacterVlogWorkflow] Updating shotVersions after single video generation');
+              console.log('[CharacterVlogWorkflow] Updating shotVersions after single video generation:', {
+                shotId,
+                hasVersions: !!video.step4Data.shotVersions[shotId],
+                versionCount: video.step4Data.shotVersions[shotId]?.length || 0,
+              });
               onShotVersionsChange(video.step4Data.shotVersions);
             }
           }
@@ -734,6 +787,7 @@ export function CharacterVlogWorkflow({
         description: "Video generated successfully.",
       });
     } catch (error) {
+      console.error('[CharacterVlogWorkflow] Single video generation error:', error);
       toast({
         title: "Video Generation Failed",
         description: error instanceof Error ? error.message : "Failed to generate video",
@@ -867,12 +921,19 @@ export function CharacterVlogWorkflow({
     
     onShotVersionsChange(updatedShotVersions);
     
-    // Trigger debounced save when videoDuration or videoModel changes
-    if (updates.videoDuration !== undefined || updates.videoModel !== undefined) {
+    // Only trigger auto-save for user-editable fields (videoDuration, videoModel)
+    // DO NOT save when videoUrl/imageUrl/frameUrls change because:
+    // 1. These are already saved by the backend when generated
+    // 2. Saving stale frontend state would OVERWRITE the backend's just-saved URLs
+    const shouldSave = 
+      updates.videoDuration !== undefined || 
+      updates.videoModel !== undefined;
+    
+    if (shouldSave) {
       console.log('[CharacterVlogWorkflow] Shot version updated, triggering auto-save:', {
         shotId,
         versionId,
-        updates,
+        updates: Object.keys(updates),
       });
       debouncedSaveStep3Data(scenes, shots, updatedShotVersions);
     }

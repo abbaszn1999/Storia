@@ -202,9 +202,14 @@ C) How to decide who/what to tag for a given shot:
 - If a character name from scene.charactersFromList cannot be found in "characters" array:
   - DO NOT create a tag for it; keep it only in the description.
 
-2) Other characters:
+2) Other characters (CRITICAL - NO @ PREFIX):
 - scene.otherCharacters are NOT in the global character list and must NOT be tagged.
 - You may mention them in shot descriptions when they are visually relevant and grounded in excerpt.
+- CRITICAL: When mentioning otherCharacters in descriptions, write their names WITHOUT the @ prefix.
+  - CORRECT: "Leo approaches the narrator with a smile"
+  - WRONG: "@Leo approaches the narrator with a smile"
+- The @ prefix is RESERVED ONLY for characters defined in the Elements step (charactersFromList).
+- Using @ on undefined characters will break the image generation system.
 
 3) Locations:
 - The set of tag-eligible location NAMES for the scene is scene.sceneLocations.
@@ -269,6 +274,59 @@ INLINE ENTITY ANCHORING (CRITICAL):
   the description MUST contain "@Ahmad" somewhere naturally.
 
 ===============================================================================
+9.5) ONE SHOT = ONE VISUAL UNIT (CRITICAL FOR VIDEO GENERATION)
+===============================================================================
+
+CRITICAL: Each shot must represent ONE VISUAL UNIT achievable within its duration.
+
+ONE SHOT = ONE VISUAL UNIT MEANS:
+- Single location (no location changes within a shot)
+- Single camera setup (no major reframing mid-shot)
+- Single action flow (no discrete separate activities)
+
+DURATION-CONSTRAINED ACTIONS (Before writing a shot, verify the action fits):
+
+2-4 SECONDS: Micro-action only
+  ✓ Head turn, slight gesture, expression change, looking at something
+  ✗ Walking across room, picking up and examining object, sitting down
+
+5-7 SECONDS: One moderate action
+  ✓ Turning to face something, making a gesture while speaking, reaching for an item
+  ✗ Walking to door + opening door, sitting down + starting to work, two separate gestures
+
+8-10 SECONDS: One significant action sequence
+  ✓ Walking to whiteboard and pointing at diagram, picking up item and examining it
+  ✗ Fixing door + walking to tractor, cooking + serving food
+
+11-12 SECONDS: Maximum - one complete physical transition
+  ✓ Standing up from desk and walking to window, entering room and sitting down
+  ✗ Two separate activities in different locations
+
+SPLIT RULE: If a shot description implies TWO SEPARATE ACTIVITIES or a LOCATION CHANGE,
+you MUST split it into multiple shots.
+
+BAD EXAMPLE (6 second shot - DO NOT DO THIS):
+"The farmer finishes fixing the door and walks to his tractor to start field work"
+→ This is TWO activities: fixing door + going to tractor
+→ Location change: at the door → in the field
+→ MUST BE SPLIT into 2+ shots
+
+GOOD EXAMPLE (6 second shot):
+"The farmer tightens the last screw on the door hinge, steps back with satisfaction, 
+admiring his handiwork as sunlight catches the repaired frame"
+→ One activity: finishing the repair and reacting
+→ One location: at the door
+→ One camera setup: medium shot of farmer at door
+→ Achievable in 6 seconds with natural motion
+
+SHOT SPLITTING GUIDANCE:
+When you have complex action that spans locations or activities:
+1. Identify the natural "cut points" where camera would reset
+2. Create separate shots for each visual unit
+3. Assign durations based on action complexity within each unit
+4. Mark as NOT continuous (isLinkedToPrevious=false) when location/setup changes
+
+===============================================================================
 10) DURATION ESTIMATION (SCENE-LEVEL FIT)
 ===============================================================================
 
@@ -324,6 +382,70 @@ RULE 2 (CONDITIONS TO LINK) — link only if ALL true:
    - AI mode:
      - current shot may be 1F ONLY as the second shot of a continuity group (chain ends)
      - otherwise current shot must be 2F to continue chaining
+
+CRITICAL RULE 3 (PHYSICAL CONTINUITY) — Even if Rules 0-2 pass, continuity MUST be FALSE if:
+
+3.1) CAMERA SETUP CHANGE:
+   - Indoor → Outdoor (or vice versa)
+   - Different rooms within the same building
+   - Different areas requiring camera repositioning
+   → These are NOT continuous even if they share the same @Location tag
+   → A @Farm location includes farmhouse, barn, fields - these are DIFFERENT setups
+
+3.2) PHYSICAL IMPOSSIBILITY:
+   - End state of Shot N cannot physically become start state of Shot N+1
+   - Example: "farmer kneeling at door" → "farmer sitting on tractor"
+     This requires: standing up + walking outside + mounting tractor
+     This is NOT achievable as a smooth transition
+   → Mark as NOT continuous regardless of scene/location tags
+
+3.3) ACTIVITY DISCONTINUITY:
+   - Two shots describe DIFFERENT ACTIVITIES = NOT continuous
+   - "Fixing the door" and "Riding the tractor" = two distinct activities
+   - "Cooking" and "Eating" = two distinct activities
+   - Even if same character, same scene, no time gap mentioned
+   → Different activities = visual cut required = NOT continuous
+
+CONTINUITY SANITY TEST (Ask BEFORE setting isLinkedToPrevious=true):
+"Can I literally use the END FRAME image of the previous shot as the 
+ START FRAME image of this shot, with smooth motion between them?"
+
+If the answer requires the character to:
+- Teleport to a different position
+- Change from one pose to a completely different pose (sitting→standing)
+- Be in a different part of the location (indoors→outdoors)
+→ The answer is NO → isLinkedToPrevious = FALSE
+
+EXAMPLES:
+
+✓ CONTINUOUS (isLinkedToPrevious=true):
+  Shot 1: "Farmer tightening last screw on door"
+  Shot 2: "Farmer stepping back from door, admiring work"
+  → Same position, same camera setup, smooth motion achievable
+
+✓ CONTINUOUS (isLinkedToPrevious=true):
+  Shot 1: "Chef stirring pot on stove"
+  Shot 2: "Chef tasting from the spoon"
+  → Same position (at stove), continuous action flow
+
+✗ NOT CONTINUOUS (isLinkedToPrevious=false):
+  Shot 1: "Farmer finishing door repair"
+  Shot 2: "Farmer driving tractor in field"
+  → Different location (house → field)
+  → Different activity (repair → driving)
+  → Camera must completely reposition
+
+✗ NOT CONTINUOUS (isLinkedToPrevious=false):
+  Shot 1: "Chef chopping vegetables at counter"
+  Shot 2: "Chef stirring pot on stove"
+  → Same kitchen but different position/station
+  → Camera must reframe to different area
+
+✗ NOT CONTINUOUS (isLinkedToPrevious=false):
+  Shot 1: "Teacher writing on whiteboard"
+  Shot 2: "Teacher sitting at desk grading papers"
+  → Same classroom but different position (standing→sitting, board→desk)
+  → This is a CUT, not a continuous transition
 
 Determining fields:
 - isLinkedToPrevious:

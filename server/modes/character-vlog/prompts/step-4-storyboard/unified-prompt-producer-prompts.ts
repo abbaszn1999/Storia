@@ -42,6 +42,14 @@ that maintain consistency.
 - Example CORRECT: "@Alex Chen standing in @Modern Studio explaining the concept"
 - Example WRONG: "Alex Chen standing in Modern Studio" (missing @ tags)
 
+⚠️ CRITICAL: @ TAGS ONLY FOR CHARACTERS/LOCATIONS DEFINED IN ELEMENTS STEP ⚠️
+- The @ prefix is RESERVED for entities that exist in the character/location reference lists
+- Characters mentioned in the script but NOT defined in Elements step = NO @ prefix
+- If a character like "Leo" appears in the shot description but is NOT in the character references:
+  - CORRECT: "Leo approaches the narrator" (no @ prefix for undefined character)
+  - WRONG: "@Leo approaches the narrator" (@ used on undefined character)
+- Using @ on undefined characters/locations will break image generation because there's no reference image
+
 @ TAGS ARE NOT USED IN VIDEO PROMPTS:
 - Video prompts animate already-generated frames
 - Character/location identity is locked in the images
@@ -105,6 +113,67 @@ IMPORTANT:
 - If shot.inheritedPrompts.imagePrompt exists → DO NOT generate imagePrompts.single (set to null)
 - If shot.inheritedPrompts.startFramePrompt exists → DO NOT generate imagePrompts.start (set to null)
 - The system will automatically merge inherited prompts after you generate the rest
+
+═══════════════════════════════════════════════════════════════════════════════
+CONTINUITY SANITY CHECK (CRITICAL - BEFORE GENERATING LINKED SHOTS)
+═══════════════════════════════════════════════════════════════════════════════
+
+When you receive shot.isLinkedToPrevious=true, you MUST VERIFY it makes physical sense
+before blindly inheriting the previous shot's end frame.
+
+SANITY CHECK QUESTION:
+"Can the previous shot's described END STATE physically and visually become 
+ this shot's START STATE with smooth, achievable motion?"
+
+CHECK FOR THESE RED FLAGS:
+
+1) LOCATION MISMATCH:
+   - Previous shot ends in one area (e.g., "at the door", "in the kitchen")
+   - Current shot begins in different area (e.g., "on the tractor", "at the table")
+   → These CANNOT be continuous regardless of isLinkedToPrevious flag
+
+2) PHYSICAL IMPOSSIBILITY:
+   - Previous shot ends: "farmer kneeling at door hinge"
+   - Current shot starts: "farmer sitting on tractor seat"
+   → Character would need to stand, walk outside, and mount tractor
+   → This is NOT achievable as smooth video motion
+
+3) ACTIVITY MISMATCH:
+   - Previous shot: one distinct activity (e.g., "repairing door")
+   - Current shot: completely different activity (e.g., "driving tractor")
+   → Different activities require visual cuts, not smooth transitions
+
+IF SANITY CHECK FAILS (CRITICAL):
+When the link is physically impossible, you MUST:
+
+1. IGNORE the isLinkedToPrevious flag for prompt generation
+2. Generate this shot as if it were STANDALONE:
+   - For 2F: Generate BOTH startFramePrompt AND endFramePrompt (fresh)
+   - For 1F: Generate imagePrompts.single (fresh)
+3. Design the start frame to make sense for THIS shot's described action
+4. Do NOT try to create an impossible transition
+
+EXAMPLE OF BROKEN CONTINUITY TO OVERRIDE:
+
+Previous shot description: "Farmer finishing door repair, tightening final screw"
+Previous shot end: Would show farmer kneeling at door
+
+Current shot (isLinkedToPrevious: true): "Farmer driving tractor through field"
+Current shot inherited start: Would be farmer at door (WRONG!)
+
+→ OVERRIDE THE INHERITANCE. Generate fresh:
+  - startFramePrompt: "@Farmer seated on @Tractor, hands on steering wheel, field visible ahead"
+  - endFramePrompt: "@Farmer on @Tractor, machine moving forward, dust trailing behind"
+  - videoPrompt: "Farmer drives tractor steadily through field, hands adjusting wheel..."
+
+This produces USABLE video prompts even though upstream metadata was incorrect.
+
+WHEN CONTINUITY IS VALID:
+If the sanity check passes (same location, achievable pose transition, continuous action),
+then proceed with normal inheritance:
+- Trust the inherited start frame
+- Generate only endFramePrompt and videoPrompt
+- Ensure visual consistency (same outfit, lighting, props)
 
 ═══════════════════════════════════════════════════════════════════════════════
 THE 6 SCENARIOS — What To Generate Per Shot
@@ -239,6 +308,39 @@ START/END FRAME COMPATIBILITY (2F SHOTS - DURATION-BASED DELTA)
 CRITICAL FOR 2F SHOTS: The difference between start frame and end frame must match
 the shot duration. Too much change = unnatural motion. Too little change = static video.
 
+⚠️ CRITICAL RULE: LOCATION CHANGES MUST MATCH SHOT DESCRIPTION AND DURATION ⚠️
+
+TWO SCENARIOS FOR 2F SHOTS:
+
+SCENARIO A: SHOT DESCRIBES SAME LOCATION
+If the shot description keeps the character in ONE place (e.g., "standing at desk", 
+"sitting in cafe", "sprinting on the street"), then:
+- Start and end frames MUST have the SAME background
+- Only the character's pose/position changes
+- Example: "Narrator sprints through the city" = pick ONE spot on the street
+  - Start: Mid-stride on crosswalk, left foot forward
+  - End: Mid-stride on SAME crosswalk, right foot forward (2-3 steps of progress)
+  - NOT: Crosswalk → Subway stairs (shot says "street", not "street then subway")
+
+SCENARIO B: SHOT DESCRIBES LOCATION TRANSITION
+If the shot description explicitly shows movement between locations AND duration allows:
+- Location change IS valid, but must be achievable in the duration
+- 11-12 seconds: Can show walking from house to street (major transition)
+- 8-10 seconds: Can show moving from one room to another
+- 5-7 seconds: Can show moving across a room
+- 2-4 seconds: Almost no location change possible (too short)
+
+DURATION-COMPATIBLE LOCATION CHANGES:
+✓ 12s shot "Character leaves house": Start at door → End at street (valid, enough time)
+✓ 10s shot "Character walks to window": Start at desk → End at window (valid)
+✗ 6s shot "Character sprints through city": Start on crosswalk → End on subway (INVALID - 
+   the shot says "through city streets", not "from street to subway", AND 6s is too short
+   for such a massive transition)
+
+THE KEY QUESTION: Does the shot description say the character CHANGES location?
+- "Narrator sprints on the street" = SAME location (street), show running motion in place
+- "Narrator runs from office to car" = DIFFERENT locations, must be long enough duration
+
 DURATION-BASED FRAME DELTA GUIDELINES:
 
 2-4 SECONDS (Subtle/Quick):
@@ -281,10 +383,95 @@ Start: "Standing at 3/4 angle toward camera, hands at waist level, neutral profe
 End: "Rotated 70° toward whiteboard, right arm fully extended with index finger pointing at diagram, engaged expression with slight smile, slight forward lean"
 → This 70° rotation + full arm extension is APPROPRIATE for 8 seconds
 
-WRONG EXAMPLE - 8 SECOND SHOT:
+WRONG EXAMPLE - 8 SECOND SHOT (too little change):
 Start: "Standing, looking at camera"
 End: "Standing, looking at camera, hand slightly raised"
 → This minimal change is TOO SMALL for 8 seconds - would look unnaturally slow
+
+WRONG EXAMPLE - LOCATION CHANGE NOT DESCRIBED IN SHOT:
+Description: "Narrator sprints through the bustling city streets"
+Duration: 6 seconds
+Start: "Narrator mid-stride on a crosswalk, city buildings behind, morning light"
+End: "Narrator on subway stairs with metal railings, underground entrance visible"
+→ WRONG because: Shot says "city streets", NOT "streets then subway"
+→ WRONG because: 6 seconds is too short for street→subway transition anyway
+→ Video will show chaotic morphing between incompatible backgrounds
+
+CORRECT VERSION (same location as described):
+Description: "Narrator sprints through the bustling city streets"
+Duration: 6 seconds
+Start: "Narrator mid-stride on crosswalk, left foot forward, coffee cup in right hand, 
+        glass towers reflecting morning sun behind, pedestrians blurred in motion"
+End: "Narrator mid-stride on SAME crosswalk, right foot now forward, slight forward lean,
+      coffee cup still in hand, SAME glass towers behind, 2-3 steps of progress shown"
+→ Matches shot description ("city streets" = stays on street)
+→ Duration-appropriate change (running stride progression in 6s)
+
+VALID LOCATION CHANGE EXAMPLE:
+Description: "Narrator rushes from the office to their car in the parking lot"
+Duration: 12 seconds
+Start: "Narrator at office door, hand on handle, briefcase in other hand, office behind"
+End: "Narrator at car door in parking lot, reaching for handle, concrete and cars visible"
+→ VALID because: Shot explicitly describes office→car transition
+→ VALID because: 12 seconds is enough time for this transition
+
+═══════════════════════════════════════════════════════════════════════════════
+IMPOSSIBLE DELTA HANDLING (WHEN SHOT DESCRIPTION EXCEEDS DURATION)
+═══════════════════════════════════════════════════════════════════════════════
+
+Sometimes shot descriptions from upstream agents describe more action than the
+duration allows. When this happens, you MUST adapt the prompts to be achievable.
+
+DETECTION: The shot description implies a delta LARGER than duration guidelines allow.
+
+EXAMPLE OF IMPOSSIBLE DELTA:
+Shot description: "Farmer fixes the door and walks to his tractor"
+Duration: 6 seconds
+→ This describes: door repair completion + walking to different location + mounting tractor
+→ This is 11-12+ seconds of action crammed into 6 seconds
+→ IMPOSSIBLE to generate smooth video
+
+HANDLING STRATEGY - CHOOSE ONE PORTION:
+
+1. PRIORITIZE THE END STATE (Recommended for continuity):
+   - Focus on the FINAL part of the described action
+   - Design frames that lead INTO the next logical state
+   - Skip the impossible middle transitions
+
+   For "Farmer fixes door and walks to tractor" (6s):
+   → Focus on: farmer finishing and beginning to leave
+   → Start: "@Farmer stepping back from repaired door, satisfied expression"
+   → End: "@Farmer turned toward the field, first step taken, door visible behind"
+   → Video: "Farmer admires handiwork briefly, then turns and begins walking toward field"
+   
+   This 45° turn + step IS achievable in 6 seconds.
+
+2. PRIORITIZE THE START STATE (When start is more important):
+   - Focus on the BEGINNING of the described action
+   - End at a natural pause point within the duration
+   
+   For "Teacher explains concept and writes on board" (4s):
+   → Focus on: explaining with gesture
+   → Start: "@Teacher facing class, hands at sides"
+   → End: "@Teacher with arm raised, pointing gesture, engaged expression"
+   → Video: "Teacher raises arm in explanatory gesture while speaking"
+
+3. SPLIT THE VISUAL NARRATIVE (Mental model):
+   - Think: "What would a film editor show in 6 seconds?"
+   - A real film would CUT between activities, not show impossible motion
+   - Your prompts should represent ONE achievable moment
+
+NEVER DO THIS:
+- Start: "Farmer kneeling at door repairing hinge"
+- End: "Farmer sitting on tractor in field"
+- Video: "Farmer magically teleports from door to tractor"
+→ This produces BROKEN, GLITCHY video
+
+ALWAYS REMEMBER:
+- A smooth 30° turn looks professional
+- An impossible 180° teleport looks like a rendering glitch
+- Less motion done well > more motion done impossibly
+- The video model cannot make magic happen - only smooth motion between plausible frames
 
 ═══════════════════════════════════════════════════════════════════════════════
 7-LAYER IMAGE PROMPT ANATOMY (Build prompts with this structure)
@@ -585,6 +772,8 @@ Before outputting JSON, verify:
 - [ ] Character anchors (descriptions) are included for additional context in image prompts
 - [ ] Video prompts use NATURAL LANGUAGE - NO @ tags (e.g., "Alex Chen" not "@Alex Chen")
 - [ ] The @ tags appear in image prompts so the system knows which reference images to use
+- [ ] ONLY characters/locations from the reference lists have @ prefix
+- [ ] Characters NOT in reference lists are mentioned WITHOUT @ prefix (e.g., "Leo" not "@Leo")
 
 **FRAME MODE LOGIC:**
 - [ ] 1F standalone: only imagePrompts.single is filled, start and end are null
@@ -602,10 +791,13 @@ Before outputting JSON, verify:
 - [ ] Composition is precise and stable
 
 **FRAME DELTA COMPATIBILITY (2F shots):**
-- [ ] For 2-4s shots: 15-30° rotation, minimal gesture
-- [ ] For 5-7s shots: 30-60° rotation, moderate gesture
-- [ ] For 8-10s shots: 60-90° rotation, major gesture/full arm extension
-- [ ] For 11-12s shots: 90°+ rotation or position change, complex gesture
+- [ ] If shot describes SAME location: start/end backgrounds MUST match
+- [ ] If shot describes location CHANGE: verify duration is sufficient (11-12s for major changes)
+- [ ] Location changes only if EXPLICITLY described in shot (not invented)
+- [ ] For 2-4s shots: 15-30° rotation, minimal gesture, NO location change
+- [ ] For 5-7s shots: 30-60° rotation, moderate gesture, same room only
+- [ ] For 8-10s shots: 60-90° rotation, can move across room
+- [ ] For 11-12s shots: 90°+ rotation, can change rooms/locations if described
 - [ ] Delta between start and end is physically plausible for the duration
 - [ ] End frame actually completes the action described in shotDescription
 

@@ -130,7 +130,7 @@ export async function callAi<T = unknown>(
       provider: request.provider,
       modelName: request.model,
       estimatedCostUsd: costToCharge,
-      creditsDeducted: Math.round(costToCharge * CREDITS_PER_USD),
+      creditsDeducted: costToCharge * CREDITS_PER_USD,
     });
   }
 

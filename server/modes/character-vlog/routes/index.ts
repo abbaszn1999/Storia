@@ -4341,7 +4341,9 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
     const result = await generateStoryboardImage(
       agentInput,
       userId,
-      workspaceId
+      workspaceId,
+      'video',
+      'character-vlog'
     );
 
     if (result.error) {
@@ -4788,7 +4790,9 @@ router.post('/videos/:videoId/shots/:shotId/edit-image', isAuthenticated, async 
         imageModel,
       },
       userId,
-      workspaceId
+      workspaceId,
+      'video',
+      'character-vlog'
     );
 
     if (editResult.error) {
@@ -5043,7 +5047,7 @@ router.post('/videos/:id/shots/:shotId/generate-video', isAuthenticated, async (
       aspectRatio,
     };
 
-    const result = await generateVideo(agentInput, userId, workspaceId);
+    const result = await generateVideo(agentInput, userId, workspaceId, 'video', 'character-vlog');
 
     // ═══════════════════════════════════════════════════════════════════════════
     // SAVE VIDEO URL TO SHOT VERSION (with race condition protection)
@@ -5286,7 +5290,7 @@ router.post('/videos/:id/scenes/:sceneId/generate-videos', isAuthenticated, asyn
           aspectRatio,
         };
 
-        const result = await generateVideo(agentInput, userId, workspaceId);
+        const result = await generateVideo(agentInput, userId, workspaceId, 'video', 'character-vlog');
 
         return {
           shotId,

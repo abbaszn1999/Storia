@@ -285,7 +285,9 @@ export function validateBeatPromptOutput(
 export async function generateBeatPrompts(
   input: BatchBeatPromptInput,
   userId: string,
-  workspaceId: string
+  workspaceId: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<BeatPromptOutput> {
   console.log('[social-commerce:agent-5.1] Generating prompts for beats:', {
     beatCount: input.beats.length,
@@ -366,6 +368,8 @@ export async function generateBeatPrompts(
         userId,
         workspaceId,
         payload,
+      }, {
+        metadata: { usageType, usageMode },
       });
 
       // Parse JSON response

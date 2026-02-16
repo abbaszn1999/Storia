@@ -212,7 +212,9 @@ function parseSceneResponse(rawOutput: string): SceneGeneratorOutput {
 export async function generateScenes(
   input: SceneGeneratorInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<SceneGeneratorOutput> {
   console.log('[character-vlog:scene-generator] Generating scenes:', {
     scriptLength: input.script.length,
@@ -255,6 +257,7 @@ export async function generateScenes(
       },
       {
         expectedOutputTokens: 8000, // Increased for entity tracking and scriptExcerpt fields
+        metadata: { usageType, usageMode },
       }
     );
 

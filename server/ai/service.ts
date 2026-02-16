@@ -11,13 +11,20 @@ import {
   calculateCostFromUsage,
 } from "./credits/cost-calculators";
 import { getProviderAdapter } from "./providers";
+import { recordUsage } from "./usage-recorder";
 import "./providers";
+
+const CREDITS_PER_USD = Number(process.env.CREDITS_PER_USD ?? 1);
 
 export interface CallAiOptions {
   expectedInputTokens?: number;
   expectedOutputTokens?: number;
   skipCreditCheck?: boolean;
-  metadata?: Record<string, unknown>;
+  metadata?: {
+    usageType?: string;
+    usageMode?: string;
+    [key: string]: unknown;
+  };
 }
 
 export async function callAi<T = unknown>(
@@ -78,7 +85,13 @@ export async function callAi<T = unknown>(
     usage: result.usage,
   });
 
+  // Add the calculated cost to the usage object for agents to access
+  if (result.usage) {
+    result.usage.totalCostUsd = actualCostUsd > 0 ? actualCostUsd : estimatedCostUsd;
+  }
+
   const durationMs = Date.now() - startedAt;
+  const costToCharge = actualCostUsd > 0 ? actualCostUsd : estimatedCostUsd;
 
   if (actualCostUsd > 0) {
     await chargeCredits({
@@ -104,6 +117,20 @@ export async function callAi<T = unknown>(
         fallback: true,
         ...options.metadata,
       },
+    });
+  }
+
+  // Record usage in database
+  if (options.metadata?.usageType && options.metadata?.usageMode && request.userId) {
+    await recordUsage({
+      userId: request.userId,
+      workspaceId: request.workspaceId,
+      type: options.metadata.usageType as string,
+      mode: options.metadata.usageMode as string,
+      provider: request.provider,
+      modelName: request.model,
+      estimatedCostUsd: costToCharge,
+      creditsDeducted: Math.round(costToCharge * CREDITS_PER_USD),
     });
   }
 

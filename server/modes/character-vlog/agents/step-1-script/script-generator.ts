@@ -66,7 +66,9 @@ function parseScriptResponse(rawOutput: string): { script: string } {
 export async function generateScript(
   input: ScriptGeneratorInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<ScriptGeneratorOutput> {
   // Build the user prompt with all script parameters
   const userPrompt = buildScriptGeneratorUserPrompt(input);
@@ -99,6 +101,7 @@ export async function generateScript(
       },
       {
         expectedOutputTokens: 2000, // Scripts can be longer than mood descriptions
+        metadata: { usageType, usageMode },
       }
     );
 

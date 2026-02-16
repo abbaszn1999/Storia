@@ -204,7 +204,9 @@ export async function createVideoGenerator(mode: StoryMode) {
   async function generateVideos(
     input: any,
     userId?: string,
-    workspaceName?: string
+    workspaceName?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<any> {
     const { 
       scenes, 
@@ -279,10 +281,20 @@ export async function createVideoGenerator(mode: StoryMode) {
   // Map to track taskUUID -> sceneNumber for reliable matching
   const taskToSceneMap = new Map<string, { sceneNumber: number; sceneId: string; duration: number }>();
   
-    const payloads = scenes.map((scene: any, index: number) => {
-    if (!scene.imageUrl) {
-      throw new Error(`Scene ${scene.sceneNumber} has no imageUrl`);
+    // Filter out scenes without images (content moderation may have blocked some)
+    const validScenes = scenes.filter((scene: any) => {
+      if (!scene.imageUrl) {
+        console.warn(`[video-generator] Scene ${scene.sceneNumber} has no imageUrl — skipping`);
+        return false;
+      }
+      return true;
+    });
+    
+    if (validScenes.length === 0) {
+      throw new Error('No scenes have images — cannot generate videos');
     }
+    
+    const payloads = validScenes.map((scene: any, index: number) => {
 
     // Find closest supported duration
     const matchedDuration = findClosestDuration(
@@ -506,6 +518,7 @@ export async function createVideoGenerator(mode: StoryMode) {
         },
         {
           skipCreditCheck: false,
+          metadata: { usageType, usageMode },
         }
       );
 
@@ -647,9 +660,11 @@ export async function createVideoGenerator(mode: StoryMode) {
 export async function generateVideos(
   input: any,
   userId?: string,
-  workspaceName?: string
+  workspaceName?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<any> {
   const generator = await createVideoGenerator("problem-solution");
-  return generator(input, userId, workspaceName);
+  return generator(input, userId, workspaceName, usageType, usageMode);
 }
 

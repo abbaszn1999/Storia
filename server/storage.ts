@@ -11,6 +11,7 @@ import {
   workspaceIntegrations,
   videoCampaigns,
   storyCampaigns,
+  usage,
   type User,
   type UpsertUser,
   type Workspace,
@@ -35,9 +36,11 @@ import {
   type InsertVideoCampaign,
   type StoryCampaign,
   type InsertStoryCampaign,
+  type Usage,
+  type InsertUsage,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql, gte, lte, desc } from "drizzle-orm";
 
 export interface IStorage {
   // User operations
@@ -136,6 +139,35 @@ export interface IStorage {
   createStoryCampaign(campaign: InsertStoryCampaign): Promise<StoryCampaign>;
   updateStoryCampaign(id: string, updates: Partial<StoryCampaign>): Promise<StoryCampaign>;
   deleteStoryCampaign(id: string): Promise<void>;
+  
+  // Usage tracking
+  createUsage(usageData: {
+    userId: string;
+    workspaceId?: string;
+    date: string;
+    time: string;
+    type: string;
+    mode: string;
+    modelName: string;
+    provider: string;
+    estimatedCostUsd: string;
+    creditsDeducted: number;
+  }): Promise<Usage>;
+  
+  getUsageByWorkspace(
+    userId: string,
+    workspaceId: string,
+    filters?: {
+      startDate?: string;
+      endDate?: string;
+      type?: string;
+    }
+  ): Promise<Usage[]>;
+  
+  // User credits (stored at user level, not workspace level)
+  getUserCredits(userId: string): Promise<number>;
+  updateUserCredits(userId: string, newBalance: number): Promise<void>;
+  deductUserCredits(userId: string, amount: number): Promise<number>; // Returns new balance
   
   // Account management
   deleteUserAccount(userId: string): Promise<void>;
@@ -772,6 +804,79 @@ export class MemStorage implements IStorage {
     
     // Finally delete the user
     this.users.delete(userId);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // USAGE TRACKING METHODS
+  // ═══════════════════════════════════════════════════════════════
+
+  async createUsage(usageData: {
+    userId: string;
+    workspaceId?: string;
+    date: string;
+    time: string;
+    type: string;
+    mode: string;
+    modelName: string;
+    provider: string;
+    estimatedCostUsd: string;
+    creditsDeducted: number;
+  }): Promise<Usage> {
+    const [newUsage] = await db.insert(usage).values(usageData).returning();
+    return newUsage;
+  }
+
+  async getUsageByWorkspace(
+    userId: string,
+    workspaceId: string,
+    filters?: {
+      startDate?: string;
+      endDate?: string;
+      type?: string;
+    }
+  ): Promise<Usage[]> {
+    const conditions = [
+      eq(usage.userId, userId),
+      eq(usage.workspaceId, workspaceId),
+    ];
+
+    if (filters?.startDate) {
+      conditions.push(gte(usage.date, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(usage.date, filters.endDate));
+    }
+    if (filters?.type) {
+      conditions.push(eq(usage.type, filters.type));
+    }
+
+    return await db
+      .select()
+      .from(usage)
+      .where(and(...conditions))
+      .orderBy(desc(usage.date), desc(usage.time));
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // USER CREDITS METHODS
+  // ═══════════════════════════════════════════════════════════════
+
+  async getUserCredits(userId: string): Promise<number> {
+    const user = await this.getUser(userId);
+    return user?.credits ?? 0;
+  }
+
+  async updateUserCredits(userId: string, newBalance: number): Promise<void> {
+    // Store exact decimal value - no rounding
+    await db.update(users).set({ credits: newBalance }).where(eq(users.id, userId));
+  }
+
+  async deductUserCredits(userId: string, amount: number): Promise<number> {
+    const currentBalance = await this.getUserCredits(userId);
+    // Exact decimal calculation - no rounding
+    const newBalance = Math.max(0, currentBalance - amount);
+    await this.updateUserCredits(userId, newBalance);
+    return newBalance;
   }
 }
 

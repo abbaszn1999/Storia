@@ -57,7 +57,9 @@ interface AIShotResponse {
 export async function composeShots(
   input: ShotComposerInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<ShotComposerOutput> {
   const scene = input.scene;
   const sceneDuration = scene.duration || 60;
@@ -147,6 +149,7 @@ export async function composeShots(
       },
       {
         expectedOutputTokens: 800,
+        metadata: { usageType, usageMode },
       }
     );
 

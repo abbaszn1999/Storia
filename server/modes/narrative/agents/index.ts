@@ -313,7 +313,9 @@ export class NarrativeAgents {
   static async generateScript(
     settings: ScriptSettings,
     userId?: string,
-    workspaceId?: string
+    workspaceId?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<ScriptGeneratorOutput> {
     const { duration, genre, language, tone, userPrompt, model } = settings;
     
@@ -378,6 +380,7 @@ export class NarrativeAgents {
         },
         {
           expectedOutputTokens,
+          metadata: { usageType, usageMode },
         }
       );
       
@@ -416,7 +419,9 @@ export class NarrativeAgents {
     genre: string,
     userId?: string,
     workspaceId?: string,
-    model?: string
+    model?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<CharacterAnalysisOutput> {
     // Determine provider and model
     let provider: "openai" | "gemini" = "openai";
@@ -506,6 +511,7 @@ export class NarrativeAgents {
         },
         {
           expectedOutputTokens,
+          metadata: { usageType, usageMode },
         }
       );
       
@@ -578,7 +584,9 @@ export class NarrativeAgents {
     genre: string,
     userId?: string,
     workspaceId?: string,
-    model?: string
+    model?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<LocationAnalysisOutput> {
     // Determine provider and model
     let provider: "openai" | "gemini" = "openai";
@@ -668,6 +676,7 @@ export class NarrativeAgents {
         },
         {
           expectedOutputTokens,
+          metadata: { usageType, usageMode },
         }
       );
       
@@ -869,7 +878,9 @@ export class NarrativeAgents {
   static async generatePrompts(
     input: PromptEngineerInput,
     userId?: string,
-    workspaceId?: string
+    workspaceId?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<PromptEngineerBatchOutput> {
     // Sort shots by shotNumber to ensure correct order
     const sortedShots = [...input.shots].sort((a, b) => a.shotNumber - b.shotNumber);
@@ -1025,6 +1036,7 @@ export class NarrativeAgents {
         },
         {
           expectedOutputTokens,
+          metadata: { usageType, usageMode },
         }
       );
       
@@ -1439,7 +1451,9 @@ export class NarrativeAgents {
   static async editImage(
     input: ImageEditorInput,
     userId?: string,
-    workspaceId?: string
+    workspaceId?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<ImageEditorOutput> {
     console.log('[narrative:agents] Editing image (Agent 4.3):', {
       shotId: input.shotId,
@@ -1456,7 +1470,9 @@ export class NarrativeAgents {
       const result = await editStoryboardImageAgent(
         input,
         userId,
-        workspaceId
+        workspaceId,
+        usageType,
+        usageMode
       );
 
       if (result.error) {

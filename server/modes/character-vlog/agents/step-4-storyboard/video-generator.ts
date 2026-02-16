@@ -296,7 +296,9 @@ function buildAudioDisabledProviderSettings(modelAirId: string): Record<string, 
 export async function generateVideo(
   input: VideoGeneratorInput,
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<VideoGeneratorOutput> {
   const startTime = Date.now();
 
@@ -464,6 +466,7 @@ export async function generateVideo(
       },
       {
         skipCreditCheck: false,
+        metadata: { usageType, usageMode },
       }
     );
 

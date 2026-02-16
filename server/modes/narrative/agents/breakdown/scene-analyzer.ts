@@ -92,7 +92,9 @@ export async function generateScenes(
   input: SceneAnalyzerInput,
   videoId: string,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<SceneAnalyzerOutput> {
   // Determine provider and model
   let provider: "openai" | "gemini" = "openai";
@@ -206,6 +208,7 @@ export async function generateScenes(
       },
       {
         expectedOutputTokens,
+        metadata: { usageType, usageMode },
       }
     );
 

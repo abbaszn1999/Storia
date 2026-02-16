@@ -865,9 +865,10 @@ export async function adjustVideoSpeed(
     // Video speed adjustment
     command.videoFilters(`setpts=${(1/speed).toFixed(4)}*PTS`);
     
-    // Audio speed adjustment (if audio exists)
+    // Audio speed adjustment — only for SPEEDUP (speed > 1.0)
+    // Audio slowdown is intentionally skipped to preserve natural voice quality
     // atempo filter only supports 0.5-2.0 range, so we may need to chain multiple
-    if (speed >= 0.5 && speed <= 2.0) {
+    if (speed > 1.0 && speed <= 2.0) {
       command.audioFilters(`atempo=${speed.toFixed(4)}`);
     } else if (speed > 2.0) {
       // Chain multiple atempo filters for speeds > 2x
@@ -879,17 +880,8 @@ export async function adjustVideoSpeed(
       }
       filters.push(`atempo=${remainingSpeed.toFixed(4)}`);
       command.audioFilters(filters.join(','));
-    } else {
-      // Chain multiple atempo filters for speeds < 0.5x
-      const filters: string[] = [];
-      let remainingSpeed = speed;
-      while (remainingSpeed < 0.5) {
-        filters.push('atempo=0.5');
-        remainingSpeed /= 0.5;
-      }
-      filters.push(`atempo=${remainingSpeed.toFixed(4)}`);
-      command.audioFilters(filters.join(','));
     }
+    // speed < 1.0 (slowdown): no audio adjustment — keep audio at original speed
     
     command
       .outputOptions([
@@ -1275,23 +1267,7 @@ export function calculateDualSpeedSync(
       };
     }
     
-    // Try 2: Loop + slow down audio (preferred for quality)
-    if (loopedVideoDuration > audioDuration) {
-      // Looped video is longer, slow down audio
-      audioSpeed = audioDuration / loopedVideoDuration;
-      if (audioSpeed >= SPEED_LIMITS.audio.min) {
-        return {
-          targetDuration: loopedVideoDuration,
-          videoSpeed: 1.0,
-          audioSpeed,
-          method: 'loop',
-          needsLoop: true,
-          needsTrim: false,
-        };
-      }
-    }
-    
-    // Try 3: Loop + speed up audio
+    // Try 2: Loop + speed up audio (audio slowdown is not allowed)
     audioSpeed = SPEED_LIMITS.audio.max;
     newAudioDuration = audioDuration / audioSpeed;
     videoSpeed = loopedVideoDuration / newAudioDuration;
@@ -1336,43 +1312,35 @@ export function calculateDualSpeedSync(
       };
     }
     
-    // Priority 2: Max video speedup + slow down audio
-    // videoSpeed = 1.25 (max speedup)
+    // Priority 2: Max video speedup + TRIM remaining (audio slowdown is not allowed)
+    // videoSpeed = 1.25 (max speedup), then trim excess video
     let videoSpeed = SPEED_LIMITS.video.max;
     let newVideoDuration = videoDuration / videoSpeed; // Shortened video duration
-    let audioSpeed = audioDuration / newVideoDuration; // Required audio slowdown
     
-    if (audioSpeed >= SPEED_LIMITS.audio.min) {
+    if (newVideoDuration <= audioDuration) {
+      // After max speedup, video fits within audio — no trim needed
       return {
-        targetDuration: newVideoDuration,
+        targetDuration: audioDuration,
         videoSpeed,
-        audioSpeed,
-        method: 'dual-adjust',
+        audioSpeed: 1.0,
+        method: 'video-speedup',
         needsLoop: false,
         needsTrim: false,
       };
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // Priority 3: TRIM video (cut excess when dual-adjust isn't enough)
-    // Apply max speedup + max audio slowdown, then trim remaining
+    // Priority 3: TRIM video to match audio duration
+    // Apply max speedup, then trim excess — keep audio at original speed
     // ═══════════════════════════════════════════════════════════════
-    videoSpeed = SPEED_LIMITS.video.max;
-    audioSpeed = SPEED_LIMITS.audio.min;
-    const newAudioDuration = audioDuration / audioSpeed;
-    
-    // The target duration is the slowed audio duration
-    // Video will be sped up and then trimmed
-    const trimmedDuration = newAudioDuration;
-    
     return {
-      targetDuration: trimmedDuration,
+      targetDuration: audioDuration,
       videoSpeed,
-      audioSpeed,
+      audioSpeed: 1.0,
       method: 'trim',
       needsLoop: false,
       needsTrim: true,
-      trimTo: trimmedDuration,
+      trimTo: audioDuration,
     };
   }
 }

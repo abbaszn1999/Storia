@@ -68,7 +68,9 @@ export interface CompositePromptOutput {
 export async function generateCompositePrompt(
   input: CompositePromptInput,
   userId: string,
-  workspaceId: string
+  workspaceId: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<CompositePromptOutput> {
   const { images, userContext, productTitle, productDescription, targetAudience, aspectRatio = '9:16' } = input;
 
@@ -218,6 +220,8 @@ Please analyze each image and create a comprehensive prompt that will guide the 
       userId,
       workspaceId,
       payload,
+    }, {
+      metadata: { usageType, usageMode },
     });
 
     // Parse JSON response

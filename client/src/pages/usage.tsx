@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useWorkspace } from "@/contexts/workspace-context";
 import {
   Table,
   TableBody,
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -23,131 +25,116 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Activity, CreditCard, Layers, Zap, TrendingUp, ArrowUpRight, ChevronDown, Calendar, Filter } from "lucide-react";
+import { Activity, CreditCard, Zap, TrendingUp, ArrowUpRight, Calendar, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AmbientBackground } from "@/components/story-studio/shared/AmbientBackground";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
 
-// --- Mock Data & Types ---
+// --- Types ---
+
+type UsageType = "video" | "story" | "assets";
+type UsageMode = 
+  | "ambient" 
+  | "problem-solution" 
+  | "before-after" 
+  | "myth-busting" 
+  | "tease-reveal" 
+  | "asmr"
+  | "character"
+  | "location";
 
 interface ModelUsage {
   id: string;
+  date: string;
+  time: string;
+  type: UsageType;
+  mode: UsageMode;
   modelName: string;
   provider: string;
-  type: "text" | "image" | "video" | "audio";
-  requests: number;
-  usageAmount: number; // tokens or seconds
   cost: number;
 }
 
 const MOCK_USAGE_DATA: ModelUsage[] = [
   {
     id: "1",
-    modelName: "GPT-4o",
+    date: "2026-02-12",
+    time: "14:23",
+    type: "video",
+    mode: "ambient",
+    modelName: "GPT-5 Nano",
     provider: "OpenAI",
-    type: "text",
-    requests: 1250,
-    usageAmount: 5000000, // tokens
-    cost: 45.25,
+    cost: 0.0045,
   },
   {
     id: "2",
-    modelName: "Sora 2",
-    provider: "Runware",
+    date: "2026-02-12",
+    time: "14:24",
     type: "video",
-    requests: 12,
-    usageAmount: 96, // seconds
-    cost: 28.80,
+    mode: "ambient",
+    modelName: "Sora 2",
+    provider: "OpenAI",
+    cost: 2.40,
   },
   {
     id: "3",
-    modelName: "FLUX.2 Pro",
-    provider: "Runware",
-    type: "image",
-    requests: 85,
-    usageAmount: 85, // images
-    cost: 4.25,
+    date: "2026-02-12",
+    time: "13:15",
+    type: "story",
+    mode: "problem-solution",
+    modelName: "Gemini 2.5 Flash",
+    provider: "Gemini",
+    cost: 0.0032,
   },
   {
     id: "4",
-    modelName: "Gemini 2.5 Flash",
-    provider: "Google",
-    type: "text",
-    requests: 4500,
-    usageAmount: 12000000, // tokens
-    cost: 8.50,
+    date: "2026-02-12",
+    time: "13:16",
+    type: "story",
+    mode: "problem-solution",
+    modelName: "Nano Banana",
+    provider: "Runware",
+    cost: 0.15,
   },
   {
     id: "5",
-    modelName: "ElevenLabs Multilingual v2",
-    provider: "ElevenLabs",
-    type: "audio",
-    requests: 45,
-    usageAmount: 25000, // characters
-    cost: 12.50,
+    date: "2026-02-11",
+    time: "16:42",
+    type: "assets",
+    mode: "character",
+    modelName: "Runway Gen-4 Image",
+    provider: "Runware",
+    cost: 0.25,
   },
   {
     id: "6",
-    modelName: "KlingAI 2.5 Turbo",
+    date: "2026-02-11",
+    time: "15:30",
+    type: "assets",
+    mode: "location",
+    modelName: "OpenAI GPT Image 1.5",
     provider: "Runware",
+    cost: 0.18,
+  },
+  {
+    id: "7",
+    date: "2026-02-11",
+    time: "10:05",
     type: "video",
-    requests: 5,
-    usageAmount: 25, // seconds
-    cost: 15.00,
+    mode: "ambient",
+    modelName: "KlingAI v1.6",
+    provider: "KlingAI",
+    cost: 1.80,
+  },
+  {
+    id: "8",
+    date: "2026-02-10",
+    time: "17:20",
+    type: "story",
+    mode: "before-after",
+    modelName: "GPT-4o",
+    provider: "OpenAI",
+    cost: 0.0125,
   },
 ];
-
-// --- Chart Data ---
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-// Mock data for the chart - This period (2026)
-const thisPeriodData = [
-  { month: "Jan", value: 8.5 },
-  { month: "Feb", value: 12.3 },
-  { month: "Mar", value: 11.8 },
-  { month: "Apr", value: 9.2 },
-  { month: "May", value: 7.6 },
-  { month: "Jun", value: 6.9 },
-  { month: "Jul", value: 8.1 },
-  { month: "Aug", value: 10.87 },
-  { month: "Sep", value: 12.4 },
-  { month: "Oct", value: 13.8 },
-  { month: "Nov", value: 15.2 },
-  { month: "Dec", value: 16.5 },
-];
-
-// Mock data for the chart - Previous period (2025)
-const previousPeriodData = [
-  { month: "Jan", value: 7.2 },
-  { month: "Feb", value: 8.9 },
-  { month: "Mar", value: 9.5 },
-  { month: "Apr", value: 8.1 },
-  { month: "May", value: 7.8 },
-  { month: "Jun", value: 8.3 },
-  { month: "Jul", value: 8.7 },
-  { month: "Aug", value: 9.54 },
-  { month: "Sep", value: 10.1 },
-  { month: "Oct", value: 10.8 },
-  { month: "Nov", value: 11.5 },
-  { month: "Dec", value: 12.2 },
-];
-
-// Combine data for chart
-const chartData = MONTHS.map((month, index) => ({
-  month,
-  "This period": thisPeriodData[index]?.value || 0,
-  "Previous period": previousPeriodData[index]?.value || 0,
-}));
 
 // --- Helper Functions ---
 
@@ -155,53 +142,150 @@ function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
   }).format(amount);
 }
 
-function formatGB(value: number) {
-  return `${value.toFixed(2)} GB`;
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", { 
+    month: "short", 
+    day: "numeric", 
+    year: "numeric" 
+  });
 }
 
-function formatUsageAmount(amount: number, type: ModelUsage["type"]) {
-  if (type === "text") return `${(amount / 1000).toFixed(1)}k tokens`;
-  if (type === "video") return `${amount}s`;
-  if (type === "audio") return `${(amount / 1000).toFixed(1)}k chars`;
-  return `${amount} imgs`;
+function formatTime(timeString: string): string {
+  return timeString;
 }
 
-function getTypeColor(type: ModelUsage["type"]) {
+function getTypeLabel(type: UsageType): string {
+  return type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+function getTypeColor(type: UsageType): string {
   switch (type) {
-    case "text":
-      return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20";
-    case "image":
-      return "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20";
     case "video":
       return "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20";
-    case "audio":
-      return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20";
+    case "story":
+      return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20";
+    case "assets":
+      return "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20";
     default:
       return "bg-muted text-muted-foreground";
   }
 }
 
+function getModeLabel(mode: UsageMode): string {
+  const labels: Record<UsageMode, string> = {
+    "ambient": "Ambient",
+    "problem-solution": "Problem-Solution",
+    "before-after": "Before-After",
+    "myth-busting": "Myth-Busting",
+    "tease-reveal": "Tease-Reveal",
+    "asmr": "ASMR",
+    "character": "Character",
+    "location": "Location",
+  };
+  return labels[mode] || mode;
+}
+
+function getModeColor(mode: UsageMode): string {
+  const colors: Record<UsageMode, string> = {
+    "ambient": "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
+    "problem-solution": "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+    "before-after": "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20",
+    "myth-busting": "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20",
+    "tease-reveal": "bg-pink-500/10 text-pink-600 dark:text-pink-400 border-pink-500/20",
+    "asmr": "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20",
+    "character": "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+    "location": "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20",
+  };
+  return colors[mode] || "bg-muted text-muted-foreground";
+}
+
 // --- Components ---
 
 export default function UsagePage() {
-  const [timeRange, setTimeRange] = useState<string>("custom");
-  const [selectedPage, setSelectedPage] = useState<string>("all");
+  const { currentWorkspace } = useWorkspace();
+  const [timeRange, setTimeRange] = useState<string>("all");
+  const [selectedType, setSelectedType] = useState<string>("all");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [usageData, setUsageData] = useState<ModelUsage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Calculate summary stats
-  const totalCost = MOCK_USAGE_DATA.reduce((sum, item) => sum + item.cost, 0);
-  const totalRequests = MOCK_USAGE_DATA.reduce((sum, item) => sum + item.requests, 0);
-  const uniqueProviders = new Set(MOCK_USAGE_DATA.map(item => item.provider)).size;
-  const mostUsedModel = MOCK_USAGE_DATA.reduce((prev, current) => 
-    (prev.requests > current.requests) ? prev : current
-  );
+  // Fetch usage data from API
+  useEffect(() => {
+    async function fetchUsage() {
+      if (!currentWorkspace?.id) {
+        setLoading(false);
+        return;
+      }
 
-  // Calculate total usage from chart data
-  const totalUsage = thisPeriodData.reduce((sum, item) => sum + item.value, 0);
-  const previousTotalUsage = previousPeriodData.reduce((sum, item) => sum + item.value, 0);
-  const usageIncrease = ((totalUsage - previousTotalUsage) / previousTotalUsage) * 100;
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const params = new URLSearchParams();
+        if (timeRange === "custom" && startDate) params.set("startDate", startDate);
+        if (timeRange === "custom" && endDate) params.set("endDate", endDate);
+        if (selectedType !== "all") params.set("type", selectedType);
+
+        const response = await fetch(`/api/usage?${params}`, {
+          headers: {
+            'x-workspace-id': currentWorkspace.id,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch usage data");
+        }
+
+        const data = await response.json();
+        // Map API response to ModelUsage format
+        const mappedData: ModelUsage[] = data.usage.map((item: any) => ({
+          id: item.id,
+          date: item.date,
+          time: item.time,
+          type: item.type as UsageType,
+          mode: item.mode as UsageMode,
+          modelName: item.modelName,
+          provider: item.provider,
+          cost: parseFloat(item.estimatedCostUsd),
+        }));
+        setUsageData(mappedData);
+      } catch (err) {
+        console.error("Failed to fetch usage:", err);
+        setError("Failed to load usage data");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchUsage();
+  }, [currentWorkspace?.id, timeRange, startDate, endDate, selectedType]);
+
+  // Filter data based on selections (client-side filtering for custom range)
+  const filteredData = useMemo(() => {
+    return usageData.filter((item) => {
+      // Filter by date range (additional client-side filter for custom range)
+      if (startDate && item.date < startDate) {
+        return false;
+      }
+      if (endDate && item.date > endDate) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [usageData, startDate, endDate]);
+
+  // Calculate summary stats from filtered data
+  const totalCost = filteredData.reduce((sum, item) => sum + item.cost, 0);
+  const totalRequests = filteredData.length;
+  const uniqueProviders = new Set(filteredData.map(item => item.provider)).size;
 
   return (
     <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
@@ -221,147 +305,130 @@ export default function UsagePage() {
           </div>
         </div>
 
-        {/* Usage Chart Section */}
+        {/* Filters Section */}
         <Card className="border-0 bg-card">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Select value={selectedPage} onValueChange={setSelectedPage}>
-                  <SelectTrigger className="w-[140px] border-border">
-                    <SelectValue placeholder="All pages" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All pages</SelectItem>
-                    <SelectItem value="videos">Videos</SelectItem>
-                    <SelectItem value="stories">Stories</SelectItem>
-                    <SelectItem value="characters">Characters</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center gap-2">
-                  <span className="text-3xl font-bold">{totalUsage.toFixed(0)} GB</span>
-                  <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                    <TrendingUp className="h-4 w-4" />
-                    <span className="text-sm font-medium">{usageIncrease.toFixed(0)}%</span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={timeRange === "30" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setTimeRange("30")}
-                  className="h-9"
-                >
-                  30 days
-                </Button>
-                <Button
-                  variant={timeRange === "7" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setTimeRange("7")}
-                  className="h-9"
-                >
-                  7 days
-                </Button>
-                <Button
-                  variant={timeRange === "24" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setTimeRange("24")}
-                  className="h-9"
-                >
-                  24 hours
-                </Button>
-                <Button
-                  variant={timeRange === "custom" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setTimeRange("custom")}
-                  className="h-9 gap-2"
-                >
-                  <Calendar className="h-4 w-4" />
-                  Custom
-                </Button>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 mt-4">
-              <div className="flex items-center gap-2">
-                <div className={cn(
-                  "h-2 w-2 rounded-full bg-primary"
-                )} />
-                <span className="text-sm text-muted-foreground">This period</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-amber-500" />
-                <span className="text-sm text-muted-foreground">Previous period</span>
-              </div>
-              {timeRange === "custom" && (
-                <div className="flex items-center gap-2 ml-auto">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">1 Jan 2025 - 31 Dec 2026</span>
-                </div>
-              )}
-            </div>
+            <CardTitle>Filters</CardTitle>
+            <CardDescription>
+              Filter usage data by type and date range.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[400px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={chartData}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                  <XAxis 
-                    dataKey="month" 
-                    stroke="hsl(var(--muted-foreground))"
-                    style={{ fontSize: '12px' }}
-                  />
-                  <YAxis 
-                    stroke="hsl(var(--muted-foreground))"
-                    style={{ fontSize: '12px' }}
-                    tickFormatter={(value) => `${value} GB`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--popover))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
+            <div className="space-y-4">
+              {/* Type and Time Range Row */}
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="text-sm font-medium mb-2 block">Type</label>
+                  <Select value={selectedType} onValueChange={setSelectedType}>
+                    <SelectTrigger className="w-full border-border">
+                      <SelectValue placeholder="All types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="video">Video</SelectItem>
+                      <SelectItem value="story">Story</SelectItem>
+                      <SelectItem value="assets">Assets</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={timeRange === "24h" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setTimeRange("24h");
+                      const now = new Date();
+                      const yesterday = new Date(now);
+                      yesterday.setDate(yesterday.getDate() - 1);
+                      setStartDate(yesterday.toISOString().split('T')[0]);
+                      setEndDate(now.toISOString().split('T')[0]);
                     }}
-                    labelStyle={{ color: 'hsl(var(--foreground))', marginBottom: '4px' }}
-                    formatter={(value: number) => [formatGB(value), '']}
-                    labelFormatter={(label) => `12 ${label} 2026`}
-                  />
-                  <Legend 
-                    wrapperStyle={{ paddingTop: '20px' }}
-                    iconType="circle"
-                    formatter={(value) => (
-                      <span style={{ color: 'hsl(var(--foreground))', fontSize: '12px' }}>
-                        {value}
-                      </span>
-                    )}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="This period"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    dot={{ fill: 'hsl(var(--primary))', r: 4 }}
-                    activeDot={{ r: 6 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="Previous period"
-                    stroke="hsl(45, 93%, 47%)"
-                    strokeWidth={2}
-                    dot={{ fill: 'hsl(45, 93%, 47%)', r: 4 }}
-                    activeDot={{ r: 6 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+                    className="h-9"
+                  >
+                    24 hours
+                  </Button>
+                  <Button
+                    variant={timeRange === "7d" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setTimeRange("7d");
+                      const now = new Date();
+                      const weekAgo = new Date(now);
+                      weekAgo.setDate(weekAgo.getDate() - 7);
+                      setStartDate(weekAgo.toISOString().split('T')[0]);
+                      setEndDate(now.toISOString().split('T')[0]);
+                    }}
+                    className="h-9"
+                  >
+                    7 days
+                  </Button>
+                  <Button
+                    variant={timeRange === "30d" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setTimeRange("30d");
+                      const now = new Date();
+                      const monthAgo = new Date(now);
+                      monthAgo.setDate(monthAgo.getDate() - 30);
+                      setStartDate(monthAgo.toISOString().split('T')[0]);
+                      setEndDate(now.toISOString().split('T')[0]);
+                    }}
+                    className="h-9"
+                  >
+                    30 days
+                  </Button>
+                  <Button
+                    variant={timeRange === "custom" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setTimeRange("custom")}
+                    className="h-9 gap-2"
+                  >
+                    <Calendar className="h-4 w-4" />
+                    Custom
+                  </Button>
+                </div>
+              </div>
+
+              {/* Custom Date Range Row - Only show when Custom is selected */}
+              {timeRange === "custom" && (
+                <div className="flex flex-wrap items-end gap-4">
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="text-sm font-medium mb-2 block">Start Date</label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="border-border"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="text-sm font-medium mb-2 block">End Date</label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="border-border"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedType("all");
+                      setTimeRange("all");
+                      setStartDate("");
+                      setEndDate("");
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
 
         {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card className="border-0 bg-card hover:bg-accent/50 transition-colors">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Cost</CardTitle>
@@ -400,32 +467,15 @@ export default function UsagePage() {
 
           <Card className="border-0 bg-card hover:bg-accent/50 transition-colors">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Active Models</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Providers</CardTitle>
               <div className="h-9 w-9 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                <Layers className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                <Zap className="h-4 w-4 text-purple-600 dark:text-purple-400" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{MOCK_USAGE_DATA.length}</div>
+              <div className="text-2xl font-bold">{uniqueProviders}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                Across {uniqueProviders} providers
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 bg-card hover:bg-accent/50 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Most Used</CardTitle>
-              <div className="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <Zap className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold truncate" title={mostUsedModel.modelName}>
-                {mostUsedModel.modelName}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {mostUsedModel.requests.toLocaleString()} requests
+                AI providers used
               </p>
             </CardContent>
           </Card>
@@ -444,47 +494,75 @@ export default function UsagePage() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-b border-border hover:bg-transparent">
+                    <TableHead className="font-semibold">Date</TableHead>
+                    <TableHead className="font-semibold">Time</TableHead>
+                    <TableHead className="font-semibold">Type</TableHead>
+                    <TableHead className="font-semibold">Mode</TableHead>
                     <TableHead className="font-semibold">Model Name</TableHead>
                     <TableHead className="font-semibold">Provider</TableHead>
-                    <TableHead className="font-semibold">Type</TableHead>
-                    <TableHead className="text-right font-semibold">Requests</TableHead>
-                    <TableHead className="text-right font-semibold">Usage Volume</TableHead>
                     <TableHead className="text-right font-semibold">Estimated Cost</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {MOCK_USAGE_DATA.map((item, index) => (
-                    <TableRow 
-                      key={item.id}
-                      className={cn(
-                        "border-b border-border",
-                        index !== MOCK_USAGE_DATA.length - 1 && "border-b"
-                      )}
-                    >
-                      <TableCell className="font-medium">{item.modelName}</TableCell>
-                      <TableCell className="text-muted-foreground">{item.provider}</TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant="outline" 
-                          className={cn(
-                            "border",
-                            getTypeColor(item.type)
-                          )}
-                        >
-                          {item.type.charAt(0).toUpperCase() + item.type.slice(1)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {item.requests.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {formatUsageAmount(item.usageAmount, item.type)}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {formatCurrency(item.cost)}
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        Loading usage data...
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-destructive">
+                        {error}
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredData.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        No usage data found for the selected filters.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredData.map((item, index) => (
+                      <TableRow 
+                        key={item.id}
+                        className={cn(
+                          "border-b border-border",
+                          index !== filteredData.length - 1 && "border-b"
+                        )}
+                      >
+                        <TableCell className="font-medium">{formatDate(item.date)}</TableCell>
+                        <TableCell className="text-muted-foreground">{formatTime(item.time)}</TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant="outline" 
+                            className={cn(
+                              "border",
+                              getTypeColor(item.type)
+                            )}
+                          >
+                            {getTypeLabel(item.type)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant="outline" 
+                            className={cn(
+                              "border",
+                              getModeColor(item.mode)
+                            )}
+                          >
+                            {getModeLabel(item.mode)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">{item.modelName}</TableCell>
+                        <TableCell className="text-muted-foreground">{item.provider}</TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {formatCurrency(item.cost)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>

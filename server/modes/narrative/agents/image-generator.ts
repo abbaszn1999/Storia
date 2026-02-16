@@ -121,7 +121,9 @@ async function generateSingleImage(
     guidanceScale?: number;
     steps?: number;
     strength?: number;
-  }
+  },
+  usageType?: string,
+  usageMode?: string
 ): Promise<{ imageUrl: string; cost?: number }> {
   // Get Runware model ID from friendly name
   // Use getRunwareModelId() which handles mapping and fallback
@@ -188,6 +190,7 @@ async function generateSingleImage(
     },
     {
       skipCreditCheck: false,
+      metadata: { usageType, usageMode },
     }
   );
 
@@ -230,7 +233,9 @@ async function generateSingleImage(
 export async function generateStoryboardImage(
   input: StoryboardImageInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<StoryboardImageOutput> {
   const {
     shotId,
@@ -308,7 +313,10 @@ export async function generateStoryboardImage(
         dimensions.height,
         imageModel,
         userId,
-        workspaceId
+        workspaceId,
+        undefined,
+        usageType,
+        usageMode
       );
 
       return {
@@ -344,7 +352,9 @@ export async function generateStoryboardImage(
           imageModel,
           userId,
           workspaceId,
-          startAdvancedSettings
+          startAdvancedSettings,
+          usageType,
+          usageMode
         );
         startFrameUrl = startResult.imageUrl;
         totalCost += startResult.cost || 0;
@@ -375,7 +385,9 @@ export async function generateStoryboardImage(
           imageModel,
           userId,
           workspaceId,
-          endAdvancedSettings
+          endAdvancedSettings,
+          usageType,
+          usageMode
         );
         endFrameUrl = endResult.imageUrl;
         totalCost += endResult.cost || 0;

@@ -9,6 +9,8 @@
 
 import { Router } from 'express';
 import { isAuthenticated, getCurrentUserId } from '../../../auth';
+import { storage } from '../../../storage';
+import { bunnyStorage } from '../../../storage/bunny-storage';
 import { 
   createVideoCampaign, 
   getVideoCampaign, 
@@ -206,9 +208,62 @@ router.post('/story-campaigns', isAuthenticated, async (req: any, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     
+    const body = req.body;
+    
+    // Map wizard field names to DB schema columns
+    // The wizard sends flat fields; we need to split them into:
+    //   - Top-level DB columns (name, template, storyTopics, etc.)
+    //   - campaignSettings JSONB (all the detailed settings)
+    
+    // Transform storyTopics: string[] → [{topic, index}][]
+    const rawTopics = body.storyTopics || [];
+    const storyTopics = Array.isArray(rawTopics) 
+      ? rawTopics.map((t: any, i: number) => 
+          typeof t === 'string' ? { topic: t, index: i } : t
+        )
+      : [];
+    
+    // Extract template from wizard's 'storyTemplate' field
+    const template = body.storyTemplate || body.template || 'problem-solution';
+    
+    // Pack all detailed settings into campaignSettings JSONB
+    const campaignSettings: Record<string, any> = {};
+    const settingsKeys = [
+      'storyTemplateType', 'storyDuration', 'storyAspectRatio', 'storyLanguage',
+      'storyPacing', 'storyTextOverlayEnabled', 'storyTextOverlayStyle',
+      'imageStyle', 'storyImageModel', 'storyVideoModel', 'storyMediaType',
+      'storyTransition', 'storyImageResolution', 'storyVideoResolution',
+      'storyStyleReferenceUrl', 'storyCharacterReferenceUrl',
+      'storyHasVoiceover', 'storyVoiceId', 'storyVoiceVolume',
+      'storyBackgroundMusicTrack', 'storyMusicVolume',
+      'storyAsmrCategory', 'storySoundIntensity', 'storyLoopMultiplier',
+    ];
+    for (const key of settingsKeys) {
+      if (body[key] !== undefined) {
+        campaignSettings[key] = body[key];
+      }
+    }
+    
+    console.log('[autoproduction] Campaign settings to store:', {
+      storyHasVoiceover: campaignSettings.storyHasVoiceover,
+      storyBackgroundMusicTrack: campaignSettings.storyBackgroundMusicTrack,
+      storyVideoModel: campaignSettings.storyVideoModel,
+      storyMediaType: campaignSettings.storyMediaType,
+    });
+    
     const campaignData = {
-      ...req.body,
       userId,
+      workspaceId: body.workspaceId,
+      name: body.name,
+      template,
+      storyTopics,
+      campaignSettings,
+      automationMode: body.automationMode || 'manual',
+      scheduleStartDate: body.scheduleStartDate || undefined,
+      scheduleEndDate: body.scheduleEndDate || undefined,
+      maxStoriesPerDay: body.maxStoriesPerDay || 1,
+      selectedPlatforms: body.selectedPlatforms || [],
+      itemSchedules: body.itemSchedules || {},
     };
     
     const campaign = await createStoryCampaign(campaignData);
@@ -247,7 +302,7 @@ router.patch('/story-campaigns/:id', isAuthenticated, async (req: any, res) => {
   }
 });
 
-// Delete story campaign
+// Delete story campaign (deep delete: stories + Bunny CDN assets + campaign)
 router.delete('/story-campaigns/:id', isAuthenticated, async (req: any, res) => {
   try {
     const userId = getCurrentUserId(req);
@@ -265,9 +320,45 @@ router.delete('/story-campaigns/:id', isAuthenticated, async (req: any, res) => 
     if (campaign.userId !== userId) {
       return res.status(403).json({ error: 'Access denied' });
     }
+
+    // Deep cleanup: delete generated stories and their Bunny CDN assets
+    const storyIds = campaign.generatedStoryIds || [];
+    const cdnUrl = process.env.BUNNY_CDN_URL?.replace(/\/+$/, '') || '';
     
+    for (const storyId of storyIds) {
+      try {
+        const story = await storage.getStory(storyId);
+        if (!story) continue;
+        
+        // Delete video and thumbnail from Bunny CDN
+        if (cdnUrl && bunnyStorage.isBunnyConfigured()) {
+          const urlsToDelete = [story.videoUrl, story.thumbnailUrl].filter(Boolean) as string[];
+          for (const url of urlsToDelete) {
+            if (url.startsWith(cdnUrl)) {
+              const storagePath = url.slice(cdnUrl.length + 1); // +1 for the '/'
+              try {
+                await bunnyStorage.deleteFile(storagePath);
+                console.log(`[autoproduction] Deleted CDN asset: ${storagePath}`);
+              } catch (cdnErr) {
+                console.warn(`[autoproduction] Failed to delete CDN asset ${storagePath}:`, cdnErr);
+              }
+            }
+          }
+        }
+        
+        // Delete story record from DB
+        await storage.deleteStory(storyId);
+        console.log(`[autoproduction] Deleted story: ${storyId}`);
+      } catch (storyErr) {
+        console.warn(`[autoproduction] Failed to cleanup story ${storyId}:`, storyErr);
+      }
+    }
+    
+    // Delete the campaign record
     await deleteStoryCampaign(id);
-    res.json({ success: true });
+    console.log(`[autoproduction] Deleted campaign ${id} with ${storyIds.length} stories`);
+    
+    res.json({ success: true, deletedStories: storyIds.length });
   } catch (error) {
     console.error('[autoproduction] Error deleting story campaign:', error);
     res.status(500).json({ error: 'Failed to delete campaign' });

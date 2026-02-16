@@ -35,7 +35,9 @@ const VOICEOVER_SCRIPT_GENERATOR_CONFIG = {
 export async function generateVoiceoverScript(
   input: VoiceoverScriptGeneratorInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<VoiceoverScriptGeneratorOutput> {
   // Build the user prompt with all context
   const userPrompt = buildVoiceoverScriptUserPrompt(input);
@@ -78,6 +80,7 @@ export async function generateVoiceoverScript(
       },
       {
         expectedOutputTokens: expectedTokens,
+        metadata: { usageType, usageMode },
       }
     );
 

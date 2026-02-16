@@ -3,23 +3,87 @@
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import { randomUUID } from "crypto";
-import { writeFileSync, unlinkSync, existsSync } from "fs";
+import { writeFileSync, unlinkSync, existsSync, mkdirSync } from "fs";
 import path from "path";
 import { execSync } from "child_process";
 import { getTempDir } from "./ffmpeg-helpers";
+import { fileURLToPath } from "url";
 import type { WordTimestamp } from "../types";
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 const TEMP_DIR = getTempDir();
 
-interface Scene {
+// ═══════════════════════════════════════════════════════════════════════════════
+// FONT MANAGEMENT — auto-download Google Fonts for FFmpeg/libass
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const __esm_dirname = path.dirname(fileURLToPath(import.meta.url));
+const FONTS_DIR = path.join(__esm_dirname, '..', '..', '..', 'assets', 'fonts');
+
+const FONT_DOWNLOADS: Record<string, { url: string; filename: string }[]> = {
+  Cairo: [
+    { url: 'https://raw.githubusercontent.com/google/fonts/main/ofl/cairo/Cairo%5Bslnt%2Cwght%5D.ttf', filename: 'Cairo-Regular.ttf' },
+  ],
+  Montserrat: [
+    { url: 'https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/Montserrat%5Bwght%5D.ttf', filename: 'Montserrat-Regular.ttf' },
+  ],
+};
+
+let fontsReady = false;
+
+/**
+ * Download and cache Google Fonts (Cairo for Arabic, Montserrat for English).
+ * Returns the absolute path to the fonts directory.
+ */
+async function ensureFontsAvailable(): Promise<string> {
+  if (fontsReady && existsSync(FONTS_DIR)) return FONTS_DIR;
+
+  if (!existsSync(FONTS_DIR)) {
+    mkdirSync(FONTS_DIR, { recursive: true });
+    console.log('[subtitle-generator] Created fonts directory:', FONTS_DIR);
+  }
+
+  for (const [family, files] of Object.entries(FONT_DOWNLOADS)) {
+    for (const { url, filename } of files) {
+      const filePath = path.join(FONTS_DIR, filename);
+      if (existsSync(filePath)) continue;
+
+      try {
+        console.log(`[subtitle-generator] Downloading font: ${filename}...`);
+        const resp = await fetch(url);
+        if (resp.ok) {
+          const buf = Buffer.from(await resp.arrayBuffer());
+          writeFileSync(filePath, buf);
+          console.log(`[subtitle-generator] ✓ Font cached: ${filename} (${(buf.length / 1024).toFixed(1)}KB)`);
+        } else {
+          console.warn(`[subtitle-generator] ✗ Font download failed (${resp.status}): ${filename}`);
+        }
+      } catch (err) {
+        console.warn(`[subtitle-generator] ✗ Font download error for ${filename}:`, err);
+      }
+    }
+  }
+
+  // Only mark ready if at least one font file was actually downloaded
+  const allFontFiles = Object.values(FONT_DOWNLOADS).flat().map(f => path.join(FONTS_DIR, f.filename));
+  fontsReady = allFontFiles.some(f => existsSync(f));
+  if (!fontsReady) {
+    console.error('[subtitle-generator] ✗ No fonts were downloaded — Arabic text will render as boxes!');
+  }
+  return FONTS_DIR;
+}
+
+export interface SubtitleScene {
   sceneNumber: number;
   narration: string;
   duration: number;
   wordTimestamps?: WordTimestamp[];  // Word-level timestamps from ElevenLabs
   audioSpeed?: number;               // Audio speed adjustment (for timestamp correction)
 }
+
+// Internal alias for backward compatibility
+type Scene = SubtitleScene;
 
 interface SubtitleSegment {
   text: string;
@@ -99,22 +163,30 @@ export interface SubtitleOptions {
 }
 
 /**
- * Get font name based on language
+ * Detect if text contains Arabic characters
  */
-function getFontForLanguage(language: string): string {
+function containsArabic(text: string): boolean {
+  return /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(text);
+}
+
+/**
+ * Get font name based on language (with optional text for auto-detection)
+ */
+function getFontForLanguage(language: string, sampleText?: string): string {
   if (language === 'ar') return FONTS.ar;
-  if (language === 'en') return FONTS.en;
-  // Auto-detect: if language code starts with 'ar', use Arabic font
   if (language.startsWith('ar')) return FONTS.ar;
+  // Auto-detect Arabic from actual text content even if language is 'en'
+  if (sampleText && containsArabic(sampleText)) return FONTS.ar;
+  if (language === 'en') return FONTS.en;
   return FONTS.en;  // Default to English font
 }
 
 /**
  * Build FFmpeg force_style string from style config
  */
-function buildForceStyle(style: SubtitleStyle, language: string): string {
+function buildForceStyle(style: SubtitleStyle, language: string, sampleText?: string): string {
   const config = STYLE_CONFIGS[style] || STYLE_CONFIGS.modern;
-  const fontName = getFontForLanguage(language);
+  const fontName = getFontForLanguage(language, sampleText);
   
   const parts = [
     `FontName=${fontName}`,
@@ -318,7 +390,7 @@ function splitTextIntoSegments(text: string, duration: number): SubtitleSegment[
  * Uses word-level timestamps if available (100% sync)
  * Falls back to duration-based splitting otherwise
  */
-function createSrtFile(scenes: Scene[]): string {
+export function createSrtFile(scenes: Scene[]): string {
   const srtPath = path.join(TEMP_DIR, `${randomUUID()}.srt`);
   let sceneStartTime = 0;
   let subtitleIndex = 1;
@@ -432,7 +504,17 @@ export async function burnSubtitles(
   console.log('[subtitle-generator] Scenes count:', scenes.length);
   console.log('[subtitle-generator] Style:', style);
   console.log('[subtitle-generator] Language:', language);
-  console.log('[subtitle-generator] Font:', getFontForLanguage(language));
+  // Collect all narration text for Arabic auto-detection
+  const allNarration = scenes.map((s: any) => s.narration || '').join(' ');
+  console.log('[subtitle-generator] Font:', getFontForLanguage(language, allNarration));
+  
+  // Ensure fonts are downloaded and available for FFmpeg/libass
+  const fontsDir = await ensureFontsAvailable();
+  let escapedFontsDir = fontsDir.replace(/\\/g, '/');
+  if (process.platform === 'win32') {
+    escapedFontsDir = escapedFontsDir.replace(/^([A-Z]):/, '$1\\:');
+  }
+  console.log('[subtitle-generator] Fonts directory:', fontsDir);
   
   // Create SRT file
   const srtPath = createSrtFile(scenes);
@@ -446,9 +528,9 @@ export async function burnSubtitles(
   console.log('[subtitle-generator] SRT path:', srtPath);
   console.log('[subtitle-generator] Escaped SRT path:', escapedSrtPath);
   
-  // Build force_style based on selected style and language
-  const forceStyle = buildForceStyle(style, language);
-  const subtitleFilter = `subtitles='${escapedSrtPath}':force_style='${forceStyle}'`;
+  // Build force_style based on selected style and language (with Arabic auto-detection)
+  const forceStyle = buildForceStyle(style, language, allNarration);
+  const subtitleFilter = `subtitles='${escapedSrtPath}':fontsdir='${escapedFontsDir}':force_style='${forceStyle}'`;
   
   console.log('[subtitle-generator] Force style:', forceStyle);
   console.log('[subtitle-generator] Subtitle filter:', subtitleFilter);

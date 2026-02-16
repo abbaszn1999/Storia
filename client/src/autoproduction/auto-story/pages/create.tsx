@@ -1,21 +1,23 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { FileText, Palette, Calendar, Share2, Sparkles } from "lucide-react";
+import { FileText, Palette, CalendarClock, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { WizardLayout } from "../../shared/components/layout/wizard-layout";
 import { Step2TemplateSelection } from "../components/wizard/step-2-template-selection";
 import { Step3ContentSetup } from "../components/wizard/step-3-content-setup";
 import { Step4StyleSettings } from "../components/wizard/step-4-style-settings";
+import { Step5SchedulePublishing } from "../../auto-video/components/wizard/shared/step-5-schedule-publishing";
 import { useCreateStoryCampaign } from "../../shared/hooks";
+import { isAutoAsmrTemplate } from "../types";
 import type { StoryTemplate } from "../types";
+import { DEFAULT_VOICE_BY_LANGUAGE } from "@/constants/elevenlabs-voices";
 
 const wizardSteps = [
   { number: 1, title: "Template", icon: FileText, description: "Story structure" },
   { number: 2, title: "Content Setup", icon: Sparkles, description: "Topics & settings" },
   { number: 3, title: "Style", icon: Palette, description: "Visual & audio" },
-  { number: 4, title: "Scheduling", icon: Calendar, description: "Timeline" },
-  { number: 5, title: "Publishing", icon: Share2, description: "Platforms" },
+  { number: 4, title: "Schedule & Publish", icon: CalendarClock, description: "Timeline & platforms" },
 ];
 
 export default function AutoStoryCreate() {
@@ -31,8 +33,8 @@ export default function AutoStoryCreate() {
   // Step 3: Content Setup
   const [campaignName, setCampaignName] = useState("");
   const [topics, setTopics] = useState<string[]>([""]);
-  const [duration, setDuration] = useState<30 | 45 | 60 | 90>(45);
-  const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1' | '4:5'>('9:16');
+  const [duration, setDuration] = useState<15 | 30 | 45 | 60>(30);
+  const [aspectRatio, setAspectRatio] = useState<string>('9:16');
   const [language, setLanguage] = useState("en");
   
   // Step 2: Content Setup - NEW FIELDS
@@ -45,11 +47,13 @@ export default function AutoStoryCreate() {
   const [imageModel, setImageModel] = useState("nano-banana");
   const [videoModel, setVideoModel] = useState("seedance-1.0-pro");
   const [mediaType, setMediaType] = useState<'static' | 'animated'>('static');
+  const [animationType, setAnimationType] = useState<'transition' | 'image-to-video'>('transition');
   const [transitionStyle, setTransitionStyle] = useState("fade");
   const [hasVoiceover, setHasVoiceover] = useState(true);
-  const [voiceProfile, setVoiceProfile] = useState("narrator-soft");
+  const [voiceId, setVoiceId] = useState(DEFAULT_VOICE_BY_LANGUAGE['en']);
   const [voiceVolume, setVoiceVolume] = useState(80);
-  const [backgroundMusic, setBackgroundMusic] = useState("uplifting-corporate");
+  const [hasBackgroundMusic, setHasBackgroundMusic] = useState(true);
+  const [backgroundMusic, setBackgroundMusic] = useState("cinematic");
   const [musicVolume, setMusicVolume] = useState(40);
   
   // Step 3: Style Settings - NEW FIELDS
@@ -58,12 +62,36 @@ export default function AutoStoryCreate() {
   const [styleReferenceUrl, setStyleReferenceUrl] = useState("");
   const [characterReferenceUrl, setCharacterReferenceUrl] = useState("");
 
-  // Step 5: Scheduling (TODO)
-  const [scheduleStartDate, setScheduleStartDate] = useState("");
-  const [scheduleEndDate, setScheduleEndDate] = useState("");
-  const [maxPerDay, setMaxPerDay] = useState(1);
 
-  // Step 6: Publishing (TODO)
+  // Derived: is the current template auto-asmr?
+  const isAsmr = isAutoAsmrTemplate(template);
+
+  // Auto-select default voice when language changes
+  useEffect(() => {
+    const defaultVoice = DEFAULT_VOICE_BY_LANGUAGE[language];
+    if (defaultVoice) {
+      setVoiceId(defaultVoice);
+    }
+  }, [language]);
+
+  // Auto-apply ASMR defaults when template changes
+  useEffect(() => {
+    if (isAsmr) {
+      setMediaType('animated');
+      setAnimationType('image-to-video');
+      setHasVoiceover(false);
+      setTextOverlayEnabled(false);
+      setHasBackgroundMusic(false);
+      setBackgroundMusic('none');
+      if (duration === 30) setDuration(45);
+    }
+  }, [template]);
+
+  // Step 4: Schedule & Publish (combined, like auto-video)
+  const [automationMode, setAutomationMode] = useState<'continuous' | 'scheduled'>('continuous');
+  const [scheduleStartDate, setScheduleStartDate] = useState("");
+  const [maxPerDay, setMaxPerDay] = useState(1);
+  const [topicSchedules, setTopicSchedules] = useState<Record<string, string>>({});
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
 
   const createCampaign = useCreateStoryCampaign();
@@ -90,8 +118,29 @@ export default function AutoStoryCreate() {
       }
     }
 
-    if (currentStep === 5) {
-      // Last step - submit
+    if (currentStep === 4) {
+      // Last step - validate & submit
+      if (automationMode === 'continuous') {
+        if (!scheduleStartDate) {
+          toast({
+            title: "Validation Error",
+            description: "Please select a start date for continuous publishing.",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else if (automationMode === 'scheduled') {
+        const validTopicsForSchedule = topics.filter((t) => t.trim());
+        const scheduledCount = Object.values(topicSchedules).filter(Boolean).length;
+        if (scheduledCount < validTopicsForSchedule.length) {
+          toast({
+            title: "Validation Error",
+            description: "Please schedule all topics before creating the campaign.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
       handleSubmit();
       return;
     }
@@ -116,7 +165,7 @@ export default function AutoStoryCreate() {
       
       // Story settings
       storyTemplate: template,
-      storyTemplateType: 'narrative',
+      storyTemplateType: isAsmr ? 'auto-asmr' : 'narrative',
       storyTopics: validTopics,
       batchSize: validTopics.length,
       
@@ -125,53 +174,63 @@ export default function AutoStoryCreate() {
       storyAspectRatio: aspectRatio,
       storyLanguage: language,
       
-      // NEW: Pacing & Text Overlay
-      storyPacing: pacing,
-      storyTextOverlayEnabled: textOverlayEnabled,
-      storyTextOverlayStyle: textOverlayEnabled ? textOverlayStyle : undefined,
+      // Pacing & Text Overlay (not applicable for ASMR, disabled when voiceover is off)
+      storyPacing: isAsmr ? undefined : pacing,
+      storyTextOverlayEnabled: isAsmr ? false : (hasVoiceover ? textOverlayEnabled : false),
+      storyTextOverlayStyle: isAsmr ? undefined : (hasVoiceover && textOverlayEnabled ? textOverlayStyle : undefined),
       
       // Visual
       imageStyle,
       storyImageModel: imageModel,
-      storyVideoModel: mediaType === 'animated' ? videoModel : undefined,
+      storyVideoModel: (mediaType === 'animated' && animationType === 'image-to-video') ? videoModel : undefined,
       storyMediaType: mediaType,
-      storyTransition: mediaType === 'static' ? transitionStyle : undefined,
+      storyTransition: transitionStyle || 'fade',
       
       // NEW: Resolutions
       storyImageResolution: imageResolution,
-      storyVideoResolution: mediaType === 'animated' ? videoResolution : undefined,
+      storyVideoResolution: (mediaType === 'animated' && animationType === 'image-to-video') ? videoResolution : undefined,
       
       // NEW: Reference Images
       storyStyleReferenceUrl: styleReferenceUrl || undefined,
       storyCharacterReferenceUrl: characterReferenceUrl || undefined,
       
       // Audio
-      storyHasVoiceover: hasVoiceover,
-      storyVoiceProfile: hasVoiceover ? voiceProfile : undefined,
-      storyVoiceVolume: voiceVolume,
-      storyBackgroundMusicTrack: backgroundMusic !== 'none' ? backgroundMusic : undefined,
+      storyHasVoiceover: isAsmr ? false : hasVoiceover,
+      storyVoiceId: isAsmr ? undefined : (hasVoiceover ? voiceId : undefined),
+      storyVoiceVolume: isAsmr ? 0 : voiceVolume,
+      storyBackgroundMusicTrack: hasBackgroundMusic ? backgroundMusic : 'none',
       storyMusicVolume: musicVolume,
       
       // Scheduling
       scheduleStartDate: scheduleStartDate ? new Date(scheduleStartDate) : undefined,
-      scheduleEndDate: scheduleEndDate ? new Date(scheduleEndDate) : undefined,
       maxStoriesPerDay: maxPerDay,
+      itemSchedules: automationMode === 'scheduled' ? topicSchedules : undefined,
       
       // Publishing
       selectedPlatforms,
       
       // Status
       status: 'draft',
-      automationMode: 'manual',
+      automationMode,
     };
 
+    console.log('[create] Submitting campaign settings:', {
+      storyHasVoiceover: data.storyHasVoiceover,
+      storyBackgroundMusicTrack: data.storyBackgroundMusicTrack,
+      storyVideoModel: data.storyVideoModel,
+      storyMediaType: data.storyMediaType,
+      hasVoiceover,
+      hasBackgroundMusic,
+      mediaType,
+      animationType,
+    });
     createCampaign.mutate(data, {
       onSuccess: (campaign) => {
         toast({
           title: "Campaign Created",
           description: `${validTopics.length} stories will be generated.`,
         });
-        navigate(`/autoproduction/story/${campaign.id}`);
+        navigate(`/autoproduction/story/${campaign.id}?autostart=true`);
       },
       onError: (error: any) => {
         toast({
@@ -196,16 +255,25 @@ export default function AutoStoryCreate() {
             onTopicsChange={setTopics}
             duration={duration}
             onDurationChange={setDuration}
-            aspectRatio={aspectRatio}
-            onAspectRatioChange={setAspectRatio}
             language={language}
             onLanguageChange={setLanguage}
             pacing={pacing}
             onPacingChange={setPacing}
+            hasVoiceover={hasVoiceover}
+            onHasVoiceoverChange={setHasVoiceover}
+            voiceId={voiceId}
+            onVoiceIdChange={setVoiceId}
             textOverlayEnabled={textOverlayEnabled}
             onTextOverlayEnabledChange={setTextOverlayEnabled}
             textOverlayStyle={textOverlayStyle}
             onTextOverlayStyleChange={setTextOverlayStyle}
+            hasBackgroundMusic={hasBackgroundMusic}
+            onHasBackgroundMusicChange={setHasBackgroundMusic}
+            backgroundMusic={backgroundMusic}
+            onBackgroundMusicChange={setBackgroundMusic}
+            musicVolume={musicVolume}
+            onMusicVolumeChange={setMusicVolume}
+            isAutoAsmr={isAsmr}
           />
         );
       case 3:
@@ -219,9 +287,12 @@ export default function AutoStoryCreate() {
             onVideoModelChange={setVideoModel}
             mediaType={mediaType}
             onMediaTypeChange={setMediaType}
+            animationType={animationType}
+            onAnimationTypeChange={setAnimationType}
             transitionStyle={transitionStyle}
             onTransitionStyleChange={setTransitionStyle}
             aspectRatio={aspectRatio}
+            onAspectRatioChange={setAspectRatio}
             imageResolution={imageResolution}
             onImageResolutionChange={setImageResolution}
             videoResolution={videoResolution}
@@ -230,31 +301,28 @@ export default function AutoStoryCreate() {
             onStyleReferenceUrlChange={setStyleReferenceUrl}
             characterReferenceUrl={characterReferenceUrl}
             onCharacterReferenceUrlChange={setCharacterReferenceUrl}
-            hasVoiceover={hasVoiceover}
-            onHasVoiceoverChange={setHasVoiceover}
-            voiceProfile={voiceProfile}
-            onVoiceProfileChange={setVoiceProfile}
-            voiceVolume={voiceVolume}
-            onVoiceVolumeChange={setVoiceVolume}
-            backgroundMusic={backgroundMusic}
-            onBackgroundMusicChange={setBackgroundMusic}
-            musicVolume={musicVolume}
-            onMusicVolumeChange={setMusicVolume}
+            isAutoAsmr={isAsmr}
           />
         );
       case 4:
+        const validStoryTopics = topics
+          .filter((t) => t.trim())
+          .map((topic, index) => ({ idea: topic, index }));
+        
         return (
-          <div className="text-center space-y-4">
-            <h2 className="text-3xl font-display font-bold">Scheduling</h2>
-            <p className="text-muted-foreground">TODO: Scheduling step</p>
-          </div>
-        );
-      case 5:
-        return (
-          <div className="text-center space-y-4">
-            <h2 className="text-3xl font-display font-bold">Publishing</h2>
-            <p className="text-muted-foreground">TODO: Publishing step</p>
-          </div>
+          <Step5SchedulePublishing
+            automationMode={automationMode}
+            onAutomationModeChange={setAutomationMode}
+            scheduleStartDate={scheduleStartDate}
+            onScheduleStartDateChange={setScheduleStartDate}
+            maxPerDay={maxPerDay}
+            onMaxPerDayChange={setMaxPerDay}
+            videoIdeas={validStoryTopics}
+            topicSchedules={topicSchedules}
+            onTopicSchedulesChange={setTopicSchedules}
+            selectedPlatforms={selectedPlatforms}
+            onSelectedPlatformsChange={setSelectedPlatforms}
+          />
         );
       default:
         return null;

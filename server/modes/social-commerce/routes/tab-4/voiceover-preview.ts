@@ -101,6 +101,7 @@ async function generateVoiceoverAudio(
     },
     {
       skipCreditCheck: false,
+      metadata: { usageType: 'video', usageMode: 'social-commerce' },
     }
   );
 

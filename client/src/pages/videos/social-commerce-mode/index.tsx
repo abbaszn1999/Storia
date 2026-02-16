@@ -193,6 +193,14 @@ export default function SocialCommerceMode() {
     beat3: "",
   });
   
+  // Full visual beats with names and descriptions (for editing)
+  const [editedVisualBeats, setEditedVisualBeats] = useState<Array<{
+    beatId: 'beat1' | 'beat2' | 'beat3';
+    beatName: string;
+    beatDescription: string;
+    duration: 12;
+  }> | null>(null);
+  
   // Environment-specific brand colors (initialized from defaults, but local to Tab 3)
   // Removed: environmentBrandPrimaryColor, environmentBrandSecondaryColor (no longer used)
   
@@ -697,13 +705,16 @@ export default function SocialCommerceMode() {
         
         // ✨ NEW: Restore generated visual beats from narrative output
         if (step2.narrative?.visual_beats && Array.isArray(step2.narrative.visual_beats)) {
+          // Set full beats array for editing
+          setEditedVisualBeats(step2.narrative.visual_beats);
+          
           const restoredBeats: { beat1: string; beat2: string; beat3: string } = {
             beat1: "",
             beat2: "",
             beat3: "",
           };
           
-          // Map narrative beats to visualBeats state format
+          // Map narrative beats to visualBeats state format (for backward compatibility)
           step2.narrative.visual_beats.forEach((beat: any) => {
             if (beat.beatId === 'beat1' && beat.beatDescription) {
               restoredBeats.beat1 = beat.beatDescription;
@@ -766,6 +777,9 @@ export default function SocialCommerceMode() {
         
         // ✨ NEW: Also restore visual beats from legacy step3Data
         if (step2FromLegacy.narrative?.visual_beats && Array.isArray(step2FromLegacy.narrative.visual_beats)) {
+          // Set full beats array for editing
+          setEditedVisualBeats(step2FromLegacy.narrative.visual_beats);
+          
           const restoredBeats: { beat1: string; beat2: string; beat3: string } = {
             beat1: "",
             beat2: "",
@@ -2455,6 +2469,7 @@ export default function SocialCommerceMode() {
             campaignSpark, // Creative spark (user-written or AI-generated)
             visualPreset, // Visual style preset
             campaignObjective: campaignObjective || 'brand-awareness',
+            visualBeats: editedVisualBeats, // Edited beats with names and descriptions
           }),
         });
         
@@ -3082,6 +3097,8 @@ export default function SocialCommerceMode() {
               onCampaignSparkChange={(value) => { setCampaignSpark(value); markStepDirty('script'); }}
               visualBeats={visualBeats}
               onVisualBeatsChange={(beats: { beat1: string; beat2: string; beat3: string }) => { setVisualBeats(beats); markStepDirty('script'); }}
+              editedVisualBeats={editedVisualBeats}
+              onEditedVisualBeatsChange={(beats) => { setEditedVisualBeats(beats); markStepDirty('script'); }}
               campaignObjective={campaignObjective}
               onCampaignObjectiveChange={(value) => { setCampaignObjective(value); markStepDirty('script'); }}
               onTargetAudienceChange={(value) => { setTargetAudience(value); markStepDirty('setup'); }}

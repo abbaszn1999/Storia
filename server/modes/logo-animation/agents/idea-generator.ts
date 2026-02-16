@@ -58,7 +58,11 @@ function buildImageAttachments(
  * Generate a creative visual prompt for logo animation
  */
 export async function generateLogoIdea(
-  input: LogoIdeaGeneratorInput
+  input: LogoIdeaGeneratorInput,
+  userId?: string,
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<LogoIdeaGeneratorOutput> {
   const { idea, duration, referenceImage } = input;
 
@@ -106,9 +110,12 @@ export async function generateLogoIdea(
           },
         ],
       },
+      userId,
+      workspaceId,
     },
     {
       expectedOutputTokens: 500, // Enough for 200-300 word prompt
+      metadata: { usageType, usageMode },
     }
   );
 

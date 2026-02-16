@@ -253,7 +253,7 @@ router.post('/videos/:id/voiceover/generate-audio', isAuthenticated, async (req:
     };
 
     // Generate audio
-    const result = await generateVoiceoverAudio(input);
+    const result = await generateVoiceoverAudio(input, 'video', 'character-vlog');
 
     // Update step5Data with the generated audio
     const freshVideo = await storage.getVideo(id);
@@ -469,7 +469,7 @@ router.post('/videos/:id/music/generate', isAuthenticated, async (req: Request, 
     };
 
     // Generate music
-    const result = await generateBackgroundMusic(input);
+    const result = await generateBackgroundMusic(input, 'video', 'character-vlog');
 
     // Update step5Data with the generated music
     const freshVideo = await storage.getVideo(id);
@@ -624,7 +624,9 @@ router.post('/videos/:id/sound-effects/:shotId/generate-prompt', isAuthenticated
     const result = await generateSoundEffectPrompt(
       input,
       userId,
-      video.workspaceId
+      video.workspaceId,
+      'video',
+      'character-vlog'
     );
 
     // Update step5Data with the generated prompt
@@ -834,7 +836,7 @@ router.post('/videos/:id/sound-effects/:shotId/generate-audio', isAuthenticated,
       };
 
       // Generate audio
-      const result = await generateSoundEffect(input);
+      const result = await generateSoundEffect(input, 'video', 'character-vlog');
 
       // Update step5Data with the generated audio
       const freshVideo = await storage.getVideo(id);

@@ -20,7 +20,10 @@ if (!VEO_3_1_CONFIG) {
  */
 export async function generateLogoAnimation(
   request: LogoGenerateRequest,
-  userId: string
+  userId: string,
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<{ taskId: string; videoUrl?: string; storyId?: string; cost?: number }> {
   const taskId = `logo-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
@@ -95,11 +98,16 @@ export async function generateLogoAnimation(
       model: "veo-3.1",
       task: "video-generation",
       payload: [videoPayload],
+      userId,
+      workspaceId,
       runware: {
         deliveryMethod: "async",
         pollIntervalMs: 5000, // Poll every 5 seconds (was 3)
         timeoutMs: 900000, // 15 minutes (was 5 minutes)
       },
+    }, {
+      skipCreditCheck: false,
+      metadata: { usageType, usageMode },
     });
 
     // callAi returns AiResponse where output contains the results array

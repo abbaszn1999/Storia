@@ -77,7 +77,9 @@ function parseLocationAnalysisResponse(rawOutput: string): LocationAnalyzerOutpu
 export async function analyzeLocations(
   input: LocationAnalyzerInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<LocationAnalyzerOutput> {
   console.log('[character-vlog:location-analyzer] Analyzing locations:', {
     scriptLength: input.script.length,
@@ -155,6 +157,7 @@ export async function analyzeLocations(
       },
       {
         expectedOutputTokens,
+        metadata: { usageType, usageMode },
       }
     );
 

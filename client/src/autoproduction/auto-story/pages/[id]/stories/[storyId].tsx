@@ -1,50 +1,37 @@
 import { useParams, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, CheckCircle, XCircle, RefreshCw } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { StatusBadge } from "../../../../shared/components/ui/status-badge";
-import { useUpdateStory } from "../../../hooks";
-import { useToast } from "@/hooks/use-toast";
+
+// Response shape from GET /api/autoproduction/story/:id/stories/:itemIndex
+interface StoryItemResponse {
+  index: number;
+  topic: string;
+  status: string;
+  error?: string;
+  story: {
+    id: string;
+    projectName: string;
+    videoUrl?: string;
+    thumbnailUrl?: string;
+    duration?: number;
+    aspectRatio?: string;
+    storyMode: string;
+  } | null;
+}
 
 export default function StoryDetail() {
   const { id, storyId } = useParams();
   const [, navigate] = useLocation();
-  const { toast } = useToast();
-  
-  const { data: story } = useQuery({
+  const { data: storyData } = useQuery<StoryItemResponse>({
     queryKey: [`/api/autoproduction/story/${id}/stories/${storyId}`],
   });
   
-  const updateStory = useUpdateStory(id!);
-
-  if (!story) {
+  if (!storyData) {
     return <div>Loading...</div>;
   }
-
-  const handleApprove = () => {
-    updateStory.mutate(
-      { itemId: storyId!, data: { status: 'approved' } },
-      {
-        onSuccess: () => {
-          toast({ title: "Story Approved" });
-          navigate(`/autoproduction/story/${id}`);
-        },
-      }
-    );
-  };
-
-  const handleReject = () => {
-    updateStory.mutate(
-      { itemId: storyId!, data: { status: 'rejected' } },
-      {
-        onSuccess: () => {
-          toast({ title: "Story Rejected" });
-          navigate(`/autoproduction/story/${id}`);
-        },
-      }
-    );
-  };
 
   return (
     <div className="space-y-6 p-6">
@@ -59,83 +46,57 @@ export default function StoryDetail() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-display font-bold">{story.sourceIdea}</h1>
-            <p className="text-sm text-muted-foreground">Story {story.orderIndex}</p>
+            <h1 className="text-2xl font-display font-bold">{storyData.topic}</h1>
+            <p className="text-sm text-muted-foreground">Story {storyData.index + 1}</p>
           </div>
         </div>
-        <StatusBadge status={story.status} />
+        <StatusBadge status={storyData.status as any} />
       </div>
 
       {/* Video Player */}
-      {story.previewUrl && (
+      {storyData.story?.videoUrl && (
         <Card>
           <CardContent className="p-6">
             <div className="aspect-video bg-black rounded-lg overflow-hidden">
-              <video src={story.previewUrl} controls className="w-full h-full" />
+              <video src={storyData.story.videoUrl} controls className="w-full h-full" />
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Script */}
-      {story.script && (
+      {/* Story Info */}
+      {storyData.story && (
         <Card>
           <CardHeader>
-            <CardTitle>Script</CardTitle>
+            <CardTitle>Story Details</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="prose dark:prose-invert max-w-none">
-              <pre className="whitespace-pre-wrap text-sm">{story.script}</pre>
+            <div className="space-y-2 text-sm">
+              <div><span className="font-medium">Name:</span> {storyData.story.projectName}</div>
+              <div><span className="font-medium">Mode:</span> {storyData.story.storyMode}</div>
+              {storyData.story.duration && (
+                <div><span className="font-medium">Duration:</span> {storyData.story.duration}s</div>
+              )}
+              {storyData.story.aspectRatio && (
+                <div><span className="font-medium">Aspect Ratio:</span> {storyData.story.aspectRatio}</div>
+              )}
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Scenes */}
-      {story.scenes && (
-        <Card>
+      {/* Error Display */}
+      {storyData.error && (
+        <Card className="border-red-200 dark:border-red-800">
           <CardHeader>
-            <CardTitle>Scenes Breakdown</CardTitle>
+            <CardTitle className="text-red-600">Generation Error</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {(story.scenes as any).scenes?.map((scene: any) => (
-                <div key={scene.sceneNumber} className="p-4 border rounded-lg">
-                  <div className="font-medium mb-2">
-                    Scene {scene.sceneNumber} ({scene.duration}s)
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {scene.description}
-                  </div>
-                  {scene.narration && (
-                    <div className="text-sm mt-2 italic">
-                      "{scene.narration}"
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+            <p className="text-sm text-red-600">{storyData.error}</p>
           </CardContent>
         </Card>
       )}
 
-      {/* Actions */}
-      {story.status === 'completed' && (
-        <div className="flex items-center gap-3">
-          <Button onClick={handleApprove}>
-            <CheckCircle className="h-4 w-4 mr-2" />
-            Approve
-          </Button>
-          <Button variant="outline" onClick={handleReject}>
-            <XCircle className="h-4 w-4 mr-2" />
-            Reject
-          </Button>
-          <Button variant="outline">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Regenerate
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

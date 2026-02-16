@@ -32,7 +32,9 @@ async function generateSingleFrameImage(
   frame: 'start' | 'end',
   currentVersion: any,
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType: string = 'video',
+  usageMode: string = 'ambient'
 ): Promise<{ startFrameUrl?: string; endFrameUrl?: string; imageUrl?: string; error?: string }> {
   const { getImageDimensions } = await import('../../../ai/config/image-models');
   const { getRunwareModelId } = await import('../../../ai/config');
@@ -113,7 +115,7 @@ async function generateSingleFrameImage(
         userId,
         workspaceId,
         runware: { timeoutMs: 180000 },
-      }, { skipCreditCheck: false });
+      }, { skipCreditCheck: false, metadata: { usageType, usageMode } });
 
       const outputData = response.output as any[];
       const data = outputData[0];
@@ -158,7 +160,7 @@ async function generateSingleFrameImage(
         userId,
         workspaceId,
         runware: { timeoutMs: 180000 },
-      }, { skipCreditCheck: false });
+      }, { skipCreditCheck: false, metadata: { usageType, usageMode } });
 
       const outputData = response.output as any[];
       const data = outputData[0];
@@ -363,7 +365,9 @@ router.post('/videos/:id/shots/:shotId/generate-image', isAuthenticated, async (
       frameToUse, 
       latestVersion,
       userId, 
-      video.workspaceId
+      video.workspaceId,
+      'video',
+      'ambient'
     );
 
     if (result.error && !result.startFrameUrl && !result.endFrameUrl && !result.imageUrl) {
@@ -586,7 +590,9 @@ router.post('/videos/:id/shots/:shotId/regenerate-image', isAuthenticated, async
         'start', // Pass 'start' but helper will handle image-transitions differently
         latestVersion,
         userId,
-        video.workspaceId
+        video.workspaceId,
+        'video',
+        'ambient'
       );
       
       if (result.error && !result.imageUrl) {
@@ -700,7 +706,9 @@ router.post('/videos/:id/shots/:shotId/regenerate-image', isAuthenticated, async
         'start',
         latestVersion,
         userId,
-        video.workspaceId
+        video.workspaceId,
+        'video',
+        'ambient'
       );
       
       if (startResult.startFrameUrl) {
@@ -729,7 +737,9 @@ router.post('/videos/:id/shots/:shotId/regenerate-image', isAuthenticated, async
         'end',
         { ...latestVersion, startFrameUrl: referenceUrl },
         userId,
-        video.workspaceId
+        video.workspaceId,
+        'video',
+        'ambient'
       );
       
       if (endResult.endFrameUrl) {

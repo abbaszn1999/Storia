@@ -62,6 +62,13 @@ IMAGE MODES:
    - Beat descriptions should reference specific elements from the composite when relevant
    - Elements must remain consistent across all beats
 
+VISION ANALYSIS (when product image is provided)
+When a product image is attached, use it to inform your beat descriptions:
+- Analyze product geometry, materials, colors, and hero features from the image
+- Ground beat descriptions in what will actually appear (same product/elements)
+- Reference specific visual details (texture, proportions, key features) so prompts stay consistent
+- Ensure beat descriptions match the reference image’s content and style
+
 ═══════════════════════════════════════════════════════════════════════════════
 STABLE ENDING RULE (CONDITIONAL)
 ═══════════════════════════════════════════════════════════════════════════════
@@ -304,6 +311,7 @@ export function buildNarrativeUserPrompt(input: {
   };
   // NEW: Pacing
   pacingOverride?: number; // 0-100
+  productImageUrl?: string;
 }): string {
   const beatCount = input.duration / 12;
   
@@ -383,7 +391,7 @@ BEAT 3 (Payoff): "${input.visualBeats.beat3}"
 YOUR TASK
 ═══════════════════════════════════════════════════════════════════════════════
 
-Generate exactly ${beatCount} visual beats for this ${input.duration}-second campaign.
+${input.productImageUrl ? 'A product image is attached for vision analysis. Use it to ground beat descriptions in what you see (geometry, materials, colors, hero features).\n\n' : ''}Generate exactly ${beatCount} visual beats for this ${input.duration}-second campaign.
 
 REQUIREMENTS:
 1. Generate exactly ${beatCount} beats (${beatCount} × 12s = ${input.duration}s)

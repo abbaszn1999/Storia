@@ -83,7 +83,9 @@ function postProcessVoiceoverScripts(
 export async function generateVoiceoverScripts(
   input: VoiceoverScriptInput,
   userId: string,
-  workspaceId: string
+  workspaceId: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<VoiceoverScriptOutput> {
   const startTime = Date.now();
   
@@ -139,9 +141,10 @@ export async function generateVoiceoverScripts(
         userId,
         workspaceId,
       },
-      {
-        skipCreditCheck: false,
-      }
+    {
+      skipCreditCheck: false,
+      metadata: { usageType, usageMode },
+    }
     );
 
     // Parse and validate response

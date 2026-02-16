@@ -34,7 +34,9 @@ const SOUND_EFFECT_PROMPT_GENERATOR_CONFIG = {
 export async function generateSoundEffectPrompt(
   input: SoundEffectPromptGeneratorInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<SoundEffectPromptGeneratorOutput> {
   // Build the user prompt with all context
   const userPrompt = buildSoundEffectPromptUserPrompt(input);
@@ -65,6 +67,7 @@ export async function generateSoundEffectPrompt(
       },
       {
         expectedOutputTokens: 150,  // Short response expected
+        metadata: { usageType, usageMode },
       }
     );
 

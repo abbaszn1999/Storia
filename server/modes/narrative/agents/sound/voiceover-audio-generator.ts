@@ -186,7 +186,9 @@ function splitTextAtSentenceBoundaries(text: string, maxChars: number = VOICEOVE
  * @returns Audio URL, duration, and cost
  */
 export async function generateNarrativeVoiceoverAudio(
-  input: NarrativeVoiceoverAudioInput
+  input: NarrativeVoiceoverAudioInput,
+  usageType?: string,
+  usageMode?: string
 ): Promise<VoiceoverAudioGeneratorOutput> {
   const {
     script,
@@ -282,6 +284,7 @@ export async function generateNarrativeVoiceoverAudio(
             },
             {
               skipCreditCheck: false,
+              metadata: { usageType, usageMode },
             }
           );
 
@@ -459,6 +462,7 @@ async function generateSingleChunkAudio(
         },
         {
           skipCreditCheck: false,
+          metadata: { usageType, usageMode },
         }
       );
 

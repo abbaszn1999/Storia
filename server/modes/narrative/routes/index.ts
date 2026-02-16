@@ -734,14 +734,20 @@ router.post('/script/generate', isAuthenticated, async (req: Request, res: Respo
       workspaceId,
     });
     
-    const result = await NarrativeAgents.generateScript({
-      duration,
-      genre,
-      language,
-      tone,
-      userPrompt,
-      model,
-    }, userId, workspaceId);
+    const result = await NarrativeAgents.generateScript(
+      {
+        duration,
+        genre,
+        language,
+        tone,
+        userPrompt,
+        model,
+      },
+      userId,
+      workspaceId,
+      'video',
+      'narrative'
+    );
 
     res.json(result);  // Return structured output: { script, estimatedDuration, metadata }
   } catch (error) {
@@ -824,7 +830,9 @@ router.post('/characters/analyze', isAuthenticated, async (req: Request, res: Re
       genre,
       userId,
       workspaceId,
-      model
+      model,
+      'video',
+      'narrative'
     );
 
     res.json(result);  // Return structured output: { characters, metadata }
@@ -895,7 +903,9 @@ router.post('/locations/analyze', isAuthenticated, async (req: Request, res: Res
       genre,
       userId,
       workspaceId,
-      model
+      model,
+      'video',
+      'narrative'
     );
 
     res.json(result);  // Return structured output: { locations, metadata }
@@ -1415,7 +1425,9 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
       },
       videoId,
       userId,
-      workspaceId
+      workspaceId,
+      'video',
+      'narrative'
     );
 
     // Validate scene count if numberOfScenes was a number

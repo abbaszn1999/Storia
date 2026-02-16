@@ -59,9 +59,13 @@ socialRouter.post(
         duration,
       });
 
+      const workspaceId = req.headers["x-workspace-id"] as string | undefined;
       const result = await generateSocialMetadata(
         { platform, scriptText, duration },
-        userId
+        userId,
+        workspaceId,
+        'story',
+        'social-metadata'
       );
 
       console.log('[shared:social:routes] Metadata generated successfully');

@@ -153,7 +153,9 @@ router.post('/videos/:id/voiceover/generate-script', isAuthenticated, async (req
     const result = await generateVoiceoverScript(
       input,
       userId,
-      video.workspaceId
+      video.workspaceId,
+      'video',
+      'character-vlog'
     );
 
     // Update step5Data with the generated script

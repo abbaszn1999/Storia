@@ -1116,7 +1116,10 @@ export async function generateFullStory(
                 console.log(`[story-orchestrator] Generating metadata for ${platform}...`);
                 const metaResult = await generateSocialMetadata(
                   { platform: platform as any, scriptText, duration },
-                  userId
+                  userId,
+                  workspaceId,
+                  'story',
+                  storyMode
                 );
                 totalCost += metaResult.cost || 0;
                 

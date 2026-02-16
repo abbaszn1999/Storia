@@ -1,10 +1,23 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Sparkles, Zap, Loader2 } from "lucide-react";
-import { useStoryCampaigns } from "../../shared/hooks";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Plus, Sparkles, Zap, Loader2, Trash2, Play, Pause } from "lucide-react";
+import { useStoryCampaigns, useDeleteStoryCampaign } from "../../shared/hooks";
+import { useStartBatchGeneration, useCancelBatch } from "../hooks";
 import { StatusBadge } from "../../shared/components/ui/status-badge";
+import { useToast } from "@/hooks/use-toast";
 import type { 
   StoryCampaign, 
   StoryTopic,
@@ -15,7 +28,12 @@ import { format } from "date-fns";
 
 export default function AutoStoryList() {
   const [, navigate] = useLocation();
+  const { toast } = useToast();
   const { data: campaigns = [], isLoading } = useStoryCampaigns();
+  const deleteCampaign = useDeleteStoryCampaign();
+  const startGeneration = useStartBatchGeneration();
+  const cancelBatch = useCancelBatch();
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   if (isLoading) {
     return (
@@ -67,10 +85,12 @@ export default function AutoStoryList() {
             // Use storyTopics length if itemStatuses is empty
             const displayTotal = totalItems || storyTopics.length;
             
-            // Get settings from campaignSettings JSONB
+            // Get settings from campaignSettings JSONB (keys are prefixed with 'story')
             const settings = (campaign.campaignSettings as Record<string, unknown>) || {};
-            const duration = (settings.duration as number) || 45;
-            const aspectRatio = (settings.aspectRatio as string) || '9:16';
+            const duration = (settings.storyDuration as number) || 45;
+            const aspectRatio = (settings.storyAspectRatio as string) || '9:16';
+            const isGenerating = campaign.status === 'generating';
+            const canStart = campaign.status === 'draft' || campaign.status === 'paused';
             
             return (
               <Card
@@ -116,9 +136,54 @@ export default function AutoStoryList() {
                       </div>
                     </div>
 
-                    {/* Date */}
-                    <div className="text-xs text-muted-foreground">
-                      Created {format(new Date(campaign.createdAt), "PP")}
+                    {/* Actions + Date */}
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-muted-foreground">
+                        Created {format(new Date(campaign.createdAt), "PP")}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {canStart && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-green-500 hover:text-green-400 hover:bg-green-500/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startGeneration.mutate(campaign.id);
+                              toast({ title: campaign.status === 'paused' ? 'Resuming...' : 'Starting generation...' });
+                            }}
+                            disabled={startGeneration.isPending}
+                          >
+                            <Play className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {isGenerating && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              cancelBatch.mutate(campaign.id);
+                              toast({ title: 'Pausing generation...' });
+                            }}
+                            disabled={cancelBatch.isPending}
+                          >
+                            <Pause className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-red-500 hover:text-red-400 hover:bg-red-500/10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteTarget({ id: campaign.id, name: campaign.name });
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -127,6 +192,39 @@ export default function AutoStoryList() {
           })}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Campaign</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteTarget?.name}"? This will permanently delete all generated stories and their video/audio assets from storage. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                if (deleteTarget) {
+                  deleteCampaign.mutate(deleteTarget.id, {
+                    onSuccess: () => {
+                      toast({ title: 'Campaign deleted', description: `"${deleteTarget.name}" and all its assets have been removed.` });
+                      setDeleteTarget(null);
+                    },
+                    onError: (err: any) => {
+                      toast({ title: 'Delete failed', description: err.message, variant: 'destructive' });
+                    },
+                  });
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

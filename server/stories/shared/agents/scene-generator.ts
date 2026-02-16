@@ -28,22 +28,17 @@ export async function createSceneGenerator(mode: StoryMode) {
   const promptsModule = getScenePrompts(modeForPrompts);
   const typesModule = await import(`../types`);
 
-  const {
-    buildSceneBreakdownSystemPrompt,
-    buildSceneUserPrompt,
-    buildSceneSchema,
-    getOptimalSceneCount,
-  } = promptsModule;
+  // Cast to any — function signatures differ per mode (auto-asmr vs narrative)
+  // and TypeScript can't resolve dynamic module types at compile time
+  const buildSceneBreakdownSystemPrompt = promptsModule.buildSceneBreakdownSystemPrompt as any;
+  const buildSceneUserPrompt = promptsModule.buildSceneUserPrompt as any;
+  const buildSceneSchema = promptsModule.buildSceneSchema as any;
+  const getOptimalSceneCount = promptsModule.getOptimalSceneCount as any;
 
   // Types from shared/types are not value exports, must use typeof import and key lookup
   type SceneGeneratorInput = import("../types").SceneGeneratorInput;
   type SceneGeneratorOutput = import("../types").SceneGeneratorOutput;
   type SceneOutput = import("../types").SceneOutput;
-
-  // Guard VideoModelConstraints in case it does not exist in prompts module
-  type VideoModelConstraints = typeof promptsModule.VideoModelConstraints extends undefined
-    ? unknown
-    : typeof promptsModule.VideoModelConstraints;
 
   /**
    * Validate input parameters
@@ -72,7 +67,7 @@ export async function createSceneGenerator(mode: StoryMode) {
   function fixDuration(
     scenes: any[],
     expectedDuration: number,
-    modelConstraints?: VideoModelConstraints | null
+    modelConstraints?: any
   ): boolean {
     const totalDuration = scenes.reduce(
       (sum: number, s: any) => sum + (s.duration || 0),
@@ -224,7 +219,7 @@ export async function createSceneGenerator(mode: StoryMode) {
     parsed: any,
     expectedSceneCount: number,
     expectedDuration: number,
-    modelConstraints?: VideoModelConstraints | null
+    modelConstraints?: any
   ): void {
     // Validate structure
     if (!parsed.scenes || !Array.isArray(parsed.scenes)) {
@@ -278,18 +273,13 @@ export async function createSceneGenerator(mode: StoryMode) {
           );
         } else {
           console.warn(
-            `[${mode}:scene-generator] ⚠ Could not automatically fix duration. Difference: ${durationDiff}s`
-          );
-          // Only throw error if difference is significant
-          throw new Error(
-            `Duration mismatch: expected ${expectedDuration}s, got ${totalDuration}s (difference: ${durationDiff}s)`
+            `[${mode}:scene-generator] ⚠ Could not automatically fix duration. Difference: ${durationDiff}s. Accepting result anyway.`
           );
         }
       }
     } else if (durationDiff > 10) {
-      // Too large to fix automatically
-      throw new Error(
-        `Duration mismatch too large: expected ${expectedDuration}s, got ${totalDuration}s (difference: ${durationDiff}s)`
+      console.warn(
+        `[${mode}:scene-generator] ⚠ Large duration mismatch: expected ${expectedDuration}s, got ${totalDuration}s (diff: ${durationDiff}s). Accepting result anyway.`
       );
     }
 

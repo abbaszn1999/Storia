@@ -1,33 +1,31 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Image, Video, Volume2, Music, Upload, X } from "lucide-react";
+import { Image, Video, Upload, X } from "lucide-react";
 import { ImageModelSelector } from "@/components/story-studio/shared/ImageModelSelector";
 import { VideoModelSelector } from "@/components/story-studio/shared/VideoModelSelector";
 import { getImageModelConfig, getDefaultImageModel } from "@/constants/image-models";
-import { getVideoModelConfig, getDefaultVideoModel } from "@/constants/video-models";
+import { getVideoModelConfig, getDefaultVideoModel, getCompatibleVideoModel, isModelCompatibleWithAspectRatio, getSupportedResolutionsForAspectRatio } from "@/constants/video-models";
 
 const imageStyles = [
-  { value: 'photorealistic', label: 'Photorealistic', description: 'Ultra-realistic photography' },
-  { value: 'cinematic', label: 'Cinematic', description: 'Movie-quality visuals' },
-  { value: '3d-render', label: '3D Render', description: 'High-quality CGI' },
-  { value: 'digital-art', label: 'Digital Art', description: 'Vibrant digital artwork' },
-  { value: 'anime', label: 'Anime', description: 'Japanese animation style' },
-  { value: 'illustration', label: 'Illustration', description: 'Hand-drawn style' },
-  { value: 'watercolor', label: 'Watercolor', description: 'Soft watercolor painting' },
-  { value: 'minimalist', label: 'Minimalist', description: 'Clean, simple design' },
+  { value: 'photorealistic', label: 'Photo', emoji: '📷' },
+  { value: 'cinematic', label: 'Cinematic', emoji: '🎬' },
+  { value: '3d-render', label: '3D', emoji: '🎮' },
+  { value: 'digital-art', label: 'Digital', emoji: '🎨' },
+  { value: 'anime', label: 'Anime', emoji: '🌸' },
+  { value: 'illustration', label: 'Illust.', emoji: '✏️' },
+  { value: 'watercolor', label: 'Watercolor', emoji: '🎭' },
+  { value: 'minimalist', label: 'Minimal', emoji: '◻️' },
 ];
 
-const transitionStyles = [
-  { value: 'fade', label: 'Fade', description: 'Smooth crossfade' },
-  { value: 'zoom', label: 'Zoom', description: 'Dynamic zoom transition' },
-  { value: 'slide', label: 'Slide', description: 'Sliding motion' },
-  { value: 'dissolve', label: 'Dissolve', description: 'Gentle dissolve' },
-  { value: 'pan', label: 'Pan', description: 'Panning movement' },
+const aspectRatioOptions = [
+  { value: '9:16', label: 'Vertical', ratio: '9:16' },
+  { value: '16:9', label: 'Horizontal', ratio: '16:9' },
+  { value: '1:1', label: 'Square', ratio: '1:1' },
+  { value: '4:3', label: 'Classic', ratio: '4:3' },
+  { value: '3:2', label: 'Landscape', ratio: '3:2' },
+  { value: '2:3', label: 'Portrait', ratio: '2:3' },
 ];
 
 interface Step4StyleSettingsProps {
@@ -40,35 +38,29 @@ interface Step4StyleSettingsProps {
   onVideoModelChange: (value: string) => void;
   mediaType: 'static' | 'animated';
   onMediaTypeChange: (value: 'static' | 'animated') => void;
+  animationType: 'transition' | 'image-to-video';
+  onAnimationTypeChange: (value: 'transition' | 'image-to-video') => void;
   transitionStyle?: string;
   onTransitionStyleChange: (value: string) => void;
   
-  // NEW: Required for model selectors
+  // Aspect Ratio (moved from Content Setup)
   aspectRatio: string;
+  onAspectRatioChange: (value: string) => void;
   
-  // NEW: Resolutions
+  // Resolutions
   imageResolution: string;
   onImageResolutionChange: (value: string) => void;
   videoResolution?: string;
   onVideoResolutionChange: (value: string) => void;
   
-  // NEW: Reference Images (Optional)
+  // Reference Images (Optional)
   styleReferenceUrl?: string;
   onStyleReferenceUrlChange: (value: string) => void;
   characterReferenceUrl?: string;
   onCharacterReferenceUrlChange: (value: string) => void;
   
-  // Audio
-  hasVoiceover: boolean;
-  onHasVoiceoverChange: (value: boolean) => void;
-  voiceProfile?: string;
-  onVoiceProfileChange: (value: string) => void;
-  voiceVolume: number;
-  onVoiceVolumeChange: (value: number) => void;
-  backgroundMusic?: string;
-  onBackgroundMusicChange: (value: string) => void;
-  musicVolume: number;
-  onMusicVolumeChange: (value: number) => void;
+  // ASMR-specific
+  isAutoAsmr?: boolean;
 }
 
 export function Step4StyleSettings({
@@ -80,9 +72,12 @@ export function Step4StyleSettings({
   onVideoModelChange,
   mediaType,
   onMediaTypeChange,
+  animationType,
+  onAnimationTypeChange,
   transitionStyle,
   onTransitionStyleChange,
   aspectRatio,
+  onAspectRatioChange,
   imageResolution,
   onImageResolutionChange,
   videoResolution,
@@ -91,198 +86,171 @@ export function Step4StyleSettings({
   onStyleReferenceUrlChange,
   characterReferenceUrl,
   onCharacterReferenceUrlChange,
-  hasVoiceover,
-  onHasVoiceoverChange,
-  voiceProfile,
-  onVoiceProfileChange,
-  voiceVolume,
-  onVoiceVolumeChange,
-  backgroundMusic,
-  onBackgroundMusicChange,
-  musicVolume,
-  onMusicVolumeChange,
+  isAutoAsmr = false,
 }: Step4StyleSettingsProps) {
+  const isAnimated = mediaType === 'animated';
+  const selectedImageModel = getImageModelConfig(imageModel) || getDefaultImageModel();
+  const selectedVideoModel = getVideoModelConfig(videoModel) || getDefaultVideoModel();
+
+  // Auto-correct aspect ratio when image model changes
+  useEffect(() => {
+    if (selectedImageModel && aspectRatio) {
+      const supportedRatios = selectedImageModel.aspectRatios || [];
+      if (supportedRatios.length > 0 && !supportedRatios.includes(aspectRatio)) {
+        onAspectRatioChange(supportedRatios[0] || '9:16');
+      }
+    }
+  }, [imageModel]);
+
+  // Auto-correct video model when aspect ratio changes
+  useEffect(() => {
+    if (isAnimated && aspectRatio && videoModel) {
+      if (!isModelCompatibleWithAspectRatio(videoModel, aspectRatio)) {
+        const compatible = getCompatibleVideoModel(aspectRatio);
+        onVideoModelChange(compatible.value);
+      }
+    }
+  }, [aspectRatio, isAnimated]);
+
+  // Auto-correct video resolution when aspect ratio or video model changes
+  useEffect(() => {
+    if (isAnimated && videoModel && aspectRatio && videoResolution) {
+      const supported = getSupportedResolutionsForAspectRatio(videoModel, aspectRatio);
+      if (supported.length > 0 && !supported.includes(videoResolution)) {
+        onVideoResolutionChange(supported[0]);
+      }
+    }
+  }, [isAnimated, videoModel, aspectRatio, videoResolution]);
+
+  // Filter aspect ratios by image model support
+  const filteredAspectRatios = aspectRatioOptions.filter(option => {
+    if (!selectedImageModel?.aspectRatios) return true;
+    return selectedImageModel.aspectRatios.includes(option.value);
+  });
+
+  // Get video resolutions filtered by model + aspect ratio
+  const filteredVideoResolutions = isAnimated && videoModel && aspectRatio
+    ? getSupportedResolutionsForAspectRatio(videoModel, aspectRatio)
+    : (getVideoModelConfig(videoModel)?.resolutions || ['480p', '720p', '1080p']);
+
+
   return (
     <div className="space-y-8 w-full">
       <div className="text-center space-y-3">
-        <h2 className="text-3xl font-display font-bold">Visual & Audio Style</h2>
+        <h2 className="text-3xl font-display font-bold">
+          {isAutoAsmr ? 'Visual & Sound Style' : 'Style'}
+        </h2>
         <p className="text-lg text-muted-foreground">
-          Define how your stories will look and sound
+          Configure the visual appearance of your stories
         </p>
       </div>
 
-      {/* Visual Style Section */}
-      <Card>
-        <CardHeader>
+      {/* ═══════════════════════════════════════ */}
+      {/* Image Settings Card */}
+      {/* ═══════════════════════════════════════ */}
+      <Card className="relative overflow-hidden group hover:shadow-xl transition-all duration-300">
+        <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <CardContent className="relative z-10 p-6 space-y-6">
           <div className="flex items-center gap-2">
-            <Image className="h-5 w-5 text-primary" />
-            <CardTitle>Visual Style</CardTitle>
+            <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
+              <Image className="h-5 w-5" />
+            </div>
+            <span className="text-lg font-semibold">Image Settings</span>
           </div>
-          <CardDescription>
-            Configure the visual appearance of your stories
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Image Style */}
+
+          {/* Image Model */}
           <div className="space-y-3">
-            <Label>Image Style</Label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {imageStyles.map((style) => (
-                <Card
-                  key={style.value}
-                  className={`cursor-pointer transition-all ${
-                    imageStyle === style.value
-                      ? 'border-primary bg-primary/5'
-                      : 'hover:border-primary/50'
+            <Label className="text-sm font-medium text-white/70">Image Model</Label>
+            <ImageModelSelector
+              value={imageModel}
+              onChange={onImageModelChange}
+              selectedModelInfo={selectedImageModel}
+            />
+            {selectedImageModel && (
+              <p className="text-xs text-white/40 mt-1">
+                {filteredAspectRatios.length} aspect ratio{filteredAspectRatios.length > 1 ? 's' : ''}
+                {selectedImageModel.resolutions.includes('custom') ? ' • custom' : ` • ${selectedImageModel.resolutions.join(', ')}`}
+              </p>
+            )}
+          </div>
+
+          {/* Aspect Ratio — filtered by image model */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium text-white/70">ASPECT RATIO</Label>
+            <div className={`grid gap-2 ${filteredAspectRatios.length <= 3 ? 'grid-cols-3' : filteredAspectRatios.length <= 4 ? 'grid-cols-4' : 'grid-cols-3 md:grid-cols-6'}`}>
+              {filteredAspectRatios.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => onAspectRatioChange(option.value)}
+                  className={`py-3 px-2 rounded-lg border text-center transition-all ${
+                    aspectRatio === option.value
+                      ? 'border-orange-500 bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25'
+                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
                   }`}
-                  onClick={() => onImageStyleChange(style.value)}
                 >
-                  <CardContent className="p-3 text-center">
-                    <div className="font-medium text-sm">{style.label}</div>
-                    <div className="text-xs text-muted-foreground mt-1">{style.description}</div>
-                  </CardContent>
-                </Card>
+                  <div className="text-sm font-medium">{option.label}</div>
+                  <div className={`text-xs mt-0.5 ${
+                    aspectRatio === option.value ? 'text-white/80' : 'text-white/40'
+                  }`}>{option.ratio}</div>
+                </button>
               ))}
             </div>
           </div>
 
-          {/* Media Type */}
+          {/* Resolution */}
           <div className="space-y-3">
-            <Label>Media Type</Label>
-            <div className="grid grid-cols-2 gap-3">
-              <Card
-                className={`cursor-pointer transition-all ${
-                  mediaType === 'static'
-                    ? 'border-primary bg-primary/5'
-                    : 'hover:border-primary/50'
-                }`}
-                onClick={() => onMediaTypeChange('static')}
-              >
-                <CardContent className="p-4 text-center">
-                  <Image className="h-8 w-8 mx-auto mb-2 text-primary" />
-                  <div className="font-bold">Static Images</div>
-                  <div className="text-xs text-muted-foreground mt-1">With transitions</div>
-                </CardContent>
-              </Card>
-              <Card
-                className={`cursor-pointer transition-all ${
-                  mediaType === 'animated'
-                    ? 'border-primary bg-primary/5'
-                    : 'hover:border-primary/50'
-                }`}
-                onClick={() => onMediaTypeChange('animated')}
-              >
-                <CardContent className="p-4 text-center">
-                  <Video className="h-8 w-8 mx-auto mb-2 text-primary" />
-                  <div className="font-bold">Animated Clips</div>
-                  <div className="text-xs text-muted-foreground mt-1">AI-generated motion</div>
-                </CardContent>
-              </Card>
+            <Label className="text-sm font-medium text-white/70">RESOLUTION</Label>
+            <div className="flex gap-2">
+              {(getImageModelConfig(imageModel)?.resolutions || ['1k']).map((res) => (
+                <button
+                  key={res}
+                  onClick={() => onImageResolutionChange(res)}
+                  className={`py-2.5 px-6 rounded-lg border text-sm font-bold uppercase transition-all ${
+                    imageResolution === res
+                      ? 'border-orange-500 bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25 flex-1'
+                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                  }`}
+                >
+                  {res}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Transition Style (only for static) */}
-          {mediaType === 'static' && (
-            <div className="space-y-2">
-              <Label>Transition Style</Label>
-              <Select value={transitionStyle} onValueChange={onTransitionStyleChange}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {transitionStyles.map((style) => (
-                    <SelectItem key={style.value} value={style.value}>
-                      <div className="flex items-center gap-2">
-                        <span>{style.label}</span>
-                        <span className="text-xs text-muted-foreground">- {style.description}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Visual Style */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium text-white/70">VISUAL STYLE</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {imageStyles.map((style) => (
+                <button
+                  key={style.value}
+                  onClick={() => onImageStyleChange(style.value)}
+                  className={`py-3 px-2 rounded-lg border text-center transition-all ${
+                    imageStyle === style.value
+                      ? 'border-orange-500 bg-gradient-to-br from-orange-500/15 to-orange-500/5 shadow-lg shadow-orange-500/10'
+                      : 'bg-white/5 border-white/10 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="text-xl mb-1">{style.emoji}</div>
+                  <div className={`text-xs font-medium ${
+                    imageStyle === style.value ? 'text-orange-400' : 'text-white/70'
+                  }`}>{style.label}</div>
+                </button>
+              ))}
             </div>
-          )}
-
-          {/* AI Models - Rich Selectors */}
-          <div className="grid grid-cols-1 gap-4">
-            {/* Image Model - Rich Selector */}
-            <ImageModelSelector
-              value={imageModel}
-              onChange={onImageModelChange}
-              selectedModelInfo={getImageModelConfig(imageModel) || getDefaultImageModel()}
-            />
-
-            {/* Image Resolution */}
-            <div className="space-y-2">
-              <Label>Image Resolution</Label>
-              <Select value={imageResolution} onValueChange={onImageResolutionChange}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {getImageModelConfig(imageModel)?.resolutions.map(res => (
-                    <SelectItem key={res} value={res}>
-                      {res === '1k' ? '1K (~1024px)' : res === '2k' ? '2K (~2048px)' : res === '4k' ? '4K (~4096px)' : res}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Video Model - Rich Selector (for animated) */}
-            {mediaType === 'animated' && (
-              <>
-                <VideoModelSelector
-                  value={videoModel}
-                  onChange={onVideoModelChange}
-                  selectedModelInfo={getVideoModelConfig(videoModel) || getDefaultVideoModel()}
-                  aspectRatio={aspectRatio}
-                  imageModel={imageModel}
-                  videoResolution={videoResolution}
-                />
-
-                {/* Video Resolution */}
-                <div className="space-y-2">
-                  <Label>Video Resolution</Label>
-                  <Select value={videoResolution} onValueChange={onVideoResolutionChange}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getVideoModelConfig(videoModel)?.resolutions.map(res => (
-                        <SelectItem key={res} value={res}>
-                          {res}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Reference Images (Optional) */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Reference Images (Optional)</CardTitle>
-          <CardDescription>
-            Upload images to guide the AI's visual generation
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Style Reference */}
+          {/* Style Reference (Optional) */}
           <div className="space-y-2">
-            <Label>Style Reference</Label>
-            <div className="border-2 border-dashed rounded-lg p-4 text-center">
+            <Label className="text-sm font-medium text-white/70">STYLE REFERENCE (OPTIONAL)</Label>
+            <div className="border-2 border-dashed border-white/10 rounded-lg p-6 text-center hover:border-white/20 transition-colors">
               {styleReferenceUrl ? (
-                <div className="relative">
-                  <img src={styleReferenceUrl} alt="Style" className="max-h-32 mx-auto rounded" />
+                <div className="relative inline-block">
+                  <img src={styleReferenceUrl} alt="Style" className="max-h-32 rounded" />
                   <Button
                     size="sm"
                     variant="destructive"
-                    className="absolute top-0 right-0"
+                    className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
                     onClick={() => onStyleReferenceUrlChange?.('')}
                   >
                     <X className="h-3 w-3" />
@@ -290,29 +258,25 @@ export function Step4StyleSettings({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    Upload a style reference image
-                  </p>
-                  <Button variant="outline" size="sm">
-                    Browse
-                  </Button>
+                  <Upload className="h-6 w-6 mx-auto text-white/30" />
+                  <p className="text-sm text-white/50">Upload reference image</p>
+                  <p className="text-xs text-white/30">AI will generate images in this style</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Character Reference */}
+          {/* Character Reference (Optional) */}
           <div className="space-y-2">
-            <Label>Character Reference</Label>
-            <div className="border-2 border-dashed rounded-lg p-4 text-center">
+            <Label className="text-sm font-medium text-white/70">CHARACTER REFERENCE (OPTIONAL)</Label>
+            <div className="border-2 border-dashed border-white/10 rounded-lg p-6 text-center hover:border-white/20 transition-colors">
               {characterReferenceUrl ? (
-                <div className="relative">
-                  <img src={characterReferenceUrl} alt="Character" className="max-h-32 mx-auto rounded" />
+                <div className="relative inline-block">
+                  <img src={characterReferenceUrl} alt="Character" className="max-h-32 rounded" />
                   <Button
                     size="sm"
                     variant="destructive"
-                    className="absolute top-0 right-0"
+                    className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
                     onClick={() => onCharacterReferenceUrlChange?.('')}
                   >
                     <X className="h-3 w-3" />
@@ -320,13 +284,9 @@ export function Step4StyleSettings({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    Upload a character/face reference
-                  </p>
-                  <Button variant="outline" size="sm">
-                    Browse
-                  </Button>
+                  <Upload className="h-6 w-6 mx-auto text-white/30" />
+                  <p className="text-sm text-white/50">Upload character image</p>
+                  <p className="text-xs text-white/30">Face or character to include in images</p>
                 </div>
               )}
             </div>
@@ -334,105 +294,127 @@ export function Step4StyleSettings({
         </CardContent>
       </Card>
 
-      {/* Audio Style Section */}
-      <Card>
-        <CardHeader>
+      {/* ═══════════════════════════════════════ */}
+      {/* Animation Mode Card */}
+      {/* ═══════════════════════════════════════ */}
+      <Card className="relative overflow-hidden group hover:shadow-xl transition-all duration-300">
+        <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <CardContent className="relative z-10 p-6 space-y-6">
           <div className="flex items-center gap-2">
-            <Volume2 className="h-5 w-5 text-primary" />
-            <CardTitle>Audio Style</CardTitle>
-          </div>
-          <CardDescription>
-            Configure voice and music settings
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Voiceover Toggle */}
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="space-y-1">
-              <div className="font-medium">Voiceover Narration</div>
-              <div className="text-sm text-muted-foreground">
-                Add AI-generated voice narration to your stories
-              </div>
+            <div className="p-2 rounded-lg bg-violet-500/10 text-violet-500">
+              <Video className="h-5 w-5" />
             </div>
-            <Switch
-              checked={hasVoiceover}
-              onCheckedChange={onHasVoiceoverChange}
-            />
+            <span className="text-lg font-semibold">Animation Mode</span>
           </div>
 
-          {/* Voice Settings (if enabled) */}
-          {hasVoiceover && (
-            <div className="space-y-4 pl-4 border-l-2 border-primary/20">
-              <div className="space-y-2">
-                <Label>Voice Profile</Label>
-                <Select value={voiceProfile} onValueChange={onVoiceProfileChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select voice profile" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="narrator-soft">Narrator - Soft</SelectItem>
-                    <SelectItem value="narrator-energetic">Narrator - Energetic</SelectItem>
-                    <SelectItem value="narrator-dramatic">Narrator - Dramatic</SelectItem>
-                    <SelectItem value="narrator-calm">Narrator - Calm</SelectItem>
-                    <SelectItem value="narrator-upbeat">Narrator - Upbeat</SelectItem>
-                  </SelectContent>
-                </Select>
+          {/* Animation Type */}
+          <div className="space-y-3">
+            <Label className="text-sm text-white/70">ANIMATION TYPE</Label>
+            {isAutoAsmr ? (
+              /* Auto-ASMR: Always image-to-video, no transition option */
+              <div className="py-2.5 px-3 rounded-lg border border-orange-500 bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25 text-sm font-medium text-center">
+                Image to Video
               </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    onAnimationTypeChange('transition');
+                    onMediaTypeChange('static');
+                  }}
+                  className={`py-2.5 px-3 rounded-lg border text-sm font-medium transition-all ${
+                    animationType === 'transition'
+                      ? 'border-orange-500 bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25'
+                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                  }`}
+                >Transition</button>
+                <button
+                  onClick={() => {
+                    onAnimationTypeChange('image-to-video');
+                    onMediaTypeChange('animated');
+                  }}
+                  className={`py-2.5 px-3 rounded-lg border text-sm font-medium transition-all ${
+                    animationType === 'image-to-video'
+                      ? 'border-orange-500 bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25'
+                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                  }`}
+                >Image to Video</button>
+              </div>
+            )}
+          </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Voice Volume</Label>
-                  <Badge variant="secondary">{voiceVolume}%</Badge>
-                </div>
-                <Slider
-                  value={[voiceVolume]}
-                  onValueChange={([v]) => onVoiceVolumeChange(v)}
-                  min={0}
-                  max={100}
-                  step={5}
-                />
+          {/* Transition Style (only for Transition mode — not relevant for Image to Video) */}
+          {animationType === 'transition' && (
+            <div className="space-y-3">
+              <Label className="text-sm font-medium text-white/70">TRANSITION STYLE</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: 'fade', label: 'Fade' },
+                  { value: 'slide', label: 'Slide' },
+                  { value: 'zoom', label: 'Zoom' },
+                  { value: 'wipe', label: 'Wipe' },
+                  { value: 'dissolve', label: 'Dissolve' },
+                  { value: 'cross-dissolve', label: 'Cross Dissolve' },
+                ].map((t) => (
+                  <button
+                    key={t.value}
+                    onClick={() => onTransitionStyleChange(t.value)}
+                    className={`py-2.5 px-3 rounded-lg border text-sm font-medium transition-all ${
+                      transitionStyle === t.value
+                        ? 'border-orange-500 bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25'
+                        : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Background Music */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Music className="h-4 w-4 text-muted-foreground" />
-              <Label>Background Music</Label>
-            </div>
-            <Select value={backgroundMusic} onValueChange={onBackgroundMusicChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select background music" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="uplifting-corporate">Uplifting Corporate</SelectItem>
-                <SelectItem value="dramatic-orchestral">Dramatic Orchestral</SelectItem>
-                <SelectItem value="calm-ambient">Calm Ambient</SelectItem>
-                <SelectItem value="energetic-electronic">Energetic Electronic</SelectItem>
-                <SelectItem value="emotional-piano">Emotional Piano</SelectItem>
-                <SelectItem value="none">No Music</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {backgroundMusic && backgroundMusic !== 'none' && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm">Music Volume</Label>
-                  <Badge variant="secondary">{musicVolume}%</Badge>
-                </div>
-                <Slider
-                  value={[musicVolume]}
-                  onValueChange={([v]) => onMusicVolumeChange(v)}
-                  min={0}
-                  max={100}
-                  step={5}
+          {/* Video Model + Resolution (only when animation type is image-to-video) */}
+          {animationType === 'image-to-video' && (
+            <>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-white/70">Video Model</Label>
+                <VideoModelSelector
+                  value={videoModel}
+                  onChange={onVideoModelChange}
+                  selectedModelInfo={selectedVideoModel}
+                  aspectRatio={aspectRatio}
+                  imageModel={imageModel}
+                  videoResolution={videoResolution}
                 />
+                {selectedVideoModel && (
+                  <p className="text-xs text-white/40 mt-1">
+                    {selectedVideoModel.durations?.join(', ')}s • {filteredVideoResolutions.join(', ')}
+                  </p>
+                )}
               </div>
-            )}
-          </div>
+
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-white/70">VIDEO RESOLUTION</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {filteredVideoResolutions.map((res) => (
+                    <button
+                      key={res}
+                      onClick={() => onVideoResolutionChange(res)}
+                      className={`py-2.5 px-3 rounded-lg border text-sm font-medium transition-all ${
+                        videoResolution === res
+                          ? 'border-orange-500 bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25'
+                          : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                      }`}
+                    >
+                      {res}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
+
     </div>
   );
 }

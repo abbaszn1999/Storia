@@ -4,10 +4,14 @@ export type StoryTemplate =
   | 'tease-reveal'
   | 'before-after'
   | 'myth-busting'
-  | 'auto-asmr'  // Future
-  | 'asmr';      // Future
+  | 'auto-asmr';
 
-export type TemplateType = 'narrative' | 'auto-asmr' | 'asmr';
+export type TemplateType = 'narrative' | 'auto-asmr';
+
+// Helper to check if template is auto-asmr
+export function isAutoAsmrTemplate(template: StoryTemplate): boolean {
+  return template === 'auto-asmr';
+}
 
 // Template structure
 export interface TemplateStructure {
@@ -76,26 +80,14 @@ export const STORY_TEMPLATES: TemplateStructure[] = [
   {
     id: 'auto-asmr',
     name: 'Auto ASMR',
-    description: 'Automated ASMR content generation with AI',
+    description: 'AI-powered satisfying videos with sounds & visuals. No script needed.',
     duration: '30-120s',
     difficulty: 'beginner',
     category: 'Entertainment',
-    structure: 'Visual Prompt → Sound Design → Composition',
+    structure: 'Category → Visual Design → Sound Design → Composition',
     icon: 'Volume2',
     color: 'green',
-    available: false, // Future
-  },
-  {
-    id: 'asmr',
-    name: 'ASMR',
-    description: 'Manual ASMR creation with detailed controls',
-    duration: '60-300s',
-    difficulty: 'advanced',
-    category: 'Entertainment',
-    structure: 'Scene Design → Sound Layers → Final Mix',
-    icon: 'Headphones',
-    color: 'teal',
-    available: false, // Future
+    available: true,
   },
 ];
 
@@ -158,4 +150,5 @@ export interface StorySettings {
   voiceVolume: number;
   backgroundMusic?: string;
   musicVolume: number;
+  
 }

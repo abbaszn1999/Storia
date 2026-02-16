@@ -331,7 +331,9 @@ router.post(
           styleReferenceImage,
         },
         userId,
-        workspace.id
+        workspace.id,
+        'assets',
+        'character'
       );
 
       if (result.error || !result.imageUrl) {

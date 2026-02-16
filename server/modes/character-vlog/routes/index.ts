@@ -3096,7 +3096,7 @@ router.post('/characters/:characterId/generate-image', isAuthenticated, async (r
 
     // Call existing character image generator
     const workspaceId = req.headers['x-workspace-id'] as string | undefined;
-    const result = await generateCharacterImageAgent(agentInput, userId, workspaceId);
+    const result = await generateCharacterImageAgent(agentInput, userId, workspaceId, 'video', 'character-vlog');
 
     if (result.error || !result.imageUrl) {
       console.error('[character-vlog:routes] Character image generation failed:', result.error);
@@ -3323,7 +3323,7 @@ router.post('/locations/:locationId/generate-image', isAuthenticated, async (req
 
     // Call existing location image generator
     const workspaceId = req.headers['x-workspace-id'] as string | undefined;
-    const result = await generateLocationImageAgent(agentInput, userId, workspaceId);
+    const result = await generateLocationImageAgent(agentInput, userId, workspaceId, 'video', 'character-vlog');
 
     if (result.error || !result.imageUrl) {
       console.error('[character-vlog:routes] Location image generation failed:', result.error);
@@ -3782,7 +3782,7 @@ router.post('/storyboard/generate-prompts', isAuthenticated, async (req: Request
       shotsWithInheritance: agentInput.shots.filter((s: any) => s.inheritedPrompts).length,
     });
 
-    const result = await generatePromptsForScene(agentInput, userId, workspaceId);
+    const result = await generatePromptsForScene(agentInput, userId, workspaceId, 'video', 'character-vlog');
 
     // Step 5: Merge inherited prompts back into results (explicit inheritance)
     const finalShots = result.shots.map((generatedShot: any) => {

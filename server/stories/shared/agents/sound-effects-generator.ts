@@ -32,7 +32,9 @@ export async function createSoundEffectsGenerator(mode: StoryMode) {
     workspaceId: string,
     workspaceName: string,
     projectName: string,
-    maxRetries = 2
+    maxRetries = 2,
+    usageType?: string,
+    usageMode?: string
   ): Promise<SoundEffectGenerationResult> {
     let lastError: Error | null = null;
 
@@ -223,7 +225,10 @@ export async function createSoundEffectsGenerator(mode: StoryMode) {
         userId || "",
         input.workspaceId || "",
         workspaceName || "",
-        projectName
+        projectName,
+        2, // maxRetries
+        usageType,
+        usageMode
       );
       results.push(result);
     }

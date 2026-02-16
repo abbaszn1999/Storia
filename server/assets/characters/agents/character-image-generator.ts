@@ -98,12 +98,16 @@ function buildCharacterPrompt(input: CharacterImageInput): string {
  * @param input - Character details and generation settings
  * @param userId - User ID for billing/tracking
  * @param workspaceId - Workspace ID for billing/tracking
+ * @param usageType - Type for usage tracking (e.g. "assets", "video")
+ * @param usageMode - Mode for usage tracking (e.g. "character", "narrative")
  * @returns Generated image URL or error
  */
 export async function generateCharacterImage(
   input: CharacterImageInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<CharacterImageOutput> {
   const {
     model = DEFAULT_MODEL,
@@ -185,6 +189,7 @@ export async function generateCharacterImage(
       },
       {
         skipCreditCheck: false,
+        metadata: { usageType, usageMode },
       }
     );
 

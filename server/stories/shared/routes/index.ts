@@ -434,7 +434,9 @@ router.post(
           workspaceId: workspaceId || "",
         },
         userId,
-        workspaceName
+        workspaceName,
+        'story',
+        mode
       );
 
       if (result.scenes.length > 0 && result.scenes[0].status === 'generated') {

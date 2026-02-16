@@ -449,7 +449,9 @@ async function buildImageAttachments(
   async function enhanceStoryboard(
     input: any,
     userId?: string,
-    workspaceId?: string
+    workspaceId?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<any> {
   console.log('[storyboard-enhancer] ═══════════════════════════════════════════════');
   console.log('[storyboard-enhancer] Starting storyboard enhancement');
@@ -614,6 +616,7 @@ async function buildImageAttachments(
       },
       {
         expectedOutputTokens: 1500,
+        metadata: { usageType, usageMode },
       }
     );
 
@@ -784,9 +787,11 @@ async function buildImageAttachments(
 export async function enhanceStoryboard(
   input: any,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<any> {
   const enhancer = await createStoryboardEnhancer("problem-solution");
-  return enhancer(input, userId, workspaceId);
+  return enhancer(input, userId, workspaceId, usageType, usageMode);
 }
 

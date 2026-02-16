@@ -1547,7 +1547,7 @@ router.post('/videos/:id/creative-spark/generate', isAuthenticated, async (req: 
       hasProductImage: !!productImageUrl,
     });
 
-    const sparkOutput = await generateCreativeSpark(sparkInput, userId, video.workspaceId);
+    const sparkOutput = await generateCreativeSpark(sparkInput, userId, video.workspaceId, 'video', 'social-commerce');
 
     console.log('[social-commerce] Spark output received:', {
       hasSpark: !!sparkOutput.creative_spark,
@@ -1734,7 +1734,7 @@ router.post('/step/2/generate-beats', isAuthenticated, async (req: Request, res:
       hasProductImage: !!productImageUrl,
     });
 
-    const narrativeOutput = await createNarrative(narrativeInput, userId, video.workspaceId);
+    const narrativeOutput = await createNarrative(narrativeInput, userId, video.workspaceId, 'video', 'social-commerce');
 
     // Validate beat count matches duration (additional validation at route level)
     const expectedBeatCount = step1Data.duration / 12;
@@ -2309,7 +2309,7 @@ router.post('/videos/:id/step/3/generate-prompts', isAuthenticated, async (req: 
     });
 
     // Run only Agent 5.1 (no parallel execution with Agent 5.2)
-    const beatPromptOutput = await generateBeatPrompts(batchInput, userId, workspaceId);
+    const beatPromptOutput = await generateBeatPrompts(batchInput, userId, workspaceId, 'video', 'social-commerce');
 
     console.log('[social-commerce:agent-5.1] Successfully generated prompts for all beats:', {
       beatCount: beatPromptOutput.beat_prompts.length,
@@ -2468,7 +2468,9 @@ router.post('/videos/:id/step/3/generate-voiceover-scripts', isAuthenticated, as
     const voiceoverOutput = await generateVoiceoverScripts(
       voiceoverInput,
       userId,
-      workspaceId
+      workspaceId,
+      'video',
+      'social-commerce'
     );
 
     // Save to step3Data

@@ -159,7 +159,9 @@ export async function createVoiceoverGenerator(mode: StoryMode) {
     workspaceId: string,
     workspaceName: string,
     projectName: string,
-    maxRetries = 2
+    maxRetries = 2,
+    usageType?: string,
+    usageMode?: string
   ): Promise<VoiceoverGenerationResult> {
   let lastError: Error | null = null;
 
@@ -362,7 +364,10 @@ export async function createVoiceoverGenerator(mode: StoryMode) {
         userId || "",
         input.workspaceId || "",
         workspaceName || "",
-        projectName
+        projectName,
+        2, // maxRetries
+        usageType,
+        usageMode
       );
       results.push(result);
     }

@@ -1068,7 +1068,9 @@ router.post('/characters/generate-image', isAuthenticated, async (req: Request, 
         styleReferenceImage: styleReferenceUrl,
       },
       userId,
-      workspaceId
+      workspaceId,
+      'video',
+      'narrative'
     );
 
     if (result.error || !result.imageUrl) {
@@ -1265,7 +1267,9 @@ router.post('/locations/generate-image', isAuthenticated, async (req: Request, r
         styleReferenceImage: styleReferenceUrl,
       },
       userId,
-      workspaceId
+      workspaceId,
+      'video',
+      'narrative'
     );
 
     if (result.error || !result.imageUrl) {
@@ -2113,7 +2117,9 @@ router.post('/prompts/generate', isAuthenticated, async (req: Request, res: Resp
     const results = await NarrativeAgents.generatePrompts(
       agentInput,
       userId,
-      workspaceId
+      workspaceId,
+      'video',
+      'narrative'
     );
     
     res.json(results);

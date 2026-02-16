@@ -316,7 +316,9 @@ export async function generateFullStory(
           durationSeconds: settings.duration,
         },
         userId,
-        workspaceId
+        workspaceId,
+        'story',
+        storyMode
       );
       
       storyScript = scriptResult.story;
@@ -341,7 +343,9 @@ export async function generateFullStory(
           videoModel: settings.mediaType === 'animated' ? settings.videoModel : undefined,
         },
         userId,
-        workspaceId
+        workspaceId,
+        'story',
+        storyMode
       );
       
       scenes = sceneResult.scenes;
@@ -379,7 +383,9 @@ export async function generateFullStory(
           characterReferenceUrl: settings.characterReferenceUrl,
         },
         userId,
-        workspaceId
+        workspaceId,
+        'story',
+        storyMode
       );
       
       const enhancedScenes = storyboardResult.scenes;
@@ -434,7 +440,9 @@ export async function generateFullStory(
           workspaceId,
         },
         userId,
-        resolvedWorkspaceName
+        resolvedWorkspaceName,
+        'story',
+        storyMode
       );
       
       totalCost += imageResults.totalCost || 0;
@@ -485,7 +493,9 @@ export async function generateFullStory(
             workspaceId,
           },
           userId,
-          resolvedWorkspaceName
+          resolvedWorkspaceName,
+          'story',
+          storyMode
         );
         
         totalCost += videoResults.totalCost || 0;
@@ -536,7 +546,9 @@ export async function generateFullStory(
               workspaceId,
             },
             userId,
-            resolvedWorkspaceName
+            resolvedWorkspaceName,
+            'story',
+            storyMode
           );
           
           totalCost += sfxResults.totalCost || 0;
@@ -589,7 +601,9 @@ export async function generateFullStory(
             workspaceId,
           },
           userId,
-          resolvedWorkspaceName
+          resolvedWorkspaceName,
+          'story',
+          storyMode
         );
         
         totalCost += voiceoverResults.totalCost || 0;
@@ -634,7 +648,9 @@ export async function generateFullStory(
             workspaceId,
           },
           userId,
-          resolvedWorkspaceName
+          resolvedWorkspaceName,
+          'story',
+          storyMode
         );
         
         generatedMusicUrl = musicResult.musicUrl || '';

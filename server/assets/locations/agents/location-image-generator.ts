@@ -96,12 +96,16 @@ function buildLocationPrompt(input: LocationImageInput): string {
  * @param input - Location details and generation settings
  * @param userId - User ID for billing/tracking
  * @param workspaceId - Workspace ID for billing/tracking
+ * @param usageType - Type for usage tracking (e.g. "assets", "video")
+ * @param usageMode - Mode for usage tracking (e.g. "location", "narrative")
  * @returns Generated image URL or error
  */
 export async function generateLocationImage(
   input: LocationImageInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<LocationImageOutput> {
   const {
     model = DEFAULT_MODEL,
@@ -182,6 +186,7 @@ export async function generateLocationImage(
       },
       {
         skipCreditCheck: false,
+        metadata: { usageType, usageMode },
       }
     );
 

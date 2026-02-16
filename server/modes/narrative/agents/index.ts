@@ -1244,7 +1244,9 @@ export class NarrativeAgents {
   static async generateCharacterImage(
     settings: CharacterImageSettings,
     userId?: string,
-    workspaceId?: string
+    workspaceId?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<CharacterImageGeneratorOutput> {
     const { 
       name, 
@@ -1280,7 +1282,9 @@ export class NarrativeAgents {
           styleReferenceImage,
         },
         userId,
-        workspaceId
+        workspaceId,
+        usageType,
+        usageMode
       );
 
       if (result.error) {
@@ -1319,7 +1323,9 @@ export class NarrativeAgents {
   static async generateLocationImage(
     settings: LocationImageSettings,
     userId?: string,
-    workspaceId?: string
+    workspaceId?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<LocationImageGeneratorOutput> {
     const { 
       name, 
@@ -1355,7 +1361,9 @@ export class NarrativeAgents {
           styleReferenceImage,
         },
         userId,
-        workspaceId
+        workspaceId,
+        usageType,
+        usageMode
       );
 
       if (result.error) {

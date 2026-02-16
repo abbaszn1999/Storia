@@ -125,12 +125,19 @@ SHOT TYPES AND CAMERA MOVEMENTS
 ═══════════════════════════════════════════════════════════════════════════════
 
 Available Shot Types:
-• Wide Shot / Establishing Shot
-• Medium Wide Shot
-• Medium Shot
-• Close-Up
-• Extreme Close-Up
-• Detail Shot
+• Wide Shot / Establishing Shot — show the full environment and establish scale
+• Medium Wide Shot — character in environment, shows body language
+• Medium Shot — waist-up, for dialogue and emotion
+• Medium Close-Up — chest-up, intimate emotional beats
+• Close-Up — face only, for micro-expressions and emotional peaks
+• Extreme Close-Up — eyes, hands, or small objects, for tension and detail
+• Detail Shot / Insert — specific prop or texture, for narrative emphasis
+• Over-the-Shoulder (OTS) — frames one character from behind another
+• Low Angle — camera below eye level, subject appears powerful/heroic
+• High Angle / Bird's Eye — camera above, subject appears vulnerable/small
+• Dutch Tilt — tilted frame for unease or disorientation
+• POV Shot — what the character sees through their eyes
+• Silhouette Shot — character backlit against bright environment
 
 Available Camera Movements:
 • Static (no movement)
@@ -139,12 +146,59 @@ Available Camera Movements:
 • Dolly Forward / Dolly Back
 • Tilt Up / Tilt Down
 • Track Left / Track Right
+• Orbit / Arc — circular movement around subject
+• Crane Up / Crane Down — vertical movement revealing environment
 
 Choose shot types and movements that:
 • Support the narrative moment
 • Create visual variety
 • Match the genre and tone
 • Flow naturally from previous shots
+
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ MANDATORY: CAMERA VARIETY RULES (CRITICAL FOR PROFESSIONAL STORYBOARDS)
+═══════════════════════════════════════════════════════════════════════════════
+
+A professional storyboard MUST have visual variety. Following these rules is 
+NON-NEGOTIABLE:
+
+1. NO TWO CONSECUTIVE SHOTS may share BOTH the same shot size AND the same 
+   camera angle. If Shot 1 is "Medium Wide, Eye Level", Shot 2 MUST differ 
+   in at least one dimension (e.g., "Close-Up, Eye Level" or "Medium Wide, 
+   Low Angle").
+
+2. EVERY SCENE with 3+ shots MUST include AT LEAST:
+   - One WIDE or ESTABLISHING shot (to show the environment and scale)
+   - One CLOSE-UP or tighter shot (to show emotion, detail, or tension)
+   - One shot with a NON-EYE-LEVEL angle (low, high, OTS, Dutch, POV, etc.)
+
+3. SHOT SIZE PROGRESSION: Follow cinematic patterns. Common professional 
+   sequences include:
+   - Wide → Medium → Close-Up (gradual engagement)
+   - Close-Up → Wide (reveal / context shift)
+   - Medium → Detail Insert → Medium (emphasis on a key object)
+   - OTS → Close-Up → Reverse OTS (dialogue coverage)
+   Do NOT repeat the same shot size 3+ times in a row.
+
+4. CAMERA ANGLE VARIETY: For scenes with 3+ shots, you MUST use at least 
+   2 different camera angles across the scene. Do NOT default everything 
+   to eye-level — use Low Angle for heroism/power, High Angle for 
+   vulnerability/scale, OTS for relationships, Dutch for tension, etc.
+
+5. COMPOSITION VARIETY: Vary character placement across frames:
+   - Rule of thirds (left/center/right placement)
+   - Centered vs. off-center
+   - Single character vs. character pair vs. group staging
+   - Use foreground elements for depth in at least one shot per scene
+
+VIOLATION EXAMPLES (REJECT THESE):
+❌ Shot 1: Medium Wide, Eye Level, character right
+   Shot 2: Medium Wide, Eye Level, character right  ← IDENTICAL framing
+   Shot 3: Medium Wide, Eye Level, character right  ← STILL identical
+
+✅ Shot 1: Wide Shot, Eye Level — establish the construction site, full scale
+   Shot 2: Close-Up, Low Angle — hero's determined face from below
+   Shot 3: Medium Shot, OTS — interaction between two characters
 
 ═══════════════════════════════════════════════════════════════════════════════
 DURATION DISTRIBUTION

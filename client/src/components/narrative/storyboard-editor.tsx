@@ -197,6 +197,7 @@ interface StoryboardEditorProps {
   onDeleteShot?: (shotId: string) => void;
   onNext: () => void;
   onGenerateSceneImages?: (sceneId: string) => Promise<void>;
+  onSyncFromServer?: () => Promise<void>;
 }
 
 interface SortableShotCardProps {
@@ -1704,35 +1705,6 @@ function SortableShotCard({
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground">Sound Effects</Label>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 text-xs px-2"
-                      onClick={() => {
-                        const autoPrompt = `Ambient sounds for ${shot.shotType.toLowerCase()} shot${shot.description ? ': ' + shot.description : ''}`;
-                        onUpdateShot(shot.id, { soundEffects: autoPrompt });
-                        toast({
-                          title: "Sound effects generated",
-                          description: "Auto-generated sound effects prompt",
-                        });
-                      }}
-                      data-testid={`button-auto-generate-sound-${shot.id}`}
-                    >
-                      <Wand2 className="mr-1 h-3 w-3" />
-                      Automatically
-                    </Button>
-                  </div>
-                  <Textarea
-                    placeholder="Describe sound effects for this shot..."
-                    value={shot.soundEffects || ""}
-                    onChange={(e) => onUpdateShot(shot.id, { soundEffects: e.target.value })}
-                    className="min-h-[60px] text-xs resize-none bg-white/[0.02] border-white/[0.06] focus:border-purple-500/50"
-                    data-testid={`textarea-sound-effects-${shot.id}`}
-                  />
-                </div>
               </CollapsibleContent>
             </Collapsible>
 
@@ -1836,6 +1808,8 @@ export function StoryboardEditor({
   const [animatingScenes, setAnimatingScenes] = useState<Set<string>>(new Set());
   // Scene-level image generation state (tracks which scenes are running "Generate All Images")
   const [generatingScenesAll, setGeneratingScenesAll] = useState<Set<string>>(new Set());
+  // Cancel refs for batch operations (using refs to avoid stale closures in async loops)
+  const cancelSceneAnimationRef = useRef<Set<string>>(new Set());
   const { toast } = useToast();
   
   // Refs to prevent stale closures in async callbacks (e.g., video polling)
@@ -2716,9 +2690,13 @@ export function StoryboardEditor({
       }
     } catch (error) {
       console.error('[storyboard-editor] Video generation error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const is400 = errorMessage.includes("400");
       toast({
         title: "Video generation failed",
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: is400 
+          ? "The image for this shot may be missing from the database. Please regenerate the image first, then try again."
+          : errorMessage,
         variant: "destructive",
       });
       setGeneratingVideos(prev => {
@@ -2908,6 +2886,17 @@ export function StoryboardEditor({
     try {
       // Process in batches with concurrency limit
       for (let i = 0; i < shotsToAnimate.length; i += CONCURRENT_LIMIT) {
+        // Check if this scene's animation was cancelled
+        if (cancelSceneAnimationRef.current.has(sceneId)) {
+          const successCount = results.filter(r => r.success).length;
+          const failCount = results.filter(r => !r.success).length;
+          toast({
+            title: "Animation Cancelled",
+            description: `Stopped after ${successCount} successful, ${failCount} failed out of ${shotsToAnimate.length} shot(s).`,
+          });
+          break;
+        }
+
         const batch = shotsToAnimate.slice(i, i + CONCURRENT_LIMIT);
         
         // Show progress toast for batch
@@ -2974,13 +2963,23 @@ export function StoryboardEditor({
         variant: "destructive",
       });
     } finally {
-      // Remove scene from animating set
+      // Remove scene from animating set and clear cancel flag
+      cancelSceneAnimationRef.current.delete(sceneId);
       setAnimatingScenes(prev => {
         const next = new Set(prev);
         next.delete(sceneId);
         return next;
       });
     }
+  };
+
+  // Cancel handler for scene animation (video generation)
+  const handleCancelSceneAnimation = (sceneId: string) => {
+    cancelSceneAnimationRef.current.add(sceneId);
+    toast({
+      title: "Cancelling...",
+      description: "Will stop after the current batch finishes.",
+    });
   };
 
   const handleSelectShot = (shot: Shot, frame?: "start" | "end") => {
@@ -3397,8 +3396,8 @@ export function StoryboardEditor({
           const sceneShots = localShots[scene.id] || [];
           
           return (
-            <>
-              <div key={scene.id} className="space-y-4 p-6 bg-white/[0.02] border border-white/[0.06] rounded-xl">
+            <React.Fragment key={scene.id}>
+              <div className="space-y-4 p-6 bg-white/[0.02] border border-white/[0.06] rounded-xl">
               <div className="flex items-start gap-4">
                 <div className="w-80 shrink-0 space-y-3 p-4 bg-white/[0.02] border border-white/[0.06] rounded-lg">
                   <div className="flex items-center justify-between gap-2">
@@ -3489,25 +3488,39 @@ export function StoryboardEditor({
                       )}
                     </Button>
                     
-                    <Button
-                      size="sm"
-                      className="w-full mt-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white"
-                      onClick={() => handleAnimateScene(scene.id)}
-                      disabled={animatingScenes.has(scene.id) || generatingShots.size > 0}
-                      data-testid={`button-animate-scene-${scene.id}`}
-                    >
-                      {animatingScenes.has(scene.id) ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Animating...
-                        </>
-                      ) : (
-                        <>
-                      <Play className="mr-2 h-4 w-4" />
-                      Animate Scene's Shots
-                        </>
+                    <div className="flex gap-1 mt-2">
+                      <Button
+                        size="sm"
+                        className={`flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white ${animatingScenes.has(scene.id) ? 'rounded-r-none' : ''}`}
+                        onClick={() => handleAnimateScene(scene.id)}
+                        disabled={animatingScenes.has(scene.id) || generatingShots.size > 0}
+                        data-testid={`button-animate-scene-${scene.id}`}
+                      >
+                        {animatingScenes.has(scene.id) ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Animating...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="mr-2 h-4 w-4" />
+                            Animate Scene's Shots
+                          </>
+                        )}
+                      </Button>
+                      {animatingScenes.has(scene.id) && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="rounded-l-none px-2"
+                          onClick={() => handleCancelSceneAnimation(scene.id)}
+                          data-testid={`button-cancel-scene-animation-${scene.id}`}
+                          title="Cancel video generation"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
                       )}
-                    </Button>
+                    </div>
 
                     <div className="text-xs text-muted-foreground pt-2">
                       <div>{sceneShots.length} shots</div>
@@ -3886,7 +3899,7 @@ export function StoryboardEditor({
                 </button>
               </div>
             )}
-          </>
+          </React.Fragment>
           );
         })}
       </div>

@@ -59,6 +59,30 @@ import {
   type ImageEditorOutput,
 } from './image-editor';
 
+/**
+ * Compute word-level Jaccard similarity between two prompts.
+ * Returns 0 (completely different) to 1 (identical).
+ * Used to detect near-identical start/end frame prompts.
+ */
+function computePromptSimilarity(promptA: string, promptB: string): number {
+  const normalize = (text: string) => text
+    .toLowerCase()
+    .replace(/[^\w\s@]/g, ' ')
+    .split(/\s+/)
+    .filter((w: string) => w.length > 2);
+  const wordsA = normalize(promptA);
+  const wordsB = normalize(promptB);
+  if (wordsA.length === 0 || wordsB.length === 0) return 0;
+  const setA = new Set(wordsA);
+  const setB = new Set(wordsB);
+  let intersection = 0;
+  for (const word of setA) {
+    if (setB.has(word)) intersection++;
+  }
+  const union = new Set([...setA, ...setB]).size;
+  return union > 0 ? intersection / union : 0;
+}
+
 export interface ScriptSettings {
   duration: number;
   genre: string;  // Can be comma-separated string like "Adventure, Fantasy"
@@ -110,6 +134,7 @@ export interface CharacterInfo {
   name: string;
   role?: string;
   description?: string;
+  appearance?: string;
   style: string;
 }
 
@@ -843,7 +868,7 @@ export class NarrativeAgents {
 
   static async createCharacter(characterInfo: CharacterInfo): Promise<string> {
     const systemPrompt = characterCreatorSystemPrompt;
-    const userPrompt = createCharacterPrompt(characterInfo);
+    const userPrompt = createCharacterPrompt({ ...characterInfo, appearance: characterInfo.appearance || characterInfo.description || '' });
     
     return `[PLACEHOLDER] Character description will be generated with AI`;
   }
@@ -1145,6 +1170,19 @@ export class NarrativeAgents {
           if (output.continuity.inGroup && !output.continuity.isFirstInGroup) {
             if (output.startFramePrompt) {
               console.warn(`[narrative:agents] Warning: Shot ${output.shotNumber} - subsequent shot in group should have empty startFramePrompt`);
+            }
+          }
+          
+          // Validate start/end frame differentiation - detect near-identical frames
+          if (output.startFramePrompt && output.endFramePrompt) {
+            const similarity = computePromptSimilarity(output.startFramePrompt, output.endFramePrompt);
+            const shotDuration = correspondingShot?.duration || 5;
+            if (similarity > 0.85) {
+              console.error('[narrative:agents] CRITICAL: Shot ' + output.shotNumber + ' (' + shotDuration + 's) - start/end frames TOO SIMILAR (' + (similarity * 100).toFixed(0) + '% word overlap). Video will appear FROZEN.');
+            } else if (similarity > 0.70) {
+              console.warn('[narrative:agents] Warning: Shot ' + output.shotNumber + ' (' + shotDuration + 's) - start/end frames HIGH similarity (' + (similarity * 100).toFixed(0) + '% word overlap). Video motion may be minimal.');
+            } else {
+              console.log('[narrative:agents] OK: Shot ' + output.shotNumber + ' (' + shotDuration + 's) - frame differentiation good (' + (similarity * 100).toFixed(0) + '% overlap)');
             }
           }
         }

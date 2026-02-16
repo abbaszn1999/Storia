@@ -567,11 +567,49 @@ router.patch('/videos/:id/step4', isAuthenticated, async (req: Request, res: Res
       return res.status(404).json({ error: 'Video not found' });
     }
 
-    // Merge existing step4Data with new data
+    // DEEP merge existing step4Data with new data
+    // CRITICAL: shotVersions must be deep-merged to preserve videoUrl, imageUrl, etc.
+    // A shallow merge would replace the entire shotVersions object, losing video URLs
     const existingStep4 = (existingVideo.step4Data as Record<string, any>) || {};
+    
+    // URL fields that should NEVER be overwritten with null/undefined
+    // These are expensive to generate and must be protected from stale client state
+    const PROTECTED_URL_FIELDS = ['imageUrl', 'videoUrl', 'startFrameUrl', 'endFrameUrl'];
+    
+    // Deep merge shotVersions: for each shot, merge version arrays preserving existing fields
+    let mergedShotVersions = existingStep4.shotVersions || {};
+    if (step4Data.shotVersions) {
+      mergedShotVersions = { ...mergedShotVersions };
+      for (const [shotId, newVersions] of Object.entries(step4Data.shotVersions as Record<string, any[]>)) {
+        const existingVersions = mergedShotVersions[shotId] || [];
+        if (!Array.isArray(newVersions)) {
+          mergedShotVersions[shotId] = newVersions;
+          continue;
+        }
+        // Merge each version by ID, preserving fields from existing version (like videoUrl)
+        mergedShotVersions[shotId] = newVersions.map((newVersion: any) => {
+          const existingVersion = existingVersions.find((v: any) => v.id === newVersion.id);
+          if (existingVersion) {
+            // Merge: existing fields (has videoUrl, imageUrl etc.) + new fields (prompts etc.)
+            // CRITICAL: Never let a null/undefined overwrite a valid URL
+            // This protects against stale client state wiping server-saved URLs
+            const merged = { ...existingVersion, ...newVersion };
+            for (const field of PROTECTED_URL_FIELDS) {
+              if (existingVersion[field] && !newVersion[field]) {
+                merged[field] = existingVersion[field];
+              }
+            }
+            return merged;
+          }
+          return newVersion;
+        });
+      }
+    }
+    
     const updatedStep4Data = {
       ...existingStep4,
       ...step4Data,
+      shotVersions: mergedShotVersions, // Use deep-merged versions
     };
 
     // Update video with step4Data
@@ -714,7 +752,17 @@ router.patch('/videos/:id/step-progress', isAuthenticated, async (req: Request, 
  * POST /api/narrative/script/generate
  * Generate a script from user's story idea
  */
-router.post('/script/generate', isAuthenticated, async (req: Request, res: Response) => {
+router.post('/script/generate', 
+  isAuthenticated, 
+  (req: Request, res: Response, next) => {
+    // Prevent session save/touch during long script generation
+    // This avoids database connection timeouts during AI script generation
+    if (req.session) {
+      req.session.touch = () => {}; // Disable session touch/save
+    }
+    next();
+  },
+  async (req: Request, res: Response) => {
   try {
     const userId = getCurrentUserId(req);
     if (!userId) {
@@ -915,7 +963,17 @@ router.post('/locations/analyze', isAuthenticated, async (req: Request, res: Res
  * In narrative mode, users can select the image model.
  * Creates character first if characterId not provided, then uploads image to Bunny CDN.
  */
-router.post('/characters/generate-image', isAuthenticated, async (req: Request, res: Response) => {
+router.post('/characters/generate-image', 
+  isAuthenticated, 
+  (req: Request, res: Response, next) => {
+    // Prevent session save/touch during long image generation
+    // This avoids database connection timeouts during AI image generation
+    if (req.session) {
+      req.session.touch = () => {}; // Disable session touch/save
+    }
+    next();
+  },
+  async (req: Request, res: Response) => {
   try {
     const userId = getCurrentUserId(req);
     if (!userId) {
@@ -1130,7 +1188,17 @@ router.post('/characters/generate-image', isAuthenticated, async (req: Request, 
  * In narrative mode, users can select the image model.
  * Creates location first if locationId not provided, then uploads image to Bunny CDN.
  */
-router.post('/locations/generate-image', isAuthenticated, async (req: Request, res: Response) => {
+router.post('/locations/generate-image', 
+  isAuthenticated, 
+  (req: Request, res: Response, next) => {
+    // Prevent session save/touch during long image generation
+    // This avoids database connection timeouts during AI image generation
+    if (req.session) {
+      req.session.touch = () => {}; // Disable session touch/save
+    }
+    next();
+  },
+  async (req: Request, res: Response) => {
   try {
     const userId = getCurrentUserId(req);
     if (!userId) {
@@ -1816,7 +1884,17 @@ router.get('/models', isAuthenticated, async (req: Request, res: Response) => {
  * Generate image and video prompts for all shots in a scene (Agent 4.1 - Batch Mode)
  * Supports both sceneId (new batch mode) and shotId (backward compatibility - finds scene and uses batch mode)
  */
-router.post('/prompts/generate', isAuthenticated, async (req: Request, res: Response) => {
+router.post('/prompts/generate', 
+  isAuthenticated, 
+  (req: Request, res: Response, next) => {
+    // Prevent session save/touch during long prompt generation
+    // This avoids database connection timeouts during AI prompt generation
+    if (req.session) {
+      req.session.touch = () => {}; // Disable session touch/save
+    }
+    next();
+  },
+  async (req: Request, res: Response) => {
   try {
     const userId = getCurrentUserId(req);
     if (!userId) {
@@ -2132,7 +2210,17 @@ router.post('/prompts/generate', isAuthenticated, async (req: Request, res: Resp
  * Supports both image-reference and start-end modes
  * Includes continuity reference images for shots in continuity groups
  */
-router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: Response) => {
+router.post('/shots/generate-image', 
+  isAuthenticated, 
+  (req: Request, res: Response, next) => {
+    // Prevent session save/touch during long image generation
+    // This avoids database connection timeouts during 30+ second image generation calls
+    if (req.session) {
+      req.session.touch = () => {}; // Disable session touch/save
+    }
+    next();
+  },
+  async (req: Request, res: Response) => {
   try {
     const userId = getCurrentUserId(req);
     if (!userId) {
@@ -2167,7 +2255,7 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       endFrameStrength,
       frame,
       imageModel: requestImageModel, // Allow frontend to override image model
-      shotReferenceImageUrl, // Shot-level reference image (temporary blob URL)
+      shotReferenceTempId, // Shot-level reference image (temp storage ID)
       shot: requestShot // Shot data from frontend (for manually created shots not yet in database)
     } = req.body;
     const workspaceId = req.headers["x-workspace-id"] as string | undefined;
@@ -2353,9 +2441,22 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
       }
     }
 
-    // Shot-level reference image (uploaded by user, temporary blob URL)
-    if (shotReferenceImageUrl) {
-      referenceImages.push(shotReferenceImageUrl);
+    // Shot-level reference image (uploaded by user, retrieved from temp storage)
+    if (shotReferenceTempId) {
+      const tempUpload = getTempUpload(shotReferenceTempId);
+      if (tempUpload) {
+        // Convert buffer to base64 data URL for the AI service
+        const base64 = tempUpload.buffer.toString('base64');
+        const dataUrl = `data:${tempUpload.mimetype};base64,${base64}`;
+        referenceImages.push(dataUrl);
+        console.log('[narrative:routes] Added shot reference image from temp storage:', {
+          tempId: shotReferenceTempId,
+          size: `${(tempUpload.buffer.length / 1024).toFixed(1)}KB`,
+          mimetype: tempUpload.mimetype,
+        });
+      } else {
+        console.warn('[narrative:routes] Shot reference temp upload not found:', shotReferenceTempId);
+      }
     }
 
     // Get current shot's version to check existing frames and for validation
@@ -3139,6 +3240,7 @@ router.post('/videos/:videoId/shots/:shotId/edit-image', isAuthenticated, async 
       editCategory,
       editingInstruction,
       editingModel: imageModel,
+      editedFrame: activeFrame || null,  // "start", "end", or null for image-reference mode
     };
 
     existingVersions.push(newVersion);
@@ -3518,7 +3620,17 @@ router.post('/shot/generate-image', async (req: Request, res: Response) => {
  * Generate video for a shot (Agent 4.5)
  * Supports both image-reference and start-end narrative modes
  */
-router.post('/videos/:id/shots/:shotId/animate', isAuthenticated, async (req: Request, res: Response) => {
+router.post('/videos/:id/shots/:shotId/animate', 
+  isAuthenticated, 
+  (req: Request, res: Response, next) => {
+    // Prevent session save/touch during long video generation
+    // This avoids database connection timeouts during 30+ second video generation calls
+    if (req.session) {
+      req.session.touch = () => {}; // Disable session touch/save
+    }
+    next();
+  },
+  async (req: Request, res: Response) => {
   try {
     const userId = getCurrentUserId(req);
     if (!userId) {
@@ -3669,7 +3781,24 @@ router.post('/videos/:id/shots/:shotId/animate', isAuthenticated, async (req: Re
     if (effectiveMode === "image-reference") {
       imageUrl = shotVersion.imageUrl || undefined;
       if (!imageUrl) {
-        return res.status(400).json({ error: 'Image URL is required for image-reference mode' });
+        // Log detailed debug info to help diagnose why imageUrl is missing
+        console.error('[narrative:routes] Missing imageUrl for image-reference mode:', {
+          shotId,
+          shotVersionId,
+          versionKeys: Object.keys(shotVersion),
+          hasImageUrl: !!shotVersion.imageUrl,
+          hasStartFrameUrl: !!shotVersion.startFrameUrl,
+          versionStatus: shotVersion.status,
+        });
+        return res.status(400).json({ 
+          error: 'Image URL is required for image-reference mode. The image may not have been generated yet, or its URL was lost due to a data sync issue. Please regenerate the image for this shot.',
+          details: {
+            shotId,
+            shotVersionId,
+            versionFound: true,
+            imageUrlPresent: false,
+          }
+        });
       }
     } else {
       // Start-end mode
@@ -3766,28 +3895,43 @@ router.post('/videos/:id/shots/:shotId/animate', isAuthenticated, async (req: Re
     );
 
     // Update shot version with video URL if completed
+    // CRITICAL: Re-fetch latest step4Data to prevent race conditions
+    // Video generation can take 30+ seconds; other saves may have occurred since we read step4Data
     if (result.status === "completed" && result.videoUrl) {
-      const updatedShotVersions = { ...step4Data.shotVersions };
-      if (!updatedShotVersions[shotId]) {
-        updatedShotVersions[shotId] = [];
-      }
-      
-      const versionIndex = updatedShotVersions[shotId].findIndex((v: any) => v.id === shotVersionId);
-      if (versionIndex >= 0) {
-        updatedShotVersions[shotId][versionIndex] = {
-          ...updatedShotVersions[shotId][versionIndex],
-          videoUrl: result.videoUrl,
-          videoDuration: result.videoDuration,
-          status: "completed",
-        };
-      }
+      try {
+        const latestVideo = await storage.getVideo(videoId);
+        const latestStep4Data = (latestVideo?.step4Data as any) || {};
+        const latestShotVersions = { ...(latestStep4Data.shotVersions || {}) };
+        
+        if (!latestShotVersions[shotId]) {
+          latestShotVersions[shotId] = [];
+        }
+        
+        const versionIndex = latestShotVersions[shotId].findIndex((v: any) => v.id === shotVersionId);
+        if (versionIndex >= 0) {
+          latestShotVersions[shotId][versionIndex] = {
+            ...latestShotVersions[shotId][versionIndex],
+            videoUrl: result.videoUrl,
+            videoDuration: result.videoDuration,
+            status: "completed",
+          };
+        }
 
-      await storage.updateVideo(videoId, {
-        step4Data: {
-          ...step4Data,
-          shotVersions: updatedShotVersions,
-        },
-      });
+        await storage.updateVideo(videoId, {
+          step4Data: {
+            ...latestStep4Data,
+            shotVersions: latestShotVersions,
+          },
+        });
+        
+        console.log('[narrative:routes] Video URL saved with race-condition protection:', {
+          shotId,
+          shotVersionId,
+          videoUrl: result.videoUrl,
+        });
+      } catch (dbError) {
+        console.error('[narrative:routes] Failed to save video URL to database:', dbError);
+      }
     }
 
     res.json({ 
@@ -3850,44 +3994,56 @@ router.get('/videos/:id/shots/:shotId/video-status/:taskId', isAuthenticated, as
     const videoUrl = data.videoURL || data.outputURL;
 
     // If completed, update shot version in database
+    // CRITICAL: Use atomic-style update to prevent race conditions with concurrent polls
     if (status === "completed" && videoUrl) {
-      const video = await storage.getVideo(videoId);
-      if (video) {
-        const step4Data = (video.step4Data as any) || {};
-        const shotVersions = step4Data.shotVersions?.[shotId] || [];
-        
-        // Find the version that matches this task (we'd need to store taskId, but for now update the current version)
-        const allShots: any[] = [];
-        const step3Data = (video.step3Data as any) || {};
-        const scenes = step3Data.scenes || [];
-        scenes.forEach((scene: any) => {
-          const sceneShots = step3Data.shots?.[scene.id] || [];
-          allShots.push(...sceneShots.map((s: any) => ({ ...s, sceneId: scene.id })));
-        });
-        
-        const shot = allShots.find((s: any) => s.id === shotId);
-        if (shot?.currentVersionId) {
-          const updatedShotVersions = { ...step4Data.shotVersions };
-          if (!updatedShotVersions[shotId]) {
-            updatedShotVersions[shotId] = [];
-          }
+      try {
+        // Re-fetch the LATEST video data right before writing to minimize race window
+        const latestVideo = await storage.getVideo(videoId);
+        if (latestVideo) {
+          const latestStep4Data = (latestVideo.step4Data as any) || {};
+          const latestStep3Data = (latestVideo.step3Data as any) || {};
           
-          const versionIndex = updatedShotVersions[shotId].findIndex((v: any) => v.id === shot.currentVersionId);
-          if (versionIndex >= 0) {
-            updatedShotVersions[shotId][versionIndex] = {
-              ...updatedShotVersions[shotId][versionIndex],
-              videoUrl,
-              status: "completed",
-            };
-          }
-
-          await storage.updateVideo(videoId, {
-            step4Data: {
-              ...step4Data,
-              shotVersions: updatedShotVersions,
-            },
+          // Find the shot to get currentVersionId
+          const allShots: any[] = [];
+          const scenes = latestStep3Data.scenes || [];
+          scenes.forEach((scene: any) => {
+            const sceneShots = latestStep3Data.shots?.[scene.id] || [];
+            allShots.push(...sceneShots.map((s: any) => ({ ...s, sceneId: scene.id })));
           });
+          
+          const shot = allShots.find((s: any) => s.id === shotId);
+          if (shot?.currentVersionId) {
+            // Only update this specific shot's version, preserving everything else
+            const latestShotVersions = { ...(latestStep4Data.shotVersions || {}) };
+            if (!latestShotVersions[shotId]) {
+              latestShotVersions[shotId] = [];
+            }
+            
+            const versionIndex = latestShotVersions[shotId].findIndex((v: any) => v.id === shot.currentVersionId);
+            if (versionIndex >= 0) {
+              latestShotVersions[shotId][versionIndex] = {
+                ...latestShotVersions[shotId][versionIndex],
+                videoUrl,
+                status: "completed",
+              };
+            }
+
+            await storage.updateVideo(videoId, {
+              step4Data: {
+                ...latestStep4Data,
+                shotVersions: latestShotVersions,
+              },
+            });
+            
+            console.log('[narrative:routes] Poll: video URL saved with race-condition protection:', {
+              shotId,
+              versionId: shot.currentVersionId,
+              videoUrl,
+            });
+          }
         }
+      } catch (dbError) {
+        console.error('[narrative:routes] Poll: failed to save video URL to database:', dbError);
       }
     }
 
@@ -4015,7 +4171,17 @@ router.post('/videos/:id/shots/:shotId/sound-effect/recommend', isAuthenticated,
 /**
  * Generate sound effect for a shot
  */
-router.post('/videos/:id/shots/:shotId/sound-effect/generate', isAuthenticated, async (req: Request, res: Response) => {
+router.post('/videos/:id/shots/:shotId/sound-effect/generate', 
+  isAuthenticated, 
+  (req: Request, res: Response, next) => {
+    // Prevent session save/touch during long sound effect generation
+    // This avoids database connection timeouts during AI generation calls
+    if (req.session) {
+      req.session.touch = () => {}; // Disable session touch/save
+    }
+    next();
+  },
+  async (req: Request, res: Response) => {
   try {
     const { id: videoId, shotId } = req.params;
     const { sceneId, description } = req.body;
@@ -4203,7 +4369,17 @@ router.post('/videos/:id/voiceover/generate-script', isAuthenticated, async (req
 /**
  * Generate voiceover audio
  */
-router.post('/videos/:id/voiceover/generate-audio', isAuthenticated, async (req: Request, res: Response) => {
+router.post('/videos/:id/voiceover/generate-audio', 
+  isAuthenticated, 
+  (req: Request, res: Response, next) => {
+    // Prevent session save/touch during long voiceover generation
+    // This avoids database connection timeouts during AI audio generation
+    if (req.session) {
+      req.session.touch = () => {}; // Disable session touch/save
+    }
+    next();
+  },
+  async (req: Request, res: Response) => {
   try {
     const { id: videoId } = req.params;
     const { script, voiceId, language = 'en' } = req.body;
@@ -4272,7 +4448,17 @@ router.post('/videos/:id/voiceover/generate-audio', isAuthenticated, async (req:
 /**
  * Generate background music
  */
-router.post('/videos/:id/music/generate', isAuthenticated, async (req: Request, res: Response) => {
+router.post('/videos/:id/music/generate', 
+  isAuthenticated, 
+  (req: Request, res: Response, next) => {
+    // Prevent session save/touch during long music generation
+    // This avoids database connection timeouts during AI music generation
+    if (req.session) {
+      req.session.touch = () => {}; // Disable session touch/save
+    }
+    next();
+  },
+  async (req: Request, res: Response) => {
   try {
     const { id: videoId } = req.params;
     const { musicStyle = 'cinematic' } = req.body;

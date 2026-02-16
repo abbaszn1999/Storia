@@ -301,9 +301,10 @@ export function ScriptEditor({
     scriptSettingsSnapshot.userIdea !== storyIdea
   );
 
-  // Compute validation: user can continue if script exists AND settings haven't changed
+  // Compute validation: user can continue if script exists AND settings haven't changed AND genre is selected
   const hasScript = generatedScript.trim().length > 0;
-  const canContinue = hasScript && !settingsChangedSinceScript;
+  const hasGenre = selectedGenres.length > 0;
+  const canContinue = hasScript && !settingsChangedSinceScript && hasGenre;
 
   // Notify parent when validation state changes
   useEffect(() => {
@@ -906,6 +907,12 @@ export function ScriptEditor({
                     </button>
                   ))}
                 </div>
+                {selectedGenres.length === 0 && (
+                  <Alert className="bg-red-500/10 border-red-500/30 text-red-400">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>Please select at least one genre to continue</AlertDescription>
+                  </Alert>
+                )}
               </CardContent>
             </Card>
 

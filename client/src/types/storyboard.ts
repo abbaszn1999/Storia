@@ -94,6 +94,8 @@ export interface Shot {
   speedProfile?: 'linear' | 'speed-ramp' | 'slow-motion' | 'kinetic' | 'smooth' | null;
   renderDuration?: number | null;
   frameMode?: "image-reference" | "start-end"; // Per-shot mode (only used when narrativeMode === "auto")
+  characters?: string[];  // Array of @{CharacterName} tags (from shot composer)
+  location?: string | null;  // @{LocationName} tag (from shot composer)
   // Soundscape step fields
   voiceoverText?: string | null;
   voiceoverUrl?: string | null;
@@ -139,6 +141,7 @@ export interface ReferenceImage {
   characterId?: string | null;
   type: string;
   imageUrl: string;
+  tempId?: string;  // Server-side temp storage ID for uploaded reference images
   description?: string | null;
   createdAt: Date;
 }

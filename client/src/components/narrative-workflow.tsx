@@ -146,6 +146,60 @@ export function NarrativeWorkflow({
 }: NarrativeWorkflowProps) {
   const { toast } = useToast();
 
+  // Helper: Sync shotVersions from server to prevent stale local state
+  // Uses MERGE instead of replace to avoid losing in-flight changes
+  // URL fields (imageUrl, videoUrl, etc.) are protected: server value wins over null
+  const syncShotVersionsFromServer = async () => {
+    if (!videoId) return;
+    try {
+      const videoResponse = await fetch(`/api/videos/${videoId}`, {
+        credentials: 'include',
+      });
+      if (videoResponse.ok) {
+        const video = await videoResponse.json();
+        if (video.step4Data?.shotVersions) {
+          const serverVersions = video.step4Data.shotVersions as { [shotId: string]: any[] };
+          
+          // Use functional update to merge server data with current local state
+          // Server data is authoritative for URL fields; local state is authoritative for unsaved edits
+          onShotVersionsChange((prevLocal: { [shotId: string]: any[] }) => {
+            const merged: { [shotId: string]: any[] } = { ...prevLocal };
+            
+            for (const [shotId, serverShotVersions] of Object.entries(serverVersions)) {
+              if (!Array.isArray(serverShotVersions)) continue;
+              const localShotVersions = merged[shotId] || [];
+              
+              merged[shotId] = serverShotVersions.map((serverVer: any) => {
+                const localVer = localShotVersions.find((v: any) => v.id === serverVer.id);
+                if (localVer) {
+                  // Merge: start with local (may have unsaved prompt edits),
+                  // then overlay server data (has authoritative URLs)
+                  // Server URL fields always win (they're the source of truth)
+                  const result = { ...localVer, ...serverVer };
+                  // But also preserve local URL fields if server doesn't have them
+                  // (e.g., local state updated from a just-completed generation before DB sync)
+                  const urlFields = ['imageUrl', 'videoUrl', 'startFrameUrl', 'endFrameUrl'];
+                  for (const field of urlFields) {
+                    if (localVer[field] && !serverVer[field]) {
+                      result[field] = localVer[field];
+                    }
+                  }
+                  return result;
+                }
+                return serverVer;
+              });
+            }
+            
+            console.log('[narrative-workflow] Merged shotVersions from server (protected URLs)');
+            return merged;
+          });
+        }
+      }
+    } catch (error) {
+      console.warn('[narrative-workflow] Failed to sync shotVersions from server:', error);
+    }
+  };
+
   const handleGenerateShot = async (shotId: string, prompts?: { imagePrompt?: string; videoPrompt?: string }, frame?: 'start' | 'end') => {
     try {
       // Find shot and version to save prompts first
@@ -243,12 +297,12 @@ export function NarrativeWorkflow({
         requestBody.frame = frame;
       }
       
-      // Include shot-level reference image if it exists
+      // Include shot-level reference image if it exists (use tempId for server retrieval)
       const shotReference = referenceImages.find(
         (ref) => ref.shotId === shotId && ref.type === "shot_reference"
       );
-      if (shotReference?.imageUrl) {
-        requestBody.shotReferenceImageUrl = shotReference.imageUrl;
+      if (shotReference?.tempId) {
+        requestBody.shotReferenceTempId = shotReference.tempId;
       }
       
       // If shot exists in frontend but might not be in database (manually created),
@@ -422,6 +476,10 @@ export function NarrativeWorkflow({
         title: "Image Generated",
         description: "Storyboard image generated successfully",
       });
+
+      // CRITICAL: Sync from server to ensure local state matches DB
+      // This prevents stale data from overwriting server-saved URLs on future saves
+      await syncShotVersionsFromServer();
     } catch (error) {
       console.error('Failed to generate shot image:', error);
       toast({
@@ -536,12 +594,12 @@ export function NarrativeWorkflow({
         }
       }
       
-      // Include shot-level reference image if it exists
+      // Include shot-level reference image if it exists (use tempId for server retrieval)
       const shotReference = referenceImages.find(
         (ref) => ref.shotId === shotId && ref.type === "shot_reference"
       );
-      if (shotReference?.imageUrl) {
-        requestBody.shotReferenceImageUrl = shotReference.imageUrl;
+      if (shotReference?.tempId) {
+        requestBody.shotReferenceTempId = shotReference.tempId;
       }
       
       // If shot exists in frontend but might not be in database (manually created),
@@ -656,6 +714,10 @@ export function NarrativeWorkflow({
         title: "Image Regenerated",
         description: "Storyboard image regenerated successfully",
       });
+
+      // CRITICAL: Sync from server to ensure local state matches DB
+      // This prevents stale data from overwriting server-saved URLs on future saves
+      await syncShotVersionsFromServer();
     } catch (error) {
       console.error('Failed to regenerate shot image:', error);
       toast({
@@ -719,37 +781,63 @@ export function NarrativeWorkflow({
     }
   };
 
-  const handleUploadShotReference = (shotId: string, file: File) => {
-    // Create a temporary URL for the uploaded image
-    const tempUrl = URL.createObjectURL(file);
-    
-    // Find existing reference image for this shot
-    const existingRef = referenceImages.find(
-      (ref) => ref.shotId === shotId && ref.type === "shot_reference"
-    );
-
-    if (existingRef) {
-      // Update existing reference
-      onReferenceImagesChange(
-        referenceImages.map((ref) =>
-          ref.shotId === shotId && ref.type === "shot_reference"
-            ? { ...ref, imageUrl: tempUrl }
-            : ref
-        )
+  const handleUploadShotReference = async (shotId: string, file: File) => {
+    try {
+      // Upload file to server for temporary storage
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/narrative/upload-reference', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+        headers: {
+          ...(workspaceId && { 'x-workspace-id': workspaceId }),
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to upload reference image');
+      }
+      
+      const { tempId, previewUrl } = await response.json();
+      
+      // Find existing reference image for this shot
+      const existingRef = referenceImages.find(
+        (ref) => ref.shotId === shotId && ref.type === "shot_reference"
       );
-    } else {
-      // Add new reference
-      const newRef: ReferenceImage = {
-        id: `ref-${Date.now()}`,
-        videoId: videoId,
-        shotId: shotId,
-        characterId: null,
-        type: "shot_reference",
-        imageUrl: tempUrl,
-        description: null,
-        createdAt: new Date(),
-      };
-      onReferenceImagesChange([...referenceImages, newRef]);
+
+      if (existingRef) {
+        // Update existing reference with new tempId and previewUrl
+        onReferenceImagesChange(
+          referenceImages.map((ref) =>
+            ref.shotId === shotId && ref.type === "shot_reference"
+              ? { ...ref, imageUrl: previewUrl, tempId }
+              : ref
+          )
+        );
+      } else {
+        // Add new reference with tempId for server retrieval
+        const newRef: ReferenceImage = {
+          id: `ref-${Date.now()}`,
+          videoId: videoId,
+          shotId: shotId,
+          characterId: null,
+          type: "shot_reference",
+          imageUrl: previewUrl,  // Base64 data URL for display
+          tempId,                // Server-side temp storage ID
+          description: null,
+          createdAt: new Date(),
+        };
+        onReferenceImagesChange([...referenceImages, newRef]);
+      }
+    } catch (error) {
+      console.error('[narrative-workflow] Failed to upload reference image:', error);
+      toast({
+        title: "Upload Failed",
+        description: "Could not upload reference image. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -914,7 +1002,7 @@ export function NarrativeWorkflow({
     });
   };
 
-  const handleDeleteScene = (sceneId: string) => {
+  const handleDeleteScene = async (sceneId: string) => {
     // Remove the scene
     const updatedScenes = scenes
       .filter(scene => scene.id !== sceneId)
@@ -953,9 +1041,26 @@ export function NarrativeWorkflow({
     if (updatedScenes.length === 0) {
       onContinuityLockedChange(false);
     }
+
+    // Persist deletion to database
+    try {
+      await apiRequest("PATCH", `/api/narrative/videos/${videoId}/step3`, {
+        scenes: updatedScenes,
+        shots: updatedShots,
+        continuityGroups: updatedContinuityGroups,
+      });
+      console.log('[narrative-workflow] Scene deleted and saved to database:', sceneId);
+    } catch (error) {
+      console.error('[narrative-workflow] Failed to save scene deletion:', error);
+      toast({
+        title: "Warning",
+        description: "Scene deleted locally but failed to save to database. Changes may be lost on refresh.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleDeleteShot = (shotId: string) => {
+  const handleDeleteShot = async (shotId: string) => {
     // Find which scene this shot belongs to
     const sceneId = Object.keys(shots).find(sId => 
       shots[sId]?.some(shot => shot.id === shotId)
@@ -966,17 +1071,18 @@ export function NarrativeWorkflow({
     const sceneShots = shots[sceneId] || [];
     
     // Remove the shot and renumber remaining shots
-    const updatedShots = sceneShots
+    const updatedShotsForScene = sceneShots
       .filter(shot => shot.id !== shotId)
       .map((shot, idx) => ({
         ...shot,
         shotNumber: idx + 1,
       }));
     
-    onShotsChange({
+    const updatedShots = {
       ...shots,
-      [sceneId]: updatedShots,
-    });
+      [sceneId]: updatedShotsForScene,
+    };
+    onShotsChange(updatedShots);
     
     // Remove shot versions for this shot
     const updatedShotVersions = { ...shotVersions };
@@ -1001,6 +1107,23 @@ export function NarrativeWorkflow({
       }
     }
     onContinuityGroupsChange(updatedContinuityGroups);
+
+    // Persist deletion to database
+    try {
+      await apiRequest("PATCH", `/api/narrative/videos/${videoId}/step3`, {
+        scenes,  // scenes unchanged
+        shots: updatedShots,
+        continuityGroups: updatedContinuityGroups,
+      });
+      console.log('[narrative-workflow] Shot deleted and saved to database:', shotId);
+    } catch (error) {
+      console.error('[narrative-workflow] Failed to save shot deletion:', error);
+      toast({
+        title: "Warning",
+        description: "Shot deleted locally but failed to save to database. Changes may be lost on refresh.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -1129,6 +1252,7 @@ export function NarrativeWorkflow({
           onDeleteScene={handleDeleteScene}
           onDeleteShot={handleDeleteShot}
           onNext={onNext}
+          onSyncFromServer={syncShotVersionsFromServer}
         />
       )}
 
@@ -1140,7 +1264,7 @@ export function NarrativeWorkflow({
           shotVersions={shotVersions}
           step5Data={step5Data}
           script={script}
-          characters={characters}
+          characters={characters.map(c => ({ id: c.id, name: c.name, description: c.description || undefined }))}
           genre={genres?.[0]}
           tone={tones?.[0]}
           language={language as 'en' | 'ar'}

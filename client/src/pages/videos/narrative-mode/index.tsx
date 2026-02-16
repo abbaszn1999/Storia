@@ -288,8 +288,9 @@ export default function NarrativeMode() {
         }
       }
       
-      // Restore step3 data (scenes, shots, continuity)
-      if (existingVideo.step3Data && typeof existingVideo.step3Data === 'object') {
+      // Restore step3 data (scenes, shots, continuity) - ONLY on initial load
+      // On refetches, local state may have unsaved changes that we don't want to overwrite
+      if (isInitialRestore && existingVideo.step3Data && typeof existingVideo.step3Data === 'object') {
         const step3 = existingVideo.step3Data as { 
           scenes?: Scene[]; 
           shots?: { [sceneId: string]: Shot[] };
@@ -302,8 +303,10 @@ export default function NarrativeMode() {
         if (step3.continuityGroups) setContinuityGroups(step3.continuityGroups);
       }
       
-      // Restore step4 data (shot versions, reference images, prompts - only if not already restored from step2)
-      if (existingVideo.step4Data && typeof existingVideo.step4Data === 'object') {
+      // Restore step4 data (shot versions, reference images, prompts) - ONLY on initial load
+      // CRITICAL: On refetches, setShotVersions would overwrite local state with potentially stale DB data,
+      // causing freshly generated images/videos to disappear
+      if (isInitialRestore && existingVideo.step4Data && typeof existingVideo.step4Data === 'object') {
         const step4 = existingVideo.step4Data as { 
           shotVersions?: { [shotId: string]: NarrativeShotVersion[] };
           characters?: Character[];
@@ -1045,6 +1048,24 @@ export default function NarrativeMode() {
               const errorData = await saveResponse.json().catch(() => ({ error: 'Unknown error' }));
               console.error('[NarrativePage] Step4 data save failed:', errorData);
               throw new Error(errorData.error || 'Failed to save prompts');
+            }
+
+            // CRITICAL: Sync shotVersions from server to ensure local state matches DB
+            // This prevents stale data from overwriting server-saved URLs on future saves
+            // (mirrors the pattern used in ambient-visual-workflow.tsx)
+            try {
+              const syncResponse = await fetch(`/api/videos/${videoId}`, {
+                credentials: 'include',
+              });
+              if (syncResponse.ok) {
+                const syncVideo = await syncResponse.json();
+                if (syncVideo.step4Data?.shotVersions) {
+                  console.log('[NarrativePage] Syncing shotVersions from server after prompt generation');
+                  setShotVersions(syncVideo.step4Data.shotVersions);
+                }
+              }
+            } catch (syncError) {
+              console.warn('[NarrativePage] Failed to sync shotVersions from server:', syncError);
             }
 
             console.log('[NarrativePage] Prompts generated and saved successfully');

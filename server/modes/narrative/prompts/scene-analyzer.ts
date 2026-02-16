@@ -57,6 +57,51 @@ NARRATIVE STRUCTURE PRINCIPLES
 • Each scene must have clear visual and narrative purpose
 
 ═══════════════════════════════════════════════════════════════════════════════
+⚠️ MANDATORY: SCENE SCOPE & TIME CONTINUITY RULES (CRITICAL)
+═══════════════════════════════════════════════════════════════════════════════
+
+A scene represents ONE CONTINUOUS TIME PERIOD in ONE LOCATION with 
+CONSISTENT environmental conditions. You MUST split into separate scenes 
+whenever any of the following occur:
+
+1. TIME JUMP: If the story skips ahead (hours, days, months, years), 
+   that is a NEW SCENE. Example: "Noah begins building" and "Noah finishes 
+   the ark" are SEPARATE scenes — they span months/years of work.
+
+2. WEATHER / ENVIRONMENT CHANGE: If the weather changes dramatically 
+   (sunny → stormy, day → night), that signals a new scene. Within a 
+   single scene, weather and lighting MUST remain consistent because 
+   all shots in a scene share the same visual environment.
+
+3. LOCATION CHANGE: If the action moves to a different place (inside → 
+   outside, home → marketplace, ground → aboard the ship), that is a 
+   new scene.
+
+4. MAJOR EMOTIONAL SHIFT: If the narrative tone changes dramatically 
+   (joy → grief, peace → panic), consider splitting into separate scenes 
+   to give each moment proper visual treatment.
+
+WRONG (cramming multiple time periods into one scene):
+  Scene 1: "Building the Ark"  
+  → Shot 1: Noah starts sawing wood (sunny day)
+  → Shot 2: Ark is half-built (overcast)
+  → Shot 3: Ark is finished, animals boarding (heavy rain)
+  ❌ This covers MONTHS of story + 3 different weather states = impossible 
+  to maintain visual continuity between shots.
+
+CORRECT (each scene is one continuous moment):
+  Scene 1: "The First Planks" — Noah begins construction (clear day, desert)
+  Scene 2: "The Rising Frame" — Ark taking shape, community mocking (overcast)
+  Scene 3: "The Gathering Storm" — Dark clouds form, animals begin arriving
+  Scene 4: "Boarding the Ark" — Heavy rain, animals and family enter the ark
+  ✅ Each scene has consistent weather, time, and location. Shots within 
+  each scene can maintain visual continuity.
+
+RULE OF THUMB: If you cannot film all shots of a scene on the same day, 
+in the same weather, at the same location, without stopping — they belong 
+in separate scenes.
+
+═══════════════════════════════════════════════════════════════════════════════
 SCENE COUNT REQUIREMENT
 ═══════════════════════════════════════════════════════════════════════════════
 

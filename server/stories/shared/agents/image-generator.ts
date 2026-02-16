@@ -276,9 +276,11 @@ export async function createImageGenerator(mode: StoryMode) {
       userId: string;
       workspaceId?: string;
       isMidjourney: boolean;
+      usageType?: string;
+      usageMode?: string;
     }
   ): Promise<BatchResult[]> {
-  const { imageModel, userId, workspaceId, isMidjourney } = options;
+  const { imageModel, userId, workspaceId, isMidjourney, usageType, usageMode } = options;
   
   // Create taskUUID -> scene mapping for reliable result matching
   const taskToSceneMap = new Map<string, { sceneId: string; sceneNumber: number }>();
@@ -309,6 +311,7 @@ export async function createImageGenerator(mode: StoryMode) {
       },
       {
         skipCreditCheck: false,
+        metadata: { usageType, usageMode },
       }
     );
 
@@ -427,7 +430,7 @@ export async function createImageGenerator(mode: StoryMode) {
               timeoutMs: CONFIG.BATCH_TIMEOUT_MS,
             },
           },
-          { skipCreditCheck: false }
+          { skipCreditCheck: false, metadata: { usageType, usageMode } }
         );
         
         console.log(`[${mode}:image-generator:batch] Retry succeeded, processing results...`);
@@ -603,7 +606,9 @@ export async function createImageGenerator(mode: StoryMode) {
   async function generateImages(
     input: any,
     userId: string = "",
-    workspaceName: string = ""
+    workspaceName: string = "",
+    usageType?: string,
+    usageMode?: string
   ): Promise<any> {
     const { scenes, aspectRatio, imageStyle, styleReferenceUrl, characterReferenceUrl, imageModel, imageResolution, projectName, storyId, videoModel, videoResolution } = input;
 
@@ -719,6 +724,8 @@ export async function createImageGenerator(mode: StoryMode) {
       userId,
       workspaceId: input.workspaceId,
       isMidjourney,
+      usageType,
+      usageMode,
     });
     
     allResults.push(...batchResults);
@@ -811,8 +818,10 @@ export async function createImageGenerator(mode: StoryMode) {
 export async function generateImages(
   input: any,
   userId?: string,
-  workspaceName?: string
+  workspaceName?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<any> {
   const generator = await createImageGenerator("problem-solution");
-  return generator(input, userId, workspaceName);
+  return generator(input, userId, workspaceName, usageType, usageMode);
 }

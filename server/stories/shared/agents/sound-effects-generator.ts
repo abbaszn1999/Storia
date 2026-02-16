@@ -69,6 +69,7 @@ export async function createSoundEffectsGenerator(mode: StoryMode) {
           },
           {
             skipCreditCheck: false,
+            metadata: { usageType, usageMode },
           }
         );
 
@@ -187,7 +188,9 @@ export async function createSoundEffectsGenerator(mode: StoryMode) {
   async function generateSoundEffects(
     input: any,
     userId?: string,
-    workspaceName?: string
+    workspaceName?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<any> {
     const { scenes, projectName } = input;
 
@@ -261,9 +264,11 @@ export async function createSoundEffectsGenerator(mode: StoryMode) {
 export async function generateSoundEffects(
   input: any,
   userId?: string,
-  workspaceName?: string
+  workspaceName?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<any> {
   const generator = await createSoundEffectsGenerator("auto-asmr");
-  return generator(input, userId, workspaceName);
+  return generator(input, userId, workspaceName, usageType, usageMode);
 }
 

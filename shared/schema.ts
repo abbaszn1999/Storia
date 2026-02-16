@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, jsonb, integer, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, jsonb, integer, boolean, index, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -24,7 +24,7 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   provider: varchar("provider").default("credentials"),
   providerId: varchar("provider_id"),
-  credits: integer("credits").default(0).notNull(),
+  credits: numeric("credits", { precision: 12, scale: 6 }).default("0").notNull(),
   subscriptionTier: text("subscription_tier").default("free").notNull(),
   
   // OAuth fields
@@ -172,6 +172,24 @@ export const locations = pgTable("locations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Usage tracking table for AI API calls
+export const usage = pgTable("usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  workspaceId: varchar("workspace_id").references(() => workspaces.id, { onDelete: "set null" }),
+  date: varchar("date").notNull(), // YYYY-MM-DD format
+  time: varchar("time").notNull(), // HH:mm format
+  type: text("type").notNull(), // "video" | "story" | "assets"
+  mode: text("mode").notNull(), // "ambient" | "problem-solution" | "character" | "location" etc
+  modelName: text("model_name").notNull(), // "gpt-5-nano", "sora-2", etc
+  provider: text("provider").notNull(), // "openai", "runware", "gemini"
+  estimatedCostUsd: text("estimated_cost_usd").notNull(), // Stored as string for precision
+  creditsDeducted: numeric("credits_deducted", { precision: 12, scale: 6 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_usage_user_workspace_date").on(table.userId, table.workspaceId, table.date),
+]);
+
 // NOTE: content_calendar table has been removed - Late.dev is now the single source of truth
 // See server/calendar/ for the new calendar implementation
 
@@ -241,6 +259,11 @@ export const insertUploadSchema = createInsertSchema(uploads).omit({
 });
 
 export const insertWorkspaceIntegrationSchema = createInsertSchema(workspaceIntegrations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertUsageSchema = createInsertSchema(usage).omit({
   id: true,
   createdAt: true,
 });
@@ -353,3 +376,5 @@ export type InsertVideoCampaign = z.infer<typeof insertVideoCampaignSchema>;
 export type VideoCampaign = typeof videoCampaigns.$inferSelect;
 export type InsertStoryCampaign = z.infer<typeof insertStoryCampaignSchema>;
 export type StoryCampaign = typeof storyCampaigns.$inferSelect;
+export type InsertUsage = z.infer<typeof insertUsageSchema>;
+export type Usage = typeof usage.$inferSelect;

@@ -155,7 +155,9 @@ function isValidMusicStyle(style: string): style is MusicStyle {
  * @returns Music URL, duration, and cost
  */
 export async function generateNarrativeBackgroundMusic(
-  input: NarrativeBackgroundMusicInput
+  input: NarrativeBackgroundMusicInput,
+  usageType?: string,
+  usageMode?: string
 ): Promise<BackgroundMusicGeneratorOutput> {
   const {
     musicStyle,
@@ -222,6 +224,7 @@ export async function generateNarrativeBackgroundMusic(
       },
       {
         expectedOutputTokens: 500,
+        metadata: { usageType, usageMode },
       }
     );
 
@@ -258,6 +261,7 @@ export async function generateNarrativeBackgroundMusic(
       },
       {
         skipCreditCheck: false,
+        metadata: { usageType, usageMode },
       }
     );
 

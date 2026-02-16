@@ -59,7 +59,9 @@ export async function generateScenes(
   input: SceneGeneratorInput,
   videoId: string,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<SceneGeneratorOutput> {
   const durationSeconds = parseDurationToSeconds(input.duration);
   const segmentCount = calculateOptimalSegmentCount(
@@ -135,6 +137,7 @@ export async function generateScenes(
       },
       {
         expectedOutputTokens: 1500,
+        metadata: { usageType, usageMode },
       }
     );
 

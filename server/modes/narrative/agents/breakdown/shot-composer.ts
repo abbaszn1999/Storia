@@ -223,7 +223,9 @@ function mapContinuityGroups(
 export async function composeShots(
   input: ShotComposerInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<ShotComposerOutput> {
   // Determine provider and model
   let provider: "openai" | "gemini" = "openai";
@@ -374,6 +376,7 @@ export async function composeShots(
       },
       {
         expectedOutputTokens,
+        metadata: { usageType, usageMode },
       }
     );
 

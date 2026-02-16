@@ -93,7 +93,9 @@ function validateTransitionType(type: string): string {
 export async function proposeContinuity(
   input: ContinuityProducerInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<ContinuityProducerOutput> {
   const { scenes, shots } = input;
 
@@ -178,6 +180,7 @@ export async function proposeContinuity(
       },
       {
         expectedOutputTokens: 1000,
+        metadata: { usageType, usageMode },
       }
     );
 

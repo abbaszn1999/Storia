@@ -61,7 +61,9 @@ export interface CreativeSparkInput {
 export async function generateCreativeSpark(
   input: CreativeSparkInput,
   userId: string,
-  workspaceId: string
+  workspaceId: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<CreativeSparkOutput> {
   console.log('[social-commerce:agent-3.0] Generating creative spark:', {
     audience: input.targetAudience,
@@ -130,6 +132,7 @@ export async function generateCreativeSpark(
         },
         {
           expectedOutputTokens: 300,
+          metadata: { usageType, usageMode },
         }
       );
 

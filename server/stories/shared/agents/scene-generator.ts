@@ -330,7 +330,9 @@ export async function createSceneGenerator(mode: StoryMode) {
   async function generateScenes(
     input: any,
     userId?: string,
-    workspaceId?: string
+    workspaceId?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<any> {
     const { storyText, duration, pacing, videoModel } = input;
 
@@ -395,6 +397,7 @@ export async function createSceneGenerator(mode: StoryMode) {
       },
       {
         expectedOutputTokens: 800,
+        metadata: { usageType, usageMode },
       }
     );
 
@@ -463,9 +466,11 @@ export async function createSceneGenerator(mode: StoryMode) {
 export async function generateScenes(
   input: any,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<any> {
   const generator = await createSceneGenerator("problem-solution");
-  return generator(input, userId, workspaceId);
+  return generator(input, userId, workspaceId, usageType, usageMode);
 }
 

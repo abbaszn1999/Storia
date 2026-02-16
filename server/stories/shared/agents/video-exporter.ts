@@ -641,8 +641,10 @@ export async function createVideoExporter(mode: StoryMode) {
               projectName: input.projectName,
               workspaceId: input.workspaceId,
             },
-            userId,
-            workspaceName
+            input.userId,
+            input.workspaceName,
+            'story',
+            input.storyMode || 'problem-solution'
           );
           
           musicUrl = musicResult.musicUrl;

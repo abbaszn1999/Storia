@@ -271,7 +271,9 @@ function parseShotResponse(rawOutput: string): ShotGeneratorOutput {
 export async function generateShots(
   input: ShotGeneratorInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<ShotGeneratorOutput> {
   console.log('[character-vlog:shot-generator] Generating shots:', {
     sceneName: input.sceneName,
@@ -314,6 +316,7 @@ export async function generateShots(
       },
       {
         expectedOutputTokens: 6000, // Shots can have multiple items with detailed descriptions
+        metadata: { usageType, usageMode },
       }
     );
 

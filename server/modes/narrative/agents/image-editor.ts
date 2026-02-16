@@ -134,7 +134,9 @@ async function editImage(
   model: string,
   editCategory?: string,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<{ imageUrl: string; cost?: number }> {
   // Get Runware model ID from friendly name
   const runwareModelId = getRunwareModelId(model);
@@ -208,6 +210,7 @@ async function editImage(
     },
     {
       skipCreditCheck: false,
+      metadata: { usageType, usageMode },
     }
   );
 
@@ -247,7 +250,9 @@ async function editImage(
 export async function editStoryboardImage(
   input: ImageEditorInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<ImageEditorOutput> {
   const {
     originalImageUrl,
@@ -322,7 +327,9 @@ export async function editStoryboardImage(
       imageModel,
       editCategory, // Pass category for category-specific negative prompts
       userId,
-      workspaceId
+      workspaceId,
+      usageType,
+      usageMode
     );
 
     console.log("[agent-4.3:image-editor] Image edited successfully:", {

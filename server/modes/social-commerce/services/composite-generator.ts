@@ -156,7 +156,9 @@ export async function generateAIModeComposite(
           aspectRatio,
         },
         userId,
-        workspaceId
+        workspaceId,
+        'video',
+        'social-commerce'
       );
       console.log('[composite-generator] Prompt generated, calling Nano Banana Pro...');
     }
@@ -196,6 +198,9 @@ export async function generateAIModeComposite(
       ...runwareRequest,
       userId,
       workspaceId,
+    }, {
+      skipCreditCheck: false,
+      metadata: { usageType: 'video', usageMode: 'social-commerce' },
     });
     const results = Array.isArray(runwareResponse.output) ? runwareResponse.output : [runwareResponse.output];
     

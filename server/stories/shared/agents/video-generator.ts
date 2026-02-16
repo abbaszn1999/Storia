@@ -204,7 +204,9 @@ export async function createVideoGenerator(mode: StoryMode) {
   async function generateVideos(
     input: any,
     userId?: string,
-    workspaceName?: string
+    workspaceName?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<any> {
     const { 
       scenes, 
@@ -506,6 +508,7 @@ export async function createVideoGenerator(mode: StoryMode) {
         },
         {
           skipCreditCheck: false,
+          metadata: { usageType, usageMode },
         }
       );
 
@@ -647,9 +650,11 @@ export async function createVideoGenerator(mode: StoryMode) {
 export async function generateVideos(
   input: any,
   userId?: string,
-  workspaceName?: string
+  workspaceName?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<any> {
   const generator = await createVideoGenerator("problem-solution");
-  return generator(input, userId, workspaceName);
+  return generator(input, userId, workspaceName, usageType, usageMode);
 }
 

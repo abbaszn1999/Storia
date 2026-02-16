@@ -173,7 +173,9 @@ router.post('/videos/:id/shots/:shotId/generate-video', isAuthenticated, async (
         generateAudio: false, // Could be configurable
       },
       userId,
-      video.workspaceId || undefined
+      video.workspaceId || undefined,
+      'video',
+      'ambient'
     );
 
     if (result.error) {
@@ -447,7 +449,9 @@ router.post('/videos/:id/generate-all-videos', isAuthenticated, async (req: Requ
     const batchResult = await generateVideoClipBatch(
       batchInput,
       userId,
-      video.workspaceId || undefined
+      video.workspaceId || undefined,
+      'video',
+      'ambient'
     );
 
     // 7. Update shot versions with video URLs

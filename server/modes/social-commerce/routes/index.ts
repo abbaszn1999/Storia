@@ -1211,7 +1211,9 @@ router.post('/videos/:id/composite/generate-prompt', isAuthenticated, async (req
         aspectRatio: step1Data.aspectRatio || '9:16',
       },
       userId,
-      video.workspaceId
+      video.workspaceId,
+      'video',
+      'social-commerce'
     );
 
     console.log('[social-commerce:routes] Prompt generated:', {
@@ -2829,6 +2831,9 @@ router.post('/videos/:id/beats/:beatId/generate', isAuthenticated, async (req: R
       },
       userId,
       workspaceId: video.workspaceId,
+    }, {
+      skipCreditCheck: false,
+      metadata: { usageType: 'video', usageMode: 'social-commerce' },
     });
 
     // Extract video buffer or URL from response

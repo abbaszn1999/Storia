@@ -54,7 +54,9 @@ export interface NarrativeVideoGenerateResponse {
 export async function generateVideo(
   request: NarrativeVideoGenerateRequest,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<NarrativeVideoGenerateResponse> {
   const {
     narrativeMode,
@@ -258,6 +260,7 @@ export async function generateVideo(
       },
       {
         skipCreditCheck: false,
+        metadata: { usageType, usageMode },
       }
     );
 

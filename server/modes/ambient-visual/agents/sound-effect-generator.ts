@@ -39,7 +39,9 @@ const SOUND_EFFECT_GENERATOR_CONFIG = {
  * @returns CDN URL of extracted audio, and cost
  */
 export async function generateSoundEffect(
-  input: SoundEffectGeneratorInput
+  input: SoundEffectGeneratorInput,
+  usageType?: string,
+  usageMode?: string
 ): Promise<SoundEffectGeneratorOutput> {
   const {
     videoUrl,
@@ -121,6 +123,7 @@ export async function generateSoundEffect(
         },
         {
           skipCreditCheck: false,
+          metadata: { usageType, usageMode },
         }
       );
 

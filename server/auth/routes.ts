@@ -466,6 +466,7 @@ router.get("/user", isAuthenticated, async (req: Request, res: Response) => {
       lastName: user.lastName,
       profileImageUrl: user.profileImageUrl,
       hasCompletedOnboarding: user.hasCompletedOnboarding,
+      credits: user.credits,
     });
   } catch (error) {
     console.error("Error fetching user:", error);

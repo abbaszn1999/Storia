@@ -67,7 +67,9 @@ const SOUND_CONFIG = {
 export async function generateSound(
   input: SoundGenerationInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<SoundGenerationOutput> {
   const {
     soundPrompt,
@@ -119,6 +121,7 @@ export async function generateSound(
       },
       {
         skipCreditCheck: false,
+        metadata: { usageType, usageMode },
       }
     );
 

@@ -73,7 +73,9 @@ export interface NarrativeInput {
 export async function createNarrative(
   input: NarrativeInput,
   userId: string,
-  workspaceId: string
+  workspaceId: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<NarrativeOutput> {
   const beatCount = input.duration / 12;
   console.log('[social-commerce:agent-3.2] Creating visual beats:', {
@@ -129,6 +131,7 @@ export async function createNarrative(
         },
         {
           expectedOutputTokens: 800,
+          metadata: { usageType, usageMode },
         }
       );
 

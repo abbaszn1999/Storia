@@ -38,7 +38,9 @@ interface VoiceoverScriptGeneratorOutput {
 export async function generateNarrativeVoiceoverScript(
   input: NarrativeVoiceoverScriptInput,
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<VoiceoverScriptGeneratorOutput> {
   // Build the user prompt with all context
   const userPrompt = buildNarrativeVoiceoverScriptUserPrompt(input);
@@ -81,6 +83,7 @@ export async function generateNarrativeVoiceoverScript(
       },
       {
         expectedOutputTokens: expectedTokens,
+        metadata: { usageType, usageMode },
       }
     );
 

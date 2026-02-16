@@ -428,7 +428,7 @@ router.post('/atmosphere/generate', isAuthenticated, async (req: Request, res: R
 
     // Step 3: Generate mood description using AI
     const workspaceId = req.headers['x-workspace-id'] as string | undefined;
-    const result = await generateMoodDescription(aiInput, userId, workspaceId);
+    const result = await generateMoodDescription(aiInput, userId, workspaceId, 'video', 'ambient');
 
     // Step 4: Update database with generated description
     step1Data.moodDescription = result.moodDescription;
@@ -778,7 +778,9 @@ router.post('/flow-design/generate', isAuthenticated, async (req: Request, res: 
       sceneInput,
       videoId,
       userId,
-      workspaceId
+      workspaceId,
+      'video',
+      'ambient'
     );
 
     console.log('[ambient-visual:routes] Scenes generated:', {
@@ -798,7 +800,9 @@ router.post('/flow-design/generate', isAuthenticated, async (req: Request, res: 
         videoModel: step1Data.videoModel,
       },
       userId,
-      workspaceId
+      workspaceId,
+      'video',
+      'ambient'
     );
 
     console.log('[ambient-visual:routes] Shots composed:', {
@@ -921,7 +925,9 @@ router.post('/flow-design/continuity', isAuthenticated, async (req: Request, res
     const continuityResult = await proposeContinuity(
       { scenes, shots },
       userId,
-      video.workspaceId
+      video.workspaceId,
+      'video',
+      'ambient'
     );
 
     console.log('[ambient-visual:routes] Continuity proposals generated:', {
@@ -1337,7 +1343,7 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
           };
 
           // Call Agent 4.1
-          const result = await generateVideoPrompts(input, userId, video.workspaceId);
+          const result = await generateVideoPrompts(input, userId, video.workspaceId, 'video', 'ambient');
 
           // Create version based on animation mode
           const versionId = `version-${Date.now()}-${shot.id.slice(-8)}`;
@@ -1678,7 +1684,9 @@ router.post('/videos/:id/generate-all-images', isAuthenticated, async (req: Requ
         continuityGroups: allContinuityGroups,
       },
       userId,
-      video.workspaceId
+      video.workspaceId,
+      'video',
+      'ambient'
     );
 
     // 5. Merge results back into step4Data
@@ -2406,7 +2414,9 @@ router.post('/videos/:id/voiceover/generate-script', isAuthenticated, async (req
     const result = await generateVoiceoverScript(
       input,
       userId,
-      video.workspaceId
+      video.workspaceId,
+      'video',
+      'ambient'
     );
 
     // Update step5Data with the generated script
@@ -2524,7 +2534,7 @@ router.post('/videos/:id/voiceover/generate-audio', isAuthenticated, async (req:
     });
 
     // Generate audio
-    const result = await generateVoiceoverAudio(input);
+    const result = await generateVoiceoverAudio(input, 'video', 'ambient');
 
     // Update step5Data with the generated audio
     // IMPORTANT: Fetch fresh video data to avoid overwriting concurrent updates (e.g., music generation)
@@ -2704,7 +2714,9 @@ router.post('/videos/:id/shots/:shotId/sound-effect/recommend', isAuthenticated,
     const result = await generateSoundEffectPrompt(
       input,
       userId,
-      video.workspaceId
+      video.workspaceId,
+      'video',
+      'ambient'
     );
 
     console.log('[ambient-visual:routes] Sound effect recommendation generated:', {
@@ -2897,7 +2909,7 @@ router.post('/videos/:id/shots/:shotId/sound-effect/generate', isAuthenticated, 
     });
 
     // Generate sound effect
-    const result = await generateSoundEffect(input);
+    const result = await generateSoundEffect(input, 'video', 'ambient');
 
     console.log('[ambient-visual:routes] Sound effect generated:', {
       videoId,

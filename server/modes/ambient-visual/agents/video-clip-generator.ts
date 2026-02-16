@@ -188,7 +188,9 @@ function buildVideoPayload(
 export async function generateVideoClip(
   input: VideoClipGeneratorInput,
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<VideoClipGeneratorOutput> {
   const {
     shotId,
@@ -268,6 +270,7 @@ export async function generateVideoClip(
       },
       {
         skipCreditCheck: false,
+        metadata: { usageType, usageMode },
       }
     );
 
@@ -313,7 +316,9 @@ export async function generateVideoClip(
 export async function generateVideoClipBatch(
   batchInput: VideoClipGeneratorBatchInput,
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<VideoClipGeneratorBatchOutput> {
   const { videoId, shots } = batchInput;
 
@@ -331,7 +336,7 @@ export async function generateVideoClipBatch(
     const shot = shots[i];
     console.log(`[video-clip-generator] Processing shot ${i + 1}/${shots.length}: ${shot.shotNumber}`);
 
-    const result = await generateVideoClip(shot, userId, workspaceId);
+    const result = await generateVideoClip(shot, userId, workspaceId, usageType, usageMode);
     results.push(result);
 
     if (result.error) {
@@ -372,7 +377,9 @@ export async function retryVideoClip(
   input: VideoClipGeneratorInput,
   userId: string,
   workspaceId?: string,
-  retryCount: number = 0
+  retryCount: number = 0,
+  usageType?: string,
+  usageMode?: string
 ): Promise<VideoClipGeneratorOutput> {
   if (retryCount >= CONFIG.MAX_RETRIES) {
     return {
@@ -384,10 +391,10 @@ export async function retryVideoClip(
   console.log(`[video-clip-generator] Retry ${retryCount + 1}/${CONFIG.MAX_RETRIES} for shot ${input.shotNumber}`);
   await sleep(CONFIG.RETRY_DELAY_MS * (retryCount + 1)); // Exponential backoff
 
-  const result = await generateVideoClip(input, userId, workspaceId);
+  const result = await generateVideoClip(input, userId, workspaceId, usageType, usageMode);
 
   if (result.error && retryCount < CONFIG.MAX_RETRIES - 1) {
-    return retryVideoClip(input, userId, workspaceId, retryCount + 1);
+    return retryVideoClip(input, userId, workspaceId, retryCount + 1, usageType, usageMode);
   }
 
   return result;

@@ -117,9 +117,11 @@ async function generateSingleImage(
     workspaceId?: string;
     referenceImageUrl?: string;
     taskLabel?: string;
+    usageType?: string;
+    usageMode?: string;
   }
 ): Promise<{ imageUrl: string; cost: number; error?: string }> {
-  const { runwareModelId, dimensions, imageModel, userId, workspaceId, referenceImageUrl, taskLabel } = options;
+  const { runwareModelId, dimensions, imageModel, userId, workspaceId, referenceImageUrl, taskLabel, usageType, usageMode } = options;
   
   console.log(`[video-image-generator] Generating ${taskLabel || 'image'}...`);
   
@@ -145,6 +147,7 @@ async function generateSingleImage(
       },
       {
         skipCreditCheck: false,
+        metadata: { usageType, usageMode },
       }
     );
 
@@ -192,7 +195,9 @@ async function generateSingleImage(
 export async function generateShotImages(
   input: VideoImageGeneratorInput,
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<VideoImageGeneratorOutput> {
   const {
     shotId,
@@ -250,6 +255,8 @@ export async function generateShotImages(
     imageModel,
     userId,
     workspaceId,
+    usageType,
+    usageMode,
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -479,7 +486,9 @@ export async function retryShotImages(
   input: VideoImageGeneratorInput,
   userId: string,
   workspaceId?: string,
-  retryCount: number = 0
+  retryCount: number = 0,
+  usageType?: string,
+  usageMode?: string
 ): Promise<VideoImageGeneratorOutput> {
   if (retryCount >= CONFIG.MAX_RETRIES) {
     return {
@@ -491,10 +500,10 @@ export async function retryShotImages(
   console.log(`[video-image-generator] Retry ${retryCount + 1}/${CONFIG.MAX_RETRIES} for shot ${input.shotNumber}`);
   await sleep(CONFIG.RETRY_DELAY_MS * (retryCount + 1)); // Exponential backoff
 
-  const result = await generateShotImages(input, userId, workspaceId);
+  const result = await generateShotImages(input, userId, workspaceId, usageType, usageMode);
 
   if (result.error && retryCount < CONFIG.MAX_RETRIES - 1) {
-    return retryShotImages(input, userId, workspaceId, retryCount + 1);
+    return retryShotImages(input, userId, workspaceId, retryCount + 1, usageType, usageMode);
   }
 
   return result;

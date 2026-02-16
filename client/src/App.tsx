@@ -11,7 +11,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Bell, Sun, Moon } from "lucide-react";
+import { Loader2, Bell, Sun, Moon, Coins } from "lucide-react";
+import { Link } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,11 +23,7 @@ import SignUp from "@/pages/auth/sign-up";
 import ForgotPassword from "@/pages/auth/forgot-password";
 import Dashboard from "@/pages/dashboard";
 import Videos from "@/pages/videos";
-import NarrativeMode from "@/pages/videos/narrative-mode";
-import CharacterVlogMode from "@/pages/videos/character-vlog-mode";
 import AmbientVisualMode from "@/pages/videos/ambient-visual-mode";
-import SocialCommerceMode from "@/pages/videos/social-commerce-mode";
-import LogoAnimation from "@/pages/videos/logo-animation";
 import Stories from "@/pages/stories";
 import StoryRouter from "@/pages/stories/story-router";
 import StoryPreviewExport from "@/pages/stories/story-preview-export";
@@ -72,7 +69,7 @@ function LoadingScreen() {
 function MainLayout() {
   const [location] = useLocation();
   const { user } = useAuth();
-  const isFullPageRoute = /^\/videos\/narrative\/[^/]+$/.test(location) || /^\/videos\/vlog\/[^/]+$/.test(location) || /^\/videos\/ambient\/[^/]+$/.test(location) || /^\/videos\/commerce\/[^/]+$/.test(location) || /^\/videos\/logo$/.test(location) || /^\/stories\/create\/[^/]+$/.test(location) || /^\/stories\/asmr$/.test(location) || /^\/stories\/[^/]+\/export$/.test(location) || /^\/shorts\/create\/[^/]+$/.test(location) || /^\/autoproduction$/.test(location) || /^\/autoproduction\/story\/create$/.test(location) || /^\/autoproduction\/video\/create$/.test(location);
+  const isFullPageRoute = /^\/videos\/ambient\/[^/]+$/.test(location) || /^\/stories\/create\/[^/]+$/.test(location) || /^\/stories\/asmr$/.test(location) || /^\/stories\/[^/]+\/export$/.test(location) || /^\/shorts\/create\/[^/]+$/.test(location) || /^\/autoproduction$/.test(location) || /^\/autoproduction\/story\/create$/.test(location) || /^\/autoproduction\/video\/create$/.test(location);
 
   // Get user display name
   const displayName = user?.firstName && user?.lastName 
@@ -92,11 +89,7 @@ function MainLayout() {
   if (isFullPageRoute) {
     return (
       <Switch>
-        <Route path="/videos/narrative/:id" component={NarrativeMode} />
-        <Route path="/videos/vlog/:id" component={CharacterVlogMode} />
         <Route path="/videos/ambient/:id" component={AmbientVisualMode} />
-        <Route path="/videos/commerce/:id" component={SocialCommerceMode} />
-        <Route path="/videos/logo" component={LogoAnimation} />
         <Route path="/stories/create/:template" component={StoryRouter} />
         <Route path="/stories/asmr" component={ASMRGenerator} />
         <Route path="/stories/:storyType/export" component={StoryPreviewExport} />
@@ -151,8 +144,19 @@ function MainLayout() {
                     </div>
                   </div>
 
-                  {/* Right Side - Notifications, Profile */}
+                  {/* Right Side - Credits, Notifications, Profile */}
                   <div className="flex items-center gap-3">
+                    {/* Credits */}
+                    <Link href="/usage">
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent/50 hover:bg-sidebar-accent transition-colors cursor-pointer">
+                        <Coins className="h-4 w-4 text-sidebar-foreground" />
+                        <span className="text-sm font-semibold text-sidebar-foreground">
+                          {Number(user?.credits ?? 0).toFixed(2)}
+                        </span>
+                        <span className="text-xs text-sidebar-foreground/70">credits</span>
+                      </div>
+                    </Link>
+
                     {/* Notification Icon */}
                     <Button
                       variant="ghost"

@@ -35,6 +35,10 @@ import AutoProductionPage from "@/website/pages/features/auto-production";
 import AssetsLibraryPage from "@/website/pages/features/assets-library";
 import Videos from "@/pages/videos";
 import AmbientVisualMode from "@/pages/videos/ambient-visual-mode";
+import NarrativeMode from "@/pages/videos/narrative-mode";
+import CharacterVlogMode from "@/pages/videos/character-vlog-mode";
+import SocialCommerceMode from "@/pages/videos/social-commerce-mode";
+import LogoAnimation from "@/pages/videos/logo-animation";
 import Stories from "@/pages/stories";
 import StoryRouter from "@/pages/stories/story-router";
 import StoryPreviewExport from "@/pages/stories/story-preview-export";
@@ -80,7 +84,7 @@ function LoadingScreen() {
 function MainLayout() {
   const [location] = useLocation();
   const { user } = useAuth();
-  const isFullPageRoute = /^\/videos\/ambient\/[^/]+$/.test(location) || /^\/stories\/create\/[^/]+$/.test(location) || /^\/stories\/asmr$/.test(location) || /^\/stories\/[^/]+\/export$/.test(location) || /^\/shorts\/create\/[^/]+$/.test(location) || /^\/autoproduction$/.test(location) || /^\/autoproduction\/story\/create$/.test(location) || /^\/autoproduction\/video\/create$/.test(location);
+  const isFullPageRoute = /^\/videos\/(ambient|narrative|vlog|commerce|logo|podcast)\/[^/]+$/.test(location) || /^\/videos\/logo$/.test(location) || /^\/stories\/create\/[^/]+$/.test(location) || /^\/stories\/asmr$/.test(location) || /^\/stories\/[^/]+\/export$/.test(location) || /^\/shorts\/create\/[^/]+$/.test(location) || /^\/autoproduction$/.test(location) || /^\/autoproduction\/story\/create$/.test(location) || /^\/autoproduction\/video\/create$/.test(location);
 
   // Get user display name
   const displayName = user?.firstName && user?.lastName 
@@ -100,10 +104,21 @@ function MainLayout() {
   if (isFullPageRoute) {
     return (
       <Switch>
+        {/* Video Mode Routes */}
         <Route path="/videos/ambient/:id" component={AmbientVisualMode} />
+        <Route path="/videos/narrative/:id" component={NarrativeMode} />
+        <Route path="/videos/vlog/:id" component={CharacterVlogMode} />
+        <Route path="/videos/commerce/:id" component={SocialCommerceMode} />
+        <Route path="/videos/logo/:id" component={LogoAnimation} />
+        <Route path="/videos/logo" component={LogoAnimation} />
+        <Route path="/videos/podcast/:id" component={NarrativeMode} />
+        
+        {/* Story Routes */}
         <Route path="/stories/create/:template" component={StoryRouter} />
         <Route path="/stories/asmr" component={ASMRGenerator} />
         <Route path="/stories/:storyType/export" component={StoryPreviewExport} />
+        
+        {/* Shorts Routes */}
         <Route path="/shorts/create/:videoId" component={CreateShorts} />
         
         {/* Auto Production - Full Screen Wizards */}

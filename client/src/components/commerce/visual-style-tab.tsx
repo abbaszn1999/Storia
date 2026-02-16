@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -45,6 +45,18 @@ interface VisualStyleTabProps {
   onVisualBeatsChange: (beats: { beat1: string; beat2: string; beat3: string }) => void;
   onCampaignObjectiveChange: (objective: string) => void;
   onCtaTextChange: (cta: string) => void;
+  editedVisualBeats?: Array<{
+    beatId: 'beat1' | 'beat2' | 'beat3';
+    beatName: string;
+    beatDescription: string;
+    duration: 12;
+  }> | null;
+  onEditedVisualBeatsChange?: (beats: Array<{
+    beatId: 'beat1' | 'beat2' | 'beat3';
+    beatName: string;
+    beatDescription: string;
+    duration: 12;
+  }>) => void;
   onNext: () => void;
 }
 
@@ -151,10 +163,20 @@ export function VisualStyleTab({
   onVisualBeatsChange,
   onCampaignObjectiveChange,
   onCtaTextChange,
+  editedVisualBeats,
+  onEditedVisualBeatsChange,
 }: VisualStyleTabProps) {
   const [beatsGenerated, setBeatsGenerated] = useState(false);
   const [isGeneratingSpark, setIsGeneratingSpark] = useState(false);
   const [isGeneratingBeats, setIsGeneratingBeats] = useState(false);
+  
+  // Local state for creative spark character count display
+  const [localCampaignSpark, setLocalCampaignSpark] = useState(campaignSpark);
+  
+  // Sync local state from props when value changes (e.g., AI generation)
+  useEffect(() => {
+    setLocalCampaignSpark(campaignSpark);
+  }, [campaignSpark]);
   
   // Store full beat data for dynamic display
   const [generatedBeatsData, setGeneratedBeatsData] = useState<Array<{
@@ -164,9 +186,43 @@ export function VisualStyleTab({
     duration: number;
   }>>([]);
 
-  // Restore generatedBeatsData from video data when component mounts
+  // Ref to track if we've initialized from props (to prevent sync loop)
+  const hasInitializedRef = useRef(false);
+  const lastSentBeatsRef = useRef<string>('');
+
+  // Only sync from props on initial mount or true external changes
   useEffect(() => {
+    if (editedVisualBeats && editedVisualBeats.length > 0) {
+      const newBeatsStr = JSON.stringify(editedVisualBeats);
+      
+      // Only sync if we haven't initialized, OR it's different from what we last sent
+      if (!hasInitializedRef.current || newBeatsStr !== lastSentBeatsRef.current) {
+        setGeneratedBeatsData(editedVisualBeats);
+        setBeatsGenerated(true);
+        hasInitializedRef.current = true;
+      }
+    }
+  }, [editedVisualBeats]);
+
+  // Use generatedBeatsData as the single source of truth for rendering
+  const beatsToDisplay = generatedBeatsData;
+
+  // Restore generatedBeatsData from video data when component mounts (only if editedVisualBeats not provided)
+  useEffect(() => {
+    // CRITICAL: Skip if already initialized - prevents re-running on every prop change
+    if (hasInitializedRef.current) {
+      return;
+    }
+
     const restoreBeatsData = async () => {
+      // If parent provides editedVisualBeats, use that as source of truth
+      if (editedVisualBeats && editedVisualBeats.length > 0) {
+        setGeneratedBeatsData(editedVisualBeats);
+        setBeatsGenerated(true);
+        hasInitializedRef.current = true;
+        return;
+      }
+
       const hasVisualBeats = visualBeats?.beat1 || visualBeats?.beat2 || visualBeats?.beat3;
       const hasRequiredFields = visualPreset && campaignSpark && campaignSpark.trim().length >= 10 && campaignObjective;
       
@@ -185,6 +241,13 @@ export function VisualStyleTab({
               if (narrative?.visual_beats && Array.isArray(narrative.visual_beats)) {
                 setGeneratedBeatsData(narrative.visual_beats);
                 setBeatsGenerated(true);
+                hasInitializedRef.current = true;
+                
+                // Notify parent of full beats if callback provided
+                if (onEditedVisualBeatsChange) {
+                  onEditedVisualBeatsChange(narrative.visual_beats);
+                  lastSentBeatsRef.current = JSON.stringify(narrative.visual_beats);
+                }
                 
                 if (!hasVisualBeats) {
                   const restoredBeats = {
@@ -204,16 +267,39 @@ export function VisualStyleTab({
     };
 
     restoreBeatsData();
-  }, [videoId, visualBeats, generatedBeatsData.length, visualPreset, campaignSpark, campaignObjective, onVisualBeatsChange]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoId, editedVisualBeats]);
+
+  // Debounced sync of visualBeats for backward compatibility (doesn't block typing)
+  useEffect(() => {
+    if (generatedBeatsData.length === 0) return;
+    
+    const timeoutId = setTimeout(() => {
+      const newVisualBeats = {
+        beat1: generatedBeatsData.find(b => b.beatId === 'beat1')?.beatDescription || '',
+        beat2: generatedBeatsData.find(b => b.beatId === 'beat2')?.beatDescription || '',
+        beat3: generatedBeatsData.find(b => b.beatId === 'beat3')?.beatDescription || '',
+      };
+      
+      // Only update if actually different to prevent infinite loops
+      const currentStr = JSON.stringify({ beat1: visualBeats?.beat1 || '', beat2: visualBeats?.beat2 || '', beat3: visualBeats?.beat3 || '' });
+      const newStr = JSON.stringify(newVisualBeats);
+      
+      if (currentStr !== newStr) {
+        onVisualBeatsChange(newVisualBeats);
+      }
+    }, 300); // 300ms debounce
+    
+    return () => clearTimeout(timeoutId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generatedBeatsData]);
 
   // Validation states
   const isStyleDefined = visualPreset !== "";
-  const isStoryReady = (campaignSpark || "").trim().length >= 10;
-  const beatsFilledCount = generatedBeatsData.length > 0
-    ? generatedBeatsData.filter(b => {
-        const beatKey = b.beatId as keyof typeof visualBeats;
-        return visualBeats?.[beatKey]?.trim().length > 0;
-      }).length
+  const isStoryReady = (localCampaignSpark || "").trim().length >= 10;
+  // Use beatsToDisplay as source of truth for counting filled beats
+  const beatsFilledCount = beatsToDisplay.length > 0
+    ? beatsToDisplay.filter(b => b.beatDescription?.trim().length > 0).length
     : visualBeats 
       ? [visualBeats.beat1, visualBeats.beat2, visualBeats.beat3].filter(b => b?.trim().length > 0).length
       : 0;
@@ -255,6 +341,13 @@ export function VisualStyleTab({
 
       const visualBeatsResult = responseData.visual_beats;
       setGeneratedBeatsData(visualBeatsResult);
+      hasInitializedRef.current = true;
+
+      // Notify parent of full beats if callback provided
+      if (onEditedVisualBeatsChange) {
+        onEditedVisualBeatsChange(visualBeatsResult);
+        lastSentBeatsRef.current = JSON.stringify(visualBeatsResult);
+      }
 
       const generatedBeats = {
         beat1: visualBeatsResult.find((b: any) => b.beatId === 'beat1')?.beatDescription || '',
@@ -531,19 +624,24 @@ export function VisualStyleTab({
                     </Button>
                   )}
                 </div>
-                <Textarea
+                <textarea
                   value={campaignSpark}
-                  onChange={(e) => onCampaignSparkChange(e.target.value)}
+                  onChange={(e) => {
+                    // Update both local state AND parent immediately (same pattern as Input)
+                    const newValue = e.target.value;
+                    setLocalCampaignSpark(newValue);
+                    onCampaignSparkChange(newValue);
+                  }}
                   placeholder="e.g., The shoe hatches from a dragon egg in a dark cave"
                   className={cn(
-                    "min-h-[100px] resize-none bg-muted/30 dark:bg-white/[0.02] border border-[#e5e7eb] dark:border-white/[0.06]",
-                    "text-foreground placeholder:text-muted-foreground/50 text-sm",
+                    "flex w-full rounded-md border px-3 py-2 text-base md:text-sm",
+                    "min-h-[100px] resize-none bg-muted/30 dark:bg-white/[0.02] border-[#e5e7eb] dark:border-white/[0.06]",
+                    "text-foreground placeholder:text-muted-foreground/50",
                     "focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/50 transition-all"
                   )}
-                  maxLength={500}
                 />
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-muted-foreground">{campaignSpark.length}/500</span>
+                  <span className="text-[10px] text-muted-foreground">{localCampaignSpark.length} chars</span>
                   {isStoryReady ? (
                     <span className="text-[10px] text-green-500 flex items-center gap-1 font-medium">
                       <CheckCircle2 className="w-3 h-3" /> Valid
@@ -566,7 +664,7 @@ export function VisualStyleTab({
                 iconColor="text-emerald-500"
                 badge={beatsGenerated ? (
                   <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
-                    {beatsFilledCount}/{generatedBeatsData.length || 3} filled
+                    {beatsFilledCount}/{beatsToDisplay.length || 3} filled
                   </Badge>
                 ) : null}
               />
@@ -602,16 +700,15 @@ export function VisualStyleTab({
 
               {/* Beat Cards - Dynamic based on actual generated beats */}
               <AnimatePresence>
-                {generatedBeatsData.length > 0 && (
+                {beatsToDisplay.length > 0 && (
                   <div className="space-y-3 mt-4">
-                    {generatedBeatsData.map((beat, index) => {
+                    {beatsToDisplay.map((beat, index) => {
                       const BEAT_DURATION = 12;
                       const startTime = index * BEAT_DURATION;
                       const endTime = (index + 1) * BEAT_DURATION;
                       const timeRange = `${startTime}-${endTime}s`;
                       
                       const beatKey = beat.beatId as keyof typeof visualBeats;
-                      const currentDescription = visualBeats?.[beatKey] || beat.beatDescription;
                       
                       return (
                         <motion.div
@@ -622,36 +719,64 @@ export function VisualStyleTab({
                           className="p-4 rounded-xl bg-muted/30 dark:bg-white/[0.02] border border-[#e5e7eb] dark:border-white/[0.06] hover:border-emerald-500/30 transition-colors"
                         >
                           <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-1">
                               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-sm font-bold text-white shadow-lg shadow-emerald-500/30">
                                 {index + 1}
                               </div>
-                              <p className="text-sm font-semibold text-foreground">{beat.beatName}</p>
+                              <Input
+                                value={beat.beatName}
+                                onChange={(e) => {
+                                  const newValue = e.target.value;
+                                  
+                                  // Update full beats array (source of truth)
+                                  const updatedBeats = beatsToDisplay.map(b => 
+                                    b.beatId === beat.beatId 
+                                      ? { ...b, beatName: newValue }
+                                      : b
+                                  );
+                                  
+                                  // CRITICAL: Update ref FIRST before any state/callbacks to prevent sync loop
+                                  lastSentBeatsRef.current = JSON.stringify(updatedBeats);
+                                  
+                                  // Update local state
+                                  setGeneratedBeatsData(updatedBeats);
+                                  
+                                  // Notify parent if callback provided (beat names don't go to visualBeats - it only stores descriptions)
+                                  if (onEditedVisualBeatsChange) {
+                                    onEditedVisualBeatsChange(updatedBeats);
+                                  }
+                                }}
+                                className="text-sm font-semibold text-foreground bg-transparent border-none shadow-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 px-0 h-auto"
+                                placeholder="Beat name"
+                              />
                             </div>
                             <Badge variant="outline" className="text-[9px] px-2 py-0.5 bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
                               {timeRange}
                             </Badge>
                           </div>
                           
-                          <Textarea
-                            value={currentDescription}
+                          <textarea
+                            value={beat.beatDescription}
                             onChange={(e) => {
-                              const updated = { ...(visualBeats || { beat1: '', beat2: '', beat3: '' }) };
-                              updated[beatKey] = e.target.value;
-                              onVisualBeatsChange(updated);
-                              
-                              setGeneratedBeatsData(prev => prev.map(b => 
+                              // Same pattern as Input (beat name) - update state AND parent immediately
+                              const newValue = e.target.value;
+                              const updatedBeats = generatedBeatsData.map(b => 
                                 b.beatId === beat.beatId 
-                                  ? { ...b, beatDescription: e.target.value }
+                                  ? { ...b, beatDescription: newValue }
                                   : b
-                              ));
+                              );
+                              lastSentBeatsRef.current = JSON.stringify(updatedBeats);
+                              setGeneratedBeatsData(updatedBeats);
+                              if (onEditedVisualBeatsChange) {
+                                onEditedVisualBeatsChange(updatedBeats);
+                              }
                             }}
                             placeholder={`Describe ${beat.beatName.toLowerCase()}...`}
                             className={cn(
-                              "bg-muted/20 dark:bg-white/[0.02] border-[#e5e7eb] dark:border-white/[0.06] text-foreground min-h-[70px] resize-none text-sm",
+                              "flex w-full rounded-md border px-3 py-2 text-base md:text-sm",
+                              "bg-muted/20 dark:bg-white/[0.02] border-[#e5e7eb] dark:border-white/[0.06] text-foreground min-h-[70px] resize-none",
                               "focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/50 transition-all"
                             )}
-                            maxLength={200}
                           />
                           
                           {/* CTA Text for last beat */}
@@ -735,7 +860,7 @@ export function VisualStyleTab({
           <div className="flex items-center gap-4">
             {beatsGenerated && (
               <span className="text-xs text-muted-foreground">
-                {beatsFilledCount}/{generatedBeatsData.length || 3} beats filled
+                {beatsFilledCount}/{beatsToDisplay.length || 3} beats filled
               </span>
             )}
           </div>

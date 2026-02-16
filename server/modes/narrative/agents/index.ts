@@ -843,13 +843,15 @@ export class NarrativeAgents {
       model?: string;
     },
     userId?: string,
-    workspaceId?: string
+    workspaceId?: string,
+    usageType?: string,
+    usageMode?: string
   ): Promise<{
     shots: Record<string, any[]>;
     totalCost: number;
   }> {
     const { composeShotsForScenes } = await import('./breakdown/shot-composer');
-    return composeShotsForScenes(scenes, input, userId, workspaceId);
+    return composeShotsForScenes(scenes, input, userId, workspaceId, usageType, usageMode);
   }
 
   static async createCharacter(characterInfo: CharacterInfo): Promise<string> {

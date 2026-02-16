@@ -577,7 +577,9 @@ export async function composeShotsForScenes(
     narrativeMode?: "image-reference" | "start-end" | "auto";
   },
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<{
   shots: Record<string, Shot[]>;
   continuityGroups: Record<string, ContinuityGroup[]>;
@@ -614,7 +616,9 @@ export async function composeShotsForScenes(
           narrativeMode: input.narrativeMode,
         },
         userId,
-        workspaceId
+        workspaceId,
+        usageType,
+        usageMode
       );
 
       shots[scene.id] = result.shots;

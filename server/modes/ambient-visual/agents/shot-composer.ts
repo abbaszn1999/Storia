@@ -232,7 +232,9 @@ export async function composeShotsForScenes(
     videoModel?: string;
   },
   userId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  usageType?: string,
+  usageMode?: string
 ): Promise<{
   shots: Record<string, Shot[]>;
   totalCost: number;
@@ -264,7 +266,7 @@ export async function composeShotsForScenes(
       existingShots: shots,  // Shots already generated for previous scenes
     };
     
-    const result = await composeShots(input, userId, workspaceId);
+    const result = await composeShots(input, userId, workspaceId, usageType, usageMode);
     shots[scene.id] = result.shots;
     totalCost += result.cost || 0;
     

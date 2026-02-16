@@ -176,7 +176,9 @@ asmrRouter.post("/enhance", async (req: Request, res: Response) => {
         categoryId,
       },
       userId,
-      workspaceId
+      workspaceId,
+      'story',
+      'asmr-sensory'
     );
 
     res.json({
@@ -210,7 +212,9 @@ asmrRouter.post("/enhance-sound", async (req: Request, res: Response) => {
         visualPrompt: visualPrompt || "",
       },
       userId,
-      workspaceId
+      workspaceId,
+      'story',
+      'asmr-sensory'
     );
 
     res.json({
@@ -270,7 +274,9 @@ asmrRouter.post("/generate-image", async (req: Request, res: Response) => {
         aspectRatio: aspectRatio || "16:9",
       },
       userId,
-      workspaceId
+      workspaceId,
+      'story',
+      'asmr-sensory'
     );
 
     if (result.error) {
@@ -352,7 +358,9 @@ asmrRouter.post("/generate", isAuthenticated, async (req: Request, res: Response
         aspectRatio,
       },
       userId,
-      workspaceId
+      workspaceId,
+      'story',
+      'asmr-sensory'
     );
 
     console.log(`[asmr-routes] Agent 2 complete. Prompt length: ${engineeredResult.visualPrompt.length} chars`);
@@ -377,7 +385,7 @@ asmrRouter.post("/generate", isAuthenticated, async (req: Request, res: Response
       lastFrameImage: body.lastFrameImage,
     };
 
-    const videoResult = await generateVideo(request, userId, workspaceId);
+    const videoResult = await generateVideo(request, userId, workspaceId, 'story', 'asmr-sensory');
 
     if (videoResult.status === "failed") {
       return res.status(400).json({ error: videoResult.error });
@@ -415,7 +423,9 @@ asmrRouter.post("/generate", isAuthenticated, async (req: Request, res: Response
             categoryId: body.categoryId,
           },
           userId,
-          workspaceId
+          workspaceId,
+          'story',
+          'asmr-sensory'
         );
 
         if (soundResult.error) {

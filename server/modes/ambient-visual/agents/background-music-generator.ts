@@ -122,6 +122,7 @@ export async function generateBackgroundMusic(
       },
       {
         expectedOutputTokens: 1000,
+        metadata: { usageType, usageMode },
       }
     );
 

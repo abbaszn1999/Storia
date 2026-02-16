@@ -284,7 +284,9 @@ router.post(
           characterReferenceDescription: characterReferenceDescription || undefined,
         },
         userId,
-        req.headers["x-workspace-id"] as string | undefined
+        req.headers["x-workspace-id"] as string | undefined,
+        'story',
+        mode
       );
 
       res.json(result);

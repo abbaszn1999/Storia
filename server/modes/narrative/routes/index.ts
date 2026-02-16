@@ -1531,7 +1531,9 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
         narrativeMode: finalNarrativeMode,
       },
       userId,
-      workspaceId
+      workspaceId,
+      'video',
+      'narrative'
     );
 
     const shots: { [sceneId: string]: any[] } = shotResult.shots;

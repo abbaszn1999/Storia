@@ -227,16 +227,20 @@ export async function generateNarrativeVoiceoverAudio(
 
   // If script fits in one request, use the single-request flow
   if (chunks.length === 1) {
-    return await generateSingleChunkAudio({
-      script: chunks[0],
-      voiceId,
-      language,
-      videoId,
-      videoTitle,
-      userId,
-      workspaceId,
-      workspaceName,
-    });
+    return await generateSingleChunkAudio(
+      {
+        script: chunks[0],
+        voiceId,
+        language,
+        videoId,
+        videoTitle,
+        userId,
+        workspaceId,
+        workspaceName,
+      },
+      usageType,
+      usageMode
+    );
   }
 
   // Multiple chunks: generate audio for each, then concatenate
@@ -415,7 +419,9 @@ export async function generateNarrativeVoiceoverAudio(
  * Generate audio for a single chunk
  */
 async function generateSingleChunkAudio(
-  input: NarrativeVoiceoverAudioInput
+  input: NarrativeVoiceoverAudioInput,
+  usageType?: string,
+  usageMode?: string
 ): Promise<VoiceoverAudioGeneratorOutput> {
   const {
     script,
@@ -426,6 +432,9 @@ async function generateSingleChunkAudio(
     workspaceId,
     workspaceName,
   } = input;
+
+  const effectiveUsageType = usageType ?? "video";
+  const effectiveUsageMode = usageMode ?? "narrative";
 
   let lastError: Error | null = null;
 
@@ -462,7 +471,7 @@ async function generateSingleChunkAudio(
         },
         {
           skipCreditCheck: false,
-          metadata: { usageType, usageMode },
+          metadata: { usageType: effectiveUsageType, usageMode: effectiveUsageMode },
         }
       );
 

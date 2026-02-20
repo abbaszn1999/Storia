@@ -1703,36 +1703,6 @@ function SortableShotCard({
                     </SelectContent>
                   </Select>
                 </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground">Sound Effects</Label>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 text-xs px-2"
-                      onClick={() => {
-                        const autoPrompt = `Ambient sounds for ${shot.shotType.toLowerCase()} shot${shot.description ? ': ' + shot.description : ''}`;
-                        onUpdateShot(shot.id, { soundEffects: autoPrompt });
-                        toast({
-                          title: "Sound effects generated",
-                          description: "Auto-generated sound effects prompt",
-                        });
-                      }}
-                      data-testid={`button-auto-generate-sound-${shot.id}`}
-                    >
-                      <Wand2 className="mr-1 h-3 w-3" />
-                      Automatically
-                    </Button>
-                  </div>
-                  <Textarea
-                    placeholder="Describe sound effects for this shot..."
-                    value={shot.soundEffects || ""}
-                    onChange={(e) => onUpdateShot(shot.id, { soundEffects: e.target.value })}
-                    className="min-h-[60px] text-xs resize-none bg-white/[0.02] border-white/[0.06] focus:border-purple-500/50"
-                    data-testid={`textarea-sound-effects-${shot.id}`}
-                  />
-                </div>
               </CollapsibleContent>
             </Collapsible>
 

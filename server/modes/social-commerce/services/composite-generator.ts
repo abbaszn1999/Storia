@@ -200,7 +200,7 @@ export async function generateAIModeComposite(
       workspaceId,
     }, {
       skipCreditCheck: false,
-      metadata: { usageType: 'video', usageMode: 'social-commerce' },
+      metadata: { usageType: 'image', usageMode: 'social-commerce' },
     });
     const results = Array.isArray(runwareResponse.output) ? runwareResponse.output : [runwareResponse.output];
     

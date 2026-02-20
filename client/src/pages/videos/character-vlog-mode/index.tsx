@@ -38,6 +38,8 @@ export default function CharacterVlogMode() {
     enabled: !isNewVideo,
     staleTime: 0,  // Always refetch
     refetchOnMount: true,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
   });
   
   // Reference mode selection state - user must choose first

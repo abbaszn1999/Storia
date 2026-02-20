@@ -182,7 +182,7 @@ const openAiModels: AiModelConfig[] = [
     },
     pricing: {
       currency: "usd",
-      pricePerSecond: 0.30, // $0.30/sec for 720p, $0.50/sec for higher res (1024x1792, 1792x1024)
+      pricePerSecond: 0.50, // Use max price ($0.50/sec) for conservative credit check — covers high-res 7:4/4:7 (1792×1024, 1024×1792). Actual billing uses provider-returned cost.
     },
   },
 ];
@@ -695,7 +695,7 @@ const elevenlabsModels: AiModelConfig[] = [
     },
     pricing: {
       currency: "usd",
-      inputCostPer1KTokens: 0.30, // ~$0.30 per 1000 characters
+      inputCostPer1KTokens: 0.12, // ElevenLabs API: $0.12 per 1000 characters (v3/multilingual)
     },
   },
   {
@@ -708,7 +708,7 @@ const elevenlabsModels: AiModelConfig[] = [
     },
     pricing: {
       currency: "usd",
-      inputCostPer1KTokens: 0.30, // ~$0.30 per 1000 characters
+      inputCostPer1KTokens: 0.12, // ElevenLabs API: $0.12 per 1000 characters (multilingual v2)
     },
   },
   {
@@ -721,7 +721,7 @@ const elevenlabsModels: AiModelConfig[] = [
     },
     pricing: {
       currency: "usd",
-      inputCostPer1KTokens: 0.15, // 50% lower than v2
+      inputCostPer1KTokens: 0.06, // ElevenLabs API: $0.06 per 1000 characters (flash/turbo, 50% lower)
     },
   },
   {
@@ -747,9 +747,9 @@ const elevenlabsModels: AiModelConfig[] = [
     },
     pricing: {
       currency: "usd",
-      // ElevenLabs Music pricing: based on duration
-      // Approximately $0.50 per 1000ms (1 second) of audio
-      inputCostPer1KTokens: 0.50,
+      // ElevenLabs Music pricing: $0.50 per MINUTE (not per second!)
+      // Per second: $0.50 / 60 = $0.00833 per second
+      inputCostPer1KTokens: 0.00833,
     },
   },
 ];

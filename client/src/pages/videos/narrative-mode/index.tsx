@@ -27,11 +27,13 @@ export default function NarrativeMode() {
   const urlTitle = urlParams.get("title") || "Untitled Project";
   
   // Fetch existing video data
-  const { data: existingVideo, isLoading: isVideoLoading } = useQuery<Video>({
+  const { data: existingVideo, isLoading: isVideoLoading, isError: isVideoError } = useQuery<Video>({
     queryKey: [`/api/videos/${initialVideoId}`],
     enabled: !isNewVideo,
     staleTime: 0,  // Always refetch
     refetchOnMount: true,
+    retry: 3, // Retry up to 3 times on failure (handles server restart windows)
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000), // Exponential backoff: 1s, 2s, 4s
   });
   
   // Debug: Log when video data changes
@@ -146,6 +148,8 @@ export default function NarrativeMode() {
           userIdea?: string;
           imageModel?: string;
           videoModel?: string;
+          numberOfScenes?: number | 'auto';
+          shotsPerScene?: number | 'auto';
         };
         
         // Restore narrative mode from step1Data (primary location) or top-level (fallback)
@@ -172,6 +176,10 @@ export default function NarrativeMode() {
         if (step1.imageModel) setImageModel(step1.imageModel);
         if (step1.videoModel) setVideoModel(step1.videoModel);
         
+        // Restore numberOfScenes and shotsPerScene
+        if (step1.numberOfScenes !== undefined) setNumberOfScenes(step1.numberOfScenes);
+        if (step1.shotsPerScene !== undefined) setShotsPerScene(step1.shotsPerScene);
+        
         // imageModel is now stored in step1Data, not worldSettings
         // No need to remove it from worldSettings as it's not part of the type
         
@@ -184,6 +192,8 @@ export default function NarrativeMode() {
           tones: step1.tones,
           language: step1.language,
           userIdea: step1.userIdea,
+          numberOfScenes: step1.numberOfScenes,
+          shotsPerScene: step1.shotsPerScene,
         });
       } else {
         // Fallback: try top-level narrativeMode if no step1Data
@@ -568,6 +578,7 @@ export default function NarrativeMode() {
     numberOfScenes?: number | 'auto';
     shotsPerScene?: number | 'auto';
     narrationStyle?: "third-person" | "first-person";
+    narrativeMode?: string | null;
   }) => {
     if (!videoId || videoId === 'new') {
       console.warn('[NarrativePage] Cannot save step1 data - no valid videoId');
@@ -691,6 +702,8 @@ export default function NarrativeMode() {
   // Debounced auto-save for step5Data (1 second delay)
   const step5DataRef = useRef(step5Data);
   const step5SaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Track whether step5Data has been modified by user action (not just restored from DB)
+  const step5UserModifiedRef = useRef(false);
   step5DataRef.current = step5Data;
 
   useEffect(() => {
@@ -698,6 +711,11 @@ export default function NarrativeMode() {
     if (!videoId || videoId === 'new') return;
     // Skip on initial mount (hasRestoredRef helps track this)
     if (!hasRestoredRef.current) return;
+    // Skip the first change after restoration (which is the restoration itself setting state)
+    if (!step5UserModifiedRef.current) {
+      step5UserModifiedRef.current = true;
+      return;
+    }
     
     // Clear any pending save
     if (step5SaveTimeoutRef.current) {
@@ -737,6 +755,7 @@ export default function NarrativeMode() {
       if (activeStep === "script") {
         try {
           // Build complete Step1Data object
+          // IMPORTANT: Always include narrativeMode to prevent data loss during merges
           const step1Data = {
             script: script,
             duration: parseInt(duration),
@@ -750,7 +769,7 @@ export default function NarrativeMode() {
             userIdea: userIdea,
             numberOfScenes: numberOfScenes,
             shotsPerScene: shotsPerScene,
-            // narrativeMode is stored separately in video metadata, not in step1Data
+            narrativeMode: narrativeMode,
           };
 
           // Save Step1Data before proceeding
@@ -1200,6 +1219,32 @@ export default function NarrativeMode() {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Show error if video failed to load (e.g., server restart, network error)
+  if (!isNewVideo && isVideoError) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-semibold">Failed to load video</p>
+          <p className="text-muted-foreground mt-2">The server may be restarting. Please refresh the page or go back.</p>
+          <div className="flex gap-2 justify-center mt-4">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              Refresh Page
+            </button>
+            <button
+              onClick={() => window.history.back()}
+              className="px-4 py-2 bg-muted text-muted-foreground rounded-md hover:bg-muted/80"
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

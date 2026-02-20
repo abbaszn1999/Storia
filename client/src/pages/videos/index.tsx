@@ -57,11 +57,13 @@ export default function Videos() {
   const [projectName, setProjectName] = useState("");
 
   // Fetch videos from the API
-  const { data: videos = [], isLoading } = useQuery<VideoType[]>({
+  const { data: videos = [], isLoading, isError, error, refetch } = useQuery<VideoType[]>({
     queryKey: [`/api/workspaces/${currentWorkspace?.id}/videos`],
     enabled: !!currentWorkspace?.id,
     staleTime: 0, // Always refetch on mount
     refetchOnMount: true,
+    retry: 3, // Retry up to 3 times on failure (handles server restart windows)
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000), // Exponential backoff: 1s, 2s, 4s
   });
 
   // Delete video mutation
@@ -349,8 +351,29 @@ export default function Videos() {
         </div>
       )}
 
+      {/* Error state - show when fetch failed (e.g., server restart) */}
+      {!isLoading && isError && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <RefreshCw className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold">Unable to load videos</h3>
+          <p className="text-muted-foreground mt-1">
+            {(error as Error)?.message?.includes('500') || (error as Error)?.message?.includes('fetch')
+              ? "The server may be restarting. Please try again in a moment."
+              : "There was an error loading your videos."}
+          </p>
+          <Button 
+            className="mt-4 gap-2" 
+            variant="outline"
+            onClick={() => refetch()}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Try Again
+          </Button>
+        </div>
+      )}
+
       {/* Empty state */}
-      {!isLoading && filteredVideos.length === 0 && (
+      {!isLoading && !isError && filteredVideos.length === 0 && (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <Video className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold">No videos found</h3>

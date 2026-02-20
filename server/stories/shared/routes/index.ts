@@ -13,6 +13,7 @@ import { requiresMatchingDimensions, getVideoDimensionsForImageGeneration } from
 import { createVideoExporter } from "../agents/video-exporter";
 import { getMusicPrompts } from "../prompts-loader";
 import type { StoryModeForPrompts } from "../prompts-loader";
+import { callAi } from "../../../ai/service";
 import { storage } from "../../../storage";
 import * as bunnyStorage from "../../../storage/bunny-storage";
 import { buildStoryModePath, deleteFile } from "../../../storage/bunny-storage";
@@ -519,38 +520,50 @@ router.get(
         return res.status(500).json({ error: "ElevenLabs API key not configured" });
       }
 
-      // If Arabic language requested, generate TTS with Arabic text
+      // If Arabic language requested, generate TTS with Arabic text (tracked via callAi)
       if (lang === 'ar') {
         const arabicPreviewText = "مرحباً، أنا صوتك للسرد. سأساعدك في إنشاء قصص رائعة.";
+        const userId = getCurrentUserId(req) || 'anonymous';
         
         console.log(`[voice-preview] Generating Arabic preview for voice ${voiceId}`);
         
-        const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-          method: 'POST',
-          headers: {
-            'xi-api-key': elevenLabsApiKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            text: arabicPreviewText,
-            model_id: 'eleven_multilingual_v2',
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75,
+        try {
+          const ttsResponse = await callAi(
+            {
+              provider: "elevenlabs",
+              model: "tts-multilingual-v2",
+              task: "text-to-speech",
+              payload: {
+                text: arabicPreviewText,
+                voice_id: voiceId,
+                model_id: "eleven_multilingual_v2",
+                voice_settings: {
+                  stability: 0.5,
+                  similarity_boost: 0.75,
+                },
+              },
+              userId,
+              workspaceId: "",
             },
-          }),
-        });
+            {
+              skipCreditCheck: false,
+              metadata: { usageType: "video", usageMode: mode },
+            }
+          );
 
-        if (!ttsResponse.ok) {
-          console.error(`[voice-preview] TTS failed for voice ${voiceId}:`, ttsResponse.statusText);
+          const audioBuffer = ttsResponse.output as Buffer;
+          if (!audioBuffer || audioBuffer.length === 0) {
+            throw new Error("Empty audio buffer received");
+          }
+
+          res.setHeader('Content-Type', 'audio/mpeg');
+          res.setHeader('Content-Length', audioBuffer.length);
+          return res.send(audioBuffer);
+        } catch (ttsError) {
+          console.error(`[voice-preview] TTS failed for voice ${voiceId}:`, ttsError);
           // Fall back to default preview
           return res.redirect(`/api/${mode}/voice-preview/${voiceId}`);
         }
-
-        const audioBuffer = await ttsResponse.arrayBuffer();
-        res.setHeader('Content-Type', 'audio/mpeg');
-        res.setHeader('Content-Length', audioBuffer.byteLength);
-        return res.send(Buffer.from(audioBuffer));
       }
 
       // Default: fetch the standard preview from ElevenLabs

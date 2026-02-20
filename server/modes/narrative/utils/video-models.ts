@@ -374,12 +374,14 @@ export function getProviderSettingsWithAudioDisabled(
  * 
  * Some models derive output dimensions from the input image and don't accept explicit dimensions:
  * - Kling VIDEO O1: Dimensions inferred from frame
+ * - Kling VIDEO 2.6 Pro: Does not accept width/height parameters
  * 
  * Note: KlingAI 2.1 and 2.5 DO support explicit dimensions, they were incorrectly listed before
  */
 export function shouldOmitDimensions(modelAirId: string): boolean {
   const modelsWithoutDimensions = [
     "klingai:kling@o1",  // Kling VIDEO O1: dimensions inferred from frame
+    "klingai:kling-video@2.6-pro",  // Kling VIDEO 2.6 Pro: does not accept width/height
   ];
   return modelsWithoutDimensions.includes(modelAirId);
 }

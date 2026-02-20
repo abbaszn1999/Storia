@@ -103,12 +103,12 @@ export async function generateVideo(
   const supportsAudio = modelConfig?.hasAudio || false;
 
   // Build Runware payload
+  // Note: Most video models (Kling, Hailuo, etc.) don't support explicit width/height parameters
+  // They handle dimensions automatically based on model capabilities
   const payload: Record<string, unknown> = {
     taskType: "videoInference",
     model: runwareModelId,
     positivePrompt: visualPrompt,
-    width: dimensions.width,
-    height: dimensions.height,
     duration,
     includeCost: true,
   };

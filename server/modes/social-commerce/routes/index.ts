@@ -1212,7 +1212,7 @@ router.post('/videos/:id/composite/generate-prompt', isAuthenticated, async (req
       },
       userId,
       video.workspaceId,
-      'video',
+      'script',
       'social-commerce'
     );
 
@@ -1547,7 +1547,7 @@ router.post('/videos/:id/creative-spark/generate', isAuthenticated, async (req: 
       hasProductImage: !!productImageUrl,
     });
 
-    const sparkOutput = await generateCreativeSpark(sparkInput, userId, video.workspaceId, 'video', 'social-commerce');
+    const sparkOutput = await generateCreativeSpark(sparkInput, userId, video.workspaceId, 'script', 'social-commerce');
 
     console.log('[social-commerce] Spark output received:', {
       hasSpark: !!sparkOutput.creative_spark,
@@ -1734,7 +1734,7 @@ router.post('/step/2/generate-beats', isAuthenticated, async (req: Request, res:
       hasProductImage: !!productImageUrl,
     });
 
-    const narrativeOutput = await createNarrative(narrativeInput, userId, video.workspaceId, 'video', 'social-commerce');
+    const narrativeOutput = await createNarrative(narrativeInput, userId, video.workspaceId, 'script', 'social-commerce');
 
     // Validate beat count matches duration (additional validation at route level)
     const expectedBeatCount = step1Data.duration / 12;
@@ -2309,7 +2309,7 @@ router.post('/videos/:id/step/3/generate-prompts', isAuthenticated, async (req: 
     });
 
     // Run only Agent 5.1 (no parallel execution with Agent 5.2)
-    const beatPromptOutput = await generateBeatPrompts(batchInput, userId, workspaceId, 'video', 'social-commerce');
+    const beatPromptOutput = await generateBeatPrompts(batchInput, userId, workspaceId, 'script', 'social-commerce');
 
     console.log('[social-commerce:agent-5.1] Successfully generated prompts for all beats:', {
       beatCount: beatPromptOutput.beat_prompts.length,
@@ -2469,7 +2469,7 @@ router.post('/videos/:id/step/3/generate-voiceover-scripts', isAuthenticated, as
       voiceoverInput,
       userId,
       workspaceId,
-      'video',
+      'script',
       'social-commerce'
     );
 
@@ -3083,6 +3083,7 @@ router.get('/videos/:id/beats/:beatId/status', isAuthenticated, async (req: Requ
  */
 router.get(
   "/voice-preview/:voiceId",
+  isAuthenticated,
   async (req: Request, res: Response) => {
     try {
       const { voiceId } = req.params;
@@ -3093,38 +3094,50 @@ router.get(
         return res.status(500).json({ error: "ElevenLabs API key not configured" });
       }
 
-      // If Arabic language requested, generate TTS with Arabic text
+      // If Arabic language requested, generate TTS with Arabic text (tracked via callAi)
       if (lang === 'ar') {
         const arabicPreviewText = "مرحباً، أنا صوتك للسرد. سأساعدك في إنشاء قصص رائعة.";
+        const userId = getCurrentUserId(req) || 'anonymous';
         
         console.log(`[social-commerce:voice-preview] Generating Arabic preview for voice ${voiceId}`);
         
-        const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-          method: 'POST',
-          headers: {
-            'xi-api-key': elevenLabsApiKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            text: arabicPreviewText,
-            model_id: 'eleven_multilingual_v2',
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75,
+        try {
+          const ttsResponse = await callAi(
+            {
+              provider: "elevenlabs",
+              model: "tts-multilingual-v2",
+              task: "text-to-speech",
+              payload: {
+                text: arabicPreviewText,
+                voice_id: voiceId,
+                model_id: "eleven_multilingual_v2",
+                voice_settings: {
+                  stability: 0.5,
+                  similarity_boost: 0.75,
+                },
+              },
+              userId,
+              workspaceId: "",
             },
-          }),
-        });
+            {
+              skipCreditCheck: false,
+              metadata: { usageType: "voiceover", usageMode: "social-commerce" },
+            }
+          );
 
-        if (!ttsResponse.ok) {
-          console.error(`[social-commerce:voice-preview] TTS failed for voice ${voiceId}:`, ttsResponse.statusText);
+          const audioBuffer = ttsResponse.output as Buffer;
+          if (!audioBuffer || audioBuffer.length === 0) {
+            throw new Error("Empty audio buffer received");
+          }
+
+          res.setHeader('Content-Type', 'audio/mpeg');
+          res.setHeader('Content-Length', audioBuffer.length);
+          return res.send(audioBuffer);
+        } catch (ttsError) {
+          console.error(`[social-commerce:voice-preview] TTS failed for voice ${voiceId}:`, ttsError);
           // Fall back to default preview
           return res.redirect(`/api/social-commerce/voice-preview/${voiceId}`);
         }
-
-        const audioBuffer = await ttsResponse.arrayBuffer();
-        res.setHeader('Content-Type', 'audio/mpeg');
-        res.setHeader('Content-Length', audioBuffer.byteLength);
-        return res.send(Buffer.from(audioBuffer));
       }
 
       // Default: fetch the standard preview from ElevenLabs

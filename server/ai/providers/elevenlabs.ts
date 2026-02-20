@@ -209,7 +209,7 @@ const elevenlabsAdapter: AiProviderAdapter = {
 
         // Calculate cost
         const characterCount = payload.text.length;
-        const costPer1KChars = modelConfig.pricing?.inputCostPer1KTokens || 0.30;
+        const costPer1KChars = modelConfig.pricing?.inputCostPer1KTokens || 0.12;
         const totalCost = (characterCount / 1000) * costPer1KChars;
 
         return {
@@ -280,7 +280,7 @@ const elevenlabsAdapter: AiProviderAdapter = {
 
       // Calculate cost based on character count
       const characterCount = payload.text.length;
-      const costPer1KChars = modelConfig.pricing?.inputCostPer1KTokens || 0.30;
+      const costPer1KChars = modelConfig.pricing?.inputCostPer1KTokens || 0.12;
       const totalCost = (characterCount / 1000) * costPer1KChars;
 
       return {
@@ -363,10 +363,10 @@ const elevenlabsAdapter: AiProviderAdapter = {
       });
 
       // Calculate cost based on duration
-      // Pricing: ~$0.50 per 1000ms (1 second)
-      const costPerSecond = modelConfig.pricing?.inputCostPer1KTokens || 0.50;
+      // Pricing: $0.50 per minute = $0.00833 per second
+      const costPerSecond = modelConfig.pricing?.inputCostPer1KTokens || 0.00833;
       const durationSeconds = actualDurationMs / 1000;
-      const totalCost = durationSeconds * (costPerSecond / 1000) * 1000;
+      const totalCost = durationSeconds * costPerSecond;
 
       return {
         provider: "elevenlabs",

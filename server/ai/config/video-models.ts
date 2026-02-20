@@ -215,7 +215,7 @@ export const VIDEO_MODEL_CONFIGS: Record<string, VideoModelConfig> = {
     supportsFrameImages: true,
     frameImageSupport: {
       first: true,   // ✅ Supports first frame for I2V
-      last: false,   // ❌ Does not support last frame
+      last: true,    // ✅ Supports last frame (end frame)
     },
     technicalSpecs: {
       fps: 30,  // Assuming 30 FPS like 2.5 Turbo Pro

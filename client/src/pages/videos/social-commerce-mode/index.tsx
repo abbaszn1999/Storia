@@ -39,6 +39,8 @@ export default function SocialCommerceMode() {
     enabled: !isNewVideo && !!initialVideoId,
     staleTime: 0,
     refetchOnMount: true,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
   });
   
   // State for auto-creation

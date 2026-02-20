@@ -101,7 +101,7 @@ async function generateVoiceoverAudio(
     },
     {
       skipCreditCheck: false,
-      metadata: { usageType: 'video', usageMode: 'social-commerce' },
+      metadata: { usageType: 'voiceover', usageMode: 'social-commerce' },
     }
   );
 
@@ -484,6 +484,7 @@ router.post('/generate-preview', isAuthenticated, async (req: Request, res: Resp
       },
       {
         skipCreditCheck: true,
+        metadata: { usageType: 'voiceover', usageMode: 'social-commerce' },
       }
     );
 

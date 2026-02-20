@@ -64,7 +64,7 @@ socialRouter.post(
         { platform, scriptText, duration },
         userId,
         workspaceId,
-        'story',
+        'script',
         'social-metadata'
       );
 

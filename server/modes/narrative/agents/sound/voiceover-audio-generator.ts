@@ -433,7 +433,7 @@ async function generateSingleChunkAudio(
     workspaceName,
   } = input;
 
-  const effectiveUsageType = usageType ?? "video";
+  const effectiveUsageType = usageType ?? "voiceover";
   const effectiveUsageMode = usageMode ?? "narrative";
 
   let lastError: Error | null = null;

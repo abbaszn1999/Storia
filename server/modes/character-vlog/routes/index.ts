@@ -417,7 +417,7 @@ router.post('/script/generate', isAuthenticated, async (req: Request, res: Respo
 
     // Step 3: Generate script using AI
     const workspaceId = req.headers['x-workspace-id'] as string | undefined;
-    const result = await generateScript(aiInput, userId, workspaceId, 'video', 'character-vlog');
+    const result = await generateScript(aiInput, userId, workspaceId, 'script', 'character-vlog');
 
     // Step 4: Update database with generated script
     step1Data.script = result.script;
@@ -971,7 +971,7 @@ router.post('/characters/analyze', isAuthenticated, async (req: Request, res: Re
     
     let result;
     try {
-      result = await analyzeCharacters(analyzerInput, userId, workspaceId, 'video', 'character-vlog');
+      result = await analyzeCharacters(analyzerInput, userId, workspaceId, 'script', 'character-vlog');
     } catch (agentError) {
       console.error('[character-vlog:routes] Agent call failed:', {
         error: agentError instanceof Error ? agentError.message : 'Unknown error',
@@ -1105,7 +1105,7 @@ router.post('/locations/analyze', isAuthenticated, async (req: Request, res: Res
     
     let result;
     try {
-      result = await analyzeLocations(analyzerInput, userId, workspaceId, 'video', 'character-vlog');
+      result = await analyzeLocations(analyzerInput, userId, workspaceId, 'script', 'character-vlog');
     } catch (agentError) {
       console.error('[character-vlog:routes] Agent call failed:', {
         error: agentError instanceof Error ? agentError.message : 'Unknown error',
@@ -1264,7 +1264,7 @@ router.post('/scenes/generate', isAuthenticated, async (req: Request, res: Respo
 
     // Call scene generator agent
     const workspaceId = req.headers['x-workspace-id'] as string | undefined;
-    const result = await generateScenes(generatorInput, userId, workspaceId, 'video', 'character-vlog');
+    const result = await generateScenes(generatorInput, userId, workspaceId, 'script', 'character-vlog');
 
     console.log('[character-vlog:routes] Scenes generated successfully:', {
       videoId,
@@ -1447,7 +1447,7 @@ router.post('/shots/generate', isAuthenticated, async (req: Request, res: Respon
 
     // Call shot generator agent
     const workspaceId = req.headers['x-workspace-id'] as string | undefined;
-    const result = await generateShots(generatorInput, userId, workspaceId, 'video', 'character-vlog');
+    const result = await generateShots(generatorInput, userId, workspaceId, 'script', 'character-vlog');
 
     console.log('[character-vlog:routes] Shots generated successfully:', {
       videoId,
@@ -1611,7 +1611,7 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
       locations,
     };
 
-    const sceneResult = await generateScenes(sceneGeneratorInput, userId, workspaceId, 'video', 'character-vlog');
+    const sceneResult = await generateScenes(sceneGeneratorInput, userId, workspaceId, 'script', 'character-vlog');
 
     // Convert generated scenes to ambient-visual compatible format
     // Preserve entity tracking fields for shot generation
@@ -1699,7 +1699,7 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
         locationMentionsRaw: (scene as any).locationMentionsRaw,
       };
 
-      const shotResult = await generateShots(shotGeneratorInput, userId, workspaceId, 'video', 'character-vlog');
+      const shotResult = await generateShots(shotGeneratorInput, userId, workspaceId, 'script', 'character-vlog');
       
       console.log('[character-vlog:routes] Shot generation result:', {
         sceneId: scene.id,
@@ -2002,7 +2002,7 @@ router.patch('/videos/:id/step/3/continue', isAuthenticated, async (req: Request
         locations,
       };
 
-      const sceneResult = await generateScenes(sceneGeneratorInput, userId, workspaceId, 'video', 'character-vlog');
+      const sceneResult = await generateScenes(sceneGeneratorInput, userId, workspaceId, 'script', 'character-vlog');
       
       // Convert generated scenes to ambient-visual compatible format
       // Preserve entity tracking fields for shot generation
@@ -2088,7 +2088,7 @@ router.patch('/videos/:id/step/3/continue', isAuthenticated, async (req: Request
           locationMentionsRaw: (scene as any).locationMentionsRaw,
         };
 
-        const shotResult = await generateShots(shotGeneratorInput, userId, workspaceId, 'video', 'character-vlog');
+        const shotResult = await generateShots(shotGeneratorInput, userId, workspaceId, 'script', 'character-vlog');
         
         // Convert generated shots to ambient-visual compatible format
         const shotTimestamp = Date.now();
@@ -3096,7 +3096,7 @@ router.post('/characters/:characterId/generate-image', isAuthenticated, async (r
 
     // Call existing character image generator
     const workspaceId = req.headers['x-workspace-id'] as string | undefined;
-    const result = await generateCharacterImageAgent(agentInput, userId, workspaceId, 'video', 'character-vlog');
+    const result = await generateCharacterImageAgent(agentInput, userId, workspaceId, 'assets', 'character-vlog');
 
     if (result.error || !result.imageUrl) {
       console.error('[character-vlog:routes] Character image generation failed:', result.error);
@@ -3323,7 +3323,7 @@ router.post('/locations/:locationId/generate-image', isAuthenticated, async (req
 
     // Call existing location image generator
     const workspaceId = req.headers['x-workspace-id'] as string | undefined;
-    const result = await generateLocationImageAgent(agentInput, userId, workspaceId, 'video', 'character-vlog');
+    const result = await generateLocationImageAgent(agentInput, userId, workspaceId, 'assets', 'character-vlog');
 
     if (result.error || !result.imageUrl) {
       console.error('[character-vlog:routes] Location image generation failed:', result.error);
@@ -3782,7 +3782,7 @@ router.post('/storyboard/generate-prompts', isAuthenticated, async (req: Request
       shotsWithInheritance: agentInput.shots.filter((s: any) => s.inheritedPrompts).length,
     });
 
-    const result = await generatePromptsForScene(agentInput, userId, workspaceId, 'video', 'character-vlog');
+    const result = await generatePromptsForScene(agentInput, userId, workspaceId, 'script', 'character-vlog');
 
     // Step 5: Merge inherited prompts back into results (explicit inheritance)
     const finalShots = result.shots.map((generatedShot: any) => {

@@ -139,7 +139,7 @@ export async function createStoryModeRouter(mode: StoryMode) {
         },
         userId,
         req.headers["x-workspace-id"] as string | undefined,
-        'story',
+        'script',
         mode
       );
 
@@ -219,7 +219,7 @@ export async function createStoryModeRouter(mode: StoryMode) {
         },
         userId,
         req.headers["x-workspace-id"] as string | undefined,
-        'story',
+        'script',
         mode
       );
 
@@ -286,7 +286,7 @@ router.post(
         },
         userId,
         req.headers["x-workspace-id"] as string | undefined,
-        'story',
+        'script',
         mode
       );
 
@@ -354,7 +354,7 @@ router.post(
         },
         userId,
         workspaceName,
-        'story',
+        'image',
         mode
       );
 
@@ -438,7 +438,7 @@ router.post(
         },
         userId,
         workspaceName,
-        'story',
+        'image',
         mode
       );
 
@@ -547,7 +547,7 @@ router.get(
             },
             {
               skipCreditCheck: false,
-              metadata: { usageType: "video", usageMode: mode },
+              metadata: { usageType: "voiceover", usageMode: mode },
             }
           );
 
@@ -635,7 +635,7 @@ router.post(
         },
         userId,
         workspaceName,
-        'story',
+        'voiceover',
         mode
       );
 
@@ -690,7 +690,7 @@ router.post(
         },
         userId,
         workspaceName,
-        'story',
+        'sfx',
         mode
       );
 
@@ -769,7 +769,7 @@ router.post(
         },
         userId,
         workspaceName,
-        'story',
+        'music',
         mode
       );
 
@@ -841,7 +841,7 @@ router.post(
         },
         userId,
         workspaceName,
-        'story',
+        'video',
         mode
       );
 
@@ -963,7 +963,7 @@ router.post(
               },
               userId,
               workspaceName,
-              'story',
+              'image',
               mode
             );
             
@@ -1016,7 +1016,7 @@ router.post(
         },
         userId,
         workspaceName,
-        'story',
+        'video',
         mode
       );
 

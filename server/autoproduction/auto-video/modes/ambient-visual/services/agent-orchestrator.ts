@@ -421,7 +421,7 @@ async function executeStep1_Atmosphere(
   };
   
   // Generate mood description
-  const result = await generateMoodDescription(input, userId, workspaceId, 'video', 'ambient');
+  const result = await generateMoodDescription(input, userId, workspaceId, 'script', 'ambient');
   
   // Save to database
   await storage.updateVideo(videoId, {
@@ -472,7 +472,7 @@ async function executeStep3_FlowDesign(
     visualElements: step2Data.visualElements,
   };
   
-  const sceneResult = await generateScenes(sceneInput, videoId, userId, workspaceId, 'video', 'ambient');
+  const sceneResult = await generateScenes(sceneInput, videoId, userId, workspaceId, 'script', 'ambient');
   totalCost += sceneResult.cost || 0;
   
   console.log('[agent-orchestrator:step3] Scenes generated:', sceneResult.scenes.length);
@@ -495,7 +495,7 @@ async function executeStep3_FlowDesign(
       existingShots: allShots,
     };
     
-    const shotResult = await composeShots(shotInput, userId, workspaceId, 'video', 'ambient');
+    const shotResult = await composeShots(shotInput, userId, workspaceId, 'script', 'ambient');
     allShots[scene.id] = shotResult.shots;
     totalCost += shotResult.cost || 0;
     
@@ -513,7 +513,7 @@ async function executeStep3_FlowDesign(
       shots: allShots,
     };
     
-    const continuityResult = await proposeContinuity(continuityInput, userId, workspaceId, 'video', 'ambient');
+    const continuityResult = await proposeContinuity(continuityInput, userId, workspaceId, 'script', 'ambient');
     continuityGroups = continuityResult.continuityGroups;
     totalCost += continuityResult.cost || 0;
     
@@ -707,7 +707,7 @@ async function executeStep4_Composition(
         previousShotEndFramePrompt,
       };
       
-      const result = await generateVideoPrompts(input, userId, workspaceId, 'video', 'ambient');
+      const result = await generateVideoPrompts(input, userId, workspaceId, 'script', 'ambient');
       totalCost += result.cost || 0;
       
       // Store endFramePrompt for potential inheritance

@@ -139,7 +139,7 @@ router.post('/videos/:id/music/generate', isAuthenticated, async (req: Request, 
     };
 
     // Generate music
-    const result = await generateBackgroundMusic(musicInput, 'video', 'ambient');
+    const result = await generateBackgroundMusic(musicInput, 'music', 'ambient');
 
     // Save to step5Data
     // IMPORTANT: Fetch fresh video data to avoid overwriting concurrent updates (e.g., voiceover generation)

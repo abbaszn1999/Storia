@@ -745,7 +745,7 @@ router.post('/script/generate', isAuthenticated, async (req: Request, res: Respo
       },
       userId,
       workspaceId,
-      'video',
+      'script',
       'narrative'
     );
 
@@ -831,7 +831,7 @@ router.post('/characters/analyze', isAuthenticated, async (req: Request, res: Re
       userId,
       workspaceId,
       model,
-      'video',
+      'script',
       'narrative'
     );
 
@@ -904,7 +904,7 @@ router.post('/locations/analyze', isAuthenticated, async (req: Request, res: Res
       userId,
       workspaceId,
       model,
-      'video',
+      'script',
       'narrative'
     );
 
@@ -1079,7 +1079,7 @@ router.post('/characters/generate-image', isAuthenticated, async (req: Request, 
       },
       userId,
       workspaceId,
-      'video',
+      'assets',
       'narrative'
     );
 
@@ -1278,7 +1278,7 @@ router.post('/locations/generate-image', isAuthenticated, async (req: Request, r
       },
       userId,
       workspaceId,
-      'video',
+      'assets',
       'narrative'
     );
 
@@ -1426,7 +1426,7 @@ router.post('/breakdown', isAuthenticated, async (req: Request, res: Response) =
       videoId,
       userId,
       workspaceId,
-      'video',
+      'script',
       'narrative'
     );
 
@@ -2132,7 +2132,7 @@ router.post('/prompts/generate', isAuthenticated, async (req: Request, res: Resp
       agentInput,
       userId,
       workspaceId,
-      'video',
+      'script',
       'narrative'
     );
     
@@ -2641,7 +2641,7 @@ router.post('/shots/generate-image', isAuthenticated, async (req: Request, res: 
         agentInput,
         userId,
         workspaceId,
-        'video',
+        'image',
         'narrative'
       );
     } catch (agentError) {
@@ -3096,7 +3096,7 @@ router.post('/videos/:videoId/shots/:shotId/edit-image', isAuthenticated, async 
       },
       userId,
       workspaceId,
-      'video',
+      'image',
       'narrative'
     );
 
@@ -4100,7 +4100,7 @@ router.post('/videos/:id/shots/:shotId/sound-effect/generate', isAuthenticated, 
       userId,
       workspaceId: video.workspaceId,
       workspaceName,
-    }, 'video', 'narrative');
+    }, 'sfx', 'narrative');
 
     // IMPORTANT: Re-fetch video to get latest step5Data to avoid race conditions
     // Multiple SFX generations may complete simultaneously, and we need the current state
@@ -4271,7 +4271,7 @@ router.post('/videos/:id/voiceover/generate-audio', isAuthenticated, async (req:
       userId,
       workspaceId: video.workspaceId,
       workspaceName,
-    }, 'video', 'narrative');
+    }, 'voiceover', 'narrative');
 
     // Save to step5Data
     const step5Data = (video.step5Data as any) || {};
@@ -4354,7 +4354,7 @@ router.post('/videos/:id/music/generate', isAuthenticated, async (req: Request, 
       userId,
       workspaceId: video.workspaceId,
       workspaceName,
-    }, 'video', 'narrative');
+    }, 'music', 'narrative');
 
     // Save to step5Data
     const step5Data = (video.step5Data as any) || {};

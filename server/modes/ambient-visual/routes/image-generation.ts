@@ -33,7 +33,7 @@ async function generateSingleFrameImage(
   currentVersion: any,
   userId: string,
   workspaceId?: string,
-  usageType: string = 'video',
+  usageType: string = 'image',
   usageMode: string = 'ambient'
 ): Promise<{ startFrameUrl?: string; endFrameUrl?: string; imageUrl?: string; error?: string }> {
   const { getImageDimensions } = await import('../../../ai/config/image-models');
@@ -366,7 +366,7 @@ router.post('/videos/:id/shots/:shotId/generate-image', isAuthenticated, async (
       latestVersion,
       userId, 
       video.workspaceId,
-      'video',
+      'image',
       'ambient'
     );
 
@@ -591,7 +591,7 @@ router.post('/videos/:id/shots/:shotId/regenerate-image', isAuthenticated, async
         latestVersion,
         userId,
         video.workspaceId,
-        'video',
+        'image',
         'ambient'
       );
       
@@ -707,7 +707,7 @@ router.post('/videos/:id/shots/:shotId/regenerate-image', isAuthenticated, async
         latestVersion,
         userId,
         video.workspaceId,
-        'video',
+        'image',
         'ambient'
       );
       
@@ -738,7 +738,7 @@ router.post('/videos/:id/shots/:shotId/regenerate-image', isAuthenticated, async
         { ...latestVersion, startFrameUrl: referenceUrl },
         userId,
         video.workspaceId,
-        'video',
+        'image',
         'ambient'
       );
       

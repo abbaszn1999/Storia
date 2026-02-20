@@ -179,7 +179,7 @@ export const usage = pgTable("usage", {
   workspaceId: varchar("workspace_id").references(() => workspaces.id, { onDelete: "set null" }),
   date: varchar("date").notNull(), // YYYY-MM-DD format
   time: varchar("time").notNull(), // HH:mm format
-  type: text("type").notNull(), // "video" | "story" | "assets"
+  type: text("type").notNull(), // "video" | "script" | "image" | "voiceover" | "music" | "sfx" | "assets"
   mode: text("mode").notNull(), // "ambient" | "problem-solution" | "character" | "location" etc
   modelName: text("model_name").notNull(), // "gpt-5-nano", "sora-2", etc
   provider: text("provider").notNull(), // "openai", "runware", "gemini"

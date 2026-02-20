@@ -428,7 +428,7 @@ router.post('/atmosphere/generate', isAuthenticated, async (req: Request, res: R
 
     // Step 3: Generate mood description using AI
     const workspaceId = req.headers['x-workspace-id'] as string | undefined;
-    const result = await generateMoodDescription(aiInput, userId, workspaceId, 'video', 'ambient');
+    const result = await generateMoodDescription(aiInput, userId, workspaceId, 'script', 'ambient');
 
     // Step 4: Update database with generated description
     step1Data.moodDescription = result.moodDescription;
@@ -779,7 +779,7 @@ router.post('/flow-design/generate', isAuthenticated, async (req: Request, res: 
       videoId,
       userId,
       workspaceId,
-      'video',
+      'script',
       'ambient'
     );
 
@@ -801,7 +801,7 @@ router.post('/flow-design/generate', isAuthenticated, async (req: Request, res: 
       },
       userId,
       workspaceId,
-      'video',
+      'script',
       'ambient'
     );
 
@@ -926,7 +926,7 @@ router.post('/flow-design/continuity', isAuthenticated, async (req: Request, res
       { scenes, shots },
       userId,
       video.workspaceId,
-      'video',
+      'script',
       'ambient'
     );
 
@@ -1343,7 +1343,7 @@ router.post('/videos/:id/generate-all-prompts', isAuthenticated, async (req: Req
           };
 
           // Call Agent 4.1
-          const result = await generateVideoPrompts(input, userId, video.workspaceId, 'video', 'ambient');
+          const result = await generateVideoPrompts(input, userId, video.workspaceId, 'script', 'ambient');
 
           // Create version based on animation mode
           const versionId = `version-${Date.now()}-${shot.id.slice(-8)}`;
@@ -1685,7 +1685,7 @@ router.post('/videos/:id/generate-all-images', isAuthenticated, async (req: Requ
       },
       userId,
       video.workspaceId,
-      'video',
+      'image',
       'ambient'
     );
 
@@ -2415,7 +2415,7 @@ router.post('/videos/:id/voiceover/generate-script', isAuthenticated, async (req
       input,
       userId,
       video.workspaceId,
-      'video',
+      'script',
       'ambient'
     );
 
@@ -2534,7 +2534,7 @@ router.post('/videos/:id/voiceover/generate-audio', isAuthenticated, async (req:
     });
 
     // Generate audio
-    const result = await generateVoiceoverAudio(input, 'video', 'ambient');
+    const result = await generateVoiceoverAudio(input, 'voiceover', 'ambient');
 
     // Update step5Data with the generated audio
     // IMPORTANT: Fetch fresh video data to avoid overwriting concurrent updates (e.g., music generation)
@@ -2715,7 +2715,7 @@ router.post('/videos/:id/shots/:shotId/sound-effect/recommend', isAuthenticated,
       input,
       userId,
       video.workspaceId,
-      'video',
+      'script',
       'ambient'
     );
 
@@ -2909,7 +2909,7 @@ router.post('/videos/:id/shots/:shotId/sound-effect/generate', isAuthenticated, 
     });
 
     // Generate sound effect
-    const result = await generateSoundEffect(input, 'video', 'ambient');
+    const result = await generateSoundEffect(input, 'sfx', 'ambient');
 
     console.log('[ambient-visual:routes] Sound effect generated:', {
       videoId,
